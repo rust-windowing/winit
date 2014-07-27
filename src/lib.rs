@@ -62,13 +62,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_size(&self) -> (uint, uint) {
-        self.window.get_size()
+    pub fn get_inner_size(&self) -> (uint, uint) {
+        self.window.get_inner_size()
     }
 
     #[inline]
-    pub fn set_size(&self, x: uint, y: uint) {
-        self.window.set_size(x, y)
+    pub fn get_outer_size(&self) -> (uint, uint) {
+        self.window.get_outer_size()
+    }
+
+    #[inline]
+    pub fn set_inner_size(&self, x: uint, y: uint) {
+        self.window.set_inner_size(x, y)
     }
 
     // TODO: return iterator

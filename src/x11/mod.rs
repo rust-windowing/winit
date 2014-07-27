@@ -125,11 +125,15 @@ impl Window {
         unimplemented!()
     }
 
-    pub fn get_size(&self) -> (uint, uint) {
+    pub fn get_inner_size(&self) -> (uint, uint) {
         unimplemented!()
     }
 
-    pub fn set_size(&self, x: uint, y: uint) {
+    pub fn get_outer_size(&self) -> (uint, uint) {
+        unimplemented!()
+    }
+
+    pub fn set_inner_size(&self, x: uint, y: uint) {
         unimplemented!()
     }
 
