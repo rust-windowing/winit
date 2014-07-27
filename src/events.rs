@@ -31,9 +31,6 @@ pub enum Event {
     /// The system asked that the content of this window must be redrawn.
     NeedRefresh,
 
-    /// The size of the framebuffer of the window has changed.
-    FramebufferSizeChanged(uint, uint),
-
     /// An element has been pressed.
     Pressed(Element),
 

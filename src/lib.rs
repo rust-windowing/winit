@@ -3,7 +3,7 @@
 extern crate libc;
 
 pub use events::{Event, Element, PositionChanged, SizeChanged, Closed, CursorPositionChanged, Focused};
-pub use events::{Iconified, NeedRefresh, FramebufferSizeChanged};
+pub use events::{Iconified, NeedRefresh};
 pub use hints::{Hints, ClientAPI, Profile};
 
 #[cfg(windows)]
