@@ -23,7 +23,7 @@ local_data_key!(pub WINDOWS_LIST: Mutex<Vec<(ffi::HWND, Sender<Event>)>>)
 
 impl Window {
     pub fn new(dimensions: Option<(uint, uint)>, title: &str,
-        _hints: &Hints, _monitor: Option<MonitorID>)
+        _hints: &Hints, monitor: Option<MonitorID>)
         -> Result<Window, String>
     {
         use std::mem;
@@ -60,16 +60,48 @@ impl Window {
                 os::error_string(os::errno() as uint)))
         }
 
+        // building a RECT object with coordinates
+        let mut rect = ffi::RECT {
+            left: 0, right: dimensions.map(|(w, _)| w as ffi::LONG).unwrap_or(1024),
+            top: 0, bottom: dimensions.map(|(_, h)| h as ffi::LONG).unwrap_or(768),
+        };
+
+        // switching to fullscreen
+        if monitor.is_some() {
+            let mut screen_settings: ffi::DEVMODE = unsafe { mem::zeroed() };
+            screen_settings.dmSize = mem::size_of::<ffi::DEVMODE>() as ffi::WORD;
+            screen_settings.dmPelsWidth = 1024;
+            screen_settings.dmPelsHeight = 768;
+            screen_settings.dmBitsPerPel = 32;
+            screen_settings.dmFields = ffi::DM_BITSPERPEL | ffi::DM_PELSWIDTH | ffi::DM_PELSHEIGHT;
+
+            let result = unsafe { ffi::ChangeDisplaySettingsW(&mut screen_settings, ffi::CDS_FULLSCREEN) };
+            if result != ffi::DISP_CHANGE_SUCCESSFUL {
+                return Err(format!("ChangeDisplaySettings failed: {}", result))
+            }
+        }
+
+        // computing the style and extended style
+        let (ex_style, style) = if monitor.is_some() {
+            (ffi::WS_EX_APPWINDOW, ffi::WS_POPUP | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN)
+        } else {
+            (ffi::WS_EX_APPWINDOW | ffi::WS_EX_WINDOWEDGE,
+                ffi::WS_OVERLAPPEDWINDOW | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN)
+        };
+
+        // adjusting
+        unsafe { ffi::AdjustWindowRectEx(&mut rect, style, 0, ex_style) };
+
         // creating the window
         let handle = unsafe {
             use libc;
 
-            let handle = ffi::CreateWindowExW(0, class_name.as_ptr(),
+            let handle = ffi::CreateWindowExW(ex_style, class_name.as_ptr(),
                 title.utf16_units().collect::<Vec<u16>>().append_one(0).as_ptr() as ffi::LPCWSTR,
-                ffi::WS_OVERLAPPEDWINDOW | ffi::WS_VISIBLE,
-                dimensions.map(|(x, _)| x as libc::c_int).unwrap_or(ffi::CW_USEDEFAULT),
-                dimensions.map(|(_, y)| y as libc::c_int).unwrap_or(ffi::CW_USEDEFAULT),
-                ffi::CW_USEDEFAULT, ffi::CW_USEDEFAULT,
+                style | ffi::WS_VISIBLE | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN,
+                if monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT},
+                if monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT},
+                rect.right - rect.left, rect.bottom - rect.top,
                 ptr::mut_null(), ptr::mut_null(), ffi::GetModuleHandleW(ptr::null()),
                 ptr::mut_null());
 
@@ -81,6 +113,11 @@ impl Window {
 
             handle
         };
+
+        // calling SetForegroundWindow if fullscreen
+        if monitor.is_some() {
+            unsafe { ffi::SetForegroundWindow(handle) };
+        }
 
         // adding it to WINDOWS_LIST
         let events_receiver = {

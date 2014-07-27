@@ -96,6 +96,17 @@ pub static BS_USERBUTTON: DWORD = 8;
 pub static BS_VCENTER: DWORD =  0xc00;
 pub static BS_FLAT: DWORD = 0x8000;
 
+// ?
+pub static CDS_UPDATEREGISTRY: DWORD = 0x1;
+pub static CDS_TEST: DWORD = 0x2;
+pub static CDS_FULLSCREEN: DWORD = 0x4;
+pub static CDS_GLOBAL: DWORD = 0x8;
+pub static CDS_SET_PRIMARY: DWORD = 0x10;
+pub static CDS_VIDEOPARAMETERS: DWORD = 0x20;
+pub static CDS_NORESET: DWORD = 0x10000000;
+pub static CDS_SETRECT: DWORD = 0x20000000;
+pub static CDS_RESET: DWORD = 0x40000000;
+
 // http://msdn.microsoft.com/en-us/library/windows/desktop/ff729176(v=vs.85).aspx
 pub static CS_BYTEALIGNCLIENT: DWORD = 0x1000;
 pub static CS_BYTEALIGNWINDOW: DWORD = 0x2000;
@@ -113,6 +124,48 @@ pub static CS_VREDRAW: DWORD = 0x0001;
 // ?
 #[allow(type_overflow)]
 pub static CW_USEDEFAULT: libc::c_int = 0x80000000;
+
+// ?
+pub static DISP_CHANGE_SUCCESSFUL: LONG = 0;
+pub static DISP_CHANGE_RESTART: LONG = 1;
+pub static DISP_CHANGE_FAILED: LONG = -1;
+pub static DISP_CHANGE_BADMODE: LONG = -2;
+pub static DISP_CHANGE_NOTUPDATED: LONG = -3;
+pub static DISP_CHANGE_BADFLAGS: LONG = -4;
+pub static DISP_CHANGE_BADPARAM: LONG = -5;
+pub static DISP_CHANGE_BADDUALVIEW: LONG = -6;
+
+// ?
+pub static DM_ORIENTATION: DWORD = 0x00000001;
+pub static DM_PAPERSIZE: DWORD = 0x00000002;
+pub static DM_PAPERLENGTH: DWORD = 0x00000004;
+pub static DM_PAPERWIDTH: DWORD = 0x00000008;
+pub static DM_SCALE: DWORD = 0x00000010;
+pub static DM_POSITION: DWORD = 0x00000020;
+pub static DM_NUP: DWORD = 0x00000040;
+pub static DM_DISPLAYORIENTATION: DWORD = 0x00000080;
+pub static DM_COPIES: DWORD = 0x00000100;
+pub static DM_DEFAULTSOURCE: DWORD = 0x00000200;
+pub static DM_PRINTQUALITY: DWORD = 0x00000400;
+pub static DM_COLOR: DWORD = 0x00000800;
+pub static DM_DUPLEX: DWORD = 0x00001000;
+pub static DM_YRESOLUTION: DWORD = 0x00002000;
+pub static DM_TTOPTION: DWORD = 0x00004000;
+pub static DM_COLLATE: DWORD = 0x00008000;
+pub static DM_FORMNAME: DWORD = 0x00010000;
+pub static DM_LOGPIXELS: DWORD = 0x00020000;
+pub static DM_BITSPERPEL: DWORD = 0x00040000;
+pub static DM_PELSWIDTH: DWORD = 0x00080000;
+pub static DM_PELSHEIGHT: DWORD = 0x00100000;
+pub static DM_DISPLAYFLAGS: DWORD = 0x00200000;
+pub static DM_DISPLAYFREQUENCY: DWORD = 0x00400000;
+pub static DM_ICMMETHOD: DWORD = 0x00800000;
+pub static DM_ICMINTENT: DWORD = 0x01000000;
+pub static DM_MEDIATYPE: DWORD = 0x02000000;
+pub static DM_DITHERTYPE: DWORD = 0x04000000;
+pub static DM_PANNINGWIDTH: DWORD = 0x08000000;
+pub static DM_PANNINGHEIGHT: DWORD = 0x10000000;
+pub static DM_DISPLAYFIXEDOUTPUT: DWORD = 0x20000000;
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/ms679351(v=vs.85).aspx
 pub static FORMAT_MESSAGE_ALLOCATE_BUFFER: DWORD = 0x00000100;
@@ -467,6 +520,38 @@ pub struct PIXELFORMATDESCRIPTOR {
     pub dwDamageMask: DWORD,
 }
 
+// http://msdn.microsoft.com/en-us/library/windows/desktop/dd183565(v=vs.85).aspx
+#[repr(C)]
+pub struct DEVMODE {
+    pub dmDeviceName: [WCHAR, ..32],
+    pub dmSpecVersion: WORD,
+    pub dmDriverVersion: WORD,
+    pub dmSize: WORD,
+    pub dmDriverExtra: WORD,
+    pub dmFields: DWORD,
+    union1: [u8, ..16],
+    pub dmColor: libc::c_short,
+    pub dmDuplex: libc::c_short,
+    pub dmYResolution: libc::c_short,
+    pub dmTTOption: libc::c_short,
+    pub dmCollate: libc::c_short,
+    pub dmFormName: [WCHAR, ..32],
+    pub dmLogPixels: WORD,
+    pub dmBitsPerPel: DWORD,
+    pub dmPelsWidth: DWORD,
+    pub dmPelsHeight: DWORD,
+    pub dmDisplayFlags: DWORD,
+    pub dmDisplayFrequency: DWORD,
+    pub dmICMMethod: DWORD,
+    pub dmICMIntent: DWORD,
+    pub dmMediaType: DWORD,
+    pub dmDitherType: DWORD,
+    dmReserved1: DWORD,
+    dmReserved2: DWORD,
+    pub dmPanningWidth: DWORD,
+    pub dmPanningHeight: DWORD,
+}
+
 pub type LPMSG = *mut MSG;
 
 #[link(name = "advapi32")]
@@ -484,8 +569,15 @@ pub type LPMSG = *mut MSG;
 #[link(name = "uuid")]
 #[link(name = "winspool")]
 extern "system" {
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/ms632667(v=vs.85).aspx
+    pub fn AdjustWindowRectEx(lpRect: *mut RECT, dwStyle: DWORD, bMenu: BOOL,
+        dwExStyle: DWORD) -> BOOL;
+
     // http://msdn.microsoft.com/en-us/library/windows/desktop/dd183362(v=vs.85).aspx
     pub fn BeginPaint(hwnd: HWND, lpPaint: *mut PAINTSTRUCT) -> HDC;
+
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/dd183411(v=vs.85).aspx
+    pub fn ChangeDisplaySettingsW(lpDevMode: *mut DEVMODE, dwFlags: DWORD) -> LONG;
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms632680(v=vs.85).aspx
     pub fn CreateWindowExW(dwExStyle: DWORD, lpClassName: LPCWSTR, lpWindowName: LPCWSTR,
@@ -541,6 +633,9 @@ extern "system" {
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms633586(v=vs.85).aspx
     pub fn RegisterClassExW(lpWndClass: *const WNDCLASSEX) -> ATOM;
+
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/ms633539(v=vs.85).aspx
+    pub fn SetForegroundWindow(hWnd: HWND) -> BOOL;
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/dd369049(v=vs.85).aspx
     pub fn SetPixelFormat(hdc: HDC, iPixelFormat: libc::c_int,
