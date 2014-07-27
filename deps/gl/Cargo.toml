@@ -1,0 +1,10 @@
+[project]
+
+name = "gl"
+version = "0.0.1"
+authors = []
+tags = []
+
+[[lib]]
+name = "gl"
+path = "gl.rs"
