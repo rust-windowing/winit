@@ -359,6 +359,42 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
             0
         },
 
+        ffi::WM_LBUTTONDOWN => {
+            use events::{Pressed, Button0};
+            send_event(window, Pressed(Button0));
+            0
+        },
+
+        ffi::WM_LBUTTONUP => {
+            use events::{Released, Button0};
+            send_event(window, Released(Button0));
+            0
+        },
+
+        ffi::WM_RBUTTONDOWN => {
+            use events::{Pressed, Button1};
+            send_event(window, Pressed(Button1));
+            0
+        },
+
+        ffi::WM_RBUTTONUP => {
+            use events::{Released, Button1};
+            send_event(window, Released(Button1));
+            0
+        },
+
+        ffi::WM_MBUTTONDOWN => {
+            use events::{Pressed, Button2};
+            send_event(window, Pressed(Button2));
+            0
+        },
+
+        ffi::WM_MBUTTONUP => {
+            use events::{Released, Button2};
+            send_event(window, Released(Button2));
+            0
+        },
+
         _ => unsafe {
             ffi::DefWindowProcW(window, msg, wparam, lparam)
         }

@@ -298,13 +298,19 @@ pub static VK_PA1: WPARAM = 0xFD;
 pub static VK_OEM_CLEAR: WPARAM = 0xFE;
 
 // messages
+pub static WM_LBUTTONDOWN: UINT = 0x0201;
+pub static WM_LBUTTONUP: UINT = 0x0202;
 pub static WM_CHAR: UINT = 0x0102;
 pub static WM_COMMAND: UINT = 0x0111;
 pub static WM_DESTROY: UINT = 0x0002;
 pub static WM_KEYDOWN: UINT = 0x0100;
 pub static WM_KEYUP: UINT = 0x0101;
+pub static WM_MBUTTONDOWN: UINT = 0x0207;
+pub static WM_MBUTTONUP: UINT = 0x0208;
 pub static WM_MOUSEMOVE: UINT = 0x0200;
 pub static WM_PAINT: UINT = 0x000F;
+pub static WM_RBUTTONDOWN: UINT = 0x0204;
+pub static WM_RBUTTONUP: UINT = 0x0205;
 pub static WM_SIZE: UINT = 0x0005;
 pub static WM_SIZING: UINT = 0x0214;
 
