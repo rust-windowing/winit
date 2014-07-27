@@ -8,9 +8,13 @@ pub use hints::{Hints, ClientAPI, Profile};
 
 #[cfg(windows)]
 use winimpl = win32;
+#[cfg(unix)]
+use winimpl = x11;
 
 #[cfg(windows)]
 mod win32;
+#[cfg(unix)]
+mod x11;
 
 mod events;
 mod hints;
