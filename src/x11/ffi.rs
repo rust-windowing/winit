@@ -4,6 +4,7 @@
 
 use libc;
 
+pub type Atom = libc::c_ulong;
 pub type Bool = libc::c_int;
 pub type Colormap = XID;
 pub type Cursor = XID;
@@ -16,6 +17,7 @@ pub type GLXPbuffer = XID;
 pub type GLXPixmap = XID;
 pub type GLXWindow = XID;
 pub type Pixmap = XID;
+pub type Status = libc::c_int;  // TODO: not sure
 pub type Visual = ();   // TODO: not sure
 pub type VisualID = libc::c_ulong;   // TODO: not sure
 pub type Window = XID;
@@ -69,6 +71,40 @@ pub static FocusChangeMask: libc::c_long = (1<<21);
 pub static PropertyChangeMask: libc::c_long = (1<<22);
 pub static ColormapChangeMask: libc::c_long = (1<<23);
 pub static OwnerGrabButtonMask: libc::c_long = (1<<24);
+
+pub static KeyPress: libc::c_int = 2;
+pub static KeyRelease: libc::c_int = 3;
+pub static ButtonPress: libc::c_int = 4;
+pub static ButtonRelease: libc::c_int = 5;
+pub static MotionNotify: libc::c_int = 6;
+pub static EnterNotify: libc::c_int = 7;
+pub static LeaveNotify: libc::c_int = 8;
+pub static FocusIn: libc::c_int = 9;
+pub static FocusOut: libc::c_int = 10;
+pub static KeymapNotify: libc::c_int = 11;
+pub static Expose: libc::c_int = 12;
+pub static GraphicsExpose: libc::c_int = 13;
+pub static NoExpose: libc::c_int = 14;
+pub static VisibilityNotify: libc::c_int = 15;
+pub static CreateNotify: libc::c_int = 16;
+pub static DestroyNotify: libc::c_int = 17;
+pub static UnmapNotify: libc::c_int = 18;
+pub static MapNotify: libc::c_int = 19;
+pub static MapRequest: libc::c_int = 20;
+pub static ReparentNotify: libc::c_int = 21;
+pub static ConfigureNotify: libc::c_int = 22;
+pub static ConfigureRequest: libc::c_int = 23;
+pub static GravityNotify: libc::c_int = 24;
+pub static ResizeRequest: libc::c_int = 25;
+pub static CirculateNotify: libc::c_int = 26;
+pub static CirculateRequest: libc::c_int = 27;
+pub static PropertyNotify: libc::c_int = 28;
+pub static SelectionClear: libc::c_int = 29;
+pub static SelectionRequest: libc::c_int = 30;
+pub static SelectionNotify: libc::c_int = 31;
+pub static ColormapNotify: libc::c_int = 32;
+pub static ClientMessage: libc::c_int = 33;
+pub static MappingNotify: libc::c_int = 34;
 
 pub static GLX_USE_GL: libc::c_int = 1;
 pub static GLX_BUFFER_SIZE: libc::c_int = 2;
@@ -189,8 +225,20 @@ pub struct XSetWindowAttributes {
 
 #[repr(C)]
 pub struct XEvent {
-    type_: libc::c_int,
+    pub type_: libc::c_int,
     pad: [libc::c_long, ..24],
+}
+
+#[repr(C)]
+pub struct XClientMessageEvent {
+    pub type_: libc::c_int,
+    pub serial: libc::c_ulong,
+    pub send_event: Bool,
+    pub display: *mut Display,
+    pub window: Window,
+    pub message_type: Atom,
+    pub format: libc::c_int,
+    pub l: [libc::c_long, ..5],
 }
 
 #[link(name = "GL")]
@@ -206,14 +254,21 @@ extern "C" {
         attributes: *mut XSetWindowAttributes) -> Window;
     pub fn XDefaultRootWindow(display: *mut Display) -> Window;
     pub fn XDefaultScreen(display: *mut Display) -> libc::c_int;
+    pub fn XDestroyWindow(display: *mut Display, w: Window);
     pub fn XFlush(display: *mut Display);
+    pub fn XInternAtom(display: *mut Display, atom_name: *const libc::c_char,
+        only_if_exists: Bool) -> Atom;
     pub fn XMapWindow(display: *mut Display, w: Window);
     pub fn XNextEvent(display: *mut Display, event_return: *mut XEvent);
     pub fn XOpenDisplay(display_name: *const libc::c_char) -> *mut Display;
+    pub fn XSetWMProtocols(display: *mut Display, w: Window, protocols: *mut Atom,
+        count: libc::c_int) -> Status;
     pub fn XStoreName(display: *mut Display, w: Window, window_name: *const libc::c_char);
 
     pub fn glXCreateContext(dpy: *mut Display, vis: *const XVisualInfo,
         shareList: GLXContext, direct: Bool) -> GLXContext;
+
+    pub fn glXDestroyContext(dpy: *mut Display, ctx: GLXContext);
 
     pub fn glXChooseFBConfig(dpy: *mut Display, screen: libc::c_int,
         attrib_list: *const libc::c_int, nelements: *mut libc::c_int);
@@ -246,8 +301,6 @@ GLXDrawable glXGetCurrentReadDrawable (void);
 int glXQueryContext (Display *dpy, GLXContext ctx, int attribute, int *value);
 void glXSelectEvent (Display *dpy, GLXDrawable draw, unsigned long event_mask);
 void glXGetSelectedEvent (Display *dpy, GLXDrawable draw, unsigned long *event_mask);
-
-extern void glXDestroyContext( Display *dpy, GLXContext ctx );
 
 
 extern void glXCopyContext( Display *dpy, GLXContext src, GLXContext dst,

@@ -1,6 +1,7 @@
 use {Event, Hints};
 use libc;
 use std::{mem, ptr};
+use std::sync::atomics::AtomicBool;
 
 mod ffi;
 
@@ -8,6 +9,8 @@ pub struct Window {
     display: *mut ffi::Display,
     window: ffi::Window,
     context: ffi::GLXContext,
+    should_close: AtomicBool,
+    wm_delete_window: ffi::Atom,
 }
 
 impl Window {
@@ -57,7 +60,8 @@ impl Window {
         let mut set_win_attr = {
             let mut swa: ffi::XSetWindowAttributes = unsafe { mem::zeroed() };
             swa.colormap = cmap;
-            swa.event_mask = ffi::ExposureMask | ffi::ResizeRedirectMask | ffi::KeyPressMask;
+            swa.event_mask = ffi::ExposureMask | ffi::ResizeRedirectMask |
+                ffi::VisibilityChangeMask | ffi::KeyPressMask;
             swa
         };
 
@@ -69,10 +73,19 @@ impl Window {
             win
         };
 
-        // showing window
-        unsafe { ffi::XMapWindow(display, window) };
-        unsafe { ffi::XStoreName(display, window, mem::transmute(title.as_slice().as_ptr())); }
-        unsafe { ffi::XFlush(display); }
+        // creating window, step 2
+        let wm_delete_window = unsafe {
+            use std::c_str::ToCStr;
+
+            ffi::XMapWindow(display, window);
+            let mut wm_delete_window = ffi::XInternAtom(display,
+                "WM_DELETE_WINDOW".to_c_str().as_ptr() as *const libc::c_char, 0);
+            ffi::XSetWMProtocols(display, window, &mut wm_delete_window, 1);
+            ffi::XStoreName(display, window, mem::transmute(title.as_slice().as_ptr()));
+            ffi::XFlush(display);
+
+            wm_delete_window
+        };
 
         // creating GL context
         let context = unsafe {
@@ -84,12 +97,14 @@ impl Window {
             display: display,
             window: window,
             context: context,
+            should_close: AtomicBool::new(false),
+            wm_delete_window: wm_delete_window,
         })
     }
 
     pub fn should_close(&self) -> bool {
-        // TODO: 
-        false
+        use std::sync::atomics::Relaxed;
+        self.should_close.load(Relaxed)
     }
 
     pub fn set_title(&self, title: &str) {
@@ -124,9 +139,26 @@ impl Window {
 
         let mut xev = unsafe { mem::uninitialized() };
         unsafe { ffi::XNextEvent(self.display, &mut xev) };
-        
 
-        Vec::new()
+        let mut events = Vec::new();
+        
+        match xev.type_ {
+            ffi::ClientMessage => {
+                use Closed;
+                use std::sync::atomics::Relaxed;
+
+                let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
+
+                if client_msg.l[0] == self.wm_delete_window as libc::c_long {
+                    self.should_close.store(true, Relaxed);
+                    events.push(Closed);
+                }
+            },
+
+            _ => ()
+        }
+
+        events
     }
 
     pub fn make_current(&self) {
@@ -157,6 +189,8 @@ impl Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
+        unsafe { ffi::glXDestroyContext(self.display, self.context) }
+        unsafe { ffi::XDestroyWindow(self.display, self.window) }
         unsafe { ffi::XCloseDisplay(self.display) }
     }
 }
