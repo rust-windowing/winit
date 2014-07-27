@@ -159,6 +159,7 @@ pub static SWP_NOZORDER: UINT = 0x0004;
 pub static SWP_SHOWWINDOW: UINT = 0x0040;
 
 // messages
+pub static WM_CHAR: UINT = 0x0102;
 pub static WM_COMMAND: UINT = 0x0111;
 pub static WM_DESTROY: UINT = 0x0002;
 pub static WM_MOUSEMOVE: UINT = 0x0200;

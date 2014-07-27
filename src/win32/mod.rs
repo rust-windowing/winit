@@ -321,6 +321,14 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
             0
         },
 
+        ffi::WM_CHAR => {
+            use std::mem;
+            use events::ReceivedCharacter;
+            let chr: char = unsafe { mem::transmute(wparam) };
+            send_event(window, ReceivedCharacter(chr));
+            0
+        },
+
         ffi::WM_MOUSEMOVE => {
             use CursorPositionChanged;
 
