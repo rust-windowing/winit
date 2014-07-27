@@ -290,8 +290,8 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         },
 
         ffi::WM_PAINT => {
-            use NeedRefresh;
-            send_event(window, NeedRefresh);
+            /*use NeedRefresh;
+            send_event(window, NeedRefresh);*/
             0
         },
 
