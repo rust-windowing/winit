@@ -564,6 +564,9 @@ extern "system" {
     // http://msdn.microsoft.com/en-us/library/dd145167(v=vs.85).aspx
     pub fn UpdateWindow(hWnd: HWND) -> BOOL;
 
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/ms644956(v=vs.85).aspx
+    pub fn WaitMessage() -> BOOL;
+
     // http://msdn.microsoft.com/en-us/library/windows/desktop/dd374379(v=vs.85).aspx
     pub fn wglCreateContext(hdc: HDC) -> HGLRC;
 

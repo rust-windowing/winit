@@ -204,7 +204,7 @@ impl Window {
         loop {
             let mut msg = unsafe { mem::uninitialized() };
 
-            if unsafe { ffi::PeekMessageW(&mut msg, ptr::mut_null(), 0, 0, 1) } == 0 {
+            if unsafe { ffi::PeekMessageW(&mut msg, ptr::mut_null(), 0, 0, 0x1) } == 0 {
                 break
             }
 
@@ -219,38 +219,21 @@ impl Window {
                 Err(_) => break
             }
         }
+
+        if events.iter().find(|e| match e { &&::Closed => true, _ => false }).is_some() {
+            use std::sync::atomics::Relaxed;
+            self.should_close.store(true, Relaxed);
+        }
         
         events
     }
 
     // TODO: return iterator
     pub fn wait_events(&self) -> Vec<Event> {
-        use std::mem;
-
         loop {
-            {
-                let mut msg = unsafe { mem::uninitialized() };
+            unsafe { ffi::WaitMessage() };
 
-                if unsafe { ffi::GetMessageW(&mut msg, ptr::mut_null(), 0, 0) } == 0 {
-                    use std::sync::atomics::Relaxed;
-                    use Closed;
-
-                    self.should_close.store(true, Relaxed);
-                    return vec![Closed]
-                }
-
-                unsafe { ffi::TranslateMessage(&msg) };
-                unsafe { ffi::DispatchMessageW(&msg) };
-            }
-
-            let mut events = Vec::new();
-            loop {
-                match self.events_receiver.try_recv() {
-                    Ok(ev) => events.push(ev),
-                    Err(_) => break
-                }
-            }
-            
+            let events = self.poll_events();
             if events.len() >= 1 {
                 return events
             }
@@ -313,12 +296,6 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
             let w = ffi::LOWORD(lparam as ffi::DWORD) as uint;
             let h = ffi::HIWORD(lparam as ffi::DWORD) as uint;
             send_event(window, SizeChanged(w, h));
-            0
-        },
-
-        ffi::WM_PAINT => {
-            /*use NeedRefresh;
-            send_event(window, NeedRefresh);*/
             0
         },
 
