@@ -67,9 +67,12 @@ impl Window {
 
         // finally creating the window
         let window = unsafe {
-            let win = ffi::XCreateWindow(display, root, 10, 10, 800, 600,
-                0, (*visual_infos).depth, ffi::InputOutput, (*visual_infos).visual,
-                ffi::CWColormap | ffi::CWEventMask, &mut set_win_attr);
+            let dimensions = dimensions.unwrap_or((800, 600));
+
+            let win = ffi::XCreateWindow(display, root, 50, 50, dimensions.val0() as libc::c_uint,
+                dimensions.val1() as libc::c_uint, 0, (*visual_infos).depth, ffi::InputOutput,
+                (*visual_infos).visual, ffi::CWColormap | ffi::CWEventMask,
+                &mut set_win_attr);
             win
         };
 
