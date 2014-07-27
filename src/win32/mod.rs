@@ -299,6 +299,14 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
             0
         },
 
+        ffi::WM_MOVE => {
+            use events::Moved;
+            let x = ffi::LOWORD(lparam as ffi::DWORD) as uint;
+            let y = ffi::HIWORD(lparam as ffi::DWORD) as uint;
+            send_event(window, Moved(x, y));
+            0
+        },
+
         ffi::WM_CHAR => {
             use std::mem;
             use events::ReceivedCharacter;
