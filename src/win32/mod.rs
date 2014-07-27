@@ -198,22 +198,13 @@ impl Window {
 
     // TODO: return iterator
     pub fn poll_events(&self) -> Vec<Event> {
-        unimplemented!()
-    }
-
-    // TODO: return iterator
-    pub fn wait_events(&self) -> Vec<Event> {
         use std::mem;
 
-        {
+        loop {
             let mut msg = unsafe { mem::uninitialized() };
 
-            if unsafe { ffi::GetMessageW(&mut msg, ptr::mut_null(), 0, 0) } == 0 {
-                use std::sync::atomics::Relaxed;
-                use Closed;
-
-                self.should_close.store(true, Relaxed);
-                return vec![Closed]
+            if unsafe { ffi::PeekMessageW(&mut msg, ptr::mut_null(), 0, 0, 1) } == 0 {
+                break
             }
 
             unsafe { ffi::TranslateMessage(&msg) };
@@ -227,7 +218,42 @@ impl Window {
                 Err(_) => break
             }
         }
+        
         events
+    }
+
+    // TODO: return iterator
+    pub fn wait_events(&self) -> Vec<Event> {
+        use std::mem;
+
+        loop {
+            {
+                let mut msg = unsafe { mem::uninitialized() };
+
+                if unsafe { ffi::GetMessageW(&mut msg, ptr::mut_null(), 0, 0) } == 0 {
+                    use std::sync::atomics::Relaxed;
+                    use Closed;
+
+                    self.should_close.store(true, Relaxed);
+                    return vec![Closed]
+                }
+
+                unsafe { ffi::TranslateMessage(&msg) };
+                unsafe { ffi::DispatchMessageW(&msg) };
+            }
+
+            let mut events = Vec::new();
+            loop {
+                match self.events_receiver.try_recv() {
+                    Ok(ev) => events.push(ev),
+                    Err(_) => break
+                }
+            }
+            
+            if events.len() >= 1 {
+                return events
+            }
+        }
     }
 
     pub fn make_current(&self) {
@@ -276,8 +302,8 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
     match msg {
         ffi::WM_DESTROY => {
             use Closed;
-            send_event(window, Closed);
             unsafe { ffi::PostQuitMessage(0); }
+            send_event(window, Closed);
             0
         },
 

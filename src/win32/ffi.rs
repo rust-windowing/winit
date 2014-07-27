@@ -381,6 +381,10 @@ extern "system" {
     // http://msdn.microsoft.com/en-us/library/windows/desktop/aa366730(v=vs.85).aspx
     pub fn LocalFree(hMem: HLOCAL) -> HLOCAL;
 
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/ms644943(v=vs.85).aspx
+    pub fn PeekMessageW(lpMsg: *mut MSG, hWnd: HWND, wMsgFilterMin: UINT, wMsgFilterMax: UINT,
+        wRemoveMsg: UINT) -> BOOL;
+
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms644945(v=vs.85).aspx
     pub fn PostQuitMessage(nExitCode: libc::c_int);
 
