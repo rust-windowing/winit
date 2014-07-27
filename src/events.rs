@@ -8,7 +8,7 @@ pub enum Event {
     SizeChanged(uint, uint),
 
     /// The position of the window has changed.
-    Moved(uint, uint),
+    Moved(int, int),
 
     /// The window has been closed.
     Closed,

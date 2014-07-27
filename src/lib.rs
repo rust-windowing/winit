@@ -52,7 +52,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_position(&self) -> (uint, uint) {
+    pub fn get_position(&self) -> (int, int) {
         self.window.get_position()
     }
 

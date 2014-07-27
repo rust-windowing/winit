@@ -552,6 +552,17 @@ pub struct DEVMODE {
     pub dmPanningHeight: DWORD,
 }
 
+// http://msdn.microsoft.com/en-us/library/windows/desktop/ms632611(v=vs.85).aspx
+#[repr(C)]
+pub struct WINDOWPLACEMENT {
+    pub length: UINT,
+    pub flags: UINT,
+    pub showCmd: UINT,
+    pub ptMinPosition: POINT,
+    pub ptMaxPosition: POINT,
+    pub rcNormalPosition: RECT,
+}
+
 pub type LPMSG = *mut MSG;
 
 #[link(name = "advapi32")]
@@ -620,6 +631,9 @@ extern "system" {
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms683212(v=vs.85).aspx
     pub fn GetProcAddress(hModule: HMODULE, lpProcName: LPCSTR) -> *const libc::c_void;
+
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/ms633518(v=vs.85).aspx
+    pub fn GetWindowPlacement(hWnd: HWND, lpwndpl: *mut WINDOWPLACEMENT) -> BOOL;
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms633519(v=vs.85).aspx
     pub fn GetWindowRect(hWnd: HWND, lpRect: *mut RECT) -> BOOL;

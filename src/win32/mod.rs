@@ -207,8 +207,18 @@ impl Window {
         }
     }
 
-    pub fn get_position(&self) -> (uint, uint) {
-        unimplemented!()
+    pub fn get_position(&self) -> (int, int) {
+        use std::{mem, os};
+
+        let mut placement: ffi::WINDOWPLACEMENT = unsafe { mem::zeroed() };
+        placement.length = mem::size_of::<ffi::WINDOWPLACEMENT>() as ffi::UINT;
+
+        if unsafe { ffi::GetWindowPlacement(self.window, &mut placement) } == 0 {
+            fail!("GetWindowPlacement failed: {}", os::error_string(os::errno() as uint));
+        }
+
+        let ref rect = placement.rcNormalPosition;
+        (rect.left as int, rect.top as int)
     }
 
     pub fn set_position(&self, x: uint, y: uint) {
@@ -363,8 +373,8 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
 
         ffi::WM_MOVE => {
             use events::Moved;
-            let x = ffi::LOWORD(lparam as ffi::DWORD) as uint;
-            let y = ffi::HIWORD(lparam as ffi::DWORD) as uint;
+            let x = ffi::LOWORD(lparam as ffi::DWORD) as i16 as int;
+            let y = ffi::HIWORD(lparam as ffi::DWORD) as i16 as int;
             send_event(window, Moved(x, y));
             0
         },

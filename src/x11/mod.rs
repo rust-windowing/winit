@@ -117,7 +117,7 @@ impl Window {
         }
     }
 
-    pub fn get_position(&self) -> (uint, uint) {
+    pub fn get_position(&self) -> (int, int) {
         unimplemented!()
     }
 
