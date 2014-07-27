@@ -395,6 +395,18 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
             0
         },
 
+        ffi::WM_SETFOCUS => {
+            use events::Focused;
+            send_event(window, Focused(true));
+            0
+        },
+
+        ffi::WM_KILLFOCUS => {
+            use events::Focused;
+            send_event(window, Focused(false));
+            0
+        },
+
         _ => unsafe {
             ffi::DefWindowProcW(window, msg, wparam, lparam)
         }

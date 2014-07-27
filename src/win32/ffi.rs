@@ -305,12 +305,14 @@ pub static WM_COMMAND: UINT = 0x0111;
 pub static WM_DESTROY: UINT = 0x0002;
 pub static WM_KEYDOWN: UINT = 0x0100;
 pub static WM_KEYUP: UINT = 0x0101;
+pub static WM_KILLFOCUS: UINT = 0x0008;
 pub static WM_MBUTTONDOWN: UINT = 0x0207;
 pub static WM_MBUTTONUP: UINT = 0x0208;
 pub static WM_MOUSEMOVE: UINT = 0x0200;
 pub static WM_PAINT: UINT = 0x000F;
 pub static WM_RBUTTONDOWN: UINT = 0x0204;
 pub static WM_RBUTTONUP: UINT = 0x0205;
+pub static WM_SETFOCUS: UINT = 0x0007;
 pub static WM_SIZE: UINT = 0x0005;
 pub static WM_SIZING: UINT = 0x0214;
 
