@@ -57,7 +57,7 @@ impl Window {
         let mut set_win_attr = {
             let mut swa: ffi::XSetWindowAttributes = unsafe { mem::zeroed() };
             swa.colormap = cmap;
-            //swa.event_mask = ExposureMask | KeyPressMask;
+            swa.event_mask = ffi::ExposureMask | ffi::ResizeRedirectMask | ffi::KeyPressMask;
             swa
         };
 
@@ -65,7 +65,7 @@ impl Window {
         let window = unsafe {
             let win = ffi::XCreateWindow(display, root, 10, 10, 800, 600,
                 0, (*visual_infos).depth, ffi::InputOutput, (*visual_infos).visual,
-                ffi::CWColormap/* | ffi::CWEventMask*/, &mut set_win_attr);
+                ffi::CWColormap | ffi::CWEventMask, &mut set_win_attr);
             win
         };
 
@@ -120,7 +120,12 @@ impl Window {
     }
 
     pub fn wait_events(&self) -> Vec<Event> {
-        // TODO: 
+        use std::mem;
+
+        let mut xev = unsafe { mem::uninitialized() };
+        unsafe { ffi::XNextEvent(self.display, &mut xev) };
+        
+
         Vec::new()
     }
 

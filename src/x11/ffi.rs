@@ -43,6 +43,33 @@ pub static CWDontPropagate: libc::c_ulong = (1<<12);
 pub static CWColormap: libc::c_ulong = (1<<13);
 pub static CWCursor: libc::c_ulong = (1<<14);
 
+pub static NoEventMask: libc::c_long = 0;
+pub static KeyPressMask: libc::c_long = (1<<0);
+pub static KeyReleaseMask: libc::c_long = (1<<1);
+pub static ButtonPressMask: libc::c_long = (1<<2);
+pub static ButtonReleaseMask: libc::c_long = (1<<3);
+pub static EnterWindowMask: libc::c_long = (1<<4);
+pub static LeaveWindowMask: libc::c_long = (1<<5);
+pub static PointerMotionMask: libc::c_long = (1<<6);
+pub static PointerMotionHintMask: libc::c_long = (1<<7);
+pub static Button1MotionMask: libc::c_long = (1<<8);
+pub static Button2MotionMask: libc::c_long = (1<<9);
+pub static Button3MotionMask: libc::c_long = (1<<10);
+pub static Button4MotionMask: libc::c_long = (1<<11);
+pub static Button5MotionMask: libc::c_long = (1<<12);
+pub static ButtonMotionMask: libc::c_long = (1<<13);
+pub static KeymapStateMask: libc::c_long = (1<<14);
+pub static ExposureMask: libc::c_long = (1<<15);
+pub static VisibilityChangeMask: libc::c_long = (1<<16);
+pub static StructureNotifyMask: libc::c_long = (1<<17);
+pub static ResizeRedirectMask: libc::c_long = (1<<18);
+pub static SubstructureNotifyMask: libc::c_long = (1<<19);
+pub static SubstructureRedirectMask: libc::c_long = (1<<20);
+pub static FocusChangeMask: libc::c_long = (1<<21);
+pub static PropertyChangeMask: libc::c_long = (1<<22);
+pub static ColormapChangeMask: libc::c_long = (1<<23);
+pub static OwnerGrabButtonMask: libc::c_long = (1<<24);
+
 pub static GLX_USE_GL: libc::c_int = 1;
 pub static GLX_BUFFER_SIZE: libc::c_int = 2;
 pub static GLX_LEVEL: libc::c_int = 3;
@@ -160,6 +187,12 @@ pub struct XSetWindowAttributes {
     pub cursor: Cursor,
 }
 
+#[repr(C)]
+pub struct XEvent {
+    type_: libc::c_int,
+    pad: [libc::c_long, ..24],
+}
+
 #[link(name = "GL")]
 #[link(name = "X11")]
 extern "C" {
@@ -175,6 +208,7 @@ extern "C" {
     pub fn XDefaultScreen(display: *mut Display) -> libc::c_int;
     pub fn XFlush(display: *mut Display);
     pub fn XMapWindow(display: *mut Display, w: Window);
+    pub fn XNextEvent(display: *mut Display, event_return: *mut XEvent);
     pub fn XOpenDisplay(display_name: *const libc::c_char) -> *mut Display;
     pub fn XStoreName(display: *mut Display, w: Window, window_name: *const libc::c_char);
 
