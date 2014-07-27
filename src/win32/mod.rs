@@ -4,6 +4,7 @@ use std::sync::atomics::AtomicBool;
 use std::ptr;
 use {Event, Hints};
 
+mod event;
 mod ffi;
 
 pub struct Window {
@@ -337,6 +338,24 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
 
             send_event(window, CursorPositionChanged(x, y));
 
+            0
+        },
+
+        ffi::WM_KEYDOWN => {
+            use events::Pressed;
+            let element = event::vkeycode_to_element(wparam);
+            if element.is_some() {
+                send_event(window, Pressed(element.unwrap()));
+            }
+            0
+        },
+
+        ffi::WM_KEYUP => {
+            use events::Released;
+            let element = event::vkeycode_to_element(wparam);
+            if element.is_some() {
+                send_event(window, Released(element.unwrap()));
+            }
             0
         },
 
