@@ -2,7 +2,7 @@
 
 extern crate libc;
 
-pub use events::{Event, PositionChanged, SizeChanged, Closed, CursorPositionChanged, Focused};
+pub use events::{Event, Element, PositionChanged, SizeChanged, Closed, CursorPositionChanged, Focused};
 pub use events::{Iconified, NeedRefresh, FramebufferSizeChanged};
 pub use hints::{Hints, ClientAPI, Profile};
 
