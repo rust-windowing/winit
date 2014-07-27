@@ -2,7 +2,7 @@ use std::kinds::marker::NoSend;
 use std::sync::Mutex;
 use std::sync::atomics::AtomicBool;
 use std::ptr;
-use {Event, Hints};
+use {Event, Hints, MonitorID};
 
 mod event;
 mod ffi;
@@ -22,7 +22,8 @@ pub struct Window {
 local_data_key!(pub WINDOWS_LIST: Mutex<Vec<(ffi::HWND, Sender<Event>)>>)
 
 impl Window {
-    pub fn new(dimensions: Option<(uint, uint)>, title: &str, _hints: &Hints)
+    pub fn new(dimensions: Option<(uint, uint)>, title: &str,
+        _hints: &Hints, _monitor: Option<MonitorID>)
         -> Result<Window, String>
     {
         use std::mem;

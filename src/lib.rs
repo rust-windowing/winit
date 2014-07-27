@@ -19,6 +19,8 @@ mod x11;
 mod events;
 mod hints;
 
+pub struct MonitorID(uint);
+
 pub struct Window {
     window: winimpl::Window,
     nosend: std::kinds::marker::NoSend,
@@ -26,10 +28,11 @@ pub struct Window {
 
 impl Window {
     #[inline]
-    pub fn new(dimensions: Option<(uint, uint)>, title: &str, hints: &Hints)
+    pub fn new(dimensions: Option<(uint, uint)>, title: &str,
+        hints: &Hints, monitor: Option<MonitorID>)
         -> Result<Window, String>
     {
-        let win = try!(winimpl::Window::new(dimensions, title, hints));
+        let win = try!(winimpl::Window::new(dimensions, title, hints, monitor));
         Ok(Window{
             window: win,
             nosend: std::kinds::marker::NoSend,
