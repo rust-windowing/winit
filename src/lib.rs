@@ -20,7 +20,8 @@ mod events;
 mod hints;
 
 pub struct Window {
-    window: winimpl::Window
+    window: winimpl::Window,
+    nosend: std::kinds::marker::NoSend,
 }
 
 impl Window {
@@ -29,7 +30,10 @@ impl Window {
         -> Result<Window, String>
     {
         let win = try!(winimpl::Window::new(dimensions, title, hints));
-        Ok(Window{window: win})
+        Ok(Window{
+            window: win,
+            nosend: std::kinds::marker::NoSend,
+        })
     }
 
     /// Returns true if the window has been closed by the user.
