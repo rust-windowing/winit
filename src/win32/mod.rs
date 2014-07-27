@@ -222,11 +222,31 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> (uint, uint) {
-        unimplemented!()
+        use std::{mem, os};
+        let mut rect: ffi::RECT = unsafe { mem::uninitialized() };
+
+        if unsafe { ffi::GetClientRect(self.window, &mut rect) } == 0 {
+            fail!("GetClientRect failed: {}", os::error_string(os::errno() as uint));
+        }
+
+        (
+            (rect.right - rect.left) as uint,
+            (rect.bottom - rect.top) as uint
+        )
     }
 
     pub fn get_outer_size(&self) -> (uint, uint) {
-        unimplemented!()
+        use std::{mem, os};
+        let mut rect: ffi::RECT = unsafe { mem::uninitialized() };
+
+        if unsafe { ffi::GetWindowRect(self.window, &mut rect) } == 0 {
+            fail!("GetWindowRect failed: {}", os::error_string(os::errno() as uint));
+        }
+
+        (
+            (rect.right - rect.left) as uint,
+            (rect.bottom - rect.top) as uint
+        )
     }
 
     pub fn set_inner_size(&self, x: uint, y: uint) {

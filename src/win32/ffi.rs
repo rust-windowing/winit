@@ -603,6 +603,9 @@ extern "system" {
     // http://msdn.microsoft.com/en-us/library/windows/desktop/dd162719(v=vs.85).aspx
     pub fn FillRect(hDC: HDC, lprc: *const RECT, hbr: HBRUSH) -> libc::c_int;
 
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/ms633503(v=vs.85).aspx
+    pub fn GetClientRect(hWnd: HWND, lpRect: *mut RECT) -> BOOL;
+
     // http://msdn.microsoft.com/en-us/library/dd144871(v=vs.85).aspx
     pub fn GetDC(hWnd: HWND) -> HDC;
 
@@ -617,6 +620,9 @@ extern "system" {
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms683212(v=vs.85).aspx
     pub fn GetProcAddress(hModule: HMODULE, lpProcName: LPCSTR) -> *const libc::c_void;
+
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/ms633519(v=vs.85).aspx
+    pub fn GetWindowRect(hWnd: HWND, lpRect: *mut RECT) -> BOOL;
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms684175(v=vs.85).aspx
     pub fn LoadLibraryW(lpFileName: LPCWSTR) -> HMODULE;
