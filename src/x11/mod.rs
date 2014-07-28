@@ -3,6 +3,7 @@ use libc;
 use std::{mem, ptr};
 use std::sync::atomics::AtomicBool;
 
+mod events;
 mod ffi;
 
 pub struct Window {
@@ -61,7 +62,9 @@ impl Window {
             let mut swa: ffi::XSetWindowAttributes = unsafe { mem::zeroed() };
             swa.colormap = cmap;
             swa.event_mask = ffi::ExposureMask | ffi::ResizeRedirectMask |
-                ffi::VisibilityChangeMask | ffi::KeyPressMask | ffi::PointerMotionMask;
+                ffi::VisibilityChangeMask | ffi::KeyPressMask | ffi::PointerMotionMask |
+                ffi::KeyPressMask | ffi::KeyReleaseMask | ffi::ButtonPressMask |
+                ffi::ButtonReleaseMask;
             swa
         };
 
@@ -172,6 +175,30 @@ impl Window {
                 use CursorPositionChanged;
                 let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
                 events.push(CursorPositionChanged(event.x as uint, event.y as uint));
+            },
+
+            ffi::KeyPress | ffi::KeyRelease => {
+                use {Pressed, Released};
+                let event: &ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
+
+                let keysym = unsafe { ffi::XKeycodeToKeysym(self.display, event.keycode as ffi::KeyCode, 0) };
+
+                match events::keycode_to_element(keysym as libc::c_uint) {
+                    Some(elem) if xev.type_ == ffi::KeyPress => {
+                        events.push(Pressed(elem));
+                    },
+                    Some(elem) if xev.type_ == ffi::KeyRelease => {
+                        events.push(Released(elem));
+                    },
+                    _ => ()
+                }
+                //
+            },
+
+            ffi::ButtonPress | ffi::ButtonRelease => {
+                use {Pressed, Released};
+                let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
+                //events.push(CursorPositionChanged(event.x as uint, event.y as uint));
             },
 
             _ => ()
