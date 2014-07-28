@@ -241,6 +241,17 @@ pub struct XClientMessageEvent {
     pub l: [libc::c_long, ..5],
 }
 
+#[reprc(C)]
+pub struct XResizeRequestEvent {
+    pub type_: libc::c_int,
+    pub serial: libc::c_ulong,
+    pub send_event: Bool,
+    pub display: *mut Display,
+    pub window: Window,
+    pub width: libc::c_int,
+    pub height: libc::c_int,
+}
+
 #[link(name = "GL")]
 #[link(name = "X11")]
 extern "C" {
