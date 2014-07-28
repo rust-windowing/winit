@@ -1311,6 +1311,10 @@ pub struct XButtonEvent {
 #[link(name = "X11")]
 extern "C" {
     pub fn XCloseDisplay(display: *mut Display);
+    pub fn XCheckMaskEvent(display: *mut Display, event_mask: libc::c_long,
+        event_return: *mut XEvent) -> Bool;
+    pub fn XCheckTypedEvent(display: *mut Display, event_type: libc::c_int,
+        event_return: *mut XEvent) -> Bool;
     pub fn XCreateColormap(display: *mut Display, w: Window,
         visual: *mut Visual, alloc: libc::c_int) -> Colormap;
     pub fn XCreateWindow(display: *mut Display, parent: Window, x: libc::c_int,
@@ -1329,6 +1333,7 @@ extern "C" {
     pub fn XMapWindow(display: *mut Display, w: Window);
     pub fn XNextEvent(display: *mut Display, event_return: *mut XEvent);
     pub fn XOpenDisplay(display_name: *const libc::c_char) -> *mut Display;
+    pub fn XPeekEvent(display: *mut Display, event_return: *mut XEvent);
     pub fn XSetWMProtocols(display: *mut Display, w: Window, protocols: *mut Atom,
         count: libc::c_int) -> Status;
     pub fn XStoreName(display: *mut Display, w: Window, window_name: *const libc::c_char);

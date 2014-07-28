@@ -141,70 +141,95 @@ impl Window {
     }
 
     pub fn poll_events(&self) -> Vec<Event> {
-        unimplemented!()
+        use std::mem;
+        
+        let mut events = Vec::new();
+        
+        loop {
+            use std::num::Bounded;
+
+            let mut xev = unsafe { mem::uninitialized() };
+            let res = unsafe { ffi::XCheckMaskEvent(self.display, Bounded::max_value(), &mut xev) };
+
+            if res == 0 {
+                let res = unsafe { ffi::XCheckTypedEvent(self.display, ffi::ClientMessage, &mut xev) };
+
+                if res == 0 {
+                    break
+                }
+            }
+
+            match xev.type_ {
+                ffi::ClientMessage => {
+                    use Closed;
+                    use std::sync::atomics::Relaxed;
+
+                    let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
+
+                    if client_msg.l[0] == self.wm_delete_window as libc::c_long {
+                        self.should_close.store(true, Relaxed);
+                        events.push(Closed);
+                    }
+                },
+
+                ffi::ResizeRequest => {
+                    use SizeChanged;
+                    let rs_event: &ffi::XResizeRequestEvent = unsafe { mem::transmute(&xev) };
+                    events.push(SizeChanged(rs_event.width as uint, rs_event.height as uint));
+                },
+
+                ffi::MotionNotify => {
+                    use CursorPositionChanged;
+                    let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
+                    events.push(CursorPositionChanged(event.x as uint, event.y as uint));
+                },
+
+                ffi::KeyPress | ffi::KeyRelease => {
+                    use {Pressed, Released};
+                    let event: &ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
+
+                    let keysym = unsafe { ffi::XKeycodeToKeysym(self.display, event.keycode as ffi::KeyCode, 0) };
+
+                    match events::keycode_to_element(keysym as libc::c_uint) {
+                        Some(elem) if xev.type_ == ffi::KeyPress => {
+                            events.push(Pressed(elem));
+                        },
+                        Some(elem) if xev.type_ == ffi::KeyRelease => {
+                            events.push(Released(elem));
+                        },
+                        _ => ()
+                    }
+                    //
+                },
+
+                ffi::ButtonPress | ffi::ButtonRelease => {
+                    use {Pressed, Released};
+                    let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
+                    //events.push(CursorPositionChanged(event.x as uint, event.y as uint));
+                },
+
+                _ => ()
+            }
+        }
+
+        events
     }
 
     pub fn wait_events(&self) -> Vec<Event> {
         use std::mem;
 
-        let mut xev = unsafe { mem::uninitialized() };
-        unsafe { ffi::XNextEvent(self.display, &mut xev) };
+        loop {
+            // this will block until an event arrives, but doesn't remove
+            //  it from the queue
+            let mut xev = unsafe { mem::uninitialized() };
+            unsafe { ffi::XPeekEvent(self.display, &mut xev) };
 
-        let mut events = Vec::new();
-        
-        match xev.type_ {
-            ffi::ClientMessage => {
-                use Closed;
-                use std::sync::atomics::Relaxed;
-
-                let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
-
-                if client_msg.l[0] == self.wm_delete_window as libc::c_long {
-                    self.should_close.store(true, Relaxed);
-                    events.push(Closed);
-                }
-            },
-
-            ffi::ResizeRequest => {
-                use SizeChanged;
-                let rs_event: &ffi::XResizeRequestEvent = unsafe { mem::transmute(&xev) };
-                events.push(SizeChanged(rs_event.width as uint, rs_event.height as uint));
-            },
-
-            ffi::MotionNotify => {
-                use CursorPositionChanged;
-                let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
-                events.push(CursorPositionChanged(event.x as uint, event.y as uint));
-            },
-
-            ffi::KeyPress | ffi::KeyRelease => {
-                use {Pressed, Released};
-                let event: &ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
-
-                let keysym = unsafe { ffi::XKeycodeToKeysym(self.display, event.keycode as ffi::KeyCode, 0) };
-
-                match events::keycode_to_element(keysym as libc::c_uint) {
-                    Some(elem) if xev.type_ == ffi::KeyPress => {
-                        events.push(Pressed(elem));
-                    },
-                    Some(elem) if xev.type_ == ffi::KeyRelease => {
-                        events.push(Released(elem));
-                    },
-                    _ => ()
-                }
-                //
-            },
-
-            ffi::ButtonPress | ffi::ButtonRelease => {
-                use {Pressed, Released};
-                let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
-                //events.push(CursorPositionChanged(event.x as uint, event.y as uint));
-            },
-
-            _ => ()
+            // calling poll_events()
+            let ev = self.poll_events();
+            if ev.len() >= 1 {
+                return ev;
+            }
         }
-
-        events
     }
 
     pub fn make_current(&self) {
