@@ -18,6 +18,7 @@ pub type GLXPixmap = XID;
 pub type GLXWindow = XID;
 pub type Pixmap = XID;
 pub type Status = libc::c_int;  // TODO: not sure
+pub type Time = libc::c_ulong;
 pub type Visual = ();   // TODO: not sure
 pub type VisualID = libc::c_ulong;   // TODO: not sure
 pub type Window = XID;
@@ -241,7 +242,7 @@ pub struct XClientMessageEvent {
     pub l: [libc::c_long, ..5],
 }
 
-#[reprc(C)]
+#[repr(C)]
 pub struct XResizeRequestEvent {
     pub type_: libc::c_int,
     pub serial: libc::c_ulong,
@@ -250,6 +251,25 @@ pub struct XResizeRequestEvent {
     pub window: Window,
     pub width: libc::c_int,
     pub height: libc::c_int,
+}
+
+#[repr(C)]
+pub struct XMotionEvent {
+    pub type_: libc::c_int,
+    pub serial: libc::c_ulong,
+    pub send_event: Bool,
+    pub display: *mut Display,
+    pub window: Window,
+    pub root: Window,
+    pub subwindow: Window,
+    pub time: Time,
+    pub x: libc::c_int,
+    pub y: libc::c_int,
+    pub x_root: libc::c_int,
+    pub y_root: libc::c_int,
+    pub state: libc::c_uint,
+    pub is_hint: libc::c_char,
+    pub same_screen: Bool,
 }
 
 #[link(name = "GL")]

@@ -61,7 +61,7 @@ impl Window {
             let mut swa: ffi::XSetWindowAttributes = unsafe { mem::zeroed() };
             swa.colormap = cmap;
             swa.event_mask = ffi::ExposureMask | ffi::ResizeRedirectMask |
-                ffi::VisibilityChangeMask | ffi::KeyPressMask;
+                ffi::VisibilityChangeMask | ffi::KeyPressMask | ffi::PointerMotionMask;
             swa
         };
 
@@ -166,6 +166,12 @@ impl Window {
                 use SizeChanged;
                 let rs_event: &ffi::XResizeRequestEvent = unsafe { mem::transmute(&xev) };
                 events.push(SizeChanged(rs_event.width as uint, rs_event.height as uint));
+            },
+
+            ffi::MotionNotify => {
+                use CursorPositionChanged;
+                let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
+                events.push(CursorPositionChanged(event.x as uint, event.y as uint));
             },
 
             _ => ()
