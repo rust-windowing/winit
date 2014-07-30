@@ -17,6 +17,9 @@ mod win32;
 #[cfg(unix)]
 mod x11;
 
+#[allow(dead_code)]
+//mod egl;
+
 mod events;
 mod hints;
 
