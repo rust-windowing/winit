@@ -94,8 +94,6 @@ impl Window {
 
         // creating the window
         let handle = unsafe {
-            use libc;
-
             let handle = ffi::CreateWindowExW(ex_style, class_name.as_ptr(),
                 title.utf16_units().collect::<Vec<u16>>().append_one(0).as_ptr() as ffi::LPCWSTR,
                 style | ffi::WS_VISIBLE | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN,
@@ -207,18 +205,18 @@ impl Window {
         }
     }
 
-    pub fn get_position(&self) -> (int, int) {
-        use std::{mem, os};
+    pub fn get_position(&self) -> Option<(int, int)> {
+        use std::mem;
 
         let mut placement: ffi::WINDOWPLACEMENT = unsafe { mem::zeroed() };
         placement.length = mem::size_of::<ffi::WINDOWPLACEMENT>() as ffi::UINT;
 
         if unsafe { ffi::GetWindowPlacement(self.window, &mut placement) } == 0 {
-            fail!("GetWindowPlacement failed: {}", os::error_string(os::errno() as uint));
+            return None
         }
 
         let ref rect = placement.rcNormalPosition;
-        (rect.left as int, rect.top as int)
+        Some((rect.left as int, rect.top as int))
     }
 
     pub fn set_position(&self, x: uint, y: uint) {
@@ -231,32 +229,32 @@ impl Window {
         }
     }
 
-    pub fn get_inner_size(&self) -> (uint, uint) {
-        use std::{mem, os};
+    pub fn get_inner_size(&self) -> Option<(uint, uint)> {
+        use std::mem;
         let mut rect: ffi::RECT = unsafe { mem::uninitialized() };
 
         if unsafe { ffi::GetClientRect(self.window, &mut rect) } == 0 {
-            fail!("GetClientRect failed: {}", os::error_string(os::errno() as uint));
+            return None
         }
 
-        (
+        Some((
             (rect.right - rect.left) as uint,
             (rect.bottom - rect.top) as uint
-        )
+        ))
     }
 
-    pub fn get_outer_size(&self) -> (uint, uint) {
-        use std::{mem, os};
+    pub fn get_outer_size(&self) -> Option<(uint, uint)> {
+        use std::mem;
         let mut rect: ffi::RECT = unsafe { mem::uninitialized() };
 
         if unsafe { ffi::GetWindowRect(self.window, &mut rect) } == 0 {
-            fail!("GetWindowRect failed: {}", os::error_string(os::errno() as uint));
+            return None
         }
 
-        (
+        Some((
             (rect.right - rect.left) as uint,
             (rect.bottom - rect.top) as uint
-        )
+        ))
     }
 
     pub fn set_inner_size(&self, x: uint, y: uint) {

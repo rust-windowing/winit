@@ -51,8 +51,11 @@ impl Window {
         self.window.set_title(title)
     }
 
+    /// Returns the position of the window relative to the top-left hand corner of the screen.
+    ///
+    /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_position(&self) -> (int, int) {
+    pub fn get_position(&self) -> Option<(int, int)> {
         self.window.get_position()
     }
 
@@ -62,12 +65,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> (uint, uint) {
+    pub fn get_inner_size(&self) -> Option<(uint, uint)> {
         self.window.get_inner_size()
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> (uint, uint) {
+    pub fn get_outer_size(&self) -> Option<(uint, uint)> {
         self.window.get_outer_size()
     }
 

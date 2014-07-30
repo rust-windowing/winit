@@ -120,7 +120,7 @@ impl Window {
         }
     }
 
-    pub fn get_position(&self) -> (int, int) {
+    pub fn get_position(&self) -> Option<(int, int)> {
         unimplemented!()
     }
 
@@ -128,11 +128,11 @@ impl Window {
         unimplemented!()
     }
 
-    pub fn get_inner_size(&self) -> (uint, uint) {
+    pub fn get_inner_size(&self) -> Option<(uint, uint)> {
         unimplemented!()
     }
 
-    pub fn get_outer_size(&self) -> (uint, uint) {
+    pub fn get_outer_size(&self) -> Option<(uint, uint)> {
         unimplemented!()
     }
 
