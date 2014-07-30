@@ -13,7 +13,7 @@ pub struct Window {
     context: ffi::HGLRC,
     gl_library: ffi::HMODULE,
     events_receiver: Receiver<Event>,
-    should_close: AtomicBool,
+    is_closed: AtomicBool,
     nosend: NoSend,
 }
 
@@ -187,14 +187,14 @@ impl Window {
             context: context,
             gl_library: gl_library,
             events_receiver: events_receiver,
-            should_close: AtomicBool::new(false),
+            is_closed: AtomicBool::new(false),
             nosend: NoSend,
         })
     }
 
-    pub fn should_close(&self) -> bool {
+    pub fn is_closed(&self) -> bool {
         use std::sync::atomics::Relaxed;
-        self.should_close.load(Relaxed)
+        self.is_closed.load(Relaxed)
     }
 
     /// Calls SetWindowText on the HWND.
@@ -292,7 +292,7 @@ impl Window {
 
         if events.iter().find(|e| match e { &&::Closed => true, _ => false }).is_some() {
             use std::sync::atomics::Relaxed;
-            self.should_close.store(true, Relaxed);
+            self.is_closed.store(true, Relaxed);
         }
         
         events

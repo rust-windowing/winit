@@ -10,7 +10,7 @@ pub struct Window {
     display: *mut ffi::Display,
     window: ffi::Window,
     context: ffi::GLXContext,
-    should_close: AtomicBool,
+    is_closed: AtomicBool,
     wm_delete_window: ffi::Atom,
 }
 
@@ -103,14 +103,14 @@ impl Window {
             display: display,
             window: window,
             context: context,
-            should_close: AtomicBool::new(false),
+            is_closed: AtomicBool::new(false),
             wm_delete_window: wm_delete_window,
         })
     }
 
-    pub fn should_close(&self) -> bool {
+    pub fn is_closed(&self) -> bool {
         use std::sync::atomics::Relaxed;
-        self.should_close.load(Relaxed)
+        self.is_closed.load(Relaxed)
     }
 
     pub fn set_title(&self, title: &str) {
@@ -167,7 +167,7 @@ impl Window {
                     let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
 
                     if client_msg.l[0] == self.wm_delete_window as libc::c_long {
-                        self.should_close.store(true, Relaxed);
+                        self.is_closed.store(true, Relaxed);
                         events.push(Closed);
                     }
                 },

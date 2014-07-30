@@ -41,8 +41,15 @@ impl Window {
 
     /// Returns true if the window has been closed by the user.
     #[inline]
+    pub fn is_closed(&self) -> bool {
+        self.window.is_closed()
+    }
+
+    /// Returns true if the window has been closed by the user.
+    #[inline]
+    #[deprecated = "Use is_closed instead"]
     pub fn should_close(&self) -> bool {
-        self.window.should_close()
+        self.is_closed()
     }
 
     /// Modifies the title of the window.
