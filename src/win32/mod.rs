@@ -310,8 +310,8 @@ impl Window {
         }
     }
 
-    pub fn make_current(&self) {
-        unsafe { ffi::wglMakeCurrent(self.hdc, self.context) }
+    pub unsafe fn make_current(&self) {
+        ffi::wglMakeCurrent(self.hdc, self.context)
     }
 
     pub fn get_proc_address(&self, addr: &str) -> *const () {

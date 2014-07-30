@@ -34,7 +34,7 @@ pub struct MonitorID(uint);
 /// 
 /// let window = Window::new(None, "Hello world!", &Default::default(), None).unwrap();
 /// 
-/// window.make_current();
+/// unsafe { window.make_current() };
 /// 
 /// loop {
 ///     for event in window.poll_events().move_iter() {     // note: this may change in the future
@@ -200,9 +200,10 @@ impl Window {
         self.window.wait_events()
     }
 
+    /// Sets the context as the current context.
     #[inline]
     #[experimental]
-    pub fn make_current(&self) {
+    pub unsafe fn make_current(&self) {
         self.window.make_current()
     }
 

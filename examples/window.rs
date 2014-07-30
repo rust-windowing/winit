@@ -7,7 +7,7 @@ fn main() {
 
     let window = init::Window::new(None, "Hello world!", &Default::default(), None).unwrap();
 
-    window.make_current();
+    unsafe { window.make_current() };
 
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const libc::c_void);
 

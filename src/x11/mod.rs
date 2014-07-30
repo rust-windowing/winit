@@ -232,8 +232,8 @@ impl Window {
         }
     }
 
-    pub fn make_current(&self) {
-        let res = unsafe { ffi::glXMakeCurrent(self.display, self.window, self.context) };
+    pub unsafe fn make_current(&self) {
+        let res = ffi::glXMakeCurrent(self.display, self.window, self.context);
         if res == 0 {
             fail!("glXMakeCurrent failed");
         }
