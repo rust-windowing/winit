@@ -22,11 +22,6 @@ mod hints;
 
 pub struct MonitorID(uint);
 
-pub struct Window {
-    window: winimpl::Window,
-    nosend: std::kinds::marker::NoSend,
-}
-
 /// Represents an OpenGL context and the Window or environment around it.
 ///
 /// # Example
@@ -51,14 +46,12 @@ pub struct Window {
 ///     window.swap_buffers();
 ///     std::io::timer::sleep(17);
 /// }
-/// 
-/// while !window.is_closed() {
-///  println!("{}", window.wait_events());
-/// 
-/// gl::Clear(gl::COLOR_BUFFER_BIT);
-/// 
-/// window.swap_buffers();
-/// }
+/// ```
+pub struct Window {
+    window: winimpl::Window,
+    nosend: std::kinds::marker::NoSend,
+}
+
 impl Window {
     /// Creates a new OpenGL context, and a Window for platforms where this is appropriate.
     /// 
