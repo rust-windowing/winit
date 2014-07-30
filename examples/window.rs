@@ -23,8 +23,6 @@ fn main() {
     while !window.should_close() {
         println!("{}", window.wait_events());
 
-        println!("pos: {}", window.get_position());
-
         gl::Clear(gl::COLOR_BUFFER_BIT);
 
         window.swap_buffers();
