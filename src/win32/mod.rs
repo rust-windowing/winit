@@ -362,10 +362,10 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         },
 
         ffi::WM_SIZE => {
-            use SizeChanged;
+            use Resized;
             let w = ffi::LOWORD(lparam as ffi::DWORD) as uint;
             let h = ffi::HIWORD(lparam as ffi::DWORD) as uint;
-            send_event(window, SizeChanged(w, h));
+            send_event(window, Resized(w, h));
             0
         },
 

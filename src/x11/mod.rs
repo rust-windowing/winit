@@ -173,9 +173,9 @@ impl Window {
                 },
 
                 ffi::ResizeRequest => {
-                    use SizeChanged;
+                    use Resized;
                     let rs_event: &ffi::XResizeRequestEvent = unsafe { mem::transmute(&xev) };
-                    events.push(SizeChanged(rs_event.width as uint, rs_event.height as uint));
+                    events.push(Resized(rs_event.width as uint, rs_event.height as uint));
                 },
 
                 ffi::MotionNotify => {

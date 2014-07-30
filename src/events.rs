@@ -1,11 +1,8 @@
 
 #[deriving(Clone,Show)]
 pub enum Event {
-    /// The position of the window has changed.
-    PositionChanged(uint, uint),
-
     /// The size of the window has changed.
-    SizeChanged(uint, uint),
+    Resized(uint, uint),
 
     /// The position of the window has changed.
     Moved(int, int),
