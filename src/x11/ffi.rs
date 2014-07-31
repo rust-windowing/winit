@@ -30,6 +30,12 @@ pub type XID = uint;
 pub static AllocNone: libc::c_int = 0;
 pub static AllocAll: libc::c_int = 1;
 
+pub static Button1: libc::c_uint = 1;
+pub static Button2: libc::c_uint = 2;
+pub static Button3: libc::c_uint = 3;
+pub static Button4: libc::c_uint = 4;
+pub static Button5: libc::c_uint = 5;
+
 pub static InputOutput: libc::c_uint = 1;
 pub static InputOnly: libc::c_uint = 2;
 

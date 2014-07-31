@@ -243,8 +243,27 @@ impl Window {
 
                 ffi::ButtonPress | ffi::ButtonRelease => {
                     use {Pressed, Released};
+                    use events;
                     let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
-                    //events.push(CursorPositionChanged(event.x as uint, event.y as uint));
+
+                    let elem = match event.button {
+                        ffi::Button1 => Some(events::Button1),
+                        ffi::Button2 => Some(events::Button2),
+                        ffi::Button3 => Some(events::Button3),
+                        ffi::Button4 => Some(events::Button4),
+                        ffi::Button5 => Some(events::Button5),
+                        _ => None
+                    };
+
+                    if elem.is_some() {
+                        let elem = elem.unwrap();
+                        
+                        if xev.type_ == ffi::ButtonPress {
+                            events.push(Pressed(elem));
+                        } else if xev.type_ == ffi::ButtonRelease {
+                            events.push(Released(elem));
+                        }
+                    }
                 },
 
                 _ => ()
