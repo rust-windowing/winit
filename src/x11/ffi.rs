@@ -159,6 +159,7 @@ pub static GLX_TRANSPARENT_RED_VALUE: libc::c_int = 0x25;
 pub static GLX_TRANSPARENT_GREEN_VALUE: libc::c_int = 0x26;
 pub static GLX_TRANSPARENT_BLUE_VALUE: libc::c_int = 0x27;
 pub static GLX_TRANSPARENT_ALPHA_VALUE: libc::c_int = 0x28;
+#[allow(type_overflow)]
 pub static GLX_DONT_CARE: libc::c_int = 0xFFFFFFFF;
 pub static GLX_NONE: libc::c_int = 0x8000;
 pub static GLX_SLOW_CONFIG: libc::c_int = 0x8001;
