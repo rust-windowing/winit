@@ -9,6 +9,8 @@ mod ffi;
 pub struct Window {
     display: *mut ffi::Display,
     window: ffi::Window,
+    im: ffi::XIM,
+    ic: ffi::XIC,
     context: ffi::GLXContext,
     is_closed: AtomicBool,
     wm_delete_window: ffi::Atom,
@@ -80,7 +82,7 @@ impl Window {
             swa.event_mask = ffi::ExposureMask | ffi::ResizeRedirectMask |
                 ffi::VisibilityChangeMask | ffi::KeyPressMask | ffi::PointerMotionMask |
                 ffi::KeyPressMask | ffi::KeyReleaseMask | ffi::ButtonPressMask |
-                ffi::ButtonReleaseMask;
+                ffi::ButtonReleaseMask | ffi::KeymapStateMask;
             swa
         };
 
@@ -109,6 +111,29 @@ impl Window {
             wm_delete_window
         };
 
+        // creating 
+        let im = unsafe {
+            let im = ffi::XOpenIM(display, ptr::null(), ptr::mut_null(), ptr::mut_null());
+            if im.is_null() {
+                return Err(format!("XOpenIM failed"));
+            }
+            im
+        };
+
+        // creating input context
+        let ic = unsafe {
+            use std::c_str::ToCStr;
+
+            let ic = ffi::XCreateIC(im, "inputStyle".to_c_str().as_ptr(),
+                ffi::XIMPreeditNothing | ffi::XIMStatusNothing, "clientWindow".to_c_str().as_ptr(),
+                window, ptr::null());
+            if ic.is_null() {
+                return Err(format!("XCreateIC failed"));
+            }
+            ffi::XSetICFocus(ic);
+            ic
+        };
+
         // creating GL context
         let context = unsafe {
             ffi::glXCreateContext(display, visual_infos, ptr::null(), 1)
@@ -118,6 +143,8 @@ impl Window {
         Ok(Window{
             display: display,
             window: window,
+            im: im,
+            ic: ic,
             context: context,
             is_closed: AtomicBool::new(false),
             wm_delete_window: wm_delete_window,
@@ -199,6 +226,10 @@ impl Window {
             }
 
             match xev.type_ {
+                ffi::KeymapNotify => {
+                    unsafe { ffi::XRefreshKeyboardMapping(&xev) }
+                },
+
                 ffi::ClientMessage => {
                     use Closed;
                     use std::sync::atomics::Relaxed;
@@ -224,10 +255,31 @@ impl Window {
                 },
 
                 ffi::KeyPress | ffi::KeyRelease => {
-                    use {Pressed, Released};
-                    let event: &ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
+                    use {Pressed, Released, ReceivedCharacter};
+                    let event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
+
+                    if event.type_ == ffi::KeyPress {
+                        let raw_ev: *mut ffi::XKeyEvent = event;
+                        unsafe { ffi::XFilterEvent(mem::transmute(raw_ev), self.window) };
+                    }
 
                     let keysym = unsafe { ffi::XKeycodeToKeysym(self.display, event.keycode as ffi::KeyCode, 0) };
+
+                    let written = unsafe {
+                        use std::str;
+
+                        let mut buffer: [u8, ..16] = [mem::uninitialized(), ..16];
+                        let raw_ev: *mut ffi::XKeyEvent = event;
+                        let count = ffi::Xutf8LookupString(self.ic, mem::transmute(raw_ev), 
+                            mem::transmute(buffer.as_mut_ptr()),
+                            buffer.len() as libc::c_int, ptr::mut_null(), ptr::mut_null());
+
+                        str::from_utf8(buffer.as_slice().slice_to(count as uint)).unwrap_or("").to_string()
+                    };
+
+                    for chr in written.as_slice().chars() {
+                        events.push(ReceivedCharacter(chr));
+                    }
 
                     match events::keycode_to_element(keysym as libc::c_uint) {
                         Some(elem) if xev.type_ == ffi::KeyPress => {
@@ -257,7 +309,7 @@ impl Window {
 
                     if elem.is_some() {
                         let elem = elem.unwrap();
-                        
+
                         if xev.type_ == ffi::ButtonPress {
                             events.push(Pressed(elem));
                         } else if xev.type_ == ffi::ButtonRelease {
@@ -318,8 +370,10 @@ impl Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        unsafe { ffi::glXDestroyContext(self.display, self.context) }
-        unsafe { ffi::XDestroyWindow(self.display, self.window) }
-        unsafe { ffi::XCloseDisplay(self.display) }
+        unsafe { ffi::glXDestroyContext(self.display, self.context); }
+        unsafe { ffi::XDestroyIC(self.ic); }
+        unsafe { ffi::XCloseIM(self.im); }
+        unsafe { ffi::XDestroyWindow(self.display, self.window); }
+        unsafe { ffi::XCloseDisplay(self.display); }
     }
 }

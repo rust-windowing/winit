@@ -9,7 +9,7 @@ pub type Bool = libc::c_int;
 pub type Colormap = XID;
 pub type Cursor = XID;
 pub type Display = ();
-pub type Drawable = XID;	// TODO: not sure
+pub type Drawable = XID;    // TODO: not sure
 pub type GLXContext = *const ();
 pub type GLXContextID = XID;
 pub type GLXDrawable = XID;
@@ -25,7 +25,10 @@ pub type Time = libc::c_ulong;
 pub type Visual = ();   // TODO: not sure
 pub type VisualID = libc::c_ulong;   // TODO: not sure
 pub type Window = XID;
+pub type XrmDatabase = *const ();       // TODO: not sure
+pub type XIC = *mut ();
 pub type XID = uint;
+pub type XIM = *mut ();
 
 pub static AllocNone: libc::c_int = 0;
 pub static AllocAll: libc::c_int = 1;
@@ -200,6 +203,16 @@ pub static GLX_WINDOW: libc::c_int = 0x8022;
 pub static GLX_PBUFFER: libc::c_int = 0x8023;
 pub static GLX_PBUFFER_HEIGHT: libc::c_int = 0x8040;
 pub static GLX_PBUFFER_WIDTH: libc::c_int = 0x8041;
+
+pub static XIMPreeditArea: libc::c_long = 0x0001;
+pub static XIMPreeditCallbacks: libc::c_long = 0x0002;
+pub static XIMPreeditPosition: libc::c_long = 0x0004;
+pub static XIMPreeditNothing: libc::c_long = 0x0008;
+pub static XIMPreeditNone: libc::c_long = 0x0010;
+pub static XIMStatusArea: libc::c_long = 0x0100;
+pub static XIMStatusCallbacks: libc::c_long = 0x0200;
+pub static XIMStatusNothing: libc::c_long = 0x0400;
+pub static XIMStatusNone: libc::c_long = 0x0800;
 
 pub static XK_BackSpace: libc::c_uint = 0xFF08;
 pub static XK_Tab: libc::c_uint = 0xFF09;
@@ -1333,11 +1346,12 @@ extern "C" {
     pub fn XDefaultRootWindow(display: *mut Display) -> Window;
     pub fn XDefaultScreen(display: *mut Display) -> libc::c_int;
     pub fn XDestroyWindow(display: *mut Display, w: Window);
+    pub fn XFilterEvent(event: *mut XEvent, w: Window) -> Bool;
     pub fn XFlush(display: *mut Display);
     pub fn XGetGeometry(display: *mut Display, d: Drawable, root_return: *mut Window,
-    	x_return: *mut libc::c_int, y_return: *mut libc::c_int,
-    	width_return: *mut libc::c_uint, height_return: *mut libc::c_uint,
-    	border_width_return: *mut libc::c_uint, depth_return: *mut libc::c_uint) -> Status;
+        x_return: *mut libc::c_int, y_return: *mut libc::c_int,
+        width_return: *mut libc::c_uint, height_return: *mut libc::c_uint,
+        border_width_return: *mut libc::c_uint, depth_return: *mut libc::c_uint) -> Status;
     pub fn XInternAtom(display: *mut Display, atom_name: *const libc::c_char,
         only_if_exists: Bool) -> Atom;
     pub fn XKeycodeToKeysym(display: *mut Display, keycode: KeyCode,
@@ -1346,26 +1360,37 @@ extern "C" {
     pub fn XNextEvent(display: *mut Display, event_return: *mut XEvent);
     pub fn XOpenDisplay(display_name: *const libc::c_char) -> *mut Display;
     pub fn XPeekEvent(display: *mut Display, event_return: *mut XEvent);
+    pub fn XRefreshKeyboardMapping(event_map: *const XEvent);
     pub fn XSetWMProtocols(display: *mut Display, w: Window, protocols: *mut Atom,
         count: libc::c_int) -> Status;
     pub fn XStoreName(display: *mut Display, w: Window, window_name: *const libc::c_char);
 
+    pub fn XCloseIM(im: XIM) -> Status;
+    pub fn XOpenIM(display: *mut Display, db: XrmDatabase, res_name: *mut libc::c_char,
+        res_class: *mut libc::c_char) -> XIM;
+
+    // TODO: this is a vararg function
+    //pub fn XCreateIC(im: XIM, ...) -> XIC;
+    pub fn XCreateIC(im: XIM, a: *const libc::c_char, b: libc::c_long, c: *const libc::c_char,
+        d: Window, e: *const ()) -> XIC;
+    pub fn XDestroyIC(ic: XIC);
+    pub fn XSetICFocus(ic: XIC);
+    pub fn XUnsetICFocus(ic: XIC);
+
+    pub fn Xutf8LookupString(ic: XIC, event: *mut XKeyEvent,
+        buffer_return: *mut libc::c_char, bytes_buffer: libc::c_int,
+        keysym_return: *mut KeySym, status_return: *mut Status) -> libc::c_int;
+
     pub fn glXCreateContext(dpy: *mut Display, vis: *const XVisualInfo,
         shareList: GLXContext, direct: Bool) -> GLXContext;
-
     pub fn glXDestroyContext(dpy: *mut Display, ctx: GLXContext);
-
     pub fn glXChooseFBConfig(dpy: *mut Display, screen: libc::c_int,
         attrib_list: *const libc::c_int, nelements: *mut libc::c_int);
-
     pub fn glXChooseVisual(dpy: *mut Display, screen: libc::c_int,
         attribList: *const libc::c_int) -> *const XVisualInfo;
-
     pub fn glXGetProcAddress(procName: *const libc::c_uchar) -> *const ();
-
     pub fn glXMakeCurrent(dpy: *mut Display, drawable: GLXDrawable,
         ctx: GLXContext) -> Bool;
-
     pub fn glXSwapBuffers(dpy: *mut Display, drawable: GLXDrawable);
 }
 
