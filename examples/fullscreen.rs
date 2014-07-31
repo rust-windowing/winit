@@ -14,8 +14,9 @@ fn main() {
         }
 
         print!("Please write the number of the monitor to use: ");
-        let num = from_str(stdin().read_line().unwrap().as_slice()).unwrap();
-        let monitor = init::get_available_monitors().nth(num).unwrap();
+        let num = from_str(stdin().read_line().unwrap().as_slice().trim())
+            .expect("Plase enter a number");
+        let monitor = init::get_available_monitors().nth(num).expect("Please enter a valid ID");
 
         println!("Using {}", monitor.get_name());
 

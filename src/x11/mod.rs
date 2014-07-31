@@ -24,6 +24,12 @@ pub fn get_primary_monitor() -> MonitorID {
     unimplemented!()
 }
 
+impl MonitorID {
+    pub fn get_name(&self) -> Option<String> {
+        Some("<Unknown>".to_string())
+    }
+}
+
 impl Window {
     pub fn new(dimensions: Option<(uint, uint)>, title: &str, hints: &Hints, _: Option<MonitorID>)
         -> Result<Window, String>

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case_functions)]
 #![allow(non_camel_case_types)]
+#![allow(uppercase_variables)]
 
 use libc;
 
@@ -136,6 +137,13 @@ pub static DISP_CHANGE_BADPARAM: LONG = -5;
 pub static DISP_CHANGE_BADDUALVIEW: LONG = -6;
 
 // ?
+pub static DISPLAY_DEVICE_ACTIVE: DWORD = 0x00000001;
+pub static DISPLAY_DEVICE_MULTI_DRIVER: DWORD = 0x00000002;
+pub static DISPLAY_DEVICE_PRIMARY_DEVICE: DWORD = 0x00000004;
+pub static DISPLAY_DEVICE_MIRRORING_DRIVER: DWORD = 0x00000008;
+pub static DISPLAY_DEVICE_VGA_COMPATIBLE: DWORD = 0x00000010;
+
+// ?
 pub static DM_ORIENTATION: DWORD = 0x00000001;
 pub static DM_PAPERSIZE: DWORD = 0x00000002;
 pub static DM_PAPERLENGTH: DWORD = 0x00000004;
@@ -166,6 +174,13 @@ pub static DM_DITHERTYPE: DWORD = 0x04000000;
 pub static DM_PANNINGWIDTH: DWORD = 0x08000000;
 pub static DM_PANNINGHEIGHT: DWORD = 0x10000000;
 pub static DM_DISPLAYFIXEDOUTPUT: DWORD = 0x20000000;
+
+// http://msdn.microsoft.com/en-us/library/windows/desktop/dd162609(v=vs.85).aspx
+pub static EDD_GET_DEVICE_INTERFACE_NAME: DWORD = 0x00000001;
+
+// ?
+pub static ENUM_CURRENT_SETTINGS: DWORD = -1;
+pub static ENUM_REGISTRY_SETTINGS: DWORD = -2;
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/ms679351(v=vs.85).aspx
 pub static FORMAT_MESSAGE_ALLOCATE_BUFFER: DWORD = 0x00000100;
@@ -520,6 +535,13 @@ pub struct PIXELFORMATDESCRIPTOR {
     pub dwDamageMask: DWORD,
 }
 
+// http://msdn.microsoft.com/en-us/library/dd162807(v=vs.85).aspx
+#[repr(C)]
+pub struct POINTL {
+    pub x: LONG,
+    pub y: LONG,
+}
+
 // http://msdn.microsoft.com/en-us/library/windows/desktop/dd183565(v=vs.85).aspx
 #[repr(C)]
 pub struct DEVMODE {
@@ -529,7 +551,7 @@ pub struct DEVMODE {
     pub dmSize: WORD,
     pub dmDriverExtra: WORD,
     pub dmFields: DWORD,
-    union1: [u8, ..16],
+    pub union1: [u8, ..16],
     pub dmColor: libc::c_short,
     pub dmDuplex: libc::c_short,
     pub dmYResolution: libc::c_short,
@@ -563,6 +585,17 @@ pub struct WINDOWPLACEMENT {
     pub rcNormalPosition: RECT,
 }
 
+// http://msdn.microsoft.com/en-us/library/windows/desktop/dd183569(v=vs.85).aspx
+#[repr(C)]
+pub struct DISPLAY_DEVICEW {
+    pub cb: DWORD,
+    pub DeviceName: [WCHAR, ..32],
+    pub DeviceString: [WCHAR, ..128],
+    pub StateFlags: DWORD,
+    pub DeviceID: [WCHAR, ..128],
+    pub DeviceKey: [WCHAR, ..128],
+}
+
 pub type LPMSG = *mut MSG;
 
 #[link(name = "advapi32")]
@@ -590,6 +623,10 @@ extern "system" {
     // http://msdn.microsoft.com/en-us/library/windows/desktop/dd183411(v=vs.85).aspx
     pub fn ChangeDisplaySettingsW(lpDevMode: *mut DEVMODE, dwFlags: DWORD) -> LONG;
 
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/dd183413(v=vs.85).aspx
+    pub fn ChangeDisplaySettingsExW(lpszDeviceName: LPCWSTR, lpDevMode: *mut DEVMODE, hwnd: HWND,
+        dwFlags: DWORD, lParam: LPVOID) -> LONG;
+
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms632680(v=vs.85).aspx
     pub fn CreateWindowExW(dwExStyle: DWORD, lpClassName: LPCWSTR, lpWindowName: LPCWSTR,
         dwStyle: DWORD, x: libc::c_int, y: libc::c_int, nWidth: libc::c_int, nHeight: libc::c_int,
@@ -610,6 +647,14 @@ extern "system" {
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/dd162598(v=vs.85).aspx
     pub fn EndPaint(hWnd: HWND, lpPaint: *const PAINTSTRUCT) -> BOOL;
+
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/dd162609(v=vs.85).aspx
+    pub fn EnumDisplayDevicesW(lpDevice: LPCWSTR, iDevNum: DWORD,
+        lpDisplayDevice: *mut DISPLAY_DEVICEW, dwFlags: DWORD) -> BOOL;
+
+    // http://msdn.microsoft.com/en-us/library/dd162612(v=vs.85).aspx
+    pub fn EnumDisplaySettingsExW(lpszDeviceName: LPCWSTR, iModeNum: DWORD,
+        lpDevMode: *mut DEVMODE, dwFlags: DWORD) -> BOOL;
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/dd162719(v=vs.85).aspx
     pub fn FillRect(hDC: HDC, lprc: *const RECT, hbr: HBRUSH) -> libc::c_int;

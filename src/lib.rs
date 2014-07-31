@@ -258,6 +258,7 @@ pub fn get_primary_monitor() -> MonitorID {
 impl MonitorID {
     /// Returns a human-readable name of the monitor.
     pub fn get_name(&self) -> Option<String> {
-        Some("<Unknown>".to_string())
+        let &MonitorID(ref id) = self;
+        id.get_name()
     }
 }

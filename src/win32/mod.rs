@@ -4,8 +4,11 @@ use std::sync::atomics::AtomicBool;
 use std::ptr;
 use {Event, Hints};
 
+pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
+
 mod event;
 mod ffi;
+mod monitor;
 
 pub struct Window {
     window: ffi::HWND,
@@ -15,16 +18,6 @@ pub struct Window {
     events_receiver: Receiver<Event>,
     is_closed: AtomicBool,
     nosend: NoSend,
-}
-
-pub struct MonitorID(uint);
-
-pub fn get_available_monitors() -> Vec<MonitorID> {
-    unimplemented!()
-}
-
-pub fn get_primary_monitor() -> MonitorID {
-    unimplemented!()
 }
 
 /// Stores the list of all the windows.
@@ -78,6 +71,18 @@ impl Window {
 
         // switching to fullscreen
         if monitor.is_some() {
+            let monitor = monitor.as_ref().unwrap();
+
+            // adjusting the rect
+            {
+                let pos = monitor.get_position();
+                rect.left += pos.val0() as ffi::LONG;
+                rect.right += pos.val0() as ffi::LONG;
+                rect.top += pos.val1() as ffi::LONG;
+                rect.bottom += pos.val1() as ffi::LONG;
+            }
+
+            // changing device settings
             let mut screen_settings: ffi::DEVMODE = unsafe { mem::zeroed() };
             screen_settings.dmSize = mem::size_of::<ffi::DEVMODE>() as ffi::WORD;
             screen_settings.dmPelsWidth = 1024;
@@ -85,7 +90,8 @@ impl Window {
             screen_settings.dmBitsPerPel = 32;
             screen_settings.dmFields = ffi::DM_BITSPERPEL | ffi::DM_PELSWIDTH | ffi::DM_PELSHEIGHT;
 
-            let result = unsafe { ffi::ChangeDisplaySettingsW(&mut screen_settings, ffi::CDS_FULLSCREEN) };
+            let result = unsafe { ffi::ChangeDisplaySettingsExW(monitor.get_system_name().as_ptr(),
+                &mut screen_settings, ptr::mut_null(), ffi::CDS_FULLSCREEN, ptr::mut_null()) };
             if result != ffi::DISP_CHANGE_SUCCESSFUL {
                 return Err(format!("ChangeDisplaySettings failed: {}", result))
             }
