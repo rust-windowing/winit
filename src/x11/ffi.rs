@@ -9,6 +9,7 @@ pub type Bool = libc::c_int;
 pub type Colormap = XID;
 pub type Cursor = XID;
 pub type Display = ();
+pub type Drawable = XID;	// TODO: not sure
 pub type GLXContext = *const ();
 pub type GLXContextID = XID;
 pub type GLXDrawable = XID;
@@ -1326,6 +1327,10 @@ extern "C" {
     pub fn XDefaultScreen(display: *mut Display) -> libc::c_int;
     pub fn XDestroyWindow(display: *mut Display, w: Window);
     pub fn XFlush(display: *mut Display);
+    pub fn XGetGeometry(display: *mut Display, d: Drawable, root_return: *mut Window,
+    	x_return: *mut libc::c_int, y_return: *mut libc::c_int,
+    	width_return: *mut libc::c_uint, height_return: *mut libc::c_uint,
+    	border_width_return: *mut libc::c_uint, depth_return: *mut libc::c_uint) -> Status;
     pub fn XInternAtom(display: *mut Display, atom_name: *const libc::c_char,
         only_if_exists: Bool) -> Atom;
     pub fn XKeycodeToKeysym(display: *mut Display, keycode: KeyCode,

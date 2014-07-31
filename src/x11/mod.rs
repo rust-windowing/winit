@@ -136,8 +136,31 @@ impl Window {
         }
     }
 
+    fn get_geometry(&self) -> Option<(int, int, uint, uint)> {
+        unsafe {
+            use std::mem;
+
+            let mut root: ffi::Window = mem::uninitialized();
+            let mut x: libc::c_int = mem::uninitialized();
+            let mut y: libc::c_int = mem::uninitialized();
+            let mut width: libc::c_uint = mem::uninitialized();
+            let mut height: libc::c_uint = mem::uninitialized();
+            let mut border: libc::c_uint = mem::uninitialized();
+            let mut depth: libc::c_uint = mem::uninitialized();
+
+            if ffi::XGetGeometry(self.display, self.window,
+                &mut root, &mut x, &mut y, &mut width, &mut height,
+                &mut border, &mut depth) == 0
+            {
+                return None;
+            }
+
+            Some((x as int, y as int, width as uint, height as uint))
+        }
+    }
+
     pub fn get_position(&self) -> Option<(int, int)> {
-        unimplemented!()
+        self.get_geometry().map(|(x, y, _, _)| (x, y))
     }
 
     pub fn set_position(&self, x: uint, y: uint) {
@@ -145,7 +168,7 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> Option<(uint, uint)> {
-        unimplemented!()
+        self.get_geometry().map(|(_, _, w, h)| (w, h))
     }
 
     pub fn get_outer_size(&self) -> Option<(uint, uint)> {
