@@ -53,7 +53,6 @@ pub struct MonitorID(winimpl::MonitorID);
 /// ```
 pub struct Window {
     window: winimpl::Window,
-    nosend: std::kinds::marker::NoSend,
 }
 
 impl Window {
@@ -94,7 +93,6 @@ impl Window {
 
         Ok(Window{
             window: win,
-            nosend: std::kinds::marker::NoSend,
         })
     }
 
