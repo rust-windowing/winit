@@ -1,10 +1,8 @@
-use std::kinds::marker::NoSend;
 use std::sync::atomics::AtomicBool;
 use std::ptr;
 use {Event, Hints};
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
-pub use self::init::WINDOWS_LIST;
 
 mod event;
 mod ffi;
@@ -18,7 +16,6 @@ pub struct Window {
     gl_library: ffi::HMODULE,
     events_receiver: Receiver<Event>,
     is_closed: AtomicBool,
-    nosend: NoSend,
 }
 
 impl Window {
@@ -106,19 +103,6 @@ impl Window {
 
     // TODO: return iterator
     pub fn poll_events(&self) -> Vec<Event> {
-        use std::mem;
-
-        loop {
-            let mut msg = unsafe { mem::uninitialized() };
-
-            if unsafe { ffi::PeekMessageW(&mut msg, ptr::mut_null(), 0, 0, 0x1) } == 0 {
-                break
-            }
-
-            unsafe { ffi::TranslateMessage(&msg) };
-            unsafe { ffi::DispatchMessageW(&msg) };
-        }
-
         let mut events = Vec::new();
         loop {
             match self.events_receiver.try_recv() {
@@ -137,12 +121,16 @@ impl Window {
 
     // TODO: return iterator
     pub fn wait_events(&self) -> Vec<Event> {
-        loop {
-            unsafe { ffi::WaitMessage() };
-
-            let events = self.poll_events();
-            if events.len() >= 1 {
-                return events
+        match self.events_receiver.recv_opt() {
+            Ok(ev) => {
+                let mut result = self.poll_events();
+                result.insert(0, ev);
+                result
+            },
+            Err(_) => {
+                use std::sync::atomics::Relaxed;
+                self.is_closed.store(true, Relaxed);
+                vec![]
             }
         }
     }
