@@ -19,6 +19,14 @@ pub struct Window {
 
 pub struct MonitorID(uint);
 
+pub fn get_available_monitors() -> Vec<MonitorID> {
+    unimplemented!()
+}
+
+pub fn get_primary_monitor() -> MonitorID {
+    unimplemented!()
+}
+
 /// Stores the list of all the windows.
 /// Only available on callback thread.
 local_data_key!(pub WINDOWS_LIST: Mutex<Vec<(ffi::HWND, Sender<Event>)>>)

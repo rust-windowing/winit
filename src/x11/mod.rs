@@ -16,6 +16,14 @@ pub struct Window {
 
 pub struct MonitorID(uint);
 
+pub fn get_available_monitors() -> Vec<MonitorID> {
+    unimplemented!()
+}
+
+pub fn get_primary_monitor() -> MonitorID {
+    unimplemented!()
+}
+
 impl Window {
     pub fn new(dimensions: Option<(uint, uint)>, title: &str, hints: &Hints, _: Option<MonitorID>)
         -> Result<Window, String>

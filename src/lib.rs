@@ -230,3 +230,34 @@ impl Window {
         self.window.swap_buffers()
     }
 }
+
+/// An iterator for the list of available monitors.
+// Implementation note: we retreive the list once, then serve each element by one by one.
+// This may change in the future.
+pub struct AvailableMonitorsIter {
+    data: Vec<winimpl::MonitorID>,
+}
+
+impl Iterator<MonitorID> for AvailableMonitorsIter {
+    fn next(&mut self) -> Option<MonitorID> {
+        self.data.remove(0).map(|id| MonitorID(id))
+    }
+}
+
+/// Returns the list of all available monitors.
+pub fn get_available_monitors() -> AvailableMonitorsIter {
+    let data = winimpl::get_available_monitors();
+    AvailableMonitorsIter{ data: data }
+}
+
+/// Returns the primary monitor of the system.
+pub fn get_primary_monitor() -> MonitorID {
+    MonitorID(winimpl::get_primary_monitor())
+}
+
+impl MonitorID {
+    /// Returns a human-readable name of the monitor.
+    pub fn get_name(&self) -> Option<String> {
+        Some("<Unknown>".to_string())
+    }
+}
