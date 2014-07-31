@@ -1,4 +1,4 @@
-use {Event, Hints, MonitorID};
+use {Event, Hints};
 use libc;
 use std::{mem, ptr};
 use std::sync::atomics::AtomicBool;
@@ -13,6 +13,8 @@ pub struct Window {
     is_closed: AtomicBool,
     wm_delete_window: ffi::Atom,
 }
+
+pub struct MonitorID(uint);
 
 impl Window {
     pub fn new(dimensions: Option<(uint, uint)>, title: &str, hints: &Hints, _: Option<MonitorID>)

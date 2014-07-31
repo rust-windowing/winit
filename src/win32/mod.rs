@@ -2,7 +2,7 @@ use std::kinds::marker::NoSend;
 use std::sync::Mutex;
 use std::sync::atomics::AtomicBool;
 use std::ptr;
-use {Event, Hints, MonitorID};
+use {Event, Hints};
 
 mod event;
 mod ffi;
@@ -16,6 +16,8 @@ pub struct Window {
     is_closed: AtomicBool,
     nosend: NoSend,
 }
+
+pub struct MonitorID(uint);
 
 /// Stores the list of all the windows.
 /// Only available on callback thread.

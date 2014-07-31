@@ -23,7 +23,8 @@ mod x11;
 mod events;
 mod hints;
 
-pub struct MonitorID(uint);
+/// Identifier for a monitor.
+pub struct MonitorID(winimpl::MonitorID);
 
 /// Represents an OpenGL context and the Window or environment around it.
 ///
@@ -85,7 +86,12 @@ impl Window {
         hints: &Hints, monitor: Option<MonitorID>)
         -> Result<Window, String>
     {
+        // extracting the monitor ID
+        let monitor = monitor.map(|id| { let MonitorID(id) = id; id });
+
+        // creating the window
         let win = try!(winimpl::Window::new(dimensions, title, hints, monitor));
+
         Ok(Window{
             window: win,
             nosend: std::kinds::marker::NoSend,
