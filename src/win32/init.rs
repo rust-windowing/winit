@@ -8,8 +8,10 @@ use super::{event, ffi};
 use super::{MonitorID, Window};
 use {Event, Hints};
 
-/// Stores the list of all the windows.
-/// Only available on callback thread.
+/// Stores the current window and its events dispatcher.
+/// 
+/// We only have one window per thread. We still store the HWND in case where we
+///  receive an event for another window.
 local_data_key!(WINDOW: (ffi::HWND, Sender<Event>))
 
 pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
@@ -19,11 +21,14 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
     use std::mem;
     use std::os;
 
-    let title = title.to_string();
+    // initializing variables to be sent to the task
+    let title = title.utf16_units().collect::<Vec<u16>>().append_one(0);    // title to utf16
     //let hints = hints.clone();
-
     let (tx, rx) = channel();
 
+    // GetMessage must be called in the same thread as CreateWindow,
+    //  so we create a new thread dedicated to this window.
+    // This is the only safe method. Using `nosend` wouldn't work for non-native runtime.
     TaskBuilder::new().native().spawn(proc() {
         // registering the window class
         let class_name: Vec<u16> = "Window Class".utf16_units().collect::<Vec<u16>>()
@@ -57,7 +62,9 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
             top: 0, bottom: dimensions.map(|(_, h)| h as ffi::LONG).unwrap_or(768),
         };
 
-        // switching to fullscreen
+        // switching to fullscreen if necessary
+        // this means adjusting the window's position so that it overlaps the right monitor,
+        //  and change the monitor's resolution if necessary
         if monitor.is_some() {
             let monitor = monitor.as_ref().unwrap();
 
@@ -86,7 +93,7 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
             }
         }
 
-        // computing the style and extended style
+        // computing the style and extended style of the window
         let (ex_style, style) = if monitor.is_some() {
             (ffi::WS_EX_APPWINDOW, ffi::WS_POPUP | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN)
         } else {
@@ -94,13 +101,13 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
                 ffi::WS_OVERLAPPEDWINDOW | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN)
         };
 
-        // adjusting
+        // adjusting the window coordinates using the style
         unsafe { ffi::AdjustWindowRectEx(&mut rect, style, 0, ex_style) };
 
         // creating the window
         let handle = unsafe {
             let handle = ffi::CreateWindowExW(ex_style, class_name.as_ptr(),
-                title.as_slice().utf16_units().collect::<Vec<u16>>().append_one(0).as_ptr() as ffi::LPCWSTR,
+                title.as_ptr() as ffi::LPCWSTR,
                 style | ffi::WS_VISIBLE | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN,
                 if monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT},
                 if monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT},
@@ -123,7 +130,7 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
             unsafe { ffi::SetForegroundWindow(handle) };
         }
 
-        // adding it to WINDOWS_LIST
+        // filling the WINDOW task-local storage
         let events_receiver = {
             let (tx, rx) = channel();
             WINDOW.replace(Some((handle, tx)));
@@ -166,7 +173,7 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
             }
         }
 
-        // creating the context
+        // creating the OpenGL context
         let context = {
             let ctxt = unsafe { ffi::wglCreateContext(hdc) };
             if ctxt.is_null() {
@@ -177,7 +184,7 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
             ctxt
         };
 
-        // loading opengl32
+        // loading the opengl32 module
         let gl_library = {
             let name = "opengl32.dll".utf16_units().collect::<Vec<u16>>().append_one(0).as_ptr();
             let lib = unsafe { ffi::LoadLibraryW(name) };
@@ -199,22 +206,24 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
             is_closed: AtomicBool::new(false),
         }));
 
-        // starting the events loop
+        // now that the `Window` struct is initialized, the main `Window::new()` function will
+        //  return and this events loop will run in parallel
         loop {
             let mut msg = unsafe { mem::uninitialized() };
 
             if unsafe { ffi::GetMessageW(&mut msg, ptr::mut_null(), 0, 0) } == 0 {
-                break
+                break;
             }
 
             unsafe { ffi::TranslateMessage(&msg) };
-            unsafe { ffi::DispatchMessageW(&msg) };
+            unsafe { ffi::DispatchMessageW(&msg) };     // calls `callback` (see below)
         }
     });
 
     rx.recv()
 }
 
+/// Checks that the window is the good one, and if so send the event to it.
 fn send_event(window: ffi::HWND, event: Event) {
     let stored = match WINDOW.get() {
         None => return,
@@ -230,6 +239,9 @@ fn send_event(window: ffi::HWND, event: Event) {
     sender.send_opt(event).ok();  // ignoring if closed
 }
 
+/// This is the callback that is called by `DispatchMessage` in the events loop.
+/// 
+/// Returning 0 tells the Win32 API that the message has been processed.
 extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
     wparam: ffi::WPARAM, lparam: ffi::LPARAM) -> ffi::LRESULT
 {

@@ -9,16 +9,32 @@ mod ffi;
 mod init;
 mod monitor;
 
+/// The Win32 implementation of the main `Window` object.
 pub struct Window {
+    /// Main handle for the window.
     window: ffi::HWND,
+
+    /// This represents a "draw context" for the surface of the window.
     hdc: ffi::HDC,
+
+    /// OpenGL context.
     context: ffi::HGLRC,
+
+    /// Binded to `opengl32.dll`.
+    ///
+    /// `wglGetProcAddress` returns null for GL 1.1 functions because they are
+    ///  already defined by the system. This module contains them.
     gl_library: ffi::HMODULE,
+
+    /// Receiver for the events dispatched by the window callback.
     events_receiver: Receiver<Event>,
+
+    /// True if a `Closed` event has been received.
     is_closed: AtomicBool,
 }
 
 impl Window {
+    /// See the docs if the crate root file.
     pub fn new(dimensions: Option<(uint, uint)>, title: &str,
         hints: &Hints, monitor: Option<MonitorID>)
         -> Result<Window, String>
@@ -26,11 +42,14 @@ impl Window {
         init::new_window(dimensions, title, hints, monitor)
     }
 
+    /// See the docs if the crate root file.
     pub fn is_closed(&self) -> bool {
         use std::sync::atomics::Relaxed;
         self.is_closed.load(Relaxed)
     }
 
+    /// See the docs if the crate root file.
+    /// 
     /// Calls SetWindowText on the HWND.
     pub fn set_title(&self, text: &str) {
         unsafe {
@@ -39,6 +58,7 @@ impl Window {
         }
     }
 
+    /// See the docs if the crate root file.
     pub fn get_position(&self) -> Option<(int, int)> {
         use std::mem;
 
@@ -53,6 +73,7 @@ impl Window {
         Some((rect.left as int, rect.top as int))
     }
 
+    /// See the docs if the crate root file.
     pub fn set_position(&self, x: uint, y: uint) {
         use libc;
 
@@ -63,6 +84,7 @@ impl Window {
         }
     }
 
+    /// See the docs if the crate root file.
     pub fn get_inner_size(&self) -> Option<(uint, uint)> {
         use std::mem;
         let mut rect: ffi::RECT = unsafe { mem::uninitialized() };
@@ -77,6 +99,7 @@ impl Window {
         ))
     }
 
+    /// See the docs if the crate root file.
     pub fn get_outer_size(&self) -> Option<(uint, uint)> {
         use std::mem;
         let mut rect: ffi::RECT = unsafe { mem::uninitialized() };
@@ -91,6 +114,7 @@ impl Window {
         ))
     }
 
+    /// See the docs if the crate root file.
     pub fn set_inner_size(&self, x: uint, y: uint) {
         use libc;
 
@@ -101,6 +125,7 @@ impl Window {
         }
     }
 
+    /// See the docs if the crate root file.
     // TODO: return iterator
     pub fn poll_events(&self) -> Vec<Event> {
         let mut events = Vec::new();
@@ -119,6 +144,7 @@ impl Window {
         events
     }
 
+    /// See the docs if the crate root file.
     // TODO: return iterator
     pub fn wait_events(&self) -> Vec<Event> {
         match self.events_receiver.recv_opt() {
@@ -135,10 +161,12 @@ impl Window {
         }
     }
 
+    /// See the docs if the crate root file.
     pub unsafe fn make_current(&self) {
         ffi::wglMakeCurrent(self.hdc, self.context)
     }
 
+    /// See the docs if the crate root file.
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         use std::c_str::ToCStr;
 
@@ -151,6 +179,7 @@ impl Window {
         }
     }
 
+    /// See the docs if the crate root file.
     pub fn swap_buffers(&self) {
         unsafe {
             ffi::SwapBuffers(self.hdc);
