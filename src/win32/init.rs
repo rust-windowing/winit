@@ -107,8 +107,108 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
         // adjusting the window coordinates using the style
         unsafe { ffi::AdjustWindowRectEx(&mut rect, style, 0, ex_style) };
 
-        // creating the window
-        let handle = unsafe {
+        // getting the address of wglCreateContextAttribs and the pixel format
+        //  that we will use
+        let (create_context_attribs, pixel_format) = {
+            // creating a dummy invisible window for GL initialization
+            let dummy_window = unsafe {
+                let handle = ffi::CreateWindowExW(ex_style, class_name.as_ptr(),
+                    title.as_ptr() as ffi::LPCWSTR,
+                    style | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN,
+                    ffi::CW_USEDEFAULT, ffi::CW_USEDEFAULT,
+                    rect.right - rect.left, rect.bottom - rect.top,
+                    ptr::mut_null(), ptr::mut_null(), ffi::GetModuleHandleW(ptr::null()),
+                    ptr::mut_null());
+
+                if handle.is_null() {
+                    use std::os;
+                    tx.send(Err(format!("CreateWindowEx function failed: {}",
+                        os::error_string(os::errno() as uint))));
+                    return;
+                }
+
+                handle
+            };
+
+            // getting the HDC of the dummy window
+            let dummy_hdc = {
+                let hdc = unsafe { ffi::GetDC(dummy_window) };
+                if hdc.is_null() {
+                    tx.send(Err(format!("GetDC function failed: {}",
+                        os::error_string(os::errno() as uint))));
+                    return;
+                }
+                hdc
+            };
+
+            // getting the pixel format that we will use
+            // TODO: use something cleaner which uses hints
+            let pixel_format = {
+                let mut output: ffi::PIXELFORMATDESCRIPTOR = unsafe { mem::uninitialized() };
+
+                if unsafe { ffi::DescribePixelFormat(dummy_hdc, 1,
+                    mem::size_of::<ffi::PIXELFORMATDESCRIPTOR>() as ffi::UINT, &mut output) } == 0
+                {
+                    tx.send(Err(format!("DescribePixelFormat function failed: {}",
+                        os::error_string(os::errno() as uint))));
+                    return;
+                }
+
+                output
+            };
+
+            // calling SetPixelFormat
+            unsafe {
+                if ffi::SetPixelFormat(dummy_hdc, 1, &pixel_format) == 0 {
+                    tx.send(Err(format!("SetPixelFormat function failed: {}",
+                        os::error_string(os::errno() as uint))));
+                    return;
+                }
+            }
+
+            // creating the dummy OpenGL context
+            let dummy_context = {
+                let ctxt = unsafe { ffi::wglCreateContext(dummy_hdc) };
+                if ctxt.is_null() {
+                    tx.send(Err(format!("wglCreateContext function failed: {}",
+                        os::error_string(os::errno() as uint))));
+                    return;
+                }
+                ctxt
+            };
+
+            // making context current
+            unsafe { ffi::wglMakeCurrent(dummy_hdc, dummy_context); }
+
+            // getting the pointer to wglCreateContextAttribs
+            let mut addr = unsafe { ffi::wglGetProcAddress(b"wglCreateContextAttribs".as_ptr()
+                as *const i8) } as *const ();
+
+            if addr.is_null() {
+                addr = unsafe { ffi::wglGetProcAddress(b"wglCreateContextAttribsARB".as_ptr()
+                    as *const i8) } as *const ();
+            }
+
+            // removing current context
+            unsafe { ffi::wglMakeCurrent(ptr::mut_null(), ptr::mut_null()); }
+
+            // destroying the context and the window
+            unsafe { ffi::wglDeleteContext(dummy_context); }
+            unsafe { ffi::DestroyWindow(dummy_window); }
+
+            // returning the address
+            if addr.is_null() {
+                (None, pixel_format)
+            } else {
+                use libc;
+                let addr: extern "system" fn(ffi::HDC, ffi::HGLRC, *const libc::c_int) -> ffi::HGLRC
+                    = unsafe { mem::transmute(addr) };
+                (Some(addr), pixel_format)
+            }
+        };
+
+        // creating the real window this time
+        let real_window = unsafe {
             let handle = ffi::CreateWindowExW(ex_style, class_name.as_ptr(),
                 title.as_ptr() as ffi::LPCWSTR,
                 style | ffi::WS_VISIBLE | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN,
@@ -128,43 +228,15 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
             handle
         };
 
-        // calling SetForegroundWindow if fullscreen
-        if monitor.is_some() {
-            unsafe { ffi::SetForegroundWindow(handle) };
-        }
-
-        // filling the WINDOW task-local storage
-        let events_receiver = {
-            let (tx, rx) = channel();
-            WINDOW.replace(Some((handle, tx)));
-            rx
-        };
-
-        // Getting the HDC of the window
+        // getting the HDC of the window
         let hdc = {
-            let hdc = unsafe { ffi::GetDC(handle) };
+            let hdc = unsafe { ffi::GetDC(real_window) };
             if hdc.is_null() {
                 tx.send(Err(format!("GetDC function failed: {}",
                     os::error_string(os::errno() as uint))));
                 return;
             }
             hdc
-        };
-
-        // getting the pixel format that we will use
-        // TODO: use something cleaner which uses hints
-        let pixel_format = {
-            let mut output: ffi::PIXELFORMATDESCRIPTOR = unsafe { mem::uninitialized() };
-
-            if unsafe { ffi::DescribePixelFormat(hdc, 1,
-                mem::size_of::<ffi::PIXELFORMATDESCRIPTOR>() as ffi::UINT, &mut output) } == 0
-            {
-                tx.send(Err(format!("DescribePixelFormat function failed: {}",
-                    os::error_string(os::errno() as uint))));
-                return;
-            }
-
-            output
         };
 
         // calling SetPixelFormat
@@ -178,13 +250,38 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
 
         // creating the OpenGL context
         let context = {
-            let ctxt = unsafe { ffi::wglCreateContext(hdc) };
+            use libc;
+
+            let attributes: [libc::c_int, ..1] = [
+                0
+            ];
+
+            let ctxt = unsafe {
+                match create_context_attribs {
+                    None => ffi::wglCreateContext(hdc),
+                    Some(ptr) => ptr(hdc, ptr::mut_null(), attributes.as_ptr())
+                }
+            };
+
             if ctxt.is_null() {
-                tx.send(Err(format!("wglCreateContext function failed: {}",
+                tx.send(Err(format!("OpenGL context creation failed: {}",
                     os::error_string(os::errno() as uint))));
                 return;
             }
+
             ctxt
+        };
+
+        // calling SetForegroundWindow if fullscreen
+        if monitor.is_some() {
+            unsafe { ffi::SetForegroundWindow(real_window) };
+        }
+
+        // filling the WINDOW task-local storage
+        let events_receiver = {
+            let (tx, rx) = channel();
+            WINDOW.replace(Some((real_window, tx)));
+            rx
         };
 
         // loading the opengl32 module
@@ -201,7 +298,7 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
 
         // building the struct
         tx.send(Ok(Window{
-            window: handle,
+            window: real_window,
             hdc: hdc,
             context: context,
             gl_library: gl_library,
@@ -251,7 +348,18 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
     match msg {
         ffi::WM_DESTROY => {
             use Closed;
-            unsafe { ffi::PostQuitMessage(0); }
+
+            match WINDOW.get() {
+                None => (),
+                Some(v) => {
+                    let &(ref win, _) = v.deref();
+
+                    if win == &window {
+                        unsafe { ffi::PostQuitMessage(0); }
+                    }
+                }
+            };
+
             send_event(window, Closed);
             0
         },
