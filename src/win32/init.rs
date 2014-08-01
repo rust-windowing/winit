@@ -31,30 +31,33 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
     // This is the only safe method. Using `nosend` wouldn't work for non-native runtime.
     TaskBuilder::new().native().spawn(proc() {
         // registering the window class
-        let class_name: Vec<u16> = "Window Class".utf16_units().collect::<Vec<u16>>()
-            .append_one(0);
-        
-        let class = ffi::WNDCLASSEX {
-            cbSize: mem::size_of::<ffi::WNDCLASSEX>() as ffi::UINT,
-            style: ffi::CS_HREDRAW | ffi::CS_VREDRAW,
-            lpfnWndProc: callback,
-            cbClsExtra: 0,
-            cbWndExtra: 0,
-            hInstance: unsafe { ffi::GetModuleHandleW(ptr::null()) },
-            hIcon: ptr::mut_null(),
-            hCursor: ptr::mut_null(),
-            hbrBackground: ptr::mut_null(),
-            lpszMenuName: ptr::null(),
-            lpszClassName: class_name.as_ptr(),
-            hIconSm: ptr::mut_null(),
-        };
+        let class_name = {
+            let class_name: Vec<u16> = "Window Class".utf16_units().collect::<Vec<u16>>()
+                .append_one(0);
+            
+            let class = ffi::WNDCLASSEX {
+                cbSize: mem::size_of::<ffi::WNDCLASSEX>() as ffi::UINT,
+                style: ffi::CS_HREDRAW | ffi::CS_VREDRAW,
+                lpfnWndProc: callback,
+                cbClsExtra: 0,
+                cbWndExtra: 0,
+                hInstance: unsafe { ffi::GetModuleHandleW(ptr::null()) },
+                hIcon: ptr::mut_null(),
+                hCursor: ptr::mut_null(),
+                hbrBackground: ptr::mut_null(),
+                lpszMenuName: ptr::null(),
+                lpszClassName: class_name.as_ptr(),
+                hIconSm: ptr::mut_null(),
+            };
 
-        if unsafe { ffi::RegisterClassExW(&class) } == 0 {
-            use std::os;
-            tx.send(Err(format!("RegisterClassEx function failed: {}",
-                os::error_string(os::errno() as uint))));
-            return;
-        }
+            // We ignore errors because registering the same window class twice would trigger
+            //  an error, and because errors here are detected during CreateWindowEx anyway.
+            // Also since there is no weird element in the struct, there is no reason for this
+            //  call to fail.
+            unsafe { ffi::RegisterClassExW(&class) };
+
+            class_name
+        };
 
         // building a RECT object with coordinates
         let mut rect = ffi::RECT {
