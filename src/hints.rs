@@ -1,6 +1,7 @@
 use std::default::Default;
 
 #[deriving(Clone,Show)]
+#[deprecated = "Will be removed soon (it's not supported anyway)"]
 pub struct Hints {
     pub resizable: bool,
     pub visible: bool,
