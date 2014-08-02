@@ -234,7 +234,6 @@ impl Window {
 
     /// Sets the context as the current context.
     #[inline]
-    #[experimental]
     pub unsafe fn make_current(&self) {
         self.window.make_current()
     }
