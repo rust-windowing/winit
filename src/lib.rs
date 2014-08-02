@@ -29,6 +29,7 @@ pub struct WindowBuilder {
     dimensions: (uint, uint),
     title: String,
     monitor: Option<winimpl::MonitorID>,
+    gl_version: Option<(uint, uint)>,
 }
 
 impl WindowBuilder {
@@ -38,6 +39,7 @@ impl WindowBuilder {
             dimensions: (1024, 768),
             title: String::new(),
             monitor: None,
+            gl_version: None,
         }
     }
 
@@ -54,6 +56,15 @@ impl WindowBuilder {
     pub fn with_monitor(mut self, monitor: MonitorID) -> WindowBuilder {
         let MonitorID(monitor) = monitor;
         self.monitor = Some(monitor);
+        self
+    }
+
+    /// Requests to use a specific OpenGL version.
+    ///
+    /// Version is a (major, minor) pair. For example to request OpenGL 3.3
+    ///  you would pass `(3, 3)`.
+    pub fn with_gl_version(mut self, version: (uint, uint)) -> WindowBuilder {
+        self.gl_version = Some(version);
         self
     }
 

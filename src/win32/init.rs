@@ -250,14 +250,22 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
         let context = {
             use libc;
 
-            let attributes: [libc::c_int, ..1] = [
-                0
-            ];
+            let mut attributes = Vec::new();
+
+            if builder.gl_version.is_some() {
+                let version = builder.gl_version.as_ref().unwrap();
+                attributes.push(ffi::WGL_CONTEXT_MAJOR_VERSION_ARB);
+                attributes.push(version.val0() as libc::c_int);
+                attributes.push(ffi::WGL_CONTEXT_MINOR_VERSION_ARB);
+                attributes.push(version.val1() as libc::c_int);
+            }
+
+            attributes.push(0);
 
             let ctxt = unsafe {
                 match create_context_attribs {
                     None => ffi::wglCreateContext(hdc),
-                    Some(ptr) => ptr(hdc, ptr::mut_null(), attributes.as_ptr())
+                    Some(ptr) => ptr(hdc, ptr::mut_null(), attributes.as_slice().as_ptr())
                 }
             };
 

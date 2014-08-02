@@ -365,6 +365,17 @@ pub static VK_NONAME: WPARAM = 0xFC;
 pub static VK_PA1: WPARAM = 0xFD;
 pub static VK_OEM_CLEAR: WPARAM = 0xFE;
 
+// ?
+pub static WGL_CONTEXT_DEBUG_BIT_ARB: libc::c_int = 0x00000001;
+pub static WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB: libc::c_int = 0x00000002;
+pub static WGL_CONTEXT_MAJOR_VERSION_ARB: libc::c_int = 0x2091;
+pub static WGL_CONTEXT_MINOR_VERSION_ARB: libc::c_int = 0x2092;
+pub static WGL_CONTEXT_LAYER_PLANE_ARB: libc::c_int = 0x2093;
+pub static WGL_CONTEXT_FLAGS_ARB: libc::c_int = 0x2094;
+pub static WGL_CONTEXT_PROFILE_MASK_ARB: libc::c_int = 0x9126;
+pub static WGL_CONTEXT_CORE_PROFILE_BIT_ARB: libc::c_int = 0x00000001;
+pub static WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB: libc::c_int = 0x00000002;
+
 // messages
 pub static WM_LBUTTONDOWN: UINT = 0x0201;
 pub static WM_LBUTTONUP: UINT = 0x0202;
