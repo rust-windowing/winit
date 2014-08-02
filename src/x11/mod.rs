@@ -197,7 +197,7 @@ impl Window {
     }
 
     pub fn set_position(&self, x: uint, y: uint) {
-        unimplemented!()
+        unsafe { ffi::XMoveWindow(self.display, self.window, x as libc::c_int, y as libc::c_int) }
     }
 
     pub fn get_inner_size(&self) -> Option<(uint, uint)> {

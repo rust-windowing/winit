@@ -1356,6 +1356,7 @@ extern "C" {
         only_if_exists: Bool) -> Atom;
     pub fn XKeycodeToKeysym(display: *mut Display, keycode: KeyCode,
         index: libc::c_int) -> KeySym;
+    pub fn XMoveWindow(display: *mut Display, w: Window, x: libc::c_int, y: libc::c_int);
     pub fn XMapWindow(display: *mut Display, w: Window);
     pub fn XNextEvent(display: *mut Display, event_return: *mut XEvent);
     pub fn XOpenDisplay(display_name: *const libc::c_char) -> *mut Display;
