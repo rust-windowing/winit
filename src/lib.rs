@@ -92,8 +92,7 @@ impl WindowBuilder {
 /// unsafe { window.make_current() };
 /// 
 /// loop {
-///     for event in window.poll_events().move_iter() {     // note: this may change in the future
-///         match event {
+///     for event in window.poll_events() {
 ///             // process events here
 ///             _ => ()
 ///         }
