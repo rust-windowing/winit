@@ -62,12 +62,7 @@ impl WindowBuilder {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     pub fn build(self) -> Result<Window, String> {
-        let win = try!(winimpl::Window::new(Some(self.dimensions),
-            self.title.as_slice(), self.monitor));
-
-        Ok(Window{
-            window: win,
-        })
+        winimpl::Window::new(self).map(|w| Window { window: w })
     }
 }
 
