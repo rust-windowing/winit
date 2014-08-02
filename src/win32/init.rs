@@ -6,7 +6,7 @@ use std::sync::atomics::AtomicBool;
 use std::ptr;
 use super::{event, ffi};
 use super::{MonitorID, Window};
-use {Event, Hints};
+use Event;
 
 /// Stores the current window and its events dispatcher.
 /// 
@@ -15,7 +15,7 @@ use {Event, Hints};
 local_data_key!(WINDOW: (ffi::HWND, Sender<Event>))
 
 pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
-    _hints: &Hints, monitor: Option<MonitorID>)
+    monitor: Option<MonitorID>)
     -> Result<Window, String>
 {
     use std::mem;

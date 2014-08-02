@@ -5,8 +5,6 @@ extern crate gl;
 use std::io::stdio::stdin;
 
 fn main() {
-    use std::default::Default;
-
     // enumerating monitors
     let monitor = {
         for (num, monitor) in init::get_available_monitors().enumerate() {
@@ -23,8 +21,11 @@ fn main() {
         monitor
     };
 
-    let window = init::Window::new(None, "Hello world!", &Default::default(),
-        Some(monitor)).unwrap();
+    let window = init::WindowBuilder::new()
+        .with_title("Hello world!".to_string())
+        .with_monitor(monitor)
+        .build()
+        .unwrap();
 
     unsafe { window.make_current() };
 
@@ -40,7 +41,7 @@ fn main() {
     gl::ClearColor(0.0, 1.0, 0.0, 1.0);
 
     while !window.is_closed() {
-        println!("{}", window.wait_events());
+        println!("{}", window.wait_events().collect::<Vec<init::Event>>());
 
         gl::Clear(gl::COLOR_BUFFER_BIT);
 

@@ -1,4 +1,4 @@
-use {Event, Hints};
+use Event;
 use libc;
 use std::{mem, ptr};
 use std::sync::atomics::AtomicBool;
@@ -33,7 +33,7 @@ impl MonitorID {
 }
 
 impl Window {
-    pub fn new(dimensions: Option<(uint, uint)>, title: &str, hints: &Hints, _: Option<MonitorID>)
+    pub fn new(dimensions: Option<(uint, uint)>, title: &str, _: Option<MonitorID>)
         -> Result<Window, String>
     {
         // calling XOpenDisplay
