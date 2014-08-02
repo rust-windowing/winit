@@ -43,17 +43,22 @@ impl WindowBuilder {
         }
     }
 
+    /// Requests the window to be of specific dimensions.
+    ///
+    /// Width and height are in pixels.
     pub fn with_dimensions(mut self, width: uint, height: uint) -> WindowBuilder {
         self.dimensions = (width, height);
         self
     }
 
+    /// Requests a specific title for the window.
     pub fn with_title(mut self, title: String) -> WindowBuilder {
         self.title = title;
         self
     }
 
-    pub fn with_monitor(mut self, monitor: MonitorID) -> WindowBuilder {
+    /// Requests fullscreen mode.
+    pub fn with_fullscreen(mut self, monitor: MonitorID) -> WindowBuilder {
         let MonitorID(monitor) = monitor;
         self.monitor = Some(monitor);
         self

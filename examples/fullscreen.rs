@@ -23,7 +23,7 @@ fn main() {
 
     let window = init::WindowBuilder::new()
         .with_title("Hello world!".to_string())
-        .with_monitor(monitor)
+        .with_fullscreen(monitor)
         .build()
         .unwrap();
 
