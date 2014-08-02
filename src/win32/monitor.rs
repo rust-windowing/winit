@@ -16,6 +16,9 @@ pub struct MonitorID {
     ///
     /// A window that is positionned at these coordinates will overlap the monitor.
     position: (uint, uint),
+
+    /// The current resolution in pixels on the monitor.
+    dimensions: (uint, uint),
 }
 
 /// Win32 implementation of the main `get_available_monitors` function.
@@ -56,7 +59,7 @@ pub fn get_available_monitors() -> Vec<MonitorID> {
         let readable_name = readable_name.as_slice().trim_right_chars(0 as char).to_string();
 
         // getting the position
-        let position = unsafe {
+        let (position, dimensions) = unsafe {
             let mut dev: ffi::DEVMODE = mem::zeroed();
             dev.dmSize = mem::size_of::<ffi::DEVMODE>() as ffi::WORD;
 
@@ -67,7 +70,11 @@ pub fn get_available_monitors() -> Vec<MonitorID> {
             }
 
             let point: &ffi::POINTL = mem::transmute(&dev.union1);
-            (point.x as uint, point.y as uint)
+            let position = (point.x as uint, point.y as uint);
+
+            let dimensions = (dev.dmPelsWidth as uint, dev.dmPelsHeight as uint);
+
+            (position, dimensions)
         };
 
         // adding to the resulting list
@@ -76,6 +83,7 @@ pub fn get_available_monitors() -> Vec<MonitorID> {
             readable_name: readable_name,
             flags: output.StateFlags,
             position: position,
+            dimensions: dimensions,
         });
     }
 
@@ -102,8 +110,15 @@ impl MonitorID {
         Some(self.readable_name.clone())
     }
 
+    /// See the docs if the crate root file.
+    pub fn get_dimensions(&self) -> (uint, uint) {
+        // TODO: retreive the dimensions every time this is called
+        self.dimensions
+    }
+
     /// This is a Win32-only function for `MonitorID` that returns the system name of the device.
     pub fn get_system_name(&self) -> &[ffi::WCHAR] {
+        // TODO: retreive the position every time this is called
         self.name.as_slice()
     }
 

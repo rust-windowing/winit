@@ -30,6 +30,10 @@ impl MonitorID {
     pub fn get_name(&self) -> Option<String> {
         Some("<Unknown>".to_string())
     }
+
+    pub fn get_dimensions(&self) -> (uint, uint) {
+        unimplemented!()
+    }
 }
 
 impl Window {

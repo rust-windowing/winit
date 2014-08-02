@@ -300,4 +300,10 @@ impl MonitorID {
         let &MonitorID(ref id) = self;
         id.get_name()
     }
+
+    /// Returns the number of pixels currently displayed on the monitor.
+    pub fn get_dimensions(&self) -> (uint, uint) {
+        let &MonitorID(ref id) = self;
+        id.get_dimensions()
+    }
 }
