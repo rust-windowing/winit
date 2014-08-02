@@ -5,7 +5,6 @@
 extern crate libc;
 
 pub use events::*;
-pub use hints::{Hints, ClientAPI, Profile};
 
 #[cfg(windows)]
 use winimpl = win32;
@@ -21,19 +20,63 @@ mod x11;
 //mod egl;
 
 mod events;
-mod hints;
 
 /// Identifier for a monitor.
 pub struct MonitorID(winimpl::MonitorID);
+
+/// Object that allows you to build windows.
+pub struct WindowBuilder {
+    dimensions: (uint, uint),
+    title: String,
+    monitor: Option<winimpl::MonitorID>,
+}
+
+impl WindowBuilder {
+    /// Initializes a new `WindowBuilder` with default values.
+    pub fn new() -> WindowBuilder {
+        WindowBuilder {
+            dimensions: (1024, 768),
+            title: String::new(),
+            monitor: None,
+        }
+    }
+
+    pub fn with_dimensions(mut self, width: uint, height: uint) -> WindowBuilder {
+        self.dimensions = (width, height);
+        self
+    }
+
+    pub fn with_title(mut self, title: String) -> WindowBuilder {
+        self.title = title;
+        self
+    }
+
+    pub fn with_monitor(mut self, monitor: MonitorID) -> WindowBuilder {
+        let MonitorID(monitor) = monitor;
+        self.monitor = Some(monitor);
+        self
+    }
+
+    /// Builds the window.
+    /// 
+    /// Error should be very rare and only occur in case of permission denied, incompatible system,
+    ///  out of memory, etc.
+    pub fn build(self) -> Result<Window, String> {
+        let win = try!(winimpl::Window::new(Some(self.dimensions),
+            self.title.as_slice(), self.monitor));
+
+        Ok(Window{
+            window: win,
+        })
+    }
+}
 
 /// Represents an OpenGL context and the Window or environment around it.
 ///
 /// # Example
 ///
 /// ```
-/// use std::default::Default;
-/// 
-/// let window = Window::new(None, "Hello world!", &Default::default(), None).unwrap();
+/// let window = Window::new().unwrap();
 /// 
 /// unsafe { window.make_current() };
 /// 
@@ -57,43 +100,15 @@ pub struct Window {
 
 impl Window {
     /// Creates a new OpenGL context, and a Window for platforms where this is appropriate.
+    ///
+    /// This function is equivalent to `WindowBuilder::new().build()`.
     /// 
-    /// # Parameters
-    /// 
-    /// The `dimensions` parameter tell the library what the dimensions of the client area
-    ///  of the window must be. If set to `None`, the library will choose or let the O/S choose.
-    ///
-    /// The `title` parameter is the title that the window must have.
-    ///
-    /// The `hints` parameter must be a `Hint` object which contains hints about how the context
-    ///  must be created. This library will *try* to follow the hints, but will still success
-    ///  even if it could not conform to all of them.
-    ///
-    /// The `monitor` parameter is the identifier of the monitor that this window should fill.
-    ///  If `None`, a windowed window will be created. If `Some(_)`, the window will be fullscreen
-    ///  and will fill the given monitor. Note `MonitorID` does not necessarly represent a
-    ///  *physical* monitor.
-    ///
-    /// # Return value
-    ///
-    /// Returns the `Window` object.
-    ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     #[inline]
-    pub fn new(dimensions: Option<(uint, uint)>, title: &str,
-        hints: &Hints, monitor: Option<MonitorID>)
-        -> Result<Window, String>
-    {
-        // extracting the monitor ID
-        let monitor = monitor.map(|id| { let MonitorID(id) = id; id });
-
-        // creating the window
-        let win = try!(winimpl::Window::new(dimensions, title, hints, monitor));
-
-        Ok(Window{
-            window: win,
-        })
+    pub fn new() -> Result<Window, String> {
+        let builder = WindowBuilder::new();
+        builder.build()
     }
 
     /// Returns true if the window has previously been closed by the user.
@@ -176,32 +191,22 @@ impl Window {
         self.window.set_inner_size(x, y)
     }
 
-    /// Returns all the events that are currently in window's events queue.
+    /// Returns an iterator to all the events that are currently in the window's events queue.
     /// 
     /// Contrary to `wait_events`, this function never blocks.
-    #[experimental = "Will probably be changed to return an iterator instead of a Vec"]
     #[inline]
-    pub fn poll_events(&self) -> Vec<Event> {
-        self.window.poll_events()
+    pub fn poll_events(&self) -> PollEventsIterator {
+        PollEventsIterator { data: self.window.poll_events() }
     }
 
-    /// Returns all the events that are currently in window's events queue.
-    /// If there are no events in queue, this function will block until there is one.
-    ///
-    /// This is equivalent to:
-    ///
-    /// ```
-    /// loop {
-    ///     let events = poll_events();
-    ///     if events.len() >= 1 { return events }
-    /// }
-    /// ```
-    ///
-    /// ...but without the spinlock.
+    /// Waits for an event, then returns an iterator to all the events that are currently
+    ///  in the window's events queue.
+    /// 
+    /// If there are no events in queue when you call the function,
+    ///  this function will block until there is one.
     #[inline]
-    #[experimental = "Will probably be changed to return an iterator instead of a Vec"]
-    pub fn wait_events(&self) -> Vec<Event> {
-        self.window.wait_events()
+    pub fn wait_events(&self) -> WaitEventsIterator {
+        WaitEventsIterator { data: self.window.wait_events() }
     }
 
     /// Sets the context as the current context.
@@ -226,6 +231,32 @@ impl Window {
     #[inline]
     pub fn swap_buffers(&self) {
         self.window.swap_buffers()
+    }
+}
+
+/// An iterator for the `poll_events` function.
+// Implementation note: we retreive the list once, then serve each element by one by one.
+// This may change in the future.
+pub struct PollEventsIterator<'a> {
+    data: Vec<Event>,
+}
+
+impl<'a> Iterator<Event> for PollEventsIterator<'a> {
+    fn next(&mut self) -> Option<Event> {
+        self.data.remove(0)
+    }
+}
+
+/// An iterator for the `wait_events` function.
+// Implementation note: we retreive the list once, then serve each element by one by one.
+// This may change in the future.
+pub struct WaitEventsIterator<'a> {
+    data: Vec<Event>,
+}
+
+impl<'a> Iterator<Event> for WaitEventsIterator<'a> {
+    fn next(&mut self) -> Option<Event> {
+        self.data.remove(0)
     }
 }
 

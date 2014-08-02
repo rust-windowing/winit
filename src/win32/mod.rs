@@ -1,6 +1,6 @@
 use std::sync::atomics::AtomicBool;
 use std::ptr;
-use {Event, Hints};
+use Event;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
@@ -36,10 +36,10 @@ pub struct Window {
 impl Window {
     /// See the docs if the crate root file.
     pub fn new(dimensions: Option<(uint, uint)>, title: &str,
-        hints: &Hints, monitor: Option<MonitorID>)
+        monitor: Option<MonitorID>)
         -> Result<Window, String>
     {
-        init::new_window(dimensions, title, hints, monitor)
+        init::new_window(dimensions, title, monitor)
     }
 
     /// See the docs if the crate root file.
