@@ -59,8 +59,8 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
 
         // building a RECT object with coordinates
         let mut rect = ffi::RECT {
-            left: 0, right: builder.dimensions.val0() as ffi::LONG,
-            top: 0, bottom: builder.dimensions.val1() as ffi::LONG,
+            left: 0, right: builder.dimensions.unwrap_or((1024, 768)).val0() as ffi::LONG,
+            top: 0, bottom: builder.dimensions.unwrap_or((1024, 768)).val1() as ffi::LONG,
         };
 
         // switching to fullscreen if necessary

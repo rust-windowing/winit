@@ -26,7 +26,7 @@ pub struct MonitorID(winimpl::MonitorID);
 
 /// Object that allows you to build windows.
 pub struct WindowBuilder {
-    dimensions: (uint, uint),
+    dimensions: Option<(uint, uint)>,
     title: String,
     monitor: Option<winimpl::MonitorID>,
     gl_version: Option<(uint, uint)>,
@@ -36,7 +36,7 @@ impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     pub fn new() -> WindowBuilder {
         WindowBuilder {
-            dimensions: (1024, 768),
+            dimensions: None,
             title: String::new(),
             monitor: None,
             gl_version: None,
@@ -47,7 +47,7 @@ impl WindowBuilder {
     ///
     /// Width and height are in pixels.
     pub fn with_dimensions(mut self, width: uint, height: uint) -> WindowBuilder {
-        self.dimensions = (width, height);
+        self.dimensions = Some((width, height));
         self
     }
 
@@ -58,6 +58,8 @@ impl WindowBuilder {
     }
 
     /// Requests fullscreen mode.
+    ///
+    /// If you don't specify dimensions for the window, it will match the monitor's.
     pub fn with_fullscreen(mut self, monitor: MonitorID) -> WindowBuilder {
         let MonitorID(monitor) = monitor;
         self.monitor = Some(monitor);
@@ -77,7 +79,18 @@ impl WindowBuilder {
     /// 
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
-    pub fn build(self) -> Result<Window, String> {
+    pub fn build(mut self) -> Result<Window, String> {
+        // resizing the window to the dimensions of the monitor when fullscreen
+        if self.dimensions.is_none() && self.monitor.is_some() {
+            self.dimensions = Some(self.monitor.as_ref().unwrap().get_dimensions())
+        }
+
+        // default dimensions
+        if self.dimensions.is_none() {
+            self.dimensions = Some((1024, 768));
+        }
+
+        // building
         winimpl::Window::new(self).map(|w| Window { window: w })
     }
 }

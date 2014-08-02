@@ -39,7 +39,7 @@ impl MonitorID {
 impl Window {
     pub fn new(builder: WindowBuilder) -> Result<Window, String> {
         // TODO: temporary
-        let dimensions = Some(builder.dimensions);
+        let dimensions = builder.dimensions;
         let title = builder.title.as_slice();
 
         // calling XOpenDisplay
