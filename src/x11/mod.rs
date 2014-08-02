@@ -1,4 +1,4 @@
-use Event;
+use {Event, WindowBuilder};
 use libc;
 use std::{mem, ptr};
 use std::sync::atomics::AtomicBool;
@@ -33,9 +33,11 @@ impl MonitorID {
 }
 
 impl Window {
-    pub fn new(dimensions: Option<(uint, uint)>, title: &str, _: Option<MonitorID>)
-        -> Result<Window, String>
-    {
+    pub fn new(builder: WindowBuilder) -> Result<Window, String> {
+        // TODO: temporary
+        let dimensions = Some(builder.dimensions);
+        let title = builder.title.as_slice();
+
         // calling XOpenDisplay
         let display = unsafe {
             let display = ffi::XOpenDisplay(ptr::null());

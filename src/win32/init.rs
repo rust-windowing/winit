@@ -5,8 +5,8 @@ use std::task::TaskBuilder;
 use std::sync::atomics::AtomicBool;
 use std::ptr;
 use super::{event, ffi};
-use super::{MonitorID, Window};
-use Event;
+use super::Window;
+use {Event, WindowBuilder};
 
 /// Stores the current window and its events dispatcher.
 /// 
@@ -14,15 +14,13 @@ use Event;
 ///  receive an event for another window.
 local_data_key!(WINDOW: (ffi::HWND, Sender<Event>))
 
-pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
-    monitor: Option<MonitorID>)
-    -> Result<Window, String>
-{
+pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
     use std::mem;
     use std::os;
 
     // initializing variables to be sent to the task
-    let title = title.utf16_units().collect::<Vec<u16>>().append_one(0);    // title to utf16
+    let title = builder.title.as_slice().utf16_units()
+        .collect::<Vec<u16>>().append_one(0);    // title to utf16
     //let hints = hints.clone();
     let (tx, rx) = channel();
 
@@ -61,15 +59,15 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
 
         // building a RECT object with coordinates
         let mut rect = ffi::RECT {
-            left: 0, right: dimensions.map(|(w, _)| w as ffi::LONG).unwrap_or(1024),
-            top: 0, bottom: dimensions.map(|(_, h)| h as ffi::LONG).unwrap_or(768),
+            left: 0, right: builder.dimensions.val0() as ffi::LONG,
+            top: 0, bottom: builder.dimensions.val1() as ffi::LONG,
         };
 
         // switching to fullscreen if necessary
         // this means adjusting the window's position so that it overlaps the right monitor,
         //  and change the monitor's resolution if necessary
-        if monitor.is_some() {
-            let monitor = monitor.as_ref().unwrap();
+        if builder.monitor.is_some() {
+            let monitor = builder.monitor.as_ref().unwrap();
 
             // adjusting the rect
             {
@@ -97,7 +95,7 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
         }
 
         // computing the style and extended style of the window
-        let (ex_style, style) = if monitor.is_some() {
+        let (ex_style, style) = if builder.monitor.is_some() {
             (ffi::WS_EX_APPWINDOW, ffi::WS_POPUP | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN)
         } else {
             (ffi::WS_EX_APPWINDOW | ffi::WS_EX_WINDOWEDGE,
@@ -212,8 +210,8 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
             let handle = ffi::CreateWindowExW(ex_style, class_name.as_ptr(),
                 title.as_ptr() as ffi::LPCWSTR,
                 style | ffi::WS_VISIBLE | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN,
-                if monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT},
-                if monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT},
+                if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT},
+                if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT},
                 rect.right - rect.left, rect.bottom - rect.top,
                 ptr::mut_null(), ptr::mut_null(), ffi::GetModuleHandleW(ptr::null()),
                 ptr::mut_null());
@@ -273,7 +271,7 @@ pub fn new_window(dimensions: Option<(uint, uint)>, title: &str,
         };
 
         // calling SetForegroundWindow if fullscreen
-        if monitor.is_some() {
+        if builder.monitor.is_some() {
             unsafe { ffi::SetForegroundWindow(real_window) };
         }
 
