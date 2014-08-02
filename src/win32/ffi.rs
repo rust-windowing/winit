@@ -193,6 +193,26 @@ pub static FORMAT_MESSAGE_IGNORE_INSERTS: DWORD = 0x00000200;
 // ?
 pub static PFD_TYPE_RGBA: BYTE = 0;
 pub static PFD_TYPE_COLORINDEX: BYTE = 1;
+pub static PFD_MAIN_PLANE: BYTE = 0;
+pub static PFD_OVERLAY_PLANE: BYTE = 1;
+pub static PFD_UNDERLAY_PLANE: BYTE = (-1);
+pub static PFD_DOUBLEBUFFER: DWORD = 0x00000001;
+pub static PFD_STEREO: DWORD = 0x00000002;
+pub static PFD_DRAW_TO_WINDOW: DWORD = 0x00000004;
+pub static PFD_DRAW_TO_BITMAP: DWORD = 0x00000008;
+pub static PFD_SUPPORT_GDI: DWORD = 0x00000010;
+pub static PFD_SUPPORT_OPENGL: DWORD = 0x00000020;
+pub static PFD_GENERIC_FORMAT: DWORD = 0x00000040;
+pub static PFD_NEED_PALETTE: DWORD = 0x00000080;
+pub static PFD_NEED_SYSTEM_PALETTE: DWORD = 0x00000100;
+pub static PFD_SWAP_EXCHANGE: DWORD = 0x00000200;
+pub static PFD_SWAP_COPY: DWORD = 0x00000400;
+pub static PFD_SWAP_LAYER_BUFFERS: DWORD = 0x00000800;
+pub static PFD_GENERIC_ACCELERATED: DWORD = 0x00001000;
+pub static PFD_SUPPORT_COMPOSITION: DWORD = 0x00008000;
+pub static PFD_DEPTH_DONTCARE: DWORD = 0x20000000;
+pub static PFD_DOUBLEBUFFER_DONTCARE: DWORD = 0x40000000;
+pub static PFD_STEREO_DONTCARE: DWORD = 0x80000000;
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/ms633548(v=vs.85).aspx
 pub static SW_FORCEMINIMIZE: libc::c_int = 11;
@@ -637,6 +657,9 @@ extern "system" {
     // http://msdn.microsoft.com/en-us/library/windows/desktop/dd183413(v=vs.85).aspx
     pub fn ChangeDisplaySettingsExW(lpszDeviceName: LPCWSTR, lpDevMode: *mut DEVMODE, hwnd: HWND,
         dwFlags: DWORD, lParam: LPVOID) -> LONG;
+
+    // http://msdn.microsoft.com/en-us/library/dd318284(v=vs.85).aspx
+    pub fn ChoosePixelFormat(hdc: HDC, ppfd: *const PIXELFORMATDESCRIPTOR) -> libc::c_int;
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms632680(v=vs.85).aspx
     pub fn CreateWindowExW(dwExStyle: DWORD, lpClassName: LPCWSTR, lpWindowName: LPCWSTR,

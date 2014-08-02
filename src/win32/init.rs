@@ -81,13 +81,14 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             // changing device settings
             let mut screen_settings: ffi::DEVMODE = unsafe { mem::zeroed() };
             screen_settings.dmSize = mem::size_of::<ffi::DEVMODE>() as ffi::WORD;
-            screen_settings.dmPelsWidth = 1024;
-            screen_settings.dmPelsHeight = 768;
-            screen_settings.dmBitsPerPel = 32;
+            screen_settings.dmPelsWidth = (rect.right - rect.left) as ffi::DWORD;
+            screen_settings.dmPelsHeight = (rect.bottom - rect.top) as ffi::DWORD;
+            screen_settings.dmBitsPerPel = 32;      // TODO: ?
             screen_settings.dmFields = ffi::DM_BITSPERPEL | ffi::DM_PELSWIDTH | ffi::DM_PELSHEIGHT;
 
             let result = unsafe { ffi::ChangeDisplaySettingsExW(monitor.get_system_name().as_ptr(),
                 &mut screen_settings, ptr::mut_null(), ffi::CDS_FULLSCREEN, ptr::mut_null()) };
+            
             if result != ffi::DISP_CHANGE_SUCCESSFUL {
                 tx.send(Err(format!("ChangeDisplaySettings failed: {}", result)));
                 return;
@@ -140,11 +141,30 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             };
 
             // getting the pixel format that we will use
-            // TODO: use something cleaner which uses hints
             let pixel_format = {
-                let mut output: ffi::PIXELFORMATDESCRIPTOR = unsafe { mem::uninitialized() };
+                // initializing a PIXELFORMATDESCRIPTOR that indicates what we want
+                let mut output: ffi::PIXELFORMATDESCRIPTOR = unsafe { mem::zeroed() };
+                output.nSize = mem::size_of::<ffi::PIXELFORMATDESCRIPTOR>() as ffi::WORD;
+                output.nVersion = 1;
+                output.dwFlags = 0;     // TODO: PFD_GENERIC_ACCELERATED? PFD_DOUBLEBUFFER? PFD_STEREO?
+                output.iPixelType = ffi::PFD_TYPE_RGBA;
+                output.cColorBits = 24;
+                output.cAlphaBits = 8;
+                output.cAccumBits = 0;
+                output.cDepthBits = 24;
+                output.cStencilBits = 8;
+                output.cAuxBuffers = 0;
+                output.iLayerType = ffi::PFD_MAIN_PLANE;
 
-                if unsafe { ffi::DescribePixelFormat(dummy_hdc, 1,
+                let pf_index = unsafe { ffi::ChoosePixelFormat(dummy_hdc, &output) };
+
+                if pf_index == 0 {
+                    tx.send(Err(format!("ChoosePixelFormat function failed: {}",
+                        os::error_string(os::errno() as uint))));
+                    return;
+                }
+
+                if unsafe { ffi::DescribePixelFormat(dummy_hdc, pf_index,
                     mem::size_of::<ffi::PIXELFORMATDESCRIPTOR>() as ffi::UINT, &mut output) } == 0
                 {
                     tx.send(Err(format!("DescribePixelFormat function failed: {}",
