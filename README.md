@@ -21,7 +21,7 @@ extern crate gl;
 fn main() {
     use std::default::Default;
 
-    let window = init::Window::new(None, "Hello world!", &Default::default(), None).unwrap();
+    let window = init::Window::new().unwrap();
 
     unsafe { window.make_current() };
 
