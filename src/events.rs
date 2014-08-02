@@ -23,14 +23,6 @@ pub enum Event {
     /// The parameter is true if the window has gained focus, and false if it has lost focus.
     Focused(bool),
 
-    /// The window has been turned into an icon or restored.
-    /// 
-    /// The parameter is true if the window has been iconified, and false if it has been restored.
-    Iconified(bool),
-
-    /// The system asked that the content of this window must be redrawn.
-    NeedRefresh,
-
     /// An element has been pressed.
     Pressed(Element),
 
