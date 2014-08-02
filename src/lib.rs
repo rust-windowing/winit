@@ -2,6 +2,21 @@
 #![feature(globs)]
 #![unstable]
 
+//! The purpose of this library is to provide an OpenGL context on as many
+//!  platforms as possible.
+//!
+//! # Building a window
+//! 
+//! There are two ways to create a window:
+//! 
+//!  - Calling `Window::new()`.
+//!  - Calling `let builder = WindowBuilder::new()` then `builder.build()`.
+//!
+//! The first way is the simpliest way and will give you default values.
+//!
+//! The second way allows you to customize the way your window and GL context
+//!  will look and behave.
+
 extern crate libc;
 
 pub use events::*;
