@@ -19,8 +19,6 @@ extern crate libc;
 extern crate gl;
 
 fn main() {
-    use std::default::Default;
-
     let window = init::Window::new().unwrap();
 
     unsafe { window.make_current() };
@@ -29,7 +27,7 @@ fn main() {
 
     gl::ClearColor(0.0, 1.0, 0.0, 1.0);
 
-    while !window.should_close() {
+    while !window.is_closed() {
         window.wait_events();
 
         gl::Clear(gl::COLOR_BUFFER_BIT);
