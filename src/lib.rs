@@ -26,10 +26,12 @@ use winimpl = win32;
 #[cfg(unix)]
 use winimpl = x11;
 
-#[cfg(windows)]
+#[cfg(target_os = "win32")]
 mod win32;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 mod x11;
+#[cfg(target_os = "macos")]
+mod osx;
 
 #[allow(dead_code)]
 //mod egl;
