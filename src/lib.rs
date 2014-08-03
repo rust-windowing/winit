@@ -38,6 +38,10 @@ mod osx;
 
 mod events;
 
+#[cfg(not(target_os = "win32"), not(target_os = "linux"), not(target_os = "macos"))]
+#[static_assert]
+static this_platform_is_not_supposed: bool = false;
+
 /// Identifier for a monitor.
 pub struct MonitorID(winimpl::MonitorID);
 
