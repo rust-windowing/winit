@@ -133,6 +133,7 @@ impl Window {
             }
         }
 
+        // if one of the received events is `Closed`, setting `is_closed` to true
         if events.iter().find(|e| match e { &&::Closed => true, _ => false }).is_some() {
             use std::sync::atomics::Relaxed;
             self.is_closed.store(true, Relaxed);
@@ -146,10 +147,21 @@ impl Window {
     pub fn wait_events(&self) -> Vec<Event> {
         match self.events_receiver.recv_opt() {
             Ok(ev) => {
+                // if the received event is `Closed`, setting `is_closed` to true
+                match ev {
+                    ::Closed => {
+                        use std::sync::atomics::Relaxed;
+                        self.is_closed.store(true, Relaxed);
+                    },
+                    _ => ()
+                };
+
+                // looing for other possible events in the queue
                 let mut result = self.poll_events();
                 result.insert(0, ev);
                 result
             },
+
             Err(_) => {
                 use std::sync::atomics::Relaxed;
                 self.is_closed.store(true, Relaxed);
