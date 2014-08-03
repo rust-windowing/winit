@@ -23,8 +23,10 @@ pub use events::*;
 
 #[cfg(windows)]
 use winimpl = win32;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use winimpl = x11;
+#[cfg(target_os = "macos")]
+use winimpl = osx;
 
 #[cfg(target_os = "win32")]
 mod win32;
