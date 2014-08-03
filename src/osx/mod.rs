@@ -1,6 +1,6 @@
 //! Dummy implementation for OS/X to make gl-init-rs compile on this platform
 
-use WindowBuilder;
+use {Event, WindowBuilder};
 
 pub struct Window;
 
