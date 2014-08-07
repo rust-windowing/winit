@@ -139,7 +139,24 @@ impl Window {
             wm_delete_window
         };
 
-        // creating 
+        // getting the pointer to glXCreateContextAttribs
+        let create_context_attribs = unsafe {
+            let mut addr = unsafe { ffi::glXGetProcAddress(b"glXCreateContextAttribs".as_ptr()
+                as *const u8) } as *const ();
+
+            if addr.is_null() {
+                addr = unsafe { ffi::glXGetProcAddress(b"glXCreateContextAttribsARB".as_ptr()
+                    as *const u8) } as *const ();
+            }
+            
+            addr.to_option().map(|addr| {
+                let addr: extern "system" fn(*mut ffi::Display, ffi::GLXFBConfig, ffi::GLXContext,
+                    ffi::Bool, *const libc::c_int) -> ffi::GLXContext = unsafe { mem::transmute(addr) };
+                addr
+            })
+        };
+
+        // creating IM
         let im = unsafe {
             let im = ffi::XOpenIM(display, ptr::null(), ptr::mut_null(), ptr::mut_null());
             if im.is_null() {
@@ -164,7 +181,31 @@ impl Window {
 
         // creating GL context
         let context = unsafe {
-            ffi::glXCreateContext(display, &visual_infos, ptr::null(), 1)
+            let mut attributes = Vec::new();
+
+            if builder.gl_version.is_some() {
+                let version = builder.gl_version.as_ref().unwrap();
+                attributes.push(ffi::GLX_CONTEXT_MAJOR_VERSION);
+                attributes.push(version.val0() as libc::c_int);
+                attributes.push(ffi::GLX_CONTEXT_MINOR_VERSION);
+                attributes.push(version.val1() as libc::c_int);
+            }
+
+            attributes.push(0);
+ 
+            let context = if create_context_attribs.is_some() {
+                let create_context_attribs = create_context_attribs.unwrap();
+                create_context_attribs(display, fb_config, ptr::null(), 1,
+                    attributes.as_ptr())
+            } else {
+                ffi::glXCreateNewContext(display, fb_config, ffi::GLX_RGBA_TYPE, ptr::null(), 1)
+            };
+
+            if context.is_null() {
+                return Err(format!("GL context creation failed"));
+            }
+
+            context
         };
 
         // returning

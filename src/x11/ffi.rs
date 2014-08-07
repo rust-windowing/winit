@@ -204,6 +204,15 @@ pub static GLX_PBUFFER: libc::c_int = 0x8023;
 pub static GLX_PBUFFER_HEIGHT: libc::c_int = 0x8040;
 pub static GLX_PBUFFER_WIDTH: libc::c_int = 0x8041;
 
+pub static GLX_CONTEXT_MAJOR_VERSION: libc::c_int = 0x2091;
+pub static GLX_CONTEXT_MINOR_VERSION: libc::c_int = 0x2092;
+pub static GLX_CONTEXT_FLAGS: libc::c_int = 0x2094;
+pub static GLX_CONTEXT_PROFILE_MASK: libc::c_int = 0x9126;
+pub static GLX_CONTEXT_DEBUG_BIT: libc::c_int = 0x0001;
+pub static GLX_CONTEXT_FORWARD_COMPATIBLE_BIT: libc::c_int = 0x0002;
+pub static GLX_CONTEXT_CORE_PROFILE_BIT: libc::c_int = 0x00000001;
+pub static GLX_CONTEXT_COMPATIBILITY_PROFILE_BIT: libc::c_int = 0x00000002;
+
 pub static XIMPreeditArea: libc::c_long = 0x0001;
 pub static XIMPreeditCallbacks: libc::c_long = 0x0002;
 pub static XIMPreeditPosition: libc::c_long = 0x0004;
@@ -1384,6 +1393,8 @@ extern "C" {
         keysym_return: *mut KeySym, status_return: *mut Status) -> libc::c_int;
 
     pub fn glXCreateContext(dpy: *mut Display, vis: *const XVisualInfo,
+        shareList: GLXContext, direct: Bool) -> GLXContext;
+    pub fn glXCreateNewContext(dpy: *mut Display, config: GLXFBConfig, render_type: libc::c_int,
         shareList: GLXContext, direct: Bool) -> GLXContext;
     pub fn glXDestroyContext(dpy: *mut Display, ctx: GLXContext);
     pub fn glXChooseFBConfig(dpy: *mut Display, screen: libc::c_int,
