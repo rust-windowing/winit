@@ -279,7 +279,7 @@ impl Window {
         self.get_geometry().map(|(x, y, _, _)| (x, y))
     }
 
-    pub fn set_position(&self, x: uint, y: uint) {
+    pub fn set_position(&self, x: int, y: int) {
         unsafe { ffi::XMoveWindow(self.display, self.window, x as libc::c_int, y as libc::c_int) }
     }
 

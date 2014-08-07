@@ -200,7 +200,7 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_position(&self, x: uint, y: uint) {
+    pub fn set_position(&self, x: int, y: int) {
         self.window.set_position(x, y)
     }
 

@@ -41,7 +41,7 @@ impl Window {
         unimplemented!()
     }
 
-    pub fn set_position(&self, _x: uint, _y: uint) {
+    pub fn set_position(&self, _x: int, _y: int) {
         unimplemented!()
     }
 

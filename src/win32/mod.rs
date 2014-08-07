@@ -71,7 +71,7 @@ impl Window {
     }
 
     /// See the docs if the crate root file.
-    pub fn set_position(&self, x: uint, y: uint) {
+    pub fn set_position(&self, x: int, y: int) {
         use libc;
 
         unsafe {
