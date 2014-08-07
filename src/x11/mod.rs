@@ -51,23 +51,46 @@ impl Window {
             display
         };
 
-        // TODO: set error handler
+        // TODO: set error handler?
 
-        static VISUAL_ATTRIBUTES: [libc::c_int, ..5] = [
-            ffi::GLX_RGBA,
-            ffi::GLX_DEPTH_SIZE,
-            24,
-            ffi::GLX_DOUBLEBUFFER,
-            0
-        ];
+        // getting the FBConfig
+        let fb_config = unsafe {
+            static VISUAL_ATTRIBUTES: [libc::c_int, ..23] = [
+                ffi::GLX_X_RENDERABLE,  1,
+                ffi::GLX_DRAWABLE_TYPE, ffi::GLX_WINDOW_BIT,
+                ffi::GLX_RENDER_TYPE,   ffi::GLX_RGBA_BIT,
+                ffi::GLX_X_VISUAL_TYPE, ffi::GLX_TRUE_COLOR,
+                ffi::GLX_RED_SIZE,      8,
+                ffi::GLX_GREEN_SIZE,    8,
+                ffi::GLX_BLUE_SIZE,     8,
+                ffi::GLX_ALPHA_SIZE,    8,
+                ffi::GLX_DEPTH_SIZE,    24,
+                ffi::GLX_STENCIL_SIZE,  8,
+                ffi::GLX_DOUBLEBUFFER,  1,
+                0
+            ];
+
+            let mut num_fb: libc::c_int = mem::uninitialized();
+
+            let fb = ffi::glXChooseFBConfig(display, ffi::XDefaultScreen(display),
+                VISUAL_ATTRIBUTES.as_ptr(), &mut num_fb);
+            if fb.is_null() {
+                return Err(format!("glXChooseFBConfig failed"));
+            }
+            let preferred_fb = *fb;     // TODO: choose more wisely
+            ffi::XFree(fb as *const libc::c_void);
+            preferred_fb
+        };
 
         // getting the visual infos
         let visual_infos = unsafe {
-            let vi = ffi::glXChooseVisual(display, 0, VISUAL_ATTRIBUTES.as_ptr());
+            let vi = ffi::glXGetVisualFromFBConfig(display, fb_config);
             if vi.is_null() {
                 return Err(format!("glXChooseVisual failed"));
             }
-            vi
+            let vi_copy = *vi;
+            ffi::XFree(vi as *const libc::c_void);
+            vi_copy
         };
 
         // getting the root window
@@ -76,7 +99,7 @@ impl Window {
         // creating the color map
         let cmap = unsafe {
             let cmap = ffi::XCreateColormap(display, root,
-                (*visual_infos).visual, ffi::AllocNone);
+                visual_infos.visual, ffi::AllocNone);
             // TODO: error checking?
             cmap
         };
@@ -97,8 +120,8 @@ impl Window {
             let dimensions = dimensions.unwrap_or((800, 600));
 
             let win = ffi::XCreateWindow(display, root, 50, 50, dimensions.val0() as libc::c_uint,
-                dimensions.val1() as libc::c_uint, 0, (*visual_infos).depth, ffi::InputOutput,
-                (*visual_infos).visual, ffi::CWColormap | ffi::CWEventMask,
+                dimensions.val1() as libc::c_uint, 0, visual_infos.depth, ffi::InputOutput,
+                visual_infos.visual, ffi::CWColormap | ffi::CWEventMask,
                 &mut set_win_attr);
             win
         };
@@ -142,7 +165,7 @@ impl Window {
 
         // creating GL context
         let context = unsafe {
-            ffi::glXCreateContext(display, visual_infos, ptr::null(), 1)
+            ffi::glXCreateContext(display, &visual_infos, ptr::null(), 1)
         };
 
         // returning

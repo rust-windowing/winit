@@ -13,7 +13,7 @@ pub type Drawable = XID;    // TODO: not sure
 pub type GLXContext = *const ();
 pub type GLXContextID = XID;
 pub type GLXDrawable = XID;
-pub type GLXFBConfig = ();
+pub type GLXFBConfig = *const ();
 pub type GLXPbuffer = XID;
 pub type GLXPixmap = XID;
 pub type GLXWindow = XID;
@@ -1348,6 +1348,7 @@ extern "C" {
     pub fn XDestroyWindow(display: *mut Display, w: Window);
     pub fn XFilterEvent(event: *mut XEvent, w: Window) -> Bool;
     pub fn XFlush(display: *mut Display);
+    pub fn XFree(data: *const libc::c_void);
     pub fn XGetGeometry(display: *mut Display, d: Drawable, root_return: *mut Window,
         x_return: *mut libc::c_int, y_return: *mut libc::c_int,
         width_return: *mut libc::c_uint, height_return: *mut libc::c_uint,
@@ -1386,10 +1387,11 @@ extern "C" {
         shareList: GLXContext, direct: Bool) -> GLXContext;
     pub fn glXDestroyContext(dpy: *mut Display, ctx: GLXContext);
     pub fn glXChooseFBConfig(dpy: *mut Display, screen: libc::c_int,
-        attrib_list: *const libc::c_int, nelements: *mut libc::c_int);
+        attrib_list: *const libc::c_int, nelements: *mut libc::c_int) -> *mut GLXFBConfig;
     pub fn glXChooseVisual(dpy: *mut Display, screen: libc::c_int,
         attribList: *const libc::c_int) -> *const XVisualInfo;
     pub fn glXGetProcAddress(procName: *const libc::c_uchar) -> *const ();
+    pub fn glXGetVisualFromFBConfig(dpy: *mut Display, config: GLXFBConfig) -> *mut XVisualInfo;
     pub fn glXMakeCurrent(dpy: *mut Display, drawable: GLXDrawable,
         ctx: GLXContext) -> Bool;
     pub fn glXSwapBuffers(dpy: *mut Display, drawable: GLXDrawable);
@@ -1398,7 +1400,6 @@ extern "C" {
 /*
 GLXFBConfig *glXGetFBConfigs (Display *dpy, int screen, int *nelements);
 int glXGetFBConfigAttrib (Display *dpy, GLXFBConfig config, int attribute, int *value);
-XVisualInfo *glXGetVisualFromFBConfig (Display *dpy, GLXFBConfig config);
 GLXWindow glXCreateWindow (Display *dpy, GLXFBConfig config, Window win, const int *attrib_list);
 void glXDestroyWindow (Display *dpy, GLXWindow win);
 GLXPixmap glXCreatePixmap (Display *dpy, GLXFBConfig config, Pixmap pixmap, const int *attrib_list);
