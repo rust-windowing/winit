@@ -16,6 +16,11 @@ fn main() {
 
     println!("OpenGL version {}", version.as_str().unwrap());
 
+    {
+        let win_size = window.get_inner_size().unwrap();
+        gl::Viewport(0, 0, win_size.val0() as libc::c_int, win_size.val1() as libc::c_int);
+    }
+
     gl::ClearColor(0.0, 1.0, 0.0, 1.0);
 
     while !window.is_closed() {
