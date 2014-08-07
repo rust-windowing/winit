@@ -2,24 +2,47 @@
 #![feature(globs)]
 #![unstable]
 
+//! The purpose of this library is to provide an OpenGL context on as many
+//!  platforms as possible.
+//!
+//! # Building a window
+//! 
+//! There are two ways to create a window:
+//! 
+//!  - Calling `Window::new()`.
+//!  - Calling `let builder = WindowBuilder::new()` then `builder.build()`.
+//!
+//! The first way is the simpliest way and will give you default values.
+//!
+//! The second way allows you to customize the way your window and GL context
+//!  will look and behave.
+
 extern crate libc;
 
 pub use events::*;
 
 #[cfg(windows)]
 use winimpl = win32;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use winimpl = x11;
+#[cfg(target_os = "macos")]
+use winimpl = osx;
 
-#[cfg(windows)]
+#[cfg(target_os = "win32")]
 mod win32;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 mod x11;
+#[cfg(target_os = "macos")]
+mod osx;
 
 #[allow(dead_code)]
 //mod egl;
 
 mod events;
+
+#[cfg(not(target_os = "win32"), not(target_os = "linux"), not(target_os = "macos"))]
+#[static_assert]
+static this_platform_is_not_supposed: bool = false;
 
 /// Identifier for a monitor.
 pub struct MonitorID(winimpl::MonitorID);
@@ -99,7 +122,7 @@ impl WindowBuilder {
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// let window = Window::new().unwrap();
 /// 
 /// unsafe { window.make_current() };
