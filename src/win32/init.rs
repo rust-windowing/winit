@@ -323,14 +323,25 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
         };
 
         // building the struct
-        tx.send(Ok(Window{
+        let window = Window{
             window: real_window,
             hdc: hdc,
             context: context,
             gl_library: gl_library,
             events_receiver: events_receiver,
             is_closed: AtomicBool::new(false),
-        }));
+        };
+
+        // calling glViewport
+        unsafe {
+            use libc;
+            let dimensions = window.get_inner_size().unwrap();
+            ffi::glViewport(0, 0, dimensions.val0() as libc::c_int,
+                dimensions.val1() as libc::c_int);
+        }
+
+        // sending
+        tx.send(Ok(window));
 
         // now that the `Window` struct is initialized, the main `Window::new()` function will
         //  return and this events loop will run in parallel
