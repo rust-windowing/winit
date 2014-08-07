@@ -154,12 +154,12 @@ impl Window {
 
             // getting the pointer
             let fn_ptr = {
-                let mut addr = unsafe { ffi::glXGetProcAddress(b"glXCreateContextAttribs".as_ptr()
-                    as *const u8) } as *const ();
+                let mut addr = ffi::glXGetProcAddress(b"glXCreateContextAttribs".as_ptr()
+                    as *const u8) as *const ();
 
                 if addr.is_null() {
-                    addr = unsafe { ffi::glXGetProcAddress(b"glXCreateContextAttribsARB".as_ptr()
-                        as *const u8) } as *const ();
+                    addr = ffi::glXGetProcAddress(b"glXCreateContextAttribsARB".as_ptr()
+                        as *const u8) as *const ();
                 }
                 
                 addr.to_option().map(|addr| {
