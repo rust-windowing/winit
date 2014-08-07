@@ -144,7 +144,13 @@ impl Window {
             // creating the dummy context
             let dummy_context =
                 ffi::glXCreateContext(display, &visual_infos, ptr::null(), 1);
-            ffi::glXMakeCurrent(display, window, dummy_context);
+            if dummy_context.is_null() {
+                return Err(format!("glXCreateContext failed"));
+            }
+
+            if ffi::glXMakeCurrent(display, window, dummy_context) == 0 {
+                return Err(format!("glXMakeCurrent with dummy context failed"));
+            }
 
             // getting the pointer
             let fn_ptr = {
