@@ -40,7 +40,6 @@ impl Window {
     pub fn new(builder: WindowBuilder) -> Result<Window, String> {
         // TODO: temporary
         let dimensions = builder.dimensions;
-        let title = builder.title.as_slice();
 
         // calling XOpenDisplay
         let display = unsafe {
@@ -134,7 +133,7 @@ impl Window {
             let mut wm_delete_window = ffi::XInternAtom(display,
                 "WM_DELETE_WINDOW".to_c_str().as_ptr() as *const libc::c_char, 0);
             ffi::XSetWMProtocols(display, window, &mut wm_delete_window, 1);
-            ffi::XStoreName(display, window, mem::transmute(title.as_slice().as_ptr()));
+            ffi::XStoreName(display, window, mem::transmute(builder.title.as_slice().as_ptr()));
             ffi::XFlush(display);
 
             wm_delete_window
