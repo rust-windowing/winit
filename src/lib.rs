@@ -60,7 +60,7 @@ impl WindowBuilder {
     pub fn new() -> WindowBuilder {
         WindowBuilder {
             dimensions: None,
-            title: String::new(),
+            title: "gl-init-rs window".to_string(),
             monitor: None,
             gl_version: None,
         }
