@@ -122,7 +122,7 @@ impl WindowBuilder {
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// let window = Window::new().unwrap();
 /// 
 /// unsafe { window.make_current() };
