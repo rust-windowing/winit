@@ -5,6 +5,7 @@ extern crate gl;
 fn main() {
     let window1 = init::Window::new().unwrap();
     let window2 = init::Window::new().unwrap();
+    let window3 = init::Window::new().unwrap();
 
     spawn(proc() {
         run(window1, (0.0, 1.0, 0.0, 1.0));
@@ -12,6 +13,10 @@ fn main() {
 
     spawn(proc() {
         run(window2, (0.0, 0.0, 1.0, 1.0));
+    });
+
+    spawn(proc() {
+        run(window3, (1.0, 0.0, 0.0, 1.0));
     });
 }
 
