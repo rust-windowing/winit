@@ -141,19 +141,33 @@ impl Window {
 
         // getting the pointer to glXCreateContextAttribs
         let create_context_attribs = unsafe {
-            let mut addr = unsafe { ffi::glXGetProcAddress(b"glXCreateContextAttribs".as_ptr()
-                as *const u8) } as *const ();
+            // creating the dummy context
+            let dummy_context =
+                ffi::glXCreateContext(display, &visual_infos, ptr::null(), 1);
+            ffi::glXMakeCurrent(display, window, dummy_context);
 
-            if addr.is_null() {
-                addr = unsafe { ffi::glXGetProcAddress(b"glXCreateContextAttribsARB".as_ptr()
+            // getting the pointer
+            let fn_ptr = {
+                let mut addr = unsafe { ffi::glXGetProcAddress(b"glXCreateContextAttribs".as_ptr()
                     as *const u8) } as *const ();
-            }
-            
-            addr.to_option().map(|addr| {
-                let addr: extern "system" fn(*mut ffi::Display, ffi::GLXFBConfig, ffi::GLXContext,
-                    ffi::Bool, *const libc::c_int) -> ffi::GLXContext = unsafe { mem::transmute(addr) };
-                addr
-            })
+
+                if addr.is_null() {
+                    addr = unsafe { ffi::glXGetProcAddress(b"glXCreateContextAttribsARB".as_ptr()
+                        as *const u8) } as *const ();
+                }
+                
+                addr.to_option().map(|addr| {
+                    let addr: extern "system" fn(*mut ffi::Display, ffi::GLXFBConfig, ffi::GLXContext,
+                        ffi::Bool, *const libc::c_int) -> ffi::GLXContext = mem::transmute(addr);
+                    addr
+                })
+            };
+
+            // cleaning up
+            ffi::glXMakeCurrent(ptr::mut_null(), 0, ptr::null());
+            ffi::glXDestroyContext(display, dummy_context);
+
+            fn_ptr
         };
 
         // creating IM
