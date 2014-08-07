@@ -146,7 +146,8 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                 let mut output: ffi::PIXELFORMATDESCRIPTOR = unsafe { mem::zeroed() };
                 output.nSize = mem::size_of::<ffi::PIXELFORMATDESCRIPTOR>() as ffi::WORD;
                 output.nVersion = 1;
-                output.dwFlags = 0;     // TODO: PFD_GENERIC_ACCELERATED? PFD_DOUBLEBUFFER? PFD_STEREO?
+                output.dwFlags = ffi::PFD_DRAW_TO_WINDOW | ffi::PFD_DOUBLEBUFFER |
+                    ffi::PFD_SUPPORT_OPENGL | ffi::PFD_GENERIC_ACCELERATED;
                 output.iPixelType = ffi::PFD_TYPE_RGBA;
                 output.cColorBits = 24;
                 output.cAlphaBits = 8;
