@@ -23,10 +23,9 @@ fn run(window: init::Window, color: (f32, f32, f32, f32)) {
     gl::ClearColor(color.val0(), color.val1(), color.val2(), color.val3());
 
     while !window.is_closed() {
-       window.wait_events().collect::<Vec<init::Event>>();
-
         gl::Clear(gl::COLOR_BUFFER_BIT);
-
         window.swap_buffers();
+        
+        window.wait_events().collect::<Vec<init::Event>>();
     }
 }

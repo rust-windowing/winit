@@ -41,10 +41,9 @@ fn main() {
     gl::ClearColor(0.0, 1.0, 0.0, 1.0);
 
     while !window.is_closed() {
-        println!("{}", window.wait_events().collect::<Vec<init::Event>>());
-
         gl::Clear(gl::COLOR_BUFFER_BIT);
-
         window.swap_buffers();
+        
+        println!("{}", window.wait_events().collect::<Vec<init::Event>>());
     }
 }
