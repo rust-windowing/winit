@@ -228,8 +228,8 @@ impl Window {
             context
         };
 
-        // returning
-        Ok(Window{
+        // creating the window object
+        let window = Window {
             display: display,
             window: window,
             im: im,
@@ -237,7 +237,20 @@ impl Window {
             context: context,
             is_closed: AtomicBool::new(false),
             wm_delete_window: wm_delete_window,
-        })
+        };
+
+        // calling glViewport
+        unsafe {
+            let ptr = window.get_proc_address("glViewport");
+            assert!(!ptr.is_null());
+            let ptr: extern "system" fn(libc::c_int, libc::c_int, libc::c_int, libc::c_int) =
+                mem::transmute(ptr);
+            let dimensions = window.get_inner_size().unwrap();
+            ptr(0, 0, dimensions.val0() as libc::c_int, dimensions.val1() as libc::c_int);
+        }
+
+        // returning
+        Ok(window)
     }
 
     pub fn is_closed(&self) -> bool {
