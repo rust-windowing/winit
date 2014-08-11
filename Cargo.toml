@@ -5,4 +5,4 @@ version = "0.0.1"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 
 [dev-dependencies.gl]
-path = "deps/gl"
+git = "https://github.com/bjz/gl-rs"
