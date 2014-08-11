@@ -23,7 +23,7 @@ fn main() {
 
     unsafe { window.make_current() };
 
-    gl::load_with(|symbol| window.get_proc_address(symbol) as *const libc::c_void);
+    gl::load_with(|symbol| window.get_proc_address(symbol));
 
     gl::ClearColor(0.0, 1.0, 0.0, 1.0);
 

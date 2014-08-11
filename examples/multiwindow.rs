@@ -23,7 +23,7 @@ fn main() {
 fn run(window: init::Window, color: (f32, f32, f32, f32)) {
     unsafe { window.make_current() };
 
-    gl::load_with(|symbol| window.get_proc_address(symbol) as *const libc::c_void);
+    gl::load_with(|symbol| window.get_proc_address(symbol));
     
     {
         let win_size = window.get_inner_size().unwrap();

@@ -29,7 +29,7 @@ fn main() {
 
     unsafe { window.make_current() };
 
-    gl::load_with(|symbol| window.get_proc_address(symbol) as *const libc::c_void);
+    gl::load_with(|symbol| window.get_proc_address(symbol));
 
     let version = {
         use std::c_str::CString;

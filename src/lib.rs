@@ -265,8 +265,8 @@ impl Window {
     ///
     /// Contrary to `wglGetProcAddress`, all available OpenGL functions return an address.
     #[inline]
-    pub fn get_proc_address(&self, addr: &str) -> *const () {
-        self.window.get_proc_address(addr)
+    pub fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+        self.window.get_proc_address(addr) as *const libc::c_void
     }
 
     /// Swaps the buffers in case of double or triple buffering.
