@@ -402,6 +402,7 @@ pub static WM_LBUTTONUP: UINT = 0x0202;
 pub static WM_CHAR: UINT = 0x0102;
 pub static WM_COMMAND: UINT = 0x0111;
 pub static WM_DESTROY: UINT = 0x0002;
+pub static WM_ERASEBKGND: UINT = 0x0014;
 pub static WM_KEYDOWN: UINT = 0x0100;
 pub static WM_KEYUP: UINT = 0x0101;
 pub static WM_KILLFOCUS: UINT = 0x0008;
