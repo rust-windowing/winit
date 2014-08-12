@@ -6,6 +6,8 @@ pub struct Window;
 
 pub struct MonitorID;
 
+compile_warning!("The OS/X platform is not implemented yet")
+
 pub fn get_available_monitors() -> Vec<MonitorID> {
     unimplemented!()
 }

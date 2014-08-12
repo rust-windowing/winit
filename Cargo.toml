@@ -4,5 +4,8 @@ name = "gl-init-rs"
 version = "0.0.1"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 
+[dependencies.compile_msg]
+git = "https://github.com/huonw/compile_msg"
+
 [dev-dependencies.gl]
 git = "https://github.com/bjz/gl-rs"

@@ -1,5 +1,6 @@
 #![feature(unsafe_destructor)]
 #![feature(globs)]
+#![feature(phase)]
 #![unstable]
 
 //! The purpose of this library is to provide an OpenGL context on as many
@@ -17,6 +18,7 @@
 //! The second way allows you to customize the way your window and GL context
 //!  will look and behave.
 
+#[phase(plugin)] extern crate compile_msg;
 extern crate libc;
 
 pub use events::*;
@@ -41,8 +43,7 @@ mod osx;
 mod events;
 
 #[cfg(not(target_os = "win32"), not(target_os = "linux"), not(target_os = "macos"))]
-#[static_assert]
-static this_platform_is_not_supposed: bool = false;
+compile_error!("Only the `win32`, `linux` and `macos` platforms are supported")
 
 /// Identifier for a monitor.
 pub struct MonitorID(winimpl::MonitorID);
