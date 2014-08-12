@@ -718,6 +718,9 @@ extern "system" {
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms633519(v=vs.85).aspx
     pub fn GetWindowRect(hWnd: HWND, lpRect: *mut RECT) -> BOOL;
 
+    //
+    pub fn glFlush();
+
     // 
     pub fn glViewport(x: libc::c_int, y: libc::c_int, w: libc::c_int, h: libc::c_int);
 

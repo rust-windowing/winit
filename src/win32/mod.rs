@@ -191,6 +191,8 @@ impl Window {
     /// See the docs if the crate root file.
     pub fn swap_buffers(&self) {
         unsafe {
+            ffi::glFlush();
+
             if ffi::SwapBuffers(self.hdc) == 0 {
                 use std::os;
                 fail!("{}", os::error_string(os::errno()));
