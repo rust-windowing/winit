@@ -23,7 +23,7 @@ extern crate libc;
 
 pub use events::*;
 
-#[cfg(windows)]
+#[cfg(target_os = "win32")]
 use winimpl = win32;
 #[cfg(target_os = "linux")]
 use winimpl = x11;
