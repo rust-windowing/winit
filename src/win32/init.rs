@@ -402,6 +402,10 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
             0
         },
 
+        ffi::WM_ERASEBKGND => {
+            1
+        },
+
         ffi::WM_SIZE => {
             use Resized;
             let w = ffi::LOWORD(lparam as ffi::DWORD) as uint;
