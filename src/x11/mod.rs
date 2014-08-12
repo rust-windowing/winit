@@ -141,39 +141,19 @@ impl Window {
 
         // getting the pointer to glXCreateContextAttribs
         let create_context_attribs = unsafe {
-            // creating the dummy context
-            let dummy_context =
-                ffi::glXCreateContext(display, &visual_infos, ptr::null(), 1);
-            if dummy_context.is_null() {
-                return Err(format!("glXCreateContext failed"));
-            }
+            let mut addr = ffi::glXGetProcAddress(b"glXCreateContextAttribs".as_ptr()
+                as *const u8) as *const ();
 
-            if ffi::glXMakeCurrent(display, window, dummy_context) == 0 {
-                return Err(format!("glXMakeCurrent with dummy context failed"));
-            }
-
-            // getting the pointer
-            let fn_ptr = {
-                let mut addr = ffi::glXGetProcAddress(b"glXCreateContextAttribs".as_ptr()
+            if addr.is_null() {
+                addr = ffi::glXGetProcAddress(b"glXCreateContextAttribsARB".as_ptr()
                     as *const u8) as *const ();
-
-                if addr.is_null() {
-                    addr = ffi::glXGetProcAddress(b"glXCreateContextAttribsARB".as_ptr()
-                        as *const u8) as *const ();
-                }
-                
-                addr.to_option().map(|addr| {
-                    let addr: extern "system" fn(*mut ffi::Display, ffi::GLXFBConfig, ffi::GLXContext,
-                        ffi::Bool, *const libc::c_int) -> ffi::GLXContext = mem::transmute(addr);
-                    addr
-                })
-            };
-
-            // cleaning up
-            ffi::glXMakeCurrent(ptr::mut_null(), 0, ptr::null());
-            ffi::glXDestroyContext(display, dummy_context);
-
-            fn_ptr
+            }
+            
+            addr.to_option().map(|addr| {
+                let addr: extern "system" fn(*mut ffi::Display, ffi::GLXFBConfig, ffi::GLXContext,
+                    ffi::Bool, *const libc::c_int) -> ffi::GLXContext = mem::transmute(addr);
+                addr
+            })
         };
 
         // creating IM
