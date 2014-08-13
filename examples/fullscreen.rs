@@ -1,27 +1,27 @@
-extern crate init = "gl-init-rs";
-extern crate libc;
 extern crate gl;
+extern crate gl_init;
+extern crate libc;
 
 use std::io::stdio::stdin;
 
 fn main() {
     // enumerating monitors
     let monitor = {
-        for (num, monitor) in init::get_available_monitors().enumerate() {
+        for (num, monitor) in gl_init::get_available_monitors().enumerate() {
             println!("Monitor #{}: {}", num, monitor.get_name());
         }
 
         print!("Please write the number of the monitor to use: ");
         let num = from_str(stdin().read_line().unwrap().as_slice().trim())
             .expect("Plase enter a number");
-        let monitor = init::get_available_monitors().nth(num).expect("Please enter a valid ID");
+        let monitor = gl_init::get_available_monitors().nth(num).expect("Please enter a valid ID");
 
         println!("Using {}", monitor.get_name());
 
         monitor
     };
 
-    let window = init::WindowBuilder::new()
+    let window = gl_init::WindowBuilder::new()
         .with_title("Hello world!".to_string())
         .with_fullscreen(monitor)
         .build()
@@ -49,6 +49,6 @@ fn main() {
         gl::Clear(gl::COLOR_BUFFER_BIT);
         window.swap_buffers();
 
-        println!("{}", window.wait_events().collect::<Vec<init::Event>>());
+        println!("{}", window.wait_events().collect::<Vec<gl_init::Event>>());
     }
 }

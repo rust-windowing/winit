@@ -1,11 +1,11 @@
-extern crate init = "gl-init-rs";
-extern crate libc;
 extern crate gl;
+extern crate gl_init;
+extern crate libc;
 
 fn main() {
-    let window1 = init::Window::new().unwrap();
-    let window2 = init::Window::new().unwrap();
-    let window3 = init::Window::new().unwrap();
+    let window1 = gl_init::Window::new().unwrap();
+    let window2 = gl_init::Window::new().unwrap();
+    let window3 = gl_init::Window::new().unwrap();
 
     spawn(proc() {
         run(window1, (0.0, 1.0, 0.0, 1.0));
@@ -20,7 +20,7 @@ fn main() {
     });
 }
 
-fn run(window: init::Window, color: (f32, f32, f32, f32)) {
+fn run(window: gl_init::Window, color: (f32, f32, f32, f32)) {
     unsafe { window.make_current() };
 
     gl::load_with(|symbol| window.get_proc_address(symbol));
@@ -36,6 +36,6 @@ fn run(window: init::Window, color: (f32, f32, f32, f32)) {
         gl::Clear(gl::COLOR_BUFFER_BIT);
         window.swap_buffers();
 
-        window.wait_events().collect::<Vec<init::Event>>();
+        window.wait_events().collect::<Vec<gl_init::Event>>();
     }
 }

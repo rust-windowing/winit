@@ -1,9 +1,9 @@
-extern crate init = "gl-init-rs";
-extern crate libc;
 extern crate gl;
+extern crate gl_init;
+extern crate libc;
 
 fn main() {
-    let window = init::Window::new().unwrap();
+    let window = gl_init::Window::new().unwrap();
 
     unsafe { window.make_current() };
 
@@ -27,6 +27,6 @@ fn main() {
         gl::Clear(gl::COLOR_BUFFER_BIT);
         window.swap_buffers();
 
-        println!("{}", window.wait_events().collect::<Vec<init::Event>>());
+        println!("{}", window.wait_events().collect::<Vec<gl_init::Event>>());
     }
 }
