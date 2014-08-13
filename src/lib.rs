@@ -23,6 +23,8 @@ extern crate libc;
 
 pub use events::*;
 
+use std::default::Default;
+
 #[cfg(target_os = "win32")]
 use winimpl = win32;
 #[cfg(target_os = "linux")]
@@ -143,6 +145,12 @@ impl WindowBuilder {
 /// ```
 pub struct Window {
     window: winimpl::Window,
+}
+
+impl Default for Window {
+    fn default() -> Window {
+        Window::new().unwrap()
+    }
 }
 
 impl Window {
