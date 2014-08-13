@@ -431,67 +431,76 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         },
 
         ffi::WM_MOUSEMOVE => {
-            use CursorPositionChanged;
+            use MouseMoved;
 
-            let x = ffi::GET_X_LPARAM(lparam) as uint;
-            let y = ffi::GET_Y_LPARAM(lparam) as uint;
+            let x = ffi::GET_X_LPARAM(lparam) as int;
+            let y = ffi::GET_Y_LPARAM(lparam) as int;
 
-            send_event(window, CursorPositionChanged(x, y));
+            send_event(window, MouseMoved((x, y)));
+
+            0
+        },
+
+        ffi::WM_MOUSEWHEEL => {
+            use events::MouseWheel;
+
+            let value = (wparam >> 16) as i16;
+            let value = value as i32;
+
+            send_event(window, MouseWheel(value));
 
             0
         },
 
         ffi::WM_KEYDOWN => {
-            use events::Pressed;
-            let element = event::vkeycode_to_element(wparam);
-            if element.is_some() {
-                send_event(window, Pressed(element.unwrap()));
-            }
+            use events::{KeyboardInput, KeyModifiers, Pressed};
+            let scancode = ((lparam >> 16) & 0xff) as u8;
+            let vkey = event::vkeycode_to_element(wparam);
+            send_event(window, KeyboardInput(Pressed, scancode, vkey, KeyModifiers::empty()));
             0
         },
 
         ffi::WM_KEYUP => {
-            use events::Released;
-            let element = event::vkeycode_to_element(wparam);
-            if element.is_some() {
-                send_event(window, Released(element.unwrap()));
-            }
+            use events::{KeyboardInput, KeyModifiers, Released};
+            let scancode = ((lparam >> 16) & 0xff) as u8;
+            let vkey = event::vkeycode_to_element(wparam);
+            send_event(window, KeyboardInput(Released, scancode, vkey, KeyModifiers::empty()));
             0
         },
 
         ffi::WM_LBUTTONDOWN => {
-            use events::{Pressed, Button0};
-            send_event(window, Pressed(Button0));
+            use events::{Pressed, MouseInput, LeftMouseButton};
+            send_event(window, MouseInput(Pressed, LeftMouseButton));
             0
         },
 
         ffi::WM_LBUTTONUP => {
-            use events::{Released, Button0};
-            send_event(window, Released(Button0));
+            use events::{Released, MouseInput, LeftMouseButton};
+            send_event(window, MouseInput(Released, LeftMouseButton));
             0
         },
 
         ffi::WM_RBUTTONDOWN => {
-            use events::{Pressed, Button1};
-            send_event(window, Pressed(Button1));
+            use events::{Pressed, MouseInput, RightMouseButton};
+            send_event(window, MouseInput(Pressed, RightMouseButton));
             0
         },
 
         ffi::WM_RBUTTONUP => {
-            use events::{Released, Button1};
-            send_event(window, Released(Button1));
+            use events::{Released, MouseInput, RightMouseButton};
+            send_event(window, MouseInput(Released, RightMouseButton));
             0
         },
 
         ffi::WM_MBUTTONDOWN => {
-            use events::{Pressed, Button2};
-            send_event(window, Pressed(Button2));
+            use events::{Pressed, MouseInput, MiddleMouseButton};
+            send_event(window, MouseInput(Pressed, MiddleMouseButton));
             0
         },
 
         ffi::WM_MBUTTONUP => {
-            use events::{Released, Button2};
-            send_event(window, Released(Button2));
+            use events::{Released, MouseInput, MiddleMouseButton};
+            send_event(window, MouseInput(Released, MiddleMouseButton));
             0
         },
 

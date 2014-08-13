@@ -1,7 +1,7 @@
 use events;
 use super::ffi;
 
-pub fn vkeycode_to_element(code: ffi::WPARAM) -> Option<events::Element> {
+pub fn vkeycode_to_element(code: ffi::WPARAM) -> Option<events::VirtualKeyCode> {
     Some(match code {
         //ffi::VK_LBUTTON => events::Lbutton,
         //ffi::VK_RBUTTON => events::Rbutton,
@@ -31,8 +31,8 @@ pub fn vkeycode_to_element(code: ffi::WPARAM) -> Option<events::Element> {
         //ffi::VK_ACCEPT => events::Accept,
         //ffi::VK_MODECHANGE => events::Modechange,
         ffi::VK_SPACE => events::Space,
-        ffi::VK_PRIOR => events::Prior,
-        ffi::VK_NEXT => events::Next,
+        ffi::VK_PRIOR => events::PageUp,
+        ffi::VK_NEXT => events::PageDown,
         ffi::VK_END => events::End,
         ffi::VK_HOME => events::Home,
         ffi::VK_LEFT => events::Left,

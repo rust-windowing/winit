@@ -331,13 +331,13 @@ impl Window {
                 },
 
                 ffi::MotionNotify => {
-                    use CursorPositionChanged;
+                    use MouseMoved;
                     let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
-                    events.push(CursorPositionChanged(event.x as uint, event.y as uint));
+                    events.push(MouseMoved((event.x as int, event.y as int)));
                 },
 
                 ffi::KeyPress | ffi::KeyRelease => {
-                    use {Pressed, Released, ReceivedCharacter};
+                    use {KeyboardInput, Pressed, Released, ReceivedCharacter, KeyModifiers};
                     let event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
 
                     if event.type_ == ffi::KeyPress {
@@ -345,7 +345,7 @@ impl Window {
                         unsafe { ffi::XFilterEvent(mem::transmute(raw_ev), self.window) };
                     }
 
-                    let keysym = unsafe { ffi::XKeycodeToKeysym(self.display, event.keycode as ffi::KeyCode, 0) };
+                    let state = if xev.type_ == ffi::KeyPress { Pressed } else { Released };
 
                     let written = unsafe {
                         use std::str;
@@ -356,48 +356,46 @@ impl Window {
                             mem::transmute(buffer.as_mut_ptr()),
                             buffer.len() as libc::c_int, ptr::mut_null(), ptr::mut_null());
 
-                        str::from_utf8(buffer.as_slice().slice_to(count as uint)).unwrap_or("").to_string()
+                        str::from_utf8(buffer.as_slice().slice_to(count as uint))
+                            .unwrap_or("").to_string()
                     };
 
                     for chr in written.as_slice().chars() {
                         events.push(ReceivedCharacter(chr));
                     }
 
-                    match events::keycode_to_element(keysym as libc::c_uint) {
-                        Some(elem) if xev.type_ == ffi::KeyPress => {
-                            events.push(Pressed(elem));
-                        },
-                        Some(elem) if xev.type_ == ffi::KeyRelease => {
-                            events.push(Released(elem));
-                        },
-                        _ => ()
-                    }
+                    let keysym = unsafe {
+                        ffi::XKeycodeToKeysym(self.display, event.keycode as ffi::KeyCode, 0)
+                    };
+
+                    let vkey =  events::keycode_to_element(keysym as libc::c_uint);
+
+                    events.push(KeyboardInput(state, event.keycode as u8,
+                        vkey, KeyModifiers::empty()));
                     //
                 },
 
                 ffi::ButtonPress | ffi::ButtonRelease => {
-                    use {Pressed, Released};
-                    use events;
+                    use {MouseInput, Pressed, Released};
+                    use {LeftMouseButton, RightMouseButton, MiddleMouseButton, OtherMouseButton};
                     let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
 
-                    let elem = match event.button {
-                        ffi::Button1 => Some(events::Button1),
-                        ffi::Button2 => Some(events::Button2),
-                        ffi::Button3 => Some(events::Button3),
-                        ffi::Button4 => Some(events::Button4),
-                        ffi::Button5 => Some(events::Button5),
+                    let state = if xev.type_ == ffi::ButtonPress { Pressed } else { Released };
+
+                    let button = match event.button {
+                        ffi::Button1 => Some(LeftMouseButton),
+                        ffi::Button2 => Some(MiddleMouseButton),
+                        ffi::Button3 => Some(RightMouseButton),
+                        ffi::Button4 => Some(OtherMouseButton(4)),
+                        ffi::Button5 => Some(OtherMouseButton(5)),
                         _ => None
                     };
 
-                    if elem.is_some() {
-                        let elem = elem.unwrap();
-
-                        if xev.type_ == ffi::ButtonPress {
-                            events.push(Pressed(elem));
-                        } else if xev.type_ == ffi::ButtonRelease {
-                            events.push(Released(elem));
-                        }
-                    }
+                    match button {
+                        Some(button) => 
+                            events.push(MouseInput(state, button)),
+                        None => ()
+                    };
                 },
 
                 _ => ()

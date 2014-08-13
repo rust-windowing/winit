@@ -1,4 +1,3 @@
-
 #[deriving(Clone,Show)]
 pub enum Event {
     /// The size of the window has changed.
@@ -13,45 +12,59 @@ pub enum Event {
     /// The window received a unicode character.
     ReceivedCharacter(char),
 
-    /// The cursor has moved on the window.
-    /// 
-    /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
-    CursorPositionChanged(uint, uint),
-
     /// The window gained or lost focus.
     /// 
     /// The parameter is true if the window has gained focus, and false if it has lost focus.
     Focused(bool),
 
-    /// An element has been pressed.
-    Pressed(Element),
+    /// An event from the keyboard has been received.
+    KeyboardInput(ElementState, ScanCode, Option<VirtualKeyCode>, KeyModifiers),
 
-    /// An element has been released.
-    Released(Element),
+    /// The cursor has moved on the window.
+    /// 
+    /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
+    MouseMoved((int, int)),
+
+    /// A positive value indicates that the wheel was rotated forward, away from the user;
+    ///  a negative value indicates that the wheel was rotated backward, toward the user.
+    MouseWheel(i32),
+
+    /// An event from the mouse has been received.
+    MouseInput(ElementState, MouseButton),
 }
 
-#[deriving(Show, Clone)]
-pub enum Element {
-    Slider0,
-    Slider1,
-    Slider2,
-    Slider3,
-    Button0,
-    Button1,
-    Button2,
-    Button3,
-    Button4,
-    Button5,
-    Button6,
-    Button7,
-    Button8,
-    Button9,
-    Button10,
-    Button11,
-    Button12,
-    Button13,
-    Button14,
-    Button15,
+pub type ScanCode = u8;
+
+bitflags!(
+    #[deriving(Show)]
+    flags KeyModifiers: u8 {
+        static LeftControlModifier = 1,
+        static RightControlModifier = 2,
+        static LeftShitModifier = 4,
+        static RightShitModifier = 8,
+        static LeftAltModifier = 16,
+        static RightRightModifier = 32,
+        static NumLockModifier = 64,
+        static CapsLockModifier = 128
+    }
+)
+
+#[deriving(Show, Hash, PartialEq, Eq, Clone)]
+pub enum ElementState {
+    Pressed,
+    Released,
+}
+
+#[deriving(Show, Hash, PartialEq, Eq, Clone)]
+pub enum MouseButton {
+    LeftMouseButton,
+    RightMouseButton,
+    MiddleMouseButton,
+    OtherMouseButton(u8),
+}
+
+#[deriving(Show, Hash, PartialEq, Eq, Clone)]
+pub enum VirtualKeyCode {
     Key0,
     Key1,
     Key2,
@@ -130,7 +143,6 @@ pub enum Element {
     Mute,
     MyComputer,
     N,
-    Next,
     NextTrack,
     NoConvert,
     Numlock,
@@ -150,12 +162,13 @@ pub enum Element {
     O,
     OEM102,
     P,
+    PageDown,
+    PageUp,
     Pause,
     Period,
     Playpause,
     Power,
     Prevtrack,
-    Prior,
     Q,
     R,
     RBracket,

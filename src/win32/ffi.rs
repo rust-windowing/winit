@@ -409,6 +409,7 @@ pub static WM_KILLFOCUS: UINT = 0x0008;
 pub static WM_MBUTTONDOWN: UINT = 0x0207;
 pub static WM_MBUTTONUP: UINT = 0x0208;
 pub static WM_MOUSEMOVE: UINT = 0x0200;
+pub static WM_MOUSEWHEEL: UINT = 0x020A;
 pub static WM_MOVE: UINT = 0x0003;
 pub static WM_PAINT: UINT = 0x000F;
 pub static WM_RBUTTONDOWN: UINT = 0x0204;

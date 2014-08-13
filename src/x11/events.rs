@@ -1,8 +1,8 @@
 use {events, libc};
 use super::ffi;
-use Element;
+use VirtualKeyCode;
 
-pub fn keycode_to_element(scancode: libc::c_uint) -> Option<Element> {
+pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
     Some(match scancode {
         //ffi::XK_BackSpace => events::Backspace,
         ffi::XK_Tab => events::Tab,
