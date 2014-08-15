@@ -25,14 +25,14 @@ pub use events::*;
 
 use std::default::Default;
 
-#[cfg(target_os = "win32")]
+#[cfg(target_os = "windows")]
 use winimpl = win32;
 #[cfg(target_os = "linux")]
 use winimpl = x11;
 #[cfg(target_os = "macos")]
 use winimpl = osx;
 
-#[cfg(target_os = "win32")]
+#[cfg(target_os = "windows")]
 mod win32;
 #[cfg(target_os = "linux")]
 mod x11;
@@ -44,8 +44,8 @@ mod osx;
 
 mod events;
 
-#[cfg(not(target_os = "win32"), not(target_os = "linux"), not(target_os = "macos"))]
-compile_error!("Only the `win32`, `linux` and `macos` platforms are supported")
+#[cfg(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"))]
+compile_error!("Only the `windows`, `linux` and `macos` platforms are supported")
 
 /// Identifier for a monitor.
 pub struct MonitorID(winimpl::MonitorID);
