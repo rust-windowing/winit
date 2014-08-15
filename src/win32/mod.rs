@@ -192,11 +192,7 @@ impl Window {
     pub fn swap_buffers(&self) {
         unsafe {
             ffi::glFlush();
-
-            if ffi::SwapBuffers(self.hdc) == 0 {
-                use std::os;
-                fail!("{}", os::error_string(os::errno()));
-            }
+            ffi::SwapBuffers(self.hdc);
         }
     }
 }
