@@ -26,11 +26,11 @@ pub use events::*;
 use std::default::Default;
 
 #[cfg(target_os = "windows")]
-use winimpl = win32;
+use win32 as winimpl;
 #[cfg(target_os = "linux")]
-use winimpl = x11;
+use x11 as winimpl;
 #[cfg(target_os = "macos")]
-use winimpl = osx;
+use osx as winimpl;
 
 #[cfg(target_os = "windows")]
 mod win32;
