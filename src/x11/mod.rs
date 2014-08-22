@@ -435,10 +435,7 @@ impl Window {
 
         unsafe {
             addr.with_c_str(|s| {
-                let p = ffi::glXGetProcAddress(mem::transmute(s)) as *const ();
-                if !p.is_null() { return p; }
-                println!("{}", p);
-                p
+                ffi::glXGetProcAddress(mem::transmute(s)) as *const ()
             })
         }
     }
