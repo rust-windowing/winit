@@ -34,18 +34,18 @@ pub struct Window {
 }
 
 impl Window {
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     pub fn new(builder: WindowBuilder) -> Result<Window, String> {
         init::new_window(builder)
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     pub fn is_closed(&self) -> bool {
         use std::sync::atomics::Relaxed;
         self.is_closed.load(Relaxed)
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     /// 
     /// Calls SetWindowText on the HWND.
     pub fn set_title(&self, text: &str) {
@@ -55,7 +55,7 @@ impl Window {
         }
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     pub fn get_position(&self) -> Option<(int, int)> {
         use std::mem;
 
@@ -70,7 +70,7 @@ impl Window {
         Some((rect.left as int, rect.top as int))
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     pub fn set_position(&self, x: int, y: int) {
         use libc;
 
@@ -81,7 +81,7 @@ impl Window {
         }
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     pub fn get_inner_size(&self) -> Option<(uint, uint)> {
         use std::mem;
         let mut rect: ffi::RECT = unsafe { mem::uninitialized() };
@@ -96,7 +96,7 @@ impl Window {
         ))
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     pub fn get_outer_size(&self) -> Option<(uint, uint)> {
         use std::mem;
         let mut rect: ffi::RECT = unsafe { mem::uninitialized() };
@@ -111,7 +111,7 @@ impl Window {
         ))
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     pub fn set_inner_size(&self, x: uint, y: uint) {
         use libc;
 
@@ -122,7 +122,7 @@ impl Window {
         }
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     // TODO: return iterator
     pub fn poll_events(&self) -> Vec<Event> {
         let mut events = Vec::new();
@@ -142,7 +142,7 @@ impl Window {
         events
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     // TODO: return iterator
     pub fn wait_events(&self) -> Vec<Event> {
         match self.events_receiver.recv_opt() {
@@ -170,12 +170,12 @@ impl Window {
         }
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     pub unsafe fn make_current(&self) {
         ffi::wglMakeCurrent(self.hdc, self.context)
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         use std::c_str::ToCStr;
 
@@ -188,10 +188,12 @@ impl Window {
         }
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs in the crate root file.
     pub fn swap_buffers(&self) {
         unsafe {
+            // calling glFlush is necessary on Windows 8
             ffi::glFlush();
+
             ffi::SwapBuffers(self.hdc);
         }
     }
