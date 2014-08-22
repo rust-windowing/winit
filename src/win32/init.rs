@@ -228,12 +228,18 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
 
         // creating the real window this time
         let real_window = unsafe {
+            let (width, height) = if builder.monitor.is_some() || builder.dimensions.is_some() {
+                (Some(rect.right - rect.left), Some(rect.bottom - rect.top))
+            } else {
+                (None, None)
+            };
+
             let handle = ffi::CreateWindowExW(ex_style, class_name.as_ptr(),
                 title.as_ptr() as ffi::LPCWSTR,
                 style | ffi::WS_VISIBLE | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN,
-                if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT},
-                if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT},
-                rect.right - rect.left, rect.bottom - rect.top,
+                if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT },
+                if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT },
+                width.unwrap_or(ffi::CW_USEDEFAULT), height.unwrap_or(ffi::CW_USEDEFAULT),
                 ptr::mut_null(), ptr::mut_null(), ffi::GetModuleHandleW(ptr::null()),
                 ptr::mut_null());
 
