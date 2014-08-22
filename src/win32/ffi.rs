@@ -722,9 +722,6 @@ extern "system" {
     //
     pub fn glFlush();
 
-    // 
-    pub fn glViewport(x: libc::c_int, y: libc::c_int, w: libc::c_int, h: libc::c_int);
-
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms684175(v=vs.85).aspx
     pub fn LoadLibraryW(lpFileName: LPCWSTR) -> HMODULE;
 

@@ -349,14 +349,6 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             is_closed: AtomicBool::new(false),
         };
 
-        // calling glViewport
-        unsafe {
-            use libc;
-            let dimensions = window.get_inner_size().unwrap();
-            ffi::glViewport(0, 0, dimensions.val0() as libc::c_int,
-                dimensions.val1() as libc::c_int);
-        }
-
         // sending
         tx.send(Ok(window));
 
