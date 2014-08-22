@@ -135,6 +135,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                 if hdc.is_null() {
                     tx.send(Err(format!("GetDC function failed: {}",
                         os::error_string(os::errno() as uint))));
+                    unsafe { ffi::DestroyWindow(dummy_window); }
                     return;
                 }
                 hdc
@@ -162,6 +163,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                 if pf_index == 0 {
                     tx.send(Err(format!("ChoosePixelFormat function failed: {}",
                         os::error_string(os::errno() as uint))));
+                    unsafe { ffi::DestroyWindow(dummy_window); }
                     return;
                 }
 
@@ -170,6 +172,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                 {
                     tx.send(Err(format!("DescribePixelFormat function failed: {}",
                         os::error_string(os::errno() as uint))));
+                    unsafe { ffi::DestroyWindow(dummy_window); }
                     return;
                 }
 
@@ -181,6 +184,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                 if ffi::SetPixelFormat(dummy_hdc, 1, &pixel_format) == 0 {
                     tx.send(Err(format!("SetPixelFormat function failed: {}",
                         os::error_string(os::errno() as uint))));
+                    ffi::DestroyWindow(dummy_window);
                     return;
                 }
             }
@@ -191,6 +195,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                 if ctxt.is_null() {
                     tx.send(Err(format!("wglCreateContext function failed: {}",
                         os::error_string(os::errno() as uint))));
+                    unsafe { ffi::DestroyWindow(dummy_window); }
                     return;
                 }
                 ctxt
@@ -259,6 +264,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             if hdc.is_null() {
                 tx.send(Err(format!("GetDC function failed: {}",
                     os::error_string(os::errno() as uint))));
+                unsafe { ffi::DestroyWindow(real_window); }
                 return;
             }
             hdc
@@ -269,6 +275,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             if ffi::SetPixelFormat(hdc, 1, &pixel_format) == 0 {
                 tx.send(Err(format!("SetPixelFormat function failed: {}",
                     os::error_string(os::errno() as uint))));
+                ffi::DestroyWindow(real_window);
                 return;
             }
         }
@@ -299,6 +306,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             if ctxt.is_null() {
                 tx.send(Err(format!("OpenGL context creation failed: {}",
                     os::error_string(os::errno() as uint))));
+                unsafe { ffi::DestroyWindow(real_window); }
                 return;
             }
 
@@ -324,6 +332,8 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             if lib.is_null() {
                 tx.send(Err(format!("LoadLibrary function failed: {}",
                     os::error_string(os::errno() as uint))));
+                unsafe { ffi::wglDeleteContext(context); }
+                unsafe { ffi::DestroyWindow(real_window); }
                 return;
             }
             lib
