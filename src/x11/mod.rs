@@ -14,16 +14,19 @@ pub struct Window {
     context: ffi::GLXContext,
     is_closed: AtomicBool,
     wm_delete_window: ffi::Atom,
+    xf86_desk_mode: *mut ffi::XF86VidModeModeInfo,
+    screen_id: libc::c_int,
+    is_fullscreen: bool,
 }
 
 pub struct MonitorID(uint);
 
 pub fn get_available_monitors() -> Vec<MonitorID> {
-    unimplemented!()
+    vec![get_primary_monitor()]
 }
 
 pub fn get_primary_monitor() -> MonitorID {
-    unimplemented!()
+    MonitorID(0u)
 }
 
 impl MonitorID {
@@ -32,14 +35,15 @@ impl MonitorID {
     }
 
     pub fn get_dimensions(&self) -> (uint, uint) {
-        unimplemented!()
+        //unimplemented!()
+        // TODO: Get the real dimensions from the monitor
+        (1024, 768)
     }
 }
 
 impl Window {
     pub fn new(builder: WindowBuilder) -> Result<Window, String> {
-        // TODO: temporary
-        let dimensions = builder.dimensions;
+        let dimensions = builder.dimensions.unwrap_or((800, 600));
 
         // calling XOpenDisplay
         let display = unsafe {
@@ -50,7 +54,9 @@ impl Window {
             display
         };
 
-        // TODO: set error handler?
+        let screen_id = unsafe {
+            ffi::XDefaultScreen(display)
+        };
 
         // getting the FBConfig
         let fb_config = unsafe {
@@ -81,6 +87,31 @@ impl Window {
             preferred_fb
         };
 
+        let mut best_mode = -1;
+        let modes = unsafe {
+            let mut mode_num: libc::c_int = mem::uninitialized();
+            let mut modes: *mut *mut ffi::XF86VidModeModeInfo = mem::uninitialized();
+            if ffi::XF86VidModeGetAllModeLines(display, screen_id, &mut mode_num, &mut modes) == 0 {
+                return Err(format!("Could not query the video modes"));
+            }
+
+            for i in range(0, mode_num) {
+                let mode: ffi::XF86VidModeModeInfo = **modes.offset(i as int);
+                if mode.hdisplay == dimensions.val0() as u16 && mode.vdisplay == dimensions.val1() as u16 {
+                    best_mode = i;
+                }
+            };
+            if best_mode == -1 {
+                return Err(format!("Could not find a suitable graphics mode"));
+            }
+
+           modes
+        };
+
+        let xf86_desk_mode = unsafe {
+            *modes.offset(0)
+        };
+
         // getting the visual infos
         let visual_infos = unsafe {
             let vi = ffi::glXGetVisualFromFBConfig(display, fb_config);
@@ -109,18 +140,28 @@ impl Window {
             swa.colormap = cmap;
             swa.event_mask = ffi::ExposureMask | ffi::ResizeRedirectMask |
                 ffi::VisibilityChangeMask | ffi::KeyPressMask | ffi::PointerMotionMask |
-                ffi::KeyPressMask | ffi::KeyReleaseMask | ffi::ButtonPressMask |
+                ffi::KeyReleaseMask | ffi::ButtonPressMask |
                 ffi::ButtonReleaseMask | ffi::KeymapStateMask;
+            swa.border_pixel = 0;
+            swa.override_redirect = 0;
             swa
         };
 
+        let mut window_attributes = ffi::CWBorderPixel | ffi::CWColormap | ffi:: CWEventMask;
+        if builder.is_fullscreen {
+            window_attributes |= ffi::CWOverrideRedirect;
+            unsafe {
+                ffi::XF86VidModeSwitchToMode(display, screen_id, *modes.offset(best_mode as int));
+                ffi::XF86VidModeSetViewPort(display, screen_id, 0, 0);
+                set_win_attr.override_redirect = 1;
+            }
+        }
+
         // finally creating the window
         let window = unsafe {
-            let dimensions = dimensions.unwrap_or((800, 600));
-
             let win = ffi::XCreateWindow(display, root, 50, 50, dimensions.val0() as libc::c_uint,
                 dimensions.val1() as libc::c_uint, 0, visual_infos.depth, ffi::InputOutput,
-                visual_infos.visual, ffi::CWColormap | ffi::CWEventMask,
+                visual_infos.visual, window_attributes,
                 &mut set_win_attr);
             win
         };
@@ -148,7 +189,7 @@ impl Window {
                 addr = ffi::glXGetProcAddress(b"glXCreateContextAttribsARB".as_ptr()
                     as *const u8) as *const ();
             }
-            
+
             addr.to_option().map(|addr| {
                 let addr: extern "system" fn(*mut ffi::Display, ffi::GLXFBConfig, ffi::GLXContext,
                     ffi::Bool, *const libc::c_int) -> ffi::GLXContext = mem::transmute(addr);
@@ -202,13 +243,13 @@ impl Window {
             }
 
             attributes.push(0);
- 
+
             let context = if create_context_attribs.is_some() {
                 let create_context_attribs = create_context_attribs.unwrap();
                 create_context_attribs(display, fb_config, ptr::null(), 1,
                     attributes.as_ptr())
             } else {
-                ffi::glXCreateNewContext(display, fb_config, ffi::GLX_RGBA_TYPE, ptr::null(), 1)
+                ffi::glXCreateContext(display, &visual_infos, ptr::null(), 1)
             };
 
             if context.is_null() {
@@ -227,6 +268,9 @@ impl Window {
             context: context,
             is_closed: AtomicBool::new(false),
             wm_delete_window: wm_delete_window,
+            xf86_desk_mode: xf86_desk_mode,
+            screen_id: screen_id,
+            is_fullscreen: builder.is_fullscreen,
         };
 
         // calling glViewport
@@ -300,9 +344,9 @@ impl Window {
 
     pub fn poll_events(&self) -> Vec<Event> {
         use std::mem;
-        
+
         let mut events = Vec::new();
-        
+
         loop {
             use std::num::Bounded;
 
@@ -362,7 +406,7 @@ impl Window {
 
                         let mut buffer: [u8, ..16] = [mem::uninitialized(), ..16];
                         let raw_ev: *mut ffi::XKeyEvent = event;
-                        let count = ffi::Xutf8LookupString(self.ic, mem::transmute(raw_ev), 
+                        let count = ffi::Xutf8LookupString(self.ic, mem::transmute(raw_ev),
                             mem::transmute(buffer.as_mut_ptr()),
                             buffer.len() as libc::c_int, ptr::mut_null(), ptr::mut_null());
 
@@ -402,7 +446,7 @@ impl Window {
                     };
 
                     match button {
-                        Some(button) => 
+                        Some(button) =>
                             events.push(MouseInput(state, button)),
                         None => ()
                     };
@@ -457,7 +501,14 @@ impl Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
+        unsafe { ffi::glXMakeCurrent(self.display, 0, ptr::null()); }
         unsafe { ffi::glXDestroyContext(self.display, self.context); }
+
+        if self.is_fullscreen {
+            unsafe { ffi::XF86VidModeSwitchToMode(self.display, self.screen_id, self.xf86_desk_mode); }
+            unsafe { ffi::XF86VidModeSetViewPort(self.display, self.screen_id, 0, 0); }
+        }
+
         unsafe { ffi::XDestroyIC(self.ic); }
         unsafe { ffi::XCloseIM(self.im); }
         unsafe { ffi::XDestroyWindow(self.display, self.window); }

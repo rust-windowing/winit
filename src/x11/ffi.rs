@@ -1337,8 +1337,26 @@ pub struct XButtonEvent {
     pub same_screen: Bool,
 }
 
+#[repr(C)]
+pub struct XF86VidModeModeInfo {
+    pub dotclock: libc::c_uint,
+    pub hdisplay: libc::c_ushort,
+    pub hsyncstart: libc::c_ushort,
+    pub hsyncend: libc::c_ushort,
+    pub htotal: libc::c_ushort,
+    pub hskew: libc::c_ushort,
+    pub vdisplay: libc::c_ushort,
+    pub vsyncstart: libc::c_ushort,
+    pub vsyncend: libc::c_ushort,
+    pub vtotal: libc::c_ushort,
+    pub flags: libc::c_uint,
+    privsize: libc::c_int,
+    private: libc::c_long,
+}
+
 #[link(name = "GL")]
 #[link(name = "X11")]
+#[link(name = "Xxf86vm")]
 extern "C" {
     pub fn XCloseDisplay(display: *mut Display);
     pub fn XCheckMaskEvent(display: *mut Display, event_mask: libc::c_long,
@@ -1408,6 +1426,12 @@ extern "C" {
     pub fn glXSwapBuffers(dpy: *mut Display, drawable: GLXDrawable);
 
     pub fn XkbSetDetectableAutoRepeat(dpy: *mut Display, detectable: bool, supported_rtm: *mut bool) -> bool;
+    pub fn XF86VidModeSwitchToMode(dpy: *mut Display, screen: libc::c_int,
+        modeline: *mut XF86VidModeModeInfo) -> Bool;
+    pub fn XF86VidModeSetViewPort(dpy: *mut Display, screen: libc::c_int,
+        x: libc::c_int, y: libc::c_int) -> Bool;
+    pub fn XF86VidModeGetAllModeLines(dpy: *mut Display, screen: libc::c_int,
+        modecount_return: *mut libc::c_int, modesinfo: *mut *mut *mut XF86VidModeModeInfo) -> Bool;
 }
 
 /*
