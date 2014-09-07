@@ -4,11 +4,11 @@ Alternative to GLFW in pure Rust.
 
 ## Try it!
 
-```
+```bash
 git clone https://github.com/tomaka/gl-init-rs
 cd gl-init-rs
 cargo test
-./target/test/window    // or target\test\window.exe
+./target/test/window    # or target\test\window.exe
 ```
 
 ## Usage
