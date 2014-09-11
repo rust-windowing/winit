@@ -1,0 +1,3 @@
+[submodule "deps/apk-builder"]
+	path = deps/apk-builder
+	url = https://github.com/tomaka/android-rs-glue

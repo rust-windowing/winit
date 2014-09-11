@@ -1,6 +1,15 @@
+#![feature(phase)]
+
+#[cfg(target_os = "android")]
+#[phase(plugin, link)]
+extern crate android_glue;
+
 extern crate gl;
 extern crate gl_init;
 extern crate libc;
+
+#[cfg(target_os = "android")]
+android_start!(main)
 
 fn main() {
     let window1 = gl_init::Window::new().unwrap();

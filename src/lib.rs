@@ -31,6 +31,8 @@ use win32 as winimpl;
 use x11 as winimpl;
 #[cfg(target_os = "macos")]
 use osx as winimpl;
+#[cfg(target_os = "android")]
+use android as winimpl;
 
 #[cfg(target_os = "windows")]
 mod win32;
@@ -38,13 +40,15 @@ mod win32;
 mod x11;
 #[cfg(target_os = "macos")]
 mod osx;
+#[cfg(target_os = "android")]
+mod android;
 
 #[allow(dead_code)]
 //mod egl;
 
 mod events;
 
-#[cfg(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"))]
+#[cfg(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"), not(target_os = "android"))]
 compile_error!("Only the `windows`, `linux` and `macos` platforms are supported")
 
 /// Identifier for a monitor.
