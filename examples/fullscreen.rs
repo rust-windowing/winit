@@ -1,8 +1,17 @@
+#![feature(phase)]
+
+#[cfg(target_os = "android")]
+#[phase(plugin, link)]
+extern crate android_glue;
+
 extern crate gl;
 extern crate gl_init;
 extern crate libc;
 
 use std::io::stdio::stdin;
+
+#[cfg(target_os = "android")]
+android_start!(main)
 
 fn main() {
     // enumerating monitors
