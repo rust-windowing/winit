@@ -43,9 +43,6 @@ mod osx;
 #[cfg(target_os = "android")]
 mod android;
 
-#[allow(dead_code)]
-//mod egl;
-
 mod events;
 
 #[cfg(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"), not(target_os = "android"))]
