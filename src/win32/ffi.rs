@@ -5,6 +5,16 @@
 
 use libc;
 
+/// WGL bindings
+pub mod wgl {
+    generate_gl_bindings!("wgl", "core", "1.0", "static")
+}
+
+/// Functions that are not necessarly always available
+pub mod wgl_extra {
+    generate_gl_bindings!("wgl", "core", "1.0", "struct", [ "WGL_ARB_create_context" ])
+}
+
 // http://msdn.microsoft.com/en-us/library/windows/desktop/aa383751(v=vs.85).aspx
 // we don't define the T types to ensure that A/W functions are used
 pub type ATOM = WORD;
@@ -32,7 +42,7 @@ pub type LPSTR = *mut libc::c_char;
 pub type LPVOID = *mut libc::c_void;
 pub type LPWSTR = *mut WCHAR;
 pub type LRESULT = LONG_PTR;
-pub type PVOID = *mut libc::c_void;
+pub type PVOID = *const libc::c_void;
 pub type UINT = libc::c_uint;
 pub type UINT_PTR = int;
 pub type WCHAR = libc::wchar_t;
@@ -384,17 +394,6 @@ pub static VK_ZOOM: WPARAM = 0xFB;
 pub static VK_NONAME: WPARAM = 0xFC;
 pub static VK_PA1: WPARAM = 0xFD;
 pub static VK_OEM_CLEAR: WPARAM = 0xFE;
-
-// ?
-pub static WGL_CONTEXT_DEBUG_BIT_ARB: libc::c_int = 0x00000001;
-pub static WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB: libc::c_int = 0x00000002;
-pub static WGL_CONTEXT_MAJOR_VERSION_ARB: libc::c_int = 0x2091;
-pub static WGL_CONTEXT_MINOR_VERSION_ARB: libc::c_int = 0x2092;
-pub static WGL_CONTEXT_LAYER_PLANE_ARB: libc::c_int = 0x2093;
-pub static WGL_CONTEXT_FLAGS_ARB: libc::c_int = 0x2094;
-pub static WGL_CONTEXT_PROFILE_MASK_ARB: libc::c_int = 0x9126;
-pub static WGL_CONTEXT_CORE_PROFILE_BIT_ARB: libc::c_int = 0x00000001;
-pub static WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB: libc::c_int = 0x00000002;
 
 // messages
 pub static WM_LBUTTONDOWN: UINT = 0x0201;
@@ -766,16 +765,4 @@ extern "system" {
 
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms644956(v=vs.85).aspx
     pub fn WaitMessage() -> BOOL;
-
-    // http://msdn.microsoft.com/en-us/library/windows/desktop/dd374379(v=vs.85).aspx
-    pub fn wglCreateContext(hdc: HDC) -> HGLRC;
-
-    // http://msdn.microsoft.com/en-us/library/windows/desktop/dd374381(v=vs.85).aspx
-    pub fn wglDeleteContext(hglrc: HGLRC);
-
-    // http://msdn.microsoft.com/en-us/library/windows/desktop/dd374386(v=vs.85).aspx
-    pub fn wglGetProcAddress(lpszProc: LPCSTR) -> *const libc::c_void;
-
-    // http://msdn.microsoft.com/en-us/library/windows/desktop/dd374387(v=vs.85).aspx
-    pub fn wglMakeCurrent(hdc: HDC, hglrc: HGLRC);
 }

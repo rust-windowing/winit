@@ -19,6 +19,7 @@
 //!  will look and behave.
 
 #[phase(plugin)] extern crate compile_msg;
+#[phase(plugin)] extern crate gl_generator;
 extern crate libc;
 
 pub use events::*;
