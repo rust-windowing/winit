@@ -12,6 +12,3 @@ git = "https://github.com/tomaka/android-rs-glue"
 
 [dev-dependencies.gl_generator]
 git = "https://github.com/bjz/gl-rs"
-
-[dev-dependencies.gl]
-git = "https://github.com/bjz/gl-rs"
