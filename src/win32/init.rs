@@ -40,12 +40,12 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                 cbClsExtra: 0,
                 cbWndExtra: 0,
                 hInstance: unsafe { ffi::GetModuleHandleW(ptr::null()) },
-                hIcon: ptr::mut_null(),
-                hCursor: ptr::mut_null(),
-                hbrBackground: ptr::mut_null(),
+                hIcon: ptr::null(),
+                hCursor: ptr::null(),
+                hbrBackground: ptr::null(),
                 lpszMenuName: ptr::null(),
                 lpszClassName: class_name.as_ptr(),
-                hIconSm: ptr::mut_null(),
+                hIconSm: ptr::null(),
             };
 
             // We ignore errors because registering the same window class twice would trigger
@@ -87,7 +87,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             screen_settings.dmFields = ffi::DM_BITSPERPEL | ffi::DM_PELSWIDTH | ffi::DM_PELSHEIGHT;
 
             let result = unsafe { ffi::ChangeDisplaySettingsExW(monitor.get_system_name().as_ptr(),
-                &mut screen_settings, ptr::mut_null(), ffi::CDS_FULLSCREEN, ptr::mut_null()) };
+                &mut screen_settings, ptr::null(), ffi::CDS_FULLSCREEN, ptr::mut_null()) };
             
             if result != ffi::DISP_CHANGE_SUCCESSFUL {
                 tx.send(Err(format!("ChangeDisplaySettings failed: {}", result)));
@@ -106,9 +106,9 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
         // adjusting the window coordinates using the style
         unsafe { ffi::AdjustWindowRectEx(&mut rect, style, 0, ex_style) };
 
-        // getting the address of wglCreateContextAttribs and the pixel format
+        // getting the address of wglCreateContextAttribsARB and the pixel format
         //  that we will use
-        let (create_context_attribs, pixel_format) = {
+        let (extra_functions, pixel_format) = {
             // creating a dummy invisible window for GL initialization
             let dummy_window = unsafe {
                 let handle = ffi::CreateWindowExW(ex_style, class_name.as_ptr(),
@@ -116,7 +116,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                     style | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN,
                     ffi::CW_USEDEFAULT, ffi::CW_USEDEFAULT,
                     rect.right - rect.left, rect.bottom - rect.top,
-                    ptr::mut_null(), ptr::mut_null(), ffi::GetModuleHandleW(ptr::null()),
+                    ptr::null(), ptr::null(), ffi::GetModuleHandleW(ptr::null()),
                     ptr::mut_null());
 
                 if handle.is_null() {
@@ -191,7 +191,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
 
             // creating the dummy OpenGL context
             let dummy_context = {
-                let ctxt = unsafe { ffi::wglCreateContext(dummy_hdc) };
+                let ctxt = unsafe { ffi::wgl::CreateContext(dummy_hdc) };
                 if ctxt.is_null() {
                     tx.send(Err(format!("wglCreateContext function failed: {}",
                         os::error_string(os::errno() as uint))));
@@ -202,33 +202,27 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             };
 
             // making context current
-            unsafe { ffi::wglMakeCurrent(dummy_hdc, dummy_context); }
+            unsafe { ffi::wgl::MakeCurrent(dummy_hdc, dummy_context); }
 
-            // getting the pointer to wglCreateContextAttribs
-            let mut addr = unsafe { ffi::wglGetProcAddress(b"wglCreateContextAttribs".as_ptr()
-                as *const i8) } as *const ();
-
-            if addr.is_null() {
-                addr = unsafe { ffi::wglGetProcAddress(b"wglCreateContextAttribsARB".as_ptr()
-                    as *const i8) } as *const ();
-            }
+            // loading the extra WGL functions
+            let extra_functions = ffi::wgl_extra::Wgl::load_with(|addr| {
+                unsafe {
+                    addr.with_c_str(|s| {
+                        use libc;
+                        ffi::wgl::GetProcAddress(s) as *const libc::c_void
+                    })
+                }
+            });
 
             // removing current context
-            unsafe { ffi::wglMakeCurrent(ptr::mut_null(), ptr::mut_null()); }
+            unsafe { ffi::wgl::MakeCurrent(ptr::null(), ptr::null()); }
 
             // destroying the context and the window
-            unsafe { ffi::wglDeleteContext(dummy_context); }
+            unsafe { ffi::wgl::DeleteContext(dummy_context); }
             unsafe { ffi::DestroyWindow(dummy_window); }
 
             // returning the address
-            if addr.is_null() {
-                (None, pixel_format)
-            } else {
-                use libc;
-                let addr: extern "system" fn(ffi::HDC, ffi::HGLRC, *const libc::c_int) -> ffi::HGLRC
-                    = unsafe { mem::transmute(addr) };
-                (Some(addr), pixel_format)
-            }
+            (extra_functions, pixel_format)
         };
 
         // creating the real window this time
@@ -245,7 +239,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                 if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT },
                 if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT },
                 width.unwrap_or(ffi::CW_USEDEFAULT), height.unwrap_or(ffi::CW_USEDEFAULT),
-                ptr::mut_null(), ptr::mut_null(), ffi::GetModuleHandleW(ptr::null()),
+                ptr::null(), ptr::null(), ffi::GetModuleHandleW(ptr::null()),
                 ptr::mut_null());
 
             if handle.is_null() {
@@ -288,18 +282,20 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
 
             if builder.gl_version.is_some() {
                 let version = builder.gl_version.as_ref().unwrap();
-                attributes.push(ffi::WGL_CONTEXT_MAJOR_VERSION_ARB);
+                attributes.push(ffi::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
                 attributes.push(version.val0() as libc::c_int);
-                attributes.push(ffi::WGL_CONTEXT_MINOR_VERSION_ARB);
+                attributes.push(ffi::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
                 attributes.push(version.val1() as libc::c_int);
             }
 
             attributes.push(0);
 
             let ctxt = unsafe {
-                match create_context_attribs {
-                    None => ffi::wglCreateContext(hdc),
-                    Some(ptr) => ptr(hdc, ptr::mut_null(), attributes.as_slice().as_ptr())
+                if extra_functions.CreateContextAttribsARB.is_loaded() {
+                    extra_functions.CreateContextAttribsARB(hdc, ptr::null(),
+                        attributes.as_slice().as_ptr())
+                } else {
+                    ffi::wgl::CreateContext(hdc)
                 }
             };
 
@@ -332,7 +328,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             if lib.is_null() {
                 tx.send(Err(format!("LoadLibrary function failed: {}",
                     os::error_string(os::errno() as uint))));
-                unsafe { ffi::wglDeleteContext(context); }
+                unsafe { ffi::wgl::DeleteContext(context); }
                 unsafe { ffi::DestroyWindow(real_window); }
                 return;
             }
@@ -357,7 +353,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
         loop {
             let mut msg = unsafe { mem::uninitialized() };
 
-            if unsafe { ffi::GetMessageW(&mut msg, ptr::mut_null(), 0, 0) } == 0 {
+            if unsafe { ffi::GetMessageW(&mut msg, ptr::null(), 0, 0) } == 0 {
                 break;
             }
 

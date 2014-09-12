@@ -10,5 +10,5 @@ git = "https://github.com/huonw/compile_msg"
 [dependencies.android_glue]
 git = "https://github.com/tomaka/android-rs-glue"
 
-[dev-dependencies.gl_generator]
+[dependencies.gl_generator]
 git = "https://github.com/bjz/gl-rs"

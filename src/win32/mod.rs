@@ -75,7 +75,7 @@ impl Window {
         use libc;
 
         unsafe {
-            ffi::SetWindowPos(self.window, ptr::mut_null(), x as libc::c_int, y as libc::c_int,
+            ffi::SetWindowPos(self.window, ptr::null(), x as libc::c_int, y as libc::c_int,
                 0, 0, ffi::SWP_NOZORDER | ffi::SWP_NOSIZE);
             ffi::UpdateWindow(self.window);
         }
@@ -116,7 +116,7 @@ impl Window {
         use libc;
 
         unsafe {
-            ffi::SetWindowPos(self.window, ptr::mut_null(), 0, 0, x as libc::c_int,
+            ffi::SetWindowPos(self.window, ptr::null(), 0, 0, x as libc::c_int,
                 y as libc::c_int, ffi::SWP_NOZORDER | ffi::SWP_NOREPOSITION);
             ffi::UpdateWindow(self.window);
         }
@@ -172,7 +172,8 @@ impl Window {
 
     /// See the docs in the crate root file.
     pub unsafe fn make_current(&self) {
-        ffi::wglMakeCurrent(self.hdc, self.context)
+        // TODO: check return value
+        ffi::wgl::MakeCurrent(self.hdc, self.context);
     }
 
     /// See the docs in the crate root file.
@@ -181,7 +182,7 @@ impl Window {
 
         unsafe {
             addr.with_c_str(|s| {
-                let p = ffi::wglGetProcAddress(s) as *const ();
+                let p = ffi::wgl::GetProcAddress(s) as *const ();
                 if !p.is_null() { return p; }
                 ffi::GetProcAddress(self.gl_library, s) as *const ()
             })
@@ -203,8 +204,8 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         use std::ptr;
-        unsafe { ffi::wglMakeCurrent(ptr::mut_null(), ptr::mut_null()); }
-        unsafe { ffi::wglDeleteContext(self.context); }
+        unsafe { ffi::wgl::MakeCurrent(ptr::null(), ptr::null()); }
+        unsafe { ffi::wgl::DeleteContext(self.context); }
         unsafe { ffi::DestroyWindow(self.window); }
     }
 }
