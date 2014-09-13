@@ -1,8 +1,6 @@
 extern crate android_glue;
 extern crate native;
 
-use libc;
-use self::native::NativeTaskBuilder;
 use {Event, WindowBuilder};
 
 pub struct Window {
@@ -38,7 +36,6 @@ impl MonitorID {
 impl Window {
     pub fn new(_builder: WindowBuilder) -> Result<Window, String> {
         use std::{mem, ptr};
-        use std::task::TaskBuilder;
 
         let native_window = unsafe { android_glue::get_native_window() };
         if native_window.is_null() {
