@@ -6,9 +6,9 @@ use self::native::NativeTaskBuilder;
 use {Event, WindowBuilder};
 
 pub struct Window {
-    display: ffi::EGLDisplay,
-    context: ffi::EGLContext,
-    surface: ffi::EGLSurface,
+    display: ffi::egl::types::EGLDisplay,
+    context: ffi::egl::types::EGLContext,
+    surface: ffi::egl::types::EGLSurface,
 }
 
 pub struct MonitorID;
@@ -46,7 +46,7 @@ impl Window {
         }
 
         let display = unsafe {
-            let display = ffi::eglGetDisplay(mem::transmute(ffi::EGL_DEFAULT_DISPLAY));
+            let display = ffi::egl::GetDisplay(mem::transmute(ffi::egl::DEFAULT_DISPLAY));
             if display.is_null() {
                 return Err("No EGL display connection available".to_string());
             }
@@ -56,10 +56,10 @@ impl Window {
         android_glue::write_log("eglGetDisplay succeeded");
 
         let (_major, _minor) = unsafe {
-            let mut major: ffi::EGLint = mem::uninitialized();
-            let mut minor: ffi::EGLint = mem::uninitialized();
+            let mut major: ffi::egl::types::EGLint = mem::uninitialized();
+            let mut minor: ffi::egl::types::EGLint = mem::uninitialized();
 
-            if ffi::eglInitialize(display, &mut major, &mut minor) != ffi::EGL_TRUE {
+            if ffi::egl::Initialize(display, &mut major, &mut minor) == 0 {
                 return Err(format!("eglInitialize failed"))
             }
 
@@ -70,16 +70,16 @@ impl Window {
 
         let config = unsafe {
             let attribute_list = [
-                ffi::EGL_RED_SIZE, 1,
-                ffi::EGL_GREEN_SIZE, 1,
-                ffi::EGL_BLUE_SIZE, 1,
-                ffi::EGL_NONE
+                ffi::egl::RED_SIZE as i32, 1,
+                ffi::egl::GREEN_SIZE as i32, 1,
+                ffi::egl::BLUE_SIZE as i32, 1,
+                ffi::egl::NONE as i32
             ];
 
-            let mut num_config: ffi::EGLint = mem::uninitialized();
-            let mut config: ffi::EGLConfig = mem::uninitialized();
-            if ffi::eglChooseConfig(display, attribute_list.as_ptr(), &mut config, 1,
-                &mut num_config) != ffi::EGL_TRUE
+            let mut num_config: ffi::egl::types::EGLint = mem::uninitialized();
+            let mut config: ffi::egl::types::EGLConfig = mem::uninitialized();
+            if ffi::egl::ChooseConfig(display, attribute_list.as_ptr(), &mut config, 1,
+                &mut num_config) == 0
             {
                 return Err(format!("eglChooseConfig failed"))
             }
@@ -94,7 +94,7 @@ impl Window {
         android_glue::write_log("eglChooseConfig succeeded");
 
         let context = unsafe {
-            let context = ffi::eglCreateContext(display, config, ptr::null(), ptr::null());
+            let context = ffi::egl::CreateContext(display, config, ptr::null(), ptr::null());
             if context.is_null() {
                 return Err(format!("eglCreateContext failed"))
             }
@@ -104,7 +104,7 @@ impl Window {
         android_glue::write_log("eglCreateContext succeeded");
 
         let surface = unsafe {
-            let surface = ffi::eglCreateWindowSurface(display, config, native_window, ptr::null());
+            let surface = ffi::egl::CreateWindowSurface(display, config, native_window, ptr::null());
             if surface.is_null() {
                 return Err(format!("eglCreateWindowSurface failed"))
             }
@@ -170,7 +170,7 @@ impl Window {
 
     pub fn make_current(&self) {
         unsafe {
-            ffi::eglMakeCurrent(self.display, self.surface, self.surface, self.context);
+            ffi::egl::MakeCurrent(self.display, self.surface, self.surface, self.context);
         }
     }
 
@@ -179,14 +179,14 @@ impl Window {
 
         unsafe {
             addr.with_c_str(|s| {
-                ffi::eglGetProcAddress(s) as *const ()
+                ffi::egl::GetProcAddress(s) as *const ()
             })
         }
     }
 
     pub fn swap_buffers(&self) {
         unsafe {
-            ffi::eglSwapBuffers(self.display, self.surface);
+            ffi::egl::SwapBuffers(self.display, self.surface);
         }
     }
 }
@@ -198,10 +198,10 @@ impl Drop for Window {
 
         unsafe {
             android_glue::write_log("Destroying gl-init window");
-            ffi::eglMakeCurrent(self.display, ptr::null(), ptr::null(), ptr::null());
-            ffi::eglDestroySurface(self.display, self.surface);
-            ffi::eglDestroyContext(self.display, self.context);
-            ffi::eglTerminate(self.display);
+            ffi::egl::MakeCurrent(self.display, ptr::null(), ptr::null(), ptr::null());
+            ffi::egl::DestroySurface(self.display, self.surface);
+            ffi::egl::DestroyContext(self.display, self.context);
+            ffi::egl::Terminate(self.display);
         }
     }
 }
