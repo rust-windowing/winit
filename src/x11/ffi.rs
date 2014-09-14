@@ -1406,6 +1406,8 @@ extern "C" {
     pub fn glXMakeCurrent(dpy: *mut Display, drawable: GLXDrawable,
         ctx: GLXContext) -> Bool;
     pub fn glXSwapBuffers(dpy: *mut Display, drawable: GLXDrawable);
+
+    pub fn XkbSetDetectableAutoRepeat(dpy: *mut Display, detectable: bool, supported_rtm: *mut bool) -> bool;
 }
 
 /*
