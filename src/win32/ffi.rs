@@ -629,20 +629,8 @@ pub struct DISPLAY_DEVICEW {
 
 pub type LPMSG = *mut MSG;
 
-#[link(name = "advapi32")]
-#[link(name = "comctl32")]
-#[link(name = "comdlg32")]
 #[link(name = "gdi32")]
-#[link(name = "kernel32")]
-#[link(name = "odbc32")]
-#[link(name = "odbccp32")]
-#[link(name = "ole32")]
-#[link(name = "oleaut32")]
 #[link(name = "Opengl32")]
-#[link(name = "shell32")]
-#[link(name = "user32")]
-#[link(name = "uuid")]
-#[link(name = "winspool")]
 extern "system" {
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms632667(v=vs.85).aspx
     pub fn AdjustWindowRectEx(lpRect: *mut RECT, dwStyle: DWORD, bMenu: BOOL,
