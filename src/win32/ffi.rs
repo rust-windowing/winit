@@ -1,7 +1,6 @@
 #![allow(dead_code)]
-#![allow(non_snake_case_functions)]
+#![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
-#![allow(uppercase_variables)]
 
 use libc;
 
@@ -33,7 +32,7 @@ pub type HMENU = HANDLE;
 pub type HMODULE = HINSTANCE;
 pub type HWND = HANDLE;
 pub type LONG = libc::c_long;
-pub type LONG_PTR = int;
+pub type LONG_PTR = libc::intptr_t;
 pub type LPARAM = LONG_PTR;
 pub type LPCSTR = *const libc::c_char;
 pub type LPCWSTR = *const WCHAR;
@@ -44,7 +43,7 @@ pub type LPWSTR = *mut WCHAR;
 pub type LRESULT = LONG_PTR;
 pub type PVOID = *const libc::c_void;
 pub type UINT = libc::c_uint;
-pub type UINT_PTR = int;
+pub type UINT_PTR = libc::intptr_t;
 pub type WCHAR = libc::wchar_t;
 pub type WORD = libc::c_ushort;
 pub type WPARAM = UINT_PTR;
