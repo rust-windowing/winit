@@ -179,6 +179,16 @@ impl Window {
             ic
         };
 
+        // Attempt to make keyboard input repeat detectable
+        unsafe {
+            let mut supported_ptr = false;
+            ffi::XkbSetDetectableAutoRepeat(display, true, &mut supported_ptr);
+            if !supported_ptr {
+                return Err(format!("XkbSetDetectableAutoRepeat failed"));
+            }
+        }
+
+
         // creating GL context
         let context = unsafe {
             let mut attributes = Vec::new();
