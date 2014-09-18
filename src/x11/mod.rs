@@ -129,7 +129,7 @@ impl Window {
         };
 
         let mut window_attributes = ffi::CWBorderPixel | ffi::CWColormap | ffi:: CWEventMask;
-        if builder.is_fullscreen {
+        if builder.monitor.is_some() {
             window_attributes |= ffi::CWOverrideRedirect;
             unsafe {
                 ffi::XF86VidModeSwitchToMode(display, screen_id, *modes.offset(best_mode as int));
@@ -251,7 +251,7 @@ impl Window {
             wm_delete_window: wm_delete_window,
             xf86_desk_mode: xf86_desk_mode,
             screen_id: screen_id,
-            is_fullscreen: builder.is_fullscreen,
+            is_fullscreen: builder.monitor.is_some(),
         };
 
         // calling glViewport
