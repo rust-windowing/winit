@@ -58,7 +58,6 @@ pub struct WindowBuilder {
     title: String,
     monitor: Option<winimpl::MonitorID>,
     gl_version: Option<(uint, uint)>,
-    is_fullscreen: bool,
 }
 
 impl WindowBuilder {
@@ -69,7 +68,6 @@ impl WindowBuilder {
             title: "gl-init-rs window".to_string(),
             monitor: None,
             gl_version: None,
-            is_fullscreen: false,
         }
     }
 
@@ -93,7 +91,6 @@ impl WindowBuilder {
     pub fn with_fullscreen(mut self, monitor: MonitorID) -> WindowBuilder {
         let MonitorID(monitor) = monitor;
         self.monitor = Some(monitor);
-        self.is_fullscreen = true;
         self
     }
 
