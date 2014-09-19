@@ -29,6 +29,7 @@ pub type XrmDatabase = *const ();       // TODO: not sure
 pub type XIC = *mut ();
 pub type XID = uint;
 pub type XIM = *mut ();
+pub type Screen = ();
 
 pub static AllocNone: libc::c_int = 0;
 pub static AllocAll: libc::c_int = 1;
@@ -1393,6 +1394,10 @@ extern "C" {
     pub fn XSetWMProtocols(display: *mut Display, w: Window, protocols: *mut Atom,
         count: libc::c_int) -> Status;
     pub fn XStoreName(display: *mut Display, w: Window, window_name: *const libc::c_char);
+    pub fn XScreenCount(display: *mut Display) -> libc::c_int;
+    pub fn XScreenOfDisplay(display: *mut Display, screen_number: libc::c_int) -> *const Screen;
+    pub fn XWidthOfScreen(screen: *const Screen) -> libc::c_int;
+    pub fn XHeightOfScreen(screen: *const Screen) -> libc::c_int;
 
     pub fn XCloseIM(im: XIM) -> Status;
     pub fn XOpenIM(display: *mut Display, db: XrmDatabase, res_name: *mut libc::c_char,

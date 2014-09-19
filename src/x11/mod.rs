@@ -3,8 +3,11 @@ use libc;
 use std::{mem, ptr};
 use std::sync::atomics::AtomicBool;
 
+pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
+
 mod events;
 mod ffi;
+mod monitor;
 
 pub struct Window {
     display: *mut ffi::Display,
@@ -17,28 +20,6 @@ pub struct Window {
     xf86_desk_mode: *mut ffi::XF86VidModeModeInfo,
     screen_id: libc::c_int,
     is_fullscreen: bool,
-}
-
-pub struct MonitorID(uint);
-
-pub fn get_available_monitors() -> Vec<MonitorID> {
-    vec![get_primary_monitor()]
-}
-
-pub fn get_primary_monitor() -> MonitorID {
-    MonitorID(0u)
-}
-
-impl MonitorID {
-    pub fn get_name(&self) -> Option<String> {
-        Some("<Unknown>".to_string())
-    }
-
-    pub fn get_dimensions(&self) -> (uint, uint) {
-        //unimplemented!()
-        // TODO: Get the real dimensions from the monitor
-        (1024, 768)
-    }
 }
 
 impl Window {
@@ -159,7 +140,7 @@ impl Window {
 
         // finally creating the window
         let window = unsafe {
-            let win = ffi::XCreateWindow(display, root, 50, 50, dimensions.val0() as libc::c_uint,
+            let win = ffi::XCreateWindow(display, root, 0, 0, dimensions.val0() as libc::c_uint,
                 dimensions.val1() as libc::c_uint, 0, visual_infos.depth, ffi::InputOutput,
                 visual_infos.visual, window_attributes,
                 &mut set_win_attr);
