@@ -1,5 +1,8 @@
 language: rust
 
+install:
+  - sudo apt-get install libXxf86vm-dev
+
 os:
   - linux
   - osx
