@@ -35,7 +35,8 @@ pub fn get_primary_monitor() -> MonitorID {
 
 impl MonitorID {
     pub fn get_name(&self) -> Option<String> {
-        Some("<Unknown>".to_string())
+        let MonitorID(screen_num) = *self;
+        Some(format!("Monitor #{}", screen_num))
     }
 
     pub fn get_dimensions(&self) -> (uint, uint) {
