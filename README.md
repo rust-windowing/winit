@@ -2,6 +2,9 @@
 
 Alternative to GLFW in pure Rust.
 
+[![Build Status](https://travis-ci.org/tomaka/gl-init-rs.png?branch=master)](https://travis-ci.org/tomaka/gl-init-rs)
+[![Gitter Chat](https://badges.gitter.im/tomaka/gl-init-rs.png)](https://gitter.im/tomaka/gl-init-rs)
+
 ## Try it!
 
 ```bash
