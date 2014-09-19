@@ -140,7 +140,7 @@ impl Window {
 
         // finally creating the window
         let window = unsafe {
-            let win = ffi::XCreateWindow(display, root, 50, 50, dimensions.val0() as libc::c_uint,
+            let win = ffi::XCreateWindow(display, root, 0, 0, dimensions.val0() as libc::c_uint,
                 dimensions.val1() as libc::c_uint, 0, visual_infos.depth, ffi::InputOutput,
                 visual_infos.visual, window_attributes,
                 &mut set_win_attr);
