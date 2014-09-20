@@ -1,7 +1,7 @@
 use std::{ptr};
 use super::ffi;
 
-pub struct MonitorID(uint);
+pub struct MonitorID(pub uint);
 
 pub fn get_available_monitors() -> Vec<MonitorID> {
     let nb_monitors = unsafe {
