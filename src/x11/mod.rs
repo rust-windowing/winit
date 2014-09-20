@@ -35,8 +35,9 @@ impl Window {
             display
         };
 
-        let screen_id = unsafe {
-            ffi::XDefaultScreen(display)
+        let screen_id = match builder.monitor {
+            Some(MonitorID(monitor)) => monitor as i32,
+            None => unsafe { ffi::XDefaultScreen(display) },
         };
 
         // getting the FBConfig
