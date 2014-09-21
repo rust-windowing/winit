@@ -1,7 +1,7 @@
 #[phase(plugin)]
 extern crate gl_generator;
 
-use gl_init;
+use glutin;
 
 #[cfg(not(target_os = "android"))]
 mod gl {
@@ -18,7 +18,7 @@ pub struct Context {
     gl: gl::Gl
 }
 
-pub fn load(window: &gl_init::Window) -> Context {
+pub fn load(window: &glutin::Window) -> Context {
     let gl = gl::Gl::load_with(|symbol| window.get_proc_address(symbol));
 
     let version = {

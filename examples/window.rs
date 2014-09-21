@@ -5,7 +5,7 @@
 #[phase(plugin, link)]
 extern crate android_glue;
 
-extern crate gl_init;
+extern crate glutin;
 
 mod support;
 
@@ -13,7 +13,7 @@ mod support;
 android_start!(main)
 
 fn main() {
-    let window = gl_init::Window::new().unwrap();
+    let window = glutin::Window::new().unwrap();
 
     unsafe { window.make_current() };
 
@@ -23,6 +23,6 @@ fn main() {
         context.draw_frame((0.0, 1.0, 0.0, 1.0));
         window.swap_buffers();
 
-        println!("{}", window.wait_events().collect::<Vec<gl_init::Event>>());
+        println!("{}", window.wait_events().collect::<Vec<glutin::Event>>());
     }
 }
