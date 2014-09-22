@@ -17,12 +17,12 @@ cargo test
 ## Usage
 
 ```rust
-extern crate init = "gl-init-rs";
+extern crate glutin;
 extern crate libc;
 extern crate gl;
 
 fn main() {
-    let window = init::Window::new().unwrap();
+    let window = glutin::Window::new().unwrap();
 
     unsafe { window.make_current() };
 

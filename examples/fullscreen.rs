@@ -5,7 +5,7 @@
 #[phase(plugin, link)]
 extern crate android_glue;
 
-extern crate gl_init;
+extern crate glutin;
 
 use std::io::stdio::stdin;
 
@@ -17,21 +17,21 @@ android_start!(main)
 fn main() {
     // enumerating monitors
     let monitor = {
-        for (num, monitor) in gl_init::get_available_monitors().enumerate() {
+        for (num, monitor) in glutin::get_available_monitors().enumerate() {
             println!("Monitor #{}: {}", num, monitor.get_name());
         }
 
         print!("Please write the number of the monitor to use: ");
         let num = from_str(stdin().read_line().unwrap().as_slice().trim())
             .expect("Plase enter a number");
-        let monitor = gl_init::get_available_monitors().nth(num).expect("Please enter a valid ID");
+        let monitor = glutin::get_available_monitors().nth(num).expect("Please enter a valid ID");
 
         println!("Using {}", monitor.get_name());
 
         monitor
     };
 
-    let window = gl_init::WindowBuilder::new()
+    let window = glutin::WindowBuilder::new()
         .with_title("Hello world!".to_string())
         .with_fullscreen(monitor)
         .build()
@@ -46,6 +46,6 @@ fn main() {
         context.draw_frame((0.0, 1.0, 0.0, 1.0));
         window.swap_buffers();
 
-        println!("{}", window.wait_events().collect::<Vec<gl_init::Event>>());
+        println!("{}", window.wait_events().collect::<Vec<glutin::Event>>());
     }
 }

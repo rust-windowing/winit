@@ -1,6 +1,6 @@
 [package]
 
-name = "gl_init"
+name = "glutin"
 version = "0.0.1"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 
