@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-#![allow(non_snake_case_functions)]
+#![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
 use libc;
@@ -27,7 +27,7 @@ pub type VisualID = libc::c_ulong;   // TODO: not sure
 pub type Window = XID;
 pub type XrmDatabase = *const ();       // TODO: not sure
 pub type XIC = *mut ();
-pub type XID = uint;
+pub type XID = libc::uintptr_t;
 pub type XIM = *mut ();
 pub type Screen = ();
 

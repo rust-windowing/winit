@@ -172,7 +172,7 @@ impl Window {
                     as *const u8) as *const ();
             }
 
-            addr.to_option().map(|addr| {
+            addr.as_ref().map(|addr| {
                 let addr: extern "system" fn(*mut ffi::Display, ffi::GLXFBConfig, ffi::GLXContext,
                     ffi::Bool, *const libc::c_int) -> ffi::GLXContext = mem::transmute(addr);
                 addr
@@ -181,7 +181,7 @@ impl Window {
 
         // creating IM
         let im = unsafe {
-            let im = ffi::XOpenIM(display, ptr::null(), ptr::mut_null(), ptr::mut_null());
+            let im = ffi::XOpenIM(display, ptr::null(), ptr::null_mut(), ptr::null_mut());
             if im.is_null() {
                 return Err(format!("XOpenIM failed"));
             }
@@ -320,7 +320,7 @@ impl Window {
         unimplemented!()
     }
 
-    pub fn set_inner_size(&self, x: uint, y: uint) {
+    pub fn set_inner_size(&self, _x: uint, _y: uint) {
         unimplemented!()
     }
 
@@ -390,7 +390,7 @@ impl Window {
                         let raw_ev: *mut ffi::XKeyEvent = event;
                         let count = ffi::Xutf8LookupString(self.ic, mem::transmute(raw_ev),
                             mem::transmute(buffer.as_mut_ptr()),
-                            buffer.len() as libc::c_int, ptr::mut_null(), ptr::mut_null());
+                            buffer.len() as libc::c_int, ptr::null_mut(), ptr::null_mut());
 
                         str::from_utf8(buffer.as_slice().slice_to(count as uint))
                             .unwrap_or("").to_string()

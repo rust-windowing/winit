@@ -87,7 +87,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
             screen_settings.dmFields = ffi::DM_BITSPERPEL | ffi::DM_PELSWIDTH | ffi::DM_PELSHEIGHT;
 
             let result = unsafe { ffi::ChangeDisplaySettingsExW(monitor.get_system_name().as_ptr(),
-                &mut screen_settings, ptr::null(), ffi::CDS_FULLSCREEN, ptr::mut_null()) };
+                &mut screen_settings, ptr::null(), ffi::CDS_FULLSCREEN, ptr::null_mut()) };
             
             if result != ffi::DISP_CHANGE_SUCCESSFUL {
                 tx.send(Err(format!("ChangeDisplaySettings failed: {}", result)));
@@ -117,7 +117,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                     ffi::CW_USEDEFAULT, ffi::CW_USEDEFAULT,
                     rect.right - rect.left, rect.bottom - rect.top,
                     ptr::null(), ptr::null(), ffi::GetModuleHandleW(ptr::null()),
-                    ptr::mut_null());
+                    ptr::null_mut());
 
                 if handle.is_null() {
                     use std::os;
@@ -240,7 +240,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
                 if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT },
                 width.unwrap_or(ffi::CW_USEDEFAULT), height.unwrap_or(ffi::CW_USEDEFAULT),
                 ptr::null(), ptr::null(), ffi::GetModuleHandleW(ptr::null()),
-                ptr::mut_null());
+                ptr::null_mut());
 
             if handle.is_null() {
                 use std::os;

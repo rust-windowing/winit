@@ -95,7 +95,7 @@ pub fn get_primary_monitor() -> MonitorID {
     // we simply get all available monitors and return the one with the `PRIMARY_DEVICE` flag
     // TODO: it is possible to query the win32 API for the primary monitor, this should be done
     //  instead
-    for monitor in get_available_monitors().move_iter() {
+    for monitor in get_available_monitors().into_iter() {
         if (monitor.flags & ffi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 {
             return monitor
         }
