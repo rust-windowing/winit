@@ -52,21 +52,15 @@ impl Context {
         self.gl.ClearColor(color.0, color.1, color.2, color.3);
         self.gl.Clear(gl::COLOR_BUFFER_BIT);
 
-        let vertex_data: [f32, ..15] = [
-            -0.5, -0.5, 1.0, 0.0, 0.0,
-            0.0, 0.5, 0.0, 1.0, 0.0,
-            0.5, -0.5, 0.0, 0.0, 1.0
-        ];
-
         self.gl.EnableClientState(gl::VERTEX_ARRAY);
         self.gl.EnableClientState(gl::COLOR_ARRAY);
 
         unsafe {
             use std::mem;
             self.gl.VertexPointer(2, gl::FLOAT, (mem::size_of::<f32>() * 5) as i32,
-                mem::transmute(vertex_data.as_slice().as_ptr()));
+                mem::transmute(VERTEX_DATA.as_slice().as_ptr()));
             self.gl.ColorPointer(3, gl::FLOAT, (mem::size_of::<f32>() * 5) as i32,
-                mem::transmute(vertex_data.as_slice().as_ptr().offset(2)));
+                mem::transmute(VERTEX_DATA.as_slice().as_ptr().offset(2)));
         }
 
         self.gl.DrawArrays(gl::TRIANGLES, 0, 3);
@@ -74,3 +68,10 @@ impl Context {
         self.gl.DisableClientState(gl::COLOR_ARRAY);
     }
 }
+
+#[cfg(target_os = "android")]
+static VERTEX_DATA: [f32, ..15] = [
+    -0.5, -0.5, 1.0, 0.0, 0.0,
+    0.0, 0.5, 0.0, 1.0, 0.0,
+    0.5, -0.5, 0.0, 0.0, 1.0
+];
