@@ -1,15 +1,14 @@
-# gl-init-rs
+# glutin
 
 Alternative to GLFW in pure Rust.
 
-[![Build Status](https://travis-ci.org/tomaka/gl-init-rs.png?branch=master)](https://travis-ci.org/tomaka/gl-init-rs)
-[![Gitter Chat](https://badges.gitter.im/tomaka/gl-init-rs.png)](https://gitter.im/tomaka/gl-init-rs)
+[![Build Status](https://travis-ci.org/tomaka/glutin.png?branch=master)](https://travis-ci.org/tomaka/glutin)
 
 ## Try it!
 
 ```bash
-git clone https://github.com/tomaka/gl-init-rs
-cd gl-init-rs
+git clone https://github.com/tomaka/glutin
+cd glutin
 cargo test
 ./target/test/window    # or target\test\window.exe
 ```
