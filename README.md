@@ -1,4 +1,4 @@
-# glutin
+# glutin -  OpenGL, UTilities and INput
 
 Alternative to GLFW in pure Rust.
 
