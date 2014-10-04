@@ -12,3 +12,9 @@ git = "https://github.com/tomaka/android-rs-glue"
 
 [dependencies.gl_generator]
 git = "https://github.com/bjz/gl-rs"
+
+[dependencies.cocoa]
+git = "https://github.com/DavidPartouche/rust-cocoa"
+
+[dependencies.core_foundation]
+git = "https://github.com/DavidPartouche/rust-core-foundation"

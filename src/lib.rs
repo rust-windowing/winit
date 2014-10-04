@@ -22,6 +22,11 @@
 #[phase(plugin)] extern crate gl_generator;
 extern crate libc;
 
+#[cfg(target_os = "macos")]
+extern crate cocoa;
+#[cfg(target_os = "macos")]
+extern crate core_foundation;
+
 pub use events::*;
 
 use std::default::Default;
