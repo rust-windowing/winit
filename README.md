@@ -1,4 +1,5 @@
 # glutin -  OpenGL, UTilities and INput
+[![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/tomaka/glutin?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Alternative to GLFW in pure Rust.
 
