@@ -5,7 +5,9 @@ version = "0.0.1"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 
 [features]
-default = ["cocoa"]
+default = ["cocoa", "window"]
+window = []
+headless = []
 
 [dependencies.compile_msg]
 git = "https://github.com/huonw/compile_msg"

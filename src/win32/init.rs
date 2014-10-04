@@ -6,7 +6,7 @@ use std::sync::atomics::AtomicBool;
 use std::ptr;
 use super::{event, ffi};
 use super::Window;
-use {Event, WindowBuilder};
+use Event;
 
 /// Stores the current window and its events dispatcher.
 /// 
@@ -14,12 +14,16 @@ use {Event, WindowBuilder};
 ///  receive an event for another window.
 local_data_key!(WINDOW: (ffi::HWND, Sender<Event>))
 
-pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
+pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: String,
+                  builder_monitor: Option<super::MonitorID>,
+                  builder_gl_version: Option<(uint, uint)>,
+                  builder_headless: bool) -> Result<Window, String>
+{
     use std::mem;
     use std::os;
 
     // initializing variables to be sent to the task
-    let title = builder.title.as_slice().utf16_units()
+    let title = builder_title.as_slice().utf16_units()
         .collect::<Vec<u16>>().append_one(0);    // title to utf16
     //let hints = hints.clone();
     let (tx, rx) = channel();
@@ -59,15 +63,15 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
 
         // building a RECT object with coordinates
         let mut rect = ffi::RECT {
-            left: 0, right: builder.dimensions.unwrap_or((1024, 768)).val0() as ffi::LONG,
-            top: 0, bottom: builder.dimensions.unwrap_or((1024, 768)).val1() as ffi::LONG,
+            left: 0, right: builder_dimensions.unwrap_or((1024, 768)).val0() as ffi::LONG,
+            top: 0, bottom: builder_dimensions.unwrap_or((1024, 768)).val1() as ffi::LONG,
         };
 
         // switching to fullscreen if necessary
         // this means adjusting the window's position so that it overlaps the right monitor,
         //  and change the monitor's resolution if necessary
-        if builder.monitor.is_some() {
-            let monitor = builder.monitor.as_ref().unwrap();
+        if builder_monitor.is_some() {
+            let monitor = builder_monitor.as_ref().unwrap();
 
             // adjusting the rect
             {
@@ -96,7 +100,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
         }
 
         // computing the style and extended style of the window
-        let (ex_style, style) = if builder.monitor.is_some() {
+        let (ex_style, style) = if builder_monitor.is_some() {
             (ffi::WS_EX_APPWINDOW, ffi::WS_POPUP | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN)
         } else {
             (ffi::WS_EX_APPWINDOW | ffi::WS_EX_WINDOWEDGE,
@@ -227,17 +231,23 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
 
         // creating the real window this time
         let real_window = unsafe {
-            let (width, height) = if builder.monitor.is_some() || builder.dimensions.is_some() {
+            let (width, height) = if builder_monitor.is_some() || builder_dimensions.is_some() {
                 (Some(rect.right - rect.left), Some(rect.bottom - rect.top))
             } else {
                 (None, None)
             };
 
+            let style = if builder_headless {
+                style
+            } else {
+                style | ffi::WS_VISIBLE
+            };
+
             let handle = ffi::CreateWindowExW(ex_style, class_name.as_ptr(),
                 title.as_ptr() as ffi::LPCWSTR,
-                style | ffi::WS_VISIBLE | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN,
-                if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT },
-                if builder.monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT },
+                style | ffi::WS_CLIPSIBLINGS | ffi::WS_CLIPCHILDREN,
+                if builder_monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT },
+                if builder_monitor.is_some() { 0 } else { ffi::CW_USEDEFAULT },
                 width.unwrap_or(ffi::CW_USEDEFAULT), height.unwrap_or(ffi::CW_USEDEFAULT),
                 ptr::null(), ptr::null(), ffi::GetModuleHandleW(ptr::null()),
                 ptr::null_mut());
@@ -280,8 +290,8 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
 
             let mut attributes = Vec::new();
 
-            if builder.gl_version.is_some() {
-                let version = builder.gl_version.as_ref().unwrap();
+            if builder_gl_version.is_some() {
+                let version = builder_gl_version.as_ref().unwrap();
                 attributes.push(ffi::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
                 attributes.push(version.val0() as libc::c_int);
                 attributes.push(ffi::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
@@ -310,7 +320,7 @@ pub fn new_window(builder: WindowBuilder) -> Result<Window, String> {
         };
 
         // calling SetForegroundWindow if fullscreen
-        if builder.monitor.is_some() {
+        if builder_monitor.is_some() {
             unsafe { ffi::SetForegroundWindow(real_window) };
         }
 

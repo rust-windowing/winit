@@ -1,3 +1,5 @@
+#![cfg(feature = "window")]
+
 #[phase(plugin)]
 extern crate gl_generator;
 

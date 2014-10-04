@@ -1,5 +1,5 @@
 use std::{ptr};
-use super::ffi;
+use super::super::ffi;
 
 pub struct MonitorID(pub uint);
 

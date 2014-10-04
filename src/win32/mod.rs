@@ -1,6 +1,12 @@
 use std::sync::atomics::AtomicBool;
 use std::ptr;
-use {Event, WindowBuilder};
+use Event;
+
+#[cfg(feature = "window")]
+use WindowBuilder;
+
+#[cfg(feature = "headless")]
+use HeadlessRendererBuilder;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
@@ -8,6 +14,30 @@ mod event;
 mod ffi;
 mod init;
 mod monitor;
+
+/// 
+#[cfg(feature = "headless")]
+pub struct HeadlessContext(Window);
+
+#[cfg(feature = "headless")]
+impl HeadlessContext {
+    /// See the docs in the crate root file.
+    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, String> {
+        let HeadlessRendererBuilder { dimensions, gl_version } = builder;
+        init::new_window(Some(dimensions), "".to_string(), None, gl_version, true)
+            .map(|w| HeadlessContext(w))
+    }
+
+    /// See the docs in the crate root file.
+    pub unsafe fn make_current(&self) {
+        self.0.make_current()
+    }
+
+    /// See the docs in the crate root file.
+    pub fn get_proc_address(&self, addr: &str) -> *const () {
+        self.0.get_proc_address(addr)
+    }
+}
 
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
@@ -33,12 +63,16 @@ pub struct Window {
     is_closed: AtomicBool,
 }
 
+#[cfg(feature = "window")]
 impl Window {
     /// See the docs in the crate root file.
     pub fn new(builder: WindowBuilder) -> Result<Window, String> {
-        init::new_window(builder)
+        let WindowBuilder { dimensions, title, monitor, gl_version } = builder;
+        init::new_window(dimensions, title, monitor, gl_version, false)
     }
+}
 
+impl Window {
     /// See the docs in the crate root file.
     pub fn is_closed(&self) -> bool {
         use std::sync::atomics::Relaxed;
@@ -200,6 +234,7 @@ impl Window {
     }
 }
 
+#[cfg(feature = "window")]
 #[unsafe_destructor]
 impl Drop for Window {
     fn drop(&mut self) {
