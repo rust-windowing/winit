@@ -46,7 +46,7 @@ mod android;
 
 mod events;
 
-#[cfg(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"), not(target_os = "android"))]
+#[cfg(all(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"), not(target_os = "android")))]
 compile_error!("Only the `windows`, `linux` and `macos` platforms are supported")
 
 /// Identifier for a monitor.
