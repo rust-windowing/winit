@@ -33,15 +33,54 @@ impl MonitorID {
 
 impl Window {
     pub fn new(_builder: WindowBuilder) -> Result<Window, String> {
-        let context = unsafe {
-            // Create the NSApplication
+
+        let app = match Window::create_app() {
+            Some(app) => app,
+            None      => { return Err(format!("Couldn't create NSApplication")); },
+        };
+        let window = match Window::create_window(_builder.dimensions.unwrap_or((800, 600)), _builder.title.as_slice()) {
+            Some(window) => window,
+            None         => { return Err(format!("Couldn't create NSWindow")); },
+        };
+        let view = match Window::create_view(window) {
+            Some(view) => view,
+            None       => { return Err(format!("Couldn't create NSView")); },
+        };
+
+        let context = match Window::create_context(view) {
+            Some(context) => context,
+            None          => { return Err(format!("Couldn't create OpenGL context")); },
+        };
+
+        unsafe {
+            app.activateIgnoringOtherApps_(true);
+            window.makeKeyAndOrderFront_(nil);
+        }
+
+        let window = Window {
+            context: context,
+        };
+
+        Ok(window)
+    }
+
+    fn create_app() -> Option<id> {
+        unsafe {
             let app = NSApp();
-            app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
+            if app == nil {
+                None
+            } else {
+                app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
+                app.finishLaunching();
+                Some(app)
+            }
+        }
+    }
 
-            app.finishLaunching();
-
-            // Create the window
-            let scr_frame = NSRect::new(NSPoint::new(0., 0.), NSSize::new(800., 600.));
+    fn create_window(dimensions: (uint, uint), title: &str) -> Option<id> {
+        unsafe {
+            let (width, height) = dimensions;
+            let scr_frame = NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64));
 
             let window = NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
                 scr_frame,
@@ -49,15 +88,33 @@ impl Window {
                 NSBackingStoreBuffered,
                 false
             );
+
+            if window == nil {
+                None
+            } else {
+                let title = NSString::alloc(nil).init_str(title);
+                window.setTitle_(title);
+                window.center();
+                Some(window)
+            }
+        }
+    }
+
+    fn create_view(window: id) -> Option<id> {
+        unsafe {
             let view = NSView::alloc(nil).init();
-            view.setWantsBestResolutionOpenGLSurface_(true);
+            if view == nil {
+                None
+            } else {
+                view.setWantsBestResolutionOpenGLSurface_(true);
+                window.setContentView(view);
+                Some(view)
+            }
+        }
+    }
 
-            let title = NSString::alloc(nil).init_str("Hello World!\0");
-            window.setTitle_(title);
-            window.setContentView(view);
-            window.center();
-
-            // Create the context
+    fn create_context(view: id) -> Option<id> {
+        unsafe {
             let attributes = [
                 NSOpenGLPFADoubleBuffer as uint,
                 NSOpenGLPFAClosestPolicy as uint,
@@ -70,26 +127,17 @@ impl Window {
 
             let pixelformat = NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(attributes);
             if pixelformat == nil {
-                return Err(format!("Couldn't create the pixel format"));
+                return None;
             }
 
             let context = NSOpenGLContext::alloc(nil).initWithFormat_shareContext_(pixelformat, nil);
             if context == nil {
-                return Err(format!("No valid OpenGL context can be created with that pixelformat"));
+                None
+            } else {
+                context.setView_(view);
+                Some(context)
             }
-
-            context.setView_(view);
-
-            app.activateIgnoringOtherApps_(true);
-            window.makeKeyAndOrderFront_(nil);
-            context
-        };
-
-        let window = Window {
-            context: context,
-        };
-
-        Ok(window)
+        }
     }
 
     pub fn is_closed(&self) -> bool {
