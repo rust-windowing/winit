@@ -170,23 +170,48 @@ impl Window {
     }
 
     pub fn poll_events(&self) -> Vec<Event> {
-        unimplemented!()
-    }
+        let mut events = Vec::new();
 
-    pub fn wait_events(&self) -> Vec<Event> {
         loop {
             unsafe {
+                use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton};
                 let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                     NSAnyEventMask as u64,
-                    nil,
+                    NSDate::distantPast(nil),
                     NSDefaultRunLoopMode,
                     true);
                 if event == nil { break; }
-                NSApp().sendEvent_(event);
+
+                match event.get_type() {
+                    NSLeftMouseDown         => { events.push(MouseInput(Pressed, LeftMouseButton)); },
+                    NSLeftMouseUp           => { events.push(MouseInput(Released, LeftMouseButton)); },
+                    NSRightMouseDown        => { events.push(MouseInput(Pressed, RightMouseButton)); },
+                    NSRightMouseUp          => { events.push(MouseInput(Released, RightMouseButton)); },
+                    NSMouseMoved            => { },
+                    NSKeyDown               => { },
+                    NSKeyUp                 => { },
+                    NSFlagsChanged          => { },
+                    NSScrollWheel           => { },
+                    NSOtherMouseDown        => { },
+                    NSOtherMouseUp          => { },
+                    NSOtherMouseDragged     => { },
+                    _                       => { },
+                }
             }
         }
-        // TODO: Remove fake implementation
-        Vec::new()
+        events
+    }
+
+    pub fn wait_events(&self) -> Vec<Event> {
+        unsafe {
+            let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
+                NSAnyEventMask as u64,
+                NSDate::distantFuture(nil),
+                NSDefaultRunLoopMode,
+                true);
+            NSApp().sendEvent_(event);
+            self.poll_events()
+        }
     }
 
     pub unsafe fn make_current(&self) {
