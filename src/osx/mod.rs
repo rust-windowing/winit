@@ -1,12 +1,17 @@
-//! Dummy implementation for OS/X to make gl-init-rs compile on this platform
-
 use {Event, WindowBuilder};
 
-pub struct Window;
+use cocoa::base::{id, NSUInteger, nil};
+use cocoa::appkit::*;
+
+use core_foundation::base::TCFType;
+use core_foundation::string::CFString;
+use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
+
+pub struct Window {
+    context: id,
+}
 
 pub struct MonitorID;
-
-compile_warning!("The OS/X platform is not implemented yet")
 
 pub fn get_available_monitors() -> Vec<MonitorID> {
     unimplemented!()
@@ -28,11 +33,116 @@ impl MonitorID {
 
 impl Window {
     pub fn new(_builder: WindowBuilder) -> Result<Window, String> {
-        unimplemented!()
+
+        let app = match Window::create_app() {
+            Some(app) => app,
+            None      => { return Err(format!("Couldn't create NSApplication")); },
+        };
+        let window = match Window::create_window(_builder.dimensions.unwrap_or((800, 600)), _builder.title.as_slice()) {
+            Some(window) => window,
+            None         => { return Err(format!("Couldn't create NSWindow")); },
+        };
+        let view = match Window::create_view(window) {
+            Some(view) => view,
+            None       => { return Err(format!("Couldn't create NSView")); },
+        };
+
+        let context = match Window::create_context(view) {
+            Some(context) => context,
+            None          => { return Err(format!("Couldn't create OpenGL context")); },
+        };
+
+        unsafe {
+            app.activateIgnoringOtherApps_(true);
+            window.makeKeyAndOrderFront_(nil);
+        }
+
+        let window = Window {
+            context: context,
+        };
+
+        Ok(window)
+    }
+
+    fn create_app() -> Option<id> {
+        unsafe {
+            let app = NSApp();
+            if app == nil {
+                None
+            } else {
+                app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
+                app.finishLaunching();
+                Some(app)
+            }
+        }
+    }
+
+    fn create_window(dimensions: (uint, uint), title: &str) -> Option<id> {
+        unsafe {
+            let (width, height) = dimensions;
+            let scr_frame = NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64));
+
+            let window = NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
+                scr_frame,
+                NSTitledWindowMask as NSUInteger | NSClosableWindowMask as NSUInteger | NSMiniaturizableWindowMask as NSUInteger,
+                NSBackingStoreBuffered,
+                false
+            );
+
+            if window == nil {
+                None
+            } else {
+                let title = NSString::alloc(nil).init_str(title);
+                window.setTitle_(title);
+                window.center();
+                Some(window)
+            }
+        }
+    }
+
+    fn create_view(window: id) -> Option<id> {
+        unsafe {
+            let view = NSView::alloc(nil).init();
+            if view == nil {
+                None
+            } else {
+                view.setWantsBestResolutionOpenGLSurface_(true);
+                window.setContentView(view);
+                Some(view)
+            }
+        }
+    }
+
+    fn create_context(view: id) -> Option<id> {
+        unsafe {
+            let attributes = [
+                NSOpenGLPFADoubleBuffer as uint,
+                NSOpenGLPFAClosestPolicy as uint,
+                NSOpenGLPFAColorSize as uint, 24,
+                NSOpenGLPFAAlphaSize as uint, 8,
+                NSOpenGLPFADepthSize as uint, 24,
+                NSOpenGLPFAStencilSize as uint, 8,
+                0
+            ];
+
+            let pixelformat = NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(attributes);
+            if pixelformat == nil {
+                return None;
+            }
+
+            let context = NSOpenGLContext::alloc(nil).initWithFormat_shareContext_(pixelformat, nil);
+            if context == nil {
+                None
+            } else {
+                context.setView_(view);
+                Some(context)
+            }
+        }
     }
 
     pub fn is_closed(&self) -> bool {
-        unimplemented!()
+        // TODO: remove fake implementation
+        false
     }
 
     pub fn set_title(&self, _title: &str) {
@@ -60,22 +170,67 @@ impl Window {
     }
 
     pub fn poll_events(&self) -> Vec<Event> {
-        unimplemented!()
+        let mut events = Vec::new();
+
+        loop {
+            unsafe {
+                use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton};
+                let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
+                    NSAnyEventMask as u64,
+                    NSDate::distantPast(nil),
+                    NSDefaultRunLoopMode,
+                    true);
+                if event == nil { break; }
+
+                match event.get_type() {
+                    NSLeftMouseDown         => { events.push(MouseInput(Pressed, LeftMouseButton)); },
+                    NSLeftMouseUp           => { events.push(MouseInput(Released, LeftMouseButton)); },
+                    NSRightMouseDown        => { events.push(MouseInput(Pressed, RightMouseButton)); },
+                    NSRightMouseUp          => { events.push(MouseInput(Released, RightMouseButton)); },
+                    NSMouseMoved            => { },
+                    NSKeyDown               => { },
+                    NSKeyUp                 => { },
+                    NSFlagsChanged          => { },
+                    NSScrollWheel           => { },
+                    NSOtherMouseDown        => { },
+                    NSOtherMouseUp          => { },
+                    NSOtherMouseDragged     => { },
+                    _                       => { },
+                }
+            }
+        }
+        events
     }
 
     pub fn wait_events(&self) -> Vec<Event> {
-        unimplemented!()
+        unsafe {
+            let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
+                NSAnyEventMask as u64,
+                NSDate::distantFuture(nil),
+                NSDefaultRunLoopMode,
+                true);
+            NSApp().sendEvent_(event);
+            self.poll_events()
+        }
     }
 
     pub unsafe fn make_current(&self) {
-        unimplemented!()
+        self.context.makeCurrentContext();
     }
 
     pub fn get_proc_address(&self, _addr: &str) -> *const () {
-        unimplemented!()
+        let symbol_name: CFString = from_str(_addr).unwrap();
+        let framework_name: CFString = from_str("com.apple.opengl").unwrap();
+        let framework = unsafe {
+            CFBundleGetBundleWithIdentifier(framework_name.as_concrete_TypeRef())
+        };
+        let symbol = unsafe {
+            CFBundleGetFunctionPointerForName(framework, symbol_name.as_concrete_TypeRef())
+        };
+        symbol as *const ()
     }
 
     pub fn swap_buffers(&self) {
-        unimplemented!()
+        unsafe { self.context.flushBuffer(); }
     }
 }
