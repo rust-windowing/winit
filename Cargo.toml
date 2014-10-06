@@ -4,6 +4,9 @@ name = "glutin"
 version = "0.0.1"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 
+[features]
+default = ["cocoa"]
+
 [dependencies.compile_msg]
 git = "https://github.com/huonw/compile_msg"
 
@@ -15,6 +18,7 @@ git = "https://github.com/bjz/gl-rs"
 
 [dependencies.cocoa]
 git = "https://github.com/DavidPartouche/rust-cocoa"
+optional = true
 
 [dependencies.core_foundation]
 git = "https://github.com/servo/rust-core-foundation"
