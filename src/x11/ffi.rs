@@ -20,6 +20,7 @@ pub type GLXPixmap = XID;
 pub type GLXWindow = XID;
 pub type KeyCode = libc::c_ulong;
 pub type KeySym = XID;
+pub type OSMesaContext = *const ();
 pub type Pixmap = XID;
 pub type Status = libc::c_int;  // TODO: not sure
 pub type Time = libc::c_ulong;
@@ -1356,6 +1357,29 @@ pub struct XF86VidModeModeInfo {
     private: libc::c_long,
 }
 
+#[cfg(feature = "headless")]
+#[link(name = "OSMesa")]
+extern "C" {
+    pub fn OSMesaCreateContext(format: libc::c_uint, sharelist: OSMesaContext) -> OSMesaContext;
+    pub fn OSMesaCreateContextExt(format: libc::c_uint, depthBits: libc::c_int,
+    	stencilBits: libc::c_int, accumBits: libc::c_int, sharelist: OSMesaContext)
+    	-> OSMesaContext;
+    pub fn OSMesaDestroyContext(ctx: OSMesaContext);
+    pub fn OSMesaMakeCurrent(ctx: OSMesaContext, buffer: *mut libc::c_void, type_: libc::c_uint,
+    	width: libc::c_int, height: libc::c_int) -> libc::c_uchar;
+    pub fn OSMesaGetCurrentContext() -> OSMesaContext;
+    pub fn OSMesaPixelStore(pname: libc::c_int, value: libc::c_int);
+    pub fn OSMesaGetIntegerv(pname: libc::c_int, value: *mut libc::c_int);
+    pub fn OSMesaGetDepthBuffer(c: OSMesaContext, width: *mut libc::c_int,
+    	height: *mut libc::c_int, bytesPerValue: *mut libc::c_int,
+    	buffer: *mut *mut libc::c_void);
+    pub fn OSMesaGetColorBuffer(c: OSMesaContext, width: *mut libc::c_int,
+    	height: *mut libc::c_int, format: *mut libc::c_int, buffer: *mut *mut libc::c_void);
+    pub fn OSMesaGetProcAddress(funcName: *const libc::c_char) -> *const libc::c_void;
+    pub fn OSMesaColorClamp(enable: libc::c_uchar);
+}
+
+#[cfg(feature = "window")]
 #[link(name = "GL")]
 #[link(name = "X11")]
 #[link(name = "Xxf86vm")]

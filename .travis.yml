@@ -1,7 +1,11 @@
 language: rust
 
 install:
-  - sudo apt-get install libXxf86vm-dev
+  - sudo apt-get install libXxf86vm-dev libosmesa6-dev
+
+script:
+  - cargo build --verbose
+  - cargo test --verbose --features "headless" --no-default-features
 
 os:
   - linux

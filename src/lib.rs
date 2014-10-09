@@ -1,3 +1,4 @@
+#![feature(tuple_indexing)]
 #![feature(unsafe_destructor)]
 #![feature(globs)]
 #![feature(phase)]
@@ -17,6 +18,16 @@
 //!
 //! The second way allows you to customize the way your window and GL context
 //!  will look and behave.
+//!
+//! # Features
+//!
+//! This crate has two Cargo features: `window` and `headless`.
+//!
+//!  - `window` allows you to create regular windows and enables the `WindowBuilder` object.
+//!  - `headless` allows you to do headless rendering, and enables
+//!     the `HeadlessRendererBuilder` object.
+//!
+//! By default only `window` is enabled.
 
 #[phase(plugin)] extern crate compile_msg;
 #[phase(plugin)] extern crate gl_generator;
@@ -55,9 +66,11 @@ mod events;
 compile_error!("Only the `windows`, `linux` and `macos` platforms are supported")
 
 /// Identifier for a monitor.
+#[cfg(feature = "window")]
 pub struct MonitorID(winimpl::MonitorID);
 
 /// Object that allows you to build windows.
+#[cfg(feature = "window")]
 pub struct WindowBuilder {
     dimensions: Option<(uint, uint)>,
     title: String,
@@ -65,6 +78,7 @@ pub struct WindowBuilder {
     gl_version: Option<(uint, uint)>,
 }
 
+#[cfg(feature = "window")]
 impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     pub fn new() -> WindowBuilder {
@@ -128,6 +142,41 @@ impl WindowBuilder {
     }
 }
 
+/// Object that allows you to build headless contexts.
+#[cfg(feature = "headless")]
+pub struct HeadlessRendererBuilder {
+    dimensions: (uint, uint),
+    gl_version: Option<(uint, uint)>,
+}
+
+#[cfg(feature = "headless")]
+impl HeadlessRendererBuilder {
+    /// Initializes a new `HeadlessRendererBuilder` with default values.
+    pub fn new(width: uint, height: uint) -> HeadlessRendererBuilder {
+        HeadlessRendererBuilder {
+            dimensions: (width, height),
+            gl_version: None,
+        }
+    }
+
+    /// Requests to use a specific OpenGL version.
+    ///
+    /// Version is a (major, minor) pair. For example to request OpenGL 3.3
+    ///  you would pass `(3, 3)`.
+    pub fn with_gl_version(mut self, version: (uint, uint)) -> HeadlessRendererBuilder {
+        self.gl_version = Some(version);
+        self
+    }
+
+    /// Builds the headless context.
+    ///
+    /// Error should be very rare and only occur in case of permission denied, incompatible system,
+    ///  out of memory, etc.
+    pub fn build(self) -> Result<HeadlessContext, String> {
+        winimpl::HeadlessContext::new(self).map(|w| HeadlessContext { context: w })
+    }
+}
+
 /// Represents an OpenGL context and the Window or environment around it.
 ///
 /// # Example
@@ -150,16 +199,19 @@ impl WindowBuilder {
 ///     std::io::timer::sleep(17);
 /// }
 /// ```
+#[cfg(feature = "window")]
 pub struct Window {
     window: winimpl::Window,
 }
 
+#[cfg(feature = "window")]
 impl Default for Window {
     fn default() -> Window {
         Window::new().unwrap()
     }
 }
 
+#[cfg(feature = "window")]
 impl Window {
     /// Creates a new OpenGL context, and a Window for platforms where this is appropriate.
     ///
@@ -168,6 +220,7 @@ impl Window {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     #[inline]
+    #[cfg(feature = "window")]
     pub fn new() -> Result<Window, String> {
         let builder = WindowBuilder::new();
         builder.build()
@@ -295,6 +348,30 @@ impl Window {
     }
 }
 
+/// Represents a headless OpenGL context.
+#[cfg(feature = "headless")]
+pub struct HeadlessContext {
+    context: winimpl::HeadlessContext,
+}
+
+#[cfg(feature = "headless")]
+impl HeadlessContext {
+    /// Creates a new OpenGL context
+    /// Sets the context as the current context.
+    #[inline]
+    pub unsafe fn make_current(&self) {
+        self.context.make_current()
+    }
+
+    /// Returns the address of an OpenGL function.
+    ///
+    /// Contrary to `wglGetProcAddress`, all available OpenGL functions return an address.
+    #[inline]
+    pub fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+        self.context.get_proc_address(addr) as *const libc::c_void
+    }
+}
+
 /// An iterator for the `poll_events` function.
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
@@ -324,10 +401,12 @@ impl<'a> Iterator<Event> for WaitEventsIterator<'a> {
 /// An iterator for the list of available monitors.
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
+#[cfg(feature = "window")]
 pub struct AvailableMonitorsIter {
     data: Vec<winimpl::MonitorID>,
 }
 
+#[cfg(feature = "window")]
 impl Iterator<MonitorID> for AvailableMonitorsIter {
     fn next(&mut self) -> Option<MonitorID> {
         self.data.remove(0).map(|id| MonitorID(id))
@@ -335,16 +414,19 @@ impl Iterator<MonitorID> for AvailableMonitorsIter {
 }
 
 /// Returns the list of all available monitors.
+#[cfg(feature = "window")]
 pub fn get_available_monitors() -> AvailableMonitorsIter {
     let data = winimpl::get_available_monitors();
     AvailableMonitorsIter{ data: data }
 }
 
 /// Returns the primary monitor of the system.
+#[cfg(feature = "window")]
 pub fn get_primary_monitor() -> MonitorID {
     MonitorID(winimpl::get_primary_monitor())
 }
 
+#[cfg(feature = "window")]
 impl MonitorID {
     /// Returns a human-readable name of the monitor.
     pub fn get_name(&self) -> Option<String> {
