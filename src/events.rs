@@ -38,14 +38,14 @@ pub type ScanCode = u8;
 bitflags!(
     #[deriving(Show)]
     flags KeyModifiers: u8 {
-        static LeftControlModifier = 1,
-        static RightControlModifier = 2,
-        static LeftShitModifier = 4,
-        static RightShitModifier = 8,
-        static LeftAltModifier = 16,
-        static RightRightModifier = 32,
-        static NumLockModifier = 64,
-        static CapsLockModifier = 128
+        const LeftControlModifier = 1,
+        const RightControlModifier = 2,
+        const LeftShitModifier = 4,
+        const RightShitModifier = 8,
+        const LeftAltModifier = 16,
+        const RightRightModifier = 32,
+        const NumLockModifier = 64,
+        const CapsLockModifier = 128
     }
 )
 
