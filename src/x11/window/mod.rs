@@ -42,7 +42,7 @@ impl Window {
 
         // getting the FBConfig
         let fb_config = unsafe {
-            static VISUAL_ATTRIBUTES: [libc::c_int, ..23] = [
+            const VISUAL_ATTRIBUTES: [libc::c_int, ..23] = [
                 ffi::GLX_X_RENDERABLE,  1,
                 ffi::GLX_DRAWABLE_TYPE, ffi::GLX_WINDOW_BIT,
                 ffi::GLX_RENDER_TYPE,   ffi::GLX_RGBA_BIT,

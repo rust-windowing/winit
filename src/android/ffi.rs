@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
+#![allow(non_uppercase_statics)]
 
 use libc;
 
@@ -113,17 +114,17 @@ extern {
     pub fn ALooper_removeFd(looper: *const ALooper, fd: libc::c_int) -> libc::c_int;
 }
 
-pub static ALOOPER_PREPARE_ALLOW_NON_CALLBACKS: libc::c_int = 1 << 0;
+pub const ALOOPER_PREPARE_ALLOW_NON_CALLBACKS: libc::c_int = 1 << 0;
 
-pub static ALOOPER_POLL_WAKE: libc::c_int = -1;
-pub static ALOOPER_POLL_CALLBACK: libc::c_int = -2;
-pub static ALOOPER_POLL_TIMEOUT: libc::c_int = -3;
-pub static ALOOPER_POLL_ERROR: libc::c_int = -4;
+pub const ALOOPER_POLL_WAKE: libc::c_int = -1;
+pub const ALOOPER_POLL_CALLBACK: libc::c_int = -2;
+pub const ALOOPER_POLL_TIMEOUT: libc::c_int = -3;
+pub const ALOOPER_POLL_ERROR: libc::c_int = -4;
 
-pub static ALOOPER_EVENT_INPUT: libc::c_int = 1 << 0;
-pub static ALOOPER_EVENT_OUTPUT: libc::c_int = 1 << 1;
-pub static ALOOPER_EVENT_ERROR: libc::c_int = 1 << 2;
-pub static ALOOPER_EVENT_HANGUP: libc::c_int = 1 << 3;
-pub static ALOOPER_EVENT_INVALID: libc::c_int = 1 << 4;
+pub const ALOOPER_EVENT_INPUT: libc::c_int = 1 << 0;
+pub const ALOOPER_EVENT_OUTPUT: libc::c_int = 1 << 1;
+pub const ALOOPER_EVENT_ERROR: libc::c_int = 1 << 2;
+pub const ALOOPER_EVENT_HANGUP: libc::c_int = 1 << 3;
+pub const ALOOPER_EVENT_INVALID: libc::c_int = 1 << 4;
 
 pub type ALooper_callbackFunc = extern fn(libc::c_int, libc::c_int, *mut libc::c_void) -> libc::c_int;
