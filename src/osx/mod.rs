@@ -14,6 +14,7 @@ use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
 pub struct Window {
+    view: id,
     context: id,
 }
 
@@ -86,6 +87,7 @@ impl Window {
         }
 
         let window = Window {
+            view: view,
             context: context,
         };
 
@@ -123,6 +125,7 @@ impl Window {
                 let title = NSString::alloc(nil).init_str(title);
                 window.setTitle_(title);
                 window.center();
+                window.setAcceptsMouseMovedEvents_(true);
                 Some(window)
             }
         }
@@ -202,7 +205,7 @@ impl Window {
 
         loop {
             unsafe {
-                use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton};
+                use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton, MouseMoved};
                 let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                     NSAnyEventMask as u64,
                     NSDate::distantPast(nil),
@@ -215,7 +218,11 @@ impl Window {
                     NSLeftMouseUp           => { events.push(MouseInput(Released, LeftMouseButton)); },
                     NSRightMouseDown        => { events.push(MouseInput(Pressed, RightMouseButton)); },
                     NSRightMouseUp          => { events.push(MouseInput(Released, RightMouseButton)); },
-                    NSMouseMoved            => { },
+                    NSMouseMoved            => {
+                        let window_point = event.locationInWindow();
+                        let view_point = self.view.convertPoint_fromView_(window_point, nil);
+                        events.push(MouseMoved((view_point.x as int, view_point.y as int)));
+                    },
                     NSKeyDown               => { },
                     NSKeyUp                 => { },
                     NSFlagsChanged          => { },
@@ -236,8 +243,8 @@ impl Window {
                 NSAnyEventMask as u64,
                 NSDate::distantFuture(nil),
                 NSDefaultRunLoopMode,
-                true);
-            NSApp().sendEvent_(event);
+                false);
+
             self.poll_events()
         }
     }
