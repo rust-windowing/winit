@@ -1,5 +1,3 @@
-#![allow(non_uppercase_statics)]
-
 #[deriving(Clone,Show)]
 pub enum Event {
     /// The size of the window has changed.
@@ -40,14 +38,14 @@ pub type ScanCode = u8;
 bitflags!(
     #[deriving(Show)]
     flags KeyModifiers: u8 {
-        const LeftControlModifier = 1,
-        const RightControlModifier = 2,
-        const LeftShitModifier = 4,
-        const RightShitModifier = 8,
-        const LeftAltModifier = 16,
-        const RightRightModifier = 32,
-        const NumLockModifier = 64,
-        const CapsLockModifier = 128
+        const LEFT_CONTROL_MODIFIER = 1,
+        const RIGHT_CONTROL_MODIFIER = 2,
+        const LEFT_SHIFT_MODIFIER = 4,
+        const RIGHT_SHIFT_MODIFIER = 8,
+        const LEFT_ALT_MODIFIER = 16,
+        const RIGHT_ALT_MODIFIER = 32,
+        const NUM_LOCK_MODIFIER = 64,
+        const CAPS_LOCK_MODIFIER = 128
     }
 )
 
