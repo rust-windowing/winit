@@ -13,7 +13,7 @@ pub enum Event {
     ReceivedCharacter(char),
 
     /// The window gained or lost focus.
-    /// 
+    ///
     /// The parameter is true if the window has gained focus, and false if it has lost focus.
     Focused(bool),
 
@@ -21,7 +21,7 @@ pub enum Event {
     KeyboardInput(ElementState, ScanCode, Option<VirtualKeyCode>, KeyModifiers),
 
     /// The cursor has moved on the window.
-    /// 
+    ///
     /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
     MouseMoved((int, int)),
 
@@ -38,14 +38,14 @@ pub type ScanCode = u8;
 bitflags!(
     #[deriving(Show)]
     flags KeyModifiers: u8 {
-        const LeftControlModifier = 1,
-        const RightControlModifier = 2,
-        const LeftShitModifier = 4,
-        const RightShitModifier = 8,
-        const LeftAltModifier = 16,
-        const RightRightModifier = 32,
-        const NumLockModifier = 64,
-        const CapsLockModifier = 128
+        const LEFT_CONTROL_MODIFIER = 1,
+        const RIGHT_CONTROL_MODIFIER = 2,
+        const LEFT_SHIFT_MODIFIER = 4,
+        const RIGHT_SHIFT_MODIFIER = 8,
+        const LEFT_ALT_MODIFIER = 16,
+        const RIGHT_ALT_MODIFIER = 32,
+        const NUM_LOCK_MODIFIER = 64,
+        const CAPS_LOCK_MODIFIER = 128
     }
 )
 
