@@ -24,7 +24,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
 
     // initializing variables to be sent to the task
     let title = builder_title.as_slice().utf16_units()
-        .collect::<Vec<u16>>().append_one(0);    // title to utf16
+        .chain(Some(0).into_iter()).collect::<Vec<u16>>();    // title to utf16
     //let hints = hints.clone();
     let (tx, rx) = channel();
 
@@ -34,8 +34,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
     TaskBuilder::new().native().spawn(proc() {
         // registering the window class
         let class_name = {
-            let class_name: Vec<u16> = "Window Class".utf16_units().collect::<Vec<u16>>()
-                .append_one(0);
+            let class_name: Vec<u16> = "Window Class".utf16_units().chain(Some(0).into_iter())
+                .collect::<Vec<u16>>();
             
             let class = ffi::WNDCLASSEX {
                 cbSize: mem::size_of::<ffi::WNDCLASSEX>() as ffi::UINT,
@@ -333,7 +333,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
 
         // loading the opengl32 module
         let gl_library = {
-            let name = "opengl32.dll".utf16_units().collect::<Vec<u16>>().append_one(0).as_ptr();
+            let name = "opengl32.dll".utf16_units().chain(Some(0).into_iter())
+                .collect::<Vec<u16>>().as_ptr();
             let lib = unsafe { ffi::LoadLibraryW(name) };
             if lib.is_null() {
                 tx.send(Err(format!("LoadLibrary function failed: {}",

@@ -85,7 +85,8 @@ impl Window {
     pub fn set_title(&self, text: &str) {
         unsafe {
             ffi::SetWindowTextW(self.window,
-                text.utf16_units().collect::<Vec<u16>>().append_one(0).as_ptr() as ffi::LPCWSTR);
+                text.utf16_units().chain(Some(0).into_iter())
+                .collect::<Vec<u16>>().as_ptr() as ffi::LPCWSTR);
         }
     }
 
