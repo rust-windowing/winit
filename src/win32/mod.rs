@@ -239,6 +239,7 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         use std::ptr;
+        unsafe { ffi::PostMessageW(self.window, ffi::WM_DESTROY, 0, 0); }
         unsafe { ffi::wgl::MakeCurrent(ptr::null(), ptr::null()); }
         unsafe { ffi::wgl::DeleteContext(self.context); }
         unsafe { ffi::DestroyWindow(self.window); }

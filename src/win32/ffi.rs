@@ -719,6 +719,9 @@ extern "system" {
     pub fn PeekMessageW(lpMsg: *mut MSG, hWnd: HWND, wMsgFilterMin: UINT, wMsgFilterMax: UINT,
         wRemoveMsg: UINT) -> BOOL;
 
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/ms644944(v=vs.85).aspx
+    pub fn PostMessageW(hWnd: HWND, Msg: UINT, wParam: WPARAM, lParam: LPARAM) -> BOOL;
+
     // http://msdn.microsoft.com/en-us/library/windows/desktop/ms644945(v=vs.85).aspx
     pub fn PostQuitMessage(nExitCode: libc::c_int);
 
