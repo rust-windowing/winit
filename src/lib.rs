@@ -43,22 +43,17 @@ pub use events::*;
 use std::default::Default;
 
 #[cfg(target_os = "windows")]
-use win32 as winimpl;
+#[path="win32/mod.rs"]
+mod winimpl;
 #[cfg(target_os = "linux")]
-use x11 as winimpl;
+#[path="x11/mod.rs"]
+mod winimpl;
 #[cfg(target_os = "macos")]
-use osx as winimpl;
+#[path="osx/mod.rs"]
+mod winimpl;
 #[cfg(target_os = "android")]
-use android as winimpl;
-
-#[cfg(target_os = "windows")]
-mod win32;
-#[cfg(target_os = "linux")]
-mod x11;
-#[cfg(target_os = "macos")]
-mod osx;
-#[cfg(target_os = "android")]
-mod android;
+#[path="android/mod.rs"]
+mod winimpl;
 
 mod events;
 
