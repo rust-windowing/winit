@@ -1,4 +1,5 @@
 use Event;
+use std::sync::atomics::AtomicBool;
 
 #[cfg(feature = "window")]
 use WindowBuilder;
@@ -14,8 +15,10 @@ use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
 pub struct Window {
+    window: id,
     view: id,
     context: id,
+    is_closed: AtomicBool,
 }
 
 pub struct HeadlessContext(Window);
@@ -87,8 +90,10 @@ impl Window {
         }
 
         let window = Window {
+            window: window,
             view: view,
             context: context,
+            is_closed: AtomicBool::new(false),
         };
 
         Ok(window)
@@ -172,8 +177,8 @@ impl Window {
     }
 
     pub fn is_closed(&self) -> bool {
-        // TODO: remove fake implementation
-        false
+        use std::sync::atomics::Relaxed;
+        self.is_closed.load(Relaxed)
     }
 
     pub fn set_title(&self, _title: &str) {
@@ -212,6 +217,7 @@ impl Window {
                     NSDefaultRunLoopMode,
                     true);
                 if event == nil { break; }
+                NSApp().sendEvent_(event);
 
                 match event.get_type() {
                     NSLeftMouseDown         => { events.push(MouseInput(Pressed, LeftMouseButton)); },
@@ -244,6 +250,7 @@ impl Window {
                 NSDate::distantFuture(nil),
                 NSDefaultRunLoopMode,
                 false);
+            NSApp().sendEvent_(event);
 
             self.poll_events()
         }
