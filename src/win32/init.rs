@@ -440,7 +440,7 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         ffi::WM_CHAR => {
             use std::mem;
             use events::ReceivedCharacter;
-            let chr: char = unsafe { mem::transmute(wparam) };
+            let chr: char = unsafe { mem::transmute(wparam as u32) };
             send_event(window, ReceivedCharacter(chr));
             0
         },
