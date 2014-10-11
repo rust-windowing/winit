@@ -235,7 +235,6 @@ impl Window {
     }
 }
 
-#[cfg(feature = "window")]
 #[unsafe_destructor]
 impl Drop for Window {
     fn drop(&mut self) {
