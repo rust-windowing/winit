@@ -1,3 +1,5 @@
+#![allow(non_uppercase_statics)]
+
 #[deriving(Clone,Show)]
 pub enum Event {
     /// The size of the window has changed.
@@ -13,7 +15,7 @@ pub enum Event {
     ReceivedCharacter(char),
 
     /// The window gained or lost focus.
-    /// 
+    ///
     /// The parameter is true if the window has gained focus, and false if it has lost focus.
     Focused(bool),
 
@@ -21,7 +23,7 @@ pub enum Event {
     KeyboardInput(ElementState, ScanCode, Option<VirtualKeyCode>, KeyModifiers),
 
     /// The cursor has moved on the window.
-    /// 
+    ///
     /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
     MouseMoved((int, int)),
 
