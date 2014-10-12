@@ -14,6 +14,8 @@ use core_foundation::base::TCFType;
 use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
+use std::c_str::CString;
+
 pub struct Window {
     window: id,
     view: id,
@@ -210,7 +212,7 @@ impl Window {
 
         loop {
             unsafe {
-                use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton, MouseMoved};
+                use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton, MouseMoved, ReceivedCharacter};
                 let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                     NSAnyEventMask as u64,
                     NSDate::distantPast(nil),
@@ -229,7 +231,13 @@ impl Window {
                         let view_point = self.view.convertPoint_fromView_(window_point, nil);
                         events.push(MouseMoved((view_point.x as int, view_point.y as int)));
                     },
-                    NSKeyDown               => { },
+                    NSKeyDown               => {
+                        let received_cstr = CString::new(event.characters().UTF8String(), false);
+                        match received_cstr.as_str() {
+                            Some(received_str) => { events.push(ReceivedCharacter(received_str.char_at(0))); },
+                            None               => { },
+                        };
+                    },
                     NSKeyUp                 => { },
                     NSFlagsChanged          => { },
                     NSScrollWheel           => { },
