@@ -59,10 +59,10 @@ impl Window {
 
             let mut num_fb: libc::c_int = mem::uninitialized();
 
-            let fb = ffi::glXChooseFBConfig(display, ffi::XDefaultScreen(display),
+            let fb = ffi::glx::ChooseFBConfig(display, ffi::XDefaultScreen(display),
                 VISUAL_ATTRIBUTES.as_ptr(), &mut num_fb);
             if fb.is_null() {
-                return Err(format!("glXChooseFBConfig failed"));
+                return Err(format!("glx::ChooseFBConfig failed"));
             }
             let preferred_fb = *fb;     // TODO: choose more wisely
             ffi::XFree(fb as *const libc::c_void);
@@ -95,10 +95,10 @@ impl Window {
         };
 
         // getting the visual infos
-        let visual_infos = unsafe {
-            let vi = ffi::glXGetVisualFromFBConfig(display, fb_config);
+        let mut visual_infos = unsafe {
+            let vi = ffi::glx::GetVisualFromFBConfig(display, fb_config);
             if vi.is_null() {
-                return Err(format!("glXChooseVisual failed"));
+                return Err(format!("glx::ChooseVisual failed"));
             }
             let vi_copy = *vi;
             ffi::XFree(vi as *const libc::c_void);
@@ -162,23 +162,6 @@ impl Window {
             wm_delete_window
         };
 
-        // getting the pointer to glXCreateContextAttribs
-        let create_context_attribs = unsafe {
-            let mut addr = ffi::glXGetProcAddress(b"glXCreateContextAttribs".as_ptr()
-                as *const u8) as *const ();
-
-            if addr.is_null() {
-                addr = ffi::glXGetProcAddress(b"glXCreateContextAttribsARB".as_ptr()
-                    as *const u8) as *const ();
-            }
-
-            addr.as_ref().map(|addr| {
-                let addr: extern "system" fn(*mut ffi::Display, ffi::GLXFBConfig, ffi::GLXContext,
-                    ffi::Bool, *const libc::c_int) -> ffi::GLXContext = mem::transmute(addr);
-                addr
-            })
-        };
-
         // creating IM
         let im = unsafe {
             let im = ffi::XOpenIM(display, ptr::null(), ptr::null_mut(), ptr::null_mut());
@@ -226,12 +209,19 @@ impl Window {
 
             attributes.push(0);
 
-            let context = if create_context_attribs.is_some() {
-                let create_context_attribs = create_context_attribs.unwrap();
-                create_context_attribs(display, fb_config, ptr::null(), 1,
-                    attributes.as_ptr())
+            // loading the extra GLX functions
+            let extra_functions = ffi::glx_extra::Glx::load_with(|addr| {
+                addr.with_c_str(|s| {
+                    use libc;
+                    ffi::glx::GetProcAddress(s as *const u8) as *const libc::c_void
+                })
+            });
+
+            let context = if extra_functions.CreateContextAttribsARB.is_loaded() {
+                extra_functions.CreateContextAttribsARB(display as *mut ffi::glx_extra::types::Display,
+                    fb_config, ptr::null(), 1, attributes.as_ptr())
             } else {
-                ffi::glXCreateContext(display, &visual_infos, ptr::null(), 1)
+                ffi::glx::CreateContext(display, &mut visual_infos, ptr::null(), 1)
             };
 
             if context.is_null() {
@@ -459,9 +449,9 @@ impl Window {
     }
 
     pub unsafe fn make_current(&self) {
-        let res = ffi::glXMakeCurrent(self.display, self.window, self.context);
+        let res = ffi::glx::MakeCurrent(self.display, self.window, self.context);
         if res == 0 {
-            fail!("glXMakeCurrent failed");
+            fail!("glx::MakeCurrent failed");
         }
     }
 
@@ -471,20 +461,20 @@ impl Window {
 
         unsafe {
             addr.with_c_str(|s| {
-                ffi::glXGetProcAddress(mem::transmute(s)) as *const ()
+                ffi::glx::GetProcAddress(mem::transmute(s)) as *const ()
             })
         }
     }
 
     pub fn swap_buffers(&self) {
-        unsafe { ffi::glXSwapBuffers(self.display, self.window) }
+        unsafe { ffi::glx::SwapBuffers(self.display, self.window) }
     }
 }
 
 impl Drop for Window {
     fn drop(&mut self) {
-        unsafe { ffi::glXMakeCurrent(self.display, 0, ptr::null()); }
-        unsafe { ffi::glXDestroyContext(self.display, self.context); }
+        unsafe { ffi::glx::MakeCurrent(self.display, 0, ptr::null()); }
+        unsafe { ffi::glx::DestroyContext(self.display, self.context); }
 
         if self.is_fullscreen {
             unsafe { ffi::XF86VidModeSwitchToMode(self.display, self.screen_id, self.xf86_desk_mode); }
