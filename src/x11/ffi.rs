@@ -3,33 +3,30 @@
 #![allow(non_camel_case_types)]
 #![allow(non_uppercase_statics)]
 
+pub use self::glx::types::*;
 use libc;
 
+/// GLX bindings
+pub mod glx {
+    generate_gl_bindings!("glx", "core", "1.4", "static")
+}
+
+/// Functions that are not necessarly always available
+pub mod glx_extra {
+    generate_gl_bindings!("glx", "core", "1.4", "struct", [ "GLX_ARB_create_context" ])
+}
+
 pub type Atom = libc::c_ulong;
-pub type Bool = libc::c_int;
 pub type Colormap = XID;
 pub type Cursor = XID;
-pub type Display = ();
 pub type Drawable = XID;    // TODO: not sure
-pub type GLXContext = *const ();
-pub type GLXContextID = XID;
-pub type GLXDrawable = XID;
-pub type GLXFBConfig = *const ();
-pub type GLXPbuffer = XID;
-pub type GLXPixmap = XID;
-pub type GLXWindow = XID;
 pub type KeyCode = libc::c_ulong;
 pub type KeySym = XID;
 pub type OSMesaContext = *const ();
-pub type Pixmap = XID;
 pub type Status = libc::c_int;  // TODO: not sure
 pub type Time = libc::c_ulong;
-pub type Visual = ();   // TODO: not sure
-pub type VisualID = libc::c_ulong;   // TODO: not sure
-pub type Window = XID;
 pub type XrmDatabase = *const ();       // TODO: not sure
 pub type XIC = *mut ();
-pub type XID = libc::uintptr_t;
 pub type XIM = *mut ();
 pub type Screen = ();
 
@@ -1221,19 +1218,6 @@ pub const XK_hebrew_taf: libc::c_uint = 0xcfa;
 pub const XK_Hebrew_switch: libc::c_uint = 0xFF7E;
 
 
-#[repr(C)]
-pub struct XVisualInfo {
-    pub visual: *mut Visual,
-    pub visualid: VisualID,
-    pub screen: libc::c_int,
-    pub depth: libc::c_int,
-    pub class: libc::c_int,
-    pub red_mask: libc::c_ulong,
-    pub green_mask: libc::c_ulong,
-    pub blue_mask: libc::c_ulong,
-    pub colormap_size: libc::c_int,
-    pub bits_per_rgb: libc::c_int,
-}
 
 #[repr(C)]
 pub struct XSetWindowAttributes {
@@ -1439,21 +1423,6 @@ extern "C" {
     pub fn Xutf8LookupString(ic: XIC, event: *mut XKeyEvent,
         buffer_return: *mut libc::c_char, bytes_buffer: libc::c_int,
         keysym_return: *mut KeySym, status_return: *mut Status) -> libc::c_int;
-
-    pub fn glXCreateContext(dpy: *mut Display, vis: *const XVisualInfo,
-        shareList: GLXContext, direct: Bool) -> GLXContext;
-    pub fn glXCreateNewContext(dpy: *mut Display, config: GLXFBConfig, render_type: libc::c_int,
-        shareList: GLXContext, direct: Bool) -> GLXContext;
-    pub fn glXDestroyContext(dpy: *mut Display, ctx: GLXContext);
-    pub fn glXChooseFBConfig(dpy: *mut Display, screen: libc::c_int,
-        attrib_list: *const libc::c_int, nelements: *mut libc::c_int) -> *mut GLXFBConfig;
-    pub fn glXChooseVisual(dpy: *mut Display, screen: libc::c_int,
-        attribList: *const libc::c_int) -> *const XVisualInfo;
-    pub fn glXGetProcAddress(procName: *const libc::c_uchar) -> *const ();
-    pub fn glXGetVisualFromFBConfig(dpy: *mut Display, config: GLXFBConfig) -> *mut XVisualInfo;
-    pub fn glXMakeCurrent(dpy: *mut Display, drawable: GLXDrawable,
-        ctx: GLXContext) -> Bool;
-    pub fn glXSwapBuffers(dpy: *mut Display, drawable: GLXDrawable);
 
     pub fn XkbSetDetectableAutoRepeat(dpy: *mut Display, detectable: bool, supported_rtm: *mut bool) -> bool;
     
