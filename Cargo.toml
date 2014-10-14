@@ -23,4 +23,4 @@ git = "https://github.com/DavidPartouche/rust-cocoa"
 optional = true
 
 [dependencies.core_foundation]
-git = "https://github.com/tomaka/rust-core-foundation"
+git = "https://github.com/servo/rust-core-foundation"
