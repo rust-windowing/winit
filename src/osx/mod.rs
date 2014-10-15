@@ -15,9 +15,12 @@ use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
 use std::c_str::CString;
+use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton, MouseMoved, ReceivedCharacter,
+     KeyboardInput};
+
+mod event;
 
 pub struct Window {
-    window: id,
     view: id,
     context: id,
     is_closed: AtomicBool,
@@ -92,7 +95,6 @@ impl Window {
         }
 
         let window = Window {
-            window: window,
             view: view,
             context: context,
             is_closed: AtomicBool::new(false),
@@ -212,7 +214,6 @@ impl Window {
 
         loop {
             unsafe {
-                use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton, MouseMoved, ReceivedCharacter};
                 let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                     NSAnyEventMask as u64,
                     NSDate::distantPast(nil),
@@ -232,14 +233,26 @@ impl Window {
                         events.push(MouseMoved((view_point.x as int, view_point.y as int)));
                     },
                     NSKeyDown               => {
-                        let received_cstr = CString::new(event.characters().UTF8String(), false);
-                        match received_cstr.as_str() {
-                            Some(received_str) => { events.push(ReceivedCharacter(received_str.char_at(0))); },
-                            None               => { },
-                        };
+                        let received_str = CString::new(event.characters().UTF8String(), false);
+                        for received_char in received_str.as_str().unwrap().chars() {
+                            if received_char.is_ascii() {
+                                events.push(ReceivedCharacter(received_char));
+                            }
+                        }
+
+                        let vkey =  event::vkeycode_to_element(event.keycode());
+                        let modifiers = event::modifierflag_to_element(event.modifierFlags());
+                        events.push(KeyboardInput(Pressed, event.keycode() as u8, vkey, modifiers));
                     },
-                    NSKeyUp                 => { },
-                    NSFlagsChanged          => { },
+                    NSKeyUp                 => {
+                        let vkey =  event::vkeycode_to_element(event.keycode());
+                        let modifiers = event::modifierflag_to_element(event.modifierFlags());
+                        events.push(KeyboardInput(Released, event.keycode() as u8, vkey, modifiers));
+                    },
+                    NSFlagsChanged          => {
+                        println!("Modifiers: {}", event.modifierFlags());
+                        // Need to keep an array of the modified flags
+                    },
                     NSScrollWheel           => { },
                     NSOtherMouseDown        => { },
                     NSOtherMouseUp          => { },

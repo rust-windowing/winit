@@ -128,7 +128,7 @@ pub enum VirtualKeyCode {
     Kana,
     Kanji,
     L,
-    LCracket,
+    LBracket,
     LControl,
     Left,
     LMenu,
