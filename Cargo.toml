@@ -5,7 +5,7 @@ version = "0.0.1"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 
 [features]
-default = ["cocoa", "window"]
+default = ["window"]
 window = []
 headless = []
 
@@ -18,9 +18,14 @@ git = "https://github.com/tomaka/android-rs-glue"
 [dependencies.gl_generator]
 git = "https://github.com/bjz/gl-rs"
 
-[dependencies.cocoa]
+[target.i686-apple-darwin.dependencies.cocoa]
 git = "https://github.com/DavidPartouche/rust-cocoa"
-optional = true
 
-[dependencies.core_foundation]
+[target.x86_64-apple-darwin.dependencies.cocoa]
+git = "https://github.com/DavidPartouche/rust-cocoa"
+
+[target.i686-apple-darwin.dependencies.core_foundation]
+git = "https://github.com/servo/rust-core-foundation"
+
+[target.x86_64-apple-darwin.dependencies.core_foundation]
 git = "https://github.com/servo/rust-core-foundation"
