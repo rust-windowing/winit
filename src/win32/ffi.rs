@@ -7,12 +7,25 @@ use libc;
 
 /// WGL bindings
 pub mod wgl {
-    generate_gl_bindings!("wgl", "core", "1.0", "static")
+    generate_gl_bindings! {
+        api: wgl,
+        profile: core,
+        version: 1.0,
+        generator: static
+    }
 }
 
 /// Functions that are not necessarly always available
 pub mod wgl_extra {
-    generate_gl_bindings!("wgl", "core", "1.0", "struct", [ "WGL_ARB_create_context" ])
+    generate_gl_bindings! {
+        api: wgl,
+        profile: core,
+        version: 1.0,
+        generator: struct,
+        extensions: [
+            WGL_ARB_create_context
+        ]
+    }
 }
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/aa383751(v=vs.85).aspx
