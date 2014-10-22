@@ -2,7 +2,7 @@ extern crate native;
 
 use self::native::NativeTaskBuilder;
 use std::task::TaskBuilder;
-use std::sync::atomics::AtomicBool;
+use std::sync::atomic::AtomicBool;
 use std::ptr;
 use super::{event, ffi};
 use super::Window;
