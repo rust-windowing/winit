@@ -18,10 +18,10 @@ pub mod egl {
     pub type NativeWindowType = super::EGLNativeWindowType;
 
     generate_gl_bindings! {
-        api: egl,
-        profile: core,
-        version: 1.5,
-        generator: static
+        api: "egl",
+        profile: "core",
+        version: "1.5",
+        generator: "static"
     }
 }
 

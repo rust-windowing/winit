@@ -1,4 +1,4 @@
-use std::sync::atomics::AtomicBool;
+use std::sync::atomic::AtomicBool;
 use std::ptr;
 use Event;
 
@@ -75,7 +75,7 @@ impl Window {
 impl Window {
     /// See the docs in the crate root file.
     pub fn is_closed(&self) -> bool {
-        use std::sync::atomics::Relaxed;
+        use std::sync::atomic::Relaxed;
         self.is_closed.load(Relaxed)
     }
 
@@ -170,7 +170,7 @@ impl Window {
 
         // if one of the received events is `Closed`, setting `is_closed` to true
         if events.iter().find(|e| match e { &&::Closed => true, _ => false }).is_some() {
-            use std::sync::atomics::Relaxed;
+            use std::sync::atomic::Relaxed;
             self.is_closed.store(true, Relaxed);
         }
         
@@ -185,7 +185,7 @@ impl Window {
                 // if the received event is `Closed`, setting `is_closed` to true
                 match ev {
                     ::Closed => {
-                        use std::sync::atomics::Relaxed;
+                        use std::sync::atomic::Relaxed;
                         self.is_closed.store(true, Relaxed);
                     },
                     _ => ()
@@ -198,7 +198,7 @@ impl Window {
             },
 
             Err(_) => {
-                use std::sync::atomics::Relaxed;
+                use std::sync::atomic::Relaxed;
                 self.is_closed.store(true, Relaxed);
                 vec![]
             }

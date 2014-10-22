@@ -9,22 +9,22 @@ use libc;
 /// GLX bindings
 pub mod glx {
     generate_gl_bindings! {
-        api: glx,
-        profile: core,
-        version: 1.4,
-        generator: static
+        api: "glx",
+        profile: "core",
+        version: "1.4",
+        generator: "static"
     }
 }
 
 /// Functions that are not necessarly always available
 pub mod glx_extra {
     generate_gl_bindings! {
-        api: glx,
-        profile: core,
-        version: 1.4,
-        generator: struct,
+        api: "glx",
+        profile: "core",
+        version: "1.4",
+        generator: "struct",
         extensions: [
-            GLX_ARB_create_context
+            "GLX_ARB_create_context"
         ]
     }
 }

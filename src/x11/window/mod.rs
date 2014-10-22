@@ -1,7 +1,7 @@
 use {Event, WindowBuilder};
 use libc;
 use std::{mem, ptr};
-use std::sync::atomics::AtomicBool;
+use std::sync::atomic::AtomicBool;
 use super::ffi;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
@@ -260,7 +260,7 @@ impl Window {
     }
 
     pub fn is_closed(&self) -> bool {
-        use std::sync::atomics::Relaxed;
+        use std::sync::atomic::Relaxed;
         self.is_closed.load(Relaxed)
     }
 
@@ -340,7 +340,7 @@ impl Window {
 
                 ffi::ClientMessage => {
                     use Closed;
-                    use std::sync::atomics::Relaxed;
+                    use std::sync::atomic::Relaxed;
 
                     let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
 

@@ -7,7 +7,12 @@ extern crate glutin;
 extern crate libc;
 
 mod gl {
-    generate_gl_bindings!("gl", "core", "1.1", "struct")
+    generate_gl_bindings! {
+        api: "gl",
+        profile: "core",
+        version: "1.1",
+        generator: "struct"
+    }
 }
 
 #[cfg(feature = "headless")]
