@@ -135,7 +135,7 @@ impl Window {
                 None
             } else {
                 view.setWantsBestResolutionOpenGLSurface_(true);
-                window.setContentView(view);
+                window.setContentView_(view);
                 Some(view)
             }
         }
