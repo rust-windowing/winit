@@ -26,6 +26,7 @@ mod event;
 static mut shift_pressed: bool = false;
 static mut ctrl_pressed: bool = false;
 static mut win_pressed: bool = false;
+static mut alt_pressed: bool = false;
 
 pub struct Window {
     view: id,
@@ -271,6 +272,11 @@ impl Window {
                         if win_modifier.is_some() {
                             win_pressed = !win_pressed;
                             events.push(win_modifier.unwrap());
+                        }
+                        let alt_modifier = Window::modifier_event(event, appkit::NSAlternateKeyMask as u64, events::LAlt, alt_pressed);
+                        if alt_modifier.is_some() {
+                            alt_pressed = !alt_pressed;
+                            events.push(alt_modifier.unwrap());
                         }
                     },
                     NSScrollWheel           => { },
