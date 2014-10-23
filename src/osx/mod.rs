@@ -8,6 +8,7 @@ use WindowBuilder;
 use HeadlessRendererBuilder;
 
 use cocoa::base::{id, NSUInteger, nil};
+use cocoa::appkit;
 use cocoa::appkit::*;
 
 use core_foundation::base::TCFType;
@@ -16,9 +17,15 @@ use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFuncti
 
 use std::c_str::CString;
 use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton, MouseMoved, ReceivedCharacter,
-     KeyboardInput};
+     KeyboardInput, KeyModifiers};
+
+use events;
 
 mod event;
+
+static mut shift_pressed: bool = false;
+static mut ctrl_pressed: bool = false;
+static mut win_pressed: bool = false;
 
 pub struct Window {
     view: id,
@@ -250,8 +257,21 @@ impl Window {
                         events.push(KeyboardInput(Released, event.keycode() as u8, vkey, modifiers));
                     },
                     NSFlagsChanged          => {
-                        println!("Modifiers: {}", event.modifierFlags());
-                        // Need to keep an array of the modified flags
+                        let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask as u64, events::LShift, shift_pressed);
+                        if shift_modifier.is_some() {
+                            shift_pressed = !shift_pressed;
+                            events.push(shift_modifier.unwrap());
+                        }
+                        let ctrl_modifier = Window::modifier_event(event, appkit::NSControlKeyMask as u64, events::LControl, ctrl_pressed);
+                        if ctrl_modifier.is_some() {
+                            ctrl_pressed = !ctrl_pressed;
+                            events.push(ctrl_modifier.unwrap());
+                        }
+                        let win_modifier = Window::modifier_event(event, appkit::NSCommandKeyMask as u64, events::LWin, win_pressed);
+                        if win_modifier.is_some() {
+                            win_pressed = !win_pressed;
+                            events.push(win_modifier.unwrap());
+                        }
                     },
                     NSScrollWheel           => { },
                     NSOtherMouseDown        => { },
@@ -262,6 +282,21 @@ impl Window {
             }
         }
         events
+    }
+
+    unsafe fn modifier_event(event: id, keymask: u64, key: events::VirtualKeyCode, key_pressed: bool) -> Option<Event> {
+        if !key_pressed && Window::modifier_key_pressed(event, keymask) {
+            return Some(KeyboardInput(Pressed, event.keycode() as u8, Some(key), KeyModifiers::empty()));
+        }
+        else if key_pressed && !Window::modifier_key_pressed(event, keymask) {
+            return Some(KeyboardInput(Released, event.keycode() as u8, Some(key), KeyModifiers::empty()));
+        }
+
+        return None;
+    }
+
+    unsafe fn modifier_key_pressed(event: id, modifier: u64) -> bool {
+        event.modifierFlags() & modifier != 0
     }
 
     pub fn wait_events(&self) -> Vec<Event> {
