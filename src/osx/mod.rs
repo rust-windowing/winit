@@ -1,4 +1,5 @@
 use Event;
+use std::sync::atomic::AtomicBool;
 
 #[cfg(feature = "window")]
 use WindowBuilder;
@@ -7,14 +8,30 @@ use WindowBuilder;
 use HeadlessRendererBuilder;
 
 use cocoa::base::{id, NSUInteger, nil};
+use cocoa::appkit;
 use cocoa::appkit::*;
 
 use core_foundation::base::TCFType;
 use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
+use std::c_str::CString;
+use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton, MouseMoved, ReceivedCharacter,
+     KeyboardInput, KeyModifiers};
+
+use events;
+
+mod event;
+
+static mut shift_pressed: bool = false;
+static mut ctrl_pressed: bool = false;
+static mut win_pressed: bool = false;
+static mut alt_pressed: bool = false;
+
 pub struct Window {
+    view: id,
     context: id,
+    is_closed: AtomicBool,
 }
 
 pub struct HeadlessContext(Window);
@@ -86,7 +103,9 @@ impl Window {
         }
 
         let window = Window {
+            view: view,
             context: context,
+            is_closed: AtomicBool::new(false),
         };
 
         Ok(window)
@@ -123,6 +142,7 @@ impl Window {
                 let title = NSString::alloc(nil).init_str(title);
                 window.setTitle_(title);
                 window.center();
+                window.setAcceptsMouseMovedEvents_(true);
                 Some(window)
             }
         }
@@ -169,8 +189,8 @@ impl Window {
     }
 
     pub fn is_closed(&self) -> bool {
-        // TODO: remove fake implementation
-        false
+        use std::sync::atomic::Relaxed;
+        self.is_closed.load(Relaxed)
     }
 
     pub fn set_title(&self, _title: &str) {
@@ -202,23 +222,63 @@ impl Window {
 
         loop {
             unsafe {
-                use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton};
                 let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                     NSAnyEventMask as u64,
                     NSDate::distantPast(nil),
                     NSDefaultRunLoopMode,
                     true);
                 if event == nil { break; }
+                NSApp().sendEvent_(event);
 
                 match event.get_type() {
                     NSLeftMouseDown         => { events.push(MouseInput(Pressed, LeftMouseButton)); },
                     NSLeftMouseUp           => { events.push(MouseInput(Released, LeftMouseButton)); },
                     NSRightMouseDown        => { events.push(MouseInput(Pressed, RightMouseButton)); },
                     NSRightMouseUp          => { events.push(MouseInput(Released, RightMouseButton)); },
-                    NSMouseMoved            => { },
-                    NSKeyDown               => { },
-                    NSKeyUp                 => { },
-                    NSFlagsChanged          => { },
+                    NSMouseMoved            => {
+                        let window_point = event.locationInWindow();
+                        let view_point = self.view.convertPoint_fromView_(window_point, nil);
+                        events.push(MouseMoved((view_point.x as int, view_point.y as int)));
+                    },
+                    NSKeyDown               => {
+                        let received_str = CString::new(event.characters().UTF8String(), false);
+                        for received_char in received_str.as_str().unwrap().chars() {
+                            if received_char.is_ascii() {
+                                events.push(ReceivedCharacter(received_char));
+                            }
+                        }
+
+                        let vkey =  event::vkeycode_to_element(event.keycode());
+                        let modifiers = event::modifierflag_to_element(event.modifierFlags());
+                        events.push(KeyboardInput(Pressed, event.keycode() as u8, vkey, modifiers));
+                    },
+                    NSKeyUp                 => {
+                        let vkey =  event::vkeycode_to_element(event.keycode());
+                        let modifiers = event::modifierflag_to_element(event.modifierFlags());
+                        events.push(KeyboardInput(Released, event.keycode() as u8, vkey, modifiers));
+                    },
+                    NSFlagsChanged          => {
+                        let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask as u64, events::LShift, shift_pressed);
+                        if shift_modifier.is_some() {
+                            shift_pressed = !shift_pressed;
+                            events.push(shift_modifier.unwrap());
+                        }
+                        let ctrl_modifier = Window::modifier_event(event, appkit::NSControlKeyMask as u64, events::LControl, ctrl_pressed);
+                        if ctrl_modifier.is_some() {
+                            ctrl_pressed = !ctrl_pressed;
+                            events.push(ctrl_modifier.unwrap());
+                        }
+                        let win_modifier = Window::modifier_event(event, appkit::NSCommandKeyMask as u64, events::LWin, win_pressed);
+                        if win_modifier.is_some() {
+                            win_pressed = !win_pressed;
+                            events.push(win_modifier.unwrap());
+                        }
+                        let alt_modifier = Window::modifier_event(event, appkit::NSAlternateKeyMask as u64, events::LAlt, alt_pressed);
+                        if alt_modifier.is_some() {
+                            alt_pressed = !alt_pressed;
+                            events.push(alt_modifier.unwrap());
+                        }
+                    },
                     NSScrollWheel           => { },
                     NSOtherMouseDown        => { },
                     NSOtherMouseUp          => { },
@@ -230,14 +290,30 @@ impl Window {
         events
     }
 
+    unsafe fn modifier_event(event: id, keymask: u64, key: events::VirtualKeyCode, key_pressed: bool) -> Option<Event> {
+        if !key_pressed && Window::modifier_key_pressed(event, keymask) {
+            return Some(KeyboardInput(Pressed, event.keycode() as u8, Some(key), KeyModifiers::empty()));
+        }
+        else if key_pressed && !Window::modifier_key_pressed(event, keymask) {
+            return Some(KeyboardInput(Released, event.keycode() as u8, Some(key), KeyModifiers::empty()));
+        }
+
+        return None;
+    }
+
+    unsafe fn modifier_key_pressed(event: id, modifier: u64) -> bool {
+        event.modifierFlags() & modifier != 0
+    }
+
     pub fn wait_events(&self) -> Vec<Event> {
         unsafe {
             let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                 NSAnyEventMask as u64,
                 NSDate::distantFuture(nil),
                 NSDefaultRunLoopMode,
-                true);
+                false);
             NSApp().sendEvent_(event);
+
             self.poll_events()
         }
     }
