@@ -1,5 +1,5 @@
 use Event;
-use std::sync::atomics::AtomicBool;
+use std::sync::atomic::AtomicBool;
 
 #[cfg(feature = "window")]
 use WindowBuilder;
@@ -181,7 +181,7 @@ impl Window {
     }
 
     pub fn is_closed(&self) -> bool {
-        use std::sync::atomics::Relaxed;
+        use std::sync::atomic::Relaxed;
         self.is_closed.load(Relaxed)
     }
 
