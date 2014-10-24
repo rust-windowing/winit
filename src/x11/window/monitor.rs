@@ -1,9 +1,11 @@
 use std::{ptr};
 use super::super::ffi;
+use super::ensure_thread_init;
 
 pub struct MonitorID(pub uint);
 
 pub fn get_available_monitors() -> Vec<MonitorID> {
+    ensure_thread_init();
     let nb_monitors = unsafe {
         let display = ffi::XOpenDisplay(ptr::null());
         if display.is_null() {
@@ -20,6 +22,7 @@ pub fn get_available_monitors() -> Vec<MonitorID> {
 }
 
 pub fn get_primary_monitor() -> MonitorID {
+    ensure_thread_init();
     let primary_monitor = unsafe {
         let display = ffi::XOpenDisplay(ptr::null());
         if display.is_null() {
