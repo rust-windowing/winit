@@ -3,11 +3,22 @@ use libc;
 use std::{mem, ptr};
 use std::sync::atomic::AtomicBool;
 use super::ffi;
+use sync::one::{Once, ONCE_INIT};
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
 mod events;
 mod monitor;
+
+static THREAD_INIT: Once = ONCE_INIT;
+
+fn ensure_thread_init() {
+    THREAD_INIT.doit(|| {
+        unsafe {
+            ffi::XInitThreads();
+        }
+    });
+}
 
 pub struct Window {
     display: *mut ffi::Display,
@@ -24,6 +35,7 @@ pub struct Window {
 
 impl Window {
     pub fn new(builder: WindowBuilder) -> Result<Window, String> {
+        ensure_thread_init();
         let dimensions = builder.dimensions.unwrap_or((800, 600));
 
         // calling XOpenDisplay
