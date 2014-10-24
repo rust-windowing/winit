@@ -346,7 +346,7 @@ impl Window {
     /// This is typically only required when integrating with
     /// other libraries that need this information.
     #[inline]
-    pub fn platform_display(&self) -> *mut libc::c_void {
+    pub unsafe fn platform_display(&self) -> *mut libc::c_void {
         self.window.platform_display()
     }
 }
