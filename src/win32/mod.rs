@@ -233,6 +233,10 @@ impl Window {
             ffi::SwapBuffers(self.hdc);
         }
     }
+
+    pub fn platform_display(&self) -> *mut libc::c_void {
+        unimplemented!()
+    }
 }
 
 #[unsafe_destructor]

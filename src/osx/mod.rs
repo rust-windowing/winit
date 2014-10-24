@@ -337,4 +337,8 @@ impl Window {
     pub fn swap_buffers(&self) {
         unsafe { self.context.flushBuffer(); }
     }
+
+    pub fn platform_display(&self) -> *mut libc::c_void {
+        unimplemented!()
+    }
 }

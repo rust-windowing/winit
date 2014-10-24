@@ -186,6 +186,10 @@ impl Window {
             ffi::egl::SwapBuffers(self.display, self.surface);
         }
     }
+
+    pub fn platform_display(&self) -> *mut libc::c_void {
+        unimplemented!()
+    }
 }
 
 #[unsafe_destructor]
