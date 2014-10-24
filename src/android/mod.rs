@@ -1,6 +1,7 @@
 extern crate android_glue;
 extern crate native;
 
+use libc;
 use {Event, WindowBuilder};
 
 pub struct Window {
@@ -188,7 +189,7 @@ impl Window {
     }
 
     pub fn platform_display(&self) -> *mut libc::c_void {
-        unimplemented!()
+        self.surface as *mut libc::c_void
     }
 }
 
