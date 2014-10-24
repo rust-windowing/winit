@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::ptr;
+use libc;
 use Event;
 
 #[cfg(feature = "window")]
@@ -235,7 +236,7 @@ impl Window {
     }
 
     pub fn platform_display(&self) -> *mut libc::c_void {
-        unimplemented!()
+        self.window as *mut libc::c_void
     }
 }
 

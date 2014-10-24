@@ -1,4 +1,5 @@
 use Event;
+use libc;
 use std::sync::atomic::AtomicBool;
 
 #[cfg(feature = "window")]
