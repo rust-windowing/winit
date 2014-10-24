@@ -341,6 +341,14 @@ impl Window {
     pub fn swap_buffers(&self) {
         self.window.swap_buffers()
     }
+
+    /// Gets the native platform specific display for this window.
+    /// This is typically only required when integrating with
+    /// other libraries that need this information.
+    #[inline]
+    pub fn platform_display(&self) -> *mut libc::c_void {
+        self.window.platform_display()
+    }
 }
 
 /// Represents a headless OpenGL context.

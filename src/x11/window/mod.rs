@@ -469,6 +469,10 @@ impl Window {
     pub fn swap_buffers(&self) {
         unsafe { ffi::glx::SwapBuffers(self.display, self.window) }
     }
+
+    pub fn platform_display(&self) -> *mut libc::c_void {
+        self.display as *mut libc::c_void
+    }
 }
 
 impl Drop for Window {
