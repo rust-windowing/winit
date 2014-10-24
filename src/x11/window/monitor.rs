@@ -46,6 +46,7 @@ impl MonitorID {
             let screen = ffi::XScreenOfDisplay(display, screen_num as i32);
             let width = ffi::XWidthOfScreen(screen);
             let height = ffi::XHeightOfScreen(screen);
+            ffi::XCloseDisplay(display);
             (width as uint, height as uint)
         };
 
