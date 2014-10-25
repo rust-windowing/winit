@@ -565,7 +565,7 @@ impl Window {
     /// Contrary to `wait_events`, this function never blocks.
     #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator { window: self, data: self.window.poll_events().into_iter() }
+        PollEventsIterator(self.window.poll_events())
     }
 
     /// Returns an iterator that returns events one by one, blocking if necessary until one is
@@ -574,7 +574,7 @@ impl Window {
     /// The iterator never returns `None`.
     #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator { window: self, data: self.window.wait_events().into_iter() }
+        WaitEventsIterator(self.window.wait_events())
     }
 
     /// Sets the context as the current context.
@@ -727,24 +727,13 @@ impl gl_common::GlFunctionsSource for HeadlessContext {
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
 #[cfg(feature = "window")]
-pub struct PollEventsIterator<'a> {
-    window: &'a Window,
-    data: RingBufIter<Event>,
-}
+pub struct PollEventsIterator<'a>(winimpl::PollEventsIterator<'a>);
 
 #[cfg(feature = "window")]
 impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
     fn next(&mut self) -> Option<Event> {
-        if let Some(ev) = self.data.next() {
-            return Some(ev);
-        }
-
-        let PollEventsIterator { window, data } = self.window.poll_events();
-        self.window = window;
-        self.data = data;
-
-        self.data.next()
+        self.0.next()
     }
 }
 
@@ -752,24 +741,13 @@ impl<'a> Iterator for PollEventsIterator<'a> {
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
 #[cfg(feature = "window")]
-pub struct WaitEventsIterator<'a> {
-    window: &'a Window,
-    data: RingBufIter<Event>,
-}
+pub struct WaitEventsIterator<'a>(winimpl::WaitEventsIterator<'a>);
 
 #[cfg(feature = "window")]
 impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
     fn next(&mut self) -> Option<Event> {
-        if let Some(ev) = self.data.next() {
-            return Some(ev);
-        }
-
-        let WaitEventsIterator { window, data } = self.window.wait_events();
-        self.window = window;
-        self.data = data;
-
-        self.next()
+        self.0.next()
     }
 }
 
