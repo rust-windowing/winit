@@ -1,0 +1,16 @@
+install:
+  - ps: Start-FileDownload 'https://static.rust-lang.org/dist/rust-nightly-i686-w64-mingw32.exe'
+  - ps: Start-FileDownload 'https://static.rust-lang.org/cargo-dist/cargo-nightly-i686-w64-mingw32.tar.gz'
+  - rust-nightly-i686-w64-mingw32.exe /VERYSILENT /NORESTART
+  - 7z e cargo-nightly-i686-w64-mingw32.tar.gz
+  - 7z x cargo-nightly-i686-w64-mingw32.tar
+  - SET PATH=%PATH%;C:\Program Files (x86)\Rust\bin
+  - SET PATH=%PATH%;%CD%\cargo-nightly-i686-w64-mingw32\bin
+  - mkdir %HOMEDRIVE%%HOMEPATH%\.rust
+  - cp etc/32bits/* %HOMEDRIVE%%HOMEPATH%\.rust
+
+build: false
+
+test_script:
+  - cargo test --verbose --no-default-features --features "window"
+  - cargo test --verbose --no-default-features --features "headless"
