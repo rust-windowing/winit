@@ -25,7 +25,7 @@ impl HeadlessContext {
     /// See the docs in the crate root file.
     pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, String> {
         let HeadlessRendererBuilder { dimensions, gl_version } = builder;
-        init::new_window(Some(dimensions), "".to_string(), None, gl_version, true)
+        init::new_window(Some(dimensions), "".to_string(), None, gl_version, false, true)
             .map(|w| HeadlessContext(w))
     }
 
@@ -68,8 +68,8 @@ pub struct Window {
 impl Window {
     /// See the docs in the crate root file.
     pub fn new(builder: WindowBuilder) -> Result<Window, String> {
-        let WindowBuilder { dimensions, title, monitor, gl_version } = builder;
-        init::new_window(dimensions, title, monitor, gl_version, false)
+        let WindowBuilder { dimensions, title, monitor, gl_version, vsync } = builder;
+        init::new_window(dimensions, title, monitor, gl_version, vsync, false)
     }
 }
 

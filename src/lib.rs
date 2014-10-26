@@ -73,6 +73,7 @@ pub struct WindowBuilder {
     title: String,
     monitor: Option<winimpl::MonitorID>,
     gl_version: Option<(uint, uint)>,
+    vsync: bool,
 }
 
 #[cfg(feature = "window")]
@@ -84,6 +85,7 @@ impl WindowBuilder {
             title: "gl-init-rs window".to_string(),
             monitor: None,
             gl_version: None,
+            vsync: false,
         }
     }
 
@@ -116,6 +118,12 @@ impl WindowBuilder {
     ///  you would pass `(3, 3)`.
     pub fn with_gl_version(mut self, version: (uint, uint)) -> WindowBuilder {
         self.gl_version = Some(version);
+        self
+    }
+
+    /// Requests that the window has vsync enabled.
+    pub fn with_vsync(mut self) -> WindowBuilder {
+        self.vsync = true;
         self
     }
 
@@ -339,6 +347,10 @@ impl Window {
     ///
     /// You should call this function every time you have finished rendering, or the image
     ///  may not be displayed on the screen.
+    ///
+    /// **Warning**: if you enabled vsync, this function will block until the next time the screen
+    /// is refreshed. However drivers can choose to override your vsync settings, which means that
+    /// you can't know in advance whether `swap_buffers` will block or not.
     #[inline]
     pub fn swap_buffers(&self) {
         self.window.swap_buffers()
