@@ -16,7 +16,7 @@ local_data_key!(WINDOW: (ffi::HWND, Sender<Event>))
 
 pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: String,
                   builder_monitor: Option<super::MonitorID>,
-                  builder_gl_version: Option<(uint, uint)>,
+                  builder_gl_version: Option<(uint, uint)>, builder_vsync: bool,
                   builder_headless: bool) -> Result<Window, String>
 {
     use std::mem;
@@ -345,6 +345,14 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             }
             lib
         };
+
+        // handling vsync
+        if builder_vsync {
+            if extra_functions.SwapIntervalEXT.is_loaded() {
+                unsafe { ffi::wgl::MakeCurrent(hdc, context) };
+                extra_functions.SwapIntervalEXT(1);
+            }
+        }
 
         // building the struct
         let window = Window{

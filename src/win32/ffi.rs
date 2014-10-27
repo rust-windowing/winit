@@ -23,7 +23,8 @@ pub mod wgl_extra {
         version: "1.0",
         generator: "struct",
         extensions: [
-            "WGL_ARB_create_context"
+            "WGL_ARB_create_context",
+            "WGL_EXT_swap_control"
         ]
     }
 }
