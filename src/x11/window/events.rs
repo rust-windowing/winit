@@ -4,7 +4,7 @@ use VirtualKeyCode;
 
 pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
     Some(match scancode {
-        //ffi::XK_BackSpace => events::Backspace,
+        ffi::XK_BackSpace => events::Back,
         ffi::XK_Tab => events::Tab,
         //ffi::XK_Linefeed => events::Linefeed,
         //ffi::XK_Clear => events::Clear,
@@ -38,9 +38,9 @@ pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
         ffi::XK_Right => events::Right,
         ffi::XK_Down => events::Down,
         //ffi::XK_Prior => events::Prior,
-        //ffi::XK_Page_Up => events::Page_up,
+        ffi::XK_Page_Up => events::PageUp,
         //ffi::XK_Next => events::Next,
-        //ffi::XK_Page_Down => events::Page_down,
+        ffi::XK_Page_Down => events::PageDown,
         //ffi::XK_End => events::End,
         //ffi::XK_Begin => events::Begin,
         //ffi::XK_Win_L => events::Win_l,
@@ -185,7 +185,7 @@ pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
         //ffi::XK_asterisk => events::Asterisk,
         //ffi::XK_plus => events::Plus,
         //ffi::XK_comma => events::Comma,
-        //ffi::XK_minus => events::Minus,
+        ffi::XK_minus => events::Minus,
         //ffi::XK_period => events::Period,
         //ffi::XK_slash => events::Slash,
         //ffi::XK_0 => events::0,
@@ -201,7 +201,7 @@ pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
         //ffi::XK_colon => events::Colon,
         //ffi::XK_semicolon => events::Semicolon,
         //ffi::XK_less => events::Less,
-        //ffi::XK_equal => events::Equal,
+        ffi::XK_equal => events::Equals,
         //ffi::XK_greater => events::Greater,
         //ffi::XK_question => events::Question,
         //ffi::XK_at => events::At,
