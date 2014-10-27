@@ -444,8 +444,8 @@ impl Window {
                 },
 
                 ffi::ButtonPress | ffi::ButtonRelease => {
-                    use {MouseInput, Pressed, Released};
-                    use {LeftMouseButton, RightMouseButton, MiddleMouseButton, OtherMouseButton};
+                    use {MouseInput, MouseWheel, Pressed, Released};
+                    use {LeftMouseButton, RightMouseButton, MiddleMouseButton};
                     let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
 
                     let state = if xev.type_ == ffi::ButtonPress { Pressed } else { Released };
@@ -454,8 +454,14 @@ impl Window {
                         ffi::Button1 => Some(LeftMouseButton),
                         ffi::Button2 => Some(MiddleMouseButton),
                         ffi::Button3 => Some(RightMouseButton),
-                        ffi::Button4 => Some(OtherMouseButton(4)),
-                        ffi::Button5 => Some(OtherMouseButton(5)),
+                        ffi::Button4 => {
+                            events.push(MouseWheel(1));
+                            None
+                        }
+                        ffi::Button5 => {
+                            events.push(MouseWheel(-1));
+                            None
+                        }
                         _ => None
                     };
 
