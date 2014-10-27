@@ -168,7 +168,8 @@ impl Window {
             let mut wm_delete_window = ffi::XInternAtom(display,
                 "WM_DELETE_WINDOW".to_c_str().as_ptr() as *const libc::c_char, 0);
             ffi::XSetWMProtocols(display, window, &mut wm_delete_window, 1);
-            ffi::XStoreName(display, window, mem::transmute(builder.title.as_slice().as_ptr()));
+            let c_title = builder.title.to_c_str();
+            ffi::XStoreName(display, window, c_title.as_ptr());
             ffi::XFlush(display);
 
             wm_delete_window
@@ -277,9 +278,10 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
+        let c_title = title.to_c_str();
         unsafe {
-            ffi::XStoreName(self.display, self.window,
-                mem::transmute(title.as_slice().as_ptr()));
+            ffi::XStoreName(self.display, self.window, c_title.as_ptr());
+            ffi::XFlush(self.display);
         }
     }
 
