@@ -97,7 +97,7 @@ impl Window {
                     best_mode = i;
                 }
             };
-            if best_mode == -1 {
+            if best_mode == -1 && builder.monitor.is_some() {
                 return Err(format!("Could not find a suitable graphics mode"));
             }
 
