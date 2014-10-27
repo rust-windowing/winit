@@ -82,7 +82,7 @@ impl WindowBuilder {
     pub fn new() -> WindowBuilder {
         WindowBuilder {
             dimensions: None,
-            title: "gl-init-rs window".to_string(),
+            title: "glutin window".to_string(),
             monitor: None,
             gl_version: None,
             vsync: false,
