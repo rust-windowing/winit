@@ -166,9 +166,9 @@ impl Window {
         let wm_delete_window = unsafe {
             use std::c_str::ToCStr;
 
+            let delete_window = "WM_DELETE_WINDOW".to_c_str();
             ffi::XMapWindow(display, window);
-            let mut wm_delete_window = ffi::XInternAtom(display,
-                "WM_DELETE_WINDOW".to_c_str().as_ptr() as *const libc::c_char, 0);
+            let mut wm_delete_window = ffi::XInternAtom(display, delete_window.as_ptr(), 0);
             ffi::XSetWMProtocols(display, window, &mut wm_delete_window, 1);
             let c_title = builder.title.to_c_str();
             ffi::XStoreName(display, window, c_title.as_ptr());
@@ -190,8 +190,10 @@ impl Window {
         let ic = unsafe {
             use std::c_str::ToCStr;
 
-            let ic = ffi::XCreateIC(im, "inputStyle".to_c_str().as_ptr(),
-                ffi::XIMPreeditNothing | ffi::XIMStatusNothing, "clientWindow".to_c_str().as_ptr(),
+            let input_style = "inputStyle".to_c_str();
+            let client_window = "clientWindow".to_c_str();
+            let ic = ffi::XCreateIC(im, input_style.as_ptr(),
+                ffi::XIMPreeditNothing | ffi::XIMStatusNothing, client_window.as_ptr(),
                 window, ptr::null());
             if ic.is_null() {
                 return Err(format!("XCreateIC failed"));
