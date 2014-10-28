@@ -33,6 +33,7 @@ pub struct Window {
     screen_id: libc::c_int,
     is_fullscreen: bool,
     current_modifiers: Cell<KeyModifiers>,
+    current_size: Cell<(libc::c_int, libc::c_int)>,
 }
 
 impl Window {
@@ -134,7 +135,7 @@ impl Window {
         let mut set_win_attr = {
             let mut swa: ffi::XSetWindowAttributes = unsafe { mem::zeroed() };
             swa.colormap = cmap;
-            swa.event_mask = ffi::ExposureMask | ffi::ResizeRedirectMask |
+            swa.event_mask = ffi::ExposureMask | ffi::StructureNotifyMask |
                 ffi::VisibilityChangeMask | ffi::KeyPressMask | ffi::PointerMotionMask |
                 ffi::KeyReleaseMask | ffi::ButtonPressMask |
                 ffi::ButtonReleaseMask | ffi::KeymapStateMask;
@@ -246,6 +247,9 @@ impl Window {
             context
         };
 
+        // Make context current before call to glViewport below.
+        unsafe { ffi::glx::MakeCurrent(display, window, context) };
+
         // creating the window object
         let window = Window {
             display: display,
@@ -259,6 +263,7 @@ impl Window {
             screen_id: screen_id,
             is_fullscreen: builder.monitor.is_some(),
             current_modifiers: Cell::new(KeyModifiers::empty()),
+            current_size: Cell::new((0, 0)),
         };
 
         // calling glViewport
@@ -367,10 +372,14 @@ impl Window {
                     }
                 },
 
-                ffi::ResizeRequest => {
+                ffi::ConfigureNotify => {
                     use Resized;
-                    let rs_event: &ffi::XResizeRequestEvent = unsafe { mem::transmute(&xev) };
-                    events.push(Resized(rs_event.width as uint, rs_event.height as uint));
+                    let cfg_event: &ffi::XConfigureEvent = unsafe { mem::transmute(&xev) };
+                    let (current_width, current_height) = self.current_size.get();
+                    if current_width != cfg_event.width || current_height != cfg_event.height {
+                        self.current_size.set((cfg_event.width, cfg_event.height));
+                        events.push(Resized(cfg_event.width as uint, cfg_event.height as uint));
+                    }
                 },
 
                 ffi::MotionNotify => {
