@@ -44,8 +44,8 @@ fn main() {
 
 ### Android
 
- - To compile the examples for android, initialize the submodules, go to `deps/apk-builder/apk-builder` and run `cargo build`, then go back to `gl-init` and call `ANDROID_HOME=/path/to/sdk NDK_HOME=/path/to/ndk NDK_STANDALONE=/path/to/standalone cargo test --no-run --target=arm-linux-androideabi`
- - Events are not implemented
+ - To compile the examples for android, initialize the submodules, go to `deps/apk-builder/apk-builder` and run `cargo build`, then go back to `glutin` and call `ANDROID_HOME=/path/to/sdk NDK_HOME=/path/to/ndk NDK_STANDALONE=/path/to/standalone cargo test --no-run --target=arm-linux-androideabi`
+ - Events and vsync are not implemented
  - Headless rendering doesn't work
 
 ### Emscripten
@@ -54,7 +54,9 @@ fn main() {
 
 ### OS/X
 
- - Events are not implemented
+ - Some events are not implemented
+ - Implementation is still work-in-progress
+ - Vsync not implemented
 
 ### Win32
 
@@ -66,4 +68,4 @@ fn main() {
 
  - Some input events are not implemented
  - Pixel formats not implemented
- - The implementation probably needs a cleanup
+ - Vsync not implemented
