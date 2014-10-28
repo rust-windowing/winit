@@ -1338,6 +1338,23 @@ pub struct XButtonEvent {
 }
 
 #[repr(C)]
+pub struct XConfigureEvent {
+    pub type_: libc::c_int,
+    pub serial: libc::c_ulong,
+    pub send_event: Bool,
+    pub display: *mut Display,
+    pub event: Window,
+    pub window: Window,
+    pub x: libc::c_int,
+    pub y: libc::c_int,
+    pub width: libc::c_int,
+    pub height: libc::c_int,
+    pub border_width: libc::c_int,
+    pub above: Window,
+    pub override_redirect: Bool,
+}
+
+#[repr(C)]
 pub struct XF86VidModeModeInfo {
     pub dotclock: libc::c_uint,
     pub hdisplay: libc::c_ushort,
