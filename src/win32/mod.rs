@@ -228,9 +228,6 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn swap_buffers(&self) {
         unsafe {
-            // calling glFlush is necessary on Windows 8
-            ffi::glFlush();
-
             ffi::SwapBuffers(self.hdc);
         }
     }
