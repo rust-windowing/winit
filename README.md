@@ -10,8 +10,7 @@ Alternative to GLFW in pure Rust.
 ```bash
 git clone https://github.com/tomaka/glutin
 cd glutin
-cargo test
-./target/test/window    # or target\test\window.exe
+cargo run --example window
 ```
 
 ## Usage
