@@ -9,7 +9,7 @@ pub fn get_available_monitors() -> Vec<MonitorID> {
     let nb_monitors = unsafe {
         let display = ffi::XOpenDisplay(ptr::null());
         if display.is_null() {
-            fail!("get_available_monitors failed");
+            panic!("get_available_monitors failed");
         }
         let nb_monitors = ffi::XScreenCount(display);
         ffi::XCloseDisplay(display);
@@ -26,7 +26,7 @@ pub fn get_primary_monitor() -> MonitorID {
     let primary_monitor = unsafe {
         let display = ffi::XOpenDisplay(ptr::null());
         if display.is_null() {
-            fail!("get_available_monitors failed");
+            panic!("get_available_monitors failed");
         }
         let primary_monitor = ffi::XDefaultScreen(display);
         ffi::XCloseDisplay(display);

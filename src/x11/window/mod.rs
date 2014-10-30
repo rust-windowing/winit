@@ -510,7 +510,7 @@ impl Window {
     pub unsafe fn make_current(&self) {
         let res = ffi::glx::MakeCurrent(self.display, self.window, self.context);
         if res == 0 {
-            fail!("glx::MakeCurrent failed");
+            panic!("glx::MakeCurrent failed");
         }
     }
 
