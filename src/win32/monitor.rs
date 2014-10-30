@@ -101,7 +101,7 @@ pub fn get_primary_monitor() -> MonitorID {
         }
     }
 
-    fail!("Failed to find the primary monitor")
+    panic!("Failed to find the primary monitor")
 }
 
 impl MonitorID {
