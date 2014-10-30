@@ -18,7 +18,7 @@ use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFuncti
 
 use std::c_str::CString;
 use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton, MouseMoved, ReceivedCharacter,
-     KeyboardInput, KeyModifiers};
+     KeyboardInput};
 
 use events;
 
@@ -252,13 +252,11 @@ impl Window {
                         }
 
                         let vkey =  event::vkeycode_to_element(event.keycode());
-                        let modifiers = event::modifierflag_to_element(event.modifierFlags());
-                        events.push(KeyboardInput(Pressed, event.keycode() as u8, vkey, modifiers));
+                        events.push(KeyboardInput(Pressed, event.keycode() as u8, vkey));
                     },
                     NSKeyUp                 => {
                         let vkey =  event::vkeycode_to_element(event.keycode());
-                        let modifiers = event::modifierflag_to_element(event.modifierFlags());
-                        events.push(KeyboardInput(Released, event.keycode() as u8, vkey, modifiers));
+                        events.push(KeyboardInput(Released, event.keycode() as u8, vkey));
                     },
                     NSFlagsChanged          => {
                         let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask as u64, events::LShift, shift_pressed);
@@ -295,10 +293,10 @@ impl Window {
 
     unsafe fn modifier_event(event: id, keymask: u64, key: events::VirtualKeyCode, key_pressed: bool) -> Option<Event> {
         if !key_pressed && Window::modifier_key_pressed(event, keymask) {
-            return Some(KeyboardInput(Pressed, event.keycode() as u8, Some(key), KeyModifiers::empty()));
+            return Some(KeyboardInput(Pressed, event.keycode() as u8, Some(key)));
         }
         else if key_pressed && !Window::modifier_key_pressed(event, keymask) {
-            return Some(KeyboardInput(Released, event.keycode() as u8, Some(key), KeyModifiers::empty()));
+            return Some(KeyboardInput(Released, event.keycode() as u8, Some(key)));
         }
 
         return None;

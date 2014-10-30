@@ -18,7 +18,7 @@ pub enum Event {
     Focused(bool),
 
     /// An event from the keyboard has been received.
-    KeyboardInput(ElementState, ScanCode, Option<VirtualKeyCode>, KeyModifiers),
+    KeyboardInput(ElementState, ScanCode, Option<VirtualKeyCode>),
 
     /// The cursor has moved on the window.
     ///
@@ -34,20 +34,6 @@ pub enum Event {
 }
 
 pub type ScanCode = u8;
-
-bitflags!(
-    #[deriving(Show)]
-    flags KeyModifiers: u8 {
-        const LEFT_CONTROL_MODIFIER = 1,
-        const RIGHT_CONTROL_MODIFIER = 2,
-        const LEFT_SHIFT_MODIFIER = 4,
-        const RIGHT_SHIFT_MODIFIER = 8,
-        const LEFT_ALT_MODIFIER = 16,
-        const RIGHT_ALT_MODIFIER = 32,
-        const NUM_LOCK_MODIFIER = 64,
-        const CAPS_LOCK_MODIFIER = 128
-    }
-)
 
 #[deriving(Show, Hash, PartialEq, Eq, Clone)]
 pub enum ElementState {
