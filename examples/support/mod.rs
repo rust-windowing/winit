@@ -57,6 +57,8 @@ impl Context {
         self.gl.Color3f(0.0, 0.0, 1.0);
         self.gl.Vertex2f(0.5, -0.5);
         self.gl.End();
+
+        self.gl.Flush();
     }
 
     #[cfg(target_os = "android")]
@@ -78,6 +80,8 @@ impl Context {
         self.gl.DrawArrays(gl::TRIANGLES, 0, 3);
         self.gl.DisableClientState(gl::VERTEX_ARRAY);
         self.gl.DisableClientState(gl::COLOR_ARRAY);
+        
+        self.gl.Flush();
     }
 }
 
