@@ -12,11 +12,11 @@ headless = []
 [dependencies.compile_msg]
 git = "https://github.com/huonw/compile_msg"
 
-[dependencies.android_glue]
-git = "https://github.com/tomaka/android-rs-glue"
-
 [dependencies.gl_generator]
 git = "https://github.com/bjz/gl-rs"
+
+[target.arm-linux-androideabi.dependencies.android_glue]
+git = "https://github.com/tomaka/android-rs-glue"
 
 [target.i686-apple-darwin.dependencies.cocoa]
 git = "https://github.com/DavidPartouche/rust-cocoa"
