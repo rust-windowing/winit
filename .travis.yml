@@ -6,7 +6,7 @@ install:
 script:
   - cargo build --verbose
   - cargo test --no-run --verbose
-  - cargo test --verbose --features "headless cocoa" --no-default-features
+  - cargo test --verbose --features "headless" --no-default-features
 
 os:
   - linux
