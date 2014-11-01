@@ -125,6 +125,12 @@ impl Window {
     pub fn set_title(&self, _: &str) {
     }
 
+    pub fn show(&self) {
+    }
+
+    pub fn hide(&self) {
+    }
+
     pub fn get_position(&self) -> Option<(int, int)> {
         None
     }
