@@ -198,6 +198,12 @@ impl Window {
         unimplemented!()
     }
 
+    pub fn show(&self) {
+    }
+
+    pub fn hide(&self) {
+    }
+
     pub fn get_position(&self) -> Option<(int, int)> {
         unimplemented!()
     }

@@ -17,7 +17,7 @@ local_data_key!(WINDOW: (ffi::HWND, Sender<Event>))
 pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: String,
                   builder_monitor: Option<super::MonitorID>,
                   builder_gl_version: Option<(uint, uint)>, builder_vsync: bool,
-                  builder_headless: bool) -> Result<Window, String>
+                  builder_hidden: bool) -> Result<Window, String>
 {
     use std::mem;
     use std::os;
@@ -237,7 +237,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
                 (None, None)
             };
 
-            let style = if builder_headless {
+            let style = if builder_hidden {
                 style
             } else {
                 style | ffi::WS_VISIBLE
