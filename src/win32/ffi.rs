@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
-#![allow(non_uppercase_statics)]
+#![allow(non_upper_case_globals)]
 
 use libc;
 
@@ -147,7 +147,7 @@ pub const CS_SAVEBITS: DWORD = 0x0800;
 pub const CS_VREDRAW: DWORD = 0x0001;
 
 // ?
-#[allow(type_overflow)]
+#[allow(overflowing_literals)]
 pub const CW_USEDEFAULT: libc::c_int = 0x80000000;
 
 // ?
