@@ -22,6 +22,9 @@ use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton, MouseMove
 
 use events;
 
+pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
+
+mod monitor;
 mod event;
 
 static mut shift_pressed: bool = false;
@@ -40,26 +43,6 @@ pub struct HeadlessContext(Window);
 impl Deref<Window> for HeadlessContext {
     fn deref(&self) -> &Window {
         &self.0
-    }
-}
-
-pub struct MonitorID;
-
-pub fn get_available_monitors() -> Vec<MonitorID> {
-    unimplemented!()
-}
-
-pub fn get_primary_monitor() -> MonitorID {
-    unimplemented!()
-}
-
-impl MonitorID {
-    pub fn get_name(&self) -> Option<String> {
-        unimplemented!()
-    }
-
-    pub fn get_dimensions(&self) -> (uint, uint) {
-        unimplemented!()
     }
 }
 
