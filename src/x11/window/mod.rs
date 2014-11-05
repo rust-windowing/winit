@@ -295,6 +295,12 @@ impl Window {
         }
     }
 
+    pub fn show(&self) {
+    }
+
+    pub fn hide(&self) {
+    }
+
     fn get_geometry(&self) -> Option<(int, int, uint, uint)> {
         unsafe {
             use std::mem;

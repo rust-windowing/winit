@@ -37,6 +37,8 @@ extern crate libc;
 extern crate cocoa;
 #[cfg(target_os = "macos")]
 extern crate core_foundation;
+#[cfg(target_os = "macos")]
+extern crate core_graphics;
 #[cfg(target_os = "linux")]
 extern crate sync;
 
@@ -74,6 +76,7 @@ pub struct WindowBuilder {
     monitor: Option<winimpl::MonitorID>,
     gl_version: Option<(uint, uint)>,
     vsync: bool,
+    visible: bool,
 }
 
 #[cfg(feature = "window")]
@@ -86,6 +89,7 @@ impl WindowBuilder {
             monitor: None,
             gl_version: None,
             vsync: false,
+            visible: true,
         }
     }
 
@@ -124,6 +128,12 @@ impl WindowBuilder {
     /// Requests that the window has vsync enabled.
     pub fn with_vsync(mut self) -> WindowBuilder {
         self.vsync = true;
+        self
+    }
+
+    /// Sets whether the window will be initially hidden or visible.
+    pub fn with_visibility(mut self, visible: bool) -> WindowBuilder {
+        self.visible = visible;
         self
     }
 
@@ -250,6 +260,28 @@ impl Window {
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title)
+    }
+
+    /// Shows the window if it was hidden.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Has no effect on Android
+    ///
+    #[inline]
+    pub fn show(&self) {
+        self.window.show()
+    }
+
+    /// Hides the window if it was visible.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Has no effect on Android
+    ///
+    #[inline]
+    pub fn hide(&self) {
+        self.window.hide()
     }
 
     /// Returns the position of the top-left hand corner of the window relative to the

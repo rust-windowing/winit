@@ -68,8 +68,8 @@ pub struct Window {
 impl Window {
     /// See the docs in the crate root file.
     pub fn new(builder: WindowBuilder) -> Result<Window, String> {
-        let WindowBuilder { dimensions, title, monitor, gl_version, vsync } = builder;
-        init::new_window(dimensions, title, monitor, gl_version, vsync, false)
+        let WindowBuilder { dimensions, title, monitor, gl_version, vsync, visible } = builder;
+        init::new_window(dimensions, title, monitor, gl_version, vsync, !visible)
     }
 }
 
@@ -88,6 +88,18 @@ impl Window {
             ffi::SetWindowTextW(self.window,
                 text.utf16_units().chain(Some(0).into_iter())
                 .collect::<Vec<u16>>().as_ptr() as ffi::LPCWSTR);
+        }
+    }
+
+    pub fn show(&self) {
+        unsafe {
+            ffi::ShowWindow(self.window, ffi::SW_SHOW);
+        }
+    }
+
+    pub fn hide(&self) {
+        unsafe {
+            ffi::ShowWindow(self.window, ffi::SW_HIDE);
         }
     }
 
