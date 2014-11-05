@@ -1,4 +1,4 @@
-use Event;
+use {CreationError, OsError, Event};
 use libc;
 use std::sync::atomic::AtomicBool;
 
@@ -48,37 +48,37 @@ impl Deref<Window> for HeadlessContext {
 
 #[cfg(feature = "window")]
 impl Window {
-    pub fn new(builder: WindowBuilder) -> Result<Window, String> {
+    pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
         Window::new_impl(builder.dimensions, builder.title.as_slice(), true)
     }
 }
 
 #[cfg(feature = "headless")]
 impl HeadlessContext {
-    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, String> {
+    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
         Window::new_impl(Some(builder.dimensions), "", false)
             .map(|w| HeadlessContext(w))
     }
 }
 
 impl Window {
-    fn new_impl(dimensions: Option<(uint, uint)>, title: &str, visible: bool) -> Result<Window, String> {
+    fn new_impl(dimensions: Option<(uint, uint)>, title: &str, visible: bool) -> Result<Window, CreationError> {
         let app = match Window::create_app() {
             Some(app) => app,
-            None      => { return Err(format!("Couldn't create NSApplication")); },
+            None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
         let window = match Window::create_window(dimensions.unwrap_or((800, 600)), title) {
             Some(window) => window,
-            None         => { return Err(format!("Couldn't create NSWindow")); },
+            None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
         let view = match Window::create_view(window) {
             Some(view) => view,
-            None       => { return Err(format!("Couldn't create NSView")); },
+            None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
 
         let context = match Window::create_context(view) {
             Some(context) => context,
-            None          => { return Err(format!("Couldn't create OpenGL context")); },
+            None          => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
         };
 
         unsafe {

@@ -1,4 +1,5 @@
 use {Event, WindowBuilder, KeyModifiers};
+use {CreationError, OsError};
 use libc;
 use std::{mem, ptr};
 use std::cell::Cell;
@@ -37,7 +38,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(builder: WindowBuilder) -> Result<Window, String> {
+    pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
         ensure_thread_init();
         let dimensions = builder.dimensions.unwrap_or((800, 600));
 
@@ -45,7 +46,7 @@ impl Window {
         let display = unsafe {
             let display = ffi::XOpenDisplay(ptr::null());
             if display.is_null() {
-                return Err(format!("XOpenDisplay failed"));
+                return Err(OsError(format!("XOpenDisplay failed")));
             }
             display
         };
@@ -77,7 +78,7 @@ impl Window {
             let fb = ffi::glx::ChooseFBConfig(display, ffi::XDefaultScreen(display),
                 VISUAL_ATTRIBUTES.as_ptr(), &mut num_fb);
             if fb.is_null() {
-                return Err(format!("glx::ChooseFBConfig failed"));
+                return Err(OsError(format!("glx::ChooseFBConfig failed")));
             }
             let preferred_fb = *fb;     // TODO: choose more wisely
             ffi::XFree(fb as *const libc::c_void);
@@ -89,7 +90,7 @@ impl Window {
             let mut mode_num: libc::c_int = mem::uninitialized();
             let mut modes: *mut *mut ffi::XF86VidModeModeInfo = mem::uninitialized();
             if ffi::XF86VidModeGetAllModeLines(display, screen_id, &mut mode_num, &mut modes) == 0 {
-                return Err(format!("Could not query the video modes"));
+                return Err(OsError(format!("Could not query the video modes")));
             }
 
             for i in range(0, mode_num) {
@@ -99,7 +100,7 @@ impl Window {
                 }
             };
             if best_mode == -1 && builder.monitor.is_some() {
-                return Err(format!("Could not find a suitable graphics mode"));
+                return Err(OsError(format!("Could not find a suitable graphics mode")));
             }
 
            modes
@@ -113,7 +114,7 @@ impl Window {
         let mut visual_infos = unsafe {
             let vi = ffi::glx::GetVisualFromFBConfig(display, fb_config);
             if vi.is_null() {
-                return Err(format!("glx::ChooseVisual failed"));
+                return Err(OsError(format!("glx::ChooseVisual failed")));
             }
             let vi_copy = *vi;
             ffi::XFree(vi as *const libc::c_void);
@@ -182,7 +183,7 @@ impl Window {
         let im = unsafe {
             let im = ffi::XOpenIM(display, ptr::null(), ptr::null_mut(), ptr::null_mut());
             if im.is_null() {
-                return Err(format!("XOpenIM failed"));
+                return Err(OsError(format!("XOpenIM failed")));
             }
             im
         };
@@ -197,7 +198,7 @@ impl Window {
                 ffi::XIMPreeditNothing | ffi::XIMStatusNothing, client_window.as_ptr(),
                 window, ptr::null());
             if ic.is_null() {
-                return Err(format!("XCreateIC failed"));
+                return Err(OsError(format!("XCreateIC failed")));
             }
             ffi::XSetICFocus(ic);
             ic
@@ -208,7 +209,7 @@ impl Window {
             let mut supported_ptr = false;
             ffi::XkbSetDetectableAutoRepeat(display, true, &mut supported_ptr);
             if !supported_ptr {
-                return Err(format!("XkbSetDetectableAutoRepeat failed"));
+                return Err(OsError(format!("XkbSetDetectableAutoRepeat failed")));
             }
         }
 
@@ -243,7 +244,7 @@ impl Window {
             };
 
             if context.is_null() {
-                return Err(format!("GL context creation failed"));
+                return Err(OsError(format!("GL context creation failed")));
             }
 
             context

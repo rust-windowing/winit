@@ -1,4 +1,5 @@
 use HeadlessRendererBuilder;
+use CreationError;
 use libc;
 use std::{mem, ptr};
 use super::ffi;
@@ -11,7 +12,7 @@ pub struct HeadlessContext {
 }
 
 impl HeadlessContext {
-    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, String> {
+    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
         Ok(HeadlessContext {
             width: builder.dimensions.0,
             height: builder.dimensions.1,
