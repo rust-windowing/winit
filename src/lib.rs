@@ -31,6 +31,8 @@
 
 #[phase(plugin)] extern crate compile_msg;
 #[phase(plugin)] extern crate gl_generator;
+
+extern crate gl_common;
 extern crate libc;
 
 #[cfg(target_os = "macos")]
@@ -397,6 +399,13 @@ impl Window {
     }
 }
 
+#[cfg(feature = "window")]
+impl gl_common::GlFunctionsSource for Window {
+    fn get_proc_addr(&self, addr: &str) -> *const libc::c_void {
+        self.get_proc_address(addr)
+    }
+}
+
 /// Represents a headless OpenGL context.
 #[cfg(feature = "headless")]
 pub struct HeadlessContext {
@@ -418,6 +427,13 @@ impl HeadlessContext {
     #[inline]
     pub fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
         self.context.get_proc_address(addr) as *const libc::c_void
+    }
+}
+
+#[cfg(feature = "headless")]
+impl gl_common::GlFunctionsSource for HeadlessContext {
+    fn get_proc_addr(&self, addr: &str) -> *const libc::c_void {
+        self.get_proc_address(addr)
     }
 }
 

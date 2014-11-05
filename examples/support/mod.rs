@@ -31,7 +31,7 @@ pub struct Context {
 }
 
 pub fn load(window: &glutin::Window) -> Context {
-    let gl = gl::Gl::load_with(|symbol| window.get_proc_address(symbol));
+    let gl = gl::Gl::load(window);
 
     let version = {
         use std::c_str::CString;
@@ -46,42 +46,46 @@ pub fn load(window: &glutin::Window) -> Context {
 impl Context {
     #[cfg(not(target_os = "android"))]
     pub fn draw_frame(&self, color: (f32, f32, f32, f32)) {
-        self.gl.ClearColor(color.0, color.1, color.2, color.3);
-        self.gl.Clear(gl::COLOR_BUFFER_BIT);
+        unsafe {
+            self.gl.ClearColor(color.0, color.1, color.2, color.3);
+            self.gl.Clear(gl::COLOR_BUFFER_BIT);
 
-        self.gl.Begin(gl::TRIANGLES);
-        self.gl.Color3f(1.0, 0.0, 0.0);
-        self.gl.Vertex2f(-0.5, -0.5);
-        self.gl.Color3f(0.0, 1.0, 0.0);
-        self.gl.Vertex2f(0.0, 0.5);
-        self.gl.Color3f(0.0, 0.0, 1.0);
-        self.gl.Vertex2f(0.5, -0.5);
-        self.gl.End();
+            self.gl.Begin(gl::TRIANGLES);
+            self.gl.Color3f(1.0, 0.0, 0.0);
+            self.gl.Vertex2f(-0.5, -0.5);
+            self.gl.Color3f(0.0, 1.0, 0.0);
+            self.gl.Vertex2f(0.0, 0.5);
+            self.gl.Color3f(0.0, 0.0, 1.0);
+            self.gl.Vertex2f(0.5, -0.5);
+            self.gl.End();
 
-        self.gl.Flush();
+            self.gl.Flush();
+        }
     }
 
     #[cfg(target_os = "android")]
     pub fn draw_frame(&self, color: (f32, f32, f32, f32)) {
-        self.gl.ClearColor(color.0, color.1, color.2, color.3);
-        self.gl.Clear(gl::COLOR_BUFFER_BIT);
-
-        self.gl.EnableClientState(gl::VERTEX_ARRAY);
-        self.gl.EnableClientState(gl::COLOR_ARRAY);
-
         unsafe {
-            use std::mem;
-            self.gl.VertexPointer(2, gl::FLOAT, (mem::size_of::<f32>() * 5) as i32,
-                mem::transmute(VERTEX_DATA.as_slice().as_ptr()));
-            self.gl.ColorPointer(3, gl::FLOAT, (mem::size_of::<f32>() * 5) as i32,
-                mem::transmute(VERTEX_DATA.as_slice().as_ptr().offset(2)));
-        }
+            self.gl.ClearColor(color.0, color.1, color.2, color.3);
+            self.gl.Clear(gl::COLOR_BUFFER_BIT);
 
-        self.gl.DrawArrays(gl::TRIANGLES, 0, 3);
-        self.gl.DisableClientState(gl::VERTEX_ARRAY);
-        self.gl.DisableClientState(gl::COLOR_ARRAY);
-        
-        self.gl.Flush();
+            self.gl.EnableClientState(gl::VERTEX_ARRAY);
+            self.gl.EnableClientState(gl::COLOR_ARRAY);
+
+            unsafe {
+                use std::mem;
+                self.gl.VertexPointer(2, gl::FLOAT, (mem::size_of::<f32>() * 5) as i32,
+                    mem::transmute(VERTEX_DATA.as_slice().as_ptr()));
+                self.gl.ColorPointer(3, gl::FLOAT, (mem::size_of::<f32>() * 5) as i32,
+                    mem::transmute(VERTEX_DATA.as_slice().as_ptr().offset(2)));
+            }
+
+            self.gl.DrawArrays(gl::TRIANGLES, 0, 3);
+            self.gl.DisableClientState(gl::VERTEX_ARRAY);
+            self.gl.DisableClientState(gl::COLOR_ARRAY);
+            
+            self.gl.Flush();
+        }
     }
 }
 
