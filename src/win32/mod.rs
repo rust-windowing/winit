@@ -1,7 +1,7 @@
 use std::sync::atomic::AtomicBool;
 use std::ptr;
 use libc;
-use Event;
+use {CreationError, Event};
 
 #[cfg(feature = "window")]
 use WindowBuilder;
@@ -23,7 +23,7 @@ pub struct HeadlessContext(Window);
 #[cfg(feature = "headless")]
 impl HeadlessContext {
     /// See the docs in the crate root file.
-    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, String> {
+    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
         let HeadlessRendererBuilder { dimensions, gl_version } = builder;
         init::new_window(Some(dimensions), "".to_string(), None, gl_version, false, true)
             .map(|w| HeadlessContext(w))
@@ -67,7 +67,7 @@ pub struct Window {
 #[cfg(feature = "window")]
 impl Window {
     /// See the docs in the crate root file.
-    pub fn new(builder: WindowBuilder) -> Result<Window, String> {
+    pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
         let WindowBuilder { dimensions, title, monitor, gl_version, vsync, visible } = builder;
         init::new_window(dimensions, title, monitor, gl_version, vsync, !visible)
     }

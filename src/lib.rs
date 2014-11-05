@@ -70,6 +70,20 @@ compile_error!("Only the `windows`, `linux` and `macos` platforms are supported"
 #[cfg(feature = "window")]
 pub struct MonitorID(winimpl::MonitorID);
 
+/// Error that can happen while creating a window or a headless renderer.
+#[deriving(Clone, Show, PartialEq, Eq)]
+pub enum CreationError {
+    OsError(String),
+}
+
+impl std::error::Error for CreationError {
+    fn description(&self) -> &str {
+        match self {
+            &OsError(ref text) => text.as_slice(),
+        }
+    }
+}
+
 /// Object that allows you to build windows.
 #[cfg(feature = "window")]
 pub struct WindowBuilder {
@@ -143,7 +157,7 @@ impl WindowBuilder {
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
-    pub fn build(mut self) -> Result<Window, String> {
+    pub fn build(mut self) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
         if self.dimensions.is_none() && self.monitor.is_some() {
             self.dimensions = Some(self.monitor.as_ref().unwrap().get_dimensions())
@@ -189,7 +203,7 @@ impl HeadlessRendererBuilder {
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
-    pub fn build(self) -> Result<HeadlessContext, String> {
+    pub fn build(self) -> Result<HeadlessContext, CreationError> {
         winimpl::HeadlessContext::new(self).map(|w| HeadlessContext { context: w })
     }
 }
@@ -238,7 +252,7 @@ impl Window {
     ///  out of memory, etc.
     #[inline]
     #[cfg(feature = "window")]
-    pub fn new() -> Result<Window, String> {
+    pub fn new() -> Result<Window, CreationError> {
         let builder = WindowBuilder::new();
         builder.build()
     }

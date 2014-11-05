@@ -2,7 +2,7 @@ extern crate android_glue;
 extern crate native;
 
 use libc;
-use {Event, WindowBuilder};
+use {CreationError, OsError, Event, WindowBuilder};
 
 pub struct Window {
     display: ffi::egl::types::EGLDisplay,
@@ -35,18 +35,18 @@ impl MonitorID {
 }
 
 impl Window {
-    pub fn new(_builder: WindowBuilder) -> Result<Window, String> {
+    pub fn new(_builder: WindowBuilder) -> Result<Window, CreationError> {
         use std::{mem, ptr};
 
         let native_window = unsafe { android_glue::get_native_window() };
         if native_window.is_null() {
-            return Err(format!("Android's native window is null"));
+            return Err(OsError(format!("Android's native window is null")));
         }
 
         let display = unsafe {
             let display = ffi::egl::GetDisplay(mem::transmute(ffi::egl::DEFAULT_DISPLAY));
             if display.is_null() {
-                return Err("No EGL display connection available".to_string());
+                return Err(OsError("No EGL display connection available".to_string()));
             }
             display
         };
@@ -58,7 +58,7 @@ impl Window {
             let mut minor: ffi::egl::types::EGLint = mem::uninitialized();
 
             if ffi::egl::Initialize(display, &mut major, &mut minor) == 0 {
-                return Err(format!("eglInitialize failed"))
+                return Err(OsError(format!("eglInitialize failed")))
             }
 
             (major, minor)
@@ -79,11 +79,11 @@ impl Window {
             if ffi::egl::ChooseConfig(display, attribute_list.as_ptr(), &mut config, 1,
                 &mut num_config) == 0
             {
-                return Err(format!("eglChooseConfig failed"))
+                return Err(OsError(format!("eglChooseConfig failed")))
             }
 
             if num_config <= 0 {
-                return Err(format!("eglChooseConfig returned no available config"))
+                return Err(OsError(format!("eglChooseConfig returned no available config")))
             }
 
             config
@@ -94,7 +94,7 @@ impl Window {
         let context = unsafe {
             let context = ffi::egl::CreateContext(display, config, ptr::null(), ptr::null());
             if context.is_null() {
-                return Err(format!("eglCreateContext failed"))
+                return Err(OsError(format!("eglCreateContext failed")))
             }
             context
         };
@@ -104,7 +104,7 @@ impl Window {
         let surface = unsafe {
             let surface = ffi::egl::CreateWindowSurface(display, config, native_window, ptr::null());
             if surface.is_null() {
-                return Err(format!("eglCreateWindowSurface failed"))
+                return Err(OsError(format!("eglCreateWindowSurface failed")))
             }
             surface
         };

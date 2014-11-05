@@ -6,7 +6,7 @@ use std::sync::atomic::AtomicBool;
 use std::ptr;
 use super::{event, ffi};
 use super::Window;
-use Event;
+use {CreationError, OsError, Event};
 
 /// Stores the current window and its events dispatcher.
 /// 
@@ -17,7 +17,7 @@ local_data_key!(WINDOW: (ffi::HWND, Sender<Event>))
 pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: String,
                   builder_monitor: Option<super::MonitorID>,
                   builder_gl_version: Option<(uint, uint)>, builder_vsync: bool,
-                  builder_hidden: bool) -> Result<Window, String>
+                  builder_hidden: bool) -> Result<Window, CreationError>
 {
     use std::mem;
     use std::os;
@@ -94,7 +94,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
                 &mut screen_settings, ptr::null(), ffi::CDS_FULLSCREEN, ptr::null_mut()) };
             
             if result != ffi::DISP_CHANGE_SUCCESSFUL {
-                tx.send(Err(format!("ChangeDisplaySettings failed: {}", result)));
+                tx.send(Err(OsError(format!("ChangeDisplaySettings failed: {}", result))));
                 return;
             }
         }
@@ -125,8 +125,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
 
                 if handle.is_null() {
                     use std::os;
-                    tx.send(Err(format!("CreateWindowEx function failed: {}",
-                        os::error_string(os::errno() as uint))));
+                    tx.send(Err(OsError(format!("CreateWindowEx function failed: {}",
+                        os::error_string(os::errno() as uint)))));
                     return;
                 }
 
@@ -137,8 +137,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             let dummy_hdc = {
                 let hdc = unsafe { ffi::GetDC(dummy_window) };
                 if hdc.is_null() {
-                    tx.send(Err(format!("GetDC function failed: {}",
-                        os::error_string(os::errno() as uint))));
+                    tx.send(Err(OsError(format!("GetDC function failed: {}",
+                        os::error_string(os::errno() as uint)))));
                     unsafe { ffi::DestroyWindow(dummy_window); }
                     return;
                 }
@@ -165,8 +165,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
                 let pf_index = unsafe { ffi::ChoosePixelFormat(dummy_hdc, &output) };
 
                 if pf_index == 0 {
-                    tx.send(Err(format!("ChoosePixelFormat function failed: {}",
-                        os::error_string(os::errno() as uint))));
+                    tx.send(Err(OsError(format!("ChoosePixelFormat function failed: {}",
+                        os::error_string(os::errno() as uint)))));
                     unsafe { ffi::DestroyWindow(dummy_window); }
                     return;
                 }
@@ -174,8 +174,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
                 if unsafe { ffi::DescribePixelFormat(dummy_hdc, pf_index,
                     mem::size_of::<ffi::PIXELFORMATDESCRIPTOR>() as ffi::UINT, &mut output) } == 0
                 {
-                    tx.send(Err(format!("DescribePixelFormat function failed: {}",
-                        os::error_string(os::errno() as uint))));
+                    tx.send(Err(OsError(format!("DescribePixelFormat function failed: {}",
+                        os::error_string(os::errno() as uint)))));
                     unsafe { ffi::DestroyWindow(dummy_window); }
                     return;
                 }
@@ -186,8 +186,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             // calling SetPixelFormat
             unsafe {
                 if ffi::SetPixelFormat(dummy_hdc, 1, &pixel_format) == 0 {
-                    tx.send(Err(format!("SetPixelFormat function failed: {}",
-                        os::error_string(os::errno() as uint))));
+                    tx.send(Err(OsError(format!("SetPixelFormat function failed: {}",
+                        os::error_string(os::errno() as uint)))));
                     ffi::DestroyWindow(dummy_window);
                     return;
                 }
@@ -197,8 +197,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             let dummy_context = {
                 let ctxt = unsafe { ffi::wgl::CreateContext(dummy_hdc) };
                 if ctxt.is_null() {
-                    tx.send(Err(format!("wglCreateContext function failed: {}",
-                        os::error_string(os::errno() as uint))));
+                    tx.send(Err(OsError(format!("wglCreateContext function failed: {}",
+                        os::error_string(os::errno() as uint)))));
                     unsafe { ffi::DestroyWindow(dummy_window); }
                     return;
                 }
@@ -254,8 +254,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
 
             if handle.is_null() {
                 use std::os;
-                tx.send(Err(format!("CreateWindowEx function failed: {}",
-                    os::error_string(os::errno() as uint))));
+                tx.send(Err(OsError(format!("CreateWindowEx function failed: {}",
+                    os::error_string(os::errno() as uint)))));
                 return;
             }
 
@@ -266,8 +266,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
         let hdc = {
             let hdc = unsafe { ffi::GetDC(real_window) };
             if hdc.is_null() {
-                tx.send(Err(format!("GetDC function failed: {}",
-                    os::error_string(os::errno() as uint))));
+                tx.send(Err(OsError(format!("GetDC function failed: {}",
+                    os::error_string(os::errno() as uint)))));
                 unsafe { ffi::DestroyWindow(real_window); }
                 return;
             }
@@ -277,8 +277,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
         // calling SetPixelFormat
         unsafe {
             if ffi::SetPixelFormat(hdc, 1, &pixel_format) == 0 {
-                tx.send(Err(format!("SetPixelFormat function failed: {}",
-                    os::error_string(os::errno() as uint))));
+                tx.send(Err(OsError(format!("SetPixelFormat function failed: {}",
+                    os::error_string(os::errno() as uint)))));
                 ffi::DestroyWindow(real_window);
                 return;
             }
@@ -310,8 +310,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             };
 
             if ctxt.is_null() {
-                tx.send(Err(format!("OpenGL context creation failed: {}",
-                    os::error_string(os::errno() as uint))));
+                tx.send(Err(OsError(format!("OpenGL context creation failed: {}",
+                    os::error_string(os::errno() as uint)))));
                 unsafe { ffi::DestroyWindow(real_window); }
                 return;
             }
@@ -337,8 +337,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
                 .collect::<Vec<u16>>().as_ptr();
             let lib = unsafe { ffi::LoadLibraryW(name) };
             if lib.is_null() {
-                tx.send(Err(format!("LoadLibrary function failed: {}",
-                    os::error_string(os::errno() as uint))));
+                tx.send(Err(OsError(format!("LoadLibrary function failed: {}",
+                    os::error_string(os::errno() as uint)))));
                 unsafe { ffi::wgl::DeleteContext(context); }
                 unsafe { ffi::DestroyWindow(real_window); }
                 return;
@@ -351,7 +351,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             if extra_functions.SwapIntervalEXT.is_loaded() {
                 unsafe { ffi::wgl::MakeCurrent(hdc, context) };
                 if unsafe { extra_functions.SwapIntervalEXT(1) } == 0 {
-                    tx.send(Err(format!("wglSwapIntervalEXT failed")));
+                    tx.send(Err(OsError(format!("wglSwapIntervalEXT failed"))));
                     unsafe { ffi::wgl::DeleteContext(context); }
                     unsafe { ffi::DestroyWindow(real_window); }
                     return;
