@@ -350,7 +350,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
         if builder_vsync {
             if extra_functions.SwapIntervalEXT.is_loaded() {
                 unsafe { ffi::wgl::MakeCurrent(hdc, context) };
-                if extra_functions.SwapIntervalEXT(1) == 0 {
+                if unsafe { extra_functions.SwapIntervalEXT(1) } == 0 {
                     tx.send(Err(format!("wglSwapIntervalEXT failed")));
                     unsafe { ffi::wgl::DeleteContext(context); }
                     unsafe { ffi::DestroyWindow(real_window); }
