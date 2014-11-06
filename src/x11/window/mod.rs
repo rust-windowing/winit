@@ -1,4 +1,4 @@
-use {Event, WindowBuilder, KeyModifiers};
+use {Event, WindowBuilder};
 use {CreationError, OsError};
 use libc;
 use std::{mem, ptr};
@@ -33,7 +33,6 @@ pub struct Window {
     xf86_desk_mode: *mut ffi::XF86VidModeModeInfo,
     screen_id: libc::c_int,
     is_fullscreen: bool,
-    current_modifiers: Cell<KeyModifiers>,
     current_size: Cell<(libc::c_int, libc::c_int)>,
 }
 
@@ -265,7 +264,6 @@ impl Window {
             xf86_desk_mode: xf86_desk_mode,
             screen_id: screen_id,
             is_fullscreen: builder.monitor.is_some(),
-            current_modifiers: Cell::new(KeyModifiers::empty()),
             current_size: Cell::new((0, 0)),
         };
 
@@ -399,9 +397,6 @@ impl Window {
 
                 ffi::KeyPress | ffi::KeyRelease => {
                     use {KeyboardInput, Pressed, Released, ReceivedCharacter};
-                    use {LEFT_CONTROL_MODIFIER, RIGHT_CONTROL_MODIFIER};
-                    use {LEFT_SHIFT_MODIFIER, RIGHT_SHIFT_MODIFIER};
-                    use {LEFT_ALT_MODIFIER, RIGHT_ALT_MODIFIER, CAPS_LOCK_MODIFIER};
                     let event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
 
                     if event.type_ == ffi::KeyPress {
@@ -432,33 +427,9 @@ impl Window {
                         ffi::XKeycodeToKeysym(self.display, event.keycode as ffi::KeyCode, 0)
                     };
 
-                    let modifier_flag = match keysym as u32 {
-                        ffi::XK_Shift_L => Some(LEFT_SHIFT_MODIFIER),
-                        ffi::XK_Shift_R => Some(RIGHT_SHIFT_MODIFIER),
-                        ffi::XK_Control_L => Some(LEFT_CONTROL_MODIFIER),
-                        ffi::XK_Control_R => Some(RIGHT_CONTROL_MODIFIER),
-                        ffi::XK_Caps_Lock => Some(CAPS_LOCK_MODIFIER),
-                        ffi::XK_Meta_L => Some(LEFT_ALT_MODIFIER),
-                        ffi::XK_Meta_R => Some(RIGHT_ALT_MODIFIER),
-                        _ => None,
-                    };
-                    match modifier_flag {
-                        Some(flag) => {
-                            let mut current_modifiers = self.current_modifiers.get();
-                            match state {
-                                Pressed => current_modifiers.insert(flag),
-                                Released => current_modifiers.remove(flag),
-                            }
-                            self.current_modifiers.set(current_modifiers);
-                        }
-                        None => {}
-                    }
-
                     let vkey =  events::keycode_to_element(keysym as libc::c_uint);
 
-                    events.push(KeyboardInput(state, event.keycode as u8,
-                        vkey, self.current_modifiers.get()));
-                    //
+                    events.push(KeyboardInput(state, event.keycode as u8, vkey));
                 },
 
                 ffi::ButtonPress | ffi::ButtonRelease => {

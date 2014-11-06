@@ -1,24 +1,6 @@
 use events;
-use events::KeyModifiers;
 use cocoa::base::NSUInteger;
 use cocoa::appkit;
-
-pub fn modifierflag_to_element(flag: NSUInteger) -> KeyModifiers {
-    let mut modifiers = KeyModifiers::empty();
-    if flag & appkit::NSShiftKeyMask as u64 == appkit::NSShiftKeyMask as u64 {
-        modifiers = modifiers | events::LEFT_SHIFT_MODIFIER;
-    }
-    if flag & appkit::NSControlKeyMask as u64 == appkit::NSControlKeyMask as u64 {
-        modifiers = modifiers | events::LEFT_CONTROL_MODIFIER;
-    }
-    if flag & appkit::NSAlternateKeyMask as u64 == appkit::NSAlternateKeyMask as u64 {
-        modifiers = modifiers | events::LEFT_ALT_MODIFIER;
-    }
-    if flag & appkit::NSNumericPadKeyMask as u64 == appkit::NSNumericPadKeyMask as u64 {
-        modifiers = modifiers | events::NUM_LOCK_MODIFIER;
-    }
-    modifiers
-}
 
 pub fn vkeycode_to_element(code: u16) -> Option<events::VirtualKeyCode> {
     Some(match code {
