@@ -49,25 +49,25 @@ impl Deref<Window> for HeadlessContext {
 #[cfg(feature = "window")]
 impl Window {
     pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
-        Window::new_impl(builder.dimensions, builder.title.as_slice(), true)
+        Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, true)
     }
 }
 
 #[cfg(feature = "headless")]
 impl HeadlessContext {
     pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
-        Window::new_impl(Some(builder.dimensions), "", false)
+        Window::new_impl(Some(builder.dimensions), "", None, false)
             .map(|w| HeadlessContext(w))
     }
 }
 
 impl Window {
-    fn new_impl(dimensions: Option<(uint, uint)>, title: &str, visible: bool) -> Result<Window, CreationError> {
+    fn new_impl(dimensions: Option<(uint, uint)>, title: &str, monitor: Option<MonitorID>, visible: bool) -> Result<Window, CreationError> {
         let app = match Window::create_app() {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
-        let window = match Window::create_window(dimensions.unwrap_or((800, 600)), title) {
+        let window = match Window::create_window(dimensions.unwrap_or((800, 600)), title, monitor) {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
@@ -108,16 +108,26 @@ impl Window {
         }
     }
 
-    fn create_window(dimensions: (uint, uint), title: &str) -> Option<id> {
+    fn create_window(dimensions: (uint, uint), title: &str, monitor: Option<MonitorID>) -> Option<id> {
         unsafe {
-            let (width, height) = dimensions;
-            let scr_frame = NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64));
+            let scr_frame = match monitor {
+                Some(_) => NSScreen::mainScreen(nil).frame(),
+                None    => {
+                    let (width, height) = dimensions;
+                    NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64))
+                }
+            };
+
+             let masks = match monitor {
+                Some(_) => NSBorderlessWindowMask as NSUInteger,
+                None    => NSTitledWindowMask as NSUInteger | NSClosableWindowMask as NSUInteger | NSMiniaturizableWindowMask as NSUInteger,
+            };
 
             let window = NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
                 scr_frame,
-                NSTitledWindowMask as NSUInteger | NSClosableWindowMask as NSUInteger | NSMiniaturizableWindowMask as NSUInteger,
+                masks,
                 NSBackingStoreBuffered,
-                false
+                false,
             );
 
             if window == nil {
@@ -127,6 +137,9 @@ impl Window {
                 window.setTitle_(title);
                 window.center();
                 window.setAcceptsMouseMovedEvents_(true);
+                if monitor.is_some() {
+                    window.setLevel_(NSMainMenuWindowLevel as i64 + 1);
+                }
                 Some(window)
             }
         }
