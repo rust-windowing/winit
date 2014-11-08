@@ -39,7 +39,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             
             let class = ffi::WNDCLASSEX {
                 cbSize: mem::size_of::<ffi::WNDCLASSEX>() as ffi::UINT,
-                style: ffi::CS_HREDRAW | ffi::CS_VREDRAW,
+                style: ffi::CS_HREDRAW | ffi::CS_VREDRAW | ffi::CS_OWNDC,
                 lpfnWndProc: callback,
                 cbClsExtra: 0,
                 cbWndExtra: 0,
