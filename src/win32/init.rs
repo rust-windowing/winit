@@ -16,8 +16,8 @@ local_data_key!(WINDOW: (ffi::HWND, Sender<Event>))
 
 pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: String,
                   builder_monitor: Option<super::MonitorID>,
-                  builder_gl_version: Option<(uint, uint)>, builder_vsync: bool,
-                  builder_hidden: bool) -> Result<Window, CreationError>
+                  builder_gl_version: Option<(uint, uint)>, builder_debug: bool,
+                  builder_vsync: bool, builder_hidden: bool) -> Result<Window, CreationError>
 {
     use std::mem;
     use std::os;
@@ -296,6 +296,11 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
                 attributes.push(version.val0() as libc::c_int);
                 attributes.push(ffi::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
                 attributes.push(version.val1() as libc::c_int);
+            }
+
+            if builder_debug {
+                attributes.push(ffi::wgl_extra::CONTEXT_FLAGS_ARB as libc::c_int);
+                attributes.push(ffi::wgl_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);
             }
 
             attributes.push(0);

@@ -91,6 +91,7 @@ pub struct WindowBuilder {
     title: String,
     monitor: Option<winimpl::MonitorID>,
     gl_version: Option<(uint, uint)>,
+    gl_debug: bool,
     vsync: bool,
     visible: bool,
 }
@@ -104,6 +105,7 @@ impl WindowBuilder {
             title: "glutin window".to_string(),
             monitor: None,
             gl_version: None,
+            gl_debug: cfg!(ndebug),
             vsync: false,
             visible: true,
         }
@@ -138,6 +140,15 @@ impl WindowBuilder {
     ///  you would pass `(3, 3)`.
     pub fn with_gl_version(mut self, version: (uint, uint)) -> WindowBuilder {
         self.gl_version = Some(version);
+        self
+    }
+
+    /// Sets the *debug* flag for the OpenGL context.
+    ///
+    /// The default value for this flag is `cfg!(ndebug)`, which means that it's enabled
+    /// when you run `cargo build` and disabled when you run `cargo build --release`.
+    pub fn with_gl_debug_flag(mut self, flag: bool) -> WindowBuilder {
+        self.gl_debug = flag;
         self
     }
 
@@ -178,6 +189,7 @@ impl WindowBuilder {
 pub struct HeadlessRendererBuilder {
     dimensions: (uint, uint),
     gl_version: Option<(uint, uint)>,
+    gl_debug: bool,
 }
 
 #[cfg(feature = "headless")]
@@ -187,6 +199,7 @@ impl HeadlessRendererBuilder {
         HeadlessRendererBuilder {
             dimensions: (width, height),
             gl_version: None,
+            gl_debug: cfg!(ndebug),
         }
     }
 
@@ -196,6 +209,15 @@ impl HeadlessRendererBuilder {
     ///  you would pass `(3, 3)`.
     pub fn with_gl_version(mut self, version: (uint, uint)) -> HeadlessRendererBuilder {
         self.gl_version = Some(version);
+        self
+    }
+
+    /// Sets the *debug* flag for the OpenGL context.
+    ///
+    /// The default value for this flag is `cfg!(ndebug)`, which means that it's enabled
+    /// when you run `cargo build` and disabled when you run `cargo build --release`.
+    pub fn with_gl_debug_flag(mut self, flag: bool) -> HeadlessRendererBuilder {
+        self.gl_debug = flag;
         self
     }
 

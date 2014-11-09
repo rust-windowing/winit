@@ -225,6 +225,11 @@ impl Window {
                 attributes.push(version.val1() as libc::c_int);
             }
 
+            if builder.gl_debug {
+                attributes.push(ffi::glx_extra::CONTEXT_FLAGS_ARB as libc::c_int);
+                attributes.push(ffi::glx_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);
+            }
+
             attributes.push(0);
 
             // loading the extra GLX functions
