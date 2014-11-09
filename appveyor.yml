@@ -8,6 +8,8 @@ install:
   - SET PATH=%PATH%;%CD%\cargo-nightly-i686-w64-mingw32\bin
   - mkdir %HOMEDRIVE%%HOMEPATH%\.rust
   - cp etc/32bits/* %HOMEDRIVE%%HOMEPATH%\.rust
+  - rustc -v
+  - cargo -V
 
 build: false
 
