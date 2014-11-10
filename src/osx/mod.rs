@@ -34,6 +34,7 @@ static mut alt_pressed: bool = false;
 
 pub struct Window {
     view: id,
+    window: id,
     context: id,
     is_closed: AtomicBool,
 }
@@ -88,6 +89,7 @@ impl Window {
 
         let window = Window {
             view: view,
+            window: window,
             context: context,
             is_closed: AtomicBool::new(false),
         };
@@ -190,8 +192,11 @@ impl Window {
         self.is_closed.load(Relaxed)
     }
 
-    pub fn set_title(&self, _title: &str) {
-        unimplemented!()
+    pub fn set_title(&self, title: &str) {
+        unsafe {
+            let title = NSString::alloc(nil).init_str(title);
+            self.window.setTitle_(title);
+        }
     }
 
     pub fn show(&self) {
