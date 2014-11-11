@@ -1,6 +1,4 @@
 use events;
-use cocoa::base::NSUInteger;
-use cocoa::appkit;
 
 pub fn vkeycode_to_element(code: u16) -> Option<events::VirtualKeyCode> {
     Some(match code {
