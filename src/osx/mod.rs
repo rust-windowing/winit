@@ -113,7 +113,10 @@ impl Window {
     fn create_window(dimensions: (uint, uint), title: &str, monitor: Option<MonitorID>) -> Option<id> {
         unsafe {
             let scr_frame = match monitor {
-                Some(_) => NSScreen::mainScreen(nil).frame(),
+                Some(_) => {
+                    let screen = NSScreen::mainScreen(nil);
+                    NSScreen::frame(screen)
+                }
                 None    => {
                     let (width, height) = dimensions;
                     NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64))
