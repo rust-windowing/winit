@@ -3,6 +3,10 @@
 name = "glutin"
 version = "0.0.1"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
+description = "Cross-plaform OpenGL context provider."
+keywords = ["windowing", "opengl"]
+license = "Apache-2.0"
+repository = "https://github.com/tomaka/glutin"
 
 [features]
 default = ["window"]
