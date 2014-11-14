@@ -6,6 +6,7 @@ authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 description = "Cross-plaform OpenGL context provider."
 keywords = ["windowing", "opengl"]
 license = "Apache-2.0"
+readme = "README.md"
 repository = "https://github.com/tomaka/glutin"
 
 [features]
