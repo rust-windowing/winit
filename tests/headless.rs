@@ -32,6 +32,7 @@ fn main() {
         gl.ReadPixels(0, 0, 1, 1, gl::RGBA, gl::UNSIGNED_BYTE, std::mem::transmute(&mut value));
         
         assert!(value == (0, 255, 0, 255) || value == (0, 64, 0, 255) ||
-            value == (0, 64, 0, 255) || value == (0, 64, 0, 0));
+                value == (0, 64, 0, 255) || value == (0, 64, 0, 0),
+                "value is: {}", value);
     }
 }
