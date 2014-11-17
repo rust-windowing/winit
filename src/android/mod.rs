@@ -3,11 +3,13 @@ extern crate native;
 
 use libc;
 use {CreationError, OsError, Event, WindowBuilder};
+use {Pressed, Released, LeftMouseButton, MouseInput, MouseMoved};
 
 pub struct Window {
     display: ffi::egl::types::EGLDisplay,
     context: ffi::egl::types::EGLContext,
     surface: ffi::egl::types::EGLSurface,
+    event_rx: Receiver<android_glue::Event>,
 }
 
 pub struct MonitorID;
@@ -111,10 +113,14 @@ impl Window {
         
         android_glue::write_log("eglCreateWindowSurface succeeded");
 
+        let (tx, rx) = channel();
+        android_glue::add_sender(tx);
+
         Ok(Window {
             display: display,
             context: context,
             surface: surface,
+            event_rx: rx,
         })
     }
 
@@ -169,7 +175,26 @@ impl Window {
         use std::time::Duration;
         use std::io::timer;
         timer::sleep(Duration::milliseconds(16));
-        Vec::new()
+        let mut events = Vec::new();
+        loop {
+            match self.event_rx.try_recv() {
+                Ok(event) => match event {
+                    android_glue::EventDown => {
+                        events.push(MouseInput(Pressed, LeftMouseButton));
+                    },
+                    android_glue::EventUp => {
+                        events.push(MouseInput(Released, LeftMouseButton));
+                    },
+                    android_glue::EventMove(x, y) => {
+                        events.push(MouseMoved((x as int, y as int)));
+                    },
+                },
+                Err(_) => {
+		    break;
+		},
+            }
+        }
+        events
     }
 
     pub fn make_current(&self) {
