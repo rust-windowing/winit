@@ -1426,6 +1426,8 @@ extern "C" {
         index: libc::c_int) -> KeySym;
     pub fn XMoveWindow(display: *mut Display, w: Window, x: libc::c_int, y: libc::c_int);
     pub fn XMapWindow(display: *mut Display, w: Window);
+    pub fn XMapRaised(display: *mut Display, w: Window);
+    pub fn XUnmapWindow(display: *mut Display, w: Window);
     pub fn XNextEvent(display: *mut Display, event_return: *mut XEvent);
     pub fn XInitThreads() -> Status;
     pub fn XOpenDisplay(display_name: *const libc::c_char) -> *mut Display;
