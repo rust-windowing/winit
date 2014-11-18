@@ -47,6 +47,11 @@ impl HeadlessContext {
             })
         }
     }
+
+    /// See the docs in the crate root file.
+    pub fn get_api(&self) -> ::Api {
+        ::Api::OpenGl
+    }
 }
 
 impl Drop for HeadlessContext {
