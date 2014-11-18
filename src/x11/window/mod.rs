@@ -163,12 +163,19 @@ impl Window {
             win
         };
 
+        // set visibility
+        if builder.visible {
+            unsafe {
+                ffi::XMapRaised(display, window);
+                ffi::XFlush(display);
+            }
+        }
+
         // creating window, step 2
         let wm_delete_window = unsafe {
             use std::c_str::ToCStr;
 
             let delete_window = "WM_DELETE_WINDOW".to_c_str();
-            ffi::XMapWindow(display, window);
             let mut wm_delete_window = ffi::XInternAtom(display, delete_window.as_ptr(), 0);
             ffi::XSetWMProtocols(display, window, &mut wm_delete_window, 1);
             let c_title = builder.title.to_c_str();
@@ -287,9 +294,17 @@ impl Window {
     }
 
     pub fn show(&self) {
+        unsafe {
+            ffi::XMapRaised(self.display, self.window);
+            ffi::XFlush(self.display);
+        }
     }
 
     pub fn hide(&self) {
+        unsafe {
+            ffi::XUnmapWindow(self.display, self.window);
+            ffi::XFlush(self.display);
+        }
     }
 
     fn get_geometry(&self) -> Option<(int, int, uint, uint)> {
