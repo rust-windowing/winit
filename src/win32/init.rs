@@ -6,7 +6,8 @@ use std::sync::atomic::AtomicBool;
 use std::ptr;
 use super::{event, ffi};
 use super::Window;
-use {CreationError, OsError, Event};
+use {CreationError, Event};
+use CreationError::OsError;
 
 /// Stores the current window and its events dispatcher.
 /// 
@@ -422,7 +423,7 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
 {
     match msg {
         ffi::WM_DESTROY => {
-            use Closed;
+            use events::Event::Closed;
 
             match WINDOW.get() {
                 None => (),
@@ -444,7 +445,7 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         },
 
         ffi::WM_SIZE => {
-            use Resized;
+            use events::Event::Resized;
             let w = ffi::LOWORD(lparam as ffi::DWORD) as uint;
             let h = ffi::HIWORD(lparam as ffi::DWORD) as uint;
             send_event(window, Resized(w, h));
@@ -452,7 +453,7 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         },
 
         ffi::WM_MOVE => {
-            use events::Moved;
+            use events::Event::Moved;
             let x = ffi::LOWORD(lparam as ffi::DWORD) as i16 as int;
             let y = ffi::HIWORD(lparam as ffi::DWORD) as i16 as int;
             send_event(window, Moved(x, y));
@@ -461,14 +462,14 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
 
         ffi::WM_CHAR => {
             use std::mem;
-            use events::ReceivedCharacter;
+            use events::Event::ReceivedCharacter;
             let chr: char = unsafe { mem::transmute(wparam as u32) };
             send_event(window, ReceivedCharacter(chr));
             0
         },
 
         ffi::WM_MOUSEMOVE => {
-            use MouseMoved;
+            use events::Event::MouseMoved;
 
             let x = ffi::GET_X_LPARAM(lparam) as int;
             let y = ffi::GET_Y_LPARAM(lparam) as int;
@@ -479,7 +480,7 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         },
 
         ffi::WM_MOUSEWHEEL => {
-            use events::MouseWheel;
+            use events::Event::MouseWheel;
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
@@ -490,7 +491,8 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         },
 
         ffi::WM_KEYDOWN => {
-            use events::{KeyboardInput, Pressed};
+            use events::Event::KeyboardInput;
+            use events::ElementState::Pressed;
             let scancode = ((lparam >> 16) & 0xff) as u8;
             let vkey = event::vkeycode_to_element(wparam);
             send_event(window, KeyboardInput(Pressed, scancode, vkey));
@@ -498,7 +500,8 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         },
 
         ffi::WM_KEYUP => {
-            use events::{KeyboardInput, Released};
+            use events::Event::KeyboardInput;
+            use events::ElementState::Released;
             let scancode = ((lparam >> 16) & 0xff) as u8;
             let vkey = event::vkeycode_to_element(wparam);
             send_event(window, KeyboardInput(Released, scancode, vkey));
@@ -506,49 +509,61 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         },
 
         ffi::WM_LBUTTONDOWN => {
-            use events::{Pressed, MouseInput, LeftMouseButton};
+            use events::Event::MouseInput;
+            use events::MouseButton::LeftMouseButton;
+            use events::ElementState::Pressed;
             send_event(window, MouseInput(Pressed, LeftMouseButton));
             0
         },
 
         ffi::WM_LBUTTONUP => {
-            use events::{Released, MouseInput, LeftMouseButton};
+            use events::Event::MouseInput;
+            use events::MouseButton::LeftMouseButton;
+            use events::ElementState::Released;
             send_event(window, MouseInput(Released, LeftMouseButton));
             0
         },
 
         ffi::WM_RBUTTONDOWN => {
-            use events::{Pressed, MouseInput, RightMouseButton};
+            use events::Event::MouseInput;
+            use events::MouseButton::RightMouseButton;
+            use events::ElementState::Pressed;
             send_event(window, MouseInput(Pressed, RightMouseButton));
             0
         },
 
         ffi::WM_RBUTTONUP => {
-            use events::{Released, MouseInput, RightMouseButton};
+            use events::Event::MouseInput;
+            use events::MouseButton::RightMouseButton;
+            use events::ElementState::Released;
             send_event(window, MouseInput(Released, RightMouseButton));
             0
         },
 
         ffi::WM_MBUTTONDOWN => {
-            use events::{Pressed, MouseInput, MiddleMouseButton};
+            use events::Event::MouseInput;
+            use events::MouseButton::MiddleMouseButton;
+            use events::ElementState::Pressed;
             send_event(window, MouseInput(Pressed, MiddleMouseButton));
             0
         },
 
         ffi::WM_MBUTTONUP => {
-            use events::{Released, MouseInput, MiddleMouseButton};
+            use events::Event::MouseInput;
+            use events::MouseButton::MiddleMouseButton;
+            use events::ElementState::Released;
             send_event(window, MouseInput(Released, MiddleMouseButton));
             0
         },
 
         ffi::WM_SETFOCUS => {
-            use events::Focused;
+            use events::Event::Focused;
             send_event(window, Focused(true));
             0
         },
 
         ffi::WM_KILLFOCUS => {
-            use events::Focused;
+            use events::Event::Focused;
             send_event(window, Focused(false));
             0
         },
