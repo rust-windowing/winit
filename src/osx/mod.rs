@@ -1,7 +1,6 @@
 use {CreationError, Event};
 use CreationError::OsError;
 use libc;
-use std::sync::atomic::AtomicBool;
 
 #[cfg(feature = "window")]
 use WindowBuilder;
@@ -9,7 +8,9 @@ use WindowBuilder;
 #[cfg(feature = "headless")]
 use HeadlessRendererBuilder;
 
-use cocoa::base::{id, NSUInteger, nil};
+use cocoa::base::{id, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
+use cocoa::base::{selector, msg_send, class_addMethod, class_addIvar};
+use cocoa::base::{object_setInstanceVariable, object_getInstanceVariable};
 use cocoa::appkit;
 use cocoa::appkit::*;
 
@@ -18,6 +19,9 @@ use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
 use std::c_str::CString;
+use std::mem;
+use std::ptr;
+use std::sync::atomic::{AtomicBool, Relaxed};
 
 use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput};
 use events::ElementState::{Pressed, Released};
@@ -34,11 +38,26 @@ static mut ctrl_pressed: bool = false;
 static mut win_pressed: bool = false;
 static mut alt_pressed: bool = false;
 
+static DELEGATE_NAME: &'static [u8] = b"glutin_window_delegate\0";
+static DELEGATE_THIS_IVAR: &'static [u8] = b"glutin_this";
+
+struct InternalState {
+    is_closed: AtomicBool,
+}
+
+impl InternalState {
+    fn new() -> InternalState {
+        InternalState {
+            is_closed: AtomicBool::new(false),
+        }
+    }
+}
+
 pub struct Window {
     view: id,
     window: id,
     context: id,
-    is_closed: AtomicBool,
+    state: Box<InternalState>,
 }
 
 pub struct HeadlessContext(Window);
@@ -62,6 +81,16 @@ impl HeadlessContext {
         Window::new_impl(Some(builder.dimensions), "", None, false)
             .map(|w| HeadlessContext(w))
     }
+}
+
+extern fn window_should_close(this: id, _: id) -> id {
+    unsafe {
+        let mut stored_value = ptr::null_mut();
+        object_getInstanceVariable(this, DELEGATE_THIS_IVAR.as_ptr() as *const i8, &mut stored_value);
+        let state = stored_value as *mut InternalState;
+        (*state).is_closed.store(true, Relaxed);
+    }
+    0
 }
 
 impl Window {
@@ -93,8 +122,26 @@ impl Window {
             view: view,
             window: window,
             context: context,
-            is_closed: AtomicBool::new(false),
+            state: box InternalState::new(),
         };
+
+        // Set up the window delegate to receive events
+        let ptr_size = mem::size_of::<libc::intptr_t>() as u64;
+        let ns_object = class("NSObject");
+
+        unsafe {
+            // Create a delegate class, add callback methods and store InternalState as user data.
+            let delegate = objc_allocateClassPair(ns_object, DELEGATE_NAME.as_ptr() as *const i8, 0);
+            class_addMethod(delegate, selector("windowShouldClose:"), window_should_close, "B@:@".to_c_str().as_ptr());
+            class_addIvar(delegate, DELEGATE_THIS_IVAR.as_ptr() as *const i8, ptr_size, 3, "?".to_c_str().as_ptr());
+            objc_registerClassPair(delegate);
+
+            let del_obj = msg_send()(delegate, selector("alloc"));
+            let del_obj: id = msg_send()(del_obj, selector("init"));
+            object_setInstanceVariable(del_obj, DELEGATE_THIS_IVAR.as_ptr() as *const i8,
+                                        &*window.state as *const InternalState as *mut libc::c_void);
+            let _: id = msg_send()(window.window, selector("setDelegate:"), del_obj);
+        }
 
         Ok(window)
     }
@@ -127,7 +174,10 @@ impl Window {
 
              let masks = match monitor {
                 Some(_) => NSBorderlessWindowMask as NSUInteger,
-                None    => NSTitledWindowMask as NSUInteger | NSClosableWindowMask as NSUInteger | NSMiniaturizableWindowMask as NSUInteger,
+                None    => NSTitledWindowMask as NSUInteger |
+                           NSClosableWindowMask as NSUInteger |
+                           NSMiniaturizableWindowMask as NSUInteger |
+                           NSResizableWindowMask as NSUInteger,
             };
 
             let window = NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
@@ -193,8 +243,7 @@ impl Window {
     }
 
     pub fn is_closed(&self) -> bool {
-        use std::sync::atomic::Relaxed;
-        self.is_closed.load(Relaxed)
+        self.state.is_closed.load(Relaxed)
     }
 
     pub fn set_title(&self, title: &str) {
