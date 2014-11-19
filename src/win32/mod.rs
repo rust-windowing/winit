@@ -183,7 +183,7 @@ impl Window {
         }
 
         // if one of the received events is `Closed`, setting `is_closed` to true
-        if events.iter().find(|e| match e { &&::Closed => true, _ => false }).is_some() {
+        if events.iter().any(|e| match e { &::events::Event::Closed => true, _ => false }) {
             use std::sync::atomic::Relaxed;
             self.is_closed.store(true, Relaxed);
         }
@@ -198,7 +198,7 @@ impl Window {
             Ok(ev) => {
                 // if the received event is `Closed`, setting `is_closed` to true
                 match ev {
-                    ::Closed => {
+                    ::events::Event::Closed => {
                         use std::sync::atomic::Relaxed;
                         self.is_closed.store(true, Relaxed);
                     },

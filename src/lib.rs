@@ -79,7 +79,7 @@ pub enum CreationError {
 impl std::error::Error for CreationError {
     fn description(&self) -> &str {
         match self {
-            &OsError(ref text) => text.as_slice(),
+            &CreationError::OsError(ref text) => text.as_slice(),
         }
     }
 }

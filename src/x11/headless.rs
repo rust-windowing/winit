@@ -1,5 +1,6 @@
 use HeadlessRendererBuilder;
-use {CreationError, OsError};
+use CreationError;
+use CreationError::OsError;
 use libc;
 use std::{mem, ptr};
 use super::ffi;

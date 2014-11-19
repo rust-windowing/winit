@@ -17,9 +17,10 @@ use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
 use std::c_str::CString;
-use {MouseInput, Pressed, Released, LeftMouseButton, RightMouseButton, MouseMoved, ReceivedCharacter,
-     KeyboardInput};
 
+use events::Event::{MouseInput, Pressed, Released, MouseMoved, ReceivedCharacter, KeyboardInput};
+use events::ElementState::{Pressed, Released};
+use events::MouseButton::{LeftMouseButton, RightMouseButton};
 use events;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};

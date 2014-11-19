@@ -1,5 +1,6 @@
 use {Event, WindowBuilder};
-use {CreationError, OsError};
+use CreationError;
+use CreationError::OsError;
 use libc;
 use std::{mem, ptr};
 use std::cell::Cell;
@@ -375,7 +376,7 @@ impl Window {
                 },
 
                 ffi::ClientMessage => {
-                    use Closed;
+                    use events::Event::Closed;
                     use std::sync::atomic::Relaxed;
 
                     let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
@@ -387,7 +388,7 @@ impl Window {
                 },
 
                 ffi::ConfigureNotify => {
-                    use Resized;
+                    use events::Event::Resized;
                     let cfg_event: &ffi::XConfigureEvent = unsafe { mem::transmute(&xev) };
                     let (current_width, current_height) = self.current_size.get();
                     if current_width != cfg_event.width || current_height != cfg_event.height {
@@ -397,13 +398,14 @@ impl Window {
                 },
 
                 ffi::MotionNotify => {
-                    use MouseMoved;
+                    use events::Event::MouseMoved;
                     let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
                     events.push(MouseMoved((event.x as int, event.y as int)));
                 },
 
                 ffi::KeyPress | ffi::KeyRelease => {
-                    use {KeyboardInput, Pressed, Released, ReceivedCharacter};
+                    use events::Event::{KeyboardInput, ReceivedCharacter};
+                    use events::ElementState::{Pressed, Released};
                     let event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
 
                     if event.type_ == ffi::KeyPress {
@@ -440,8 +442,10 @@ impl Window {
                 },
 
                 ffi::ButtonPress | ffi::ButtonRelease => {
-                    use {MouseInput, MouseWheel, Pressed, Released};
-                    use {LeftMouseButton, RightMouseButton, MiddleMouseButton};
+                    use events::Event::{MouseInput, MouseWheel};
+                    use events::ElementState::{Pressed, Released};
+                    use events::MouseButton::{LeftMouseButton, RightMouseButton, MiddleMouseButton};
+
                     let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
 
                     let state = if xev.type_ == ffi::ButtonPress { Pressed } else { Released };

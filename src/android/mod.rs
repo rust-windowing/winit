@@ -2,8 +2,11 @@ extern crate android_glue;
 extern crate native;
 
 use libc;
-use {CreationError, OsError, Event, WindowBuilder};
-use {Pressed, Released, LeftMouseButton, MouseInput, MouseMoved};
+use {CreationError, Event, WindowBuilder};
+use CreationError::OsError;
+use events::ElementState::{Pressed, Released};
+use events::Event::{MouseInput, MouseMoved};
+use events::MouseButton::LeftMouseButton;
 
 pub struct Window {
     display: ffi::egl::types::EGLDisplay,
