@@ -1,4 +1,5 @@
-use {CreationError, OsError, Event};
+use {CreationError, Event};
+use CreationError::OsError;
 use libc;
 use std::sync::atomic::AtomicBool;
 
@@ -18,7 +19,7 @@ use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFuncti
 
 use std::c_str::CString;
 
-use events::Event::{MouseInput, Pressed, Released, MouseMoved, ReceivedCharacter, KeyboardInput};
+use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput};
 use events::ElementState::{Pressed, Released};
 use events::MouseButton::{LeftMouseButton, RightMouseButton};
 use events;
@@ -176,7 +177,7 @@ impl Window {
                 0
             ];
 
-            let pixelformat = NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(attributes);
+            let pixelformat = NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes);
             if pixelformat == nil {
                 return None;
             }
@@ -268,22 +269,22 @@ impl Window {
                         events.push(KeyboardInput(Released, event.keycode() as u8, vkey));
                     },
                     NSFlagsChanged          => {
-                        let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask as u64, events::LShift, shift_pressed);
+                        let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask as u64, events::VirtualKeyCode::LShift, shift_pressed);
                         if shift_modifier.is_some() {
                             shift_pressed = !shift_pressed;
                             events.push(shift_modifier.unwrap());
                         }
-                        let ctrl_modifier = Window::modifier_event(event, appkit::NSControlKeyMask as u64, events::LControl, ctrl_pressed);
+                        let ctrl_modifier = Window::modifier_event(event, appkit::NSControlKeyMask as u64, events::VirtualKeyCode::LControl, ctrl_pressed);
                         if ctrl_modifier.is_some() {
                             ctrl_pressed = !ctrl_pressed;
                             events.push(ctrl_modifier.unwrap());
                         }
-                        let win_modifier = Window::modifier_event(event, appkit::NSCommandKeyMask as u64, events::LWin, win_pressed);
+                        let win_modifier = Window::modifier_event(event, appkit::NSCommandKeyMask as u64, events::VirtualKeyCode::LWin, win_pressed);
                         if win_modifier.is_some() {
                             win_pressed = !win_pressed;
                             events.push(win_modifier.unwrap());
                         }
-                        let alt_modifier = Window::modifier_event(event, appkit::NSAlternateKeyMask as u64, events::LAlt, alt_pressed);
+                        let alt_modifier = Window::modifier_event(event, appkit::NSAlternateKeyMask as u64, events::VirtualKeyCode::LAlt, alt_pressed);
                         if alt_modifier.is_some() {
                             alt_pressed = !alt_pressed;
                             events.push(alt_modifier.unwrap());
