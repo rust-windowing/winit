@@ -268,7 +268,8 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> Option<(uint, uint)> {
-        unimplemented!()
+        let rect = unsafe { NSView::frame(self.view) };
+        Some((rect.size.width as uint, rect.size.height as uint))
     }
 
     pub fn get_outer_size(&self) -> Option<(uint, uint)> {
