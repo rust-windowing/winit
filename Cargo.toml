@@ -27,10 +27,10 @@ git = "https://github.com/bjz/gl-rs"
 git = "https://github.com/tomaka/android-rs-glue"
 
 [target.i686-apple-darwin.dependencies.cocoa]
-git = "https://github.com/DavidPartouche/rust-cocoa"
+git = "https://github.com/servo/rust-cocoa"
 
 [target.x86_64-apple-darwin.dependencies.cocoa]
-git = "https://github.com/DavidPartouche/rust-cocoa"
+git = "https://github.com/servo/rust-cocoa"
 
 [target.i686-apple-darwin.dependencies.core_graphics]
 git = "https://github.com/servo/rust-core-graphics"
