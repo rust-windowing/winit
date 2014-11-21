@@ -1,5 +1,4 @@
 extern crate android_glue;
-extern crate native;
 
 use libc;
 use {CreationError, Event, WindowBuilder};
