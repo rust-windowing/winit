@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
-#![allow(non_uppercase_statics)]
+#![allow(non_upper_case_globals)]
 
 pub use self::glx::types::*;
 use libc;
@@ -181,7 +181,7 @@ pub const GLX_TRANSPARENT_RED_VALUE: libc::c_int = 0x25;
 pub const GLX_TRANSPARENT_GREEN_VALUE: libc::c_int = 0x26;
 pub const GLX_TRANSPARENT_BLUE_VALUE: libc::c_int = 0x27;
 pub const GLX_TRANSPARENT_ALPHA_VALUE: libc::c_int = 0x28;
-#[allow(type_overflow)]
+#[allow(overflowing_literals)]
 pub const GLX_DONT_CARE: libc::c_int = 0xFFFFFFFF;
 pub const GLX_NONE: libc::c_int = 0x8000;
 pub const GLX_SLOW_CONFIG: libc::c_int = 0x8001;
