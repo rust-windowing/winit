@@ -94,6 +94,7 @@ pub struct WindowBuilder<'a> {
     gl_debug: bool,
     vsync: bool,
     visible: bool,
+    multisampling: Option<u16>,
 }
 
 #[cfg(feature = "window")]
@@ -109,6 +110,7 @@ impl<'a> WindowBuilder<'a> {
             gl_debug: cfg!(ndebug),
             vsync: false,
             visible: true,
+            multisampling: None,
         }
     }
 
@@ -170,6 +172,18 @@ impl<'a> WindowBuilder<'a> {
     /// Sets whether the window will be initially hidden or visible.
     pub fn with_visibility(mut self, visible: bool) -> WindowBuilder<'a> {
         self.visible = visible;
+        self
+    }
+
+    /// Sets the multisampling level to request.
+    ///
+    /// # Panic
+    ///
+    /// Will panic if `samples` is not a power of two.
+    pub fn with_multisampling(mut self, samples: u16) -> WindowBuilder<'a> {
+        use std::num::UnsignedInt;
+        assert!(samples.is_power_of_two());
+        self.multisampling = Some(samples);
         self
     }
 

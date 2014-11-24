@@ -16,7 +16,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
                   builder_monitor: Option<super::MonitorID>,
                   builder_gl_version: Option<(uint, uint)>, builder_debug: bool,
                   builder_vsync: bool, builder_hidden: bool,
-                  builder_sharelists: Option<ffi::HGLRC>) -> Result<Window, CreationError>
+                  builder_sharelists: Option<ffi::HGLRC>, builder_multisampling: Option<u16>)
+                  -> Result<Window, CreationError>
 {
     use std::mem;
     use std::os;
