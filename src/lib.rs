@@ -2,6 +2,7 @@
 #![feature(unsafe_destructor)]
 #![feature(globs)]
 #![feature(phase)]
+#![feature(if_let)]
 #![unstable]
 
 //! The purpose of this library is to provide an OpenGL context on as many
@@ -86,7 +87,8 @@ impl std::error::Error for CreationError {
 
 /// Object that allows you to build windows.
 #[cfg(feature = "window")]
-pub struct WindowBuilder {
+pub struct WindowBuilder<'a> {
+    sharing: Option<&'a Window>,
     dimensions: Option<(uint, uint)>,
     title: String,
     monitor: Option<winimpl::MonitorID>,
@@ -97,10 +99,11 @@ pub struct WindowBuilder {
 }
 
 #[cfg(feature = "window")]
-impl WindowBuilder {
+impl<'a> WindowBuilder<'a> {
     /// Initializes a new `WindowBuilder` with default values.
-    pub fn new() -> WindowBuilder {
+    pub fn new() -> WindowBuilder<'a> {
         WindowBuilder {
+            sharing: None,
             dimensions: None,
             title: "glutin window".to_string(),
             monitor: None,
@@ -114,13 +117,13 @@ impl WindowBuilder {
     /// Requests the window to be of specific dimensions.
     ///
     /// Width and height are in pixels.
-    pub fn with_dimensions(mut self, width: uint, height: uint) -> WindowBuilder {
+    pub fn with_dimensions(mut self, width: uint, height: uint) -> WindowBuilder<'a> {
         self.dimensions = Some((width, height));
         self
     }
 
     /// Requests a specific title for the window.
-    pub fn with_title(mut self, title: String) -> WindowBuilder {
+    pub fn with_title(mut self, title: String) -> WindowBuilder<'a> {
         self.title = title;
         self
     }
@@ -128,9 +131,17 @@ impl WindowBuilder {
     /// Requests fullscreen mode.
     ///
     /// If you don't specify dimensions for the window, it will match the monitor's.
-    pub fn with_fullscreen(mut self, monitor: MonitorID) -> WindowBuilder {
+    pub fn with_fullscreen(mut self, monitor: MonitorID) -> WindowBuilder<'a> {
         let MonitorID(monitor) = monitor;
         self.monitor = Some(monitor);
+        self
+    }
+
+    /// The created window will share all its OpenGL objects with the window in the parameter.
+    ///
+    /// There are some exceptions, like FBOs or VAOs. See the OpenGL documentation.
+    pub fn with_shared_lists(mut self, other: &'a Window) -> WindowBuilder<'a> {
+        self.sharing = Some(other);
         self
     }
 
@@ -138,7 +149,7 @@ impl WindowBuilder {
     ///
     /// Version is a (major, minor) pair. For example to request OpenGL 3.3
     ///  you would pass `(3, 3)`.
-    pub fn with_gl_version(mut self, version: (uint, uint)) -> WindowBuilder {
+    pub fn with_gl_version(mut self, version: (uint, uint)) -> WindowBuilder<'a> {
         self.gl_version = Some(version);
         self
     }
@@ -147,19 +158,19 @@ impl WindowBuilder {
     ///
     /// The default value for this flag is `cfg!(ndebug)`, which means that it's enabled
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
-    pub fn with_gl_debug_flag(mut self, flag: bool) -> WindowBuilder {
+    pub fn with_gl_debug_flag(mut self, flag: bool) -> WindowBuilder<'a> {
         self.gl_debug = flag;
         self
     }
 
     /// Requests that the window has vsync enabled.
-    pub fn with_vsync(mut self) -> WindowBuilder {
+    pub fn with_vsync(mut self) -> WindowBuilder<'a> {
         self.vsync = true;
         self
     }
 
     /// Sets whether the window will be initially hidden or visible.
-    pub fn with_visibility(mut self, visible: bool) -> WindowBuilder {
+    pub fn with_visibility(mut self, visible: bool) -> WindowBuilder<'a> {
         self.visible = visible;
         self
     }
