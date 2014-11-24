@@ -39,8 +39,12 @@ impl MonitorID {
 }
 
 impl Window {
-    pub fn new(_builder: WindowBuilder) -> Result<Window, CreationError> {
+    pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
         use std::{mem, ptr};
+
+        if builder.sharing.is_some() {
+            unimplemented!()
+        }
 
         let native_window = unsafe { android_glue::get_native_window() };
         if native_window.is_null() {

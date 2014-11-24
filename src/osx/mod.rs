@@ -71,6 +71,10 @@ impl Deref<Window> for HeadlessContext {
 #[cfg(feature = "window")]
 impl Window {
     pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
+        if builder.sharing.is_some() {
+            unimplemented!()
+        }
+
         Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, true)
     }
 }

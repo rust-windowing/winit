@@ -248,11 +248,17 @@ impl Window {
                 })
             });
 
+            let share = if let Some(win) = builder.sharing {
+                win.window.context
+            } else {
+                ptr::null()
+            };
+
             let context = if extra_functions.CreateContextAttribsARB.is_loaded() {
                 extra_functions.CreateContextAttribsARB(display as *mut ffi::glx_extra::types::Display,
-                    fb_config, ptr::null(), 1, attributes.as_ptr())
+                    fb_config, share, 1, attributes.as_ptr())
             } else {
-                ffi::glx::CreateContext(display, &mut visual_infos, ptr::null(), 1)
+                ffi::glx::CreateContext(display, &mut visual_infos, share, 1)
             };
 
             if context.is_null() {
