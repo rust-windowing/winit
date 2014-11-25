@@ -7,6 +7,9 @@ use events::ElementState::{Pressed, Released};
 use events::Event::{MouseInput, MouseMoved};
 use events::MouseButton::LeftMouseButton;
 
+#[cfg(feature = "headless")]
+use HeadlessRendererBuilder;
+
 pub struct Window {
     display: ffi::egl::types::EGLDisplay,
     context: ffi::egl::types::EGLContext,
@@ -34,6 +37,27 @@ impl MonitorID {
     }
 
     pub fn get_dimensions(&self) -> (uint, uint) {
+        unimplemented!()
+    }
+}
+
+#[cfg(feature = "headless")]
+pub struct HeadlessContext(int);
+
+#[cfg(feature = "headless")]
+impl HeadlessContext {
+    /// See the docs in the crate root file.
+    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
+        unimplemented!()
+    }
+
+    /// See the docs in the crate root file.
+    pub unsafe fn make_current(&self) {
+        unimplemented!()
+    }
+
+    /// See the docs in the crate root file.
+    pub fn get_proc_address(&self, addr: &str) -> *const () {
         unimplemented!()
     }
 }
@@ -116,7 +140,7 @@ impl Window {
             }
             surface
         };
-        
+
         android_glue::write_log("eglCreateWindowSurface succeeded");
 
         let (tx, rx) = channel();
@@ -196,8 +220,8 @@ impl Window {
                     },
                 },
                 Err(_) => {
-		    break;
-		},
+                    break;
+                },
             }
         }
         events
