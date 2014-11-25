@@ -1,12 +1,12 @@
+#[cfg(feature = "headless")]
+pub use self::headless::HeadlessContext;
+
 use {CreationError, Event};
 use CreationError::OsError;
 use libc;
 
 #[cfg(feature = "window")]
 use WindowBuilder;
-
-#[cfg(feature = "headless")]
-use HeadlessRendererBuilder;
 
 use cocoa::base::{id, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
 use cocoa::base::{selector, msg_send, class_addMethod, class_addIvar};
@@ -32,6 +32,9 @@ pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
 mod monitor;
 mod event;
+
+#[cfg(feature = "headless")]
+mod headless;
 
 static mut shift_pressed: bool = false;
 static mut ctrl_pressed: bool = false;
@@ -60,14 +63,6 @@ pub struct Window {
     state: Box<InternalState>,
 }
 
-pub struct HeadlessContext(Window);
-
-impl Deref<Window> for HeadlessContext {
-    fn deref(&self) -> &Window {
-        &self.0
-    }
-}
-
 #[cfg(feature = "window")]
 impl Window {
     pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
@@ -76,14 +71,6 @@ impl Window {
         }
 
         Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, true)
-    }
-}
-
-#[cfg(feature = "headless")]
-impl HeadlessContext {
-    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
-        Window::new_impl(Some(builder.dimensions), "", None, false)
-            .map(|w| HeadlessContext(w))
     }
 }
 
