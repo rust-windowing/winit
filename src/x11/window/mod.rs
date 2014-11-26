@@ -6,7 +6,7 @@ use std::{mem, ptr};
 use std::cell::Cell;
 use std::sync::atomic::AtomicBool;
 use super::ffi;
-use sync::one::{Once, ONCE_INIT};
+use std::sync::{Once, ONCE_INIT};
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
