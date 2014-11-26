@@ -104,12 +104,12 @@ impl Window {
         let config = unsafe {
             let mut attribute_list = vec!();
             if use_gles2 {
-                attribute_list.push_all([ffi::egl::RENDERABLE_TYPE as i32,
+                attribute_list.push_all(&[ffi::egl::RENDERABLE_TYPE as i32,
                                          ffi::egl::OPENGL_ES2_BIT as i32]);
             }
-            attribute_list.push_all([ffi::egl::RED_SIZE as i32, 1]);
-            attribute_list.push_all([ffi::egl::GREEN_SIZE as i32, 1]);
-            attribute_list.push_all([ffi::egl::BLUE_SIZE as i32, 1]);
+            attribute_list.push_all(&[ffi::egl::RED_SIZE as i32, 1]);
+            attribute_list.push_all(&[ffi::egl::GREEN_SIZE as i32, 1]);
+            attribute_list.push_all(&[ffi::egl::BLUE_SIZE as i32, 1]);
             attribute_list.push(ffi::egl::NONE as i32);
 
             let mut num_config: ffi::egl::types::EGLint = mem::uninitialized();
@@ -132,7 +132,7 @@ impl Window {
         let context = unsafe {
             let mut context_attributes = vec!();
             if use_gles2 {
-                context_attributes.push_all([ffi::egl::CONTEXT_CLIENT_VERSION as i32, 2]);
+                context_attributes.push_all(&[ffi::egl::CONTEXT_CLIENT_VERSION as i32, 2]);
             }
             context_attributes.push(ffi::egl::NONE as i32);
 
