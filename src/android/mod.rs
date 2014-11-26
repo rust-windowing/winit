@@ -21,8 +21,6 @@ pub struct MonitorID;
 
 mod ffi;
 
-compile_warning!("The Android implementation is not fully working yet")
-
 pub fn get_available_monitors() -> Vec<MonitorID> {
     vec![ MonitorID ]
 }
@@ -47,7 +45,7 @@ pub struct HeadlessContext(int);
 #[cfg(feature = "headless")]
 impl HeadlessContext {
     /// See the docs in the crate root file.
-    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
+    pub fn new(_builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
         unimplemented!()
     }
 
@@ -57,7 +55,7 @@ impl HeadlessContext {
     }
 
     /// See the docs in the crate root file.
-    pub fn get_proc_address(&self, addr: &str) -> *const () {
+    pub fn get_proc_address(&self, _addr: &str) -> *const () {
         unimplemented!()
     }
 }
@@ -98,13 +96,21 @@ impl Window {
 
         android_glue::write_log("eglInitialize succeeded");
 
+        let use_gles2 = match builder.gl_version {
+            Some((2, 0)) => true,
+            _ => false,
+        };
+
         let config = unsafe {
-            let attribute_list = [
-                ffi::egl::RED_SIZE as i32, 1,
-                ffi::egl::GREEN_SIZE as i32, 1,
-                ffi::egl::BLUE_SIZE as i32, 1,
-                ffi::egl::NONE as i32
-            ];
+            let mut attribute_list = vec!();
+            if use_gles2 {
+                attribute_list.push_all([ffi::egl::RENDERABLE_TYPE as i32,
+                                         ffi::egl::OPENGL_ES2_BIT as i32]);
+            }
+            attribute_list.push_all([ffi::egl::RED_SIZE as i32, 1]);
+            attribute_list.push_all([ffi::egl::GREEN_SIZE as i32, 1]);
+            attribute_list.push_all([ffi::egl::BLUE_SIZE as i32, 1]);
+            attribute_list.push(ffi::egl::NONE as i32);
 
             let mut num_config: ffi::egl::types::EGLint = mem::uninitialized();
             let mut config: ffi::egl::types::EGLConfig = mem::uninitialized();
@@ -124,7 +130,14 @@ impl Window {
         android_glue::write_log("eglChooseConfig succeeded");
 
         let context = unsafe {
-            let context = ffi::egl::CreateContext(display, config, ptr::null(), ptr::null());
+            let mut context_attributes = vec!();
+            if use_gles2 {
+                context_attributes.push_all([ffi::egl::CONTEXT_CLIENT_VERSION as i32, 2]);
+            }
+            context_attributes.push(ffi::egl::NONE as i32);
+
+            let context = ffi::egl::CreateContext(display, config, ptr::null(),
+                                                  context_attributes.as_ptr());
             if context.is_null() {
                 return Err(OsError(format!("eglCreateContext failed")))
             }
