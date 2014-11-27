@@ -1,4 +1,3 @@
-use std::task::TaskBuilder;
 use std::sync::atomic::AtomicBool;
 use std::ptr;
 use super::{event, ffi};
@@ -6,11 +5,14 @@ use super::Window;
 use {CreationError, Event};
 use CreationError::OsError;
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 /// Stores the current window and its events dispatcher.
 /// 
 /// We only have one window per thread. We still store the HWND in case where we
 ///  receive an event for another window.
-local_data_key!(WINDOW: (ffi::HWND, Sender<Event>))
+thread_local!(static WINDOW: Rc<RefCell<Option<(ffi::HWND, Sender<Event>)>>> = Rc::new(RefCell::new(None)))
 
 pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: String,
                   builder_monitor: Option<super::MonitorID>,
@@ -338,7 +340,10 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
         // filling the WINDOW task-local storage
         let events_receiver = {
             let (tx, rx) = channel();
-            WINDOW.replace(Some((real_window, tx)));
+            let mut tx = Some(tx);
+            WINDOW.with(|window| {
+                (*window.borrow_mut()) = Some((real_window, tx.take().unwrap()));
+            });
             rx
         };
 
@@ -405,19 +410,22 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
 }
 
 /// Checks that the window is the good one, and if so send the event to it.
-fn send_event(window: ffi::HWND, event: Event) {
-    let stored = match WINDOW.get() {
-        None => return,
-        Some(v) => v
-    };
+fn send_event(input_window: ffi::HWND, event: Event) {
+    WINDOW.with(|window| {
+        let window = window.borrow();
+        let stored = match *window {
+            None => return,
+            Some(ref v) => v
+        };
 
-    let &(ref win, ref sender) = stored.deref();
+        let &(ref win, ref sender) = stored;
 
-    if win != &window {
-        return;
-    }
+        if win != &input_window {
+            return;
+        }
 
-    sender.send_opt(event).ok();  // ignoring if closed
+        sender.send_opt(event).ok();  // ignoring if closed
+    });
 }
 
 /// This is the callback that is called by `DispatchMessage` in the events loop.
@@ -430,16 +438,17 @@ extern "stdcall" fn callback(window: ffi::HWND, msg: ffi::UINT,
         ffi::WM_DESTROY => {
             use events::Event::Closed;
 
-            match WINDOW.get() {
-                None => (),
-                Some(v) => {
-                    let &(ref win, _) = v.deref();
+            WINDOW.with(|w| {
+                let w = w.borrow();
+                let &(ref win, _) = match *w {
+                    None => return,
+                    Some(ref v) => v
+                };
 
-                    if win == &window {
-                        unsafe { ffi::PostQuitMessage(0); }
-                    }
+                if win == &window {
+                    unsafe { ffi::PostQuitMessage(0); }
                 }
-            };
+            });
 
             send_event(window, Closed);
             0
