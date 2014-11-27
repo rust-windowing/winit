@@ -75,7 +75,7 @@ impl Window {
             unimplemented!()
         }
 
-        Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, true)
+        Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, builder.vsync, true)
     }
 }
 
@@ -98,7 +98,8 @@ extern fn window_should_close(this: id, _: id) -> id {
 }
 
 impl Window {
-    fn new_impl(dimensions: Option<(uint, uint)>, title: &str, monitor: Option<MonitorID>, visible: bool) -> Result<Window, CreationError> {
+    fn new_impl(dimensions: Option<(uint, uint)>, title: &str, monitor: Option<MonitorID>,
+                vsync: bool, visible: bool) -> Result<Window, CreationError> {
         let app = match Window::create_app() {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
@@ -112,7 +113,7 @@ impl Window {
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
 
-        let context = match Window::create_context(view) {
+        let context = match Window::create_context(view, vsync) {
             Some(context) => context,
             None          => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
         };
@@ -219,7 +220,7 @@ impl Window {
         }
     }
 
-    fn create_context(view: id) -> Option<id> {
+    fn create_context(view: id, vsync: bool) -> Option<id> {
         unsafe {
             let attributes = [
                 NSOpenGLPFADoubleBuffer as uint,
@@ -241,6 +242,10 @@ impl Window {
                 None
             } else {
                 context.setView_(view);
+                if vsync {
+                    let value = 1;
+                    context.setValues_forParameter_(&value, NSOpenGLCPSwapInterval);
+                }
                 Some(context)
             }
         }
