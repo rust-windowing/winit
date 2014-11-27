@@ -26,7 +26,7 @@ impl HeadlessContext {
     pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
         let HeadlessRendererBuilder { dimensions, gl_version, gl_debug } = builder;
         init::new_window(Some(dimensions), "".to_string(), None, gl_version, gl_debug, false, true,
-                         None)
+                         None, None)
                          .map(|w| HeadlessContext(w))
     }
 
@@ -70,9 +70,9 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
         let WindowBuilder { dimensions, title, monitor, gl_version,
-                            gl_debug, vsync, visible, sharing } = builder;
+                            gl_debug, vsync, visible, sharing, multisampling } = builder;
         init::new_window(dimensions, title, monitor, gl_version, gl_debug, vsync,
-                         !visible, sharing.map(|w| w.window.context))
+                         !visible, sharing.map(|w| w.window.context), multisampling)
     }
 }
 

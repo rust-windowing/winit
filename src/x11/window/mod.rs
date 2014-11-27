@@ -58,7 +58,7 @@ impl Window {
 
         // getting the FBConfig
         let fb_config = unsafe {
-            const VISUAL_ATTRIBUTES: [libc::c_int, ..23] = [
+            let mut visual_attributes = vec![
                 ffi::GLX_X_RENDERABLE,  1,
                 ffi::GLX_DRAWABLE_TYPE, ffi::GLX_WINDOW_BIT,
                 ffi::GLX_RENDER_TYPE,   ffi::GLX_RGBA_BIT,
@@ -73,10 +73,17 @@ impl Window {
                 0
             ];
 
+            if let Some(val) = builder.multisampling {
+                visual_attributes.push(ffi::glx::SAMPLE_BUFFERS as libc::c_int);
+                visual_attributes.push(1);
+                visual_attributes.push(ffi::glx::SAMPLES as libc::c_int);
+                visual_attributes.push(val as libc::c_int);
+            }
+
             let mut num_fb: libc::c_int = mem::uninitialized();
 
             let fb = ffi::glx::ChooseFBConfig(display, ffi::XDefaultScreen(display),
-                VISUAL_ATTRIBUTES.as_ptr(), &mut num_fb);
+                visual_attributes.as_ptr(), &mut num_fb);
             if fb.is_null() {
                 return Err(OsError(format!("glx::ChooseFBConfig failed")));
             }
