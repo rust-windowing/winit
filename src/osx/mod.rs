@@ -184,10 +184,12 @@ impl Window {
             } else {
                 let title = NSString::alloc(nil).init_str(title);
                 window.setTitle_(title);
-                window.center();
                 window.setAcceptsMouseMovedEvents_(true);
                 if monitor.is_some() {
                     window.setLevel_(NSMainMenuWindowLevel as i64 + 1);
+                }
+                else {
+                    window.center();
                 }
                 Some(window)
             }
