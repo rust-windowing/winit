@@ -11,8 +11,10 @@ use HeadlessRendererBuilder;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
+use winapi;
+
 mod event;
-mod ffi;
+mod gl;
 mod init;
 mod monitor;
 
@@ -44,19 +46,19 @@ impl HeadlessContext {
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
     /// Main handle for the window.
-    window: ffi::HWND,
+    window: winapi::HWND,
 
     /// This represents a "draw context" for the surface of the window.
-    hdc: ffi::HDC,
+    hdc: winapi::HDC,
 
     /// OpenGL context.
-    context: ffi::HGLRC,
+    context: winapi::HGLRC,
 
     /// Binded to `opengl32.dll`.
     ///
     /// `wglGetProcAddress` returns null for GL 1.1 functions because they are
     ///  already defined by the system. This module contains them.
-    gl_library: ffi::HMODULE,
+    gl_library: winapi::HMODULE,
 
     /// Receiver for the events dispatched by the window callback.
     events_receiver: Receiver<Event>,
@@ -88,21 +90,21 @@ impl Window {
     /// Calls SetWindowText on the HWND.
     pub fn set_title(&self, text: &str) {
         unsafe {
-            ffi::SetWindowTextW(self.window,
+            winapi::SetWindowTextW(self.window,
                 text.utf16_units().chain(Some(0).into_iter())
-                .collect::<Vec<u16>>().as_ptr() as ffi::LPCWSTR);
+                .collect::<Vec<u16>>().as_ptr() as winapi::LPCWSTR);
         }
     }
 
     pub fn show(&self) {
         unsafe {
-            ffi::ShowWindow(self.window, ffi::SW_SHOW);
+            winapi::ShowWindow(self.window, winapi::SW_SHOW);
         }
     }
 
     pub fn hide(&self) {
         unsafe {
-            ffi::ShowWindow(self.window, ffi::SW_HIDE);
+            winapi::ShowWindow(self.window, winapi::SW_HIDE);
         }
     }
 
@@ -110,10 +112,10 @@ impl Window {
     pub fn get_position(&self) -> Option<(int, int)> {
         use std::mem;
 
-        let mut placement: ffi::WINDOWPLACEMENT = unsafe { mem::zeroed() };
-        placement.length = mem::size_of::<ffi::WINDOWPLACEMENT>() as ffi::UINT;
+        let mut placement: winapi::WINDOWPLACEMENT = unsafe { mem::zeroed() };
+        placement.length = mem::size_of::<winapi::WINDOWPLACEMENT>() as winapi::UINT;
 
-        if unsafe { ffi::GetWindowPlacement(self.window, &mut placement) } == 0 {
+        if unsafe { winapi::GetWindowPlacement(self.window, &mut placement) } == 0 {
             return None
         }
 
@@ -126,18 +128,18 @@ impl Window {
         use libc;
 
         unsafe {
-            ffi::SetWindowPos(self.window, ptr::null(), x as libc::c_int, y as libc::c_int,
-                0, 0, ffi::SWP_NOZORDER | ffi::SWP_NOSIZE);
-            ffi::UpdateWindow(self.window);
+            winapi::SetWindowPos(self.window, ptr::null_mut(), x as libc::c_int, y as libc::c_int,
+                0, 0, winapi::SWP_NOZORDER | winapi::SWP_NOSIZE);
+            winapi::UpdateWindow(self.window);
         }
     }
 
     /// See the docs in the crate root file.
     pub fn get_inner_size(&self) -> Option<(uint, uint)> {
         use std::mem;
-        let mut rect: ffi::RECT = unsafe { mem::uninitialized() };
+        let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
-        if unsafe { ffi::GetClientRect(self.window, &mut rect) } == 0 {
+        if unsafe { winapi::GetClientRect(self.window, &mut rect) } == 0 {
             return None
         }
 
@@ -150,9 +152,9 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn get_outer_size(&self) -> Option<(uint, uint)> {
         use std::mem;
-        let mut rect: ffi::RECT = unsafe { mem::uninitialized() };
+        let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
-        if unsafe { ffi::GetWindowRect(self.window, &mut rect) } == 0 {
+        if unsafe { winapi::GetWindowRect(self.window, &mut rect) } == 0 {
             return None
         }
 
@@ -167,9 +169,9 @@ impl Window {
         use libc;
 
         unsafe {
-            ffi::SetWindowPos(self.window, ptr::null(), 0, 0, x as libc::c_int,
-                y as libc::c_int, ffi::SWP_NOZORDER | ffi::SWP_NOREPOSITION);
-            ffi::UpdateWindow(self.window);
+            winapi::SetWindowPos(self.window, ptr::null_mut(), 0, 0, x as libc::c_int,
+                y as libc::c_int, winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION);
+            winapi::UpdateWindow(self.window);
         }
     }
 
@@ -224,7 +226,7 @@ impl Window {
     /// See the docs in the crate root file.
     pub unsafe fn make_current(&self) {
         // TODO: check return value
-        ffi::wgl::MakeCurrent(self.hdc, self.context);
+        gl::wgl::MakeCurrent(self.hdc as *const libc::c_void, self.context as *const libc::c_void);
     }
 
     /// See the docs in the crate root file.
@@ -233,9 +235,9 @@ impl Window {
 
         unsafe {
             addr.with_c_str(|s| {
-                let p = ffi::wgl::GetProcAddress(s) as *const ();
+                let p = gl::wgl::GetProcAddress(s) as *const ();
                 if !p.is_null() { return p; }
-                ffi::GetProcAddress(self.gl_library, s) as *const ()
+                winapi::GetProcAddress(self.gl_library, s) as *const ()
             })
         }
     }
@@ -243,7 +245,7 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn swap_buffers(&self) {
         unsafe {
-            ffi::SwapBuffers(self.hdc);
+            winapi::SwapBuffers(self.hdc);
         }
     }
 
@@ -256,9 +258,9 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         use std::ptr;
-        unsafe { ffi::PostMessageW(self.window, ffi::WM_DESTROY, 0, 0); }
-        unsafe { ffi::wgl::MakeCurrent(ptr::null(), ptr::null()); }
-        unsafe { ffi::wgl::DeleteContext(self.context); }
-        unsafe { ffi::DestroyWindow(self.window); }
+        unsafe { winapi::PostMessageW(self.window, winapi::WM_DESTROY, 0, 0); }
+        unsafe { gl::wgl::MakeCurrent(ptr::null(), ptr::null()); }
+        unsafe { gl::wgl::DeleteContext(self.context as *const libc::c_void); }
+        unsafe { winapi::DestroyWindow(self.window); }
     }
 }
