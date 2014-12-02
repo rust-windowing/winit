@@ -70,7 +70,6 @@ impl Window {
                 ffi::GLX_DEPTH_SIZE,    24,
                 ffi::GLX_STENCIL_SIZE,  8,
                 ffi::GLX_DOUBLEBUFFER,  1,
-                0
             ];
 
             if let Some(val) = builder.multisampling {
@@ -79,6 +78,8 @@ impl Window {
                 visual_attributes.push(ffi::glx::SAMPLES as libc::c_int);
                 visual_attributes.push(val as libc::c_int);
             }
+
+            visual_attributes.push(0);
 
             let mut num_fb: libc::c_int = mem::uninitialized();
 
