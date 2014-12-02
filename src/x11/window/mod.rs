@@ -370,10 +370,10 @@ impl Window {
         let mut events = Vec::new();
 
         loop {
-            use std::num::Bounded;
+            use std::num::Int;
 
             let mut xev = unsafe { mem::uninitialized() };
-            let res = unsafe { ffi::XCheckMaskEvent(self.display, Bounded::max_value(), &mut xev) };
+            let res = unsafe { ffi::XCheckMaskEvent(self.display, Int::max_value(), &mut xev) };
 
             if res == 0 {
                 let res = unsafe { ffi::XCheckTypedEvent(self.display, ffi::ClientMessage, &mut xev) };
