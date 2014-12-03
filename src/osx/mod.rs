@@ -233,7 +233,7 @@ impl Window {
                 context.setView_(view);
                 if vsync {
                     let value = 1;
-                    context.setValues_forParameter_(&value, NSOpenGLCPSwapInterval);
+                    context.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
                 }
                 Some(context)
             }
