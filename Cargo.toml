@@ -37,3 +37,11 @@ git = "https://github.com/servo/rust-core-graphics"
 
 [target.x86_64-apple-darwin.dependencies.core_graphics]
 git = "https://github.com/servo/rust-core-graphics"
+
+[target.i686-pc-windows-gnu.dependencies.winapi]
+git = "https://github.com/retep998/winapi-rs"
+features = ["gdi32", "kernel32", "user32"]
+
+[target.x86_64-pc-windows-gnu.dependencies.winapi]
+git = "https://github.com/retep998/winapi-rs"
+features = ["gdi32", "kernel32", "user32"]

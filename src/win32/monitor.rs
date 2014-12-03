@@ -1,16 +1,16 @@
-use super::ffi;
+use winapi;
 
 /// Win32 implementation of the main `MonitorID` object.
 pub struct MonitorID {
     /// The system name of the monitor.
-    name: [ffi::WCHAR, ..32],
+    name: [winapi::WCHAR, ..32],
 
     /// Name to give to the user.
     readable_name: String,
 
     /// See the `StateFlags` element here:
     /// http://msdn.microsoft.com/en-us/library/dd183569(v=vs.85).aspx
-    flags: ffi::DWORD,
+    flags: winapi::DWORD,
 
     /// The position of the monitor in pixels on the desktop.
     ///
@@ -33,18 +33,18 @@ pub fn get_available_monitors() -> Vec<MonitorID> {
     for id in iter::count(0u, 1) {
         // getting the DISPLAY_DEVICEW object of the current device
         let output = {
-            let mut output: ffi::DISPLAY_DEVICEW = unsafe { mem::zeroed() };
-            output.cb = mem::size_of::<ffi::DISPLAY_DEVICEW>() as ffi::DWORD;
+            let mut output: winapi::DISPLAY_DEVICEW = unsafe { mem::zeroed() };
+            output.cb = mem::size_of::<winapi::DISPLAY_DEVICEW>() as winapi::DWORD;
 
-            if unsafe { ffi::EnumDisplayDevicesW(ptr::null(),
-                id as ffi::DWORD, &mut output, 0) } == 0
+            if unsafe { winapi::EnumDisplayDevicesW(ptr::null(),
+                id as winapi::DWORD, &mut output, 0) } == 0
             {
                 // the device doesn't exist, which means we have finished enumerating
                 break;
             }
 
-            if  (output.StateFlags & ffi::DISPLAY_DEVICE_ACTIVE) == 0 ||
-                (output.StateFlags & ffi::DISPLAY_DEVICE_MIRRORING_DRIVER) != 0
+            if  (output.StateFlags & winapi::DISPLAY_DEVICE_ACTIVE) == 0 ||
+                (output.StateFlags & winapi::DISPLAY_DEVICE_MIRRORING_DRIVER) != 0
             {
                 // the device is not active
                 // the Win32 api usually returns a lot of inactive devices
@@ -60,16 +60,16 @@ pub fn get_available_monitors() -> Vec<MonitorID> {
 
         // getting the position
         let (position, dimensions) = unsafe {
-            let mut dev: ffi::DEVMODE = mem::zeroed();
-            dev.dmSize = mem::size_of::<ffi::DEVMODE>() as ffi::WORD;
+            let mut dev: winapi::DEVMODEW = mem::zeroed();
+            dev.dmSize = mem::size_of::<winapi::DEVMODEW>() as winapi::WORD;
 
-            if ffi::EnumDisplaySettingsExW(output.DeviceName.as_ptr(), ffi::ENUM_CURRENT_SETTINGS,
+            if winapi::EnumDisplaySettingsExW(output.DeviceName.as_ptr(), winapi::ENUM_CURRENT_SETTINGS,
                 &mut dev, 0) == 0
             {
                 continue;
             }
 
-            let point: &ffi::POINTL = mem::transmute(&dev.union1);
+            let point: &winapi::POINTL = mem::transmute(&dev.union1);
             let position = (point.x as uint, point.y as uint);
 
             let dimensions = (dev.dmPelsWidth as uint, dev.dmPelsHeight as uint);
@@ -96,7 +96,7 @@ pub fn get_primary_monitor() -> MonitorID {
     // TODO: it is possible to query the win32 API for the primary monitor, this should be done
     //  instead
     for monitor in get_available_monitors().into_iter() {
-        if (monitor.flags & ffi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 {
+        if (monitor.flags & winapi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 {
             return monitor
         }
     }
@@ -117,7 +117,7 @@ impl MonitorID {
     }
 
     /// This is a Win32-only function for `MonitorID` that returns the system name of the device.
-    pub fn get_system_name(&self) -> &[ffi::WCHAR] {
+    pub fn get_system_name(&self) -> &[winapi::WCHAR] {
         // TODO: retreive the position every time this is called
         self.name.as_slice()
     }
