@@ -61,7 +61,6 @@ fn main() {
 
  - You must call `glFlush` before `swap_buffers`, or else on Windows 8 nothing will be visible on the window
  - Pixel formats are not implemented
- - If you don't have MinGW installed, you will need to provide `libgdi32.a` and `libopengl32.a` ; you can put them in `C:\Users\you\.rust`
 
 ### X11
 
