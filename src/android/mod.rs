@@ -222,13 +222,13 @@ impl Window {
         loop {
             match self.event_rx.try_recv() {
                 Ok(event) => match event {
-                    android_glue::EventDown => {
+                    android_glue::Event::EventDown => {
                         events.push(MouseInput(Pressed, LeftMouseButton));
                     },
-                    android_glue::EventUp => {
+                    android_glue::Event::EventUp => {
                         events.push(MouseInput(Released, LeftMouseButton));
                     },
-                    android_glue::EventMove(x, y) => {
+                    android_glue::Event::EventMove(x, y) => {
                         events.push(MouseMoved((x as int, y as int)));
                     },
                 },
