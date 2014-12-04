@@ -14,9 +14,6 @@ default = ["window"]
 window = []
 headless = []
 
-[dependencies.compile_msg]
-git = "https://github.com/huonw/compile_msg"
-
 [dependencies.gl_generator]
 git = "https://github.com/bjz/gl-rs"
 
