@@ -30,7 +30,6 @@
 //!
 //! By default only `window` is enabled.
 
-#[phase(plugin)] extern crate compile_msg;
 #[phase(plugin)] extern crate gl_generator;
 
 extern crate gl_common;
@@ -49,6 +48,9 @@ pub use events::*;
 
 use std::default::Default;
 
+#[cfg(all(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"), not(target_os = "android")))]
+use this_platform_is_not_supported;
+
 #[cfg(target_os = "windows")]
 #[path="win32/mod.rs"]
 mod winimpl;
@@ -63,9 +65,6 @@ mod winimpl;
 mod winimpl;
 
 mod events;
-
-#[cfg(all(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"), not(target_os = "android")))]
-compile_error!("Only the `windows`, `linux` and `macos` platforms are supported")
 
 /// Identifier for a monitor.
 #[cfg(feature = "window")]
