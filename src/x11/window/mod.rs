@@ -535,6 +535,11 @@ impl Window {
     pub fn platform_display(&self) -> *mut libc::c_void {
         self.display as *mut libc::c_void
     }
+
+    /// See the docs in the crate root file.
+    pub fn get_api(&self) -> ::Api {
+        ::Api::OpenGl
+    }
 }
 
 impl Drop for Window {

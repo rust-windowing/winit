@@ -84,6 +84,14 @@ impl std::error::Error for CreationError {
     }
 }
 
+/// All APIs related to OpenGL that you can possibly get while using glutin.
+pub enum Api {
+    /// The classical OpenGL. Available on Windows, Linux, OS/X.
+    OpenGl,
+    /// OpenGL embedded system. Available on Linux, Android.
+    OpenGlEs,
+}
+
 /// Object that allows you to build windows.
 #[cfg(feature = "window")]
 pub struct WindowBuilder<'a> {
@@ -457,6 +465,15 @@ impl Window {
     pub unsafe fn platform_display(&self) -> *mut libc::c_void {
         self.window.platform_display()
     }
+
+    /// Returns the API that is currently provided by this window.
+    ///
+    /// - On Windows and OS/X, this always returns `OpenGl`.
+    /// - On Android, this always returns `OpenGlEs`.
+    /// - On Linux, it must be checked at runtime.
+    pub fn get_api(&self) -> Api {
+        self.window.get_api()
+    }
 }
 
 #[cfg(feature = "window")]
@@ -487,6 +504,13 @@ impl HeadlessContext {
     #[inline]
     pub fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
         self.context.get_proc_address(addr) as *const libc::c_void
+    }
+
+    /// Returns the API that is currently provided by this window.
+    ///
+    /// See `Window::get_api` for more infos.
+    pub fn get_api(&self) -> Api {
+        self.context.get_api()
     }
 }
 

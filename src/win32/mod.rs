@@ -41,6 +41,11 @@ impl HeadlessContext {
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         self.0.get_proc_address(addr)
     }
+
+    /// See the docs in the crate root file.
+    pub fn get_api(&self) -> ::Api {
+        ::Api::OpenGl
+    }
 }
 
 /// The Win32 implementation of the main `Window` object.
@@ -251,6 +256,11 @@ impl Window {
 
     pub fn platform_display(&self) -> *mut libc::c_void {
         unimplemented!()
+    }
+
+    /// See the docs in the crate root file.
+    pub fn get_api(&self) -> ::Api {
+        ::Api::OpenGl
     }
 }
 
