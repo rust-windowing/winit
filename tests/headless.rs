@@ -1,5 +1,4 @@
 #![feature(phase)]
-#![feature(tuple_indexing)]
 
 #[phase(plugin)]
 extern crate gl_generator;
