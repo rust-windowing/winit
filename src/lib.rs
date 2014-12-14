@@ -83,6 +83,7 @@ impl std::error::Error for CreationError {
 }
 
 /// All APIs related to OpenGL that you can possibly get while using glutin.
+#[deriving(Show, Clone, Copy, PartialEq, Eq)]
 pub enum Api {
     /// The classical OpenGL. Available on Windows, Linux, OS/X.
     OpenGl,
