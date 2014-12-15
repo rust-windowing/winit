@@ -37,7 +37,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
     // GetMessage must be called in the same thread as CreateWindow,
     //  so we create a new thread dedicated to this window.
     // This is the only safe method. Using `nosend` wouldn't work for non-native runtime.
-    spawn(proc() {
+    spawn(move || {
         // registering the window class
         let class_name = {
             let class_name: Vec<u16> = "Window Class".utf16_units().chain(Some(0).into_iter())

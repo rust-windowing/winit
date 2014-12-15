@@ -20,15 +20,15 @@ fn main() {
     let window2 = glutin::Window::new().unwrap();
     let window3 = glutin::Window::new().unwrap();
 
-    spawn(proc() {
+    spawn(move || {
         run(window1, (0.0, 1.0, 0.0, 1.0));
     });
 
-    spawn(proc() {
+    spawn(move || {
         run(window2, (0.0, 0.0, 1.0, 1.0));
     });
 
-    spawn(proc() {
+    spawn(move || {
         run(window3, (1.0, 0.0, 0.0, 1.0));
     });
 }
