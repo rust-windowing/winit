@@ -48,8 +48,7 @@ struct DelegateState<'a> {
     is_closed: bool,
     context: id,
     view: id,
-    window: &'a Window,
-    handler: fn(uint, uint),
+    handler: Option<fn(uint, uint)>,
 }
 
 pub struct Window {
@@ -57,7 +56,7 @@ pub struct Window {
     window: id,
     context: id,
     delegate: id,
-    resize: fn(uint, uint),
+    resize: Option<fn(uint, uint)>,
 
     is_closed: Cell<bool>,
 }
@@ -118,15 +117,20 @@ extern fn window_did_resize(this: id, _: id) -> id {
 
         let _: id = msg_send()(state.context, selector("update"));
 
-        let rect = NSView::frame(state.view);
-        (state.handler)(rect.size.width as uint, rect.size.height as uint);
+        match state.handler {
+            Some(handler) => {
+                let rect = NSView::frame(state.view);
+                (handler)(rect.size.width as uint, rect.size.height as uint);
+            }
+            None => {}
+        }
     }
     0
 }
 
 impl Window {
     fn new_impl(dimensions: Option<(uint, uint)>, title: &str, monitor: Option<MonitorID>,
-                vsync: bool, visible: bool) -> Result<Window, CreationError> {
+                vsync: bool, _visible: bool) -> Result<Window, CreationError> {
         let app = match Window::create_app() {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
@@ -173,16 +177,12 @@ impl Window {
             window: window,
             context: context,
             delegate: delegate,
-            resize: Window::resize,
+            resize: None,
 
             is_closed: Cell::new(false),
         };
 
         Ok(window)
-    }
-
-    fn resize(_: uint, _: uint) {
-
     }
 
     fn create_app() -> Option<id> {
@@ -349,7 +349,6 @@ impl Window {
                         is_closed: self.is_closed.get(),
                         context: self.context,
                         view: self.view,
-                        window: self,
                         handler: self.resize,
                     };
                     object_setInstanceVariable(self.delegate,
@@ -476,7 +475,7 @@ impl Window {
         ::Api::OpenGl
     }
 
-    pub fn set_window_resize_callback(&mut self, callback: fn(uint, uint)) {
+    pub fn set_window_resize_callback(&mut self, callback: Option<fn(uint, uint)>) {
         self.resize = callback;
     }
 }

@@ -486,7 +486,7 @@ impl Window {
     /// Sets a resize callback that is called by Mac (and potentially other
     /// operating systems) during resize operations. This can be used to repaint
     /// during window resizing.
-    pub fn set_window_resize_callback(&mut self, callback: fn(uint, uint)) {
+    pub fn set_window_resize_callback(&mut self, callback: Option<fn(uint, uint)>) {
         self.window.set_window_resize_callback(callback);
     }
 }
@@ -550,7 +550,7 @@ impl HeadlessContext {
         self.context.get_api()
     }
 
-    pub fn set_window_resize_callback(&mut self, _: fn(uint, uint)) {
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
     }
 }
 

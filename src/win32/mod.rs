@@ -47,7 +47,7 @@ impl HeadlessContext {
         ::Api::OpenGl
     }
 
-    pub fn set_window_resize_callback(&mut self, _: fn(uint, uint)) {
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
     }
 }
 
@@ -280,7 +280,7 @@ impl Window {
         ::Api::OpenGl
     }
 
-    pub fn set_window_resize_callback(&mut self, _: fn(uint, uint)) {
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
     }
 }
 
