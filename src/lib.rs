@@ -482,6 +482,13 @@ impl Window {
             proxy: self.window.create_window_proxy()
         }
     }
+
+    /// Sets a resize callback that is called by Mac (and potentially other
+    /// operating systems) during resize operations. This can be used to repaint
+    /// during window resizing.
+    pub fn set_window_resize_callback(&mut self, callback: fn(uint, uint)) {
+        self.window.set_window_resize_callback(callback);
+    }
 }
 
 #[cfg(feature = "window")]
@@ -541,6 +548,9 @@ impl HeadlessContext {
     /// See `Window::get_api` for more infos.
     pub fn get_api(&self) -> Api {
         self.context.get_api()
+    }
+
+    pub fn set_window_resize_callback(&mut self, _: fn(uint, uint)) {
     }
 }
 
