@@ -5,6 +5,8 @@ Alternative to GLFW in pure Rust.
 
 [![Build Status](https://travis-ci.org/tomaka/glutin.png?branch=master)](https://travis-ci.org/tomaka/glutin)
 
+## [Documentation](http://tomaka.github.io/glutin/)
+
 ## Try it!
 
 ```bash

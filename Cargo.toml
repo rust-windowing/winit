@@ -8,6 +8,7 @@ keywords = ["windowing", "opengl"]
 license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/tomaka/glutin"
+documentation = "http://tomaka.github.io/glutin/"
 
 [features]
 default = ["window"]
