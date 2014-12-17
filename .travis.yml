@@ -1,5 +1,9 @@
 language: rust
 
+env:
+  global:
+    - secure: "H7JRHaCkm6NvmMU76pNUyK5fj8d0kEb1snGCTcC4ZdW98P5qSEDbMBOKZgSW0DNhKmzYS1qHHAXlmm9c9JCVYfeErL9JeTrRk4DvIO8sH3ImhHIB/q4U+h+hxZ6W+dGpTi0kjQ5ZS3z+Mlr/9CB4UT83HmF78Zfyf6KA15esUIQ="
+
 install:
   - sudo apt-get install libXxf86vm-dev libosmesa6-dev
 
@@ -11,3 +15,12 @@ script:
 os:
   - linux
   - osx
+
+after_success: |
+    [ $TRAVIS_BRANCH = master ] &&
+    [ $TRAVIS_PULL_REQUEST = false ] &&
+    cargo doc &&
+    echo '<meta http-equiv=refresh content=0;url=glutin/index.html>' > target/doc/index.html &&
+    sudo pip install ghp-import &&
+    ghp-import -n target/doc &&
+    git push -fq https://${GH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
