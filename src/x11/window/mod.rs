@@ -6,7 +6,7 @@ use std::{mem, ptr};
 use std::cell::Cell;
 use std::sync::atomic::AtomicBool;
 use super::ffi;
-use std::sync::{Once, ONCE_INIT};
+use std::sync::{Arc, Once, ONCE_INIT};
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
@@ -23,17 +23,65 @@ fn ensure_thread_init() {
     });
 }
 
-pub struct Window {
+struct XWindow {
     display: *mut ffi::Display,
     window: ffi::Window,
-    im: ffi::XIM,
-    ic: ffi::XIC,
     context: ffi::GLXContext,
+    is_fullscreen: bool,
+    screen_id: libc::c_int,
+    xf86_desk_mode: *mut ffi::XF86VidModeModeInfo,
+    ic: ffi::XIC,
+    im: ffi::XIM,
+}
+
+impl Drop for XWindow {
+    fn drop(&mut self) {
+        unsafe {
+            ffi::glx::MakeCurrent(self.display, 0, ptr::null());
+            ffi::glx::DestroyContext(self.display, self.context);
+
+            if self.is_fullscreen {
+                ffi::XF86VidModeSwitchToMode(self.display, self.screen_id, self.xf86_desk_mode);
+                ffi::XF86VidModeSetViewPort(self.display, self.screen_id, 0, 0);
+            }
+
+            ffi::XDestroyIC(self.ic);
+            ffi::XCloseIM(self.im);
+            ffi::XDestroyWindow(self.display, self.window);
+            ffi::XCloseDisplay(self.display);
+        }
+    }
+}
+
+#[deriving(Clone)]
+pub struct WindowProxy {
+    x: Arc<XWindow>,
+}
+
+impl WindowProxy {
+    pub fn wakeup_event_loop(&self) {
+        let mut xev = ffi::XClientMessageEvent {
+            type_: ffi::ClientMessage,
+            window: self.x.window,
+            format: 32,
+            message_type: 0,
+            serial: 0,
+            send_event: 0,
+            display: self.x.display,
+            l: [0, 0, 0, 0, 0],
+        };
+
+        unsafe {
+            ffi::XSendEvent(self.x.display, self.x.window, 0, 0, mem::transmute(&mut xev));
+            ffi::XFlush(self.x.display);
+        }
+    }
+}
+
+pub struct Window {
+    x: Arc<XWindow>,
     is_closed: AtomicBool,
     wm_delete_window: ffi::Atom,
-    xf86_desk_mode: *mut ffi::XF86VidModeModeInfo,
-    screen_id: libc::c_int,
-    is_fullscreen: bool,
     current_size: Cell<(libc::c_int, libc::c_int)>,
 }
 
@@ -257,7 +305,7 @@ impl Window {
             });
 
             let share = if let Some(win) = builder.sharing {
-                win.window.context
+                win.window.x.context
             } else {
                 ptr::null()
             };
@@ -278,16 +326,18 @@ impl Window {
 
         // creating the window object
         let window = Window {
-            display: display,
-            window: window,
-            im: im,
-            ic: ic,
-            context: context,
+            x: Arc::new(XWindow {
+                display: display,
+                window: window,
+                im: im,
+                ic: ic,
+                context: context,
+                screen_id: screen_id,
+                is_fullscreen: builder.monitor.is_some(),
+                xf86_desk_mode: xf86_desk_mode,
+            }),
             is_closed: AtomicBool::new(false),
             wm_delete_window: wm_delete_window,
-            xf86_desk_mode: xf86_desk_mode,
-            screen_id: screen_id,
-            is_fullscreen: builder.monitor.is_some(),
             current_size: Cell::new((0, 0)),
         };
 
@@ -303,22 +353,22 @@ impl Window {
     pub fn set_title(&self, title: &str) {
         let c_title = title.to_c_str();
         unsafe {
-            ffi::XStoreName(self.display, self.window, c_title.as_ptr());
-            ffi::XFlush(self.display);
+            ffi::XStoreName(self.x.display, self.x.window, c_title.as_ptr());
+            ffi::XFlush(self.x.display);
         }
     }
 
     pub fn show(&self) {
         unsafe {
-            ffi::XMapRaised(self.display, self.window);
-            ffi::XFlush(self.display);
+            ffi::XMapRaised(self.x.display, self.x.window);
+            ffi::XFlush(self.x.display);
         }
     }
 
     pub fn hide(&self) {
         unsafe {
-            ffi::XUnmapWindow(self.display, self.window);
-            ffi::XFlush(self.display);
+            ffi::XUnmapWindow(self.x.display, self.x.window);
+            ffi::XFlush(self.x.display);
         }
     }
 
@@ -334,7 +384,7 @@ impl Window {
             let mut border: libc::c_uint = mem::uninitialized();
             let mut depth: libc::c_uint = mem::uninitialized();
 
-            if ffi::XGetGeometry(self.display, self.window,
+            if ffi::XGetGeometry(self.x.display, self.x.window,
                 &mut root, &mut x, &mut y, &mut width, &mut height,
                 &mut border, &mut depth) == 0
             {
@@ -350,7 +400,7 @@ impl Window {
     }
 
     pub fn set_position(&self, x: int, y: int) {
-        unsafe { ffi::XMoveWindow(self.display, self.window, x as libc::c_int, y as libc::c_int) }
+        unsafe { ffi::XMoveWindow(self.x.display, self.x.window, x as libc::c_int, y as libc::c_int) }
     }
 
     pub fn get_inner_size(&self) -> Option<(uint, uint)> {
@@ -365,6 +415,12 @@ impl Window {
         unimplemented!()
     }
 
+    pub fn create_window_proxy(&self) -> WindowProxy {
+        WindowProxy {
+            x: self.x.clone()
+        }
+    }
+
     pub fn poll_events(&self) -> Vec<Event> {
         use std::mem;
 
@@ -374,10 +430,10 @@ impl Window {
             use std::num::Int;
 
             let mut xev = unsafe { mem::uninitialized() };
-            let res = unsafe { ffi::XCheckMaskEvent(self.display, Int::max_value(), &mut xev) };
+            let res = unsafe { ffi::XCheckMaskEvent(self.x.display, Int::max_value(), &mut xev) };
 
             if res == 0 {
-                let res = unsafe { ffi::XCheckTypedEvent(self.display, ffi::ClientMessage, &mut xev) };
+                let res = unsafe { ffi::XCheckTypedEvent(self.x.display, ffi::ClientMessage, &mut xev) };
 
                 if res == 0 {
                     break
@@ -390,7 +446,7 @@ impl Window {
                 },
 
                 ffi::ClientMessage => {
-                    use events::Event::Closed;
+                    use events::Event::{Closed, Refresh};
                     use std::sync::atomic::Relaxed;
 
                     let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
@@ -398,6 +454,8 @@ impl Window {
                     if client_msg.l[0] == self.wm_delete_window as libc::c_long {
                         self.is_closed.store(true, Relaxed);
                         events.push(Closed);
+                    } else {
+                        events.push(Refresh);
                     }
                 },
 
@@ -424,7 +482,7 @@ impl Window {
 
                     if event.type_ == ffi::KeyPress {
                         let raw_ev: *mut ffi::XKeyEvent = event;
-                        unsafe { ffi::XFilterEvent(mem::transmute(raw_ev), self.window) };
+                        unsafe { ffi::XFilterEvent(mem::transmute(raw_ev), self.x.window) };
                     }
 
                     let state = if xev.type_ == ffi::KeyPress { Pressed } else { Released };
@@ -434,7 +492,7 @@ impl Window {
 
                         let mut buffer: [u8, ..16] = [mem::uninitialized(), ..16];
                         let raw_ev: *mut ffi::XKeyEvent = event;
-                        let count = ffi::Xutf8LookupString(self.ic, mem::transmute(raw_ev),
+                        let count = ffi::Xutf8LookupString(self.x.ic, mem::transmute(raw_ev),
                             mem::transmute(buffer.as_mut_ptr()),
                             buffer.len() as libc::c_int, ptr::null_mut(), ptr::null_mut());
 
@@ -447,7 +505,7 @@ impl Window {
                     }
 
                     let keysym = unsafe {
-                        ffi::XKeycodeToKeysym(self.display, event.keycode as ffi::KeyCode, 0)
+                        ffi::XKeycodeToKeysym(self.x.display, event.keycode as ffi::KeyCode, 0)
                     };
 
                     let vkey =  events::keycode_to_element(keysym as libc::c_uint);
@@ -500,7 +558,7 @@ impl Window {
             // this will block until an event arrives, but doesn't remove
             //  it from the queue
             let mut xev = unsafe { mem::uninitialized() };
-            unsafe { ffi::XPeekEvent(self.display, &mut xev) };
+            unsafe { ffi::XPeekEvent(self.x.display, &mut xev) };
 
             // calling poll_events()
             let ev = self.poll_events();
@@ -511,7 +569,7 @@ impl Window {
     }
 
     pub unsafe fn make_current(&self) {
-        let res = ffi::glx::MakeCurrent(self.display, self.window, self.context);
+        let res = ffi::glx::MakeCurrent(self.x.display, self.x.window, self.x.context);
         if res == 0 {
             panic!("glx::MakeCurrent failed");
         }
@@ -529,32 +587,15 @@ impl Window {
     }
 
     pub fn swap_buffers(&self) {
-        unsafe { ffi::glx::SwapBuffers(self.display, self.window) }
+        unsafe { ffi::glx::SwapBuffers(self.x.display, self.x.window) }
     }
 
     pub fn platform_display(&self) -> *mut libc::c_void {
-        self.display as *mut libc::c_void
+        self.x.display as *mut libc::c_void
     }
 
     /// See the docs in the crate root file.
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGl
-    }
-}
-
-impl Drop for Window {
-    fn drop(&mut self) {
-        unsafe { ffi::glx::MakeCurrent(self.display, 0, ptr::null()); }
-        unsafe { ffi::glx::DestroyContext(self.display, self.context); }
-
-        if self.is_fullscreen {
-            unsafe { ffi::XF86VidModeSwitchToMode(self.display, self.screen_id, self.xf86_desk_mode); }
-            unsafe { ffi::XF86VidModeSetViewPort(self.display, self.screen_id, 0, 0); }
-        }
-
-        unsafe { ffi::XDestroyIC(self.ic); }
-        unsafe { ffi::XCloseIM(self.im); }
-        unsafe { ffi::XDestroyWindow(self.display, self.window); }
-        unsafe { ffi::XCloseDisplay(self.display); }
     }
 }

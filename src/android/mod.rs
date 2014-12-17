@@ -207,6 +207,10 @@ impl Window {
     pub fn set_inner_size(&self, _x: uint, _y: uint) {
     }
 
+    pub fn create_window_proxy(&self) -> WindowProxy {
+        WindowProxy
+    }
+
     pub fn poll_events(&self) -> Vec<Event> {
         use std::time::Duration;
         use std::io::timer;
@@ -268,6 +272,16 @@ impl Window {
 
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGlEs
+    }
+}
+
+#[cfg(feature = "window")]
+#[deriving(Clone)]
+pub struct WindowProxy;
+
+impl WindowProxy {
+    pub fn wakeup_event_loop(&self) {
+        // TODO
     }
 }
 

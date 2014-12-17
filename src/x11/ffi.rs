@@ -1420,6 +1420,8 @@ extern "C" {
         x_return: *mut libc::c_int, y_return: *mut libc::c_int,
         width_return: *mut libc::c_uint, height_return: *mut libc::c_uint,
         border_width_return: *mut libc::c_uint, depth_return: *mut libc::c_uint) -> Status;
+    pub fn XSendEvent(display: *mut Display, window: Window, propagate: Bool,
+                      event_mask: libc::c_long, event_send: *mut XEvent) -> Status;
     pub fn XInternAtom(display: *mut Display, atom_name: *const libc::c_char,
         only_if_exists: Bool) -> Atom;
     pub fn XKeycodeToKeysym(display: *mut Display, keycode: KeyCode,

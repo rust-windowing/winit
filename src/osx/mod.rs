@@ -74,6 +74,16 @@ impl Window {
     }
 }
 
+#[cfg(feature = "window")]
+#[deriving(Clone)]
+pub struct WindowProxy;
+
+impl WindowProxy {
+    pub fn wakeup_event_loop(&self) {
+        // TODO
+    }
+}
+
 extern fn window_should_close(this: id, _: id) -> id {
     unsafe {
         let mut stored_value = ptr::null_mut();
@@ -276,6 +286,10 @@ impl Window {
 
     pub fn set_inner_size(&self, _x: uint, _y: uint) {
         unimplemented!()
+    }
+
+    pub fn create_window_proxy(&self) -> WindowProxy {
+        WindowProxy
     }
 
     pub fn poll_events(&self) -> Vec<Event> {
