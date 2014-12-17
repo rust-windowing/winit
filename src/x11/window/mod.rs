@@ -102,8 +102,8 @@ impl Window {
             }
 
             for i in range(0, mode_num) {
-                let mode: ffi::XF86VidModeModeInfo = **modes.offset(i as int);
-                if mode.hdisplay == dimensions.val0() as u16 && mode.vdisplay == dimensions.val1() as u16 {
+                let mode: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as int) as *const _);
+                if mode.hdisplay == dimensions.0 as u16 && mode.vdisplay == dimensions.1 as u16 {
                     best_mode = i;
                 }
             };
@@ -119,12 +119,12 @@ impl Window {
         };
 
         // getting the visual infos
-        let mut visual_infos = unsafe {
+        let mut visual_infos: ffi::glx::types::XVisualInfo = unsafe {
             let vi = ffi::glx::GetVisualFromFBConfig(display, fb_config);
             if vi.is_null() {
                 return Err(OsError(format!("glx::ChooseVisual failed")));
             }
-            let vi_copy = *vi;
+            let vi_copy = ptr::read(vi as *const _);
             ffi::XFree(vi as *const libc::c_void);
             vi_copy
         };
@@ -165,8 +165,8 @@ impl Window {
 
         // finally creating the window
         let window = unsafe {
-            let win = ffi::XCreateWindow(display, root, 0, 0, dimensions.val0() as libc::c_uint,
-                dimensions.val1() as libc::c_uint, 0, visual_infos.depth, ffi::InputOutput,
+            let win = ffi::XCreateWindow(display, root, 0, 0, dimensions.0 as libc::c_uint,
+                dimensions.1 as libc::c_uint, 0, visual_infos.depth, ffi::InputOutput,
                 visual_infos.visual, window_attributes,
                 &mut set_win_attr);
             win
@@ -236,9 +236,9 @@ impl Window {
             if builder.gl_version.is_some() {
                 let version = builder.gl_version.as_ref().unwrap();
                 attributes.push(ffi::GLX_CONTEXT_MAJOR_VERSION);
-                attributes.push(version.val0() as libc::c_int);
+                attributes.push(version.0 as libc::c_int);
                 attributes.push(ffi::GLX_CONTEXT_MINOR_VERSION);
-                attributes.push(version.val1() as libc::c_int);
+                attributes.push(version.1 as libc::c_int);
             }
 
             if builder.gl_debug {
