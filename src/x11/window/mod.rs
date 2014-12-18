@@ -598,4 +598,7 @@ impl Window {
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGl
     }
+
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
+    }
 }

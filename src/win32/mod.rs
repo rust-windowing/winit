@@ -46,6 +46,9 @@ impl HeadlessContext {
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGl
     }
+
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
+    }
 }
 
 /// The Win32 implementation of the main `Window` object.
@@ -275,6 +278,9 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGl
+    }
+
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
     }
 }
 
