@@ -23,7 +23,7 @@ use std::mem;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Relaxed};
 
-use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput};
+use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel};
 use events::ElementState::{Pressed, Released};
 use events::MouseButton::{LeftMouseButton, RightMouseButton};
 use events;
@@ -338,7 +338,7 @@ impl Window {
                             events.push(alt_modifier.unwrap());
                         }
                     },
-                    NSScrollWheel           => { },
+                    NSScrollWheel           => { events.push(MouseWheel(-event.scrollingDeltaY() as i32)); },
                     NSOtherMouseDown        => { },
                     NSOtherMouseUp          => { },
                     NSOtherMouseDragged     => { },
