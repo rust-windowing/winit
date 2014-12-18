@@ -32,8 +32,8 @@ pub enum Event {
     /// An event from the mouse has been received.
     MouseInput(ElementState, MouseButton),
 
-    /// The window should be redrawn.
-    Refresh,
+    /// The event loop was woken up by another thread.
+    Awakened,
 }
 
 pub type ScanCode = u8;

@@ -446,7 +446,7 @@ impl Window {
                 },
 
                 ffi::ClientMessage => {
-                    use events::Event::{Closed, Refresh};
+                    use events::Event::{Closed, Awakened};
                     use std::sync::atomic::Relaxed;
 
                     let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
@@ -455,7 +455,7 @@ impl Window {
                         self.is_closed.store(true, Relaxed);
                         events.push(Closed);
                     } else {
-                        events.push(Refresh);
+                        events.push(Awakened);
                     }
                 },
 
