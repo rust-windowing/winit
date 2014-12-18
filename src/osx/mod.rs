@@ -80,7 +80,23 @@ pub struct WindowProxy;
 
 impl WindowProxy {
     pub fn wakeup_event_loop(&self) {
-        // TODO
+        unsafe {
+            let pool = NSAutoreleasePool::new(nil);
+            let event =
+                NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2(
+                nil,
+                NSApplicationDefined,
+                NSPoint::new(0.0, 0.0),
+                0,
+                0.0,
+                0,
+                ptr::null_mut(),
+                0,
+                0,
+                0);
+            NSApp().postEvent_atStart_(event, true);
+            pool.drain();
+        }
     }
 }
 
