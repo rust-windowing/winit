@@ -89,7 +89,7 @@ pub struct WindowProxy;
 
 impl WindowProxy {
     pub fn wakeup_event_loop(&self) {
-        // TODO
+        unimplemented!()
     }
 }
 
