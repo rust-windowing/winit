@@ -74,6 +74,32 @@ impl Window {
     }
 }
 
+#[cfg(feature = "window")]
+#[deriving(Clone)]
+pub struct WindowProxy;
+
+impl WindowProxy {
+    pub fn wakeup_event_loop(&self) {
+        unsafe {
+            let pool = NSAutoreleasePool::new(nil);
+            let event =
+                NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2(
+                nil,
+                NSApplicationDefined,
+                NSPoint::new(0.0, 0.0),
+                0,
+                0.0,
+                0,
+                ptr::null_mut(),
+                0,
+                0,
+                0);
+            NSApp().postEvent_atStart_(event, true);
+            pool.drain();
+        }
+    }
+}
+
 extern fn window_should_close(this: id, _: id) -> id {
     unsafe {
         let mut stored_value = ptr::null_mut();
@@ -276,6 +302,10 @@ impl Window {
 
     pub fn set_inner_size(&self, _x: uint, _y: uint) {
         unimplemented!()
+    }
+
+    pub fn create_window_proxy(&self) -> WindowProxy {
+        WindowProxy
     }
 
     pub fn poll_events(&self) -> Vec<Event> {

@@ -2,7 +2,7 @@
 pub use self::headless::HeadlessContext;
 
 #[cfg(feature = "window")]
-pub use self::window::{Window, MonitorID, get_available_monitors, get_primary_monitor};
+pub use self::window::{Window, WindowProxy, MonitorID, get_available_monitors, get_primary_monitor};
 
 mod ffi;
 

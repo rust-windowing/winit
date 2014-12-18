@@ -473,12 +473,43 @@ impl Window {
     pub fn get_api(&self) -> Api {
         self.window.get_api()
     }
+
+    /// Create a window proxy for this window, that can be freely
+    /// passed to different threads.
+    #[inline]
+    pub fn create_window_proxy(&self) -> WindowProxy {
+        WindowProxy {
+            proxy: self.window.create_window_proxy()
+        }
+    }
 }
 
 #[cfg(feature = "window")]
 impl gl_common::GlFunctionsSource for Window {
     fn get_proc_addr(&self, addr: &str) -> *const libc::c_void {
         self.get_proc_address(addr)
+    }
+}
+
+/// Represents a thread safe subset of operations that can be called
+/// on a window. This structure can be safely cloned and sent between
+/// threads.
+///
+#[cfg(feature = "window")]
+#[deriving(Clone)]
+pub struct WindowProxy {
+    proxy: winimpl::WindowProxy,
+}
+
+#[cfg(feature = "window")]
+impl WindowProxy {
+
+    /// Triggers a blocked event loop to wake up. This is
+    /// typically called when another thread wants to wake
+    /// up the blocked rendering thread to cause a refresh.
+    #[inline]
+    pub fn wakeup_event_loop(&self) {
+        self.proxy.wakeup_event_loop();
     }
 }
 

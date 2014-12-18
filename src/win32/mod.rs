@@ -83,6 +83,16 @@ impl Window {
     }
 }
 
+#[cfg(feature = "window")]
+#[deriving(Clone)]
+pub struct WindowProxy;
+
+impl WindowProxy {
+    pub fn wakeup_event_loop(&self) {
+        unimplemented!()
+    }
+}
+
 impl Window {
     /// See the docs in the crate root file.
     pub fn is_closed(&self) -> bool {
@@ -178,6 +188,10 @@ impl Window {
                 y as libc::c_int, winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION);
             winapi::UpdateWindow(self.window);
         }
+    }
+
+    pub fn create_window_proxy(&self) -> WindowProxy {
+        WindowProxy
     }
 
     /// See the docs in the crate root file.
