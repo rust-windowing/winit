@@ -23,7 +23,7 @@ use std::c_str::CString;
 use std::mem;
 use std::ptr;
 
-use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, Resized, MouseWheel};
+use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel};
 use events::ElementState::{Pressed, Released};
 use events::MouseButton::{LeftMouseButton, RightMouseButton};
 use events;
@@ -130,7 +130,7 @@ extern fn window_did_resize(this: id, _: id) -> id {
 
 impl Window {
     fn new_impl(dimensions: Option<(uint, uint)>, title: &str, monitor: Option<MonitorID>,
-                vsync: bool, _visible: bool) -> Result<Window, CreationError> {
+                vsync: bool, visible: bool) -> Result<Window, CreationError> {
         let app = match Window::create_app() {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
@@ -151,7 +151,11 @@ impl Window {
 
         unsafe {
             app.activateIgnoringOtherApps_(true);
-            window.makeKeyAndOrderFront_(nil);
+            if visible {
+                window.makeKeyAndOrderFront_(nil);
+            } else {
+                window.makeKeyWindow();
+            }
         }
 
         // Set up the window delegate to receive events
