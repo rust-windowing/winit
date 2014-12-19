@@ -621,6 +621,13 @@ impl Window {
     pub fn set_cursor(&self, cursor: MouseCursor) {
         self.window.set_cursor(cursor);
     }
+
+    /// Returns the ratio between the backing framebuffer resolution and the
+    /// window size in screen pixels. This is typically one for a normal display
+    /// and two for a retina display.
+    pub fn hidpi_factor(&self) -> f32 {
+        self.window.hidpi_factor()
+    }
 }
 
 #[cfg(feature = "window")]

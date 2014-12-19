@@ -289,6 +289,10 @@ impl Window {
     pub fn set_cursor(&self, cursor: MouseCursor) {
         unimplemented!()
     }
+
+    pub fn hidpi_factor(&self) -> f32 {
+        1.0
+    }
 }
 
 #[unsafe_destructor]

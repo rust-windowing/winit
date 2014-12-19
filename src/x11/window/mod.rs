@@ -658,4 +658,8 @@ impl Window {
             ffi::XFlush(self.x.display);
         }
     }
+
+    pub fn hidpi_factor(&self) -> f32 {
+        1.0
+    }
 }

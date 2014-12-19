@@ -63,6 +63,10 @@ impl HeadlessContext {
     pub fn get_proc_address(&self, _addr: &str) -> *const () {
         unimplemented!()
     }
+
+    pub fn get_api(&self) -> ::Api {
+        ::Api::OpenGl
+    }
 }
 
 #[cfg(feature = "headless")]
@@ -283,6 +287,10 @@ impl Window {
     }
 
     pub fn set_cursor(&self, _: MouseCursor) {
+    }
+
+    pub fn hidpi_factor(&self) -> f32 {
+        1.0
     }
 }
 
