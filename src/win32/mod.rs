@@ -86,7 +86,6 @@ impl Window {
     }
 }
 
-#[cfg(feature = "window")]
 #[deriving(Clone)]
 pub struct WindowProxy;
 
