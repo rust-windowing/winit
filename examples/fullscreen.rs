@@ -11,7 +11,7 @@ use std::io::stdio::stdin;
 mod support;
 
 #[cfg(target_os = "android")]
-android_start!(main)
+android_start!(main);
 
 #[cfg(not(feature = "window"))]
 fn main() { println!("This example requires glutin to be compiled with the `window` feature"); }
