@@ -6,7 +6,7 @@ install:
   - 7z x cargo-nightly-i686-pc-windows-gnu.tar
   - SET PATH=%PATH%;C:\Program Files (x86)\Rust\bin
   - SET PATH=%PATH%;%CD%\cargo-nightly-i686-pc-windows-gnu\bin
-  - rustc -v
+  - rustc -V
   - cargo -V
 
 build: false
