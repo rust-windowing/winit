@@ -37,7 +37,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
     // GetMessage must be called in the same thread as CreateWindow,
     //  so we create a new thread dedicated to this window.
     // This is the only safe method. Using `nosend` wouldn't work for non-native runtime.
-    spawn(move || {
+    ::std::thread::Thread::spawn(move || {
         // registering the window class
         let class_name = {
             let class_name: Vec<u16> = "Window Class".utf16_units().chain(Some(0).into_iter())
@@ -69,8 +69,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
 
         // building a RECT object with coordinates
         let mut rect = winapi::RECT {
-            left: 0, right: builder_dimensions.unwrap_or((1024, 768)).val0() as winapi::LONG,
-            top: 0, bottom: builder_dimensions.unwrap_or((1024, 768)).val1() as winapi::LONG,
+            left: 0, right: builder_dimensions.unwrap_or((1024, 768)).0 as winapi::LONG,
+            top: 0, bottom: builder_dimensions.unwrap_or((1024, 768)).1 as winapi::LONG,
         };
 
         // switching to fullscreen if necessary
@@ -82,10 +82,10 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             // adjusting the rect
             {
                 let pos = monitor.get_position();
-                rect.left += pos.val0() as winapi::LONG;
-                rect.right += pos.val0() as winapi::LONG;
-                rect.top += pos.val1() as winapi::LONG;
-                rect.bottom += pos.val1() as winapi::LONG;
+                rect.left += pos.0 as winapi::LONG;
+                rect.right += pos.0 as winapi::LONG;
+                rect.top += pos.1 as winapi::LONG;
+                rect.bottom += pos.1 as winapi::LONG;
             }
 
             // changing device settings
@@ -299,9 +299,9 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             if builder_gl_version.is_some() {
                 let version = builder_gl_version.as_ref().unwrap();
                 attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
-                attributes.push(version.val0() as libc::c_int);
+                attributes.push(version.0 as libc::c_int);
                 attributes.push(gl::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
-                attributes.push(version.val1() as libc::c_int);
+                attributes.push(version.1 as libc::c_int);
             }
 
             if builder_debug {
@@ -409,7 +409,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             unsafe { winapi::TranslateMessage(&msg) };
             unsafe { winapi::DispatchMessageW(&msg) };     // calls `callback` (see below)
         }
-    });
+    }).detach();
 
     rx.recv()
 }

@@ -23,7 +23,7 @@ fn resize_callback(width: uint, height: uint) {
 fn main() {
     let mut window = glutin::Window::new().unwrap();
     window.set_title("A fantastic window!");
-    window.set_window_resize_callback(Some(resize_callback));
+    window.set_window_resize_callback(Some(resize_callback as fn(uint, uint)));
     unsafe { window.make_current() };
 
     let context = support::load(&window);
