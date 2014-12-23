@@ -68,7 +68,7 @@ impl Window {
             unimplemented!()
         }
 
-        Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, builder.vsync, true)
+        Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, builder.vsync, builder.visible)
     }
 }
 
