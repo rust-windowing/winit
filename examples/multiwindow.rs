@@ -6,6 +6,8 @@ extern crate android_glue;
 
 extern crate glutin;
 
+use std::thread::Thread;
+
 mod support;
 
 #[cfg(target_os = "android")]
@@ -20,17 +22,21 @@ fn main() {
     let window2 = glutin::Window::new().unwrap();
     let window3 = glutin::Window::new().unwrap();
 
-    spawn(move || {
+    let t1 = Thread::spawn(move || {
         run(window1, (0.0, 1.0, 0.0, 1.0));
     });
 
-    spawn(move || {
+    let t2 = Thread::spawn(move || {
         run(window2, (0.0, 0.0, 1.0, 1.0));
     });
 
-    spawn(move || {
+    let t3 = Thread::spawn(move || {
         run(window3, (1.0, 0.0, 0.0, 1.0));
     });
+
+    t1.join();
+    t2.join();
+    t3.join();
 }
 
 #[cfg(feature = "window")]
