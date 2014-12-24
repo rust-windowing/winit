@@ -7,23 +7,13 @@ use glutin;
 
 #[cfg(not(target_os = "android"))]
 mod gl {
-    generate_gl_bindings! {
-        api: "gl",
-        profile: "core",
-        version: "1.1",
-        generator: "struct"
-    }
+    include!(concat!(env!("OUT_DIR"), "/test_gl_bindings.rs"));
 }
 
 #[cfg(target_os = "android")]
 mod gl {
     pub use self::Gles1 as Gl;
-    generate_gl_bindings! {
-        api: "gles1",
-        profile: "core",
-        version: "1.1",
-        generator: "struct"
-    }
+    include!(concat!(env!("OUT_DIR"), "/test_gles1_bindings.rs"));
 }
 
 pub struct Context {

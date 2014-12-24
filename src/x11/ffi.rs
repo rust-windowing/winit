@@ -8,25 +8,12 @@ use libc;
 
 /// GLX bindings
 pub mod glx {
-    generate_gl_bindings! {
-        api: "glx",
-        profile: "core",
-        version: "1.4",
-        generator: "static"
-    }
+    include!(concat!(env!("OUT_DIR"), "/glx_bindings.rs"));
 }
 
 /// Functions that are not necessarly always available
 pub mod glx_extra {
-    generate_gl_bindings! {
-        api: "glx",
-        profile: "core",
-        version: "1.4",
-        generator: "struct",
-        extensions: [
-            "GLX_ARB_create_context"
-        ]
-    }
+    include!(concat!(env!("OUT_DIR"), "/glx_extra_bindings.rs"));
 }
 
 pub type Atom = libc::c_ulong;

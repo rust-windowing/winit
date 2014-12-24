@@ -9,16 +9,17 @@ license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/tomaka/glutin"
 documentation = "http://tomaka.github.io/glutin/"
+build = "build.rs"
 
 [features]
 default = ["window"]
 window = []
 headless = []
 
-[dependencies.gl_generator]
+[dependencies.gl_common]
 git = "https://github.com/bjz/gl-rs"
 
-[dependencies.gl_common]
+[build-dependencies.gl_generator]
 git = "https://github.com/bjz/gl-rs"
 
 [target.arm-linux-androideabi.dependencies.android_glue]
