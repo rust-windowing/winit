@@ -17,12 +17,7 @@ pub mod egl {
     pub type NativePixmapType = super::EGLNativePixmapType;
     pub type NativeWindowType = super::EGLNativeWindowType;
 
-    generate_gl_bindings! {
-        api: "egl",
-        profile: "core",
-        version: "1.5",
-        generator: "static"
-    }
+    include!(concat!(env!("OUT_DIR"), "/egl_bindings.rs"));
 }
 
 pub type khronos_utime_nanoseconds_t = khronos_uint64_t;
