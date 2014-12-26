@@ -28,8 +28,6 @@
 //!
 //! By default only `window` is enabled.
 
-#[phase(plugin)] extern crate gl_generator;
-
 extern crate gl_common;
 extern crate libc;
 

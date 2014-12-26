@@ -212,16 +212,6 @@ impl Window {
     }
 
     pub fn poll_events(&self) -> Vec<Event> {
-        use std::time::Duration;
-        use std::io::timer;
-        timer::sleep(Duration::milliseconds(16));
-        Vec::new()
-    }
-
-    pub fn wait_events(&self) -> Vec<Event> {
-        use std::time::Duration;
-        use std::io::timer;
-        timer::sleep(Duration::milliseconds(16));
         let mut events = Vec::new();
         loop {
             match self.event_rx.try_recv() {
@@ -242,6 +232,13 @@ impl Window {
             }
         }
         events
+    }
+
+    pub fn wait_events(&self) -> Vec<Event> {
+        use std::time::Duration;
+        use std::io::timer;
+        timer::sleep(Duration::milliseconds(16));
+        self.poll_events()
     }
 
     pub fn make_current(&self) {
