@@ -70,12 +70,14 @@ pub struct MonitorID(winimpl::MonitorID);
 #[deriving(Clone, Show, PartialEq, Eq)]
 pub enum CreationError {
     OsError(String),
+    NotSupported,
 }
 
 impl std::error::Error for CreationError {
     fn description(&self) -> &str {
         match self {
             &CreationError::OsError(ref text) => text.as_slice(),
+            &CreationError::NotSupported => "Some of the requested attributes are not supported",
         }
     }
 }
@@ -228,6 +230,15 @@ impl<'a> WindowBuilder<'a> {
         // building
         winimpl::Window::new(self.attribs).map(|w| Window { window: w })
     }
+
+    /// Builds the window.
+    ///
+    /// The context is build in a *strict* way. That means that if the backend couldn't give
+    /// you what you requested, an `Err` will be returned.
+    pub fn build_strict(mut self) -> Result<Window, CreationError> {
+        self.attribs.strict = true;
+        self.build()
+    }
 }
 
 /// Object that allows you to build headless contexts.
@@ -273,6 +284,15 @@ impl HeadlessRendererBuilder {
     ///  out of memory, etc.
     pub fn build(self) -> Result<HeadlessContext, CreationError> {
         winimpl::HeadlessContext::new(self.attribs).map(|w| HeadlessContext { context: w })
+    }
+
+    /// Builds the headless context.
+    ///
+    /// The context is build in a *strict* way. That means that if the backend couldn't give
+    /// you what you requested, an `Err` will be returned.
+    pub fn build_strict(mut self) -> Result<HeadlessContext, CreationError> {
+        self.attribs.strict = true;
+        self.build()
     }
 }
 
