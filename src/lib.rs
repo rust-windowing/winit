@@ -110,6 +110,11 @@ struct BuilderAttribs<'a> {
     vsync: bool,
     visible: bool,
     multisampling: Option<u16>,
+    depth_bits: Option<u8>,
+    stencil_bits: Option<u8>,
+    color_bits: Option<u8>,
+    alpha_bits: Option<u8>,
+    stereoscopy: bool,
 }
 
 impl BuilderAttribs<'static> {
@@ -126,6 +131,11 @@ impl BuilderAttribs<'static> {
             vsync: false,
             visible: true,
             multisampling: None,
+            depth_bits: None,
+            stencil_bits: None,
+            color_bits: None,
+            alpha_bits: None,
+            stereoscopy: false,
         }
     }
 }
@@ -209,6 +219,31 @@ impl<'a> WindowBuilder<'a> {
         use std::num::UnsignedInt;
         assert!(samples.is_power_of_two());
         self.attribs.multisampling = Some(samples);
+        self
+    }
+
+    /// Sets the number of bits in the depth buffer.
+    pub fn with_depth_buffer(mut self, bits: u8) -> WindowBuilder<'a> {
+        self.attribs.depth_bits = Some(bits);
+        self
+    }
+
+    /// Sets the number of bits in the stencil buffer.
+    pub fn with_stencil_buffer(mut self, bits: u8) -> WindowBuilder<'a> {
+        self.attribs.stencil_bits = Some(bits);
+        self
+    }
+
+    /// Sets the number of bits in the color buffer.
+    pub fn with_pixel_format(mut self, color_bits: u8, alpha_bits: u8) -> WindowBuilder<'a> {
+        self.attribs.color_bits = Some(color_bits);
+        self.attribs.alpha_bits = Some(alpha_bits);
+        self
+    }
+
+    /// Request the backend to be stereoscopic.
+    pub fn with_stereoscopy(mut self) -> WindowBuilder<'a> {
+        self.attribs.stereoscopy = true;
         self
     }
 
