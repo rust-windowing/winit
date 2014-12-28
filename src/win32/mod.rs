@@ -3,11 +3,7 @@ use std::ptr;
 use libc;
 use {CreationError, Event};
 
-#[cfg(feature = "window")]
-use WindowBuilder;
-
-#[cfg(feature = "headless")]
-use HeadlessRendererBuilder;
+use BuilderAttribs;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
@@ -19,15 +15,13 @@ mod init;
 mod monitor;
 
 /// 
-#[cfg(feature = "headless")]
 pub struct HeadlessContext(Window);
 
-#[cfg(feature = "headless")]
 impl HeadlessContext {
     /// See the docs in the crate root file.
-    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
-        let HeadlessRendererBuilder { dimensions, gl_version, gl_debug } = builder;
-        init::new_window(Some(dimensions), "".to_string(), None, gl_version, gl_debug, false, true,
+    pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
+        let BuilderAttribs { dimensions, gl_version, gl_debug, .. } = builder;
+        init::new_window(dimensions, "".to_string(), None, gl_version, gl_debug, false, true,
                          None, None)
                          .map(|w| HeadlessContext(w))
     }
@@ -83,14 +77,13 @@ pub struct Window {
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
-#[cfg(feature = "window")]
 impl Window {
     /// See the docs in the crate root file.
-    pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
-        let WindowBuilder { dimensions, title, monitor, gl_version,
-                            gl_debug, vsync, visible, sharing, multisampling } = builder;
+    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
+        let BuilderAttribs { dimensions, title, monitor, gl_version,
+                             gl_debug, vsync, visible, sharing, multisampling, .. } = builder;
         init::new_window(dimensions, title, monitor, gl_version, gl_debug, vsync,
-                         !visible, sharing.map(|w| init::ContextHack(w.window.context)),
+                         !visible, sharing.map(|w| init::ContextHack(w.context)),
                          multisampling)
     }
 }

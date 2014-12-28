@@ -92,7 +92,14 @@ pub enum Api {
 /// Object that allows you to build windows.
 #[cfg(feature = "window")]
 pub struct WindowBuilder<'a> {
-    sharing: Option<&'a Window>,
+    attribs: BuilderAttribs<'a>
+}
+
+/// Attributes 
+struct BuilderAttribs<'a> {
+    headless: bool,
+    strict: bool,
+    sharing: Option<&'a winimpl::Window>,
     dimensions: Option<(uint, uint)>,
     title: String,
     monitor: Option<winimpl::MonitorID>,
@@ -103,11 +110,11 @@ pub struct WindowBuilder<'a> {
     multisampling: Option<u16>,
 }
 
-#[cfg(feature = "window")]
-impl<'a> WindowBuilder<'a> {
-    /// Initializes a new `WindowBuilder` with default values.
-    pub fn new() -> WindowBuilder<'a> {
-        WindowBuilder {
+impl BuilderAttribs<'static> {
+    fn new() -> BuilderAttribs<'static> {
+        BuilderAttribs {
+            headless: false,
+            strict: false,
             sharing: None,
             dimensions: None,
             title: "glutin window".to_string(),
@@ -119,18 +126,28 @@ impl<'a> WindowBuilder<'a> {
             multisampling: None,
         }
     }
+}
+
+#[cfg(feature = "window")]
+impl<'a> WindowBuilder<'a> {
+    /// Initializes a new `WindowBuilder` with default values.
+    pub fn new() -> WindowBuilder<'a> {
+        WindowBuilder {
+            attribs: BuilderAttribs::new(),
+        }
+    }
 
     /// Requests the window to be of specific dimensions.
     ///
     /// Width and height are in pixels.
     pub fn with_dimensions(mut self, width: uint, height: uint) -> WindowBuilder<'a> {
-        self.dimensions = Some((width, height));
+        self.attribs.dimensions = Some((width, height));
         self
     }
 
     /// Requests a specific title for the window.
     pub fn with_title(mut self, title: String) -> WindowBuilder<'a> {
-        self.title = title;
+        self.attribs.title = title;
         self
     }
 
@@ -139,7 +156,7 @@ impl<'a> WindowBuilder<'a> {
     /// If you don't specify dimensions for the window, it will match the monitor's.
     pub fn with_fullscreen(mut self, monitor: MonitorID) -> WindowBuilder<'a> {
         let MonitorID(monitor) = monitor;
-        self.monitor = Some(monitor);
+        self.attribs.monitor = Some(monitor);
         self
     }
 
@@ -147,7 +164,7 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// There are some exceptions, like FBOs or VAOs. See the OpenGL documentation.
     pub fn with_shared_lists(mut self, other: &'a Window) -> WindowBuilder<'a> {
-        self.sharing = Some(other);
+        self.attribs.sharing = Some(&other.window);
         self
     }
 
@@ -156,7 +173,7 @@ impl<'a> WindowBuilder<'a> {
     /// Version is a (major, minor) pair. For example to request OpenGL 3.3
     ///  you would pass `(3, 3)`.
     pub fn with_gl_version(mut self, version: (uint, uint)) -> WindowBuilder<'a> {
-        self.gl_version = Some(version);
+        self.attribs.gl_version = Some(version);
         self
     }
 
@@ -165,19 +182,19 @@ impl<'a> WindowBuilder<'a> {
     /// The default value for this flag is `cfg!(ndebug)`, which means that it's enabled
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
     pub fn with_gl_debug_flag(mut self, flag: bool) -> WindowBuilder<'a> {
-        self.gl_debug = flag;
+        self.attribs.gl_debug = flag;
         self
     }
 
     /// Requests that the window has vsync enabled.
     pub fn with_vsync(mut self) -> WindowBuilder<'a> {
-        self.vsync = true;
+        self.attribs.vsync = true;
         self
     }
 
     /// Sets whether the window will be initially hidden or visible.
     pub fn with_visibility(mut self, visible: bool) -> WindowBuilder<'a> {
-        self.visible = visible;
+        self.attribs.visible = visible;
         self
     }
 
@@ -189,7 +206,7 @@ impl<'a> WindowBuilder<'a> {
     pub fn with_multisampling(mut self, samples: u16) -> WindowBuilder<'a> {
         use std::num::UnsignedInt;
         assert!(samples.is_power_of_two());
-        self.multisampling = Some(samples);
+        self.attribs.multisampling = Some(samples);
         self
     }
 
@@ -199,26 +216,24 @@ impl<'a> WindowBuilder<'a> {
     ///  out of memory, etc.
     pub fn build(mut self) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
-        if self.dimensions.is_none() && self.monitor.is_some() {
-            self.dimensions = Some(self.monitor.as_ref().unwrap().get_dimensions())
+        if self.attribs.dimensions.is_none() && self.attribs.monitor.is_some() {
+            self.attribs.dimensions = Some(self.attribs.monitor.as_ref().unwrap().get_dimensions())
         }
 
         // default dimensions
-        if self.dimensions.is_none() {
-            self.dimensions = Some((1024, 768));
+        if self.attribs.dimensions.is_none() {
+            self.attribs.dimensions = Some((1024, 768));
         }
 
         // building
-        winimpl::Window::new(self).map(|w| Window { window: w })
+        winimpl::Window::new(self.attribs).map(|w| Window { window: w })
     }
 }
 
 /// Object that allows you to build headless contexts.
 #[cfg(feature = "headless")]
 pub struct HeadlessRendererBuilder {
-    dimensions: (uint, uint),
-    gl_version: Option<(uint, uint)>,
-    gl_debug: bool,
+    attribs: BuilderAttribs<'static>,
 }
 
 #[cfg(feature = "headless")]
@@ -226,9 +241,11 @@ impl HeadlessRendererBuilder {
     /// Initializes a new `HeadlessRendererBuilder` with default values.
     pub fn new(width: uint, height: uint) -> HeadlessRendererBuilder {
         HeadlessRendererBuilder {
-            dimensions: (width, height),
-            gl_version: None,
-            gl_debug: cfg!(ndebug),
+            attribs: BuilderAttribs {
+                headless: true,
+                dimensions: Some((width, height)),
+                .. BuilderAttribs::new()
+            },
         }
     }
 
@@ -237,7 +254,7 @@ impl HeadlessRendererBuilder {
     /// Version is a (major, minor) pair. For example to request OpenGL 3.3
     ///  you would pass `(3, 3)`.
     pub fn with_gl_version(mut self, version: (uint, uint)) -> HeadlessRendererBuilder {
-        self.gl_version = Some(version);
+        self.attribs.gl_version = Some(version);
         self
     }
 
@@ -246,7 +263,7 @@ impl HeadlessRendererBuilder {
     /// The default value for this flag is `cfg!(ndebug)`, which means that it's enabled
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
     pub fn with_gl_debug_flag(mut self, flag: bool) -> HeadlessRendererBuilder {
-        self.gl_debug = flag;
+        self.attribs.gl_debug = flag;
         self
     }
 
@@ -255,7 +272,7 @@ impl HeadlessRendererBuilder {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     pub fn build(self) -> Result<HeadlessContext, CreationError> {
-        winimpl::HeadlessContext::new(self).map(|w| HeadlessContext { context: w })
+        winimpl::HeadlessContext::new(self.attribs).map(|w| HeadlessContext { context: w })
     }
 }
 

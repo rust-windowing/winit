@@ -5,8 +5,7 @@ use {CreationError, Event};
 use CreationError::OsError;
 use libc;
 
-#[cfg(feature = "window")]
-use WindowBuilder;
+use BuilderAttribs;
 
 use cocoa::base::{id, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
 use cocoa::base::{selector, msg_send, class_addMethod, class_addIvar};
@@ -63,7 +62,7 @@ pub struct Window {
 
 #[cfg(feature = "window")]
 impl Window {
-    pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
+    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
         if builder.sharing.is_some() {
             unimplemented!()
         }

@@ -1,4 +1,4 @@
-use HeadlessRendererBuilder;
+use BuilderAttribs;
 use CreationError;
 use CreationError::OsError;
 use libc;
@@ -13,11 +13,13 @@ pub struct HeadlessContext {
 }
 
 impl HeadlessContext {
-    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
+    pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
+        let dimensions = builder.dimensions.unwrap();
+
         Ok(HeadlessContext {
-            width: builder.dimensions.0,
-            height: builder.dimensions.1,
-            buffer: Vec::from_elem(builder.dimensions.0 * builder.dimensions.1, unsafe { mem::uninitialized() }),
+            width: dimensions.0,
+            height: dimensions.1,
+            buffer: Vec::from_elem(dimensions.0 * dimensions.1, unsafe { mem::uninitialized() }),
             context: unsafe {
                 let ctxt = ffi::OSMesaCreateContext(0x1908, ptr::null());
                 if ctxt.is_null() {

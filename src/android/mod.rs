@@ -7,8 +7,7 @@ use events::ElementState::{Pressed, Released};
 use events::Event::{MouseInput, MouseMoved};
 use events::MouseButton::LeftMouseButton;
 
-#[cfg(feature = "headless")]
-use HeadlessRendererBuilder;
+use BuilderAttribs;
 
 pub struct Window {
     display: ffi::egl::types::EGLDisplay,
@@ -45,7 +44,7 @@ pub struct HeadlessContext(int);
 #[cfg(feature = "headless")]
 impl HeadlessContext {
     /// See the docs in the crate root file.
-    pub fn new(_builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
+    pub fn new(_builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
         unimplemented!()
     }
 
@@ -66,7 +65,7 @@ unsafe impl Send for HeadlessContext {}
 unsafe impl Sync for HeadlessContext {}
 
 impl Window {
-    pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
+    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
         use std::{mem, ptr};
 
         if builder.sharing.is_some() {

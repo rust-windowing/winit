@@ -1,6 +1,6 @@
 use CreationError;
 use CreationError::OsError;
-use HeadlessRendererBuilder;
+use BuilderAttribs;
 use libc;
 use std::ptr;
 
@@ -30,7 +30,7 @@ pub struct HeadlessContext {
 }
 
 impl HeadlessContext {
-    pub fn new(builder: HeadlessRendererBuilder) -> Result<HeadlessContext, CreationError> {
+    pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
         let (width, height) = builder.dimensions;
         let context = unsafe {
             let attributes = [
