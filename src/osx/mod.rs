@@ -475,8 +475,8 @@ impl Window {
     }
 
     pub fn get_proc_address(&self, _addr: &str) -> *const () {
-        let symbol_name: CFString = from_str(_addr).unwrap();
-        let framework_name: CFString = from_str("com.apple.opengl").unwrap();
+        let symbol_name = _addr.parse::<CFString>().unwrap();
+        let framework_name = "com.apple.opengl".parse::<CFString>().unwrap();
         let framework = unsafe {
             CFBundleGetBundleWithIdentifier(framework_name.as_concrete_TypeRef())
         };
