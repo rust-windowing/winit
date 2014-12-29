@@ -18,11 +18,15 @@ use winapi;
 ///  receive an event for another window.
 thread_local!(static WINDOW: Rc<RefCell<Option<(winapi::HWND, Sender<Event>)>>> = Rc::new(RefCell::new(None)));
 
+/// Work-around the fact that HGLRC doesn't implement Send
+pub struct ContextHack(pub winapi::HGLRC);
+unsafe impl Send for ContextHack {}
+
 pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: String,
                   builder_monitor: Option<super::MonitorID>,
                   builder_gl_version: Option<(uint, uint)>, builder_debug: bool,
                   builder_vsync: bool, builder_hidden: bool,
-                  builder_sharelists: Option<winapi::HGLRC>, builder_multisampling: Option<u16>)
+                  builder_sharelists: Option<ContextHack>, builder_multisampling: Option<u16>)
                   -> Result<Window, CreationError>
 {
     use std::mem;
@@ -38,6 +42,8 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
     //  so we create a new thread dedicated to this window.
     // This is the only safe method. Using `nosend` wouldn't work for non-native runtime.
     ::std::thread::Thread::spawn(move || {
+        let builder_sharelists = builder_sharelists.map(|s| s.0);
+
         // registering the window class
         let class_name = {
             let class_name: Vec<u16> = "Window Class".utf16_units().chain(Some(0).into_iter())

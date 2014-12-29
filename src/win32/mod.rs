@@ -51,6 +51,11 @@ impl HeadlessContext {
     }
 }
 
+#[cfg(feature = "headless")]
+unsafe impl Send for HeadlessContext {}
+#[cfg(feature = "headless")]
+unsafe impl Sync for HeadlessContext {}
+
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
     /// Main handle for the window.
@@ -75,6 +80,9 @@ pub struct Window {
     is_closed: AtomicBool,
 }
 
+unsafe impl Send for Window {}
+unsafe impl Sync for Window {}
+
 #[cfg(feature = "window")]
 impl Window {
     /// See the docs in the crate root file.
@@ -82,7 +90,8 @@ impl Window {
         let WindowBuilder { dimensions, title, monitor, gl_version,
                             gl_debug, vsync, visible, sharing, multisampling } = builder;
         init::new_window(dimensions, title, monitor, gl_version, gl_debug, vsync,
-                         !visible, sharing.map(|w| w.window.context), multisampling)
+                         !visible, sharing.map(|w| init::ContextHack(w.window.context)),
+                         multisampling)
     }
 }
 

@@ -60,6 +60,11 @@ impl HeadlessContext {
     }
 }
 
+#[cfg(feature = "headless")]
+unsafe impl Send for HeadlessContext {}
+#[cfg(feature = "headless")]
+unsafe impl Sync for HeadlessContext {}
+
 impl Window {
     pub fn new(builder: WindowBuilder) -> Result<Window, CreationError> {
         use std::{mem, ptr};
@@ -274,6 +279,9 @@ impl Window {
     pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
     }
 }
+
+unsafe impl Send for Window {}
+unsafe impl Sync for Window {}
 
 #[cfg(feature = "window")]
 #[deriving(Clone)]

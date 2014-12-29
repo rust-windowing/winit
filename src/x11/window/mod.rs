@@ -34,6 +34,9 @@ struct XWindow {
     im: ffi::XIM,
 }
 
+unsafe impl Send for Window {}
+unsafe impl Sync for Window {}
+
 impl Drop for XWindow {
     fn drop(&mut self) {
         unsafe {

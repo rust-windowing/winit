@@ -73,6 +73,11 @@ impl Window {
 }
 
 #[cfg(feature = "window")]
+unsafe impl Send for Window {}
+#[cfg(feature = "window")]
+unsafe impl Sync for Window {}
+
+#[cfg(feature = "window")]
 #[deriving(Clone)]
 pub struct WindowProxy;
 

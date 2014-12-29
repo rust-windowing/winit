@@ -62,3 +62,6 @@ impl Drop for HeadlessContext {
         unsafe { ffi::OSMesaDestroyContext(self.context) }
     }
 }
+
+unsafe impl Send for HeadlessContext {}
+unsafe impl Sync for HeadlessContext {}
