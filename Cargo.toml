@@ -1,7 +1,7 @@
 [package]
 
 name = "glutin"
-version = "0.0.2"
+version = "0.0.3-pre"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 description = "Cross-plaform OpenGL context provider."
 keywords = ["windowing", "opengl"]
@@ -21,21 +21,6 @@ gl_common = "*"
 
 [build-dependencies]
 gl_generator = "*"
-
-[target.arm-linux-androideabi.dependencies.android_glue]
-git = "https://github.com/tomaka/android-rs-glue"
-
-[target.i686-apple-darwin.dependencies.cocoa]
-git = "https://github.com/servo/rust-cocoa"
-
-[target.x86_64-apple-darwin.dependencies.cocoa]
-git = "https://github.com/servo/rust-cocoa"
-
-[target.i686-apple-darwin.dependencies.core_graphics]
-git = "https://github.com/servo/rust-core-graphics"
-
-[target.x86_64-apple-darwin.dependencies.core_graphics]
-git = "https://github.com/servo/rust-core-graphics"
 
 [target.i686-pc-windows-gnu.dependencies.winapi]
 version = "^0.0.3"
