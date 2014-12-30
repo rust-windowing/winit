@@ -45,15 +45,6 @@ static mut alt_pressed: bool = false;
 static DELEGATE_NAME: &'static [u8] = b"glutin_window_delegate\0";
 static DELEGATE_STATE_IVAR: &'static [u8] = b"glutin_state";
 
-// TODO: Should be added to cocoa bindings
-#[allow(non_camel_case_types)]
-#[deriving(Show)]
-enum NSOpenGLPFAOpenGLProfiles {
-    NSOpenGLProfileVersionLegacy = 0x1000,
-    NSOpenGLProfileVersion3_2Core = 0x3200,
-    NSOpenGLProfileVersion4_1Core = 0x4100
-}
-
 struct DelegateState<'a> {
     is_closed: bool,
     context: id,
@@ -271,12 +262,10 @@ impl Window {
     }
 
     fn create_context(view: id, vsync: bool, gl_version: Option<(uint, uint)>) -> Option<id> {
-        let profile = {
-            match gl_version {
-                None | Some((0...2, _)) | Some((3, 0)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersionLegacy as uint,
-                Some((3, 1...2)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersion3_2Core as uint,
-                Some((_, _)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersion4_1Core as uint,
-            }
+        let profile = match gl_version {
+            None | Some((0...2, _)) | Some((3, 0)) => NSOpenGLProfileVersionLegacy as uint,
+            Some((3, 1...2)) => NSOpenGLProfileVersion3_2Core as uint,
+            Some((_, _)) => NSOpenGLProfileVersion4_1Core as uint,
         };
         unsafe {
             let attributes = [
