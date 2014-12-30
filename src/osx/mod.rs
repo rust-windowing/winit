@@ -4,6 +4,7 @@ pub use self::headless::HeadlessContext;
 use {CreationError, Event};
 use CreationError::OsError;
 use libc;
+use std::ascii::AsciiExt;
 
 #[cfg(feature = "window")]
 use WindowBuilder;
