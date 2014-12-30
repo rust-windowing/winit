@@ -17,10 +17,10 @@ window = []
 headless = []
 
 [dependencies.gl_common]
-git = "https://github.com/bjz/gl-rs"
+gl_common = "*"
 
-[build-dependencies.gl_generator]
-git = "https://github.com/bjz/gl-rs"
+[build-dependencies]
+gl_generator = "*"
 
 [target.arm-linux-androideabi.dependencies.android_glue]
 git = "https://github.com/tomaka/android-rs-glue"
