@@ -99,6 +99,9 @@ impl HeadlessContext {
     }
 }
 
+unsafe impl Send for HeadlessContext {}
+unsafe impl Sync for HeadlessContext {}
+
 impl Drop for HeadlessContext {
     fn drop(&mut self) {
         unsafe {
