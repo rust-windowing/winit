@@ -22,6 +22,21 @@ gl_common = "*"
 [build-dependencies]
 gl_generator = "*"
 
+[target.arm-linux-androideabi.dependencies.android_glue]
+git = "https://github.com/tomaka/android-rs-glue"
+
+[target.i686-apple-darwin.dependencies.cocoa]
+git = "https://github.com/servo/rust-cocoa"
+
+[target.x86_64-apple-darwin.dependencies.cocoa]
+git = "https://github.com/servo/rust-cocoa"
+
+[target.i686-apple-darwin.dependencies.core_graphics]
+git = "https://github.com/servo/rust-core-graphics"
+
+[target.x86_64-apple-darwin.dependencies.core_graphics]
+git = "https://github.com/servo/rust-core-graphics"
+
 [target.i686-pc-windows-gnu.dependencies.winapi]
 version = "^0.0.3"
 features = ["gdi32", "kernel32", "user32"]
