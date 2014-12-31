@@ -11,3 +11,8 @@ mod headless;
 
 #[cfg(feature = "window")]
 mod window;
+
+#[cfg(not(feature = "window"))]
+pub type Window = ();       // TODO: hack to make things work
+#[cfg(not(feature = "window"))]
+pub type MonitorID = ();       // TODO: hack to make things work
