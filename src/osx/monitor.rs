@@ -1,9 +1,10 @@
 use core_graphics::display;
+use std::collections::RingBuf;
 
 pub struct MonitorID(u32);
 
 pub fn get_available_monitors() -> Vec<MonitorID> {
-    let mut monitors = Vec::new();
+    let mut monitors = RingBuf::new();
     unsafe {
         let max_displays = 10u32;
         let mut active_displays = [0u32, ..10];
@@ -12,7 +13,7 @@ pub fn get_available_monitors() -> Vec<MonitorID> {
                                                         &mut active_displays[0],
                                                         &mut display_count);
         for i in range(0u, display_count as uint) {
-            monitors.push(MonitorID(active_displays[i]));
+            monitors.push_back(MonitorID(active_displays[i]));
         }
     }
     monitors

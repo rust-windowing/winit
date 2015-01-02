@@ -21,6 +21,7 @@ use std::cell::Cell;
 use std::c_str::CString;
 use std::mem;
 use std::ptr;
+use std::collections::RingBuf;
 
 use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel};
 use events::ElementState::{Pressed, Released};
@@ -337,8 +338,8 @@ impl Window {
         WindowProxy
     }
 
-    pub fn poll_events(&self) -> Vec<Event> {
-        let mut events = Vec::new();
+    pub fn poll_events(&self) -> RingBuf<Event> {
+        let mut events = RingBuf::new();
 
         loop {
             unsafe {
@@ -370,53 +371,53 @@ impl Window {
 }
 
                 match event.get_type() {
-                    NSLeftMouseDown         => { events.push(MouseInput(Pressed, LeftMouseButton)); },
-                    NSLeftMouseUp           => { events.push(MouseInput(Released, LeftMouseButton)); },
-                    NSRightMouseDown        => { events.push(MouseInput(Pressed, RightMouseButton)); },
-                    NSRightMouseUp          => { events.push(MouseInput(Released, RightMouseButton)); },
+                    NSLeftMouseDown         => { events.push_back(MouseInput(Pressed, LeftMouseButton)); },
+                    NSLeftMouseUp           => { events.push_back(MouseInput(Released, LeftMouseButton)); },
+                    NSRightMouseDown        => { events.push_back(MouseInput(Pressed, RightMouseButton)); },
+                    NSRightMouseUp          => { events.push_back(MouseInput(Released, RightMouseButton)); },
                     NSMouseMoved            => {
                         let window_point = event.locationInWindow();
                         let view_point = self.view.convertPoint_fromView_(window_point, nil);
-                        events.push(MouseMoved((view_point.x as int, view_point.y as int)));
+                        events.push_back(MouseMoved((view_point.x as int, view_point.y as int)));
                     },
                     NSKeyDown               => {
                         let received_str = CString::new(event.characters().UTF8String(), false);
                         for received_char in received_str.as_str().unwrap().chars() {
                             if received_char.is_ascii() {
-                                events.push(ReceivedCharacter(received_char));
+                                events.push_back(ReceivedCharacter(received_char));
                             }
                         }
 
                         let vkey =  event::vkeycode_to_element(event.keycode());
-                        events.push(KeyboardInput(Pressed, event.keycode() as u8, vkey));
+                        events.push_back(KeyboardInput(Pressed, event.keycode() as u8, vkey));
                     },
                     NSKeyUp                 => {
                         let vkey =  event::vkeycode_to_element(event.keycode());
-                        events.push(KeyboardInput(Released, event.keycode() as u8, vkey));
+                        events.push_back(KeyboardInput(Released, event.keycode() as u8, vkey));
                     },
                     NSFlagsChanged          => {
                         let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask as u64, events::VirtualKeyCode::LShift, shift_pressed);
                         if shift_modifier.is_some() {
                             shift_pressed = !shift_pressed;
-                            events.push(shift_modifier.unwrap());
+                            events.push_back(shift_modifier.unwrap());
                         }
                         let ctrl_modifier = Window::modifier_event(event, appkit::NSControlKeyMask as u64, events::VirtualKeyCode::LControl, ctrl_pressed);
                         if ctrl_modifier.is_some() {
                             ctrl_pressed = !ctrl_pressed;
-                            events.push(ctrl_modifier.unwrap());
+                            events.push_back(ctrl_modifier.unwrap());
                         }
                         let win_modifier = Window::modifier_event(event, appkit::NSCommandKeyMask as u64, events::VirtualKeyCode::LWin, win_pressed);
                         if win_modifier.is_some() {
                             win_pressed = !win_pressed;
-                            events.push(win_modifier.unwrap());
+                            events.push_back(win_modifier.unwrap());
                         }
                         let alt_modifier = Window::modifier_event(event, appkit::NSAlternateKeyMask as u64, events::VirtualKeyCode::LAlt, alt_pressed);
                         if alt_modifier.is_some() {
                             alt_pressed = !alt_pressed;
-                            events.push(alt_modifier.unwrap());
+                            events.push_back(alt_modifier.unwrap());
                         }
                     },
-                    NSScrollWheel           => { events.push(MouseWheel(-event.scrollingDeltaY() as i32)); },
+                    NSScrollWheel           => { events.push_back(MouseWheel(-event.scrollingDeltaY() as i32)); },
                     NSOtherMouseDown        => { },
                     NSOtherMouseUp          => { },
                     NSOtherMouseDragged     => { },
@@ -442,7 +443,7 @@ impl Window {
         event.modifierFlags() & modifier != 0
     }
 
-    pub fn wait_events(&self) -> Vec<Event> {
+    pub fn wait_events(&self) -> RingBuf<Event> {
         unsafe {
             let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                 NSAnyEventMask as u64,

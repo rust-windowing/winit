@@ -43,6 +43,7 @@ extern crate core_graphics;
 pub use events::*;
 
 use std::default::Default;
+use std::collections::ring_buf::IntoIter as RingBufIter;
 
 #[cfg(all(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"), not(target_os = "android")))]
 use this_platform_is_not_supported;
@@ -97,7 +98,7 @@ pub struct WindowBuilder<'a> {
     attribs: BuilderAttribs<'a>
 }
 
-/// Attributes 
+/// Attributes
 struct BuilderAttribs<'a> {
     headless: bool,
     strict: bool,
@@ -487,7 +488,7 @@ impl Window {
     /// Contrary to `wait_events`, this function never blocks.
     #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator { data: self.window.poll_events() }
+        PollEventsIterator { data: self.window.poll_events().into_iter() }
     }
 
     /// Waits for an event, then returns an iterator to all the events that are currently
@@ -497,7 +498,7 @@ impl Window {
     ///  this function will block until there is one.
     #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator { data: self.window.wait_events() }
+        WaitEventsIterator { data: self.window.wait_events().into_iter() }
     }
 
     /// Sets the context as the current context.
@@ -637,12 +638,12 @@ impl gl_common::GlFunctionsSource for HeadlessContext {
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
 pub struct PollEventsIterator<'a> {
-    data: Vec<Event>,
+    data: RingBufIter<Event>,
 }
 
 impl<'a> Iterator<Event> for PollEventsIterator<'a> {
     fn next(&mut self) -> Option<Event> {
-        self.data.remove(0)
+        self.data.next()
     }
 }
 
@@ -650,12 +651,12 @@ impl<'a> Iterator<Event> for PollEventsIterator<'a> {
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
 pub struct WaitEventsIterator<'a> {
-    data: Vec<Event>,
+    data: RingBufIter<Event>,
 }
 
 impl<'a> Iterator<Event> for WaitEventsIterator<'a> {
     fn next(&mut self) -> Option<Event> {
-        self.data.remove(0)
+        self.data.next()
     }
 }
 
@@ -664,13 +665,13 @@ impl<'a> Iterator<Event> for WaitEventsIterator<'a> {
 // This may change in the future.
 #[cfg(feature = "window")]
 pub struct AvailableMonitorsIter {
-    data: Vec<winimpl::MonitorID>,
+    data: RingBufIter<winimpl::MonitorID>,
 }
 
 #[cfg(feature = "window")]
 impl Iterator<MonitorID> for AvailableMonitorsIter {
     fn next(&mut self) -> Option<MonitorID> {
-        self.data.remove(0).map(|id| MonitorID(id))
+        self.data.next().map(|id| MonitorID(id))
     }
 }
 
@@ -678,7 +679,7 @@ impl Iterator<MonitorID> for AvailableMonitorsIter {
 #[cfg(feature = "window")]
 pub fn get_available_monitors() -> AvailableMonitorsIter {
     let data = winimpl::get_available_monitors();
-    AvailableMonitorsIter{ data: data }
+    AvailableMonitorsIter{ data: data.into_iter() }
 }
 
 /// Returns the primary monitor of the system.

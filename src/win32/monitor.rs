@@ -1,5 +1,7 @@
 use winapi;
 
+use std::collections::RingBuf;
+
 /// Win32 implementation of the main `MonitorID` object.
 pub struct MonitorID {
     /// The system name of the monitor.
@@ -22,11 +24,11 @@ pub struct MonitorID {
 }
 
 /// Win32 implementation of the main `get_available_monitors` function.
-pub fn get_available_monitors() -> Vec<MonitorID> {
+pub fn get_available_monitors() -> RingBuf<MonitorID> {
     use std::{iter, mem, ptr};
 
     // return value
-    let mut result = Vec::new();
+    let mut result = RingBuf::new();
 
     // enumerating the devices is done by querying device 0, then device 1, then device 2, etc.
     //  until the query function returns null
@@ -78,7 +80,7 @@ pub fn get_available_monitors() -> Vec<MonitorID> {
         };
 
         // adding to the resulting list
-        result.push(MonitorID {
+        result.push_back(MonitorID {
             name: output.DeviceName,
             readable_name: readable_name,
             flags: output.StateFlags,
@@ -123,7 +125,7 @@ impl MonitorID {
     }
 
     /// This is a Win32-only function for `MonitorID` that returns the position of the
-    ///  monitor on the desktop. 
+    ///  monitor on the desktop.
     /// A window that is positionned at these coordinates will overlap the monitor.
     pub fn get_position(&self) -> (uint, uint) {
         self.position

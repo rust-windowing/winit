@@ -1,10 +1,11 @@
-use std::{ptr};
+use std::ptr;
+use std::collections::RingBuf;
 use super::super::ffi;
 use super::ensure_thread_init;
 
 pub struct MonitorID(pub uint);
 
-pub fn get_available_monitors() -> Vec<MonitorID> {
+pub fn get_available_monitors() -> RingBuf<MonitorID> {
     ensure_thread_init();
     let nb_monitors = unsafe {
         let display = ffi::XOpenDisplay(ptr::null());
@@ -16,9 +17,9 @@ pub fn get_available_monitors() -> Vec<MonitorID> {
         nb_monitors
     };
 
-    let mut vec = Vec::new();
-    vec.grow_fn(nb_monitors as uint, |i| MonitorID(i));
-    vec
+    let mut monitors = RingBuf::new();
+    monitors.extend(range(0, nb_monitors).map(|i| MonitorID(i as uint)));
+    monitors
 }
 
 pub fn get_primary_monitor() -> MonitorID {

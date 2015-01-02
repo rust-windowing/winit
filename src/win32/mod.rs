@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::ptr;
+use std::collections::RingBuf;
 use libc;
 use {CreationError, Event};
 
@@ -14,7 +15,7 @@ mod gl;
 mod init;
 mod monitor;
 
-/// 
+///
 pub struct HeadlessContext(Window);
 
 impl HeadlessContext {
@@ -105,7 +106,7 @@ impl Window {
     }
 
     /// See the docs in the crate root file.
-    /// 
+    ///
     /// Calls SetWindowText on the HWND.
     pub fn set_title(&self, text: &str) {
         unsafe {
@@ -200,11 +201,11 @@ impl Window {
 
     /// See the docs in the crate root file.
     // TODO: return iterator
-    pub fn poll_events(&self) -> Vec<Event> {
-        let mut events = Vec::new();
+    pub fn poll_events(&self) -> RingBuf<Event> {
+        let mut events = RingBuf::new();
         loop {
             match self.events_receiver.try_recv() {
-                Ok(ev) => events.push(ev),
+                Ok(ev) => events.push_back(ev),
                 Err(_) => break
             }
         }
@@ -214,13 +215,13 @@ impl Window {
             use std::sync::atomic::Relaxed;
             self.is_closed.store(true, Relaxed);
         }
-        
+
         events
     }
 
     /// See the docs in the crate root file.
     // TODO: return iterator
-    pub fn wait_events(&self) -> Vec<Event> {
+    pub fn wait_events(&self) -> RingBuf<Event> {
         match self.events_receiver.recv_opt() {
             Ok(ev) => {
                 // if the received event is `Closed`, setting `is_closed` to true
@@ -241,7 +242,7 @@ impl Window {
             Err(_) => {
                 use std::sync::atomic::Relaxed;
                 self.is_closed.store(true, Relaxed);
-                vec![]
+                RingBuf::new()
             }
         }
     }

@@ -7,6 +7,8 @@ use events::ElementState::{Pressed, Released};
 use events::Event::{MouseInput, MouseMoved};
 use events::MouseButton::LeftMouseButton;
 
+use std::collections::RingBuf;
+
 use BuilderAttribs;
 
 pub struct Window {
@@ -20,8 +22,10 @@ pub struct MonitorID;
 
 mod ffi;
 
-pub fn get_available_monitors() -> Vec<MonitorID> {
-    vec![ MonitorID ]
+pub fn get_available_monitors() -> RingBuf <MonitorID> {
+    let rb = RingBuf::new();
+    rb.push_back(MonitorId);
+    rb
 }
 
 pub fn get_primary_monitor() -> MonitorID {
@@ -215,19 +219,19 @@ impl Window {
         WindowProxy
     }
 
-    pub fn poll_events(&self) -> Vec<Event> {
-        let mut events = Vec::new();
+    pub fn poll_events(&self) -> RingBuf<Event> {
+        let mut events = RingBuf::new();
         loop {
             match self.event_rx.try_recv() {
                 Ok(event) => match event {
                     android_glue::Event::EventDown => {
-                        events.push(MouseInput(Pressed, LeftMouseButton));
+                        events.push_back(MouseInput(Pressed, LeftMouseButton));
                     },
                     android_glue::Event::EventUp => {
-                        events.push(MouseInput(Released, LeftMouseButton));
+                        events.push_back(MouseInput(Released, LeftMouseButton));
                     },
                     android_glue::Event::EventMove(x, y) => {
-                        events.push(MouseMoved((x as int, y as int)));
+                        events.push_back(MouseMoved((x as int, y as int)));
                     },
                 },
                 Err(_) => {
@@ -238,7 +242,7 @@ impl Window {
         events
     }
 
-    pub fn wait_events(&self) -> Vec<Event> {
+    pub fn wait_events(&self) -> RingBuf<Event> {
         use std::time::Duration;
         use std::io::timer;
         timer::sleep(Duration::milliseconds(16));
