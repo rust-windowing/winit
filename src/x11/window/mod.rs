@@ -5,6 +5,7 @@ use libc;
 use std::{mem, ptr};
 use std::cell::Cell;
 use std::sync::atomic::AtomicBool;
+use std::collections::RingBuf;
 use super::ffi;
 use std::sync::{Arc, Once, ONCE_INIT};
 
@@ -424,10 +425,10 @@ impl Window {
         }
     }
 
-    pub fn poll_events(&self) -> Vec<Event> {
+    pub fn poll_events(&self) -> RingBuf<Event> {
         use std::mem;
 
-        let mut events = Vec::new();
+        let mut events = RingBuf::new();
 
         loop {
             use std::num::Int;
@@ -456,9 +457,9 @@ impl Window {
 
                     if client_msg.l[0] == self.wm_delete_window as libc::c_long {
                         self.is_closed.store(true, Relaxed);
-                        events.push(Closed);
+                        events.push_back(Closed);
                     } else {
-                        events.push(Awakened);
+                        events.push_back(Awakened);
                     }
                 },
 
@@ -468,14 +469,14 @@ impl Window {
                     let (current_width, current_height) = self.current_size.get();
                     if current_width != cfg_event.width || current_height != cfg_event.height {
                         self.current_size.set((cfg_event.width, cfg_event.height));
-                        events.push(Resized(cfg_event.width as uint, cfg_event.height as uint));
+                        events.push_back(Resized(cfg_event.width as uint, cfg_event.height as uint));
                     }
                 },
 
                 ffi::MotionNotify => {
                     use events::Event::MouseMoved;
                     let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
-                    events.push(MouseMoved((event.x as int, event.y as int)));
+                    events.push_back(MouseMoved((event.x as int, event.y as int)));
                 },
 
                 ffi::KeyPress | ffi::KeyRelease => {
@@ -504,7 +505,7 @@ impl Window {
                     };
 
                     for chr in written.as_slice().chars() {
-                        events.push(ReceivedCharacter(chr));
+                        events.push_back(ReceivedCharacter(chr));
                     }
 
                     let keysym = unsafe {
@@ -513,7 +514,7 @@ impl Window {
 
                     let vkey =  events::keycode_to_element(keysym as libc::c_uint);
 
-                    events.push(KeyboardInput(state, event.keycode as u8, vkey));
+                    events.push_back(KeyboardInput(state, event.keycode as u8, vkey));
                 },
 
                 ffi::ButtonPress | ffi::ButtonRelease => {
@@ -530,11 +531,11 @@ impl Window {
                         ffi::Button2 => Some(MiddleMouseButton),
                         ffi::Button3 => Some(RightMouseButton),
                         ffi::Button4 => {
-                            events.push(MouseWheel(1));
+                            events.push_back(MouseWheel(1));
                             None
                         }
                         ffi::Button5 => {
-                            events.push(MouseWheel(-1));
+                            events.push_back(MouseWheel(-1));
                             None
                         }
                         _ => None
@@ -542,7 +543,7 @@ impl Window {
 
                     match button {
                         Some(button) =>
-                            events.push(MouseInput(state, button)),
+                            events.push_back(MouseInput(state, button)),
                         None => ()
                     };
                 },
@@ -554,7 +555,7 @@ impl Window {
         events
     }
 
-    pub fn wait_events(&self) -> Vec<Event> {
+    pub fn wait_events(&self) -> RingBuf<Event> {
         use std::mem;
 
         loop {
