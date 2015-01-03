@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicBool;
 use std::ptr;
 use std::collections::RingBuf;
+use std::sync::mpsc::Receiver;
 use libc;
 use {CreationError, Event};
 
@@ -89,7 +90,7 @@ impl Window {
     }
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct WindowProxy;
 
 impl WindowProxy {
@@ -222,7 +223,7 @@ impl Window {
     /// See the docs in the crate root file.
     // TODO: return iterator
     pub fn wait_events(&self) -> RingBuf<Event> {
-        match self.events_receiver.recv_opt() {
+        match self.events_receiver.recv() {
             Ok(ev) => {
                 // if the received event is `Closed`, setting `is_closed` to true
                 match ev {

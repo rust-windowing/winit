@@ -57,7 +57,7 @@ impl Drop for XWindow {
     }
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct WindowProxy {
     x: Arc<XWindow>,
 }
@@ -302,6 +302,7 @@ impl Window {
 
             // loading the extra GLX functions
             let extra_functions = ffi::glx_extra::Glx::load_with(|addr| {
+                use std::c_str::ToCStr;
                 addr.with_c_str(|s| {
                     use libc;
                     ffi::glx::GetProcAddress(s as *const u8) as *const libc::c_void
@@ -355,6 +356,7 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
+        use std::c_str::ToCStr;
         let c_title = title.to_c_str();
         unsafe {
             ffi::XStoreName(self.x.display, self.x.window, c_title.as_ptr());
@@ -494,7 +496,7 @@ impl Window {
                     let written = unsafe {
                         use std::str;
 
-                        let mut buffer: [u8, ..16] = [mem::uninitialized(), ..16];
+                        let mut buffer: [u8; 16] = [mem::uninitialized(); 16];
                         let raw_ev: *mut ffi::XKeyEvent = event;
                         let count = ffi::Xutf8LookupString(self.x.ic, mem::transmute(raw_ev),
                             mem::transmute(buffer.as_mut_ptr()),

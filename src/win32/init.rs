@@ -7,6 +7,7 @@ use CreationError::OsError;
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::mpsc::{Sender, Receiver, channel};
 
 use libc;
 use super::gl;
@@ -222,11 +223,12 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
 
             // loading the extra WGL functions
             let extra_functions = gl::wgl_extra::Wgl::load_with(|addr| {
+                use libc;
+                use std::c_str::ToCStr;
+
                 unsafe {
-                    addr.with_c_str(|s| {
-                        use libc;
-                        gl::wgl::GetProcAddress(s) as *const libc::c_void
-                    })
+                    let addr = addr.to_c_str();
+                    gl::wgl::GetProcAddress(addr.as_ptr()) as *const libc::c_void
                 }
             });
 
@@ -417,7 +419,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
         }
     }).detach();
 
-    rx.recv()
+    rx.recv().unwrap()
 }
 
 /// Checks that the window is the good one, and if so send the event to it.
@@ -435,7 +437,7 @@ fn send_event(input_window: winapi::HWND, event: Event) {
             return;
         }
 
-        sender.send_opt(event).ok();  // ignoring if closed
+        sender.send(event).ok();  // ignoring if closed
     });
 }
 
