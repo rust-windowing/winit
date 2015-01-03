@@ -1,4 +1,4 @@
-#[deriving(Clone, Show, Copy)]
+#[derive(Clone, Show, Copy)]
 pub enum Event {
     /// The size of the window has changed.
     Resized(uint, uint),
@@ -38,13 +38,13 @@ pub enum Event {
 
 pub type ScanCode = u8;
 
-#[deriving(Show, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Show, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ElementState {
     Pressed,
     Released,
 }
 
-#[deriving(Show, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Show, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum MouseButton {
     LeftMouseButton,
     RightMouseButton,
@@ -52,7 +52,7 @@ pub enum MouseButton {
     OtherMouseButton(u8),
 }
 
-#[deriving(Show, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Show, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum VirtualKeyCode {
     /// The '1' key over the letters.
     Key1,

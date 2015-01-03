@@ -78,7 +78,7 @@ unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
 #[cfg(feature = "window")]
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct WindowProxy;
 
 impl WindowProxy {

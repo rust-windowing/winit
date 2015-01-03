@@ -68,7 +68,7 @@ mod events;
 pub struct MonitorID(winimpl::MonitorID);
 
 /// Error that can happen while creating a window or a headless renderer.
-#[deriving(Clone, Show, PartialEq, Eq)]
+#[derive(Clone, Show, PartialEq, Eq)]
 pub enum CreationError {
     OsError(String),
     NotSupported,
@@ -84,7 +84,7 @@ impl std::error::Error for CreationError {
 }
 
 /// All APIs related to OpenGL that you can possibly get while using glutin.
-#[deriving(Show, Clone, Copy, PartialEq, Eq)]
+#[derive(Show, Clone, Copy, PartialEq, Eq)]
 pub enum Api {
     /// The classical OpenGL. Available on Windows, Linux, OS/X.
     OpenGl,
@@ -575,7 +575,7 @@ impl gl_common::GlFunctionsSource for Window {
 /// threads.
 ///
 #[cfg(feature = "window")]
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct WindowProxy {
     proxy: winimpl::WindowProxy,
 }

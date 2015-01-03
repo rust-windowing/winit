@@ -5,7 +5,7 @@ use std::collections::RingBuf;
 /// Win32 implementation of the main `MonitorID` object.
 pub struct MonitorID {
     /// The system name of the monitor.
-    name: [winapi::WCHAR, ..32],
+    name: [winapi::WCHAR; 32],
 
     /// Name to give to the user.
     readable_name: String,
