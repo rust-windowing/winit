@@ -1,6 +1,7 @@
 extern crate android_glue;
 
 use libc;
+use std::sync::mpsc::{Receiver, channel};
 use {CreationError, Event, WindowBuilder};
 use CreationError::OsError;
 use events::ElementState::{Pressed, Released};
@@ -23,8 +24,8 @@ pub struct MonitorID;
 mod ffi;
 
 pub fn get_available_monitors() -> RingBuf <MonitorID> {
-    let rb = RingBuf::new();
-    rb.push_back(MonitorId);
+    let mut rb = RingBuf::new();
+    rb.push_back(MonitorID);
     rb
 }
 
