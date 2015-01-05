@@ -2,6 +2,7 @@
 #![feature(globs)]
 #![feature(phase)]
 #![unstable]
+#![feature(associated_types)]
 
 //! The purpose of this library is to provide an OpenGL context on as many
 //!  platforms as possible.
@@ -641,7 +642,8 @@ pub struct PollEventsIterator<'a> {
     data: RingBufIter<Event>,
 }
 
-impl<'a> Iterator<Event> for PollEventsIterator<'a> {
+impl<'a> Iterator for PollEventsIterator<'a> {
+    type Item = Event;
     fn next(&mut self) -> Option<Event> {
         self.data.next()
     }
@@ -654,7 +656,8 @@ pub struct WaitEventsIterator<'a> {
     data: RingBufIter<Event>,
 }
 
-impl<'a> Iterator<Event> for WaitEventsIterator<'a> {
+impl<'a> Iterator for WaitEventsIterator<'a> {
+    type Item = Event;
     fn next(&mut self) -> Option<Event> {
         self.data.next()
     }
@@ -669,7 +672,8 @@ pub struct AvailableMonitorsIter {
 }
 
 #[cfg(feature = "window")]
-impl Iterator<MonitorID> for AvailableMonitorsIter {
+impl Iterator for AvailableMonitorsIter {
+    type Item = MonitorID;
     fn next(&mut self) -> Option<MonitorID> {
         self.data.next().map(|id| MonitorID(id))
     }
