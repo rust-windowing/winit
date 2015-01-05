@@ -351,7 +351,7 @@ impl Window {
     }
 
     pub fn is_closed(&self) -> bool {
-        use std::sync::atomic::Relaxed;
+        use std::sync::atomic::Ordering::Relaxed;
         self.is_closed.load(Relaxed)
     }
 
@@ -453,7 +453,7 @@ impl Window {
 
                 ffi::ClientMessage => {
                     use events::Event::{Closed, Awakened};
-                    use std::sync::atomic::Relaxed;
+                    use std::sync::atomic::Ordering::Relaxed;
 
                     let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
 

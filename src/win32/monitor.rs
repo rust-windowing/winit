@@ -58,7 +58,7 @@ pub fn get_available_monitors() -> RingBuf<MonitorID> {
 
         // computing the human-friendly name
         let readable_name = String::from_utf16_lossy(output.DeviceString.as_slice());
-        let readable_name = readable_name.as_slice().trim_right_chars(0 as char).to_string();
+        let readable_name = readable_name.as_slice().trim_right_matches(0 as char).to_string();
 
         // getting the position
         let (position, dimensions) = unsafe {

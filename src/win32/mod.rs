@@ -102,7 +102,7 @@ impl WindowProxy {
 impl Window {
     /// See the docs in the crate root file.
     pub fn is_closed(&self) -> bool {
-        use std::sync::atomic::Relaxed;
+        use std::sync::atomic::Ordering::Relaxed;
         self.is_closed.load(Relaxed)
     }
 
@@ -213,7 +213,7 @@ impl Window {
 
         // if one of the received events is `Closed`, setting `is_closed` to true
         if events.iter().any(|e| match e { &::events::Event::Closed => true, _ => false }) {
-            use std::sync::atomic::Relaxed;
+            use std::sync::atomic::Ordering::Relaxed;
             self.is_closed.store(true, Relaxed);
         }
 
@@ -228,7 +228,7 @@ impl Window {
                 // if the received event is `Closed`, setting `is_closed` to true
                 match ev {
                     ::events::Event::Closed => {
-                        use std::sync::atomic::Relaxed;
+                        use std::sync::atomic::Ordering::Relaxed;
                         self.is_closed.store(true, Relaxed);
                     },
                     _ => ()
@@ -241,7 +241,7 @@ impl Window {
             },
 
             Err(_) => {
-                use std::sync::atomic::Relaxed;
+                use std::sync::atomic::Ordering::Relaxed;
                 self.is_closed.store(true, Relaxed);
                 RingBuf::new()
             }
