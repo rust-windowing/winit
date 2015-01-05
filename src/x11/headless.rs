@@ -19,7 +19,7 @@ impl HeadlessContext {
         Ok(HeadlessContext {
             width: dimensions.0,
             height: dimensions.1,
-            buffer: Vec::from_elem(dimensions.0 * dimensions.1, unsafe { mem::uninitialized() }),
+            buffer: ::std::iter::repeat(unsafe { mem::uninitialized() }).take(dimensions.0 * dimensions.1).collect(),
             context: unsafe {
                 let ctxt = ffi::OSMesaCreateContext(0x1908, ptr::null());
                 if ctxt.is_null() {
