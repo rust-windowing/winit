@@ -1,6 +1,4 @@
-#![feature(phase)]
-
-#[phase(plugin)]
+#[no_link]
 extern crate gl_generator;
 extern crate glutin;
 extern crate libc;

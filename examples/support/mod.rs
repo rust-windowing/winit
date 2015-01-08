@@ -1,6 +1,6 @@
 #![cfg(feature = "window")]
 
-#[phase(plugin)]
+#[no_link]
 extern crate gl_generator;
 
 use glutin;
@@ -23,12 +23,13 @@ pub struct Context {
 pub fn load(window: &glutin::Window) -> Context {
     let gl = gl::Gl::load(window);
 
-    let version = {
-        use std::c_str::CString;
-        unsafe { CString::new(gl.GetString(gl::VERSION) as *const i8, false) }
+    let version = unsafe {
+        use std::ffi::c_str_to_bytes;
+        let ref version = gl.GetString(gl::VERSION) as *const i8;
+        String::from_utf8_lossy(c_str_to_bytes(version)).into_owned()
     };
 
-    println!("OpenGL version {}", version.as_str().unwrap());
+    println!("OpenGL version {}", version);
 
     Context { gl: gl }
 }
