@@ -1,6 +1,7 @@
 extern crate android_glue;
 
 use libc;
+use std::ffi::{CString};
 use std::sync::mpsc::{Receiver, channel};
 use {CreationError, Event, WindowBuilder};
 use CreationError::OsError;
@@ -257,12 +258,9 @@ impl Window {
     }
 
     pub fn get_proc_address(&self, addr: &str) -> *const () {
-        use std::c_str::ToCStr;
-
+        let addr = CString::from_slice(addr.as_bytes()).as_slice_with_nul().as_ptr();
         unsafe {
-            addr.with_c_str(|s| {
-                ffi::egl::GetProcAddress(s) as *const ()
-            })
+            ffi::egl::GetProcAddress(addr) as *const ()
         }
     }
 
