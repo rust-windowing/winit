@@ -1,7 +1,5 @@
-#![feature(phase)]
-
 #[cfg(target_os = "android")]
-#[phase(plugin, link)]
+#[macro_use]
 extern crate android_glue;
 
 extern crate glutin;
