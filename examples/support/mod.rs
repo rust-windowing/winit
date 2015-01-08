@@ -1,8 +1,5 @@
 #![cfg(feature = "window")]
 
-#[phase(plugin)]
-extern crate gl_generator;
-
 use glutin;
 
 #[cfg(not(target_os = "android"))]
@@ -23,12 +20,12 @@ pub struct Context {
 pub fn load(window: &glutin::Window) -> Context {
     let gl = gl::Gl::load(window);
 
-    let version = {
-        use std::c_str::CString;
-        unsafe { CString::new(gl.GetString(gl::VERSION) as *const i8, false) }
+    let version = unsafe {
+        use std::ffi;
+        ffi::c_str_to_bytes(&(gl.GetString(gl::VERSION) as *const i8)).to_string()
     };
 
-    println!("OpenGL version {}", version.as_str().unwrap());
+    println!("OpenGL version {}", version);
 
     Context { gl: gl }
 }

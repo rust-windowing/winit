@@ -6,6 +6,7 @@ use {CreationError, Event};
 use CreationError::OsError;
 
 use std::cell::RefCell;
+use std::ffi::CString;
 use std::rc::Rc;
 use std::sync::mpsc::{Sender, Receiver, channel};
 
@@ -224,11 +225,12 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             // loading the extra WGL functions
             let extra_functions = gl::wgl_extra::Wgl::load_with(|addr| {
                 use libc;
-                use std::c_str::ToCStr;
+
+                let addr = CString::from_slice(addr.as_bytes());
+                let addr = addr.as_slice_with_nul().as_ptr();
 
                 unsafe {
-                    let addr = addr.to_c_str();
-                    gl::wgl::GetProcAddress(addr.as_ptr()) as *const libc::c_void
+                    gl::wgl::GetProcAddress(addr) as *const libc::c_void
                 }
             });
 

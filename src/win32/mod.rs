@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::ptr;
+use std::ffi::CString;
 use std::collections::RingBuf;
 use std::sync::mpsc::Receiver;
 use libc;
@@ -256,14 +257,13 @@ impl Window {
 
     /// See the docs in the crate root file.
     pub fn get_proc_address(&self, addr: &str) -> *const () {
-        use std::c_str::ToCStr;
+        let addr = CString::from_slice(addr.as_bytes());
+        let addr = addr.as_slice_with_nul().as_ptr();
 
         unsafe {
-            addr.with_c_str(|s| {
-                let p = gl::wgl::GetProcAddress(s) as *const ();
-                if !p.is_null() { return p; }
-                winapi::GetProcAddress(self.gl_library, s) as *const ()
-            })
+            let p = gl::wgl::GetProcAddress(addr) as *const ();
+            if !p.is_null() { return p; }
+            winapi::GetProcAddress(self.gl_library, addr) as *const ()
         }
     }
 

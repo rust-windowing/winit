@@ -1,7 +1,3 @@
-#![feature(phase)]
-
-#[phase(plugin)]
-extern crate gl_generator;
 extern crate glutin;
 extern crate libc;
 
