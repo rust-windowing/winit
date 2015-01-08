@@ -17,11 +17,17 @@ mod monitor;
 static THREAD_INIT: Once = ONCE_INIT;
 
 fn ensure_thread_init() {
-    THREAD_INIT.doit(|| {
+    THREAD_INIT.call_once(|| {
         unsafe {
             ffi::XInitThreads();
         }
     });
+}
+
+fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const i8) -> T {
+    use std::ffi::CString;
+    let c_str = CString::from_slice(s.as_bytes());
+    f(c_str.as_slice_with_nul().as_ptr())    
 }
 
 struct XWindow {
@@ -234,13 +240,13 @@ impl Window {
 
         // creating window, step 2
         let wm_delete_window = unsafe {
-            use std::c_str::ToCStr;
-
-            let delete_window = "WM_DELETE_WINDOW".to_c_str();
-            let mut wm_delete_window = ffi::XInternAtom(display, delete_window.as_ptr(), 0);
+            let mut wm_delete_window = with_c_str("WM_DELETE_WINDOW", |delete_window| 
+                ffi::XInternAtom(display, delete_window, 0)
+            );
             ffi::XSetWMProtocols(display, window, &mut wm_delete_window, 1);
-            let c_title = builder.title.to_c_str();
-            ffi::XStoreName(display, window, c_title.as_ptr());
+            with_c_str(&*builder.title, |title| {;
+                ffi::XStoreName(display, window, title);
+            });
             ffi::XFlush(display);
 
             wm_delete_window
@@ -257,13 +263,15 @@ impl Window {
 
         // creating input context
         let ic = unsafe {
-            use std::c_str::ToCStr;
-
-            let input_style = "inputStyle".to_c_str();
-            let client_window = "clientWindow".to_c_str();
-            let ic = ffi::XCreateIC(im, input_style.as_ptr(),
-                ffi::XIMPreeditNothing | ffi::XIMStatusNothing, client_window.as_ptr(),
-                window, ptr::null());
+            let ic = with_c_str("inputStyle", |input_style|
+                with_c_str("clientWindow", |client_window|
+                    ffi::XCreateIC(
+                        im, input_style,
+                        ffi::XIMPreeditNothing | ffi::XIMStatusNothing, client_window,
+                        window, ptr::null()
+                    )
+                )
+            );
             if ic.is_null() {
                 return Err(OsError(format!("XCreateIC failed")));
             }
@@ -302,8 +310,7 @@ impl Window {
 
             // loading the extra GLX functions
             let extra_functions = ffi::glx_extra::Glx::load_with(|addr| {
-                use std::c_str::ToCStr;
-                addr.with_c_str(|s| {
+                with_c_str(addr, |s| {
                     use libc;
                     ffi::glx::GetProcAddress(s as *const u8) as *const libc::c_void
                 })
@@ -356,12 +363,10 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
-        use std::c_str::ToCStr;
-        let c_title = title.to_c_str();
-        unsafe {
-            ffi::XStoreName(self.x.display, self.x.window, c_title.as_ptr());
+        with_c_str(title, |title| unsafe {
+            ffi::XStoreName(self.x.display, self.x.window, title);
             ffi::XFlush(self.x.display);
-        }
+        })
     }
 
     pub fn show(&self) {
@@ -582,11 +587,10 @@ impl Window {
     }
 
     pub fn get_proc_address(&self, addr: &str) -> *const () {
-        use std::c_str::ToCStr;
         use std::mem;
 
         unsafe {
-            addr.with_c_str(|s| {
+            with_c_str(addr, |s| {
                 ffi::glx::GetProcAddress(mem::transmute(s)) as *const ()
             })
         }
