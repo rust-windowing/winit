@@ -30,6 +30,6 @@ fn main() {
         context.draw_frame((0.0, 1.0, 0.0, 1.0));
         window.swap_buffers();
 
-        println!("{}", window.wait_events().collect::<Vec<glutin::Event>>());
+        println!("{:?}", window.wait_events().collect::<Vec<glutin::Event>>());
     }
 }

@@ -419,7 +419,7 @@ pub fn new_window(builder_dimensions: Option<(uint, uint)>, builder_title: Strin
             unsafe { winapi::TranslateMessage(&msg) };
             unsafe { winapi::DispatchMessageW(&msg) };     // calls `callback` (see below)
         }
-    }).detach();
+    });
 
     rx.recv().unwrap()
 }

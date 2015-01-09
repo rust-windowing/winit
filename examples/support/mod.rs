@@ -22,7 +22,7 @@ pub fn load(window: &glutin::Window) -> Context {
 
     let version = unsafe {
         use std::ffi;
-        ffi::c_str_to_bytes(&(gl.GetString(gl::VERSION) as *const i8)).to_string()
+        String::from_utf8(ffi::c_str_to_bytes(&(gl.GetString(gl::VERSION) as *const i8)).to_vec()).unwrap()
     };
 
     println!("OpenGL version {}", version);
