@@ -30,12 +30,19 @@ git = "https://github.com/servo/rust-cocoa"
 
 [target.x86_64-apple-darwin.dependencies.cocoa]
 git = "https://github.com/servo/rust-cocoa"
+features = ["arch_64"]
 
 [target.i686-apple-darwin.dependencies.core_graphics]
 git = "https://github.com/servo/rust-core-graphics"
 
 [target.x86_64-apple-darwin.dependencies.core_graphics]
 git = "https://github.com/servo/rust-core-graphics"
+
+[target.i686-apple-darwin.dependencies.core_foundation]
+git = "https://github.com/servo/rust-core-foundation"
+
+[target.x86_64-apple-darwin.dependencies.core_foundation]
+git = "https://github.com/servo/rust-core-foundation"
 
 [target.i686-pc-windows-gnu.dependencies.winapi]
 version = "*"

@@ -3,11 +3,11 @@ use std::collections::RingBuf;
 
 pub struct MonitorID(u32);
 
-pub fn get_available_monitors() -> Vec<MonitorID> {
+pub fn get_available_monitors() -> RingBuf<MonitorID> {
     let mut monitors = RingBuf::new();
     unsafe {
         let max_displays = 10u32;
-        let mut active_displays = [0u32, ..10];
+        let mut active_displays = [0u32; 10];
         let mut display_count = 0;
         display::CGGetActiveDisplayList(max_displays,
                                                         &mut active_displays[0],
