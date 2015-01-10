@@ -20,15 +20,15 @@ fn main() {
     let window2 = glutin::Window::new().unwrap();
     let window3 = glutin::Window::new().unwrap();
 
-    let t1 = Thread::spawn(move || {
+    let t1 = Thread::scoped(move || {
         run(window1, (0.0, 1.0, 0.0, 1.0));
     });
 
-    let t2 = Thread::spawn(move || {
+    let t2 = Thread::scoped(move || {
         run(window2, (0.0, 0.0, 1.0, 1.0));
     });
 
-    let t3 = Thread::spawn(move || {
+    let t3 = Thread::scoped(move || {
         run(window3, (1.0, 0.0, 0.0, 1.0));
     });
 

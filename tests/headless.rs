@@ -23,6 +23,6 @@ fn main() {
         
         assert!(value == (0, 255, 0, 255) || value == (0, 64, 0, 255) ||
                 value == (0, 64, 0, 255) || value == (0, 64, 0, 0),
-                "value is: {}", value);
+                "value is: {:?}", value);
     }
 }

@@ -19,7 +19,7 @@ fn main() {
     // enumerating monitors
     let monitor = {
         for (num, monitor) in glutin::get_available_monitors().enumerate() {
-            println!("Monitor #{}: {}", num, monitor.get_name());
+            println!("Monitor #{}: {:?}", num, monitor.get_name());
         }
 
         print!("Please write the number of the monitor to use: ");
@@ -27,7 +27,7 @@ fn main() {
             .expect("Plase enter a number");
         let monitor = glutin::get_available_monitors().nth(num).expect("Please enter a valid ID");
 
-        println!("Using {}", monitor.get_name());
+        println!("Using {:?}", monitor.get_name());
 
         monitor
     };
@@ -47,6 +47,6 @@ fn main() {
         context.draw_frame((0.0, 1.0, 0.0, 1.0));
         window.swap_buffers();
 
-        println!("{}", window.wait_events().collect::<Vec<glutin::Event>>());
+        println!("{:?}", window.wait_events().collect::<Vec<glutin::Event>>());
     }
 }
