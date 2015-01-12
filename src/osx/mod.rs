@@ -18,10 +18,13 @@ use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
 use std::cell::Cell;
-use std::c_str::CString;
+use std::ffi::{CString, c_str_to_bytes};
 use std::mem;
 use std::ptr;
 use std::collections::RingBuf;
+use std::str::FromStr;
+use std::str::from_utf8;
+use std::ascii::AsciiExt;
 
 use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel};
 use events::ElementState::{Pressed, Released};
@@ -170,9 +173,9 @@ impl Window {
         let delegate = unsafe {
             // Create a delegate class, add callback methods and store InternalState as user data.
             let delegate = objc_allocateClassPair(ns_object, DELEGATE_NAME.as_ptr() as *const i8, 0);
-            class_addMethod(delegate, selector("windowShouldClose:"), window_should_close, "B@:@".to_c_str().as_ptr());
-            class_addMethod(delegate, selector("windowDidResize:"), window_did_resize, "V@:@".to_c_str().as_ptr());
-            class_addIvar(delegate, DELEGATE_STATE_IVAR.as_ptr() as *const i8, ptr_size, 3, "?".to_c_str().as_ptr());
+            class_addMethod(delegate, selector("windowShouldClose:"), window_should_close, CString::from_slice("B@:@".as_bytes()).as_ptr());
+            class_addMethod(delegate, selector("windowDidResize:"), window_did_resize, CString::from_slice("V@:@".as_bytes()).as_ptr());
+            class_addIvar(delegate, DELEGATE_STATE_IVAR.as_ptr() as *const i8, ptr_size, 3, CString::from_slice("?".as_bytes()).as_ptr());
             objc_registerClassPair(delegate);
 
             let del_obj = msg_send()(delegate, selector("alloc"));
@@ -268,12 +271,12 @@ impl Window {
     fn create_context(view: id, vsync: bool) -> Option<id> {
         unsafe {
             let attributes = [
-                NSOpenGLPFADoubleBuffer as uint,
-                NSOpenGLPFAClosestPolicy as uint,
-                NSOpenGLPFAColorSize as uint, 24,
-                NSOpenGLPFAAlphaSize as uint, 8,
-                NSOpenGLPFADepthSize as uint, 24,
-                NSOpenGLPFAStencilSize as uint, 8,
+                NSOpenGLPFADoubleBuffer as u32,
+                NSOpenGLPFAClosestPolicy as u32,
+                NSOpenGLPFAColorSize as u32, 24,
+                NSOpenGLPFAAlphaSize as u32, 8,
+                NSOpenGLPFADepthSize as u32, 24,
+                NSOpenGLPFAStencilSize as u32, 8,
                 0
             ];
 
@@ -381,8 +384,9 @@ impl Window {
                         events.push_back(MouseMoved((view_point.x as int, view_point.y as int)));
                     },
                     NSKeyDown               => {
-                        let received_str = CString::new(event.characters().UTF8String(), false);
-                        for received_char in received_str.as_str().unwrap().chars() {
+                        let received_c_str = event.characters().UTF8String();
+                        let received_str = CString::from_slice(c_str_to_bytes(&received_c_str));
+                        for received_char in from_utf8(received_str.as_bytes()).unwrap().chars() {
                             if received_char.is_ascii() {
                                 events.push_back(ReceivedCharacter(received_char));
                             }
@@ -461,8 +465,8 @@ impl Window {
     }
 
     pub fn get_proc_address(&self, _addr: &str) -> *const () {
-        let symbol_name: CFString = from_str(_addr).unwrap();
-        let framework_name: CFString = from_str("com.apple.opengl").unwrap();
+        let symbol_name: CFString = FromStr::from_str(_addr).unwrap();
+        let framework_name: CFString = FromStr::from_str("com.apple.opengl").unwrap();
         let framework = unsafe {
             CFBundleGetBundleWithIdentifier(framework_name.as_concrete_TypeRef())
         };
