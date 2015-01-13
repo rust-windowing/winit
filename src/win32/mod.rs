@@ -44,7 +44,7 @@ impl HeadlessContext {
         ::Api::OpenGl
     }
 
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 }
 
@@ -131,7 +131,7 @@ impl Window {
     }
 
     /// See the docs in the crate root file.
-    pub fn get_position(&self) -> Option<(int, int)> {
+    pub fn get_position(&self) -> Option<(i32, i32)> {
         use std::mem;
 
         let mut placement: winapi::WINDOWPLACEMENT = unsafe { mem::zeroed() };
@@ -142,11 +142,11 @@ impl Window {
         }
 
         let ref rect = placement.rcNormalPosition;
-        Some((rect.left as int, rect.top as int))
+        Some((rect.left as i32, rect.top as i32))
     }
 
     /// See the docs in the crate root file.
-    pub fn set_position(&self, x: int, y: int) {
+    pub fn set_position(&self, x: i32, y: i32) {
         use libc;
 
         unsafe {
@@ -157,7 +157,7 @@ impl Window {
     }
 
     /// See the docs in the crate root file.
-    pub fn get_inner_size(&self) -> Option<(uint, uint)> {
+    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         use std::mem;
         let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
@@ -166,13 +166,13 @@ impl Window {
         }
 
         Some((
-            (rect.right - rect.left) as uint,
-            (rect.bottom - rect.top) as uint
+            (rect.right - rect.left) as u32,
+            (rect.bottom - rect.top) as u32
         ))
     }
 
     /// See the docs in the crate root file.
-    pub fn get_outer_size(&self) -> Option<(uint, uint)> {
+    pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         use std::mem;
         let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
@@ -181,13 +181,13 @@ impl Window {
         }
 
         Some((
-            (rect.right - rect.left) as uint,
-            (rect.bottom - rect.top) as uint
+            (rect.right - rect.left) as u32,
+            (rect.bottom - rect.top) as u32
         ))
     }
 
     /// See the docs in the crate root file.
-    pub fn set_inner_size(&self, x: uint, y: uint) {
+    pub fn set_inner_size(&self, x: u32, y: u32) {
         use libc;
 
         unsafe {
@@ -283,7 +283,7 @@ impl Window {
         ::Api::OpenGl
     }
 
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {

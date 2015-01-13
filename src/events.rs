@@ -1,10 +1,10 @@
 #[derive(Clone, Show, Copy)]
 pub enum Event {
     /// The size of the window has changed.
-    Resized(usize, usize),
+    Resized(u32, u32),
 
     /// The position of the window has changed.
-    Moved(isize, isize),
+    Moved(i32, i32),
 
     /// The window has been closed.
     Closed,
@@ -23,7 +23,7 @@ pub enum Event {
     /// The cursor has moved on the window.
     ///
     /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
-    MouseMoved((isize, isize)),
+    MouseMoved((i32, i32)),
 
     /// A positive value indicates that the wheel was rotated forward, away from the user;
     ///  a negative value indicates that the wheel was rotated backward, toward the user.

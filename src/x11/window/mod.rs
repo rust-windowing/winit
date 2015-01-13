@@ -169,7 +169,7 @@ impl Window {
                 return Err(OsError(format!("Could not find a suitable graphics mode")));
             }
 
-           modes
+            modes
         };
 
         let xf86_desk_mode = unsafe {
@@ -383,7 +383,7 @@ impl Window {
         }
     }
 
-    fn get_geometry(&self) -> Option<(isize, isize, usize, usize)> {
+    fn get_geometry(&self) -> Option<(i32, i32, u32, u32)> {
         unsafe {
             use std::mem;
 
@@ -402,27 +402,27 @@ impl Window {
                 return None;
             }
 
-            Some((x as isize, y as isize, width as usize, height as usize))
+            Some((x as i32, y as i32, width as u32, height as u32))
         }
     }
 
-    pub fn get_position(&self) -> Option<(isize, isize)> {
+    pub fn get_position(&self) -> Option<(i32, i32)> {
         self.get_geometry().map(|(x, y, _, _)| (x, y))
     }
 
-    pub fn set_position(&self, x: isize, y: isize) {
+    pub fn set_position(&self, x: i32, y: i32) {
         unsafe { ffi::XMoveWindow(self.x.display, self.x.window, x as libc::c_int, y as libc::c_int) }
     }
 
-    pub fn get_inner_size(&self) -> Option<(usize, usize)> {
+    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         self.get_geometry().map(|(_, _, w, h)| (w, h))
     }
 
-    pub fn get_outer_size(&self) -> Option<(usize, usize)> {
+    pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         unimplemented!()
     }
 
-    pub fn set_inner_size(&self, _x: usize, _y: usize) {
+    pub fn set_inner_size(&self, _x: u32, _y: u32) {
         unimplemented!()
     }
 
@@ -476,14 +476,14 @@ impl Window {
                     let (current_width, current_height) = self.current_size.get();
                     if current_width != cfg_event.width || current_height != cfg_event.height {
                         self.current_size.set((cfg_event.width, cfg_event.height));
-                        events.push_back(Resized(cfg_event.width as usize, cfg_event.height as usize));
+                        events.push_back(Resized(cfg_event.width as u32, cfg_event.height as u32));
                     }
                 },
 
                 ffi::MotionNotify => {
                     use events::Event::MouseMoved;
                     let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
-                    events.push_back(MouseMoved((event.x as isize, event.y as isize)));
+                    events.push_back(MouseMoved((event.x as i32, event.y as i32)));
                 },
 
                 ffi::KeyPress | ffi::KeyRelease => {
@@ -609,7 +609,7 @@ impl Window {
         ::Api::OpenGl
     }
 
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(usize, usize)>) {
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
