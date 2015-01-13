@@ -1,7 +1,7 @@
 #[cfg(feature = "headless")]
 pub use self::headless::HeadlessContext;
 
-use {CreationError, Event};
+use {CreationError, Event, MouseCursor};
 use CreationError::OsError;
 use libc;
 
@@ -490,5 +490,9 @@ impl Window {
 
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(uint, uint)>) {
         self.resize = callback;
+    }
+
+    pub fn set_cursor(&self, cursor: MouseCursor) {
+        unimplemented!()
     }
 }

@@ -1384,6 +1384,7 @@ extern "C" {
 #[link(name = "GL")]
 #[link(name = "X11")]
 #[link(name = "Xxf86vm")]
+#[link(name = "Xcursor")]
 extern "C" {
     pub fn XCloseDisplay(display: *mut Display);
     pub fn XCheckMaskEvent(display: *mut Display, event_mask: libc::c_long,
@@ -1454,6 +1455,9 @@ extern "C" {
         x: libc::c_int, y: libc::c_int) -> Bool;
     pub fn XF86VidModeGetAllModeLines(dpy: *mut Display, screen: libc::c_int,
         modecount_return: *mut libc::c_int, modesinfo: *mut *mut *mut XF86VidModeModeInfo) -> Bool;
+
+    pub fn XcursorLibraryLoadCursor(dpy: *mut Display, name: *const libc::c_char) -> Cursor;
+    pub fn XDefineCursor(dby: *mut Display, w: Window, cursor: Cursor);
 }
 
 /*

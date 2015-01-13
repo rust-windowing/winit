@@ -1,4 +1,4 @@
-use {Event, BuilderAttribs};
+use {Event, BuilderAttribs, MouseCursor};
 use CreationError;
 use CreationError::OsError;
 use libc;
@@ -610,5 +610,52 @@ impl Window {
     }
 
     pub fn set_window_resize_callback(&mut self, _: Option<fn(usize, usize)>) {
+    }
+
+    pub fn set_cursor(&self, cursor: MouseCursor) {
+        unsafe {
+            use std::ffi::CString;
+            let cursor_name = match cursor {
+                MouseCursor::Alias => "link",
+                MouseCursor::Arrow => "arrow",
+                MouseCursor::Cell => "plus",
+                MouseCursor::Copy => "copy",
+                MouseCursor::Crosshair => "crosshair",
+                MouseCursor::Default => "left_ptr",
+                MouseCursor::Grabbing => "grabbing",
+                MouseCursor::Hand | MouseCursor::Grab => "hand",
+                MouseCursor::Help => "question_arrow",
+                MouseCursor::Move => "move",
+                MouseCursor::NoDrop => "circle",
+                MouseCursor::NotAllowed => "crossed_circle",
+                MouseCursor::Progress => "left_ptr_watch",
+
+                /// Resize cursors
+                MouseCursor::EResize => "right_side",
+                MouseCursor::NResize => "top_side",
+                MouseCursor::NeResize => "top_right_corner",
+                MouseCursor::NwResize => "top_left_corner",
+                MouseCursor::SResize => "bottom_side",
+                MouseCursor::SeResize => "bottom_right_corner",
+                MouseCursor::SwResize => "bottom_left_corner",
+                MouseCursor::WResize => "left_side",
+                MouseCursor::EwResize | MouseCursor::ColResize => "h_double_arrow",
+                MouseCursor::NsResize | MouseCursor::RowResize => "v_double_arrow",
+                MouseCursor::NwseResize => "bd_double_arrow",
+                MouseCursor::NeswResize => "fd_double_arrow",
+
+                MouseCursor::Text | MouseCursor::VerticalText => "xterm",
+                MouseCursor::Wait => "watch",
+                
+                /// TODO: Find matching X11 cursors
+                MouseCursor::ContextMenu | MouseCursor::NoneCursor |
+                MouseCursor::AllScroll | MouseCursor::ZoomIn |
+                MouseCursor::ZoomOut => "left_ptr",
+            };
+            let c_string = CString::from_slice(cursor_name.as_bytes());
+            let xcursor = ffi::XcursorLibraryLoadCursor(self.x.display, c_string.as_ptr());
+            ffi::XDefineCursor (self.x.display, self.x.window, xcursor);
+            ffi::XFlush(self.x.display);
+        }
     }
 }

@@ -59,14 +59,16 @@ fn main() {
  - Some events are not implemented
  - Implementation is still work-in-progress
  - Vsync not implemented
-
+ - Changing the cursor (set_cursor) is not implemented 
 ### Win32
 
  - You must call `glFlush` before `swap_buffers`, or else on Windows 8 nothing will be visible on the window
  - Pixel formats are not implemented
+ - Changing the cursor (set_cursor) is not implemented
 
 ### X11
 
  - Some input events are not implemented
  - Pixel formats not implemented
  - Vsync not implemented
+ - Not all mouse cursors are implemented (ContextMenu, ...)
