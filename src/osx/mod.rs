@@ -491,4 +491,8 @@ impl Window {
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(uint, uint)>) {
         self.resize = callback;
     }
+
+    pub fn set_cursor(&self, cursor: MouseCursor) {
+        unimplemented!()
+    }
 }

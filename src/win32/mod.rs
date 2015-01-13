@@ -285,6 +285,10 @@ impl Window {
 
     pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
     }
+
+    pub fn set_cursor(&self, cursor: MouseCursor) {
+        unimplemented!()
+    }
 }
 
 #[unsafe_destructor]

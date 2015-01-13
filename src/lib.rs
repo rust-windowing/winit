@@ -90,6 +90,62 @@ pub enum Api {
     OpenGlEs,
 }
 
+#[derive(Show, Copy)]
+pub enum MouseCursor {
+    /// The platform-dependent default cursor.
+    Default,
+    /// A simple crosshair.
+    Crosshair,
+    /// A hand (often used to indicate links in web browsers).
+    Hand,
+    /// Self explanatory.
+    Arrow,
+    /// Indicates something is to be moved.
+    Move,
+    /// Indicates text that may be selected or edited.
+    Text,
+    /// Program busy indicator.
+    Wait,
+    /// Help indicator (often rendered as a "?")
+    Help,
+    /// Progress indicator. Shows that processing is being done. But in contrast
+    /// with "Wait" the user may still interact with the program. Often rendered
+    /// as a spinning beach ball, or an arrow with a watch or hourglass. 
+    Progress,
+
+    /// Cursor showing that something cannot be done.
+    NotAllowed,
+    ContextMenu,
+    NoneCursor,
+    Cell,
+    VerticalText,
+    Alias,
+    Copy,
+    NoDrop,
+    Grab,
+    Grabbing,
+    AllScroll,
+    ZoomIn,
+    ZoomOut,
+
+    /// Indicate that some edge is to be moved. For example, the 'SeResize' cursor
+    /// is used when the movement starts from the south-east corner of the box.
+    EResize,
+    NResize,
+    NeResize,
+    NwResize,
+    SResize,
+    SeResize,
+    SwResize,
+    WResize,
+    EwResize,
+    NsResize,
+    NeswResize,
+    NwseResize,
+    ColResize,
+    RowResize,
+}
+
 /// Object that allows you to build windows.
 #[cfg(feature = "window")]
 pub struct WindowBuilder<'a> {
@@ -558,6 +614,11 @@ impl Window {
     #[experimental]
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(uint, uint)>) {
         self.window.set_window_resize_callback(callback);
+    }
+
+    /// Modifies the mouse cursor of the window.
+    pub fn set_cursor(&mut self, cursor: MouseCursor) {
+        self.window.set_cursor(cursor);
     }
 }
 
