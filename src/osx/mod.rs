@@ -1,7 +1,7 @@
 #[cfg(feature = "headless")]
 pub use self::headless::HeadlessContext;
 
-use {CreationError, Event};
+use {CreationError, Event, MouseCursor};
 use CreationError::OsError;
 use libc;
 

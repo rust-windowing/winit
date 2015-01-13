@@ -4,7 +4,7 @@ use std::ffi::CString;
 use std::collections::RingBuf;
 use std::sync::mpsc::Receiver;
 use libc;
-use {CreationError, Event};
+use {CreationError, Event, MouseCursor};
 
 use BuilderAttribs;
 
