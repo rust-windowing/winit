@@ -3,7 +3,7 @@ extern crate android_glue;
 use libc;
 use std::ffi::{CString};
 use std::sync::mpsc::{Receiver, channel};
-use {CreationError, Event, WindowBuilder};
+use {CreationError, Event, WindowBuilder, MouseCursor};
 use CreationError::OsError;
 use events::ElementState::{Pressed, Released};
 use events::Event::{MouseInput, MouseMoved};
