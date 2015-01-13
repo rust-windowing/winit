@@ -13,7 +13,7 @@ android_start!(main);
 fn main() { println!("This example requires glutin to be compiled with the `window` feature"); }
 
 #[cfg(feature = "window")]
-fn resize_callback(width: uint, height: uint) {
+fn resize_callback(width: u32, height: u32) {
     println!("Window resized to {}x{}", width, height);
 }
 
@@ -21,7 +21,7 @@ fn resize_callback(width: uint, height: uint) {
 fn main() {
     let mut window = glutin::Window::new().unwrap();
     window.set_title("A fantastic window!");
-    window.set_window_resize_callback(Some(resize_callback as fn(uint, uint)));
+    window.set_window_resize_callback(Some(resize_callback as fn(u32, u32)));
     unsafe { window.make_current() };
 
     let context = support::load(&window);

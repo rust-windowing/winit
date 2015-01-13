@@ -14,8 +14,8 @@ fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const i8) -> T {
 pub struct HeadlessContext {
     context: ffi::OSMesaContext,
     buffer: Vec<u32>,
-    width: uint,
-    height: uint,
+    width: u32,
+    height: u32,
 }
 
 impl HeadlessContext {
@@ -25,7 +25,8 @@ impl HeadlessContext {
         Ok(HeadlessContext {
             width: dimensions.0,
             height: dimensions.1,
-            buffer: ::std::iter::repeat(unsafe { mem::uninitialized() }).take(dimensions.0 * dimensions.1).collect(),
+            buffer: ::std::iter::repeat(unsafe { mem::uninitialized() })
+                .take((dimensions.0 * dimensions.1) as usize).collect(),
             context: unsafe {
                 let ctxt = ffi::OSMesaCreateContext(0x1908, ptr::null());
                 if ctxt.is_null() {
@@ -59,7 +60,7 @@ impl HeadlessContext {
         ::Api::OpenGl
     }
 
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 }
 

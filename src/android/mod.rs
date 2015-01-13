@@ -3,7 +3,7 @@ extern crate android_glue;
 use libc;
 use std::ffi::{CString};
 use std::sync::mpsc::{Receiver, channel};
-use {CreationError, Event, WindowBuilder, MouseCursor};
+use {CreationError, Event, MouseCursor};
 use CreationError::OsError;
 use events::ElementState::{Pressed, Released};
 use events::Event::{MouseInput, MouseMoved};
@@ -39,13 +39,13 @@ impl MonitorID {
         Some("Primary".to_string())
     }
 
-    pub fn get_dimensions(&self) -> (uint, uint) {
+    pub fn get_dimensions(&self) -> (u32, u32) {
         unimplemented!()
     }
 }
 
 #[cfg(feature = "headless")]
-pub struct HeadlessContext(int);
+pub struct HeadlessContext(i32);
 
 #[cfg(feature = "headless")]
 impl HeadlessContext {
@@ -190,31 +190,31 @@ impl Window {
     pub fn hide(&self) {
     }
 
-    pub fn get_position(&self) -> Option<(int, int)> {
+    pub fn get_position(&self) -> Option<(i32, i32)> {
         None
     }
 
-    pub fn set_position(&self, _x: int, _y: int) {
+    pub fn set_position(&self, _x: i32, _y: i32) {
     }
 
-    pub fn get_inner_size(&self) -> Option<(uint, uint)> {
+    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         let native_window = unsafe { android_glue::get_native_window() };
 
         if native_window.is_null() {
             None
         } else {
             Some((
-                unsafe { ffi::ANativeWindow_getWidth(native_window) } as uint,
-                unsafe { ffi::ANativeWindow_getHeight(native_window) } as uint
+                unsafe { ffi::ANativeWindow_getWidth(native_window) } as u32,
+                unsafe { ffi::ANativeWindow_getHeight(native_window) } as u32
             ))
         }
     }
 
-    pub fn get_outer_size(&self) -> Option<(uint, uint)> {
+    pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         self.get_inner_size()
     }
 
-    pub fn set_inner_size(&self, _x: uint, _y: uint) {
+    pub fn set_inner_size(&self, _x: u32, _y: u32) {
     }
 
     pub fn create_window_proxy(&self) -> WindowProxy {
@@ -233,7 +233,7 @@ impl Window {
                         events.push_back(MouseInput(Released, LeftMouseButton));
                     },
                     android_glue::Event::EventMove(x, y) => {
-                        events.push_back(MouseMoved((x as int, y as int)));
+                        events.push_back(MouseMoved((x as i32, y as i32)));
                     },
                 },
                 Err(_) => {
@@ -278,10 +278,10 @@ impl Window {
         ::Api::OpenGlEs
     }
 
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor(&self, _: MouseCursor) {
     }
 }
 
