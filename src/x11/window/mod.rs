@@ -160,7 +160,7 @@ impl Window {
             }
 
             for i in range(0, mode_num) {
-                let mode: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as int) as *const _);
+                let mode: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _);
                 if mode.hdisplay == dimensions.0 as u16 && mode.vdisplay == dimensions.1 as u16 {
                     best_mode = i;
                 }
@@ -215,7 +215,7 @@ impl Window {
         if builder.monitor.is_some() {
             window_attributes |= ffi::CWOverrideRedirect;
             unsafe {
-                ffi::XF86VidModeSwitchToMode(display, screen_id, *modes.offset(best_mode as int));
+                ffi::XF86VidModeSwitchToMode(display, screen_id, *modes.offset(best_mode as isize));
                 ffi::XF86VidModeSetViewPort(display, screen_id, 0, 0);
                 set_win_attr.override_redirect = 1;
             }
@@ -383,7 +383,7 @@ impl Window {
         }
     }
 
-    fn get_geometry(&self) -> Option<(int, int, uint, uint)> {
+    fn get_geometry(&self) -> Option<(isize, isize, usize, usize)> {
         unsafe {
             use std::mem;
 
@@ -402,27 +402,27 @@ impl Window {
                 return None;
             }
 
-            Some((x as int, y as int, width as uint, height as uint))
+            Some((x as isize, y as isize, width as usize, height as usize))
         }
     }
 
-    pub fn get_position(&self) -> Option<(int, int)> {
+    pub fn get_position(&self) -> Option<(isize, isize)> {
         self.get_geometry().map(|(x, y, _, _)| (x, y))
     }
 
-    pub fn set_position(&self, x: int, y: int) {
+    pub fn set_position(&self, x: isize, y: isize) {
         unsafe { ffi::XMoveWindow(self.x.display, self.x.window, x as libc::c_int, y as libc::c_int) }
     }
 
-    pub fn get_inner_size(&self) -> Option<(uint, uint)> {
+    pub fn get_inner_size(&self) -> Option<(usize, usize)> {
         self.get_geometry().map(|(_, _, w, h)| (w, h))
     }
 
-    pub fn get_outer_size(&self) -> Option<(uint, uint)> {
+    pub fn get_outer_size(&self) -> Option<(usize, usize)> {
         unimplemented!()
     }
 
-    pub fn set_inner_size(&self, _x: uint, _y: uint) {
+    pub fn set_inner_size(&self, _x: usize, _y: usize) {
         unimplemented!()
     }
 
@@ -476,14 +476,14 @@ impl Window {
                     let (current_width, current_height) = self.current_size.get();
                     if current_width != cfg_event.width || current_height != cfg_event.height {
                         self.current_size.set((cfg_event.width, cfg_event.height));
-                        events.push_back(Resized(cfg_event.width as uint, cfg_event.height as uint));
+                        events.push_back(Resized(cfg_event.width as usize, cfg_event.height as usize));
                     }
                 },
 
                 ffi::MotionNotify => {
                     use events::Event::MouseMoved;
                     let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
-                    events.push_back(MouseMoved((event.x as int, event.y as int)));
+                    events.push_back(MouseMoved((event.x as isize, event.y as isize)));
                 },
 
                 ffi::KeyPress | ffi::KeyRelease => {
@@ -507,7 +507,7 @@ impl Window {
                             mem::transmute(buffer.as_mut_ptr()),
                             buffer.len() as libc::c_int, ptr::null_mut(), ptr::null_mut());
 
-                        str::from_utf8(buffer.as_slice().slice_to(count as uint))
+                        str::from_utf8(buffer.as_slice().slice_to(count as usize))
                             .unwrap_or("").to_string()
                     };
 
@@ -609,6 +609,6 @@ impl Window {
         ::Api::OpenGl
     }
 
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(usize, usize)>) {
     }
 }
