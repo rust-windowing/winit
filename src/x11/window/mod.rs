@@ -616,15 +616,21 @@ impl Window {
         unsafe {
             use std::ffi::CString;
             let cursor_name = match cursor {
-                MouseCursor::Default => "left_ptr",
-                MouseCursor::Crosshair => "crosshair",
-                MouseCursor::Hand => "hand",
+                MouseCursor::Alias => "link",
                 MouseCursor::Arrow => "arrow",
-                MouseCursor::Move => "fleur",
-                MouseCursor::Text => "xterm",
-                MouseCursor::Wait => "watch",
+                MouseCursor::Cell => "plus",
+                MouseCursor::Copy => "copy",
+                MouseCursor::Crosshair => "crosshair",
+                MouseCursor::Default => "left_ptr",
+                MouseCursor::Grabbing => "grabbing",
+                MouseCursor::Hand | MouseCursor::Grab => "hand",
                 MouseCursor::Help => "question_arrow",
-                MouseCursor::Progress => "watch", // TODO: Find better matching X11 cursor
+                MouseCursor::Move => "move",
+                MouseCursor::NoDrop => "circle",
+                MouseCursor::NotAllowed => "crossed_circle",
+                MouseCursor::Progress => "left_ptr_watch",
+
+                /// Resize cursors
                 MouseCursor::EResize => "right_side",
                 MouseCursor::NResize => "top_side",
                 MouseCursor::NeResize => "top_right_corner",
@@ -633,21 +639,18 @@ impl Window {
                 MouseCursor::SeResize => "bottom_right_corner",
                 MouseCursor::SwResize => "bottom_left_corner",
                 MouseCursor::WResize => "left_side",
-                MouseCursor::EwResize => "h_double_arrow",
-                MouseCursor::NsResize => "v_double_arrow",
+                MouseCursor::EwResize | MouseCursor::ColResize => "h_double_arrow",
+                MouseCursor::NsResize | MouseCursor::RowResize => "v_double_arrow",
+                MouseCursor::NwseResize => "bd_double_arrow",
+                MouseCursor::NeswResize => "fd_double_arrow",
 
+                MouseCursor::Text | MouseCursor::VerticalText => "xterm",
+                MouseCursor::Wait => "watch",
                 
-                MouseCursor::NeswResize | MouseCursor::NwseResize => "sizing", // TODO: Better matching X11 cursor
-                
-                MouseCursor::ColResize | MouseCursor::RowResize => "double_arrow", // TODO: Better matching X11 cursor
-
                 /// TODO: Find matching X11 cursors
-                MouseCursor::NotAllowed | MouseCursor::ContextMenu |
-                MouseCursor::NoneCursor | MouseCursor::Cell |
-                MouseCursor::VerticalText | MouseCursor::Alias |
-                MouseCursor::Copy | MouseCursor::NoDrop | MouseCursor::Grab |
-                MouseCursor::Grabbing | MouseCursor::AllScroll |
-                MouseCursor::ZoomIn | MouseCursor::ZoomOut => "left_ptr",
+                MouseCursor::ContextMenu | MouseCursor::NoneCursor |
+                MouseCursor::AllScroll | MouseCursor::ZoomIn |
+                MouseCursor::ZoomOut => "left_ptr",
             };
             let c_string = CString::from_slice(cursor_name.as_bytes());
             let xcursor = ffi::XcursorLibraryLoadCursor(self.x.display, c_string.as_ptr());
