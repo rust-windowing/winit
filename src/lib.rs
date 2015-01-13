@@ -101,10 +101,10 @@ struct BuilderAttribs<'a> {
     headless: bool,
     strict: bool,
     sharing: Option<&'a winimpl::Window>,
-    dimensions: Option<(uint, uint)>,
+    dimensions: Option<(usize, usize)>,
     title: String,
     monitor: Option<winimpl::MonitorID>,
-    gl_version: Option<(uint, uint)>,
+    gl_version: Option<(usize, usize)>,
     gl_debug: bool,
     vsync: bool,
     visible: bool,
@@ -151,7 +151,7 @@ impl<'a> WindowBuilder<'a> {
     /// Requests the window to be of specific dimensions.
     ///
     /// Width and height are in pixels.
-    pub fn with_dimensions(mut self, width: uint, height: uint) -> WindowBuilder<'a> {
+    pub fn with_dimensions(mut self, width: usize, height: usize) -> WindowBuilder<'a> {
         self.attribs.dimensions = Some((width, height));
         self
     }
@@ -183,7 +183,7 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// Version is a (major, minor) pair. For example to request OpenGL 3.3
     ///  you would pass `(3, 3)`.
-    pub fn with_gl_version(mut self, version: (uint, uint)) -> WindowBuilder<'a> {
+    pub fn with_gl_version(mut self, version: (usize, usize)) -> WindowBuilder<'a> {
         self.attribs.gl_version = Some(version);
         self
     }
@@ -284,7 +284,7 @@ pub struct HeadlessRendererBuilder {
 #[cfg(feature = "headless")]
 impl HeadlessRendererBuilder {
     /// Initializes a new `HeadlessRendererBuilder` with default values.
-    pub fn new(width: uint, height: uint) -> HeadlessRendererBuilder {
+    pub fn new(width: usize, height: usize) -> HeadlessRendererBuilder {
         HeadlessRendererBuilder {
             attribs: BuilderAttribs {
                 headless: true,
@@ -298,7 +298,7 @@ impl HeadlessRendererBuilder {
     ///
     /// Version is a (major, minor) pair. For example to request OpenGL 3.3
     ///  you would pass `(3, 3)`.
-    pub fn with_gl_version(mut self, version: (uint, uint)) -> HeadlessRendererBuilder {
+    pub fn with_gl_version(mut self, version: (usize, usize)) -> HeadlessRendererBuilder {
         self.attribs.gl_version = Some(version);
         self
     }
@@ -434,7 +434,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_position(&self) -> Option<(int, int)> {
+    pub fn get_position(&self) -> Option<(isize, isize)> {
         self.window.get_position()
     }
 
@@ -444,7 +444,7 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_position(&self, x: int, y: int) {
+    pub fn set_position(&self, x: isize, y: isize) {
         self.window.set_position(x, y)
     }
 
@@ -456,7 +456,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_inner_size(&self) -> Option<(uint, uint)> {
+    pub fn get_inner_size(&self) -> Option<(usize, usize)> {
         self.window.get_inner_size()
     }
 
@@ -467,7 +467,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_outer_size(&self) -> Option<(uint, uint)> {
+    pub fn get_outer_size(&self) -> Option<(usize, usize)> {
         self.window.get_outer_size()
     }
 
@@ -477,7 +477,7 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_inner_size(&self, x: uint, y: uint) {
+    pub fn set_inner_size(&self, x: usize, y: usize) {
         self.window.set_inner_size(x, y)
     }
 
@@ -556,7 +556,7 @@ impl Window {
     /// operating systems) during resize operations. This can be used to repaint
     /// during window resizing.
     #[experimental]
-    pub fn set_window_resize_callback(&mut self, callback: Option<fn(uint, uint)>) {
+    pub fn set_window_resize_callback(&mut self, callback: Option<fn(usize, usize)>) {
         self.window.set_window_resize_callback(callback);
     }
 }
@@ -621,7 +621,7 @@ impl HeadlessContext {
     }
 
     #[experimental]
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(uint, uint)>) {
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(usize, usize)>) {
     }
 }
 
@@ -698,7 +698,7 @@ impl MonitorID {
     }
 
     /// Returns the number of pixels currently displayed on the monitor.
-    pub fn get_dimensions(&self) -> (uint, uint) {
+    pub fn get_dimensions(&self) -> (usize, usize) {
         let &MonitorID(ref id) = self;
         id.get_dimensions()
     }

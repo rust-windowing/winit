@@ -3,7 +3,7 @@ use std::collections::RingBuf;
 use super::super::ffi;
 use super::ensure_thread_init;
 
-pub struct MonitorID(pub uint);
+pub struct MonitorID(pub usize);
 
 pub fn get_available_monitors() -> RingBuf<MonitorID> {
     ensure_thread_init();
@@ -18,7 +18,7 @@ pub fn get_available_monitors() -> RingBuf<MonitorID> {
     };
 
     let mut monitors = RingBuf::new();
-    monitors.extend(range(0, nb_monitors).map(|i| MonitorID(i as uint)));
+    monitors.extend(range(0, nb_monitors).map(|i| MonitorID(i as usize)));
     monitors
 }
 
@@ -34,7 +34,7 @@ pub fn get_primary_monitor() -> MonitorID {
         primary_monitor
     };
 
-    MonitorID(primary_monitor as uint)
+    MonitorID(primary_monitor as usize)
 }
 
 impl MonitorID {
@@ -43,7 +43,7 @@ impl MonitorID {
         Some(format!("Monitor #{}", screen_num))
     }
 
-    pub fn get_dimensions(&self) -> (uint, uint) {
+    pub fn get_dimensions(&self) -> (usize, usize) {
         let dimensions = unsafe {
             let display = ffi::XOpenDisplay(ptr::null());
             let MonitorID(screen_num) = *self;
@@ -51,7 +51,7 @@ impl MonitorID {
             let width = ffi::XWidthOfScreen(screen);
             let height = ffi::XHeightOfScreen(screen);
             ffi::XCloseDisplay(display);
-            (width as uint, height as uint)
+            (width as usize, height as usize)
         };
 
         dimensions
