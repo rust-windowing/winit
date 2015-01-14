@@ -2,6 +2,7 @@ use std::sync::atomic::AtomicBool;
 use std::ptr;
 use super::event;
 use super::Window;
+use BuilderAttribs;
 use {CreationError, Event};
 use CreationError::OsError;
 
@@ -27,18 +28,14 @@ thread_local!(static WINDOW: Rc<RefCell<Option<(winapi::HWND, Sender<Event>)>>> 
 pub struct ContextHack(pub winapi::HGLRC);
 unsafe impl Send for ContextHack {}
 
-pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
-                  builder_monitor: Option<super::MonitorID>,
-                  builder_gl_version: Option<(u32, u32)>, builder_debug: bool,
-                  builder_vsync: bool, builder_hidden: bool,
-                  builder_sharelists: Option<ContextHack>, builder_multisampling: Option<u16>)
+pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<ContextHack>)
                   -> Result<Window, CreationError>
 {
     use std::mem;
     use std::os;
 
     // initializing variables to be sent to the task
-    let title = builder_title.as_slice().utf16_units()
+    let title = builder.title.as_slice().utf16_units()
         .chain(Some(0).into_iter()).collect::<Vec<u16>>();    // title to utf16
     //let hints = hints.clone();
     let (tx, rx) = channel();
@@ -80,15 +77,15 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
 
         // building a RECT object with coordinates
         let mut rect = winapi::RECT {
-            left: 0, right: builder_dimensions.unwrap_or((1024, 768)).0 as winapi::LONG,
-            top: 0, bottom: builder_dimensions.unwrap_or((1024, 768)).1 as winapi::LONG,
+            left: 0, right: builder.dimensions.unwrap_or((1024, 768)).0 as winapi::LONG,
+            top: 0, bottom: builder.dimensions.unwrap_or((1024, 768)).1 as winapi::LONG,
         };
 
         // switching to fullscreen if necessary
         // this means adjusting the window's position so that it overlaps the right monitor,
         //  and change the monitor's resolution if necessary
-        if builder_monitor.is_some() {
-            let monitor = builder_monitor.as_ref().unwrap();
+        if builder.monitor.is_some() {
+            let monitor = builder.monitor.as_ref().unwrap();
 
             // adjusting the rect
             {
@@ -117,7 +114,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
         }
 
         // computing the style and extended style of the window
-        let (ex_style, style) = if builder_monitor.is_some() {
+        let (ex_style, style) = if builder.monitor.is_some() {
             (winapi::WS_EX_APPWINDOW, winapi::WS_POPUP | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN)
         } else {
             (winapi::WS_EX_APPWINDOW | winapi::WS_EX_WINDOWEDGE,
@@ -250,13 +247,13 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
 
         // creating the real window this time
         let real_window = unsafe {
-            let (width, height) = if builder_monitor.is_some() || builder_dimensions.is_some() {
+            let (width, height) = if builder.monitor.is_some() || builder.dimensions.is_some() {
                 (Some(rect.right - rect.left), Some(rect.bottom - rect.top))
             } else {
                 (None, None)
             };
 
-            let style = if builder_hidden {
+            let style = if !builder.visible || builder.headless {
                 style
             } else {
                 style | winapi::WS_VISIBLE
@@ -265,8 +262,8 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
             let handle = user32::CreateWindowExW(ex_style, class_name.as_ptr(),
                 title.as_ptr() as winapi::LPCWSTR,
                 style | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN,
-                if builder_monitor.is_some() { 0 } else { winapi::CW_USEDEFAULT },
-                if builder_monitor.is_some() { 0 } else { winapi::CW_USEDEFAULT },
+                if builder.monitor.is_some() { 0 } else { winapi::CW_USEDEFAULT },
+                if builder.monitor.is_some() { 0 } else { winapi::CW_USEDEFAULT },
                 width.unwrap_or(winapi::CW_USEDEFAULT), height.unwrap_or(winapi::CW_USEDEFAULT),
                 ptr::null_mut(), ptr::null_mut(), kernel32::GetModuleHandleW(ptr::null()),
                 ptr::null_mut());
@@ -309,15 +306,15 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
 
             let mut attributes = Vec::new();
 
-            if builder_gl_version.is_some() {
-                let version = builder_gl_version.as_ref().unwrap();
+            if builder.gl_version.is_some() {
+                let version = builder.gl_version.as_ref().unwrap();
                 attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
                 attributes.push(version.0 as libc::c_int);
                 attributes.push(gl::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
                 attributes.push(version.1 as libc::c_int);
             }
 
-            if builder_debug {
+            if builder.gl_debug {
                 attributes.push(gl::wgl_extra::CONTEXT_FLAGS_ARB as libc::c_int);
                 attributes.push(gl::wgl_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);
             }
@@ -351,7 +348,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
         };
 
         // calling SetForegroundWindow if fullscreen
-        if builder_monitor.is_some() {
+        if builder.monitor.is_some() {
             unsafe { user32::SetForegroundWindow(real_window) };
         }
 
@@ -381,7 +378,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
         };
 
         // handling vsync
-        if builder_vsync {
+        if builder.vsync {
             if extra_functions.SwapIntervalEXT.is_loaded() {
                 unsafe { gl::wgl::MakeCurrent(hdc as *const libc::c_void, context) };
                 if unsafe { extra_functions.SwapIntervalEXT(1) } == 0 {

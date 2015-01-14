@@ -217,6 +217,33 @@ impl BuilderAttribs<'static> {
     }
 }
 
+impl<'a> BuilderAttribs<'a> {
+    fn extract_non_static(mut self) -> (BuilderAttribs<'static>, Option<&'a winimpl::Window>) {
+        let sharing = self.sharing.take();
+
+        let new_attribs = BuilderAttribs {
+            headless: self.headless,
+            strict: self.strict,
+            sharing: None,
+            dimensions: self.dimensions,
+            title: self.title,
+            monitor: self.monitor,
+            gl_version: self.gl_version,
+            gl_debug: self.gl_debug,
+            vsync: self.vsync,
+            visible: self.visible,
+            multisampling: self.multisampling,
+            depth_bits: self.depth_bits,
+            stencil_bits: self.stencil_bits,
+            color_bits: self.color_bits,
+            alpha_bits: self.alpha_bits,
+            stereoscopy: self.stereoscopy,
+        };
+
+        (new_attribs, sharing)
+    }
+}
+
 #[cfg(feature = "window")]
 impl<'a> WindowBuilder<'a> {
     /// Initializes a new `WindowBuilder` with default values.
