@@ -24,8 +24,8 @@ static mut framebuffer: u32 = 0;
 static mut texture: u32 = 0;
 
 pub struct HeadlessContext {
-    width: uint,
-    height: uint,
+    width: usize,
+    height: usize,
     context: id,
 }
 
@@ -34,13 +34,13 @@ impl HeadlessContext {
         let (width, height) = builder.dimensions;
         let context = unsafe {
             let attributes = [
-                NSOpenGLPFADoubleBuffer as uint,
-                NSOpenGLPFAClosestPolicy as uint,
-                NSOpenGLPFAColorSize as uint, 24,
-                NSOpenGLPFAAlphaSize as uint, 8,
-                NSOpenGLPFADepthSize as uint, 24,
-                NSOpenGLPFAStencilSize as uint, 8,
-                NSOpenGLPFAOffScreen as uint,
+                NSOpenGLPFADoubleBuffer as usize,
+                NSOpenGLPFAClosestPolicy as usize,
+                NSOpenGLPFAColorSize as usize, 24,
+                NSOpenGLPFAAlphaSize as usize, 8,
+                NSOpenGLPFADepthSize as usize, 24,
+                NSOpenGLPFAStencilSize as usize, 8,
+                NSOpenGLPFAOffScreen as usize,
                 0
             ];
 

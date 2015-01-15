@@ -51,7 +51,7 @@ struct DelegateState<'a> {
     is_closed: bool,
     context: id,
     view: id,
-    handler: Option<fn(uint, uint)>,
+    handler: Option<fn(usize, usize)>,
 }
 
 pub struct Window {
@@ -59,7 +59,7 @@ pub struct Window {
     window: id,
     context: id,
     delegate: id,
-    resize: Option<fn(uint, uint)>,
+    resize: Option<fn(usize, usize)>,
 
     is_closed: Cell<bool>,
 }
@@ -128,7 +128,7 @@ extern fn window_did_resize(this: id, _: id) -> id {
         match state.handler {
             Some(handler) => {
                 let rect = NSView::frame(state.view);
-                (handler)(rect.size.width as uint, rect.size.height as uint);
+                (handler)(rect.size.width as usize, rect.size.height as usize);
             }
             None => {}
         }
@@ -137,7 +137,7 @@ extern fn window_did_resize(this: id, _: id) -> id {
 }
 
 impl Window {
-    fn new_impl(dimensions: Option<(uint, uint)>, title: &str, monitor: Option<MonitorID>,
+    fn new_impl(dimensions: Option<(u32, u32)>, title: &str, monitor: Option<MonitorID>,
                 vsync: bool, visible: bool) -> Result<Window, CreationError> {
         let app = match Window::create_app() {
             Some(app) => app,
@@ -210,7 +210,7 @@ impl Window {
         }
     }
 
-    fn create_window(dimensions: (uint, uint), title: &str, monitor: Option<MonitorID>) -> Option<id> {
+    fn create_window(dimensions: (u32, u32), title: &str, monitor: Option<MonitorID>) -> Option<id> {
         unsafe {
             let scr_frame = match monitor {
                 Some(_) => {
@@ -316,24 +316,24 @@ impl Window {
     pub fn hide(&self) {
     }
 
-    pub fn get_position(&self) -> Option<(int, int)> {
+    pub fn get_position(&self) -> Option<(isize, isize)> {
         unimplemented!()
     }
 
-    pub fn set_position(&self, _x: int, _y: int) {
+    pub fn set_position(&self, _x: isize, _y: isize) {
         unimplemented!()
     }
 
-    pub fn get_inner_size(&self) -> Option<(uint, uint)> {
+    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         let rect = unsafe { NSView::frame(self.view) };
-        Some((rect.size.width as uint, rect.size.height as uint))
+        Some((rect.size.width as u32, rect.size.height as u32))
     }
 
-    pub fn get_outer_size(&self) -> Option<(uint, uint)> {
+    pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         unimplemented!()
     }
 
-    pub fn set_inner_size(&self, _x: uint, _y: uint) {
+    pub fn set_inner_size(&self, _x: u32, _y: u32) {
         unimplemented!()
     }
 
@@ -381,7 +381,7 @@ impl Window {
                     NSMouseMoved            => {
                         let window_point = event.locationInWindow();
                         let view_point = self.view.convertPoint_fromView_(window_point, nil);
-                        events.push_back(MouseMoved((view_point.x as int, view_point.y as int)));
+                        events.push_back(MouseMoved((view_point.x as i32, view_point.y as i32)));
                     },
                     NSKeyDown               => {
                         let received_c_str = event.characters().UTF8String();
@@ -488,7 +488,7 @@ impl Window {
         ::Api::OpenGl
     }
 
-    pub fn set_window_resize_callback(&mut self, callback: Option<fn(uint, uint)>) {
+    pub fn set_window_resize_callback(&mut self, callback: Option<fn(usize, usize)>) {
         self.resize = callback;
     }
 
