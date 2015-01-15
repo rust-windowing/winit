@@ -120,6 +120,7 @@ impl Window {
             attribute_list.push_all(&[ffi::egl::RED_SIZE as i32, 1]);
             attribute_list.push_all(&[ffi::egl::GREEN_SIZE as i32, 1]);
             attribute_list.push_all(&[ffi::egl::BLUE_SIZE as i32, 1]);
+            attribute_list.push_all(&[ffi::egl::DEPTH_SIZE as i32, 1]);
             attribute_list.push(ffi::egl::NONE as i32);
 
             let mut num_config: ffi::egl::types::EGLint = mem::uninitialized();
