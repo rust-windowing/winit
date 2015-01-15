@@ -316,11 +316,11 @@ impl Window {
     pub fn hide(&self) {
     }
 
-    pub fn get_position(&self) -> Option<(isize, isize)> {
+    pub fn get_position(&self) -> Option<(i32, i32)> {
         unimplemented!()
     }
 
-    pub fn set_position(&self, _x: isize, _y: isize) {
+    pub fn set_position(&self, _x: i32, _y: i32) {
         unimplemented!()
     }
 
