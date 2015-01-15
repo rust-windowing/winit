@@ -51,7 +51,7 @@ struct DelegateState<'a> {
     is_closed: bool,
     context: id,
     view: id,
-    handler: Option<fn(usize, usize)>,
+    handler: Option<fn(u32, u32)>,
 }
 
 pub struct Window {
@@ -59,7 +59,7 @@ pub struct Window {
     window: id,
     context: id,
     delegate: id,
-    resize: Option<fn(usize, usize)>,
+    resize: Option<fn(u32, u32)>,
 
     is_closed: Cell<bool>,
 }
@@ -128,7 +128,7 @@ extern fn window_did_resize(this: id, _: id) -> id {
         match state.handler {
             Some(handler) => {
                 let rect = NSView::frame(state.view);
-                (handler)(rect.size.width as usize, rect.size.height as usize);
+                (handler)(rect.size.width as u32, rect.size.height as u32);
             }
             None => {}
         }
@@ -488,7 +488,7 @@ impl Window {
         ::Api::OpenGl
     }
 
-    pub fn set_window_resize_callback(&mut self, callback: Option<fn(usize, usize)>) {
+    pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
         self.resize = callback;
     }
 
