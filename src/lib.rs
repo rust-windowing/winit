@@ -618,7 +618,7 @@ impl Window {
 
     /// Modifies the mouse cursor of the window.
     /// Has no effect on Android.
-    pub fn set_cursor(&mut self, cursor: MouseCursor) {
+    pub fn set_cursor(&self, cursor: MouseCursor) {
         self.window.set_cursor(cursor);
     }
 }
