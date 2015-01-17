@@ -21,6 +21,7 @@ gl_common = "*"
 
 [build-dependencies]
 gl_generator = "*"
+khronos_api = "*"
 
 [target.arm-linux-androideabi.dependencies.android_glue]
 git = "https://github.com/tomaka/android-rs-glue"
