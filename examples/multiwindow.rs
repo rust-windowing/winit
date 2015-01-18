@@ -32,9 +32,9 @@ fn main() {
         run(window3, (1.0, 0.0, 0.0, 1.0));
     });
 
-    t1.join();
-    t2.join();
-    t3.join();
+    let _ = t1.join();
+    let _ = t2.join();
+    let _ = t3.join();
 }
 
 #[cfg(feature = "window")]
