@@ -65,17 +65,6 @@ pub struct Window {
 }
 
 #[cfg(feature = "window")]
-impl Window {
-    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        if builder.sharing.is_some() {
-            unimplemented!()
-        }
-
-        Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, builder.vsync, builder.visible, builder.gl_version)
-    }
-}
-
-#[cfg(feature = "window")]
 unsafe impl Send for Window {}
 #[cfg(feature = "window")]
 unsafe impl Sync for Window {}
@@ -137,13 +126,20 @@ extern fn window_did_resize(this: id, _: id) -> id {
 }
 
 impl Window {
-    fn new_impl(dimensions: Option<(u32, u32)>, title: &str, monitor: Option<MonitorID>,
-                vsync: bool, visible: bool, gl_version: Option<(u32, u32)>) -> Result<Window, CreationError> {
+    #[cfg(feature = "window")]
+    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
+        if builder.sharing.is_some() {
+            unimplemented!()
+        }
+
         let app = match Window::create_app() {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
-        let window = match Window::create_window(dimensions.unwrap_or((800, 600)), title, monitor) {
+        let window = match Window::create_window(builder.dimensions.unwrap_or((800, 600)),
+                                                 &*builder.title,
+                                                 builder.monitor)
+        {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
@@ -152,14 +148,14 @@ impl Window {
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
 
-        let context = match Window::create_context(view, vsync, gl_version) {
+        let context = match Window::create_context(view, builder.vsync, builder.gl_version) {
             Some(context) => context,
             None          => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
         };
 
         unsafe {
             app.activateIgnoringOtherApps_(true);
-            if visible {
+            if builder.visible {
                 window.makeKeyAndOrderFront_(nil);
             } else {
                 window.makeKeyWindow();
