@@ -45,9 +45,9 @@ git = "https://github.com/servo/rust-core-foundation"
 git = "https://github.com/servo/rust-core-foundation"
 
 [target.i686-pc-windows-gnu.dependencies.winapi]
-version = "*"
+version = "0.0.5"
 features = ["gdi32", "kernel32", "user32"]
 
 [target.x86_64-pc-windows-gnu.dependencies.winapi]
-version = "*"
+version = "0.0.5"
 features = ["gdi32", "kernel32", "user32"]
