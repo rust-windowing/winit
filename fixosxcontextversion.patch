@@ -1,0 +1,218 @@
+From 86af6b6387918ea93fe5ce4cae2764a1d196061e Mon Sep 17 00:00:00 2001
+From: Patrick Horlebein <patrick@ilovepatrick.de>
+Date: Mon, 29 Dec 2014 13:26:44 +0100
+Subject: [PATCH 1/5] Started adding support for selection OpenGL versions on
+ OS X. Needs issue #176 to be fixed.
+
+---
+ src/osx/mod.rs | 27 +++++++++++++++++++++++----
+ 1 file changed, 23 insertions(+), 4 deletions(-)
+
+diff --git a/src/osx/mod.rs b/src/osx/mod.rs
+index 7df6603..59b6577 100644
+--- a/src/osx/mod.rs
++++ b/src/osx/mod.rs
+@@ -44,6 +44,15 @@ static mut alt_pressed: bool = false;
+ static DELEGATE_NAME: &'static [u8] = b"glutin_window_delegate\0";
+ static DELEGATE_STATE_IVAR: &'static [u8] = b"glutin_state";
+ 
++// TODO: Should be added to cocoa bindings
++#[allow(non_camel_case_types)]
++#[deriving(Show)]
++enum NSOpenGLPFAOpenGLProfiles {
++    NSOpenGLProfileVersionLegacy = 0x1000,
++    NSOpenGLProfileVersion3_2Core = 0x3200,
++    NSOpenGLProfileVersion4_1Core = 0x4100
++}
++
+ struct DelegateState<'a> {
+     is_closed: bool,
+     context: id,
+@@ -68,7 +77,7 @@ impl Window {
+             unimplemented!()
+         }
+ 
+-        Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, builder.vsync, builder.visible)
++        Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, builder.vsync, builder.visible, builder.gl_version)
+     }
+ }
+ 
+@@ -130,7 +139,7 @@ extern fn window_did_resize(this: id, _: id) -> id {
+ 
+ impl Window {
+     fn new_impl(dimensions: Option<(uint, uint)>, title: &str, monitor: Option<MonitorID>,
+-                vsync: bool, visible: bool) -> Result<Window, CreationError> {
++                vsync: bool, visible: bool, gl_version: Option<(uint, uint)>) -> Result<Window, CreationError> {
+         let app = match Window::create_app() {
+             Some(app) => app,
+             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
+@@ -144,7 +153,7 @@ impl Window {
+             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
+         };
+ 
+-        let context = match Window::create_context(view, vsync) {
++        let context = match Window::create_context(view, vsync, gl_version) {
+             Some(context) => context,
+             None          => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
+         };
+@@ -260,7 +269,16 @@ impl Window {
+         }
+     }
+ 
+-    fn create_context(view: id, vsync: bool) -> Option<id> {
++    fn create_context(view: id, vsync: bool, gl_version: Option<(uint, uint)>) -> Option<id> {
++        let profile = {
++            match gl_version {
++                None => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersionLegacy as uint,
++                Some((0...2, _)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersionLegacy as uint,
++                Some((3, 0)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersionLegacy as uint,
++                Some((3, 1...2)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersion3_2Core as uint,
++                Some((_, _)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersion4_1Core as uint,
++            }
++        };
+         unsafe {
+             let attributes = [
+                 NSOpenGLPFADoubleBuffer as uint,
+@@ -269,6 +287,7 @@ impl Window {
+                 NSOpenGLPFAAlphaSize as uint, 8,
+                 NSOpenGLPFADepthSize as uint, 24,
+                 NSOpenGLPFAStencilSize as uint, 8,
++                NSOpenGLPFAOpenGLProfile as uint, profile,
+                 0
+             ];
+ 
+-- 
+1.9.3 (Apple Git-50)
+
+
+From 1b0064f9f780ab8a53e7b5a7a33f2fd8c53aab08 Mon Sep 17 00:00:00 2001
+From: Patrick Horlebein <patrick@ilovepatrick.de>
+Date: Mon, 29 Dec 2014 13:27:24 +0100
+Subject: [PATCH 2/5] Fixed deprecation warnings
+
+---
+ src/osx/mod.rs | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/osx/mod.rs b/src/osx/mod.rs
+index 59b6577..e2b9bc2 100644
+--- a/src/osx/mod.rs
++++ b/src/osx/mod.rs
+@@ -475,8 +475,8 @@ impl Window {
+     }
+ 
+     pub fn get_proc_address(&self, _addr: &str) -> *const () {
+-        let symbol_name: CFString = from_str(_addr).unwrap();
+-        let framework_name: CFString = from_str("com.apple.opengl").unwrap();
++        let symbol_name = _addr.parse::<CFString>().unwrap();
++        let framework_name = "com.apple.opengl".parse::<CFString>().unwrap();
+         let framework = unsafe {
+             CFBundleGetBundleWithIdentifier(framework_name.as_concrete_TypeRef())
+         };
+-- 
+1.9.3 (Apple Git-50)
+
+
+From 09cf026a9de2e1aef43307d64d41a0251159c113 Mon Sep 17 00:00:00 2001
+From: Patrick Horlebein <patrick@ilovepatrick.de>
+Date: Mon, 29 Dec 2014 13:46:44 +0100
+Subject: [PATCH 3/5] Minor match clause cleanup
+
+---
+ src/osx/mod.rs | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/src/osx/mod.rs b/src/osx/mod.rs
+index e2b9bc2..ce02779 100644
+--- a/src/osx/mod.rs
++++ b/src/osx/mod.rs
+@@ -272,9 +272,7 @@ impl Window {
+     fn create_context(view: id, vsync: bool, gl_version: Option<(uint, uint)>) -> Option<id> {
+         let profile = {
+             match gl_version {
+-                None => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersionLegacy as uint,
+-                Some((0...2, _)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersionLegacy as uint,
+-                Some((3, 0)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersionLegacy as uint,
++                None | Some((0...2, _)) | Some((3, 0)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersionLegacy as uint,
+                 Some((3, 1...2)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersion3_2Core as uint,
+                 Some((_, _)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersion4_1Core as uint,
+             }
+-- 
+1.9.3 (Apple Git-50)
+
+
+From b0dddb2d3f10c90128ab250838b314acca131061 Mon Sep 17 00:00:00 2001
+From: Patrick Horlebein <patrick@ilovepatrick.de>
+Date: Tue, 30 Dec 2014 17:01:37 +0100
+Subject: [PATCH 4/5] Fixed missing std::ascii::AsciiExt import
+
+---
+ src/osx/mod.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/osx/mod.rs b/src/osx/mod.rs
+index ce02779..739aa77 100644
+--- a/src/osx/mod.rs
++++ b/src/osx/mod.rs
+@@ -4,6 +4,7 @@ pub use self::headless::HeadlessContext;
+ use {CreationError, Event};
+ use CreationError::OsError;
+ use libc;
++use std::ascii::AsciiExt;
+ 
+ #[cfg(feature = "window")]
+ use WindowBuilder;
+-- 
+1.9.3 (Apple Git-50)
+
+
+From 0e64651db8f19378d7c183b21c0e7d692380e570 Mon Sep 17 00:00:00 2001
+From: Patrick Horlebein <patrick@ilovepatrick.de>
+Date: Tue, 30 Dec 2014 17:02:49 +0100
+Subject: [PATCH 5/5] Removed NSOpenGLPFAOpenGLProfiles enum in favor of the
+ one defined in the AppKit bindings
+
+---
+ src/osx/mod.rs | 19 ++++---------------
+ 1 file changed, 4 insertions(+), 15 deletions(-)
+
+diff --git a/src/osx/mod.rs b/src/osx/mod.rs
+index 739aa77..83c51a3 100644
+--- a/src/osx/mod.rs
++++ b/src/osx/mod.rs
+@@ -45,15 +45,6 @@ static mut alt_pressed: bool = false;
+ static DELEGATE_NAME: &'static [u8] = b"glutin_window_delegate\0";
+ static DELEGATE_STATE_IVAR: &'static [u8] = b"glutin_state";
+ 
+-// TODO: Should be added to cocoa bindings
+-#[allow(non_camel_case_types)]
+-#[deriving(Show)]
+-enum NSOpenGLPFAOpenGLProfiles {
+-    NSOpenGLProfileVersionLegacy = 0x1000,
+-    NSOpenGLProfileVersion3_2Core = 0x3200,
+-    NSOpenGLProfileVersion4_1Core = 0x4100
+-}
+-
+ struct DelegateState<'a> {
+     is_closed: bool,
+     context: id,
+@@ -271,12 +262,10 @@ impl Window {
+     }
+ 
+     fn create_context(view: id, vsync: bool, gl_version: Option<(uint, uint)>) -> Option<id> {
+-        let profile = {
+-            match gl_version {
+-                None | Some((0...2, _)) | Some((3, 0)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersionLegacy as uint,
+-                Some((3, 1...2)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersion3_2Core as uint,
+-                Some((_, _)) => NSOpenGLPFAOpenGLProfiles::NSOpenGLProfileVersion4_1Core as uint,
+-            }
++        let profile = match gl_version {
++            None | Some((0...2, _)) | Some((3, 0)) => NSOpenGLProfileVersionLegacy as uint,
++            Some((3, 1...2)) => NSOpenGLProfileVersion3_2Core as uint,
++            Some((_, _)) => NSOpenGLProfileVersion4_1Core as uint,
+         };
+         unsafe {
+             let attributes = [
+-- 
+1.9.3 (Apple Git-50)
+

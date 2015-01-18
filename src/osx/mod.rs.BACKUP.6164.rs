@@ -138,8 +138,13 @@ extern fn window_did_resize(this: id, _: id) -> id {
 }
 
 impl Window {
+<<<<<<< HEAD
     fn new_impl(dimensions: Option<(u32, u32)>, title: &str, monitor: Option<MonitorID>,
+                vsync: bool, visible: bool) -> Result<Window, CreationError> {
+=======
+    fn new_impl(dimensions: Option<(uint, uint)>, title: &str, monitor: Option<MonitorID>,
                 vsync: bool, visible: bool, gl_version: Option<(uint, uint)>) -> Result<Window, CreationError> {
+>>>>>>> pixelpirate/master
         let app = match Window::create_app() {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
@@ -277,13 +282,22 @@ impl Window {
         };
         unsafe {
             let attributes = [
+<<<<<<< HEAD
                 NSOpenGLPFADoubleBuffer as u32,
                 NSOpenGLPFAClosestPolicy as u32,
                 NSOpenGLPFAColorSize as u32, 24,
                 NSOpenGLPFAAlphaSize as u32, 8,
                 NSOpenGLPFADepthSize as u32, 24,
                 NSOpenGLPFAStencilSize as u32, 8,
-                NSOpenGLPFAOpenGLProfile as u32, profile,
+=======
+                NSOpenGLPFADoubleBuffer as uint,
+                NSOpenGLPFAClosestPolicy as uint,
+                NSOpenGLPFAColorSize as uint, 24,
+                NSOpenGLPFAAlphaSize as uint, 8,
+                NSOpenGLPFADepthSize as uint, 24,
+                NSOpenGLPFAStencilSize as uint, 8,
+                NSOpenGLPFAOpenGLProfile as uint, profile,
+>>>>>>> pixelpirate/master
                 0
             ];
 
@@ -472,8 +486,13 @@ impl Window {
     }
 
     pub fn get_proc_address(&self, _addr: &str) -> *const () {
+<<<<<<< HEAD
         let symbol_name: CFString = FromStr::from_str(_addr).unwrap();
         let framework_name: CFString = FromStr::from_str("com.apple.opengl").unwrap();
+=======
+        let symbol_name = _addr.parse::<CFString>().unwrap();
+        let framework_name = "com.apple.opengl".parse::<CFString>().unwrap();
+>>>>>>> pixelpirate/master
         let framework = unsafe {
             CFBundleGetBundleWithIdentifier(framework_name.as_concrete_TypeRef())
         };

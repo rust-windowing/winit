@@ -4,7 +4,6 @@ pub use self::headless::HeadlessContext;
 use {CreationError, Event, MouseCursor};
 use CreationError::OsError;
 use libc;
-use std::ascii::AsciiExt;
 
 use BuilderAttribs;
 
@@ -72,7 +71,7 @@ impl Window {
             unimplemented!()
         }
 
-        Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, builder.vsync, builder.visible, builder.gl_version)
+        Window::new_impl(builder.dimensions, builder.title.as_slice(), builder.monitor, builder.vsync, builder.visible)
     }
 }
 
@@ -139,7 +138,7 @@ extern fn window_did_resize(this: id, _: id) -> id {
 
 impl Window {
     fn new_impl(dimensions: Option<(u32, u32)>, title: &str, monitor: Option<MonitorID>,
-                vsync: bool, visible: bool, gl_version: Option<(uint, uint)>) -> Result<Window, CreationError> {
+                vsync: bool, visible: bool) -> Result<Window, CreationError> {
         let app = match Window::create_app() {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
@@ -153,7 +152,7 @@ impl Window {
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
 
-        let context = match Window::create_context(view, vsync, gl_version) {
+        let context = match Window::create_context(view, vsync) {
             Some(context) => context,
             None          => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
         };
@@ -269,12 +268,7 @@ impl Window {
         }
     }
 
-    fn create_context(view: id, vsync: bool, gl_version: Option<(uint, uint)>) -> Option<id> {
-        let profile = match gl_version {
-            None | Some((0...2, _)) | Some((3, 0)) => NSOpenGLProfileVersionLegacy as uint,
-            Some((3, 1...2)) => NSOpenGLProfileVersion3_2Core as uint,
-            Some((_, _)) => NSOpenGLProfileVersion4_1Core as uint,
-        };
+    fn create_context(view: id, vsync: bool) -> Option<id> {
         unsafe {
             let attributes = [
                 NSOpenGLPFADoubleBuffer as u32,
@@ -283,7 +277,6 @@ impl Window {
                 NSOpenGLPFAAlphaSize as u32, 8,
                 NSOpenGLPFADepthSize as u32, 24,
                 NSOpenGLPFAStencilSize as u32, 8,
-                NSOpenGLPFAOpenGLProfile as u32, profile,
                 0
             ];
 
