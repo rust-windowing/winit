@@ -4,7 +4,6 @@ pub use self::headless::HeadlessContext;
 use {CreationError, Event, MouseCursor};
 use CreationError::OsError;
 use libc;
-use std::ascii::AsciiExt;
 
 use BuilderAttribs;
 
@@ -139,7 +138,7 @@ extern fn window_did_resize(this: id, _: id) -> id {
 
 impl Window {
     fn new_impl(dimensions: Option<(u32, u32)>, title: &str, monitor: Option<MonitorID>,
-                vsync: bool, visible: bool, gl_version: Option<(uint, uint)>) -> Result<Window, CreationError> {
+                vsync: bool, visible: bool, gl_version: Option<(u32, u32)>) -> Result<Window, CreationError> {
         let app = match Window::create_app() {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
@@ -269,11 +268,11 @@ impl Window {
         }
     }
 
-    fn create_context(view: id, vsync: bool, gl_version: Option<(uint, uint)>) -> Option<id> {
+    fn create_context(view: id, vsync: bool, gl_version: Option<(u32, u32)>) -> Option<id> {
         let profile = match gl_version {
-            None | Some((0...2, _)) | Some((3, 0)) => NSOpenGLProfileVersionLegacy as uint,
-            Some((3, 1...2)) => NSOpenGLProfileVersion3_2Core as uint,
-            Some((_, _)) => NSOpenGLProfileVersion4_1Core as uint,
+            None | Some((0...2, _)) | Some((3, 0)) => NSOpenGLProfileVersionLegacy as u32,
+            Some((3, 1...2)) => NSOpenGLProfileVersion3_2Core as u32,
+            Some((_, _)) => NSOpenGLProfileVersion4_1Core as u32,
         };
         unsafe {
             let attributes = [
