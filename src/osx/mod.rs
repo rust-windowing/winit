@@ -208,27 +208,25 @@ impl Window {
 
     fn create_window(dimensions: (u32, u32), title: &str, monitor: Option<MonitorID>) -> Option<id> {
         unsafe {
-            let scr_frame = match monitor {
-                Some(_) => {
-                    let screen = NSScreen::mainScreen(nil);
-                    NSScreen::frame(screen)
-                }
-                None    => {
-                    let (width, height) = dimensions;
-                    NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64))
-                }
+            let frame = if monitor.is_some() {
+                let screen = NSScreen::mainScreen(nil);
+                NSScreen::frame(screen)
+            } else {
+                let (width, height) = dimensions;
+                NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64))
             };
 
-             let masks = match monitor {
-                Some(_) => NSBorderlessWindowMask as NSUInteger,
-                None    => NSTitledWindowMask as NSUInteger |
-                           NSClosableWindowMask as NSUInteger |
-                           NSMiniaturizableWindowMask as NSUInteger |
-                           NSResizableWindowMask as NSUInteger,
+            let masks = if monitor.is_some() {
+                NSBorderlessWindowMask as NSUInteger
+            } else {
+                NSTitledWindowMask as NSUInteger |
+                NSClosableWindowMask as NSUInteger |
+                NSMiniaturizableWindowMask as NSUInteger |
+                NSResizableWindowMask as NSUInteger
             };
 
             let window = NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
-                scr_frame,
+                frame,
                 masks,
                 NSBackingStoreBuffered,
                 false,
