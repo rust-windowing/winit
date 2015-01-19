@@ -47,6 +47,6 @@ fn run(window: glutin::Window, color: (f32, f32, f32, f32)) {
         context.draw_frame(color);
         window.swap_buffers();
 
-        window.wait_events().collect::<Vec<glutin::Event>>();
+        window.wait_events().next();
     }
 }
