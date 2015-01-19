@@ -65,7 +65,7 @@ impl HeadlessContext {
     }
 
     pub fn get_api(&self) -> ::Api {
-        ::Api::OpenGl
+        ::Api::OpenGlEs
     }
 }
 
