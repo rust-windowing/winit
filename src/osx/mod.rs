@@ -51,6 +51,7 @@ struct DelegateState<'a> {
     is_closed: bool,
     context: id,
     view: id,
+    window: id,
     handler: Option<fn(u32, u32)>,
 }
 
@@ -117,7 +118,8 @@ extern fn window_did_resize(this: id, _: id) -> id {
         match state.handler {
             Some(handler) => {
                 let rect = NSView::frame(state.view);
-                (handler)(rect.size.width as u32, rect.size.height as u32);
+                let scale_factor = state.window.backingScaleFactor() as f32;
+                (handler)((scale_factor * rect.size.width as f32) as u32, (scale_factor * rect.size.height as f32) as u32);
             }
             None => {}
         }
@@ -360,6 +362,7 @@ impl Window {
                     let mut ds = DelegateState {
                         is_closed: self.is_closed.get(),
                         context: self.context,
+                        window: self.window,
                         view: self.view,
                         handler: self.resize,
                     };
@@ -380,8 +383,17 @@ impl Window {
                     NSRightMouseUp          => { events.push_back(MouseInput(Released, RightMouseButton)); },
                     NSMouseMoved            => {
                         let window_point = event.locationInWindow();
-                        let view_point = self.view.convertPoint_fromView_(window_point, nil);
-                        events.push_back(MouseMoved((view_point.x as i32, view_point.y as i32)));
+                        let window: id = msg_send()(event, selector("window"));
+                        let view_point = if window == 0 {
+                            let window_rect = self.window.convertRectFromScreen_(NSRect::new(window_point, NSSize::new(0.0, 0.0)));
+                            self.view.convertPoint_fromView_(window_rect.origin, nil)
+                        } else {
+                            self.view.convertPoint_fromView_(window_point, nil)
+                        };
+                        let view_rect = NSView::frame(self.view);
+                        let scale_factor = self.hidpi_factor();
+                        events.push_back(MouseMoved(((scale_factor * view_point.x as f32) as i32,
+                                                     (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32)));
                     },
                     NSKeyDown               => {
                         let received_c_str = event.characters().UTF8String();
@@ -461,6 +473,7 @@ impl Window {
     }
 
     pub unsafe fn make_current(&self) {
+        let _: id = msg_send()(self.context, selector("update"));
         self.context.makeCurrentContext();
     }
 
@@ -494,5 +507,11 @@ impl Window {
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
         unimplemented!()
+    }
+
+    pub fn hidpi_factor(&self) -> f32 {
+        unsafe {
+            self.window.backingScaleFactor() as f32
+        }
     }
 }

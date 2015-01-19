@@ -97,6 +97,10 @@ impl HeadlessContext {
         };
         symbol as *const ()
     }
+
+    pub fn get_api(&self) -> ::Api {
+        ::Api::OpenGl
+    }
 }
 
 unsafe impl Send for HeadlessContext {}
