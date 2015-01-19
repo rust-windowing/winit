@@ -537,22 +537,22 @@ impl Window {
         self.window.set_inner_size(x, y)
     }
 
-    /// Returns an iterator to all the events that are currently in the window's events queue.
+    /// Returns an iterator that poll for the next event in the window's events queue.
+    /// Returns `None` if there is no event in the queue.
     ///
     /// Contrary to `wait_events`, this function never blocks.
     #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator { data: self.window.poll_events().into_iter() }
+        PollEventsIterator { window: self, data: self.window.poll_events().into_iter() }
     }
 
-    /// Waits for an event, then returns an iterator to all the events that are currently
-    ///  in the window's events queue.
+    /// Returns an iterator that returns events one by one, blocking if necessary until one is
+    /// available.
     ///
-    /// If there are no events in queue when you call the function,
-    ///  this function will block until there is one.
+    /// The iterator never returns `None`.
     #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator { data: self.window.wait_events().into_iter() }
+        WaitEventsIterator { window: self, data: self.window.wait_events().into_iter() }
     }
 
     /// Sets the context as the current context.
@@ -697,13 +697,24 @@ impl gl_common::GlFunctionsSource for HeadlessContext {
 /// An iterator for the `poll_events` function.
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
+#[cfg(feature = "window")]
 pub struct PollEventsIterator<'a> {
+    window: &'a Window,
     data: RingBufIter<Event>,
 }
 
+#[cfg(feature = "window")]
 impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
     fn next(&mut self) -> Option<Event> {
+        if let Some(ev) = self.data.next() {
+            return Some(ev);
+        }
+
+        let PollEventsIterator { window, data } = self.window.poll_events();
+        self.window = window;
+        self.data = data;
+
         self.data.next()
     }
 }
@@ -711,14 +722,25 @@ impl<'a> Iterator for PollEventsIterator<'a> {
 /// An iterator for the `wait_events` function.
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
+#[cfg(feature = "window")]
 pub struct WaitEventsIterator<'a> {
+    window: &'a Window,
     data: RingBufIter<Event>,
 }
 
+#[cfg(feature = "window")]
 impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
     fn next(&mut self) -> Option<Event> {
-        self.data.next()
+        if let Some(ev) = self.data.next() {
+            return Some(ev);
+        }
+
+        let WaitEventsIterator { window, data } = self.window.wait_events();
+        self.window = window;
+        self.data = data;
+
+        self.next()
     }
 }
 
