@@ -115,13 +115,10 @@ extern fn window_did_resize(this: id, _: id) -> id {
 
         let _: id = msg_send()(state.context, selector("update"));
 
-        match state.handler {
-            Some(handler) => {
-                let rect = NSView::frame(state.view);
-                let scale_factor = state.window.backingScaleFactor() as f32;
-                (handler)((scale_factor * rect.size.width as f32) as u32, (scale_factor * rect.size.height as f32) as u32);
-            }
-            None => {}
+        if let Some(handler) = state.handler {
+            let rect = NSView::frame(state.view);
+            let scale_factor = state.window.backingScaleFactor() as f32;
+            (handler)((scale_factor * rect.size.width as f32) as u32, (scale_factor * rect.size.height as f32) as u32);
         }
     }
     0
@@ -374,7 +371,7 @@ impl Window {
                         DELEGATE_STATE_IVAR.as_ptr() as *const i8,
                         ptr::null_mut());
                     self.is_closed.set(ds.is_closed);
-}
+                }
 
                 match event.get_type() {
                     NSLeftMouseDown         => { events.push_back(MouseInput(Pressed, LeftMouseButton)); },
