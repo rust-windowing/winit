@@ -7,7 +7,7 @@ use libc;
 
 use BuilderAttribs;
 
-use cocoa::base::{id, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
+use cocoa::base::{Class, id, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
 use cocoa::base::{selector, msg_send, class_addMethod, class_addIvar};
 use cocoa::base::{object_setInstanceVariable, object_getInstanceVariable};
 use cocoa::appkit;
@@ -44,9 +44,6 @@ static mut ctrl_pressed: bool = false;
 static mut win_pressed: bool = false;
 static mut alt_pressed: bool = false;
 
-static DELEGATE_NAME: &'static [u8] = b"glutin_window_delegate\0";
-static DELEGATE_STATE_IVAR: &'static [u8] = b"glutin_state";
-
 struct DelegateState<'a> {
     is_closed: bool,
     context: id,
@@ -55,11 +52,114 @@ struct DelegateState<'a> {
     handler: Option<fn(u32, u32)>,
 }
 
+struct WindowDelegate {
+    this: id,
+}
+
+impl WindowDelegate {
+    fn class_name() -> &'static [u8] {
+        b"GlutinWindowDelegate\0"
+    }
+
+    fn state_ivar_name() -> &'static [u8] {
+        b"glutinState"
+    }
+
+    /// Get the delegate class, initiailizing it neccessary
+    fn class() -> Class {
+        use std::sync::{Once, ONCE_INIT};
+        use std::rt;
+
+        extern fn window_should_close(this: id, _: id) -> id {
+            unsafe {
+                let delegate = WindowDelegate { this: this };
+                (*delegate.get_state()).is_closed = true;
+                mem::forget(delegate);
+            }
+            0
+        }
+
+        extern fn window_did_resize(this: id, _: id) -> id {
+            unsafe {
+                let delegate = WindowDelegate { this: this };
+                let state = &mut *delegate.get_state();
+                mem::forget(delegate);
+
+                let _: id = msg_send()(state.context, selector("update"));
+
+                if let Some(handler) = state.handler {
+                    let rect = NSView::frame(state.view);
+                    let scale_factor = state.window.backingScaleFactor() as f32;
+                    (handler)((scale_factor * rect.size.width as f32) as u32,
+                              (scale_factor * rect.size.height as f32) as u32);
+                }
+            }
+            0
+        }
+
+        static mut delegate_class: Class = nil;
+        static mut init: Once = ONCE_INIT;
+
+        unsafe {
+            init.call_once(|| {
+                let ptr_size = mem::size_of::<libc::intptr_t>();
+                    // Create new NSWindowDelegate
+                    delegate_class = objc_allocateClassPair(
+                        class("NSObject"),
+                        WindowDelegate::class_name().as_ptr() as *const i8, 0);
+                    // Add callback methods
+                    class_addMethod(delegate_class,
+                                    selector("windowShouldClose:"),
+                                    window_should_close,
+                                    CString::from_slice("B@:@".as_bytes()).as_ptr());
+                    class_addMethod(delegate_class,
+                                    selector("windowDidResize:"),
+                                    window_did_resize,
+                                    CString::from_slice("V@:@".as_bytes()).as_ptr());
+                    // Store internal state as user data
+                    class_addIvar(delegate_class, WindowDelegate::state_ivar_name().as_ptr() as *const i8,
+                                  ptr_size as u64, 3,
+                                  CString::from_slice("?".as_bytes()).as_ptr());
+                    objc_registerClassPair(delegate_class);
+                // Free class at exit
+                rt::at_exit(|| {
+                    // objc_disposeClassPair(delegate_class);
+                });
+            });
+            delegate_class
+        }
+    }
+
+    fn new(window: id) -> WindowDelegate {
+        unsafe {
+            let delegate: id = msg_send()(WindowDelegate::class(), selector("new"));
+            let _: id = msg_send()(window, selector("setDelegate:"), delegate);
+            WindowDelegate { this: delegate }
+        }
+    }
+
+    unsafe fn set_state(&self, state: *mut DelegateState) {
+        object_setInstanceVariable(self.this,
+                                   WindowDelegate::state_ivar_name().as_ptr() as *const i8,
+                                   state as *mut libc::c_void);
+    }
+
+    fn get_state(&self) -> *mut DelegateState {
+        unsafe {
+            let mut state = ptr::null_mut();
+            object_getInstanceVariable(self.this,
+                                       WindowDelegate::state_ivar_name().as_ptr() as *const i8,
+                                       &mut state);
+            state as *mut DelegateState
+        }
+    }
+}
+
 pub struct Window {
     view: id,
     window: id,
     context: id,
-    delegate: id,
+    delegate: WindowDelegate,
     resize: Option<fn(u32, u32)>,
 
     is_closed: Cell<bool>,
@@ -94,37 +194,6 @@ impl WindowProxy {
             pool.drain();
         }
     }
-}
-
-extern fn window_should_close(this: id, _: id) -> id {
-    unsafe {
-        let mut stored_value = ptr::null_mut();
-        object_getInstanceVariable(this, DELEGATE_STATE_IVAR.as_ptr() as *const i8, &mut stored_value);
-        let state = stored_value as *mut DelegateState;
-
-        (*state).is_closed = true;
-    }
-    0
-}
-
-extern fn window_did_resize(this: id, _: id) -> id {
-    unsafe {
-        let mut stored_value = ptr::null_mut();
-        object_getInstanceVariable(this, DELEGATE_STATE_IVAR.as_ptr() as *const i8, &mut stored_value);
-        let state = &mut *(stored_value as *mut DelegateState);
-
-        let _: id = msg_send()(state.context, selector("update"));
-
-        match state.handler {
-            Some(handler) => {
-                let rect = NSView::frame(state.view);
-                let scale_factor = state.window.backingScaleFactor() as f32;
-                (handler)((scale_factor * rect.size.width as f32) as u32, (scale_factor * rect.size.height as f32) as u32);
-            }
-            None => {}
-        }
-    }
-    0
 }
 
 impl Window {
@@ -164,29 +233,11 @@ impl Window {
             }
         }
 
-        // Set up the window delegate to receive events
-        let ptr_size = mem::size_of::<libc::intptr_t>() as u64;
-        let ns_object = class("NSObject");
-
-        let delegate = unsafe {
-            // Create a delegate class, add callback methods and store InternalState as user data.
-            let delegate = objc_allocateClassPair(ns_object, DELEGATE_NAME.as_ptr() as *const i8, 0);
-            class_addMethod(delegate, selector("windowShouldClose:"), window_should_close, CString::from_slice("B@:@".as_bytes()).as_ptr());
-            class_addMethod(delegate, selector("windowDidResize:"), window_did_resize, CString::from_slice("V@:@".as_bytes()).as_ptr());
-            class_addIvar(delegate, DELEGATE_STATE_IVAR.as_ptr() as *const i8, ptr_size, 3, CString::from_slice("?".as_bytes()).as_ptr());
-            objc_registerClassPair(delegate);
-
-            let del_obj = msg_send()(delegate, selector("alloc"));
-            let del_obj: id = msg_send()(del_obj, selector("init"));
-            let _: id = msg_send()(window, selector("setDelegate:"), del_obj);
-            del_obj
-        };
-
         let window = Window {
             view: view,
             window: window,
             context: context,
-            delegate: delegate,
+            delegate: WindowDelegate::new(window),
             resize: None,
 
             is_closed: Cell::new(false),
@@ -366,15 +417,11 @@ impl Window {
                         view: self.view,
                         handler: self.resize,
                     };
-                    object_setInstanceVariable(self.delegate,
-                        DELEGATE_STATE_IVAR.as_ptr() as *const i8,
-                        &mut ds as *mut DelegateState as *mut libc::c_void);
+                    self.delegate.set_state(&mut ds);
                     NSApp().sendEvent_(event);
-                    object_setInstanceVariable(self.delegate,
-                        DELEGATE_STATE_IVAR.as_ptr() as *const i8,
-                        ptr::null_mut());
+                    self.delegate.set_state(ptr::null_mut());
                     self.is_closed.set(ds.is_closed);
-}
+                }
 
                 match event.get_type() {
                     NSLeftMouseDown         => { events.push_back(MouseInput(Pressed, LeftMouseButton)); },
