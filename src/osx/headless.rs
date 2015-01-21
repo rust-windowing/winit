@@ -11,36 +11,30 @@ use cocoa::base::{id, nil};
 use cocoa::appkit::*;
 
 mod gl {
-    generate_gl_bindings! {
-        api: "gl",
-        profile: "core",
-        version: "3.2",
-        generator: "global",
-        extensions: ["GL_EXT_framebuffer_object"],
-    }
+    include!(concat!(env!("OUT_DIR"), "/gl_bindings.rs"));
 }
 
 static mut framebuffer: u32 = 0;
 static mut texture: u32 = 0;
 
 pub struct HeadlessContext {
-    width: usize,
-    height: usize,
+    width: u32,
+    height: u32,
     context: id,
 }
 
 impl HeadlessContext {
     pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
-        let (width, height) = builder.dimensions;
+        let (width, height) = builder.dimensions.unwrap_or((1024, 768));
         let context = unsafe {
             let attributes = [
-                NSOpenGLPFADoubleBuffer as usize,
-                NSOpenGLPFAClosestPolicy as usize,
-                NSOpenGLPFAColorSize as usize, 24,
-                NSOpenGLPFAAlphaSize as usize, 8,
-                NSOpenGLPFADepthSize as usize, 24,
-                NSOpenGLPFAStencilSize as usize, 8,
-                NSOpenGLPFAOffScreen as usize,
+                NSOpenGLPFADoubleBuffer as u32,
+                NSOpenGLPFAClosestPolicy as u32,
+                NSOpenGLPFAColorSize as u32, 24,
+                NSOpenGLPFAAlphaSize as u32, 8,
+                NSOpenGLPFADepthSize as u32, 24,
+                NSOpenGLPFAStencilSize as u32, 8,
+                NSOpenGLPFAOffScreen as u32,
                 0
             ];
 
@@ -87,8 +81,8 @@ impl HeadlessContext {
     }
 
     pub fn get_proc_address(&self, _addr: &str) -> *const () {
-        let symbol_name: CFString = from_str(_addr).unwrap();
-        let framework_name: CFString = from_str("com.apple.opengl").unwrap();
+        let symbol_name: CFString = _addr.parse().unwrap();
+        let framework_name: CFString = "com.apple.opengl".parse().unwrap();
         let framework = unsafe {
             CFBundleGetBundleWithIdentifier(framework_name.as_concrete_TypeRef())
         };
