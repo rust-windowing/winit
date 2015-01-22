@@ -16,10 +16,18 @@ mod monitor;
 
 static THREAD_INIT: Once = ONCE_INIT;
 
+fn x_error_callback(_: *mut ffi::Display, event: *mut ffi::XErrorEvent) -> libc::c_int {
+    unsafe {
+        println!("[glutin] x error code={} major={} minor={}!", (*event).error_code, (*event).request_code, (*event).minor_code);
+    }
+    0
+}
+
 fn ensure_thread_init() {
     THREAD_INIT.call_once(|| {
         unsafe {
             ffi::XInitThreads();
+            ffi::XSetErrorHandler(x_error_callback);
         }
     });
 }
@@ -322,12 +330,16 @@ impl Window {
                 ptr::null()
             };
 
-            let context = if extra_functions.CreateContextAttribsARB.is_loaded() {
+            let mut context = if extra_functions.CreateContextAttribsARB.is_loaded() {
                 extra_functions.CreateContextAttribsARB(display as *mut ffi::glx_extra::types::Display,
                     fb_config, share, 1, attributes.as_ptr())
             } else {
-                ffi::glx::CreateContext(display, &mut visual_infos, share, 1)
+                ptr::null()
             };
+
+            if context.is_null() {
+                context = ffi::glx::CreateContext(display, &mut visual_infos, share, 1)
+            }
 
             if context.is_null() {
                 return Err(OsError(format!("GL context creation failed")));
