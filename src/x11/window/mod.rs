@@ -18,7 +18,7 @@ static THREAD_INIT: Once = ONCE_INIT;
 
 fn x_error_callback(_: *mut ffi::Display, event: *mut ffi::XErrorEvent) -> libc::c_int {
     unsafe {
-        println!("x error code={} major={} minor={}!", (*event).error_code, (*event).request_code, (*event).minor_code);
+        println!("[glutin] x error code={} major={} minor={}!", (*event).error_code, (*event).request_code, (*event).minor_code);
     }
     0
 }
