@@ -1358,6 +1358,17 @@ pub struct XF86VidModeModeInfo {
     private: libc::c_long,
 }
 
+#[repr(C)]
+pub struct XErrorEvent {
+    pub type_: libc::c_int,
+    pub display: *mut Display,
+    pub serial: libc::c_ulong,
+    pub error_code: libc::c_char,
+    pub request_code: libc::c_char,
+    pub minor_code: libc::c_char,
+    pub resourceid: XID,
+}
+
 #[cfg(feature = "headless")]
 #[link(name = "OSMesa")]
 extern "C" {
@@ -1430,6 +1441,7 @@ extern "C" {
     pub fn XScreenOfDisplay(display: *mut Display, screen_number: libc::c_int) -> *const Screen;
     pub fn XWidthOfScreen(screen: *const Screen) -> libc::c_int;
     pub fn XHeightOfScreen(screen: *const Screen) -> libc::c_int;
+    pub fn XSetErrorHandler(callback: fn(display: *mut Display, event: *mut XErrorEvent) -> libc::c_int) -> libc::c_int;
 
     pub fn XCloseIM(im: XIM) -> Status;
     pub fn XOpenIM(display: *mut Display, db: XrmDatabase, res_name: *mut libc::c_char,
