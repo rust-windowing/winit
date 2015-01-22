@@ -50,7 +50,15 @@ fn main() {
                                         khronos_api::EGL_XML, vec![],
                                         "1.5", "core", &mut file).unwrap();
     }
-    
+
+    if target.contains("darwin") {
+        let mut file = File::create(&dest.join("gl_bindings.rs")).unwrap();
+        gl_generator::generate_bindings(gl_generator::GlobalGenerator,
+                                        gl_generator::registry::Ns::Gl,
+                                        khronos_api::GL_XML,
+                                        vec!["GL_EXT_framebuffer_object".to_string()],
+                                        "3.2", "core", &mut file).unwrap();
+    }
 
     // TODO: only build the bindings below if we run tests/examples
 
