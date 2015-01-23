@@ -155,6 +155,7 @@ pub struct WindowBuilder<'a> {
 
 /// Attributes
 struct BuilderAttribs<'a> {
+    #[allow(dead_code)]
     headless: bool,
     strict: bool,
     sharing: Option<&'a winimpl::Window>,
