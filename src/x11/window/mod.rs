@@ -298,7 +298,7 @@ impl Window {
 
 
         // creating GL context
-        let context = unsafe {
+        let (context, extra_functions) = unsafe {
             let mut attributes = Vec::new();
 
             if builder.gl_version.is_some() {
@@ -345,8 +345,51 @@ impl Window {
                 return Err(OsError(format!("GL context creation failed")));
             }
 
-            context
+            (context, extra_functions)
         };
+
+        // vsync
+        if builder.vsync {
+            unsafe { ffi::glx::MakeCurrent(display, window, context) };
+
+            if extra_functions.SwapIntervalEXT.is_loaded() {
+                // this should be the most common extension
+                unsafe {
+                    extra_functions.SwapIntervalEXT(display as *mut _, window, 1);
+                }
+
+                // checking that it worked
+                if builder.strict {
+                    let mut swap = unsafe { mem::uninitialized() };
+                    unsafe {
+                        ffi::glx::QueryDrawable(display, window,
+                                                ffi::glx_extra::SWAP_INTERVAL_EXT as i32,
+                                                &mut swap);
+                    }
+
+                    if swap != 1 {
+                        return Err(OsError(format!("Couldn't setup vsync: expected \
+                                                    interval `1` but got `{}`", swap)));
+                    }
+                }
+
+            // GLX_MESA_swap_control is not official
+            /*} else if extra_functions.SwapIntervalMESA.is_loaded() {
+                unsafe {
+                    extra_functions.SwapIntervalMESA(1);
+                }*/
+
+            } else if extra_functions.SwapIntervalSGI.is_loaded() {
+                unsafe {
+                    extra_functions.SwapIntervalSGI(1);
+                }
+
+            } else if builder.strict {
+                return Err(OsError(format!("Couldn't find any available vsync extension")));
+            }
+
+            unsafe { ffi::glx::MakeCurrent(display, 0, ptr::null()) };
+        }
 
         // creating the window object
         let window = Window {
