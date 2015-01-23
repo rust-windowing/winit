@@ -8,6 +8,7 @@ use std::sync::atomic::AtomicBool;
 use std::collections::RingBuf;
 use super::ffi;
 use std::sync::{Arc, Once, ONCE_INIT};
+use std::sync::{StaticMutex, MUTEX_INIT};
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
@@ -262,6 +263,10 @@ impl Window {
 
         // creating IM
         let im = unsafe {
+            // XOpenIM doesn't seem to be thread-safe
+            static GLOBAL_XOPENIM_LOCK: StaticMutex = MUTEX_INIT;
+            let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
+
             let im = ffi::XOpenIM(display, ptr::null(), ptr::null_mut(), ptr::null_mut());
             if im.is_null() {
                 return Err(OsError(format!("XOpenIM failed")));
