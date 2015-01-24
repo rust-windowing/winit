@@ -519,8 +519,7 @@ impl Window {
                             mem::transmute(buffer.as_mut_ptr()),
                             buffer.len() as libc::c_int, ptr::null_mut(), ptr::null_mut());
 
-                        str::from_utf8(buffer.as_slice().slice_to(count as usize))
-                            .unwrap_or("").to_string()
+                        str::from_utf8(&buffer.as_slice()[..count as usize]).unwrap_or("").to_string()
                     };
 
                     for chr in written.as_slice().chars() {
