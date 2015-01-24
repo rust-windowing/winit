@@ -67,14 +67,14 @@ mod events;
 pub struct MonitorID(winimpl::MonitorID);
 
 /// Error that can happen while creating a window or a headless renderer.
-#[derive(Clone, Show, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CreationError {
     OsError(String),
     NotSupported,
 }
 
-impl std::error::Error for CreationError {
-    fn description(&self) -> &str {
+impl CreationError {
+    fn to_string(&self) -> &str {
         match self {
             &CreationError::OsError(ref text) => text.as_slice(),
             &CreationError::NotSupported => "Some of the requested attributes are not supported",
@@ -82,8 +82,20 @@ impl std::error::Error for CreationError {
     }
 }
 
+impl std::fmt::Display for CreationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        formatter.write_str(self.to_string())
+    }
+}
+
+impl std::error::Error for CreationError {
+    fn description(&self) -> &str {
+        self.to_string()
+    }
+}
+
 /// All APIs related to OpenGL that you can possibly get while using glutin.
-#[derive(Show, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Api {
     /// The classical OpenGL. Available on Windows, Linux, OS/X.
     OpenGl,
@@ -91,7 +103,7 @@ pub enum Api {
     OpenGlEs,
 }
 
-#[derive(Show, Copy)]
+#[derive(Debug, Copy)]
 pub enum MouseCursor {
     /// The platform-dependent default cursor.
     Default,
