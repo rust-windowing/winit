@@ -782,6 +782,33 @@ impl Window {
         }
     }
 
+    pub fn grab_cursor(&self) -> Result<(), String> {
+        unsafe {
+            match ffi::XGrabPointer(
+                self.x.display, self.x.window, false,
+                ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
+                ffi::LeaveWindowMask | ffi::PointerMotionMask | ffi::PointerMotionHintMask |
+                ffi::Button1MotionMask | ffi::Button2MotionMask | ffi::Button3MotionMask |
+                ffi::Button4MotionMask | ffi::Button5MotionMask | ffi::ButtonMotionMask |
+                ffi::KeymapStateMask,
+                ffi::GrabModeAsync, ffi::GrabModeAsync,
+                self.x.window, 0, ffi::CurrentTime
+            ) {
+                ffi::GrabSuccess => Ok(()),
+                ffi::AlreadyGrabbed | ffi::GrabInvalidTime |
+                ffi::GrabNotViewable | ffi::GrabFrozen
+                    => Err("cursor could not be grabbed".to_string()),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    pub fn ungrab_cursor(&self) {
+        unsafe {
+            ffi::XUngrabPointer(self.x.display, ffi::CurrentTime);
+        }
+    }
+
     pub fn hidpi_factor(&self) -> f32 {
         1.0
     }
