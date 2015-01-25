@@ -40,6 +40,8 @@ fn main() {
                                         khronos_api::GLX_XML,
                                         vec![
                                             "GLX_ARB_create_context".to_string(),
+                                            "GLX_EXT_swap_control".to_string(),
+                                            "GLX_SGI_swap_control".to_string()
                                         ],
                                         "1.4", "core", &mut file).unwrap();
     }
