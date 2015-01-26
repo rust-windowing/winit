@@ -11,6 +11,9 @@ use BuilderAttribs;
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
 use winapi;
+use user32;
+use kernel32;
+use gdi32;
 
 mod event;
 mod gl;
@@ -112,7 +115,7 @@ impl Window {
     /// Calls SetWindowText on the HWND.
     pub fn set_title(&self, text: &str) {
         unsafe {
-            winapi::SetWindowTextW(self.window,
+            user32::SetWindowTextW(self.window,
                 text.utf16_units().chain(Some(0).into_iter())
                 .collect::<Vec<u16>>().as_ptr() as winapi::LPCWSTR);
         }
@@ -120,13 +123,13 @@ impl Window {
 
     pub fn show(&self) {
         unsafe {
-            winapi::ShowWindow(self.window, winapi::SW_SHOW);
+            user32::ShowWindow(self.window, winapi::SW_SHOW);
         }
     }
 
     pub fn hide(&self) {
         unsafe {
-            winapi::ShowWindow(self.window, winapi::SW_HIDE);
+            user32::ShowWindow(self.window, winapi::SW_HIDE);
         }
     }
 
@@ -137,7 +140,7 @@ impl Window {
         let mut placement: winapi::WINDOWPLACEMENT = unsafe { mem::zeroed() };
         placement.length = mem::size_of::<winapi::WINDOWPLACEMENT>() as winapi::UINT;
 
-        if unsafe { winapi::GetWindowPlacement(self.window, &mut placement) } == 0 {
+        if unsafe { user32::GetWindowPlacement(self.window, &mut placement) } == 0 {
             return None
         }
 
@@ -150,9 +153,9 @@ impl Window {
         use libc;
 
         unsafe {
-            winapi::SetWindowPos(self.window, ptr::null_mut(), x as libc::c_int, y as libc::c_int,
+            user32::SetWindowPos(self.window, ptr::null_mut(), x as libc::c_int, y as libc::c_int,
                 0, 0, winapi::SWP_NOZORDER | winapi::SWP_NOSIZE);
-            winapi::UpdateWindow(self.window);
+            user32::UpdateWindow(self.window);
         }
     }
 
@@ -161,7 +164,7 @@ impl Window {
         use std::mem;
         let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
-        if unsafe { winapi::GetClientRect(self.window, &mut rect) } == 0 {
+        if unsafe { user32::GetClientRect(self.window, &mut rect) } == 0 {
             return None
         }
 
@@ -176,7 +179,7 @@ impl Window {
         use std::mem;
         let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
-        if unsafe { winapi::GetWindowRect(self.window, &mut rect) } == 0 {
+        if unsafe { user32::GetWindowRect(self.window, &mut rect) } == 0 {
             return None
         }
 
@@ -191,9 +194,9 @@ impl Window {
         use libc;
 
         unsafe {
-            winapi::SetWindowPos(self.window, ptr::null_mut(), 0, 0, x as libc::c_int,
+            user32::SetWindowPos(self.window, ptr::null_mut(), 0, 0, x as libc::c_int,
                 y as libc::c_int, winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION);
-            winapi::UpdateWindow(self.window);
+            user32::UpdateWindow(self.window);
         }
     }
 
@@ -263,14 +266,14 @@ impl Window {
         unsafe {
             let p = gl::wgl::GetProcAddress(addr) as *const ();
             if !p.is_null() { return p; }
-            winapi::GetProcAddress(self.gl_library, addr) as *const ()
+            kernel32::GetProcAddress(self.gl_library, addr) as *const ()
         }
     }
 
     /// See the docs in the crate root file.
     pub fn swap_buffers(&self) {
         unsafe {
-            winapi::SwapBuffers(self.hdc);
+            gdi32::SwapBuffers(self.hdc);
         }
     }
 
@@ -299,9 +302,9 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         use std::ptr;
-        unsafe { winapi::PostMessageW(self.window, winapi::WM_DESTROY, 0, 0); }
+        unsafe { user32::PostMessageW(self.window, winapi::WM_DESTROY, 0, 0); }
         unsafe { gl::wgl::MakeCurrent(ptr::null(), ptr::null()); }
         unsafe { gl::wgl::DeleteContext(self.context as *const libc::c_void); }
-        unsafe { winapi::DestroyWindow(self.window); }
+        unsafe { user32::DestroyWindow(self.window); }
     }
 }

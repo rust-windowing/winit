@@ -13,6 +13,9 @@ use std::sync::mpsc::{Sender, Receiver, channel};
 use libc;
 use super::gl;
 use winapi;
+use kernel32;
+use user32;
+use gdi32;
 
 /// Stores the current window and its events dispatcher.
 /// 
@@ -57,7 +60,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
                 lpfnWndProc: callback,
                 cbClsExtra: 0,
                 cbWndExtra: 0,
-                hInstance: unsafe { winapi::GetModuleHandleW(ptr::null()) },
+                hInstance: unsafe { kernel32::GetModuleHandleW(ptr::null()) },
                 hIcon: ptr::null_mut(),
                 hCursor: ptr::null_mut(),
                 hbrBackground: ptr::null_mut(),
@@ -70,7 +73,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
             //  an error, and because errors here are detected during CreateWindowEx anyway.
             // Also since there is no weird element in the struct, there is no reason for this
             //  call to fail.
-            unsafe { winapi::RegisterClassExW(&class) };
+            unsafe { user32::RegisterClassExW(&class) };
 
             class_name
         };
@@ -104,7 +107,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
             screen_settings.dmBitsPerPel = 32;      // TODO: ?
             screen_settings.dmFields = winapi::DM_BITSPERPEL | winapi::DM_PELSWIDTH | winapi::DM_PELSHEIGHT;
 
-            let result = unsafe { winapi::ChangeDisplaySettingsExW(monitor.get_system_name().as_ptr(),
+            let result = unsafe { user32::ChangeDisplaySettingsExW(monitor.get_system_name().as_ptr(),
                 &mut screen_settings, ptr::null_mut(), winapi::CDS_FULLSCREEN, ptr::null_mut()) };
             
             if result != winapi::DISP_CHANGE_SUCCESSFUL {
@@ -122,19 +125,19 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
         };
 
         // adjusting the window coordinates using the style
-        unsafe { winapi::AdjustWindowRectEx(&mut rect, style, 0, ex_style) };
+        unsafe { user32::AdjustWindowRectEx(&mut rect, style, 0, ex_style) };
 
         // getting the address of wglCreateContextAttribsARB and the pixel format
         //  that we will use
         let (extra_functions, pixel_format) = {
             // creating a dummy invisible window for GL initialization
             let dummy_window = unsafe {
-                let handle = winapi::CreateWindowExW(ex_style, class_name.as_ptr(),
+                let handle = user32::CreateWindowExW(ex_style, class_name.as_ptr(),
                     title.as_ptr() as winapi::LPCWSTR,
                     style | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN,
                     winapi::CW_USEDEFAULT, winapi::CW_USEDEFAULT,
                     rect.right - rect.left, rect.bottom - rect.top,
-                    ptr::null_mut(), ptr::null_mut(), winapi::GetModuleHandleW(ptr::null()),
+                    ptr::null_mut(), ptr::null_mut(), kernel32::GetModuleHandleW(ptr::null()),
                     ptr::null_mut());
 
                 if handle.is_null() {
@@ -149,11 +152,11 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
 
             // getting the HDC of the dummy window
             let dummy_hdc = {
-                let hdc = unsafe { winapi::GetDC(dummy_window) };
+                let hdc = unsafe { user32::GetDC(dummy_window) };
                 if hdc.is_null() {
                     tx.send(Err(OsError(format!("GetDC function failed: {}",
                         os::error_string(os::errno() as usize)))));
-                    unsafe { winapi::DestroyWindow(dummy_window); }
+                    unsafe { user32::DestroyWindow(dummy_window); }
                     return;
                 }
                 hdc
@@ -176,21 +179,21 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
                 output.cAuxBuffers = 0;
                 output.iLayerType = winapi::PFD_MAIN_PLANE;
 
-                let pf_index = unsafe { winapi::ChoosePixelFormat(dummy_hdc, &output) };
+                let pf_index = unsafe { gdi32::ChoosePixelFormat(dummy_hdc, &output) };
 
                 if pf_index == 0 {
                     tx.send(Err(OsError(format!("ChoosePixelFormat function failed: {}",
                         os::error_string(os::errno() as usize)))));
-                    unsafe { winapi::DestroyWindow(dummy_window); }
+                    unsafe { user32::DestroyWindow(dummy_window); }
                     return;
                 }
 
-                if unsafe { winapi::DescribePixelFormat(dummy_hdc, pf_index,
+                if unsafe { gdi32::DescribePixelFormat(dummy_hdc, pf_index,
                     mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as winapi::UINT, &mut output) } == 0
                 {
                     tx.send(Err(OsError(format!("DescribePixelFormat function failed: {}",
                         os::error_string(os::errno() as usize)))));
-                    unsafe { winapi::DestroyWindow(dummy_window); }
+                    unsafe { user32::DestroyWindow(dummy_window); }
                     return;
                 }
 
@@ -199,10 +202,10 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
 
             // calling SetPixelFormat
             unsafe {
-                if winapi::SetPixelFormat(dummy_hdc, 1, &pixel_format) == 0 {
+                if gdi32::SetPixelFormat(dummy_hdc, 1, &pixel_format) == 0 {
                     tx.send(Err(OsError(format!("SetPixelFormat function failed: {}",
                         os::error_string(os::errno() as usize)))));
-                    winapi::DestroyWindow(dummy_window);
+                    user32::DestroyWindow(dummy_window);
                     return;
                 }
             }
@@ -213,7 +216,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
                 if ctxt.is_null() {
                     tx.send(Err(OsError(format!("wglCreateContext function failed: {}",
                         os::error_string(os::errno() as usize)))));
-                    unsafe { winapi::DestroyWindow(dummy_window); }
+                    unsafe { user32::DestroyWindow(dummy_window); }
                     return;
                 }
                 ctxt
@@ -239,7 +242,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
 
             // destroying the context and the window
             unsafe { gl::wgl::DeleteContext(dummy_context); }
-            unsafe { winapi::DestroyWindow(dummy_window); }
+            unsafe { user32::DestroyWindow(dummy_window); }
 
             // returning the address
             (extra_functions, pixel_format)
@@ -259,13 +262,13 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
                 style | winapi::WS_VISIBLE
             };
 
-            let handle = winapi::CreateWindowExW(ex_style, class_name.as_ptr(),
+            let handle = user32::CreateWindowExW(ex_style, class_name.as_ptr(),
                 title.as_ptr() as winapi::LPCWSTR,
                 style | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN,
                 if builder_monitor.is_some() { 0 } else { winapi::CW_USEDEFAULT },
                 if builder_monitor.is_some() { 0 } else { winapi::CW_USEDEFAULT },
                 width.unwrap_or(winapi::CW_USEDEFAULT), height.unwrap_or(winapi::CW_USEDEFAULT),
-                ptr::null_mut(), ptr::null_mut(), winapi::GetModuleHandleW(ptr::null()),
+                ptr::null_mut(), ptr::null_mut(), kernel32::GetModuleHandleW(ptr::null()),
                 ptr::null_mut());
 
             if handle.is_null() {
@@ -280,11 +283,11 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
 
         // getting the HDC of the window
         let hdc = {
-            let hdc = unsafe { winapi::GetDC(real_window) };
+            let hdc = unsafe { user32::GetDC(real_window) };
             if hdc.is_null() {
                 tx.send(Err(OsError(format!("GetDC function failed: {}",
                     os::error_string(os::errno() as usize)))));
-                unsafe { winapi::DestroyWindow(real_window); }
+                unsafe { user32::DestroyWindow(real_window); }
                 return;
             }
             hdc
@@ -292,10 +295,10 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
 
         // calling SetPixelFormat
         unsafe {
-            if winapi::SetPixelFormat(hdc, 1, &pixel_format) == 0 {
+            if gdi32::SetPixelFormat(hdc, 1, &pixel_format) == 0 {
                 tx.send(Err(OsError(format!("SetPixelFormat function failed: {}",
                     os::error_string(os::errno() as usize)))));
-                winapi::DestroyWindow(real_window);
+                user32::DestroyWindow(real_window);
                 return;
             }
         }
@@ -340,7 +343,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
             if ctxt.is_null() {
                 tx.send(Err(OsError(format!("OpenGL context creation failed: {}",
                     os::error_string(os::errno() as usize)))));
-                unsafe { winapi::DestroyWindow(real_window); }
+                unsafe { user32::DestroyWindow(real_window); }
                 return;
             }
 
@@ -349,7 +352,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
 
         // calling SetForegroundWindow if fullscreen
         if builder_monitor.is_some() {
-            unsafe { winapi::SetForegroundWindow(real_window) };
+            unsafe { user32::SetForegroundWindow(real_window) };
         }
 
         // filling the WINDOW task-local storage
@@ -366,12 +369,12 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
         let gl_library = {
             let name = "opengl32.dll".utf16_units().chain(Some(0).into_iter())
                 .collect::<Vec<u16>>().as_ptr();
-            let lib = unsafe { winapi::LoadLibraryW(name) };
+            let lib = unsafe { kernel32::LoadLibraryW(name) };
             if lib.is_null() {
                 tx.send(Err(OsError(format!("LoadLibrary function failed: {}",
                     os::error_string(os::errno() as usize)))));
                 unsafe { gl::wgl::DeleteContext(context); }
-                unsafe { winapi::DestroyWindow(real_window); }
+                unsafe { user32::DestroyWindow(real_window); }
                 return;
             }
             lib
@@ -384,7 +387,7 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
                 if unsafe { extra_functions.SwapIntervalEXT(1) } == 0 {
                     tx.send(Err(OsError(format!("wglSwapIntervalEXT failed"))));
                     unsafe { gl::wgl::DeleteContext(context); }
-                    unsafe { winapi::DestroyWindow(real_window); }
+                    unsafe { user32::DestroyWindow(real_window); }
                     return;
                 }
 
@@ -412,12 +415,12 @@ pub fn new_window(builder_dimensions: Option<(u32, u32)>, builder_title: String,
         loop {
             let mut msg = unsafe { mem::uninitialized() };
 
-            if unsafe { winapi::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) } == 0 {
+            if unsafe { user32::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) } == 0 {
                 break;
             }
 
-            unsafe { winapi::TranslateMessage(&msg) };
-            unsafe { winapi::DispatchMessageW(&msg) };     // calls `callback` (see below)
+            unsafe { user32::TranslateMessage(&msg) };
+            unsafe { user32::DispatchMessageW(&msg) };     // calls `callback` (see below)
         }
     });
 
@@ -461,7 +464,7 @@ extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 };
 
                 if win == &window {
-                    unsafe { winapi::PostQuitMessage(0); }
+                    unsafe { user32::PostQuitMessage(0); }
                 }
             });
 
@@ -598,7 +601,7 @@ extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         _ => unsafe {
-            winapi::DefWindowProcW(window, msg, wparam, lparam)
+            user32::DefWindowProcW(window, msg, wparam, lparam)
         }
     }
 }
