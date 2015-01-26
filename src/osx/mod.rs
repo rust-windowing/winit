@@ -7,7 +7,7 @@ use libc;
 
 use BuilderAttribs;
 
-use cocoa::base::{Class, id, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
+use cocoa::base::{Class, id, YES, NO, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
 use cocoa::base::{selector, msg_send, class_addMethod, class_addIvar};
 use cocoa::base::{object_setInstanceVariable, object_getInstanceVariable};
 use cocoa::appkit;
@@ -190,7 +190,7 @@ impl WindowProxy {
                 0,
                 0,
                 0);
-            NSApp().postEvent_atStart_(event, true);
+            NSApp().postEvent_atStart_(event, YES);
             pool.drain();
         }
     }
@@ -225,7 +225,7 @@ impl Window {
         };
 
         unsafe {
-            app.activateIgnoringOtherApps_(true);
+            app.activateIgnoringOtherApps_(YES);
             if builder.visible {
                 window.makeKeyAndOrderFront_(nil);
             } else {
@@ -282,7 +282,7 @@ impl Window {
                 frame,
                 masks,
                 NSBackingStoreBuffered,
-                false,
+                NO,
             );
 
             if window == nil {
@@ -290,7 +290,7 @@ impl Window {
             } else {
                 let title = NSString::alloc(nil).init_str(title);
                 window.setTitle_(title);
-                window.setAcceptsMouseMovedEvents_(true);
+                window.setAcceptsMouseMovedEvents_(YES);
                 if monitor.is_some() {
                     window.setLevel_(NSMainMenuWindowLevel as i64 + 1);
                 }
@@ -308,7 +308,7 @@ impl Window {
             if view == nil {
                 None
             } else {
-                view.setWantsBestResolutionOpenGLSurface_(true);
+                view.setWantsBestResolutionOpenGLSurface_(YES);
                 window.setContentView_(view);
                 Some(view)
             }
@@ -403,7 +403,7 @@ impl Window {
                     NSAnyEventMask as u64,
                     NSDate::distantPast(nil),
                     NSDefaultRunLoopMode,
-                    true);
+                    YES);
                 if event == nil { break; }
                 {
                     // Create a temporary structure with state that delegates called internally
@@ -512,7 +512,7 @@ impl Window {
                 NSAnyEventMask as u64,
                 NSDate::distantFuture(nil),
                 NSDefaultRunLoopMode,
-                false);
+                NO);
             NSApp().sendEvent_(event);
 
             self.poll_events()
