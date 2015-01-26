@@ -8,7 +8,7 @@ use libc;
 use BuilderAttribs;
 
 use cocoa::base::{Class, id, YES, NO, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
-use cocoa::base::{selector, msg_send, class_addMethod, class_addIvar};
+use cocoa::base::{selector, msg_send, msg_send_stret, class_addMethod, class_addIvar};
 use cocoa::base::{object_setInstanceVariable, object_getInstanceVariable};
 use cocoa::appkit;
 use cocoa::appkit::*;
@@ -180,16 +180,7 @@ impl WindowProxy {
             let pool = NSAutoreleasePool::new(nil);
             let event =
                 NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2(
-                nil,
-                NSApplicationDefined,
-                NSPoint::new(0.0, 0.0),
-                0,
-                0.0,
-                0,
-                ptr::null_mut(),
-                0,
-                0,
-                0);
+                    nil, NSApplicationDefined, NSPoint::new(0.0, 0.0), 0, 0.0, 0, ptr::null_mut(), 0, 0, 0);
             NSApp().postEvent_atStart_(event, YES);
             pool.drain();
         }
@@ -364,30 +355,49 @@ impl Window {
     }
 
     pub fn show(&self) {
+        unsafe { NSWindow::makeKeyAndOrderFront_(self.window, nil); }
     }
 
     pub fn hide(&self) {
+        unsafe { NSWindow::orderOut_(self.window, nil); }
     }
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
-        unimplemented!()
+        unsafe {
+            // let content_rect = NSWindow::contentRectForFrameRect_(self.window, NSWindow::frame(self.window));
+            let content_rect: NSRect = msg_send_stret()(self.window,
+                                                        selector("contentRectForFrameRect:"),
+                                                        NSWindow::frame(self.window));
+            // NOTE: coordinate system might be inconsistent with other backends
+            Some((content_rect.origin.x as i32, content_rect.origin.y as i32))
+        }
     }
 
-    pub fn set_position(&self, _x: i32, _y: i32) {
-        unimplemented!()
+    pub fn set_position(&self, x: i32, y: i32) {
+        unsafe {
+            // NOTE: coordinate system might be inconsistent with other backends
+            NSWindow::setFrameOrigin_(self.window, NSPoint::new(x as f64, y as f64));
+        }
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        let rect = unsafe { NSView::frame(self.view) };
-        Some((rect.size.width as u32, rect.size.height as u32))
+        unsafe {
+            let view_frame = NSView::frame(self.view);
+            Some((view_frame.size.width as u32, view_frame.size.height as u32))
+        }
     }
 
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
-        unimplemented!()
+        unsafe {
+            let window_frame = NSWindow::frame(self.window);
+            Some((window_frame.size.width as u32, window_frame.size.height as u32))
+        }
     }
 
-    pub fn set_inner_size(&self, _x: u32, _y: u32) {
-        unimplemented!()
+    pub fn set_inner_size(&self, width: u32, height: u32) {
+        unsafe {
+            NSWindow::setContentSize_(self.window, NSSize::new(width as f64, height as f64));
+        }
     }
 
     pub fn create_window_proxy(&self) -> WindowProxy {
