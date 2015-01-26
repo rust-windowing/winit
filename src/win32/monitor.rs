@@ -1,4 +1,5 @@
 use winapi;
+use user32;
 
 use std::collections::RingBuf;
 
@@ -38,7 +39,7 @@ pub fn get_available_monitors() -> RingBuf<MonitorID> {
             let mut output: winapi::DISPLAY_DEVICEW = unsafe { mem::zeroed() };
             output.cb = mem::size_of::<winapi::DISPLAY_DEVICEW>() as winapi::DWORD;
 
-            if unsafe { winapi::EnumDisplayDevicesW(ptr::null(),
+            if unsafe { user32::EnumDisplayDevicesW(ptr::null(),
                 id as winapi::DWORD, &mut output, 0) } == 0
             {
                 // the device doesn't exist, which means we have finished enumerating
@@ -65,7 +66,7 @@ pub fn get_available_monitors() -> RingBuf<MonitorID> {
             let mut dev: winapi::DEVMODEW = mem::zeroed();
             dev.dmSize = mem::size_of::<winapi::DEVMODEW>() as winapi::WORD;
 
-            if winapi::EnumDisplaySettingsExW(output.DeviceName.as_ptr(), winapi::ENUM_CURRENT_SETTINGS,
+            if user32::EnumDisplaySettingsExW(output.DeviceName.as_ptr(), winapi::ENUM_CURRENT_SETTINGS,
                 &mut dev, 0) == 0
             {
                 continue;
