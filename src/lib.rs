@@ -54,7 +54,7 @@ mod winimpl;
 #[path="x11/mod.rs"]
 mod winimpl;
 #[cfg(target_os = "macos")]
-#[path="osx/mod.rs"]
+#[path="cocoa/mod.rs"]
 mod winimpl;
 #[cfg(target_os = "android")]
 #[path="android/mod.rs"]
@@ -123,7 +123,7 @@ pub enum MouseCursor {
     Help,
     /// Progress indicator. Shows that processing is being done. But in contrast
     /// with "Wait" the user may still interact with the program. Often rendered
-    /// as a spinning beach ball, or an arrow with a watch or hourglass. 
+    /// as a spinning beach ball, or an arrow with a watch or hourglass.
     Progress,
 
     /// Cursor showing that something cannot be done.
