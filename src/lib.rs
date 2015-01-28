@@ -425,7 +425,7 @@ impl HeadlessRendererBuilder {
 ///     // draw everything here
 ///
 ///     window.swap_buffers();
-///     std::io::timer::sleep(17);
+///     std::old_io::timer::sleep(17);
 /// }
 /// ```
 #[cfg(feature = "window")]
