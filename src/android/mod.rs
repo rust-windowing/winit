@@ -251,7 +251,7 @@ impl Window {
 
     pub fn wait_events(&self) -> RingBuf<Event> {
         use std::time::Duration;
-        use std::io::timer;
+        use std::old_io::timer;
         timer::sleep(Duration::milliseconds(16));
         self.poll_events()
     }

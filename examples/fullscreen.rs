@@ -4,7 +4,7 @@ extern crate android_glue;
 
 extern crate glutin;
 
-use std::io::stdio::stdin;
+use std::old_io::stdio::stdin;
 
 mod support;
 
