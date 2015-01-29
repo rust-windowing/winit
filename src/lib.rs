@@ -107,6 +107,8 @@ pub enum Api {
     OpenGl,
     /// OpenGL embedded system. Available on Linux, Android.
     OpenGlEs,
+    /// OpenGL for the web. Very similar to OpenGL ES.
+    WebGl,
 }
 
 #[derive(Debug, Copy)]
