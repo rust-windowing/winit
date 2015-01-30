@@ -12,6 +12,7 @@ use cocoa::base::{selector, msg_send, msg_send_stret, class_addMethod, class_add
 use cocoa::base::{object_setInstanceVariable, object_getInstanceVariable};
 use cocoa::appkit;
 use cocoa::appkit::*;
+use cocoa::appkit::NSEventSubtype::*;
 
 use core_foundation::base::TCFType;
 use core_foundation::string::CFString;
@@ -89,7 +90,7 @@ impl WindowDelegate {
 
                 if let Some(handler) = state.handler {
                     let rect = NSView::frame(state.view);
-                    let scale_factor = state.window.backingScaleFactor() as f32;
+                    let scale_factor = NSWindow::backingScaleFactor(state.window) as f32;
                     (handler)((scale_factor * rect.size.width as f32) as u32,
                               (scale_factor * rect.size.height as f32) as u32);
                 }
@@ -179,8 +180,9 @@ impl WindowProxy {
         unsafe {
             let pool = NSAutoreleasePool::new(nil);
             let event =
-                NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2(
-                    nil, NSApplicationDefined, NSPoint::new(0.0, 0.0), 0, 0.0, 0, ptr::null_mut(), 0, 0, 0);
+                NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+                    nil, NSApplicationDefined, NSPoint::new(0.0, 0.0), NSEventModifierFlags::empty(),
+                    0.0, 0, nil, NSApplicationActivatedEventType, 0, 0);
             NSApp().postEvent_atStart_(event, YES);
             pool.drain();
         }
@@ -364,10 +366,7 @@ impl Window {
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
         unsafe {
-            // let content_rect = NSWindow::contentRectForFrameRect_(self.window, NSWindow::frame(self.window));
-            let content_rect: NSRect = msg_send_stret()(self.window,
-                                                        selector("contentRectForFrameRect:"),
-                                                        NSWindow::frame(self.window));
+            let content_rect = NSWindow::contentRectForFrameRect_(self.window, NSWindow::frame(self.window));
             // NOTE: coordinate system might be inconsistent with other backends
             Some((content_rect.origin.x as i32, content_rect.origin.y as i32))
         }
@@ -410,7 +409,7 @@ impl Window {
         loop {
             unsafe {
                 let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                    NSAnyEventMask as u64,
+                    NSAnyEventMask.bits(),
                     NSDate::distantPast(nil),
                     NSDefaultRunLoopMode,
                     YES);
@@ -433,7 +432,7 @@ impl Window {
                     self.is_closed.set(ds.is_closed);
                 }
 
-                match event.get_type() {
+                match msg_send()(event, selector("type")) {
                     NSLeftMouseDown         => { events.push_back(MouseInput(Pressed, LeftMouseButton)); },
                     NSLeftMouseUp           => { events.push_back(MouseInput(Released, LeftMouseButton)); },
                     NSRightMouseDown        => { events.push_back(MouseInput(Pressed, RightMouseButton)); },
@@ -461,30 +460,30 @@ impl Window {
                             }
                         }
 
-                        let vkey =  event::vkeycode_to_element(event.keycode());
-                        events.push_back(KeyboardInput(Pressed, event.keycode() as u8, vkey));
+                        let vkey =  event::vkeycode_to_element(NSEvent::keyCode(event));
+                        events.push_back(KeyboardInput(Pressed, NSEvent::keyCode(event) as u8, vkey));
                     },
                     NSKeyUp                 => {
-                        let vkey =  event::vkeycode_to_element(event.keycode());
-                        events.push_back(KeyboardInput(Released, event.keycode() as u8, vkey));
+                        let vkey =  event::vkeycode_to_element(NSEvent::keyCode(event));
+                        events.push_back(KeyboardInput(Released, NSEvent::keyCode(event) as u8, vkey));
                     },
                     NSFlagsChanged          => {
-                        let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask as u64, events::VirtualKeyCode::LShift, shift_pressed);
+                        let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask, events::VirtualKeyCode::LShift, shift_pressed);
                         if shift_modifier.is_some() {
                             shift_pressed = !shift_pressed;
                             events.push_back(shift_modifier.unwrap());
                         }
-                        let ctrl_modifier = Window::modifier_event(event, appkit::NSControlKeyMask as u64, events::VirtualKeyCode::LControl, ctrl_pressed);
+                        let ctrl_modifier = Window::modifier_event(event, appkit::NSControlKeyMask, events::VirtualKeyCode::LControl, ctrl_pressed);
                         if ctrl_modifier.is_some() {
                             ctrl_pressed = !ctrl_pressed;
                             events.push_back(ctrl_modifier.unwrap());
                         }
-                        let win_modifier = Window::modifier_event(event, appkit::NSCommandKeyMask as u64, events::VirtualKeyCode::LWin, win_pressed);
+                        let win_modifier = Window::modifier_event(event, appkit::NSCommandKeyMask, events::VirtualKeyCode::LWin, win_pressed);
                         if win_modifier.is_some() {
                             win_pressed = !win_pressed;
                             events.push_back(win_modifier.unwrap());
                         }
-                        let alt_modifier = Window::modifier_event(event, appkit::NSAlternateKeyMask as u64, events::VirtualKeyCode::LAlt, alt_pressed);
+                        let alt_modifier = Window::modifier_event(event, appkit::NSAlternateKeyMask, events::VirtualKeyCode::LAlt, alt_pressed);
                         if alt_modifier.is_some() {
                             alt_pressed = !alt_pressed;
                             events.push_back(alt_modifier.unwrap());
@@ -501,25 +500,20 @@ impl Window {
         events
     }
 
-    unsafe fn modifier_event(event: id, keymask: u64, key: events::VirtualKeyCode, key_pressed: bool) -> Option<Event> {
-        if !key_pressed && Window::modifier_key_pressed(event, keymask) {
-            return Some(KeyboardInput(Pressed, event.keycode() as u8, Some(key)));
-        }
-        else if key_pressed && !Window::modifier_key_pressed(event, keymask) {
-            return Some(KeyboardInput(Released, event.keycode() as u8, Some(key)));
+    unsafe fn modifier_event(event: id, keymask: NSEventModifierFlags, key: events::VirtualKeyCode, key_pressed: bool) -> Option<Event> {
+        if !key_pressed && NSEvent::modifierFlags(event).contains(keymask) {
+            return Some(KeyboardInput(Pressed, NSEvent::keyCode(event) as u8, Some(key)));
+        } else if key_pressed && !NSEvent::modifierFlags(event).contains(keymask) {
+            return Some(KeyboardInput(Released, NSEvent::keyCode(event) as u8, Some(key)));
         }
 
         return None;
     }
 
-    unsafe fn modifier_key_pressed(event: id, modifier: u64) -> bool {
-        event.modifierFlags() & modifier != 0
-    }
-
     pub fn wait_events(&self) -> RingBuf<Event> {
         unsafe {
             let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                NSAnyEventMask as u64,
+                NSAnyEventMask.bits(),
                 NSDate::distantFuture(nil),
                 NSDefaultRunLoopMode,
                 NO);
@@ -568,7 +562,7 @@ impl Window {
 
     pub fn hidpi_factor(&self) -> f32 {
         unsafe {
-            self.window.backingScaleFactor() as f32
+            NSWindow::backingScaleFactor(self.window) as f32
         }
     }
 }
