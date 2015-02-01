@@ -1362,11 +1362,11 @@ pub struct XF86VidModeModeInfo {
 pub struct XErrorEvent {
     pub type_: libc::c_int,
     pub display: *mut Display,
+    pub resourceid: XID,
     pub serial: libc::c_ulong,
     pub error_code: libc::c_char,
     pub request_code: libc::c_char,
     pub minor_code: libc::c_char,
-    pub resourceid: XID,
 }
 
 #[cfg(feature = "headless")]
