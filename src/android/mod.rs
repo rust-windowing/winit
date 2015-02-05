@@ -7,7 +7,7 @@ use {CreationError, Event, MouseCursor};
 use CreationError::OsError;
 use events::ElementState::{Pressed, Released};
 use events::Event::{MouseInput, MouseMoved};
-use events::MouseButton::LeftMouseButton;
+use events::MouseButton;
 
 use std::collections::RingBuf;
 
@@ -232,10 +232,10 @@ impl Window {
             match self.event_rx.try_recv() {
                 Ok(event) => match event {
                     android_glue::Event::EventDown => {
-                        events.push_back(MouseInput(Pressed, LeftMouseButton));
+                        events.push_back(MouseInput(Pressed, MouseButton::Left));
                     },
                     android_glue::Event::EventUp => {
-                        events.push_back(MouseInput(Released, LeftMouseButton));
+                        events.push_back(MouseInput(Released, MouseButton::Left));
                     },
                     android_glue::Event::EventMove(x, y) => {
                         events.push_back(MouseMoved((x as i32, y as i32)));

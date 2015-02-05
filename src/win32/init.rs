@@ -542,49 +542,49 @@ extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
         winapi::WM_LBUTTONDOWN => {
             use events::Event::MouseInput;
-            use events::MouseButton::LeftMouseButton;
+            use events::MouseButton::Left;
             use events::ElementState::Pressed;
-            send_event(window, MouseInput(Pressed, LeftMouseButton));
+            send_event(window, MouseInput(Pressed, Left));
             0
         },
 
         winapi::WM_LBUTTONUP => {
             use events::Event::MouseInput;
-            use events::MouseButton::LeftMouseButton;
+            use events::MouseButton::Left;
             use events::ElementState::Released;
-            send_event(window, MouseInput(Released, LeftMouseButton));
+            send_event(window, MouseInput(Released, Left));
             0
         },
 
         winapi::WM_RBUTTONDOWN => {
             use events::Event::MouseInput;
-            use events::MouseButton::RightMouseButton;
+            use events::MouseButton::Right;
             use events::ElementState::Pressed;
-            send_event(window, MouseInput(Pressed, RightMouseButton));
+            send_event(window, MouseInput(Pressed, Right));
             0
         },
 
         winapi::WM_RBUTTONUP => {
             use events::Event::MouseInput;
-            use events::MouseButton::RightMouseButton;
+            use events::MouseButton::Right;
             use events::ElementState::Released;
-            send_event(window, MouseInput(Released, RightMouseButton));
+            send_event(window, MouseInput(Released, Right));
             0
         },
 
         winapi::WM_MBUTTONDOWN => {
             use events::Event::MouseInput;
-            use events::MouseButton::MiddleMouseButton;
+            use events::MouseButton::Middle;
             use events::ElementState::Pressed;
-            send_event(window, MouseInput(Pressed, MiddleMouseButton));
+            send_event(window, MouseInput(Pressed, Middle));
             0
         },
 
         winapi::WM_MBUTTONUP => {
             use events::Event::MouseInput;
-            use events::MouseButton::MiddleMouseButton;
+            use events::MouseButton::Middle;
             use events::ElementState::Released;
-            send_event(window, MouseInput(Released, MiddleMouseButton));
+            send_event(window, MouseInput(Released, Middle));
             0
         },
 

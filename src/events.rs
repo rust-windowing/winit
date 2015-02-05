@@ -46,10 +46,10 @@ pub enum ElementState {
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum MouseButton {
-    LeftMouseButton,
-    RightMouseButton,
-    MiddleMouseButton,
-    OtherMouseButton(u8),
+    Left,
+    Right,
+    Middle,
+    Other(u8),
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
