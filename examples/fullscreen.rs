@@ -24,7 +24,7 @@ fn main() {
 
         print!("Please write the number of the monitor to use: ");
         let num = stdin().read_line().unwrap().as_slice().trim().parse()
-            .expect("Plase enter a number");
+                         .ok().expect("Please enter a number");
         let monitor = glutin::get_available_monitors().nth(num).expect("Please enter a valid ID");
 
         println!("Using {:?}", monitor.get_name());
