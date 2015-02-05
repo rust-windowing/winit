@@ -29,7 +29,7 @@ use std::ascii::AsciiExt;
 
 use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel};
 use events::ElementState::{Pressed, Released};
-use events::MouseButton::{LeftMouseButton, RightMouseButton};
+use events::MouseButton;
 use events;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
@@ -433,10 +433,10 @@ impl Window {
                 }
 
                 match msg_send()(event, selector("type")) {
-                    NSLeftMouseDown         => { events.push_back(MouseInput(Pressed, LeftMouseButton)); },
-                    NSLeftMouseUp           => { events.push_back(MouseInput(Released, LeftMouseButton)); },
-                    NSRightMouseDown        => { events.push_back(MouseInput(Pressed, RightMouseButton)); },
-                    NSRightMouseUp          => { events.push_back(MouseInput(Released, RightMouseButton)); },
+                    NSLeftMouseDown         => { events.push_back(MouseInput(Pressed, MouseButton::Left)); },
+                    NSLeftMouseUp           => { events.push_back(MouseInput(Released, MouseButton::Left)); },
+                    NSRightMouseDown        => { events.push_back(MouseInput(Pressed, MouseButton::Right)); },
+                    NSRightMouseUp          => { events.push_back(MouseInput(Released, MouseButton::Right)); },
                     NSMouseMoved            => {
                         let window_point: NSPoint = msg_send()(event, selector("locationInWindow"));
                         // let window_point = event.locationInWindow();
