@@ -16,8 +16,9 @@ default = ["window"]
 window = []
 headless = []
 
-[dependencies.gl_common]
+[dependencies]
 gl_common = "*"
+libc = "*"
 
 [build-dependencies]
 gl_generator = "*"
