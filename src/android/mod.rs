@@ -115,18 +115,34 @@ impl Window {
             _ => false,
         };
 
-        let config = unsafe {
-            let mut attribute_list = vec!();
-            if use_gles2 {
-                attribute_list.push_all(&[ffi::egl::RENDERABLE_TYPE as i32,
-                                         ffi::egl::OPENGL_ES2_BIT as i32]);
-            }
-            attribute_list.push_all(&[ffi::egl::RED_SIZE as i32, 1]);
-            attribute_list.push_all(&[ffi::egl::GREEN_SIZE as i32, 1]);
-            attribute_list.push_all(&[ffi::egl::BLUE_SIZE as i32, 1]);
-            attribute_list.push_all(&[ffi::egl::DEPTH_SIZE as i32, 1]);
-            attribute_list.push(ffi::egl::NONE as i32);
+        let mut attribute_list = vec!();
 
+        if use_gles2 {
+            attribute_list.push_all(&[
+                ffi::egl::RENDERABLE_TYPE as i32,
+                ffi::egl::OPENGL_ES2_BIT as i32,
+            ]);
+        }
+
+        {
+            let (red, green, blue) = match builder.color_bits.unwrap_or(24) {
+                24 => (8, 8, 8),
+                16 => (6, 5, 6),
+                _ => panic!("Bad color_bits"),
+            };
+            attribute_list.push_all(&[ffi::egl::RED_SIZE as i32, red]);
+            attribute_list.push_all(&[ffi::egl::GREEN_SIZE as i32, green]);
+            attribute_list.push_all(&[ffi::egl::BLUE_SIZE as i32, blue]);
+        }
+
+        attribute_list.push_all(&[
+            ffi::egl::DEPTH_SIZE as i32,
+            builder.depth_bits.unwrap_or(8) as i32,
+        ]);
+
+        attribute_list.push(ffi::egl::NONE as i32);
+
+        let config = unsafe {
             let mut num_config: ffi::egl::types::EGLint = mem::uninitialized();
             let mut config: ffi::egl::types::EGLConfig = mem::uninitialized();
             if ffi::egl::ChooseConfig(display, attribute_list.as_ptr(), &mut config, 1,
