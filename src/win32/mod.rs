@@ -26,10 +26,8 @@ pub struct HeadlessContext(Window);
 impl HeadlessContext {
     /// See the docs in the crate root file.
     pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
-        let BuilderAttribs { dimensions, gl_version, gl_debug, .. } = builder;
-        init::new_window(dimensions, "".to_string(), None, gl_version, gl_debug, false, true,
-                         None, None)
-                         .map(|w| HeadlessContext(w))
+        let (builder, _) = builder.extract_non_static();
+        init::new_window(builder, None).map(|w| HeadlessContext(w))
     }
 
     /// See the docs in the crate root file.
@@ -86,11 +84,9 @@ unsafe impl Sync for Window {}
 impl Window {
     /// See the docs in the crate root file.
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        let BuilderAttribs { dimensions, title, monitor, gl_version,
-                             gl_debug, vsync, visible, sharing, multisampling, .. } = builder;
-        init::new_window(dimensions, title, monitor, gl_version, gl_debug, vsync,
-                         !visible, sharing.map(|w| init::ContextHack(w.context)),
-                         multisampling)
+        let (builder, sharing) = builder.extract_non_static();
+        let sharing = sharing.map(|w| init::ContextHack(w.context));
+        init::new_window(builder, sharing)
     }
 }
 
