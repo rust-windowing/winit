@@ -451,7 +451,7 @@ impl Window {
         }
     }
 
-    fn get_geometry(&self) -> Option<(i32, i32, u32, u32)> {
+    fn get_geometry(&self) -> Option<(i32, i32, u32, u32, u32)> {
         unsafe {
             use std::mem;
 
@@ -470,12 +470,12 @@ impl Window {
                 return None;
             }
 
-            Some((x as i32, y as i32, width as u32, height as u32))
+            Some((x as i32, y as i32, width as u32, height as u32, border as u32))
         }
     }
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
-        self.get_geometry().map(|(x, y, _, _)| (x, y))
+        self.get_geometry().map(|(x, y, _, _, _)| (x, y))
     }
 
     pub fn set_position(&self, x: i32, y: i32) {
@@ -483,11 +483,11 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        self.get_geometry().map(|(_, _, w, h)| (w, h))
+        self.get_geometry().map(|(_, _, w, h, _)| (w, h))
     }
 
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
-        unimplemented!()
+        self.get_geometry().map(|(_, _, w, h, b)| (w + b, h + b))       // TODO: is this really outside?
     }
 
     pub fn set_inner_size(&self, _x: u32, _y: u32) {
