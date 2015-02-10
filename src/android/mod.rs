@@ -74,6 +74,52 @@ unsafe impl Send for HeadlessContext {}
 #[cfg(feature = "headless")]
 unsafe impl Sync for HeadlessContext {}
 
+pub struct PollEventsIterator<'a> {
+    window: &'a Window,
+}
+
+impl<'a> Iterator for PollEventsIterator<'a> {
+    type Item = Event;
+
+    fn next(&mut self) -> Option<Event> {
+        match self.window.event_rx.try_recv() {
+            Ok(event) => {
+                Some(match event {
+                    android_glue::Event::EventDown => MouseInput(Pressed, MouseButton::Left),
+                    android_glue::Event::EventUp => MouseInput(Released, MouseButton::Left),
+                    android_glue::Event::EventMove(x, y) => MouseMoved((x as i32, y as i32)),
+                })
+            }
+            Err(_) => {
+                None
+            }
+        }
+    }
+}
+
+pub struct WaitEventsIterator<'a> {
+    window: &'a Window,
+}
+
+impl<'a> Iterator for WaitEventsIterator<'a> {
+    type Item = Event;
+
+    fn next(&mut self) -> Option<Event> {
+        use std::time::Duration;
+        use std::old_io::timer;
+
+        loop {
+            // calling poll_events()
+            if let Some(ev) = self.window.poll_events().next() {
+                return Some(ev);
+            }
+
+            // TODO: Implement a proper way of sleeping on the event queue
+            timer::sleep(Duration::milliseconds(16));
+        }
+    }
+}
+
 impl Window {
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
         use std::{mem, ptr};
@@ -242,34 +288,16 @@ impl Window {
         WindowProxy
     }
 
-    pub fn poll_events(&self) -> RingBuf<Event> {
-        let mut events = RingBuf::new();
-        loop {
-            match self.event_rx.try_recv() {
-                Ok(event) => match event {
-                    android_glue::Event::EventDown => {
-                        events.push_back(MouseInput(Pressed, MouseButton::Left));
-                    },
-                    android_glue::Event::EventUp => {
-                        events.push_back(MouseInput(Released, MouseButton::Left));
-                    },
-                    android_glue::Event::EventMove(x, y) => {
-                        events.push_back(MouseMoved((x as i32, y as i32)));
-                    },
-                },
-                Err(_) => {
-                    break;
-                },
-            }
+    pub fn poll_events(&self) -> PollEventsIterator {
+        PollEventsIterator {
+            window: self
         }
-        events
     }
 
-    pub fn wait_events(&self) -> RingBuf<Event> {
-        use std::time::Duration;
-        use std::old_io::timer;
-        timer::sleep(Duration::milliseconds(16));
-        self.poll_events()
+    pub fn wait_events(&self) -> WaitEventsIterator {
+        WaitEventsIterator {
+            window: self
+        }
     }
 
     pub fn make_current(&self) {
