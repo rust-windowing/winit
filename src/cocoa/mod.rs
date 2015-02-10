@@ -490,7 +490,7 @@ impl Window {
                             events.push_back(alt_modifier.unwrap());
                         }
                     },
-                    NSScrollWheel           => { events.push_back(MouseWheel(-event.scrollingDeltaY() as i32)); },
+                    NSScrollWheel           => { events.push_back(MouseWheel(event.scrollingDeltaY() as i32)); },
                     NSOtherMouseDown        => { },
                     NSOtherMouseUp          => { },
                     NSOtherMouseDragged     => { },
