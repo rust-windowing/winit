@@ -3,6 +3,8 @@ pub use self::headless::HeadlessContext;
 
 #[cfg(feature = "window")]
 pub use self::window::{Window, WindowProxy, MonitorID, get_available_monitors, get_primary_monitor};
+#[cfg(feature = "window")]
+pub use self::window::{WaitEventsIterator, PollEventsIterator};
 
 mod ffi;
 

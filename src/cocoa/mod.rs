@@ -25,6 +25,7 @@ use std::ptr;
 use std::collections::RingBuf;
 use std::str::FromStr;
 use std::str::from_utf8;
+use std::sync::Mutex;
 use std::ascii::AsciiExt;
 
 use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel};
@@ -164,6 +165,9 @@ pub struct Window {
     resize: Option<fn(u32, u32)>,
 
     is_closed: Cell<bool>,
+
+    /// Events that have been retreived with XLib but not dispatched with iterators yet
+    pending_events: Mutex<RingBuf<Event>>,
 }
 
 #[cfg(feature = "window")]
@@ -185,6 +189,146 @@ impl WindowProxy {
                     0.0, 0, nil, NSApplicationActivatedEventType, 0, 0);
             NSApp().postEvent_atStart_(event, YES);
             pool.drain();
+        }
+    }
+}
+
+pub struct PollEventsIterator<'a> {
+    window: &'a Window,
+}
+
+impl<'a> Iterator for PollEventsIterator<'a> {
+    type Item = Event;
+
+    fn next(&mut self) -> Option<Event> {
+        if let Some(ev) = self.window.pending_events.lock().unwrap().pop_front() {
+            return Some(ev);
+        }
+
+        unsafe {
+            let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
+                NSAnyEventMask.bits(),
+                NSDate::distantPast(nil),
+                NSDefaultRunLoopMode,
+                YES);
+            if event == nil { return None; }
+            {
+                // Create a temporary structure with state that delegates called internally
+                // by sendEvent can read and modify. When that returns, update window state.
+                // This allows the synchronous resize loop to continue issuing callbacks
+                // to the user application, by passing handler through to the delegate state.
+                let mut ds = DelegateState {
+                    is_closed: self.window.is_closed.get(),
+                    context: self.window.context,
+                    window: self.window.window,
+                    view: self.window.view,
+                    handler: self.window.resize,
+                };
+                self.window.delegate.set_state(&mut ds);
+                NSApp().sendEvent_(event);
+                self.window.delegate.set_state(ptr::null_mut());
+                self.window.is_closed.set(ds.is_closed);
+            }
+
+            let event = match msg_send()(event, selector("type")) {
+                NSLeftMouseDown         => { Some(MouseInput(Pressed, MouseButton::Left)) },
+                NSLeftMouseUp           => { Some(MouseInput(Released, MouseButton::Left)) },
+                NSRightMouseDown        => { Some(MouseInput(Pressed, MouseButton::Right)) },
+                NSRightMouseUp          => { Some(MouseInput(Released, MouseButton::Right)) },
+                NSMouseMoved            => {
+                    let window_point = event.locationInWindow();
+                    let window: id = msg_send()(event, selector("window"));
+                    let view_point = if window == 0 {
+                        let window_rect = self.window.window.convertRectFromScreen_(NSRect::new(window_point, NSSize::new(0.0, 0.0)));
+                        self.window.view.convertPoint_fromView_(window_rect.origin, nil)
+                    } else {
+                        self.window.view.convertPoint_fromView_(window_point, nil)
+                    };
+                    let view_rect = NSView::frame(self.window.view);
+                    let scale_factor = self.window.hidpi_factor();
+                    Some(MouseMoved(((scale_factor * view_point.x as f32) as i32,
+                                    (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32)))
+                },
+                NSKeyDown               => {
+                    let mut events = RingBuf::new();
+                    let received_c_str = event.characters().UTF8String();
+                    let received_str = CString::from_slice(c_str_to_bytes(&received_c_str));
+                    for received_char in from_utf8(received_str.as_bytes()).unwrap().chars() {
+                        if received_char.is_ascii() {
+                            events.push_back(ReceivedCharacter(received_char));
+                        }
+                    }
+
+                    let vkey =  event::vkeycode_to_element(NSEvent::keyCode(event));
+                    events.push_back(KeyboardInput(Pressed, NSEvent::keyCode(event) as u8, vkey));
+                    let event = events.pop_front();
+                    self.window.pending_events.lock().unwrap().extend(events.into_iter());
+                    event
+                },
+                NSKeyUp                 => {
+                    let vkey =  event::vkeycode_to_element(NSEvent::keyCode(event));
+                    Some(KeyboardInput(Released, NSEvent::keyCode(event) as u8, vkey))
+                },
+                NSFlagsChanged          => {
+                    let mut events = RingBuf::new();
+                    let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask, events::VirtualKeyCode::LShift, shift_pressed);
+                    if shift_modifier.is_some() {
+                        shift_pressed = !shift_pressed;
+                        events.push_back(shift_modifier.unwrap());
+                    }
+                    let ctrl_modifier = Window::modifier_event(event, appkit::NSControlKeyMask, events::VirtualKeyCode::LControl, ctrl_pressed);
+                    if ctrl_modifier.is_some() {
+                        ctrl_pressed = !ctrl_pressed;
+                        events.push_back(ctrl_modifier.unwrap());
+                    }
+                    let win_modifier = Window::modifier_event(event, appkit::NSCommandKeyMask, events::VirtualKeyCode::LWin, win_pressed);
+                    if win_modifier.is_some() {
+                        win_pressed = !win_pressed;
+                        events.push_back(win_modifier.unwrap());
+                    }
+                    let alt_modifier = Window::modifier_event(event, appkit::NSAlternateKeyMask, events::VirtualKeyCode::LAlt, alt_pressed);
+                    if alt_modifier.is_some() {
+                        alt_pressed = !alt_pressed;
+                        events.push_back(alt_modifier.unwrap());
+                    }
+                    let event = events.pop_front();
+                    self.window.pending_events.lock().unwrap().extend(events.into_iter());
+                    event
+                },
+                NSScrollWheel           => { Some(MouseWheel(-event.scrollingDeltaY() as i32)) },
+                _                       => { None },
+            };
+
+            event
+        }
+    }
+}
+
+pub struct WaitEventsIterator<'a> {
+    window: &'a Window,
+}
+
+impl<'a> Iterator for WaitEventsIterator<'a> {
+    type Item = Event;
+
+    fn next(&mut self) -> Option<Event> {
+        loop {
+            if let Some(ev) = self.window.pending_events.lock().unwrap().pop_front() {
+                return Some(ev);
+            }
+
+            unsafe {
+                let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
+                    NSAnyEventMask.bits(),
+                    NSDate::distantFuture(nil),
+                    NSDefaultRunLoopMode,
+                    NO);
+            }
+
+            // calling poll_events()
+            if let Some(ev) = self.window.poll_events().next() {
+                return Some(ev);
+            }
         }
     }
 }
@@ -234,6 +378,7 @@ impl Window {
             resize: None,
 
             is_closed: Cell::new(false),
+            pending_events: Mutex::new(RingBuf::new()),
         };
 
         Ok(window)
@@ -403,102 +548,16 @@ impl Window {
         WindowProxy
     }
 
-    pub fn poll_events(&self) -> RingBuf<Event> {
-        let mut events = RingBuf::new();
-
-        loop {
-            unsafe {
-                let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                    NSAnyEventMask.bits(),
-                    NSDate::distantPast(nil),
-                    NSDefaultRunLoopMode,
-                    YES);
-                if event == nil { break; }
-                {
-                    // Create a temporary structure with state that delegates called internally
-                    // by sendEvent can read and modify. When that returns, update window state.
-                    // This allows the synchronous resize loop to continue issuing callbacks
-                    // to the user application, by passing handler through to the delegate state.
-                    let mut ds = DelegateState {
-                        is_closed: self.is_closed.get(),
-                        context: self.context,
-                        window: self.window,
-                        view: self.view,
-                        handler: self.resize,
-                    };
-                    self.delegate.set_state(&mut ds);
-                    NSApp().sendEvent_(event);
-                    self.delegate.set_state(ptr::null_mut());
-                    self.is_closed.set(ds.is_closed);
-                }
-
-                match msg_send()(event, selector("type")) {
-                    NSLeftMouseDown         => { events.push_back(MouseInput(Pressed, MouseButton::Left)); },
-                    NSLeftMouseUp           => { events.push_back(MouseInput(Released, MouseButton::Left)); },
-                    NSRightMouseDown        => { events.push_back(MouseInput(Pressed, MouseButton::Right)); },
-                    NSRightMouseUp          => { events.push_back(MouseInput(Released, MouseButton::Right)); },
-                    NSMouseMoved            => {
-                        let window_point: NSPoint = msg_send()(event, selector("locationInWindow"));
-                        // let window_point = event.locationInWindow();
-                        let window: id = msg_send()(event, selector("window"));
-                        let view_point = if window == 0 {
-                            let window_rect = self.window.convertRectFromScreen_(NSRect::new(window_point, NSSize::new(0.0, 0.0)));
-                            self.view.convertPoint_fromView_(window_rect.origin, nil)
-                        } else {
-                            self.view.convertPoint_fromView_(window_point, nil)
-                        };
-                        let view_rect = NSView::frame(self.view);
-                        let scale_factor = self.hidpi_factor();
-                        events.push_back(MouseMoved(((scale_factor * view_point.x as f32) as i32,
-                                                     (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32)));
-                    },
-                    NSKeyDown               => {
-                        let received_c_str = event.characters().UTF8String();
-                        let received_str = CString::from_slice(c_str_to_bytes(&received_c_str));
-                        for received_char in from_utf8(received_str.as_bytes()).unwrap().chars() {
-                            if received_char.is_ascii() {
-                                events.push_back(ReceivedCharacter(received_char));
-                            }
-                        }
-
-                        let vkey =  event::vkeycode_to_element(NSEvent::keyCode(event));
-                        events.push_back(KeyboardInput(Pressed, NSEvent::keyCode(event) as u8, vkey));
-                    },
-                    NSKeyUp                 => {
-                        let vkey =  event::vkeycode_to_element(NSEvent::keyCode(event));
-                        events.push_back(KeyboardInput(Released, NSEvent::keyCode(event) as u8, vkey));
-                    },
-                    NSFlagsChanged          => {
-                        let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask, events::VirtualKeyCode::LShift, shift_pressed);
-                        if shift_modifier.is_some() {
-                            shift_pressed = !shift_pressed;
-                            events.push_back(shift_modifier.unwrap());
-                        }
-                        let ctrl_modifier = Window::modifier_event(event, appkit::NSControlKeyMask, events::VirtualKeyCode::LControl, ctrl_pressed);
-                        if ctrl_modifier.is_some() {
-                            ctrl_pressed = !ctrl_pressed;
-                            events.push_back(ctrl_modifier.unwrap());
-                        }
-                        let win_modifier = Window::modifier_event(event, appkit::NSCommandKeyMask, events::VirtualKeyCode::LWin, win_pressed);
-                        if win_modifier.is_some() {
-                            win_pressed = !win_pressed;
-                            events.push_back(win_modifier.unwrap());
-                        }
-                        let alt_modifier = Window::modifier_event(event, appkit::NSAlternateKeyMask, events::VirtualKeyCode::LAlt, alt_pressed);
-                        if alt_modifier.is_some() {
-                            alt_pressed = !alt_pressed;
-                            events.push_back(alt_modifier.unwrap());
-                        }
-                    },
-                    NSScrollWheel           => { events.push_back(MouseWheel(event.scrollingDeltaY() as i32)); },
-                    NSOtherMouseDown        => { },
-                    NSOtherMouseUp          => { },
-                    NSOtherMouseDragged     => { },
-                    _                       => { },
-                }
-            }
+    pub fn poll_events(&self) -> PollEventsIterator {
+        PollEventsIterator {
+            window: self
         }
-        events
+    }
+
+    pub fn wait_events(&self) -> WaitEventsIterator {
+        WaitEventsIterator {
+            window: self
+        }
     }
 
     unsafe fn modifier_event(event: id, keymask: NSEventModifierFlags, key: events::VirtualKeyCode, key_pressed: bool) -> Option<Event> {
@@ -509,19 +568,6 @@ impl Window {
         }
 
         return None;
-    }
-
-    pub fn wait_events(&self) -> RingBuf<Event> {
-        unsafe {
-            let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                NSAnyEventMask.bits(),
-                NSDate::distantFuture(nil),
-                NSDefaultRunLoopMode,
-                NO);
-            NSApp().sendEvent_(event);
-
-            self.poll_events()
-        }
     }
 
     pub unsafe fn make_current(&self) {
