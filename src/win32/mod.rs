@@ -270,7 +270,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     fn next(&mut self) -> Option<Event> {
         use events::Event::Closed;
 
-        match self.window.events_receiver.recv() {
+        match self.window.events_receiver.try_recv() {
             Ok(Closed) => {
                 use std::sync::atomic::Ordering::Relaxed;
                 self.window.is_closed.store(true, Relaxed);
