@@ -119,127 +119,127 @@ impl<'a> Iterator for PollEventsIterator<'a> {
             return Some(ev);
         }
 
-        let mut xev = unsafe { mem::uninitialized() };
-        let res = unsafe { ffi::XCheckMaskEvent(self.window.x.display, Int::max_value(), &mut xev) };
-
-        if res == 0 {
-            let res = unsafe { ffi::XCheckTypedEvent(self.window.x.display, ffi::ClientMessage, &mut xev) };
-
+        loop {
+            let mut xev = unsafe { mem::uninitialized() };
+            let res = unsafe { ffi::XCheckMaskEvent(self.window.x.display, Int::max_value(), &mut xev) };
+    
             if res == 0 {
-                return None;
+                let res = unsafe { ffi::XCheckTypedEvent(self.window.x.display, ffi::ClientMessage, &mut xev) };
+    
+                if res == 0 {
+                    return None;
+                }
             }
+    
+            match xev.type_ {
+                ffi::KeymapNotify => {
+                    unsafe { ffi::XRefreshKeyboardMapping(&xev) }
+                },
+    
+                ffi::ClientMessage => {
+                    use events::Event::{Closed, Awakened};
+                    use std::sync::atomic::Ordering::Relaxed;
+    
+                    let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
+    
+                    if client_msg.l[0] == self.window.wm_delete_window as libc::c_long {
+                        self.window.is_closed.store(true, Relaxed);
+                        return Some(Closed);
+                    } else {
+                        return Some(Awakened);
+                    }
+                },
+    
+                ffi::ConfigureNotify => {
+                    use events::Event::Resized;
+                    let cfg_event: &ffi::XConfigureEvent = unsafe { mem::transmute(&xev) };
+                    let (current_width, current_height) = self.window.current_size.get();
+                    if current_width != cfg_event.width || current_height != cfg_event.height {
+                        self.window.current_size.set((cfg_event.width, cfg_event.height));
+                        return Some(Resized(cfg_event.width as u32, cfg_event.height as u32));
+                    }
+                },
+    
+                ffi::MotionNotify => {
+                    use events::Event::MouseMoved;
+                    let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
+                    return Some(MouseMoved((event.x as i32, event.y as i32)));
+                },
+    
+                ffi::KeyPress | ffi::KeyRelease => {
+                    use events::Event::{KeyboardInput, ReceivedCharacter};
+                    use events::ElementState::{Pressed, Released};
+                    let event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
+    
+                    if event.type_ == ffi::KeyPress {
+                        let raw_ev: *mut ffi::XKeyEvent = event;
+                        unsafe { ffi::XFilterEvent(mem::transmute(raw_ev), self.window.x.window) };
+                    }
+    
+                    let state = if xev.type_ == ffi::KeyPress { Pressed } else { Released };
+    
+                    let written = unsafe {
+                        use std::str;
+    
+                        let mut buffer: [u8; 16] = [mem::uninitialized(); 16];
+                        let raw_ev: *mut ffi::XKeyEvent = event;
+                        let count = ffi::Xutf8LookupString(self.window.x.ic, mem::transmute(raw_ev),
+                            mem::transmute(buffer.as_mut_ptr()),
+                            buffer.len() as libc::c_int, ptr::null_mut(), ptr::null_mut());
+    
+                        str::from_utf8(&buffer.as_slice()[..count as usize]).unwrap_or("").to_string()
+                    };
+    
+                    {
+                        let mut pending = self.window.pending_events.lock().unwrap();
+                        for chr in written.as_slice().chars() {
+                            pending.push_back(ReceivedCharacter(chr));
+                        }
+                    }
+    
+                    let keysym = unsafe {
+                        ffi::XKeycodeToKeysym(self.window.x.display, event.keycode as ffi::KeyCode, 0)
+                    };
+    
+                    let vkey =  events::keycode_to_element(keysym as libc::c_uint);
+    
+                    return Some(KeyboardInput(state, event.keycode as u8, vkey));
+                },
+    
+                ffi::ButtonPress | ffi::ButtonRelease => {
+                    use events::Event::{MouseInput, MouseWheel};
+                    use events::ElementState::{Pressed, Released};
+                    use events::MouseButton::{Left, Right, Middle};
+    
+                    let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
+    
+                    let state = if xev.type_ == ffi::ButtonPress { Pressed } else { Released };
+    
+                    let button = match event.button {
+                        ffi::Button1 => Some(Left),
+                        ffi::Button2 => Some(Middle),
+                        ffi::Button3 => Some(Right),
+                        ffi::Button4 => {
+                            self.window.pending_events.lock().unwrap().push_back(MouseWheel(1));
+                            None
+                        }
+                        ffi::Button5 => {
+                            self.window.pending_events.lock().unwrap().push_back(MouseWheel(-1));
+                            None
+                        }
+                        _ => None
+                    };
+    
+                    match button {
+                        Some(button) =>
+                            return Some(MouseInput(state, button)),
+                        None => ()
+                    };
+                },
+    
+                _ => ()
+            };
         }
-
-        match xev.type_ {
-            ffi::KeymapNotify => {
-                unsafe { ffi::XRefreshKeyboardMapping(&xev) }
-            },
-
-            ffi::ClientMessage => {
-                use events::Event::{Closed, Awakened};
-                use std::sync::atomic::Ordering::Relaxed;
-
-                let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
-
-                if client_msg.l[0] == self.window.wm_delete_window as libc::c_long {
-                    self.window.is_closed.store(true, Relaxed);
-                    return Some(Closed);
-                } else {
-                    return Some(Awakened);
-                }
-            },
-
-            ffi::ConfigureNotify => {
-                use events::Event::Resized;
-                let cfg_event: &ffi::XConfigureEvent = unsafe { mem::transmute(&xev) };
-                let (current_width, current_height) = self.window.current_size.get();
-                if current_width != cfg_event.width || current_height != cfg_event.height {
-                    self.window.current_size.set((cfg_event.width, cfg_event.height));
-                    return Some(Resized(cfg_event.width as u32, cfg_event.height as u32));
-                }
-            },
-
-            ffi::MotionNotify => {
-                use events::Event::MouseMoved;
-                let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
-                return Some(MouseMoved((event.x as i32, event.y as i32)));
-            },
-
-            ffi::KeyPress | ffi::KeyRelease => {
-                use events::Event::{KeyboardInput, ReceivedCharacter};
-                use events::ElementState::{Pressed, Released};
-                let event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
-
-                if event.type_ == ffi::KeyPress {
-                    let raw_ev: *mut ffi::XKeyEvent = event;
-                    unsafe { ffi::XFilterEvent(mem::transmute(raw_ev), self.window.x.window) };
-                }
-
-                let state = if xev.type_ == ffi::KeyPress { Pressed } else { Released };
-
-                let written = unsafe {
-                    use std::str;
-
-                    let mut buffer: [u8; 16] = [mem::uninitialized(); 16];
-                    let raw_ev: *mut ffi::XKeyEvent = event;
-                    let count = ffi::Xutf8LookupString(self.window.x.ic, mem::transmute(raw_ev),
-                        mem::transmute(buffer.as_mut_ptr()),
-                        buffer.len() as libc::c_int, ptr::null_mut(), ptr::null_mut());
-
-                    str::from_utf8(&buffer.as_slice()[..count as usize]).unwrap_or("").to_string()
-                };
-
-                {
-                    let mut pending = self.window.pending_events.lock().unwrap();
-                    for chr in written.as_slice().chars() {
-                        pending.push_back(ReceivedCharacter(chr));
-                    }
-                }
-
-                let keysym = unsafe {
-                    ffi::XKeycodeToKeysym(self.window.x.display, event.keycode as ffi::KeyCode, 0)
-                };
-
-                let vkey =  events::keycode_to_element(keysym as libc::c_uint);
-
-                return Some(KeyboardInput(state, event.keycode as u8, vkey));
-            },
-
-            ffi::ButtonPress | ffi::ButtonRelease => {
-                use events::Event::{MouseInput, MouseWheel};
-                use events::ElementState::{Pressed, Released};
-                use events::MouseButton::{Left, Right, Middle};
-
-                let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
-
-                let state = if xev.type_ == ffi::ButtonPress { Pressed } else { Released };
-
-                let button = match event.button {
-                    ffi::Button1 => Some(Left),
-                    ffi::Button2 => Some(Middle),
-                    ffi::Button3 => Some(Right),
-                    ffi::Button4 => {
-                        self.window.pending_events.lock().unwrap().push_back(MouseWheel(1));
-                        None
-                    }
-                    ffi::Button5 => {
-                        self.window.pending_events.lock().unwrap().push_back(MouseWheel(-1));
-                        None
-                    }
-                    _ => None
-                };
-
-                match button {
-                    Some(button) =>
-                        return Some(MouseInput(state, button)),
-                    None => ()
-                };
-            },
-
-            _ => ()
-        };
-
-        return None;
     }
 }
 
