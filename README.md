@@ -6,6 +6,18 @@ Alternative to GLFW in pure Rust.
 [![Build Status](https://travis-ci.org/tomaka/glutin.png?branch=master)](https://travis-ci.org/tomaka/glutin)
 [![Build status](https://ci.appveyor.com/api/projects/status/cv5xewg3uchb3854/branch/master?svg=true)](https://ci.appveyor.com/project/tomaka/glutin/branch/master)
 
+```toml
+[dependencies]
+glutin = "*"
+```
+
+Note that the crates.io version won't compile on OS/X and Android because the required dependencies haven't been uploaded yet. Instead you can use the git version which works everywhere:
+
+```toml
+[dependencies.glutin]
+git = "https://github.com/tomaka/glutin"
+```
+
 ## [Documentation](http://tomaka.github.io/glutin/)
 
 ## Try it!
