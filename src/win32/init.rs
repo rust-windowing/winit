@@ -177,19 +177,10 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
         }
 
         // creating the dummy OpenGL context
-        let dummy_context = {
-            let ctxt = unsafe { gl::wgl::CreateContext(dummy_hdc as *const libc::c_void) };
-            if ctxt.is_null() {
-                let err = Err(OsError(format!("wglCreateContext function failed: {}",
-                    os::error_string(os::errno() as usize))));
-                unsafe { user32::DestroyWindow(dummy_window); }
-                return err;
-            }
-            ctxt
-        };
+        let dummy_context = try!(create_context(None, dummy_hdc, None));
 
         // making context current
-        unsafe { gl::wgl::MakeCurrent(dummy_hdc as *const libc::c_void, dummy_context); }
+        unsafe { gl::wgl::MakeCurrent(dummy_hdc as *const libc::c_void, dummy_context as *const libc::c_void); }
 
         // loading the extra WGL functions
         let extra_functions = gl::wgl_extra::Wgl::load_with(|addr| {
@@ -207,7 +198,7 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
         unsafe { gl::wgl::MakeCurrent(ptr::null(), ptr::null()); }
 
         // destroying the context and the window
-        unsafe { gl::wgl::DeleteContext(dummy_context); }
+        unsafe { gl::wgl::DeleteContext(dummy_context as *const libc::c_void); }
         unsafe { user32::DestroyWindow(dummy_window); }
 
         // returning the address
@@ -425,4 +416,62 @@ fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorID) -> Result<
     }
 
     Ok(())
+}
+
+fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>)>,
+                  hdc: winapi::HDC, share: Option<winapi::HGLRC>)
+                  -> Result<winapi::HGLRC, CreationError>
+{
+    let share = share.unwrap_or(ptr::null_mut());
+
+    let ctxt = if let Some((extra_functions, builder)) = extra {
+        if extra_functions.CreateContextAttribsARB.is_loaded() {
+            let mut attributes = Vec::new();
+
+            if builder.gl_version.is_some() {
+                let version = builder.gl_version.as_ref().unwrap();
+                attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
+                attributes.push(version.0 as libc::c_int);
+                attributes.push(gl::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
+                attributes.push(version.1 as libc::c_int);
+            }
+
+            if builder.gl_debug {
+                attributes.push(gl::wgl_extra::CONTEXT_FLAGS_ARB as libc::c_int);
+                attributes.push(gl::wgl_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);
+            }
+
+            attributes.push(0);
+
+            Some(unsafe {
+                extra_functions.CreateContextAttribsARB(hdc as *const libc::c_void,
+                                                        share as *const libc::c_void,
+                                                        attributes.as_slice().as_ptr())
+            })
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let ctxt = match ctxt {
+        Some(ctxt) => ctxt,
+        None => {
+            unsafe {
+                let ctxt = gl::wgl::CreateContext(hdc as *const libc::c_void);
+                if !share.is_null() {
+                    gl::wgl::ShareLists(share as *const libc::c_void, ctxt);
+                };
+                ctxt
+            }
+        }
+    };
+
+    if ctxt.is_null() {
+        return Err(OsError(format!("OpenGL context creation failed: {}",
+                           os::error_string(os::errno() as usize))));
+    }
+
+    Ok(ctxt as winapi::HGLRC)
 }
