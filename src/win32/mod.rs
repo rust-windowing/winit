@@ -15,6 +15,7 @@ use user32;
 use kernel32;
 use gdi32;
 
+mod callback;
 mod event;
 mod gl;
 mod init;
