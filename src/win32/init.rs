@@ -240,51 +240,7 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
     }
 
     // creating the OpenGL context
-    let context = {
-        use libc;
-
-        let mut attributes = Vec::new();
-
-        if builder.gl_version.is_some() {
-            let version = builder.gl_version.as_ref().unwrap();
-            attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
-            attributes.push(version.0 as libc::c_int);
-            attributes.push(gl::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
-            attributes.push(version.1 as libc::c_int);
-        }
-
-        if builder.gl_debug {
-            attributes.push(gl::wgl_extra::CONTEXT_FLAGS_ARB as libc::c_int);
-            attributes.push(gl::wgl_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);
-        }
-
-        attributes.push(0);
-
-        let ctxt = unsafe {
-            if extra_functions.CreateContextAttribsARB.is_loaded() {
-                let share = if let Some(c) = builder_sharelists { c } else { ptr::null_mut() };
-                extra_functions.CreateContextAttribsARB(hdc as *const libc::c_void,
-                                                        share as *const libc::c_void,
-                                                        attributes.as_slice().as_ptr())
-
-            } else {
-                let ctxt = gl::wgl::CreateContext(hdc as *const libc::c_void);
-                if let Some(c) = builder_sharelists {
-                    gl::wgl::ShareLists(c as *const libc::c_void, ctxt);
-                };
-                ctxt
-            }
-        };
-
-        if ctxt.is_null() {
-            let err = Err(OsError(format!("OpenGL context creation failed: {}",
-                os::error_string(os::errno() as usize))));
-            unsafe { user32::DestroyWindow(real_window); }
-            return err;
-        }
-
-        ctxt
-    };
+    let context = try!(create_context(Some((&extra_functions, &builder)), hdc, builder_sharelists));
 
     // calling SetForegroundWindow if fullscreen
     if builder.monitor.is_some() {
@@ -309,7 +265,7 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
         if lib.is_null() {
             let err = Err(OsError(format!("LoadLibrary function failed: {}",
                                           os::error_string(os::errno() as usize))));
-            unsafe { gl::wgl::DeleteContext(context); }
+            unsafe { gl::wgl::DeleteContext(context as *const libc::c_void); }
             unsafe { user32::DestroyWindow(real_window); }
             return err;
         }
@@ -319,9 +275,9 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
     // handling vsync
     if builder.vsync {
         if extra_functions.SwapIntervalEXT.is_loaded() {
-            unsafe { gl::wgl::MakeCurrent(hdc as *const libc::c_void, context) };
+            unsafe { gl::wgl::MakeCurrent(hdc as *const libc::c_void, context as *const libc::c_void) };
             if unsafe { extra_functions.SwapIntervalEXT(1) } == 0 {
-                unsafe { gl::wgl::DeleteContext(context); }
+                unsafe { gl::wgl::DeleteContext(context as *const libc::c_void); }
                 unsafe { user32::DestroyWindow(real_window); }
                 return Err(OsError(format!("wglSwapIntervalEXT failed")));
             }
@@ -336,7 +292,7 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
     Ok(Window {
         window: real_window,
         hdc: hdc as winapi::HDC,
-        context: context as winapi::HGLRC,
+        context: context,
         gl_library: gl_library,
         events_receiver: events_receiver,
         is_closed: AtomicBool::new(false),
