@@ -258,19 +258,7 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
     };
 
     // loading the opengl32 module
-    let gl_library = {
-        let name = "opengl32.dll".utf16_units().chain(Some(0).into_iter())
-            .collect::<Vec<u16>>().as_ptr();
-        let lib = unsafe { kernel32::LoadLibraryW(name) };
-        if lib.is_null() {
-            let err = Err(OsError(format!("LoadLibrary function failed: {}",
-                                          os::error_string(os::errno() as usize))));
-            unsafe { gl::wgl::DeleteContext(context as *const libc::c_void); }
-            unsafe { user32::DestroyWindow(real_window); }
-            return err;
-        }
-        lib
-    };
+    let gl_library = try!(load_opengl32_dll());
 
     // handling vsync
     if builder.vsync {
@@ -510,4 +498,18 @@ fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::HDC)
     }
 
     result
+}
+
+fn load_opengl32_dll() -> Result<winapi::HMODULE, CreationError> {
+    let name = "opengl32.dll".utf16_units().chain(Some(0).into_iter())
+                             .collect::<Vec<u16>>().as_ptr();
+
+    let lib = unsafe { kernel32::LoadLibraryW(name) };
+
+    if lib.is_null() {
+        return Err(OsError(format!("LoadLibrary function failed: {}",
+                                    os::error_string(os::errno() as usize))));
+    }
+
+    Ok(lib)
 }
