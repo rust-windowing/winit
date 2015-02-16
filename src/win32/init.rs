@@ -462,6 +462,52 @@ fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(PixelFormat, libc::c
     result
 }
 
-fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::HDC) -> Vec<PixelFormat> {
-    unimplemented!()
+fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::HDC)
+                               -> Vec<(PixelFormat, libc::c_int)>
+{
+    let get_info = |index: u32, attrib: u32| {
+        let mut value = unsafe { mem::uninitialized() };
+        unsafe { extra.GetPixelFormatAttribivARB(hdc as *const libc::c_void, index as libc::c_int,
+                                                 0, 1, [attrib as libc::c_int].as_ptr(),
+                                                 &mut value) };
+        value as u32
+    };
+
+    // getting the number of formats
+    // the `1` is ignored
+    let num = get_info(1, gl::wgl_extra::NUMBER_PIXEL_FORMATS_ARB);
+
+    let mut result = Vec::new();
+
+    for index in (0 .. num) {
+        if get_info(index, gl::wgl_extra::DRAW_TO_WINDOW_ARB) == 0 {
+            continue;
+        }
+        if get_info(index, gl::wgl_extra::SUPPORT_OPENGL_ARB) == 0 {
+            continue;
+        }
+
+        if get_info(index, gl::wgl_extra::ACCELERATION_ARB) == gl::wgl_extra::NO_ACCELERATION_ARB {
+            continue;
+        }
+
+        if get_info(index, gl::wgl_extra::PIXEL_TYPE_ARB) != gl::wgl_extra::TYPE_RGBA_ARB {
+            continue;
+        }
+
+        result.push((PixelFormat {
+            red_bits: get_info(index, gl::wgl_extra::RED_BITS_ARB) as u8,
+            green_bits: get_info(index, gl::wgl_extra::GREEN_BITS_ARB) as u8,
+            blue_bits: get_info(index, gl::wgl_extra::BLUE_BITS_ARB) as u8,
+            alpha_bits: get_info(index, gl::wgl_extra::ALPHA_BITS_ARB) as u8,
+            depth_bits: get_info(index, gl::wgl_extra::DEPTH_BITS_ARB) as u8,
+            stencil_bits: get_info(index, gl::wgl_extra::STENCIL_BITS_ARB) as u8,
+            stereoscopy: get_info(index, gl::wgl_extra::STEREO_ARB) != 0,
+            double_buffer: get_info(index, gl::wgl_extra::DOUBLE_BUFFER_ARB) != 0,
+            multisampling: None,        // FIXME: 
+            srgb: false,        // FIXME: 
+        }, index as libc::c_int));
+    }
+
+    result
 }
