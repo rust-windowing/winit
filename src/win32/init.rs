@@ -8,6 +8,7 @@ use super::MonitorID;
 use BuilderAttribs;
 use CreationError;
 use CreationError::OsError;
+use PixelFormat;
 
 use std::ffi::CString;
 use std::sync::mpsc::channel;
@@ -130,31 +131,11 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
 
         // getting the pixel format that we will use
         let pixel_format = {
-            // initializing a PIXELFORMATDESCRIPTOR that indicates what we want
+            let formats = enumerate_native_pixel_formats(dummy_hdc);
+            let (id, _) = builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a)));
+
             let mut output: winapi::PIXELFORMATDESCRIPTOR = unsafe { mem::zeroed() };
-            output.nSize = mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as winapi::WORD;
-            output.nVersion = 1;
-            output.dwFlags = winapi::PFD_DRAW_TO_WINDOW | winapi::PFD_DOUBLEBUFFER |
-                winapi::PFD_SUPPORT_OPENGL | winapi::PFD_GENERIC_ACCELERATED;
-            output.iPixelType = winapi::PFD_TYPE_RGBA;
-            output.cColorBits = 24;
-            output.cAlphaBits = 8;
-            output.cAccumBits = 0;
-            output.cDepthBits = 24;
-            output.cStencilBits = 8;
-            output.cAuxBuffers = 0;
-            output.iLayerType = winapi::PFD_MAIN_PLANE;
-
-            let pf_index = unsafe { gdi32::ChoosePixelFormat(dummy_hdc, &output) };
-
-            if pf_index == 0 {
-                let err = Err(OsError(format!("ChoosePixelFormat function failed: {}",
-                    os::error_string(os::errno() as usize))));
-                unsafe { user32::DestroyWindow(dummy_window); }
-                return err;
-            }
-
-            if unsafe { gdi32::DescribePixelFormat(dummy_hdc, pf_index,
+            if unsafe { gdi32::DescribePixelFormat(dummy_hdc, id,
                 mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as winapi::UINT, &mut output) } == 0
             {
                 let err = Err(OsError(format!("DescribePixelFormat function failed: {}",
@@ -474,4 +455,57 @@ fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>)>
     }
 
     Ok(ctxt as winapi::HGLRC)
+}
+
+fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(PixelFormat, libc::c_int)> {
+    let size_of_pxfmtdescr = mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as u32;
+    let num = unsafe { gdi32::DescribePixelFormat(hdc, 1, size_of_pxfmtdescr, ptr::null_mut()) };
+
+    let mut result = Vec::new();
+
+    for index in (0 .. num) {
+        let mut output: winapi::PIXELFORMATDESCRIPTOR = unsafe { mem::zeroed() };
+        
+        if unsafe { gdi32::DescribePixelFormat(hdc, index, size_of_pxfmtdescr,
+                                               &mut output) } == 0
+        {
+            continue;
+        }
+
+        if (output.dwFlags & winapi::PFD_DRAW_TO_WINDOW) == 0 {
+            continue;
+        }
+        if (output.dwFlags & winapi::PFD_SUPPORT_OPENGL) == 0 {
+            continue;
+        }
+
+        if (output.dwFlags & winapi::PFD_GENERIC_ACCELERATED) == 0 &&
+            (output.dwFlags & winapi::PFD_GENERIC_FORMAT) == 0
+        {
+            continue;
+        }
+
+        if output.iPixelType != winapi::PFD_TYPE_RGBA {
+            continue;
+        }
+
+        result.push((PixelFormat {
+            red_bits: output.cRedBits,
+            green_bits: output.cGreenBits,
+            blue_bits: output.cBlueBits,
+            alpha_bits: output.cAlphaBits,
+            depth_bits: output.cDepthBits,
+            stencil_bits: output.cStencilBits,
+            stereoscopy: (output.dwFlags & winapi::PFD_STEREO) != 0,
+            double_buffer: (output.dwFlags & winapi::PFD_DOUBLEBUFFER) != 0,
+            multisampling: None,
+            srgb: false,
+        }, index));
+    }
+
+    result
+}
+
+fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::HDC) -> Vec<PixelFormat> {
+    unimplemented!()
 }

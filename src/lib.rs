@@ -170,6 +170,21 @@ pub enum MouseCursor {
     RowResize,
 }
 
+/// Describes a possible format. Unused.
+#[allow(missing_docs)]
+pub struct PixelFormat {
+    pub red_bits: u8,
+    pub green_bits: u8,
+    pub blue_bits: u8,
+    pub alpha_bits: u8,
+    pub depth_bits: u8,
+    pub stencil_bits: u8,
+    pub stereoscopy: bool,
+    pub double_buffer: bool,
+    pub multisampling: Option<u16>,
+    pub srgb: bool,
+}
+
 /// Attributes
 struct BuilderAttribs<'a> {
     #[allow(dead_code)]
@@ -239,5 +254,41 @@ impl<'a> BuilderAttribs<'a> {
 
         (new_attribs, sharing)
     }
-}
 
+    fn choose_pixel_format<T, I>(&self, iter: I) -> (T, PixelFormat)
+                                 where I: Iterator<Item=(T, PixelFormat)>, T: Clone
+    {
+        let mut current_result = None;
+
+        // TODO: do this more properly
+        for (id, format) in iter {
+            if format.red_bits + format.green_bits + format.blue_bits < self.color_bits.unwrap_or(0) {
+                continue;
+            }
+
+            if format.alpha_bits < self.alpha_bits.unwrap_or(0) {
+                continue;
+            }
+
+            if format.depth_bits < self.depth_bits.unwrap_or(0) {
+                continue;
+            }
+
+            if format.stencil_bits < self.stencil_bits.unwrap_or(0) {
+                continue;
+            }
+
+            if !format.stereoscopy && self.stereoscopy {
+                continue;
+            }
+
+            if self.multisampling.is_some() && format.multisampling.is_none() {
+                continue;
+            }
+
+            current_result = Some((id, format));
+        }
+
+        current_result.expect("Could not find compliant pixel format")
+    }
+}
