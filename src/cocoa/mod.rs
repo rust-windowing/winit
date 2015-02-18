@@ -5,7 +5,9 @@ use {CreationError, Event, MouseCursor};
 use CreationError::OsError;
 use libc;
 
+use Api;
 use BuilderAttribs;
+use GlRequest;
 
 use cocoa::base::{Class, id, YES, NO, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
 use cocoa::base::{selector, msg_send, msg_send_stret, class_addMethod, class_addIvar};
@@ -453,11 +455,18 @@ impl Window {
         }
     }
 
-    fn create_context(view: id, vsync: bool, gl_version: Option<(u32, u32)>) -> Option<id> {
+    fn create_context(view: id, vsync: bool, gl_version: GlRequest) -> Option<id> {
         let profile = match gl_version {
-            None | Some((0...2, _)) | Some((3, 0)) => NSOpenGLProfileVersionLegacy as u32,
-            Some((3, 1...2)) => NSOpenGLProfileVersion3_2Core as u32,
-            Some((_, _)) => NSOpenGLProfileVersion4_1Core as u32,
+            GlRequest::Latest => NSOpenGLProfileVersion4_1Core as u32,
+            GlRequest::Specific(Api::OpenGl, (1 ... 2, _)) => NSOpenGLProfileVersionLegacy as u32,
+            GlRequest::Specific(Api::OpenGl, (3, 0)) => NSOpenGLProfileVersionLegacy as u32,
+            GlRequest::Specific(Api::OpenGl, (3, 1 ... 2)) => NSOpenGLProfileVersion3_2Core as u32,
+            GlRequest::Specific(Api::OpenGl, _) => NSOpenGLProfileVersion4_1Core as u32,
+            GlRequest::Specific(_, _) => panic!("Only the OpenGL API is supported"),    // FIXME: return Result
+            GlRequest::GlThenGles { opengl_version: (1 ... 2, _), .. } => NSOpenGLProfileVersionLegacy as u32,
+            GlRequest::GlThenGles { opengl_version: (3, 0), .. } => NSOpenGLProfileVersionLegacy as u32,
+            GlRequest::GlThenGles { opengl_version: (3, 1 ... 2), .. } => NSOpenGLProfileVersion3_2Core as u32,
+            GlRequest::GlThenGles { .. } => NSOpenGLProfileVersion4_1Core as u32,
         };
         unsafe {
             let attributes = [
