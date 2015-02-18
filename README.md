@@ -71,7 +71,8 @@ fn main() {
  - Some events are not implemented
  - Implementation is still work-in-progress
  - Vsync not implemented
- - Changing the cursor (set_cursor) is not implemented 
+ - Changing the cursor (set_cursor) is not implemented
+
 ### Win32
 
  - You must call `glFlush` before `swap_buffers`, or else on Windows 8 nothing will be visible on the window
