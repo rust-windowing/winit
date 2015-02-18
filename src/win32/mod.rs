@@ -277,8 +277,9 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 impl Drop for Window {
     fn drop(&mut self) {
         use std::ptr;
+        // we don't call MakeCurrent(0, 0) because we are not sure that the context
+        // is still the current one
         unsafe { user32::PostMessageW(self.window, winapi::WM_DESTROY, 0, 0); }
-        unsafe { gl::wgl::MakeCurrent(ptr::null(), ptr::null()); }
         unsafe { gl::wgl::DeleteContext(self.context as *const libc::c_void); }
         unsafe { user32::DestroyWindow(self.window); }
     }
