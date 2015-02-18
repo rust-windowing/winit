@@ -59,7 +59,8 @@ unsafe impl Sync for Window {}
 impl Drop for XWindow {
     fn drop(&mut self) {
         unsafe {
-            ffi::glx::MakeCurrent(self.display, 0, ptr::null());
+            // we don't call MakeCurrent(0, 0) because we are not sure that the context
+            // is still the current one
             ffi::glx::DestroyContext(self.display, self.context);
 
             if self.is_fullscreen {

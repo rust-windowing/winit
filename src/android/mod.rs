@@ -358,8 +358,9 @@ impl Drop for Window {
         use std::ptr;
 
         unsafe {
+            // we don't call MakeCurrent(0, 0) because we are not sure that the context
+            // is still the current one
             android_glue::write_log("Destroying gl-init window");
-            ffi::egl::MakeCurrent(self.display, ptr::null(), ptr::null(), ptr::null());
             ffi::egl::DestroySurface(self.display, self.surface);
             ffi::egl::DestroyContext(self.display, self.context);
             ffi::egl::Terminate(self.display);
