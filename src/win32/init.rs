@@ -5,9 +5,12 @@ use std::os;
 use super::callback;
 use super::Window;
 use super::MonitorID;
+
+use Api;
 use BuilderAttribs;
 use CreationError;
 use CreationError::OsError;
+use GlRequest;
 use PixelFormat;
 
 use std::ffi::CString;
@@ -353,12 +356,21 @@ fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>)>
         if extra_functions.CreateContextAttribsARB.is_loaded() {
             let mut attributes = Vec::new();
 
-            if builder.gl_version.is_some() {
-                let version = builder.gl_version.as_ref().unwrap();
-                attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
-                attributes.push(version.0 as libc::c_int);
-                attributes.push(gl::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
-                attributes.push(version.1 as libc::c_int);
+            match builder.gl_version {
+                GlRequest::Latest => {},
+                GlRequest::Specific(Api::OpenGl, (major, minor)) => {
+                    attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
+                    attributes.push(major as libc::c_int);
+                    attributes.push(gl::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
+                    attributes.push(minor as libc::c_int);
+                },
+                GlRequest::Specific(_, _) => panic!("Only OpenGL is supported"),
+                GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
+                    attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
+                    attributes.push(major as libc::c_int);
+                    attributes.push(gl::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
+                    attributes.push(minor as libc::c_int);
+                },
             }
 
             if builder.gl_debug {

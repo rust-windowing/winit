@@ -10,6 +10,9 @@ use super::ffi;
 use std::sync::{Arc, Mutex, Once, ONCE_INIT, Weak};
 use std::sync::{StaticMutex, MUTEX_INIT};
 
+use Api;
+use GlRequest;
+
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
 mod events;
@@ -483,12 +486,21 @@ impl Window {
         let (context, extra_functions) = unsafe {
             let mut attributes = Vec::new();
 
-            if builder.gl_version.is_some() {
-                let version = builder.gl_version.as_ref().unwrap();
-                attributes.push(ffi::GLX_CONTEXT_MAJOR_VERSION);
-                attributes.push(version.0 as libc::c_int);
-                attributes.push(ffi::GLX_CONTEXT_MINOR_VERSION);
-                attributes.push(version.1 as libc::c_int);
+            match builder.gl_version {
+                GlRequest::Latest => {},
+                GlRequest::Specific(Api::OpenGl, (major, minor)) => {
+                    attributes.push(ffi::GLX_CONTEXT_MAJOR_VERSION);
+                    attributes.push(major as libc::c_int);
+                    attributes.push(ffi::GLX_CONTEXT_MINOR_VERSION);
+                    attributes.push(minor as libc::c_int);
+                },
+                GlRequest::Specific(_, _) => panic!("Only OpenGL is supported"),
+                GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
+                    attributes.push(ffi::GLX_CONTEXT_MAJOR_VERSION);
+                    attributes.push(major as libc::c_int);
+                    attributes.push(ffi::GLX_CONTEXT_MINOR_VERSION);
+                    attributes.push(minor as libc::c_int);
+                },
             }
 
             if builder.gl_debug {

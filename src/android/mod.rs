@@ -11,7 +11,9 @@ use events::MouseButton;
 
 use std::collections::RingBuf;
 
+use Api;
 use BuilderAttribs;
+use GlRequest;
 
 pub struct Window {
     display: ffi::egl::types::EGLDisplay,
@@ -157,7 +159,10 @@ impl Window {
         android_glue::write_log("eglInitialize succeeded");
 
         let use_gles2 = match builder.gl_version {
-            Some((2, 0)) => true,
+            GlRequest::Specific(Api::OpenGlEs, (2, _)) => true,
+            GlRequest::Specific(Api::OpenGlEs, _) => false,
+            GlRequest::Specific(_, _) => panic!("Only OpenGL ES is supported"),     // FIXME: return a result
+            GlRequest::GlThenGles { opengles_version: (2, _), .. } => true,
             _ => false,
         };
 

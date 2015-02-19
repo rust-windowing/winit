@@ -5,6 +5,7 @@ use Api;
 use BuilderAttribs;
 use CreationError;
 use Event;
+use GlRequest;
 use MouseCursor;
 
 use gl_common;
@@ -56,12 +57,16 @@ impl<'a> WindowBuilder<'a> {
         self
     }
 
-    /// Requests to use a specific OpenGL version.
-    ///
-    /// Version is a (major, minor) pair. For example to request OpenGL 3.3
-    ///  you would pass `(3, 3)`.
+    /// THIS FUNCTION IS DEPRECATED
+    #[deprecated = "Use with_gl instead"]
     pub fn with_gl_version(mut self, version: (u32, u32)) -> WindowBuilder<'a> {
-        self.attribs.gl_version = Some(version);
+        self.attribs.gl_version = GlRequest::Specific(::Api::OpenGl, (version.0 as u8, version.1 as u8));
+        self
+    }
+
+    /// Sets how the backend should choose the OpenGL API and version.
+    pub fn with_gl(mut self, request: GlRequest) -> WindowBuilder<'a> {
+        self.attribs.gl_version = request;
         self
     }
 
