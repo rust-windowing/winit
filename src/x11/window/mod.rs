@@ -719,6 +719,10 @@ impl Window {
         self.x.display as *mut libc::c_void
     }
 
+    pub fn platform_window(&self) -> *mut libc::c_void {
+        unimplemented!()
+    }
+
     /// See the docs in the crate root file.
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGl
