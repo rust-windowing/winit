@@ -357,6 +357,14 @@ impl Window {
         self.window.platform_display()
     }
 
+    /// Gets the native platform specific window handle. This is
+    /// typically only required when integrating with other libraries
+    /// that need this information.
+    #[inline]
+    pub unsafe fn platform_window(&self) -> *mut libc::c_void {
+        self.window.platform_window()
+    }
+
     /// Returns the API that is currently provided by this window.
     ///
     /// - On Windows and OS/X, this always returns `OpenGl`.

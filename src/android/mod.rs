@@ -329,6 +329,10 @@ impl Window {
         self.display as *mut libc::c_void
     }
 
+    pub fn platform_window(&self) -> *mut libc::c_void {
+        unimplemented!()
+    }
+
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGlEs
     }
