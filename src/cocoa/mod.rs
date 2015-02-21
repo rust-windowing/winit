@@ -24,7 +24,7 @@ use std::cell::Cell;
 use std::ffi::{CString, c_str_to_bytes};
 use std::mem;
 use std::ptr;
-use std::collections::RingBuf;
+use std::collections::VecDeque;
 use std::str::FromStr;
 use std::str::from_utf8;
 use std::sync::Mutex;
@@ -48,7 +48,7 @@ static mut ctrl_pressed: bool = false;
 static mut win_pressed: bool = false;
 static mut alt_pressed: bool = false;
 
-struct DelegateState<'a> {
+struct DelegateState {
     is_closed: bool,
     context: id,
     view: id,
@@ -169,7 +169,7 @@ pub struct Window {
     is_closed: Cell<bool>,
 
     /// Events that have been retreived with XLib but not dispatched with iterators yet
-    pending_events: Mutex<RingBuf<Event>>,
+    pending_events: Mutex<VecDeque<Event>>,
 }
 
 #[cfg(feature = "window")]
@@ -252,7 +252,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                                     (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32)))
                 },
                 NSKeyDown               => {
-                    let mut events = RingBuf::new();
+                    let mut events = VecDeque::new();
                     let received_c_str = event.characters().UTF8String();
                     let received_str = CString::from_slice(c_str_to_bytes(&received_c_str));
                     for received_char in from_utf8(received_str.as_bytes()).unwrap().chars() {
@@ -272,7 +272,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     Some(KeyboardInput(Released, NSEvent::keyCode(event) as u8, vkey))
                 },
                 NSFlagsChanged          => {
-                    let mut events = RingBuf::new();
+                    let mut events = VecDeque::new();
                     let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask, events::VirtualKeyCode::LShift, shift_pressed);
                     if shift_modifier.is_some() {
                         shift_pressed = !shift_pressed;
@@ -380,7 +380,7 @@ impl Window {
             resize: None,
 
             is_closed: Cell::new(false),
-            pending_events: Mutex::new(RingBuf::new()),
+            pending_events: Mutex::new(VecDeque::new()),
         };
 
         Ok(window)

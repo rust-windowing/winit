@@ -1,10 +1,10 @@
 use core_graphics::display;
-use std::collections::RingBuf;
+use std::collections::VecDeque;
 
 pub struct MonitorID(u32);
 
-pub fn get_available_monitors() -> RingBuf<MonitorID> {
-    let mut monitors = RingBuf::new();
+pub fn get_available_monitors() -> VecDeque<MonitorID> {
+    let mut monitors = VecDeque::new();
     unsafe {
         let max_displays = 10u32;
         let mut active_displays = [0u32; 10];
@@ -12,7 +12,7 @@ pub fn get_available_monitors() -> RingBuf<MonitorID> {
         display::CGGetActiveDisplayList(max_displays,
                                                         &mut active_displays[0],
                                                         &mut display_count);
-        for i in range(0us, display_count as usize) {
+        for i in range(0, display_count as usize) {
             monitors.push_back(MonitorID(active_displays[i]));
         }
     }
