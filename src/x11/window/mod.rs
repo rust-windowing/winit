@@ -5,7 +5,7 @@ use libc;
 use std::{mem, ptr};
 use std::cell::Cell;
 use std::sync::atomic::AtomicBool;
-use std::collections::RingBuf;
+use std::collections::VecDeque;
 use super::ffi;
 use std::sync::{Arc, Mutex, Once, ONCE_INIT, Weak};
 use std::sync::{StaticMutex, MUTEX_INIT};
@@ -39,7 +39,7 @@ fn ensure_thread_init() {
 fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> T {
     use std::ffi::CString;
     let c_str = CString::from_slice(s.as_bytes());
-    f(c_str.as_slice_with_nul().as_ptr())
+    f(c_str.as_ptr())
 }
 
 struct XWindow {
@@ -281,7 +281,7 @@ pub struct Window {
     wm_delete_window: ffi::Atom,
     current_size: Cell<(libc::c_int, libc::c_int)>,
     /// Events that have been retreived with XLib but not dispatched with iterators yet
-    pending_events: Mutex<RingBuf<Event>>,
+    pending_events: Mutex<VecDeque<Event>>,
 }
 
 impl Window {
@@ -600,7 +600,7 @@ impl Window {
             is_closed: AtomicBool::new(false),
             wm_delete_window: wm_delete_window,
             current_size: Cell::new((0, 0)),
-            pending_events: Mutex::new(RingBuf::new()),
+            pending_events: Mutex::new(VecDeque::new()),
         };
 
         // returning

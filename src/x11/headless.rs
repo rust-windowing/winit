@@ -8,7 +8,7 @@ use super::ffi;
 fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> T {
     use std::ffi::CString;
     let c_str = CString::from_slice(s.as_bytes());
-    f(c_str.as_slice_with_nul().as_ptr())    
+    f(c_str.as_ptr())    
 }
 
 pub struct HeadlessContext {

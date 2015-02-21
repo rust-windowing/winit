@@ -1,4 +1,4 @@
-use std::collections::ring_buf::IntoIter as RingBufIter;
+use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::default::Default;
 
 use Api;
@@ -452,7 +452,7 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
 pub struct AvailableMonitorsIter {
-    data: RingBufIter<winimpl::MonitorID>,
+    data: VecDequeIter<winimpl::MonitorID>,
 }
 
 impl Iterator for AvailableMonitorsIter {

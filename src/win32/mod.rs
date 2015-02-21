@@ -1,7 +1,7 @@
 use std::sync::atomic::AtomicBool;
 use std::ptr;
 use std::ffi::CString;
-use std::collections::RingBuf;
+use std::collections::VecDeque;
 use std::sync::mpsc::Receiver;
 use libc;
 use {CreationError, Event, MouseCursor};
@@ -192,7 +192,7 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         let addr = CString::from_slice(addr.as_bytes());
-        let addr = addr.as_slice_with_nul().as_ptr();
+        let addr = addr.as_ptr();
 
         unsafe {
             let p = gl::wgl::GetProcAddress(addr) as *const ();
