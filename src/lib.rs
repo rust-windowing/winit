@@ -84,9 +84,9 @@ pub enum CreationError {
 
 impl CreationError {
     fn to_string(&self) -> &str {
-        match self {
-            &CreationError::OsError(ref text) => text.as_slice(),
-            &CreationError::NotSupported => "Some of the requested attributes are not supported",
+        match *self {
+            CreationError::OsError(ref text) => text.as_slice(),
+            CreationError::NotSupported => "Some of the requested attributes are not supported",
         }
     }
 }
