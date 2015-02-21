@@ -1,7 +1,7 @@
 use winapi;
 use user32;
 
-use std::collections::RingBuf;
+use std::collections::VecDeque;
 
 /// Win32 implementation of the main `MonitorID` object.
 pub struct MonitorID {
@@ -25,11 +25,11 @@ pub struct MonitorID {
 }
 
 /// Win32 implementation of the main `get_available_monitors` function.
-pub fn get_available_monitors() -> RingBuf<MonitorID> {
+pub fn get_available_monitors() -> VecDeque<MonitorID> {
     use std::{iter, mem, ptr};
 
     // return value
-    let mut result = RingBuf::new();
+    let mut result = VecDeque::new();
 
     // enumerating the devices is done by querying device 0, then device 1, then device 2, etc.
     //  until the query function returns null

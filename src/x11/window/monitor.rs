@@ -1,11 +1,11 @@
 use std::ptr;
-use std::collections::RingBuf;
+use std::collections::VecDeque;
 use super::super::ffi;
 use super::ensure_thread_init;
 
 pub struct MonitorID(pub u32);
 
-pub fn get_available_monitors() -> RingBuf<MonitorID> {
+pub fn get_available_monitors() -> VecDeque<MonitorID> {
     ensure_thread_init();
     let nb_monitors = unsafe {
         let display = ffi::XOpenDisplay(ptr::null());
@@ -17,7 +17,7 @@ pub fn get_available_monitors() -> RingBuf<MonitorID> {
         nb_monitors
     };
 
-    let mut monitors = RingBuf::new();
+    let mut monitors = VecDeque::new();
     monitors.extend(range(0, nb_monitors).map(|i| MonitorID(i as u32)));
     monitors
 }

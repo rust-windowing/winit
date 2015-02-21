@@ -9,7 +9,7 @@ use events::ElementState::{Pressed, Released};
 use events::Event::{MouseInput, MouseMoved};
 use events::MouseButton;
 
-use std::collections::RingBuf;
+use std::collections::VecDeque;
 
 use Api;
 use BuilderAttribs;
@@ -26,8 +26,8 @@ pub struct MonitorID;
 
 mod ffi;
 
-pub fn get_available_monitors() -> RingBuf <MonitorID> {
-    let mut rb = RingBuf::new();
+pub fn get_available_monitors() -> VecDeque <MonitorID> {
+    let mut rb = VecDeque::new();
     rb.push_back(MonitorID);
     rb
 }
@@ -313,7 +313,7 @@ impl Window {
 
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         let addr = CString::from_slice(addr.as_bytes());
-        let addr = addr.as_slice_with_nul().as_ptr();
+        let addr = addr.as_bytes_with_nul().as_ptr();
         unsafe {
             ffi::egl::GetProcAddress(addr) as *const ()
         }
