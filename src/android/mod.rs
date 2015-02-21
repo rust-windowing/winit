@@ -313,7 +313,7 @@ impl Window {
 
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         let addr = CString::from_slice(addr.as_bytes());
-        let addr = addr.as_bytes_with_nul().as_ptr();
+        let addr = addr.as_ptr();
         unsafe {
             ffi::egl::GetProcAddress(addr) as *const ()
         }

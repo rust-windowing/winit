@@ -171,7 +171,7 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
             use libc;
 
             let addr = CString::from_slice(addr.as_bytes());
-            let addr = addr.as_bytes_with_nul().as_ptr();
+            let addr = addr.as_ptr();
 
             unsafe {
                 gl::wgl::GetProcAddress(addr) as *const libc::c_void
