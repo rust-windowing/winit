@@ -1,4 +1,4 @@
-#![feature(unsafe_destructor)]
+#![feature(unsafe_destructor,core,std_misc)]
 #![unstable]
 #![allow(unstable)]
 

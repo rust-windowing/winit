@@ -1,4 +1,5 @@
 #![allow(unstable)]
+#![feature(old_io,old_path,os)]
 extern crate gl_generator;
 extern crate khronos_api;
 
