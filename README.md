@@ -35,6 +35,7 @@ Glutin is an OpenGL context creation library and doesn't directly provide OpenGL
 ```toml
 [dependencies]
 gl = "*"
+libc = "*"
 ```
 
 ```rust
