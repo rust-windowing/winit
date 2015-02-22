@@ -30,6 +30,13 @@ cargo run --example window
 
 ## Usage
 
+Glutin is an OpenGL context creation library and doesn't directly provide OpenGL bindings for you.
+
+```toml
+[dependencies]
+gl = "*"
+```
+
 ```rust
 extern crate glutin;
 extern crate libc;
@@ -40,14 +47,16 @@ fn main() {
 
     unsafe { window.make_current() };
 
-    gl::load_with(|symbol| window.get_proc_address(symbol));
+    unsafe {
+        gl::load_with(|symbol| window.get_proc_address(symbol));
 
-    gl::ClearColor(0.0, 1.0, 0.0, 1.0);
+        gl::ClearColor(0.0, 1.0, 0.0, 1.0);
+    }
 
     while !window.is_closed() {
         window.wait_events();
 
-        gl::Clear(gl::COLOR_BUFFER_BIT);
+        unsafe { gl::Clear(gl::COLOR_BUFFER_BIT) };
 
         window.swap_buffers();
     }
