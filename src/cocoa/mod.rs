@@ -237,7 +237,10 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 NSLeftMouseUp           => { Some(MouseInput(Released, MouseButton::Left)) },
                 NSRightMouseDown        => { Some(MouseInput(Pressed, MouseButton::Right)) },
                 NSRightMouseUp          => { Some(MouseInput(Released, MouseButton::Right)) },
-                NSMouseMoved            => {
+                NSMouseMoved            |
+                NSLeftMouseDragged      |
+                NSOtherMouseDragged     |
+                NSRightMouseDragged     => {
                     let window_point = event.locationInWindow();
                     let window: id = msg_send()(event, selector("window"));
                     let view_point = if window == 0 {
