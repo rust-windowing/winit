@@ -21,7 +21,7 @@ use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
 use std::cell::Cell;
-use std::ffi::{CString, c_str_to_bytes};
+use std::ffi::{CString, CStr};
 use std::mem;
 use std::ptr;
 use std::collections::VecDeque;
@@ -115,15 +115,15 @@ impl WindowDelegate {
                     class_addMethod(delegate_class,
                                     selector("windowShouldClose:"),
                                     window_should_close,
-                                    CString::from_slice("B@:@".as_bytes()).as_ptr());
+                                    CString::new("B@:@").unwrap().as_ptr());
                     class_addMethod(delegate_class,
                                     selector("windowDidResize:"),
                                     window_did_resize,
-                                    CString::from_slice("V@:@".as_bytes()).as_ptr());
+                                    CString::new("V@:@").unwrap().as_ptr());
                     // Store internal state as user data
                     class_addIvar(delegate_class, WindowDelegate::state_ivar_name().as_ptr() as *const i8,
                                   ptr_size as u64, 3,
-                                  CString::from_slice("?".as_bytes()).as_ptr());
+                                  CString::new("?").unwrap().as_ptr());
                     objc_registerClassPair(delegate_class);
                 // Free class at exit
                 rt::at_exit(|| {
@@ -257,8 +257,8 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 NSKeyDown               => {
                     let mut events = VecDeque::new();
                     let received_c_str = event.characters().UTF8String();
-                    let received_str = CString::from_slice(c_str_to_bytes(&received_c_str));
-                    for received_char in from_utf8(received_str.as_bytes()).unwrap().chars() {
+                    let received_str = CStr::from_ptr(received_c_str);
+                    for received_char in from_utf8(received_str.to_bytes()).unwrap().chars() {
                         if received_char.is_ascii() {
                             events.push_back(ReceivedCharacter(received_char));
                         }
