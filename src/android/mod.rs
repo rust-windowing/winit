@@ -86,11 +86,12 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     fn next(&mut self) -> Option<Event> {
         match self.window.event_rx.try_recv() {
             Ok(event) => {
-                Some(match event {
-                    android_glue::Event::EventDown => MouseInput(Pressed, MouseButton::Left),
-                    android_glue::Event::EventUp => MouseInput(Released, MouseButton::Left),
-                    android_glue::Event::EventMove(x, y) => MouseMoved((x as i32, y as i32)),
-                })
+                match event {
+                    android_glue::Event::EventDown => Some(MouseInput(Pressed, MouseButton::Left)),
+                    android_glue::Event::EventUp => Some(MouseInput(Released, MouseButton::Left)),
+                    android_glue::Event::EventMove(x, y) => Some(MouseMoved((x as i32, y as i32))),
+                    _ => None,
+                }
             }
             Err(_) => {
                 None
