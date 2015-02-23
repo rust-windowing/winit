@@ -28,13 +28,9 @@ impl HeadlessContext {
         let (width, height) = builder.dimensions.unwrap_or((1024, 768));
         let context = unsafe {
             let attributes = [
+                NSOpenGLPFAAccelerated as u32,
+                NSOpenGLPFAAllowOfflineRenderers as u32,
                 NSOpenGLPFADoubleBuffer as u32,
-                NSOpenGLPFAClosestPolicy as u32,
-                NSOpenGLPFAColorSize as u32, 24,
-                NSOpenGLPFAAlphaSize as u32, 8,
-                NSOpenGLPFADepthSize as u32, 24,
-                NSOpenGLPFAStencilSize as u32, 8,
-                NSOpenGLPFAOffScreen as u32,
                 0
             ];
 
