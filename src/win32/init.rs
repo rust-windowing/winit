@@ -297,7 +297,7 @@ fn register_window_class() -> Vec<u16> {
     let class = winapi::WNDCLASSEXW {
         cbSize: mem::size_of::<winapi::WNDCLASSEXW>() as winapi::UINT,
         style: winapi::CS_HREDRAW | winapi::CS_VREDRAW | winapi::CS_OWNDC,
-        lpfnWndProc: callback::callback,
+        lpfnWndProc: Some(callback::callback),
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: unsafe { kernel32::GetModuleHandleW(ptr::null()) },
