@@ -397,7 +397,7 @@ fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>)>
         None => {
             unsafe {
                 let ctxt = gl::wgl::CreateContext(hdc as *const libc::c_void);
-                if !share.is_null() {
+                if !ctxt.is_null() && !share.is_null() {
                     gl::wgl::ShareLists(share as *const libc::c_void, ctxt);
                 };
                 ctxt
