@@ -620,7 +620,39 @@ impl Window {
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
-        unimplemented!()
+        let cursor_name = match cursor {                
+            MouseCursor::Arrow => "arrowCursor",
+            MouseCursor::Text => "IBeamCursor",
+            MouseCursor::ContextMenu => "contextualMenuCursor",
+            MouseCursor::Copy => "dragCopyCursor",
+            MouseCursor::Crosshair => "crosshairCursor",
+            MouseCursor::Default => "arrowCursor",
+            MouseCursor::Grabbing => "openHandCursor",
+            MouseCursor::Hand | MouseCursor::Grab => "pointingHandCursor",
+            MouseCursor::NoDrop => "operationNotAllowedCursor",
+            MouseCursor::NotAllowed => "operationNotAllowedCursor",
+            MouseCursor::Alias => "dragLinkCursor",
+            
+            
+            /// Resize cursors
+            MouseCursor::EResize | MouseCursor::NResize |
+            MouseCursor::NeResize | MouseCursor::NwResize |
+            MouseCursor::SResize | MouseCursor::SeResize |
+            MouseCursor::SwResize | MouseCursor::WResize |
+            MouseCursor::EwResize | MouseCursor::ColResize |
+            MouseCursor::NsResize | MouseCursor::RowResize |
+            MouseCursor::NwseResize | MouseCursor::NeswResize => "arrowCursor",
+
+            /// TODO: Find appropriate OSX cursors
+             MouseCursor::Cell | MouseCursor::VerticalText | MouseCursor::NoneCursor |
+            MouseCursor::Wait | MouseCursor::Progress | MouseCursor::Help |
+            MouseCursor::Move | MouseCursor::AllScroll | MouseCursor::ZoomIn |
+            MouseCursor::ZoomOut => "arrowCursor",
+        };
+        unsafe {
+            let cursor : id = msg_send()(class("NSCursor"), selector(cursor_name));
+            let _ : id = msg_send()(cursor, selector("set"));
+        }
     }
 
     pub fn hidpi_factor(&self) -> f32 {
