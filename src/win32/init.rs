@@ -2,9 +2,14 @@ use std::sync::atomic::AtomicBool;
 use std::ptr;
 use std::mem;
 use std::os;
+use std::thread;
+
 use super::callback;
 use super::Window;
 use super::MonitorID;
+use super::ContextWrapper;
+use super::WindowWrapper;
+use super::make_current_guard::CurrentContextGuard;
 
 use Api;
 use BuilderAttribs;
@@ -32,42 +37,43 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<C
 {
     // initializing variables to be sent to the task
     let title = builder.title.as_slice().utf16_units()
-        .chain(Some(0).into_iter()).collect::<Vec<u16>>();    // title to utf16
-    //let hints = hints.clone();
+                       .chain(Some(0).into_iter()).collect::<Vec<u16>>();    // title to utf16
+
     let (tx, rx) = channel();
 
-    // GetMessage must be called in the same thread as CreateWindow,
-    //  so we create a new thread dedicated to this window.
-    // This is the only safe method. Using `nosend` wouldn't work for non-native runtime.
-    ::std::thread::Thread::spawn(move || {
-        // sending
-        match init(title, builder, builder_sharelists) {
-            Ok(w) => tx.send(Ok(w)).ok(),
-            Err(e) => {
-                tx.send(Err(e)).ok();
-                return;
+    // `GetMessage` must be called in the same thread as CreateWindow, so we create a new thread
+    // dedicated to this window.
+    thread::spawn(move || {
+        unsafe {
+            // creating and sending the `Window`
+            match init(title, builder, builder_sharelists) {
+                Ok(w) => tx.send(Ok(w)).ok(),
+                Err(e) => {
+                    tx.send(Err(e)).ok();
+                    return;
+                }
+            };
+
+            // now that the `Window` struct is initialized, the main `Window::new()` function will
+            //  return and this events loop will run in parallel
+            loop {
+                let mut msg = mem::uninitialized();
+
+                if user32::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
+                    break;
+                }
+
+                user32::TranslateMessage(&msg);
+                user32::DispatchMessageW(&msg);   // calls `callback` (see the callback module)
             }
-        };
-
-        // now that the `Window` struct is initialized, the main `Window::new()` function will
-        //  return and this events loop will run in parallel
-        loop {
-            let mut msg = unsafe { mem::uninitialized() };
-
-            if unsafe { user32::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) } == 0 {
-                break;
-            }
-
-            unsafe { user32::TranslateMessage(&msg) };
-            unsafe { user32::DispatchMessageW(&msg) };     // calls `callback` (see below)
         }
     });
 
     rx.recv().unwrap()
 }
 
-fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: Option<ContextHack>)
-        -> Result<Window, CreationError>
+unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
+               builder_sharelists: Option<ContextHack>) -> Result<Window, CreationError>
 {
     let builder_sharelists = builder_sharelists.map(|s| s.0);
 
@@ -85,7 +91,7 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
     //  and change the monitor's resolution if necessary
     if builder.monitor.is_some() {
         let monitor = builder.monitor.as_ref().unwrap();
-        switch_to_fullscreen(&mut rect, monitor);
+        try!(switch_to_fullscreen(&mut rect, monitor));
     }
 
     // computing the style and extended style of the window
@@ -97,12 +103,13 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
     };
 
     // adjusting the window coordinates using the style
-    unsafe { user32::AdjustWindowRectEx(&mut rect, style, 0, ex_style) };
+    user32::AdjustWindowRectEx(&mut rect, style, 0, ex_style);
 
-    // getting the address of wglCreateContextAttribsARB
+    // the first step is to create a dummy window and a dummy context which we will use
+    // to load the pointers to some functions in the OpenGL driver in `extra_functions`
     let extra_functions = {
-        // creating a dummy invisible window for GL initialization
-        let dummy_window = unsafe {
+        // creating a dummy invisible window
+        let dummy_window = {
             let handle = user32::CreateWindowExW(ex_style, class_name.as_ptr(),
                 title.as_ptr() as winapi::LPCWSTR,
                 style | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN,
@@ -113,62 +120,44 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
 
             if handle.is_null() {
                 return Err(OsError(format!("CreateWindowEx function failed: {}",
-                    os::error_string(os::errno()))));
+                                           os::error_string(os::errno()))));
             }
 
-            handle
-        };
-
-        // getting the HDC of the dummy window
-        let dummy_hdc = {
-            let hdc = unsafe { user32::GetDC(dummy_window) };
+            let hdc = user32::GetDC(handle);
             if hdc.is_null() {
                 let err = Err(OsError(format!("GetDC function failed: {}",
-                    os::error_string(os::errno()))));
-                unsafe { user32::DestroyWindow(dummy_window); }
+                                              os::error_string(os::errno()))));
                 return err;
             }
-            hdc
+
+            WindowWrapper(handle, hdc)
         };
 
         // getting the pixel format that we will use and setting it
         {
-            let formats = enumerate_native_pixel_formats(dummy_hdc);
+            let formats = enumerate_native_pixel_formats(&dummy_window);
             let (id, _) = builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a)));
-            try!(set_pixel_format(dummy_hdc, id));
+            try!(set_pixel_format(&dummy_window, id));
         }
 
-        // creating the dummy OpenGL context
-        let dummy_context = try!(create_context(None, dummy_hdc, None));
-
-        // making context current
-        unsafe { gl::wgl::MakeCurrent(dummy_hdc as *const libc::c_void, dummy_context as *const libc::c_void); }
+        // creating the dummy OpenGL context and making it current
+        let dummy_context = try!(create_context(None, &dummy_window, None));
+        let current_context = try!(CurrentContextGuard::make_current(&dummy_window,
+                                                                     &dummy_context));
 
         // loading the extra WGL functions
-        let extra_functions = gl::wgl_extra::Wgl::load_with(|addr| {
+        gl::wgl_extra::Wgl::load_with(|addr| {
             use libc;
 
-            let addr = CString::from_slice(addr.as_bytes());
+            let addr = CString::new(addr.as_bytes()).unwrap();
             let addr = addr.as_ptr();
 
-            unsafe {
-                gl::wgl::GetProcAddress(addr) as *const libc::c_void
-            }
-        });
-
-        // removing current context
-        unsafe { gl::wgl::MakeCurrent(ptr::null(), ptr::null()); }
-
-        // destroying the context and the window
-        unsafe { gl::wgl::DeleteContext(dummy_context as *const libc::c_void); }
-        unsafe { user32::DestroyWindow(dummy_window); }
-
-        // returning the address
-        extra_functions
+            gl::wgl::GetProcAddress(addr) as *const libc::c_void
+        })
     };
 
-    // creating the real window this time
-    let real_window = unsafe {
+    // creating the real window this time, by using the functions in `extra_functions`
+    let real_window = {
         let (width, height) = if builder.monitor.is_some() || builder.dimensions.is_some() {
             (Some(rect.right - rect.left), Some(rect.bottom - rect.top))
         } else {
@@ -192,50 +181,45 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
 
         if handle.is_null() {
             return Err(OsError(format!("CreateWindowEx function failed: {}",
-                os::error_string(os::errno()))));
+                                       os::error_string(os::errno()))));
         }
 
-        handle
-    };
-
-    // getting the HDC of the window
-    let hdc = {
-        let hdc = unsafe { user32::GetDC(real_window) };
+        let hdc = user32::GetDC(handle);
         if hdc.is_null() {
-            let err = Err(OsError(format!("GetDC function failed: {}",
-                os::error_string(os::errno()))));
-            unsafe { user32::DestroyWindow(real_window); }
-            return err;
+            return Err(OsError(format!("GetDC function failed: {}",
+                                       os::error_string(os::errno()))));
         }
-        hdc
+
+        WindowWrapper(handle, hdc)
     };
 
     // calling SetPixelFormat
     {
         let formats = if extra_functions.GetPixelFormatAttribivARB.is_loaded() {
-            enumerate_arb_pixel_formats(&extra_functions, hdc)
+            enumerate_arb_pixel_formats(&extra_functions, &real_window)
         } else {
-            enumerate_native_pixel_formats(hdc)
+            enumerate_native_pixel_formats(&real_window)
         };
 
         let (id, _) = builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a)));
-        try!(set_pixel_format(hdc, id));
+        try!(set_pixel_format(&real_window, id));
     }
 
     // creating the OpenGL context
-    let context = try!(create_context(Some((&extra_functions, &builder)), hdc, builder_sharelists));
+    let context = try!(create_context(Some((&extra_functions, &builder)), &real_window,
+                                      builder_sharelists));
 
     // calling SetForegroundWindow if fullscreen
     if builder.monitor.is_some() {
-        unsafe { user32::SetForegroundWindow(real_window) };
+        user32::SetForegroundWindow(real_window.0);
     }
 
-    // filling the WINDOW task-local storage
+    // filling the WINDOW task-local storage so that we can start receiving events
     let events_receiver = {
         let (tx, rx) = channel();
         let mut tx = Some(tx);
         callback::WINDOW.with(|window| {
-            (*window.borrow_mut()) = Some((real_window, tx.take().unwrap()));
+            (*window.borrow_mut()) = Some((real_window.0, tx.take().unwrap()));
         });
         rx
     };
@@ -246,23 +230,17 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
     // handling vsync
     if builder.vsync {
         if extra_functions.SwapIntervalEXT.is_loaded() {
-            unsafe { gl::wgl::MakeCurrent(hdc as *const libc::c_void, context as *const libc::c_void) };
-            if unsafe { extra_functions.SwapIntervalEXT(1) } == 0 {
-                unsafe { gl::wgl::DeleteContext(context as *const libc::c_void); }
-                unsafe { user32::DestroyWindow(real_window); }
+            let guard = try!(CurrentContextGuard::make_current(&real_window, &context));
+
+            if extra_functions.SwapIntervalEXT(1) == 0 {
                 return Err(OsError(format!("wglSwapIntervalEXT failed")));
             }
-
-            // it is important to remove the current context, otherwise you get very weird
-            // errors
-            unsafe { gl::wgl::MakeCurrent(ptr::null(), ptr::null()); }
         }
     }
 
     // building the struct
     Ok(Window {
         window: real_window,
-        hdc: hdc as winapi::HDC,
         context: context,
         gl_library: gl_library,
         events_receiver: events_receiver,
@@ -270,7 +248,7 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
     })
 }
 
-fn register_window_class() -> Vec<u16> {
+unsafe fn register_window_class() -> Vec<u16> {
     let class_name: Vec<u16> = "Window Class".utf16_units().chain(Some(0).into_iter())
                                              .collect::<Vec<u16>>();
     
@@ -280,7 +258,7 @@ fn register_window_class() -> Vec<u16> {
         lpfnWndProc: Some(callback::callback),
         cbClsExtra: 0,
         cbWndExtra: 0,
-        hInstance: unsafe { kernel32::GetModuleHandleW(ptr::null()) },
+        hInstance: kernel32::GetModuleHandleW(ptr::null()),
         hIcon: ptr::null_mut(),
         hCursor: ptr::null_mut(),
         hbrBackground: ptr::null_mut(),
@@ -293,12 +271,14 @@ fn register_window_class() -> Vec<u16> {
     //  an error, and because errors here are detected during CreateWindowEx anyway.
     // Also since there is no weird element in the struct, there is no reason for this
     //  call to fail.
-    unsafe { user32::RegisterClassExW(&class) };
+    user32::RegisterClassExW(&class);
 
     class_name
 }
 
-fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorID) -> Result<(), CreationError> {
+unsafe fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorID)
+                               -> Result<(), CreationError>
+{
     // adjusting the rect
     {
         let pos = monitor.get_position();
@@ -309,15 +289,16 @@ fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorID) -> Result<
     }
 
     // changing device settings
-    let mut screen_settings: winapi::DEVMODEW = unsafe { mem::zeroed() };
+    let mut screen_settings: winapi::DEVMODEW = mem::zeroed();
     screen_settings.dmSize = mem::size_of::<winapi::DEVMODEW>() as winapi::WORD;
     screen_settings.dmPelsWidth = (rect.right - rect.left) as winapi::DWORD;
     screen_settings.dmPelsHeight = (rect.bottom - rect.top) as winapi::DWORD;
     screen_settings.dmBitsPerPel = 32;      // TODO: ?
     screen_settings.dmFields = winapi::DM_BITSPERPEL | winapi::DM_PELSWIDTH | winapi::DM_PELSHEIGHT;
 
-    let result = unsafe { user32::ChangeDisplaySettingsExW(monitor.get_system_name().as_ptr(),
-        &mut screen_settings, ptr::null_mut(), winapi::CDS_FULLSCREEN, ptr::null_mut()) };
+    let result = user32::ChangeDisplaySettingsExW(monitor.get_system_name().as_ptr(),
+                                                  &mut screen_settings, ptr::null_mut(),
+                                                  winapi::CDS_FULLSCREEN, ptr::null_mut());
     
     if result != winapi::DISP_CHANGE_SUCCESSFUL {
         return Err(OsError(format!("ChangeDisplaySettings failed: {}", result)));
@@ -326,9 +307,9 @@ fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorID) -> Result<
     Ok(())
 }
 
-fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>)>,
-                  hdc: winapi::HDC, share: Option<winapi::HGLRC>)
-                  -> Result<winapi::HGLRC, CreationError>
+unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>)>,
+                         hdc: &WindowWrapper, share: Option<winapi::HGLRC>)
+                         -> Result<ContextWrapper, CreationError>
 {
     let share = share.unwrap_or(ptr::null_mut());
 
@@ -360,11 +341,10 @@ fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>)>
 
             attributes.push(0);
 
-            Some(unsafe {
-                extra_functions.CreateContextAttribsARB(hdc as *const libc::c_void,
-                                                        share as *const libc::c_void,
-                                                        attributes.as_slice().as_ptr())
-            })
+            Some(extra_functions.CreateContextAttribsARB(hdc.1 as *const libc::c_void,
+                                                         share as *const libc::c_void,
+                                                         attributes.as_slice().as_ptr()))
+
         } else {
             None
         }
@@ -375,13 +355,11 @@ fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>)>
     let ctxt = match ctxt {
         Some(ctxt) => ctxt,
         None => {
-            unsafe {
-                let ctxt = gl::wgl::CreateContext(hdc as *const libc::c_void);
-                if !ctxt.is_null() && !share.is_null() {
-                    gl::wgl::ShareLists(share as *const libc::c_void, ctxt);
-                };
-                ctxt
-            }
+            let ctxt = gl::wgl::CreateContext(hdc.1 as *const libc::c_void);
+            if !ctxt.is_null() && !share.is_null() {
+                gl::wgl::ShareLists(share as *const libc::c_void, ctxt);
+            };
+            ctxt
         }
     };
 
@@ -390,21 +368,19 @@ fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>)>
                            os::error_string(os::errno()))));
     }
 
-    Ok(ctxt as winapi::HGLRC)
+    Ok(ContextWrapper(ctxt as winapi::HGLRC))
 }
 
-fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(PixelFormat, libc::c_int)> {
+unsafe fn enumerate_native_pixel_formats(hdc: &WindowWrapper) -> Vec<(PixelFormat, libc::c_int)> {
     let size_of_pxfmtdescr = mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as u32;
-    let num = unsafe { gdi32::DescribePixelFormat(hdc, 1, size_of_pxfmtdescr, ptr::null_mut()) };
+    let num = gdi32::DescribePixelFormat(hdc.1, 1, size_of_pxfmtdescr, ptr::null_mut());
 
     let mut result = Vec::new();
 
     for index in (0 .. num) {
-        let mut output: winapi::PIXELFORMATDESCRIPTOR = unsafe { mem::zeroed() };
+        let mut output: winapi::PIXELFORMATDESCRIPTOR = mem::zeroed();
         
-        if unsafe { gdi32::DescribePixelFormat(hdc, index, size_of_pxfmtdescr,
-                                               &mut output) } == 0
-        {
+        if gdi32::DescribePixelFormat(hdc.1, index, size_of_pxfmtdescr, &mut output) == 0 {
             continue;
         }
 
@@ -438,14 +414,14 @@ fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(PixelFormat, libc::c
     result
 }
 
-fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::HDC)
-                               -> Vec<(PixelFormat, libc::c_int)>
+unsafe fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: &WindowWrapper)
+                                      -> Vec<(PixelFormat, libc::c_int)>
 {
     let get_info = |index: u32, attrib: u32| {
-        let mut value = unsafe { mem::uninitialized() };
-        unsafe { extra.GetPixelFormatAttribivARB(hdc as *const libc::c_void, index as libc::c_int,
-                                                 0, 1, [attrib as libc::c_int].as_ptr(),
-                                                 &mut value) };
+        let mut value = mem::uninitialized();
+        extra.GetPixelFormatAttribivARB(hdc.1 as *const libc::c_void, index as libc::c_int,
+                                        0, 1, [attrib as libc::c_int].as_ptr(),
+                                        &mut value);
         value as u32
     };
 
@@ -489,17 +465,17 @@ fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::HDC)
     result
 }
 
-fn set_pixel_format(hdc: winapi::HDC, id: libc::c_int) -> Result<(), CreationError> {
-    let mut output: winapi::PIXELFORMATDESCRIPTOR = unsafe { mem::zeroed() };
+unsafe fn set_pixel_format(hdc: &WindowWrapper, id: libc::c_int) -> Result<(), CreationError> {
+    let mut output: winapi::PIXELFORMATDESCRIPTOR = mem::zeroed();
 
-    if unsafe { gdi32::DescribePixelFormat(hdc, id,
-        mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as winapi::UINT, &mut output) } == 0
+    if gdi32::DescribePixelFormat(hdc.1, id, mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>()
+                                  as winapi::UINT, &mut output) == 0
     {
         return Err(OsError(format!("DescribePixelFormat function failed: {}",
                                    os::error_string(os::errno()))));
     }
 
-    if unsafe { gdi32::SetPixelFormat(hdc, id, &output) } == 0 {
+    if gdi32::SetPixelFormat(hdc.1, id, &output) == 0 {
         return Err(OsError(format!("SetPixelFormat function failed: {}",
                                    os::error_string(os::errno()))));
     }
@@ -507,11 +483,11 @@ fn set_pixel_format(hdc: winapi::HDC, id: libc::c_int) -> Result<(), CreationErr
     Ok(())
 }
 
-fn load_opengl32_dll() -> Result<winapi::HMODULE, CreationError> {
+unsafe fn load_opengl32_dll() -> Result<winapi::HMODULE, CreationError> {
     let name = "opengl32.dll".utf16_units().chain(Some(0).into_iter())
                              .collect::<Vec<u16>>().as_ptr();
 
-    let lib = unsafe { kernel32::LoadLibraryW(name) };
+    let lib = kernel32::LoadLibraryW(name);
 
     if lib.is_null() {
         return Err(OsError(format!("LoadLibrary function failed: {}",

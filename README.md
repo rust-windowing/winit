@@ -86,7 +86,6 @@ fn main() {
 ### Win32
 
  - You must call `glFlush` before `swap_buffers`, or else on Windows 8 nothing will be visible on the window
- - Pixel formats are not implemented
  - Changing the cursor (set_cursor) is not implemented
 
 ### X11

@@ -21,18 +21,16 @@ mod event;
 mod gl;
 mod headless;
 mod init;
+mod make_current_guard;
 mod monitor;
 
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
     /// Main handle for the window.
-    window: winapi::HWND,
-
-    /// This represents a "draw context" for the surface of the window.
-    hdc: winapi::HDC,
+    window: WindowWrapper,
 
     /// OpenGL context.
-    context: winapi::HGLRC,
+    context: ContextWrapper,
 
     /// Binded to `opengl32.dll`.
     ///
@@ -50,12 +48,25 @@ pub struct Window {
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
-impl Window {
-    /// See the docs in the crate root file.
-    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        let (builder, sharing) = builder.extract_non_static();
-        let sharing = sharing.map(|w| init::ContextHack(w.context));
-        init::new_window(builder, sharing)
+/// A simple wrapper that destroys the context when it is destroyed.
+struct ContextWrapper(pub winapi::HGLRC);
+
+impl Drop for ContextWrapper {
+    fn drop(&mut self) {
+        unsafe {
+            gl::wgl::DeleteContext(self.0 as *const libc::c_void);
+        }
+    }
+}
+
+/// A simple wrapper that destroys the window when it is destroyed.
+struct WindowWrapper(pub winapi::HWND, pub winapi::HDC);
+
+impl Drop for WindowWrapper {
+    fn drop(&mut self) {
+        unsafe {
+            user32::DestroyWindow(self.0);
+        }
     }
 }
 
@@ -70,6 +81,13 @@ impl WindowProxy {
 
 impl Window {
     /// See the docs in the crate root file.
+    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
+        let (builder, sharing) = builder.extract_non_static();
+        let sharing = sharing.map(|w| init::ContextHack(w.context.0));
+        init::new_window(builder, sharing)
+    }
+
+    /// See the docs in the crate root file.
     pub fn is_closed(&self) -> bool {
         use std::sync::atomic::Ordering::Relaxed;
         self.is_closed.load(Relaxed)
@@ -80,7 +98,7 @@ impl Window {
     /// Calls SetWindowText on the HWND.
     pub fn set_title(&self, text: &str) {
         unsafe {
-            user32::SetWindowTextW(self.window,
+            user32::SetWindowTextW(self.window.0,
                 text.utf16_units().chain(Some(0).into_iter())
                 .collect::<Vec<u16>>().as_ptr() as winapi::LPCWSTR);
         }
@@ -88,13 +106,13 @@ impl Window {
 
     pub fn show(&self) {
         unsafe {
-            user32::ShowWindow(self.window, winapi::SW_SHOW);
+            user32::ShowWindow(self.window.0, winapi::SW_SHOW);
         }
     }
 
     pub fn hide(&self) {
         unsafe {
-            user32::ShowWindow(self.window, winapi::SW_HIDE);
+            user32::ShowWindow(self.window.0, winapi::SW_HIDE);
         }
     }
 
@@ -105,7 +123,7 @@ impl Window {
         let mut placement: winapi::WINDOWPLACEMENT = unsafe { mem::zeroed() };
         placement.length = mem::size_of::<winapi::WINDOWPLACEMENT>() as winapi::UINT;
 
-        if unsafe { user32::GetWindowPlacement(self.window, &mut placement) } == 0 {
+        if unsafe { user32::GetWindowPlacement(self.window.0, &mut placement) } == 0 {
             return None
         }
 
@@ -118,9 +136,9 @@ impl Window {
         use libc;
 
         unsafe {
-            user32::SetWindowPos(self.window, ptr::null_mut(), x as libc::c_int, y as libc::c_int,
+            user32::SetWindowPos(self.window.0, ptr::null_mut(), x as libc::c_int, y as libc::c_int,
                 0, 0, winapi::SWP_NOZORDER | winapi::SWP_NOSIZE);
-            user32::UpdateWindow(self.window);
+            user32::UpdateWindow(self.window.0);
         }
     }
 
@@ -129,7 +147,7 @@ impl Window {
         use std::mem;
         let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
-        if unsafe { user32::GetClientRect(self.window, &mut rect) } == 0 {
+        if unsafe { user32::GetClientRect(self.window.0, &mut rect) } == 0 {
             return None
         }
 
@@ -144,7 +162,7 @@ impl Window {
         use std::mem;
         let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
-        if unsafe { user32::GetWindowRect(self.window, &mut rect) } == 0 {
+        if unsafe { user32::GetWindowRect(self.window.0, &mut rect) } == 0 {
             return None
         }
 
@@ -159,9 +177,9 @@ impl Window {
         use libc;
 
         unsafe {
-            user32::SetWindowPos(self.window, ptr::null_mut(), 0, 0, x as libc::c_int,
+            user32::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, x as libc::c_int,
                 y as libc::c_int, winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION);
-            user32::UpdateWindow(self.window);
+            user32::UpdateWindow(self.window.0);
         }
     }
 
@@ -186,12 +204,13 @@ impl Window {
     /// See the docs in the crate root file.
     pub unsafe fn make_current(&self) {
         // TODO: check return value
-        gl::wgl::MakeCurrent(self.hdc as *const libc::c_void, self.context as *const libc::c_void);
+        gl::wgl::MakeCurrent(self.window.1 as *const libc::c_void,
+                             self.context.0 as *const libc::c_void);
     }
 
     /// See the docs in the crate root file.
     pub fn get_proc_address(&self, addr: &str) -> *const () {
-        let addr = CString::from_slice(addr.as_bytes());
+        let addr = CString::new(addr.as_bytes()).unwrap();
         let addr = addr.as_ptr();
 
         unsafe {
@@ -204,7 +223,7 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn swap_buffers(&self) {
         unsafe {
-            gdi32::SwapBuffers(self.hdc);
+            gdi32::SwapBuffers(self.window.1);
         }
     }
 
@@ -213,7 +232,7 @@ impl Window {
     }
 
     pub fn platform_window(&self) -> *mut libc::c_void {
-        self.window as *mut libc::c_void
+        self.window.0 as *mut libc::c_void
     }
 
     /// See the docs in the crate root file.
@@ -224,7 +243,7 @@ impl Window {
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor(&self, _cursor: MouseCursor) {
         unimplemented!()
     }
 
@@ -280,11 +299,10 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 #[unsafe_destructor]
 impl Drop for Window {
     fn drop(&mut self) {
-        use std::ptr;
-        // we don't call MakeCurrent(0, 0) because we are not sure that the context
-        // is still the current one
-        unsafe { user32::PostMessageW(self.window, winapi::WM_DESTROY, 0, 0); }
-        unsafe { gl::wgl::DeleteContext(self.context as *const libc::c_void); }
-        unsafe { user32::DestroyWindow(self.window); }
+        unsafe {
+            // we don't call MakeCurrent(0, 0) because we are not sure that the context
+            // is still the current one
+            user32::PostMessageW(self.window.0, winapi::WM_DESTROY, 0, 0);
+        }
     }
 }
