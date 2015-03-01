@@ -2,6 +2,7 @@ use std::sync::atomic::AtomicBool;
 use std::ptr;
 use std::mem;
 use std::os;
+use std::thread;
 use super::callback;
 use super::Window;
 use super::MonitorID;
@@ -39,7 +40,7 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<C
     // GetMessage must be called in the same thread as CreateWindow,
     //  so we create a new thread dedicated to this window.
     // This is the only safe method. Using `nosend` wouldn't work for non-native runtime.
-    ::std::thread::Thread::spawn(move || {
+    thread::spawn(move || {
         unsafe {
             // sending
             match init(title, builder, builder_sharelists) {
@@ -151,7 +152,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         let extra_functions = gl::wgl_extra::Wgl::load_with(|addr| {
             use libc;
 
-            let addr = CString::from_slice(addr.as_bytes());
+            let addr = CString::new(addr.as_bytes()).unwrap();
             let addr = addr.as_ptr();
 
             gl::wgl::GetProcAddress(addr) as *const libc::c_void

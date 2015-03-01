@@ -191,7 +191,7 @@ impl Window {
 
     /// See the docs in the crate root file.
     pub fn get_proc_address(&self, addr: &str) -> *const () {
-        let addr = CString::from_slice(addr.as_bytes());
+        let addr = CString::new(addr.as_bytes()).unwrap();
         let addr = addr.as_ptr();
 
         unsafe {
@@ -224,7 +224,7 @@ impl Window {
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor(&self, _cursor: MouseCursor) {
         unimplemented!()
     }
 
@@ -280,7 +280,6 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 #[unsafe_destructor]
 impl Drop for Window {
     fn drop(&mut self) {
-        use std::ptr;
         // we don't call MakeCurrent(0, 0) because we are not sure that the context
         // is still the current one
         unsafe { user32::PostMessageW(self.window, winapi::WM_DESTROY, 0, 0); }
