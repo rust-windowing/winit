@@ -195,6 +195,7 @@ pub enum MouseCursor {
 
 /// Describes a possible format. Unused.
 #[allow(missing_docs)]
+#[derive(Debug)]
 pub struct PixelFormat {
     pub red_bits: u8,
     pub green_bits: u8,
