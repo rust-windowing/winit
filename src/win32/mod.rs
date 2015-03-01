@@ -21,6 +21,7 @@ mod event;
 mod gl;
 mod headless;
 mod init;
+mod make_current_guard;
 mod monitor;
 
 /// The Win32 implementation of the main `Window` object.

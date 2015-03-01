@@ -9,6 +9,7 @@ use super::Window;
 use super::MonitorID;
 use super::ContextWrapper;
 use super::WindowWrapper;
+use super::make_current_guard::CurrentContextGuard;
 
 use Api;
 use BuilderAttribs;
@@ -143,24 +144,18 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         let dummy_context = try!(create_context(None, &dummy_window, None));
 
         // making context current
-        gl::wgl::MakeCurrent(dummy_window.1 as *const libc::c_void,
-                             dummy_context.0 as *const libc::c_void);
+        let current_context = try!(CurrentContextGuard::make_current(&dummy_window,
+                                                                     &dummy_context));
 
         // loading the extra WGL functions
-        let extra_functions = gl::wgl_extra::Wgl::load_with(|addr| {
+        gl::wgl_extra::Wgl::load_with(|addr| {
             use libc;
 
             let addr = CString::new(addr.as_bytes()).unwrap();
             let addr = addr.as_ptr();
 
             gl::wgl::GetProcAddress(addr) as *const libc::c_void
-        });
-
-        // removing current context
-        gl::wgl::MakeCurrent(ptr::null(), ptr::null());
-
-        // returning the address
-        extra_functions
+        })
     };
 
     // creating the real window this time
@@ -237,15 +232,11 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     // handling vsync
     if builder.vsync {
         if extra_functions.SwapIntervalEXT.is_loaded() {
-            gl::wgl::MakeCurrent(real_window.1 as *const libc::c_void,
-                                 context.0 as *const libc::c_void);
+            let guard = try!(CurrentContextGuard::make_current(&real_window, &context));
+
             if extra_functions.SwapIntervalEXT(1) == 0 {
                 return Err(OsError(format!("wglSwapIntervalEXT failed")));
             }
-
-            // it is important to remove the current context, otherwise you get very weird
-            // errors
-            gl::wgl::MakeCurrent(ptr::null(), ptr::null());
         }
     }
 
