@@ -99,9 +99,8 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
     // adjusting the window coordinates using the style
     unsafe { user32::AdjustWindowRectEx(&mut rect, style, 0, ex_style) };
 
-    // getting the address of wglCreateContextAttribsARB and the pixel format
-    //  that we will use
-    let (extra_functions, pixel_format) = {
+    // getting the address of wglCreateContextAttribsARB
+    let extra_functions = {
         // creating a dummy invisible window for GL initialization
         let dummy_window = unsafe {
             let handle = user32::CreateWindowExW(ex_style, class_name.as_ptr(),
@@ -132,32 +131,11 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
             hdc
         };
 
-        // getting the pixel format that we will use
-        let pixel_format = {
+        // getting the pixel format that we will use and setting it
+        {
             let formats = enumerate_native_pixel_formats(dummy_hdc);
             let (id, _) = builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a)));
-
-            let mut output: winapi::PIXELFORMATDESCRIPTOR = unsafe { mem::zeroed() };
-            if unsafe { gdi32::DescribePixelFormat(dummy_hdc, id,
-                mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as winapi::UINT, &mut output) } == 0
-            {
-                let err = Err(OsError(format!("DescribePixelFormat function failed: {}",
-                    os::error_string(os::errno()))));
-                unsafe { user32::DestroyWindow(dummy_window); }
-                return err;
-            }
-
-            output
-        };
-
-        // calling SetPixelFormat
-        unsafe {
-            if gdi32::SetPixelFormat(dummy_hdc, 1, &pixel_format) == 0 {
-                let err = Err(OsError(format!("SetPixelFormat function failed: {}",
-                    os::error_string(os::errno()))));
-                user32::DestroyWindow(dummy_window);
-                return err;
-            }
+            try!(set_pixel_format(dummy_hdc, id));
         }
 
         // creating the dummy OpenGL context
@@ -186,7 +164,7 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
         unsafe { user32::DestroyWindow(dummy_window); }
 
         // returning the address
-        (extra_functions, pixel_format)
+        extra_functions
     };
 
     // creating the real window this time
@@ -233,13 +211,15 @@ fn init(title: Vec<u16>, builder: BuilderAttribs<'static>, builder_sharelists: O
     };
 
     // calling SetPixelFormat
-    unsafe {
-        if gdi32::SetPixelFormat(hdc, 1, &pixel_format) == 0 {
-            let err = Err(OsError(format!("SetPixelFormat function failed: {}",
-                os::error_string(os::errno()))));
-            user32::DestroyWindow(real_window);
-            return err;
-        }
+    {
+        let formats = if extra_functions.GetPixelFormatAttribivARB.is_loaded() {
+            enumerate_arb_pixel_formats(&extra_functions, hdc)
+        } else {
+            enumerate_native_pixel_formats(hdc)
+        };
+
+        let (id, _) = builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a)));
+        try!(set_pixel_format(hdc, id));
     }
 
     // creating the OpenGL context
@@ -431,13 +411,8 @@ fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(PixelFormat, libc::c
         if (output.dwFlags & winapi::PFD_DRAW_TO_WINDOW) == 0 {
             continue;
         }
-        if (output.dwFlags & winapi::PFD_SUPPORT_OPENGL) == 0 {
-            continue;
-        }
 
-        if (output.dwFlags & winapi::PFD_GENERIC_ACCELERATED) == 0 &&
-            (output.dwFlags & winapi::PFD_GENERIC_FORMAT) == 0
-        {
+        if (output.dwFlags & winapi::PFD_SUPPORT_OPENGL) == 0 {
             continue;
         }
 
@@ -446,6 +421,7 @@ fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(PixelFormat, libc::c
         }
 
         result.push((PixelFormat {
+            hardware_accelerated: (output.dwFlags & winapi::PFD_GENERIC_FORMAT) == 0,
             red_bits: output.cRedBits,
             green_bits: output.cGreenBits,
             blue_bits: output.cBlueBits,
@@ -496,6 +472,7 @@ fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::HDC)
         }
 
         result.push((PixelFormat {
+            hardware_accelerated: true,
             red_bits: get_info(index, gl::wgl_extra::RED_BITS_ARB) as u8,
             green_bits: get_info(index, gl::wgl_extra::GREEN_BITS_ARB) as u8,
             blue_bits: get_info(index, gl::wgl_extra::BLUE_BITS_ARB) as u8,
@@ -510,6 +487,24 @@ fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::HDC)
     }
 
     result
+}
+
+fn set_pixel_format(hdc: winapi::HDC, id: libc::c_int) -> Result<(), CreationError> {
+    let mut output: winapi::PIXELFORMATDESCRIPTOR = unsafe { mem::zeroed() };
+
+    if unsafe { gdi32::DescribePixelFormat(hdc, id,
+        mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as winapi::UINT, &mut output) } == 0
+    {
+        return Err(OsError(format!("DescribePixelFormat function failed: {}",
+                                   os::error_string(os::errno()))));
+    }
+
+    if unsafe { gdi32::SetPixelFormat(hdc, id, &output) } == 0 {
+        return Err(OsError(format!("SetPixelFormat function failed: {}",
+                                   os::error_string(os::errno()))));
+    }
+
+    Ok(())
 }
 
 fn load_opengl32_dll() -> Result<winapi::HMODULE, CreationError> {

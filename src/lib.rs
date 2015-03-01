@@ -195,7 +195,9 @@ pub enum MouseCursor {
 
 /// Describes a possible format. Unused.
 #[allow(missing_docs)]
+#[derive(Debug, Clone)]
 pub struct PixelFormat {
+    pub hardware_accelerated: bool,
     pub red_bits: u8,
     pub green_bits: u8,
     pub blue_bits: u8,
@@ -282,6 +284,7 @@ impl<'a> BuilderAttribs<'a> {
                                  where I: Iterator<Item=(T, PixelFormat)>, T: Clone
     {
         let mut current_result = None;
+        let mut current_software_result = None;
 
         // TODO: do this more properly
         for (id, format) in iter {
@@ -309,9 +312,13 @@ impl<'a> BuilderAttribs<'a> {
                 continue;
             }
 
-            current_result = Some((id, format));
+            current_software_result = Some((id.clone(), format.clone()));
+            if format.hardware_accelerated {
+                current_result = Some((id, format));
+            }
         }
 
-        current_result.expect("Could not find compliant pixel format")
+        current_result.or(current_software_result)
+                      .expect("Could not find compliant pixel format")
     }
 }
