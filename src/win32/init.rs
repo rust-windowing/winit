@@ -3,9 +3,12 @@ use std::ptr;
 use std::mem;
 use std::os;
 use std::thread;
+
 use super::callback;
 use super::Window;
 use super::MonitorID;
+use super::ContextWrapper;
+use super::WindowWrapper;
 
 use Api;
 use BuilderAttribs;
@@ -116,37 +119,32 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 
             if handle.is_null() {
                 return Err(OsError(format!("CreateWindowEx function failed: {}",
-                    os::error_string(os::errno()))));
+                                           os::error_string(os::errno()))));
             }
 
-            handle
-        };
-
-        // getting the HDC of the dummy window
-        let dummy_hdc = {
-            let hdc = user32::GetDC(dummy_window);
+            let hdc = user32::GetDC(handle);
             if hdc.is_null() {
                 let err = Err(OsError(format!("GetDC function failed: {}",
-                    os::error_string(os::errno()))));
-                user32::DestroyWindow(dummy_window);
+                                              os::error_string(os::errno()))));
                 return err;
             }
-            hdc
+
+            WindowWrapper(handle, hdc)
         };
 
         // getting the pixel format that we will use and setting it
         {
-            let formats = enumerate_native_pixel_formats(dummy_hdc);
+            let formats = enumerate_native_pixel_formats(&dummy_window);
             let (id, _) = builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a)));
-            try!(set_pixel_format(dummy_hdc, id));
+            try!(set_pixel_format(&dummy_window, id));
         }
 
         // creating the dummy OpenGL context
-        let dummy_context = try!(create_context(None, dummy_hdc, None));
+        let dummy_context = try!(create_context(None, &dummy_window, None));
 
         // making context current
-        gl::wgl::MakeCurrent(dummy_hdc as *const libc::c_void,
-                             dummy_context as *const libc::c_void);
+        gl::wgl::MakeCurrent(dummy_window.1 as *const libc::c_void,
+                             dummy_context.0 as *const libc::c_void);
 
         // loading the extra WGL functions
         let extra_functions = gl::wgl_extra::Wgl::load_with(|addr| {
@@ -160,10 +158,6 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 
         // removing current context
         gl::wgl::MakeCurrent(ptr::null(), ptr::null());
-
-        // destroying the context and the window
-        gl::wgl::DeleteContext(dummy_context as *const libc::c_void);
-        user32::DestroyWindow(dummy_window);
 
         // returning the address
         extra_functions
@@ -197,39 +191,34 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
                                        os::error_string(os::errno()))));
         }
 
-        handle
-    };
-
-    // getting the HDC of the window
-    let hdc = {
-        let hdc = user32::GetDC(real_window);
+        let hdc = user32::GetDC(handle);
         if hdc.is_null() {
-            let err = Err(OsError(format!("GetDC function failed: {}",
-                                          os::error_string(os::errno()))));
-            user32::DestroyWindow(real_window);
-            return err;
+            return Err(OsError(format!("GetDC function failed: {}",
+                                       os::error_string(os::errno()))));
         }
-        hdc
+
+        WindowWrapper(handle, hdc)
     };
 
     // calling SetPixelFormat
     {
         let formats = if extra_functions.GetPixelFormatAttribivARB.is_loaded() {
-            enumerate_arb_pixel_formats(&extra_functions, hdc)
+            enumerate_arb_pixel_formats(&extra_functions, &real_window)
         } else {
-            enumerate_native_pixel_formats(hdc)
+            enumerate_native_pixel_formats(&real_window)
         };
 
         let (id, _) = builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a)));
-        try!(set_pixel_format(hdc, id));
+        try!(set_pixel_format(&real_window, id));
     }
 
     // creating the OpenGL context
-    let context = try!(create_context(Some((&extra_functions, &builder)), hdc, builder_sharelists));
+    let context = try!(create_context(Some((&extra_functions, &builder)), &real_window,
+                                      builder_sharelists));
 
     // calling SetForegroundWindow if fullscreen
     if builder.monitor.is_some() {
-        user32::SetForegroundWindow(real_window);
+        user32::SetForegroundWindow(real_window.0);
     }
 
     // filling the WINDOW task-local storage
@@ -237,7 +226,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         let (tx, rx) = channel();
         let mut tx = Some(tx);
         callback::WINDOW.with(|window| {
-            (*window.borrow_mut()) = Some((real_window, tx.take().unwrap()));
+            (*window.borrow_mut()) = Some((real_window.0, tx.take().unwrap()));
         });
         rx
     };
@@ -248,10 +237,9 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     // handling vsync
     if builder.vsync {
         if extra_functions.SwapIntervalEXT.is_loaded() {
-            gl::wgl::MakeCurrent(hdc as *const libc::c_void, context as *const libc::c_void);
+            gl::wgl::MakeCurrent(real_window.1 as *const libc::c_void,
+                                 context.0 as *const libc::c_void);
             if extra_functions.SwapIntervalEXT(1) == 0 {
-                gl::wgl::DeleteContext(context as *const libc::c_void);
-                user32::DestroyWindow(real_window);
                 return Err(OsError(format!("wglSwapIntervalEXT failed")));
             }
 
@@ -264,7 +252,6 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     // building the struct
     Ok(Window {
         window: real_window,
-        hdc: hdc as winapi::HDC,
         context: context,
         gl_library: gl_library,
         events_receiver: events_receiver,
@@ -332,8 +319,8 @@ unsafe fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorID)
 }
 
 unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>)>,
-                         hdc: winapi::HDC, share: Option<winapi::HGLRC>)
-                         -> Result<winapi::HGLRC, CreationError>
+                         hdc: &WindowWrapper, share: Option<winapi::HGLRC>)
+                         -> Result<ContextWrapper, CreationError>
 {
     let share = share.unwrap_or(ptr::null_mut());
 
@@ -365,7 +352,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
 
             attributes.push(0);
 
-            Some(extra_functions.CreateContextAttribsARB(hdc as *const libc::c_void,
+            Some(extra_functions.CreateContextAttribsARB(hdc.1 as *const libc::c_void,
                                                          share as *const libc::c_void,
                                                          attributes.as_slice().as_ptr()))
 
@@ -379,7 +366,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
     let ctxt = match ctxt {
         Some(ctxt) => ctxt,
         None => {
-            let ctxt = gl::wgl::CreateContext(hdc as *const libc::c_void);
+            let ctxt = gl::wgl::CreateContext(hdc.1 as *const libc::c_void);
             if !ctxt.is_null() && !share.is_null() {
                 gl::wgl::ShareLists(share as *const libc::c_void, ctxt);
             };
@@ -392,19 +379,19 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                            os::error_string(os::errno()))));
     }
 
-    Ok(ctxt as winapi::HGLRC)
+    Ok(ContextWrapper(ctxt as winapi::HGLRC))
 }
 
-unsafe fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(PixelFormat, libc::c_int)> {
+unsafe fn enumerate_native_pixel_formats(hdc: &WindowWrapper) -> Vec<(PixelFormat, libc::c_int)> {
     let size_of_pxfmtdescr = mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as u32;
-    let num = gdi32::DescribePixelFormat(hdc, 1, size_of_pxfmtdescr, ptr::null_mut());
+    let num = gdi32::DescribePixelFormat(hdc.1, 1, size_of_pxfmtdescr, ptr::null_mut());
 
     let mut result = Vec::new();
 
     for index in (0 .. num) {
         let mut output: winapi::PIXELFORMATDESCRIPTOR = mem::zeroed();
         
-        if gdi32::DescribePixelFormat(hdc, index, size_of_pxfmtdescr, &mut output) == 0 {
+        if gdi32::DescribePixelFormat(hdc.1, index, size_of_pxfmtdescr, &mut output) == 0 {
             continue;
         }
 
@@ -438,12 +425,12 @@ unsafe fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(PixelFormat, 
     result
 }
 
-unsafe fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::HDC)
+unsafe fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: &WindowWrapper)
                                       -> Vec<(PixelFormat, libc::c_int)>
 {
     let get_info = |index: u32, attrib: u32| {
         let mut value = mem::uninitialized();
-        extra.GetPixelFormatAttribivARB(hdc as *const libc::c_void, index as libc::c_int,
+        extra.GetPixelFormatAttribivARB(hdc.1 as *const libc::c_void, index as libc::c_int,
                                         0, 1, [attrib as libc::c_int].as_ptr(),
                                         &mut value);
         value as u32
@@ -489,17 +476,17 @@ unsafe fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::H
     result
 }
 
-unsafe fn set_pixel_format(hdc: winapi::HDC, id: libc::c_int) -> Result<(), CreationError> {
+unsafe fn set_pixel_format(hdc: &WindowWrapper, id: libc::c_int) -> Result<(), CreationError> {
     let mut output: winapi::PIXELFORMATDESCRIPTOR = mem::zeroed();
 
-    if gdi32::DescribePixelFormat(hdc, id, mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>()
+    if gdi32::DescribePixelFormat(hdc.1, id, mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>()
                                   as winapi::UINT, &mut output) == 0
     {
         return Err(OsError(format!("DescribePixelFormat function failed: {}",
                                    os::error_string(os::errno()))));
     }
 
-    if gdi32::SetPixelFormat(hdc, id, &output) == 0 {
+    if gdi32::SetPixelFormat(hdc.1, id, &output) == 0 {
         return Err(OsError(format!("SetPixelFormat function failed: {}",
                                    os::error_string(os::errno()))));
     }
