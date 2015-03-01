@@ -37,16 +37,15 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<C
 {
     // initializing variables to be sent to the task
     let title = builder.title.as_slice().utf16_units()
-        .chain(Some(0).into_iter()).collect::<Vec<u16>>();    // title to utf16
-    //let hints = hints.clone();
+                       .chain(Some(0).into_iter()).collect::<Vec<u16>>();    // title to utf16
+
     let (tx, rx) = channel();
 
-    // GetMessage must be called in the same thread as CreateWindow,
-    //  so we create a new thread dedicated to this window.
-    // This is the only safe method. Using `nosend` wouldn't work for non-native runtime.
+    // `GetMessage` must be called in the same thread as CreateWindow, so we create a new thread
+    // dedicated to this window.
     thread::spawn(move || {
         unsafe {
-            // sending
+            // creating and sending the `Window`
             match init(title, builder, builder_sharelists) {
                 Ok(w) => tx.send(Ok(w)).ok(),
                 Err(e) => {
@@ -65,7 +64,7 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<C
                 }
 
                 user32::TranslateMessage(&msg);
-                user32::DispatchMessageW(&msg);     // calls `callback` (see below)
+                user32::DispatchMessageW(&msg);   // calls `callback` (see the callback module)
             }
         }
     });
@@ -106,9 +105,10 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     // adjusting the window coordinates using the style
     user32::AdjustWindowRectEx(&mut rect, style, 0, ex_style);
 
-    // getting the address of wglCreateContextAttribsARB
+    // the first step is to create a dummy window and a dummy context which we will use
+    // to load the pointers to some functions in the OpenGL driver in `extra_functions`
     let extra_functions = {
-        // creating a dummy invisible window for GL initialization
+        // creating a dummy invisible window
         let dummy_window = {
             let handle = user32::CreateWindowExW(ex_style, class_name.as_ptr(),
                 title.as_ptr() as winapi::LPCWSTR,
@@ -140,10 +140,8 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
             try!(set_pixel_format(&dummy_window, id));
         }
 
-        // creating the dummy OpenGL context
+        // creating the dummy OpenGL context and making it current
         let dummy_context = try!(create_context(None, &dummy_window, None));
-
-        // making context current
         let current_context = try!(CurrentContextGuard::make_current(&dummy_window,
                                                                      &dummy_context));
 
@@ -158,7 +156,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         })
     };
 
-    // creating the real window this time
+    // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
         let (width, height) = if builder.monitor.is_some() || builder.dimensions.is_some() {
             (Some(rect.right - rect.left), Some(rect.bottom - rect.top))
@@ -216,7 +214,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         user32::SetForegroundWindow(real_window.0);
     }
 
-    // filling the WINDOW task-local storage
+    // filling the WINDOW task-local storage so that we can start receiving events
     let events_receiver = {
         let (tx, rx) = channel();
         let mut tx = Some(tx);
