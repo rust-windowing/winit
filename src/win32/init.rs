@@ -411,13 +411,8 @@ fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(PixelFormat, libc::c
         if (output.dwFlags & winapi::PFD_DRAW_TO_WINDOW) == 0 {
             continue;
         }
-        if (output.dwFlags & winapi::PFD_SUPPORT_OPENGL) == 0 {
-            continue;
-        }
 
-        if (output.dwFlags & winapi::PFD_GENERIC_ACCELERATED) == 0 &&
-            (output.dwFlags & winapi::PFD_GENERIC_FORMAT) == 0
-        {
+        if (output.dwFlags & winapi::PFD_SUPPORT_OPENGL) == 0 {
             continue;
         }
 
@@ -426,6 +421,7 @@ fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(PixelFormat, libc::c
         }
 
         result.push((PixelFormat {
+            hardware_accelerated: (output.dwFlags & winapi::PFD_GENERIC_FORMAT) == 0,
             red_bits: output.cRedBits,
             green_bits: output.cGreenBits,
             blue_bits: output.cBlueBits,
@@ -476,6 +472,7 @@ fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: winapi::HDC)
         }
 
         result.push((PixelFormat {
+            hardware_accelerated: true,
             red_bits: get_info(index, gl::wgl_extra::RED_BITS_ARB) as u8,
             green_bits: get_info(index, gl::wgl_extra::GREEN_BITS_ARB) as u8,
             blue_bits: get_info(index, gl::wgl_extra::BLUE_BITS_ARB) as u8,
