@@ -168,6 +168,7 @@ impl<'a> WindowBuilder<'a> {
 ///
 /// loop {
 ///     for event in window.poll_events() {
+///         match(event) {
 ///             // process events here
 ///             _ => ()
 ///         }
