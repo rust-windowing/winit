@@ -21,6 +21,11 @@ impl HeadlessContext {
     }
 
     /// See the docs in the crate root file.
+    pub fn is_current(&self) -> bool {
+        self.0.is_current()
+    }
+
+    /// See the docs in the crate root file.
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         self.0.get_proc_address(addr)
     }

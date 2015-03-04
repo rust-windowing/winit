@@ -77,6 +77,12 @@ impl HeadlessContext {
     pub unsafe fn make_current(&self) {
         self.context.make_current()
     }
+    
+    /// Returns true if this context is the current one in this thread.
+    #[inline]
+    pub fn is_current(&self) -> bool {
+        self.context.is_current()
+    }
 
     /// Returns the address of an OpenGL function.
     ///

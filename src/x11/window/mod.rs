@@ -701,6 +701,10 @@ impl Window {
         }
     }
 
+    pub fn is_current(&self) -> bool {
+        unsafe { ffi::glx::GetCurrentContext() == self.x.context }
+    }
+
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         use std::mem;
 

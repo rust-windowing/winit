@@ -329,6 +329,12 @@ impl Window {
         self.window.make_current()
     }
 
+    /// Returns true if this context is the current one in this thread.
+    #[inline]
+    pub fn is_current(&self) -> bool {
+        self.window.is_current()
+    }
+
     /// Returns the address of an OpenGL function.
     ///
     /// Contrary to `wglGetProcAddress`, all available OpenGL functions return an address.

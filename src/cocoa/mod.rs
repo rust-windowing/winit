@@ -587,6 +587,10 @@ impl Window {
         self.context.makeCurrentContext();
     }
 
+    pub fn is_current(&self) -> bool {
+        unimplemented!()
+    }
+
     pub fn get_proc_address(&self, _addr: &str) -> *const () {
         let symbol_name: CFString = FromStr::from_str(_addr).unwrap();
         let framework_name: CFString = FromStr::from_str("com.apple.opengl").unwrap();

@@ -76,6 +76,10 @@ impl HeadlessContext {
         }
     }
 
+    pub fn is_current(&self) -> bool {
+        unimplemented!()
+    }
+
     pub fn get_proc_address(&self, _addr: &str) -> *const () {
         let symbol_name: CFString = _addr.parse().unwrap();
         let framework_name: CFString = "com.apple.opengl".parse().unwrap();

@@ -47,6 +47,10 @@ impl HeadlessContext {
         }
     }
 
+    pub fn is_current(&self) -> bool {
+        unsafe { ffi::OSMesaGetCurrentContext() == self.context }
+    }
+
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         unsafe {
             with_c_str(addr, |s| {
