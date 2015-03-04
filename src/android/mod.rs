@@ -62,6 +62,11 @@ impl HeadlessContext {
     }
 
     /// See the docs in the crate root file.
+    pub fn is_current(&self) -> bool {
+        unimplemented!()
+    }
+
+    /// See the docs in the crate root file.
     pub fn get_proc_address(&self, _addr: &str) -> *const () {
         unimplemented!()
     }
@@ -310,6 +315,10 @@ impl Window {
         unsafe {
             ffi::egl::MakeCurrent(self.display, self.surface, self.surface, self.context);
         }
+    }
+
+    pub fn is_current(&self) -> bool {
+        unsafe { ffi::egl::GetCurrentContext() == self.context }
     }
 
     pub fn get_proc_address(&self, addr: &str) -> *const () {

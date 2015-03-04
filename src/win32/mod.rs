@@ -209,6 +209,11 @@ impl Window {
     }
 
     /// See the docs in the crate root file.
+    pub fn is_current(&self) -> bool {
+        unsafe { gl::wgl::GetCurrentContext() == self.context.0 as *const libc::c_void }
+    }
+
+    /// See the docs in the crate root file.
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         let addr = CString::new(addr.as_bytes()).unwrap();
         let addr = addr.as_ptr();
