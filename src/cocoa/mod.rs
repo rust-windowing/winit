@@ -664,4 +664,8 @@ impl Window {
             NSWindow::backingScaleFactor(self.window) as f32
         }
     }
+
+    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+        unimplemented!();
+    }
 }

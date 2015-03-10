@@ -785,4 +785,8 @@ impl Window {
     pub fn hidpi_factor(&self) -> f32 {
         1.0
     }
+
+    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+        unimplemented!();
+    }
 }
