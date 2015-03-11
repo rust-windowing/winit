@@ -409,6 +409,11 @@ impl Window {
     pub fn hidpi_factor(&self) -> f32 {
         self.window.hidpi_factor()
     }
+
+    /// Changes the position of the cursor in window coordinates.
+    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+        self.window.set_cursor_position(x, y)
+    }
 }
 
 impl gl_common::GlFunctionsSource for Window {
