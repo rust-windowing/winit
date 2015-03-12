@@ -2,12 +2,12 @@
 extern crate gl_generator;
 extern crate khronos_api;
 
-use std::os;
+use std::env;
 use std::old_io::File;
 
 fn main() {
-    let target = os::getenv("TARGET").unwrap();
-    let dest = Path::new(os::getenv("OUT_DIR").unwrap());
+    let target = env::var("TARGET").unwrap();
+    let dest = Path::new(env::var("OUT_DIR").unwrap());
 
     if target.contains("windows") {
         let mut file = File::create(&dest.join("wgl_bindings.rs")).unwrap();
