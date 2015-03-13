@@ -1,13 +1,14 @@
-#![feature(old_io,old_path,os)]
+#![feature(path)]
 extern crate gl_generator;
 extern crate khronos_api;
 
 use std::env;
-use std::old_io::File;
+use std::fs::File;
+use std::path::PathBuf;
 
 fn main() {
     let target = env::var("TARGET").unwrap();
-    let dest = Path::new(env::var("OUT_DIR").unwrap());
+    let dest = PathBuf::new(&env::var("OUT_DIR").unwrap());
 
     if target.contains("windows") {
         let mut file = File::create(&dest.join("wgl_bindings.rs")).unwrap();
