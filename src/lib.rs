@@ -42,7 +42,7 @@ extern crate cocoa;
 #[cfg(target_os = "macos")]
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
-extern crate core_graphics;
+extern crate "glutin_core_graphics" as core_graphics;
 
 pub use events::*;
 #[cfg(feature = "headless")]

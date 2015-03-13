@@ -29,5 +29,4 @@ after_success:
   - |
       [ $TRAVIS_BRANCH = master ] &&
       [ $TRAVIS_PULL_REQUEST = false ] &&
-      patch Cargo.toml < preupload.patch &&
       cargo publish --token ${CRATESIO_TOKEN}
