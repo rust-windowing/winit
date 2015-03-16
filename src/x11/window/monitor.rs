@@ -2,6 +2,7 @@ use std::ptr;
 use std::collections::VecDeque;
 use super::super::ffi;
 use super::ensure_thread_init;
+use window::NativeMonitorID;
 
 pub struct MonitorID(pub u32);
 
