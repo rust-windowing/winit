@@ -8,6 +8,7 @@ use libc;
 use Api;
 use BuilderAttribs;
 use GlRequest;
+use NativeMonitorID;
 
 use cocoa::base::{Class, id, YES, NO, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
 use cocoa::base::{selector, msg_send, msg_send_stret, class_addMethod, class_addIvar};
@@ -406,15 +407,41 @@ impl Window {
 
     fn create_window(dimensions: (u32, u32), title: &str, monitor: Option<MonitorID>) -> Option<IdRef> {
         unsafe {
-            let frame = if monitor.is_some() {
-                let screen = NSScreen::mainScreen(nil);
-                NSScreen::frame(screen)
-            } else {
-                let (width, height) = dimensions;
-                NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64))
+            let screen = monitor.map(|monitor_id| {
+                let native_id = match monitor_id.get_native_identifier() {
+                    NativeMonitorID::Numeric(num) => num,
+                    _ => panic!("OS X monitors should always have a numeric native ID")
+                };
+                let matching_screen = {
+                    let screens = NSScreen::screens(nil);
+                    let count: NSUInteger = msg_send()(screens, selector("count"));
+                    let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
+                    let mut matching_screen: Option<id> = None;
+                    for i in range(0, count) {
+                        let screen = msg_send()(screens, selector("objectAtIndex:"), i as NSUInteger);
+                        let device_description = NSScreen::deviceDescription(screen);
+                        let value = msg_send()(device_description, selector("objectForKey:"), *key);
+                        if value != nil {
+                            let screen_number: NSUInteger = msg_send()(value, selector("unsignedIntValue"));
+                            if screen_number as u32 == native_id {
+                                matching_screen = Some(screen);
+                                break;
+                            }
+                        }
+                    }
+                    matching_screen
+                };
+                matching_screen.unwrap_or(NSScreen::mainScreen(nil))
+            });
+            let frame = match screen {
+                Some(screen) => NSScreen::frame(screen),
+                None => {
+                    let (width, height) = dimensions;
+                    NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64))
+                }
             };
 
-            let masks = if monitor.is_some() {
+            let masks = if screen.is_some() {
                 NSBorderlessWindowMask as NSUInteger
             } else {
                 NSTitledWindowMask as NSUInteger |
@@ -436,7 +463,7 @@ impl Window {
                 let title = IdRef::new(NSString::alloc(nil).init_str(title));
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
-                if monitor.is_some() {
+                if screen.is_some() {
                     window.setLevel_(NSMainMenuWindowLevel as i64 + 1);
                 }
                 else {
