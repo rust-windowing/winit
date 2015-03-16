@@ -617,7 +617,15 @@ impl Window {
     }
 
     pub fn is_current(&self) -> bool {
-        unimplemented!()
+        unsafe {
+            let current = NSOpenGLContext::currentContext(nil);
+            if current != nil {
+                let is_equal: bool = msg_send()(current, selector("isEqual:"), *self.context);
+                is_equal
+            } else {
+                false
+            }
+        }
     }
 
     pub fn get_proc_address(&self, _addr: &str) -> *const () {
