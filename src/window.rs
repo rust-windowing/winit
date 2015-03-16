@@ -445,8 +445,13 @@ pub struct PollEventsIterator<'a>(winimpl::PollEventsIterator<'a>);
 
 impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
+
     fn next(&mut self) -> Option<Event> {
         self.0.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
     }
 }
 
@@ -455,8 +460,13 @@ pub struct WaitEventsIterator<'a>(winimpl::WaitEventsIterator<'a>);
 
 impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
+
     fn next(&mut self) -> Option<Event> {
         self.0.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
     }
 }
 
@@ -469,8 +479,13 @@ pub struct AvailableMonitorsIter {
 
 impl Iterator for AvailableMonitorsIter {
     type Item = MonitorID;
+
     fn next(&mut self) -> Option<MonitorID> {
         self.data.next().map(|id| MonitorID(id))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.data.size_hint()
     }
 }
 
