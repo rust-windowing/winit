@@ -43,6 +43,11 @@ impl MonitorID {
         Some(format!("Monitor #{}", screen_num))
     }
 
+    pub fn get_native_identifier(&self) -> NativeMonitorID {
+        let MonitorID(screen_num) = *self;
+        NativeMonitorID::Numeric(screen_num)
+    }
+
     pub fn get_dimensions(&self) -> (u32, u32) {
         let dimensions = unsafe {
             let display = ffi::XOpenDisplay(ptr::null());

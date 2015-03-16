@@ -500,6 +500,19 @@ pub fn get_primary_monitor() -> MonitorID {
     MonitorID(winimpl::get_primary_monitor())
 }
 
+/// Native platform identifier for a monitor. Different platforms use fundamentally different types
+/// to represent a monitor ID.
+pub enum NativeMonitorID {
+    /// Cocoa and X11 use a numeric identifier to represent a monitor.
+    Numeric(u32),
+
+    /// Win32 uses a Unicode string to represent a monitor.
+    Name(String),
+
+    /// Other platforms (Android) don't support monitor identification.
+    Unavailable
+}
+
 /// Identifier for a monitor.
 pub struct MonitorID(winimpl::MonitorID);
 
@@ -508,6 +521,12 @@ impl MonitorID {
     pub fn get_name(&self) -> Option<String> {
         let &MonitorID(ref id) = self;
         id.get_name()
+    }
+
+    /// Returns the native platform identifier for this monitor.
+    pub fn get_native_identifier(&self) -> NativeMonitorID {
+        let &MonitorID(ref id) = self;
+        id.get_native_identifier()
     }
 
     /// Returns the number of pixels currently displayed on the monitor.
