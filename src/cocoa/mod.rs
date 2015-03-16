@@ -29,6 +29,7 @@ use std::str::FromStr;
 use std::str::from_utf8;
 use std::sync::Mutex;
 use std::ascii::AsciiExt;
+use std::ops::Deref;
 
 use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel};
 use events::ElementState::{Pressed, Released};
@@ -50,9 +51,9 @@ static mut alt_pressed: bool = false;
 
 struct DelegateState {
     is_closed: bool,
-    context: id,
-    view: id,
-    window: id,
+    context: IdRef,
+    view: IdRef,
+    window: IdRef,
     handler: Option<fn(u32, u32)>,
 }
 
@@ -89,11 +90,11 @@ impl WindowDelegate {
                 let state = &mut *delegate.get_state();
                 mem::forget(delegate);
 
-                let _: id = msg_send()(state.context, selector("update"));
+                let _: id = msg_send()(*state.context, selector("update"));
 
                 if let Some(handler) = state.handler {
-                    let rect = NSView::frame(state.view);
-                    let scale_factor = NSWindow::backingScaleFactor(state.window) as f32;
+                    let rect = NSView::frame(*state.view);
+                    let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
                     (handler)((scale_factor * rect.size.width as f32) as u32,
                               (scale_factor * rect.size.height as f32) as u32);
                 }
@@ -160,9 +161,9 @@ impl WindowDelegate {
 }
 
 pub struct Window {
-    view: id,
-    window: id,
-    context: id,
+    view: IdRef,
+    window: IdRef,
+    context: IdRef,
     delegate: WindowDelegate,
     resize: Option<fn(u32, u32)>,
 
@@ -221,9 +222,9 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 // to the user application, by passing handler through to the delegate state.
                 let mut ds = DelegateState {
                     is_closed: self.window.is_closed.get(),
-                    context: self.window.context,
-                    window: self.window.window,
-                    view: self.window.view,
+                    context: self.window.context.clone(),
+                    window: self.window.window.clone(),
+                    view: self.window.view.clone(),
                     handler: self.window.resize,
                 };
                 self.window.delegate.set_state(&mut ds);
@@ -249,7 +250,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     } else {
                         self.window.view.convertPoint_fromView_(window_point, nil)
                     };
-                    let view_rect = NSView::frame(self.window.view);
+                    let view_rect = NSView::frame(*self.window.view);
                     let scale_factor = self.window.hidpi_factor();
                     Some(MouseMoved(((scale_factor * view_point.x as f32) as i32,
                                     (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32)))
@@ -356,12 +357,12 @@ impl Window {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
-        let view = match Window::create_view(window) {
+        let view = match Window::create_view(*window) {
             Some(view) => view,
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
 
-        let context = match Window::create_context(view, builder.vsync, builder.gl_version) {
+        let context = match Window::create_context(*view, builder.vsync, builder.gl_version) {
             Some(context) => context,
             None          => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
         };
@@ -375,11 +376,12 @@ impl Window {
             }
         }
 
+        let window_id = *window;
         let window = Window {
             view: view,
             window: window,
             context: context,
-            delegate: WindowDelegate::new(window),
+            delegate: WindowDelegate::new(window_id),
             resize: None,
 
             is_closed: Cell::new(false),
@@ -402,7 +404,7 @@ impl Window {
         }
     }
 
-    fn create_window(dimensions: (u32, u32), title: &str, monitor: Option<MonitorID>) -> Option<id> {
+    fn create_window(dimensions: (u32, u32), title: &str, monitor: Option<MonitorID>) -> Option<IdRef> {
         unsafe {
             let frame = if monitor.is_some() {
                 let screen = NSScreen::mainScreen(nil);
@@ -421,18 +423,18 @@ impl Window {
                 NSResizableWindowMask as NSUInteger
             };
 
-            let window = NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
+            let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
                 frame,
                 masks,
                 NSBackingStoreBuffered,
                 NO,
-            );
+            ));
 
-            if window == nil {
+            if *window == nil {
                 None
             } else {
-                let title = NSString::alloc(nil).init_str(title);
-                window.setTitle_(title);
+                let title = IdRef::new(NSString::alloc(nil).init_str(title));
+                window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
                 if monitor.is_some() {
                     window.setLevel_(NSMainMenuWindowLevel as i64 + 1);
@@ -445,20 +447,20 @@ impl Window {
         }
     }
 
-    fn create_view(window: id) -> Option<id> {
+    fn create_view(window: id) -> Option<IdRef> {
         unsafe {
-            let view = NSView::alloc(nil).init();
-            if view == nil {
+            let view = IdRef::new(NSView::alloc(nil).init());
+            if *view == nil {
                 None
             } else {
                 view.setWantsBestResolutionOpenGLSurface_(YES);
-                window.setContentView_(view);
+                window.setContentView_(*view);
                 Some(view)
             }
         }
     }
 
-    fn create_context(view: id, vsync: bool, gl_version: GlRequest) -> Option<id> {
+    fn create_context(view: id, vsync: bool, gl_version: GlRequest) -> Option<IdRef> {
         let profile = match gl_version {
             GlRequest::Latest => NSOpenGLProfileVersion4_1Core as u32,
             GlRequest::Specific(Api::OpenGl, (1 ... 2, _)) => NSOpenGLProfileVersionLegacy as u32,
@@ -483,13 +485,13 @@ impl Window {
                 0
             ];
 
-            let pixelformat = NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes);
-            if pixelformat == nil {
+            let pixelformat = IdRef::new(NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes));
+            if *pixelformat == nil {
                 return None;
             }
 
-            let context = NSOpenGLContext::alloc(nil).initWithFormat_shareContext_(pixelformat, nil);
-            if context == nil {
+            let context = IdRef::new(NSOpenGLContext::alloc(nil).initWithFormat_shareContext_(*pixelformat, nil));
+            if *context == nil {
                 None
             } else {
                 context.setView_(view);
@@ -508,22 +510,22 @@ impl Window {
 
     pub fn set_title(&self, title: &str) {
         unsafe {
-            let title = NSString::alloc(nil).init_str(title);
-            self.window.setTitle_(title);
+            let title = IdRef::new(NSString::alloc(nil).init_str(title));
+            self.window.setTitle_(*title);
         }
     }
 
     pub fn show(&self) {
-        unsafe { NSWindow::makeKeyAndOrderFront_(self.window, nil); }
+        unsafe { NSWindow::makeKeyAndOrderFront_(*self.window, nil); }
     }
 
     pub fn hide(&self) {
-        unsafe { NSWindow::orderOut_(self.window, nil); }
+        unsafe { NSWindow::orderOut_(*self.window, nil); }
     }
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
         unsafe {
-            let content_rect = NSWindow::contentRectForFrameRect_(self.window, NSWindow::frame(self.window));
+            let content_rect = NSWindow::contentRectForFrameRect_(*self.window, NSWindow::frame(*self.window));
             // NOTE: coordinate system might be inconsistent with other backends
             Some((content_rect.origin.x as i32, content_rect.origin.y as i32))
         }
@@ -532,27 +534,27 @@ impl Window {
     pub fn set_position(&self, x: i32, y: i32) {
         unsafe {
             // NOTE: coordinate system might be inconsistent with other backends
-            NSWindow::setFrameOrigin_(self.window, NSPoint::new(x as f64, y as f64));
+            NSWindow::setFrameOrigin_(*self.window, NSPoint::new(x as f64, y as f64));
         }
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         unsafe {
-            let view_frame = NSView::frame(self.view);
+            let view_frame = NSView::frame(*self.view);
             Some((view_frame.size.width as u32, view_frame.size.height as u32))
         }
     }
 
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         unsafe {
-            let window_frame = NSWindow::frame(self.window);
+            let window_frame = NSWindow::frame(*self.window);
             Some((window_frame.size.width as u32, window_frame.size.height as u32))
         }
     }
 
     pub fn set_inner_size(&self, width: u32, height: u32) {
         unsafe {
-            NSWindow::setContentSize_(self.window, NSSize::new(width as f64, height as f64));
+            NSWindow::setContentSize_(*self.window, NSSize::new(width as f64, height as f64));
         }
     }
 
@@ -583,7 +585,7 @@ impl Window {
     }
 
     pub unsafe fn make_current(&self) {
-        let _: id = msg_send()(self.context, selector("update"));
+        let _: id = msg_send()(*self.context, selector("update"));
         self.context.makeCurrentContext();
     }
 
@@ -661,7 +663,7 @@ impl Window {
 
     pub fn hidpi_factor(&self) -> f32 {
         unsafe {
-            NSWindow::backingScaleFactor(self.window) as f32
+            NSWindow::backingScaleFactor(*self.window) as f32
         }
     }
 
@@ -669,3 +671,51 @@ impl Window {
         unimplemented!();
     }
 }
+
+struct IdRef(id);
+
+impl IdRef {
+    fn new(i: id) -> IdRef {
+        IdRef(i)
+    }
+
+    fn retain(i: id) -> IdRef {
+        unsafe { msg_send::<()>()(i, selector("retain")) };
+        IdRef(i)
+    }
+}
+
+impl Drop for IdRef {
+    fn drop(&mut self) {
+        if self.0 != nil {
+            unsafe { msg_send::<()>()(self.0, selector("release")) };
+        }
+    }
+}
+
+impl Deref for IdRef {
+    type Target = id;
+    fn deref<'a>(&'a self) -> &'a id {
+        &self.0
+    }
+}
+
+impl Clone for IdRef {
+    fn clone(&self) -> IdRef {
+        if self.0 != nil {
+            unsafe { msg_send::<()>()(self.0, selector("retain")) };
+        }
+        IdRef(self.0)
+    }
+
+    fn clone_from(&mut self, source: &IdRef) {
+        if source.0 != nil {
+            unsafe { msg_send::<()>()(source.0, selector("retain")) };
+        }
+        if self.0 != nil {
+            unsafe { msg_send::<()>()(self.0, selector("release")) };
+        }
+        self.0 = source.0;
+    }
+}
+
