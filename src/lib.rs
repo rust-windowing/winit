@@ -50,7 +50,9 @@ pub use headless::{HeadlessRendererBuilder, HeadlessContext};
 #[cfg(feature = "window")]
 pub use window::{WindowBuilder, Window, WindowProxy, PollEventsIterator, WaitEventsIterator};
 #[cfg(feature = "window")]
-pub use window::{AvailableMonitorsIter, NativeMonitorID, MonitorID, get_available_monitors, get_primary_monitor};
+pub use window::{AvailableMonitorsIter, MonitorID, get_available_monitors, get_primary_monitor};
+#[cfg(feature = "window")]
+pub use native_monitor::NativeMonitorId;
 
 #[cfg(all(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"), not(target_os = "android")))]
 use this_platform_is_not_supported;
@@ -322,3 +324,20 @@ impl<'a> BuilderAttribs<'a> {
                       .expect("Could not find compliant pixel format")
     }
 }
+
+mod native_monitor {
+    /// Native platform identifier for a monitor. Different platforms use fundamentally different types
+    /// to represent a monitor ID.
+    #[derive(PartialEq, Eq)]
+    pub enum NativeMonitorId {
+        /// Cocoa and X11 use a numeric identifier to represent a monitor.
+        Numeric(u32),
+
+        /// Win32 uses a Unicode string to represent a monitor.
+        Name(String),
+
+        /// Other platforms (Android) don't support monitor identification.
+        Unavailable
+    }
+}
+

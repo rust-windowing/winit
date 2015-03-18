@@ -8,7 +8,7 @@ use libc;
 use Api;
 use BuilderAttribs;
 use GlRequest;
-use NativeMonitorID;
+use native_monitor::NativeMonitorId;
 
 use cocoa::base::{Class, id, YES, NO, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
 use cocoa::base::{selector, msg_send, msg_send_stret, class_addMethod, class_addIvar};
@@ -409,7 +409,7 @@ impl Window {
         unsafe {
             let screen = monitor.map(|monitor_id| {
                 let native_id = match monitor_id.get_native_identifier() {
-                    NativeMonitorID::Numeric(num) => num,
+                    NativeMonitorId::Numeric(num) => num,
                     _ => panic!("OS X monitors should always have a numeric native ID")
                 };
                 let matching_screen = {

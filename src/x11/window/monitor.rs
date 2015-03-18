@@ -2,7 +2,7 @@ use std::ptr;
 use std::collections::VecDeque;
 use super::super::ffi;
 use super::ensure_thread_init;
-use window::NativeMonitorID;
+use native_monitor::NativeMonitorId;
 
 pub struct MonitorID(pub u32);
 
@@ -44,9 +44,9 @@ impl MonitorID {
         Some(format!("Monitor #{}", screen_num))
     }
 
-    pub fn get_native_identifier(&self) -> NativeMonitorID {
+    pub fn get_native_identifier(&self) -> NativeMonitorId {
         let MonitorID(screen_num) = *self;
-        NativeMonitorID::Numeric(screen_num)
+        NativeMonitorId::Numeric(screen_num)
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {

@@ -7,6 +7,7 @@ use CreationError;
 use Event;
 use GlRequest;
 use MouseCursor;
+use native_monitor::NativeMonitorId;
 
 use gl_common;
 use libc;
@@ -500,19 +501,6 @@ pub fn get_primary_monitor() -> MonitorID {
     MonitorID(winimpl::get_primary_monitor())
 }
 
-/// Native platform identifier for a monitor. Different platforms use fundamentally different types
-/// to represent a monitor ID.
-pub enum NativeMonitorID {
-    /// Cocoa and X11 use a numeric identifier to represent a monitor.
-    Numeric(u32),
-
-    /// Win32 uses a Unicode string to represent a monitor.
-    Name(String),
-
-    /// Other platforms (Android) don't support monitor identification.
-    Unavailable
-}
-
 /// Identifier for a monitor.
 pub struct MonitorID(winimpl::MonitorID);
 
@@ -524,7 +512,7 @@ impl MonitorID {
     }
 
     /// Returns the native platform identifier for this monitor.
-    pub fn get_native_identifier(&self) -> NativeMonitorID {
+    pub fn get_native_identifier(&self) -> NativeMonitorId {
         let &MonitorID(ref id) = self;
         id.get_native_identifier()
     }

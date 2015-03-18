@@ -14,7 +14,7 @@ use std::collections::VecDeque;
 use Api;
 use BuilderAttribs;
 use GlRequest;
-use NativeMonitorID;
+use native_monitor::NativeMonitorId;
 
 pub struct Window {
     display: ffi::egl::types::EGLDisplay,
@@ -42,8 +42,8 @@ impl MonitorID {
         Some("Primary".to_string())
     }
 
-    pub fn get_native_identifier(&self) -> NativeMonitorID {
-        NativeMonitorID::Unavailable
+    pub fn get_native_identifier(&self) -> NativeMonitorId {
+        NativeMonitorId::Unavailable
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
