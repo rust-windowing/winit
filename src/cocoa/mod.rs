@@ -456,10 +456,7 @@ impl Window {
                 NSBackingStoreBuffered,
                 NO,
             ));
-
-            if *window == nil {
-                None
-            } else {
+            window.non_nil().map(|window| {
                 let title = IdRef::new(NSString::alloc(nil).init_str(title));
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
@@ -469,21 +466,19 @@ impl Window {
                 else {
                     window.center();
                 }
-                Some(window)
-            }
+                window
+            })
         }
     }
 
     fn create_view(window: id) -> Option<IdRef> {
         unsafe {
             let view = IdRef::new(NSView::alloc(nil).init());
-            if *view == nil {
-                None
-            } else {
+            view.non_nil().map(|view| {
                 view.setWantsBestResolutionOpenGLSurface_(YES);
                 window.setContentView_(*view);
-                Some(view)
-            }
+                view
+            })
         }
     }
 
@@ -513,21 +508,17 @@ impl Window {
             ];
 
             let pixelformat = IdRef::new(NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes));
-            if *pixelformat == nil {
-                return None;
-            }
-
-            let context = IdRef::new(NSOpenGLContext::alloc(nil).initWithFormat_shareContext_(*pixelformat, nil));
-            if *context == nil {
-                None
-            } else {
-                context.setView_(view);
-                if vsync {
-                    let value = 1;
-                    context.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
-                }
-                Some(context)
-            }
+            pixelformat.non_nil().map(|pixelformat| {
+                let context = IdRef::new(NSOpenGLContext::alloc(nil).initWithFormat_shareContext_(*pixelformat, nil));
+                context.non_nil().map(|context| {
+                    context.setView_(view);
+                    if vsync {
+                        let value = 1;
+                        context.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
+                    }
+                    context
+                })
+            }).unwrap_or(None)
         }
     }
 
@@ -715,8 +706,14 @@ impl IdRef {
     }
 
     fn retain(i: id) -> IdRef {
-        unsafe { msg_send::<()>()(i, selector("retain")) };
+        if i != nil {
+            unsafe { msg_send::<()>()(i, selector("retain")) };
+        }
         IdRef(i)
+    }
+
+    fn non_nil(self) -> Option<IdRef> {
+        if self.0 == nil { None } else { Some(self) }
     }
 }
 
