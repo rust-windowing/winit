@@ -97,7 +97,6 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// Will panic if `samples` is not a power of two.
     pub fn with_multisampling(mut self, samples: u16) -> WindowBuilder<'a> {
-        use std::num::UnsignedInt;
         assert!(samples.is_power_of_two());
         self.attribs.multisampling = Some(samples);
         self
