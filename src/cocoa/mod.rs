@@ -30,7 +30,7 @@ use std::str::from_utf8;
 use std::sync::Mutex;
 use std::ascii::AsciiExt;
 
-use events::Event::{MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel};
+use events::Event::{Awakened, MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel};
 use events::ElementState::{Pressed, Released};
 use events::MouseButton;
 use events;
@@ -333,6 +333,8 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
             // calling poll_events()
             if let Some(ev) = self.window.poll_events().next() {
                 return Some(ev);
+            } else {
+                return Some(Awakened);
             }
         }
     }
