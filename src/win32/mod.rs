@@ -49,7 +49,9 @@ unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
 /// A simple wrapper that destroys the context when it is destroyed.
-struct ContextWrapper(pub winapi::HGLRC);
+// FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
+#[doc(hidden)]
+pub struct ContextWrapper(pub winapi::HGLRC);
 
 impl Drop for ContextWrapper {
     fn drop(&mut self) {
@@ -60,7 +62,9 @@ impl Drop for ContextWrapper {
 }
 
 /// A simple wrapper that destroys the window when it is destroyed.
-struct WindowWrapper(pub winapi::HWND, pub winapi::HDC);
+// FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
+#[doc(hidden)]
+pub struct WindowWrapper(pub winapi::HWND, pub winapi::HDC);
 
 impl Drop for WindowWrapper {
     fn drop(&mut self) {
