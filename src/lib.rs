@@ -211,7 +211,9 @@ pub struct PixelFormat {
 }
 
 /// Attributes
-struct BuilderAttribs<'a> {
+// FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
+#[doc(hidden)]
+pub struct BuilderAttribs<'a> {
     #[allow(dead_code)]
     headless: bool,
     strict: bool,
