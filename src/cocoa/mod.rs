@@ -10,9 +10,10 @@ use BuilderAttribs;
 use GlRequest;
 use native_monitor::NativeMonitorId;
 
-use cocoa::base::{Class, id, YES, NO, NSUInteger, nil, objc_allocateClassPair, class, objc_registerClassPair};
-use cocoa::base::{selector, msg_send, msg_send_stret, class_addMethod, class_addIvar};
-use cocoa::base::{object_setInstanceVariable, object_getInstanceVariable};
+use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
+use objc::declare::ClassDecl;
+
+use cocoa::base::{id, nil, NSUInteger};
 use cocoa::appkit;
 use cocoa::appkit::*;
 use cocoa::appkit::NSEventSubtype::*;
@@ -22,8 +23,7 @@ use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
 use std::cell::Cell;
-use std::ffi::{CString, CStr};
-use std::mem;
+use std::ffi::CStr;
 use std::ptr;
 use std::collections::VecDeque;
 use std::str::FromStr;
@@ -63,35 +63,25 @@ struct WindowDelegate {
 }
 
 impl WindowDelegate {
-    fn class_name() -> &'static [u8] {
-        b"GlutinWindowDelegate\0"
-    }
-
-    fn state_ivar_name() -> &'static [u8] {
-        b"glutinState"
-    }
-
     /// Get the delegate class, initiailizing it neccessary
-    fn class() -> Class {
+    fn class() -> *const Class {
         use std::sync::{Once, ONCE_INIT};
-        use std::rt;
 
-        extern fn window_should_close(this: id, _: id) -> id {
+        extern fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
             unsafe {
-                let delegate = WindowDelegate { this: this };
-                (*delegate.get_state()).is_closed = true;
-                mem::forget(delegate);
+                let state: *mut libc::c_void = *this.get_ivar("glutinState");
+                let state = state as *mut DelegateState;
+                (*state).is_closed = true;
             }
-            0
+            NO
         }
 
-        extern fn window_did_resize(this: id, _: id) -> id {
+        extern fn window_did_resize(this: &Object, _: Sel, _: id) {
             unsafe {
-                let delegate = WindowDelegate { this: this };
-                let state = &mut *delegate.get_state();
-                mem::forget(delegate);
+                let state: *mut libc::c_void = *this.get_ivar("glutinState");
+                let state = &mut *(state as *mut DelegateState);
 
-                let _: id = msg_send()(*state.context, selector("update"));
+                let _: id = msg_send![*state.context, update];
 
                 if let Some(handler) = state.handler {
                     let rect = NSView::frame(*state.view);
@@ -100,64 +90,43 @@ impl WindowDelegate {
                               (scale_factor * rect.size.height as f32) as u32);
                 }
             }
-            0
         }
 
-        static mut delegate_class: Class = nil;
-        static mut init: Once = ONCE_INIT;
+        static mut delegate_class: *const Class = 0 as *const Class;
+        static INIT: Once = ONCE_INIT;
+
+        INIT.call_once(|| unsafe {
+            // Create new NSWindowDelegate
+            let superclass = Class::get("NSObject").unwrap();
+            let mut decl = ClassDecl::new(superclass, "GlutinWindowDelegate").unwrap();
+
+            // Add callback methods
+            decl.add_method(sel!(windowShouldClose:),
+                window_should_close as extern fn(&Object, Sel, id) -> BOOL);
+            decl.add_method(sel!(windowDidResize:),
+                window_did_resize as extern fn(&Object, Sel, id));
+
+            // Store internal state as user data
+            decl.add_ivar::<*mut libc::c_void>("glutinState");
+
+            delegate_class = decl.register();
+        });
 
         unsafe {
-            init.call_once(|| {
-                let ptr_size = mem::size_of::<libc::intptr_t>();
-                    // Create new NSWindowDelegate
-                    delegate_class = objc_allocateClassPair(
-                        class("NSObject"),
-                        WindowDelegate::class_name().as_ptr() as *const i8, 0);
-                    // Add callback methods
-                    class_addMethod(delegate_class,
-                                    selector("windowShouldClose:"),
-                                    window_should_close,
-                                    CString::new("B@:@").unwrap().as_ptr());
-                    class_addMethod(delegate_class,
-                                    selector("windowDidResize:"),
-                                    window_did_resize,
-                                    CString::new("V@:@").unwrap().as_ptr());
-                    // Store internal state as user data
-                    class_addIvar(delegate_class, WindowDelegate::state_ivar_name().as_ptr() as *const i8,
-                                  ptr_size as u64, 3,
-                                  CString::new("?").unwrap().as_ptr());
-                    objc_registerClassPair(delegate_class);
-                // Free class at exit
-                rt::at_exit(|| {
-                    // objc_disposeClassPair(delegate_class);
-                });
-            });
             delegate_class
         }
     }
 
     fn new(window: id) -> WindowDelegate {
         unsafe {
-            let delegate: id = msg_send()(WindowDelegate::class(), selector("new"));
-            let _: id = msg_send()(window, selector("setDelegate:"), delegate);
+            let delegate: id = msg_send![WindowDelegate::class(), new];
+            let _: id = msg_send![window, setDelegate:delegate];
             WindowDelegate { this: delegate }
         }
     }
 
     unsafe fn set_state(&self, state: *mut DelegateState) {
-        object_setInstanceVariable(self.this,
-                                   WindowDelegate::state_ivar_name().as_ptr() as *const i8,
-                                   state as *mut libc::c_void);
-    }
-
-    fn get_state(&self) -> *mut DelegateState {
-        unsafe {
-            let mut state = ptr::null_mut();
-            object_getInstanceVariable(self.this,
-                                       WindowDelegate::state_ivar_name().as_ptr() as *const i8,
-                                       &mut state);
-            state as *mut DelegateState
-        }
+        (&mut *self.this).set_ivar("glutinState", state as *mut libc::c_void);
     }
 }
 
@@ -234,7 +203,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 self.window.is_closed.set(ds.is_closed);
             }
 
-            let event = match msg_send()(event, selector("type")) {
+            let event = match msg_send![event, type] {
                 NSLeftMouseDown         => { Some(MouseInput(Pressed, MouseButton::Left)) },
                 NSLeftMouseUp           => { Some(MouseInput(Released, MouseButton::Left)) },
                 NSRightMouseDown        => { Some(MouseInput(Pressed, MouseButton::Right)) },
@@ -244,8 +213,8 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 NSOtherMouseDragged     |
                 NSRightMouseDragged     => {
                     let window_point = event.locationInWindow();
-                    let window: id = msg_send()(event, selector("window"));
-                    let view_point = if window == 0 {
+                    let window: id = msg_send![event, window];
+                    let view_point = if window == nil {
                         let window_rect = self.window.window.convertRectFromScreen_(NSRect::new(window_point, NSSize::new(0.0, 0.0)));
                         self.window.view.convertPoint_fromView_(window_rect.origin, nil)
                     } else {
@@ -416,15 +385,15 @@ impl Window {
                 };
                 let matching_screen = {
                     let screens = NSScreen::screens(nil);
-                    let count: NSUInteger = msg_send()(screens, selector("count"));
+                    let count: NSUInteger = msg_send![screens, count];
                     let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
                     let mut matching_screen: Option<id> = None;
                     for i in (0..count) {
-                        let screen = msg_send()(screens, selector("objectAtIndex:"), i as NSUInteger);
+                        let screen = msg_send![screens, objectAtIndex:i as NSUInteger];
                         let device_description = NSScreen::deviceDescription(screen);
-                        let value = msg_send()(device_description, selector("objectForKey:"), *key);
+                        let value = msg_send![device_description, objectForKey:*key];
                         if value != nil {
-                            let screen_number: NSUInteger = msg_send()(value, selector("unsignedIntValue"));
+                            let screen_number: NSUInteger = msg_send![value, unsignedIntValue];
                             if screen_number as u32 == native_id {
                                 matching_screen = Some(screen);
                                 break;
@@ -605,7 +574,7 @@ impl Window {
     }
 
     pub unsafe fn make_current(&self) {
-        let _: id = msg_send()(*self.context, selector("update"));
+        let _: id = msg_send![*self.context, update];
         self.context.makeCurrentContext();
     }
 
@@ -613,7 +582,7 @@ impl Window {
         unsafe {
             let current = NSOpenGLContext::currentContext(nil);
             if current != nil {
-                let is_equal: bool = msg_send()(current, selector("isEqual:"), *self.context);
+                let is_equal: bool = msg_send![current, isEqual:*self.context];
                 is_equal
             } else {
                 false
@@ -683,9 +652,12 @@ impl Window {
             MouseCursor::Move | MouseCursor::AllScroll | MouseCursor::ZoomIn |
             MouseCursor::ZoomOut => "arrowCursor",
         };
+        let sel = Sel::register(cursor_name);
+        let cls = Class::get("NSCursor").unwrap();
         unsafe {
-            let cursor : id = msg_send()(class("NSCursor"), selector(cursor_name));
-            let _ : id = msg_send()(cursor, selector("set"));
+            use objc::MessageArguments;
+            let cursor: id = ().send(cls as *const _ as id, sel);
+            let _: id = msg_send![cursor, set];
         }
     }
 
@@ -709,7 +681,7 @@ impl IdRef {
 
     fn retain(i: id) -> IdRef {
         if i != nil {
-            unsafe { msg_send::<()>()(i, selector("retain")) };
+            unsafe { msg_send![i, retain] }
         }
         IdRef(i)
     }
@@ -722,7 +694,7 @@ impl IdRef {
 impl Drop for IdRef {
     fn drop(&mut self) {
         if self.0 != nil {
-            unsafe { msg_send::<()>()(self.0, selector("release")) };
+            unsafe { msg_send![self.0, release] }
         }
     }
 }
@@ -737,17 +709,17 @@ impl Deref for IdRef {
 impl Clone for IdRef {
     fn clone(&self) -> IdRef {
         if self.0 != nil {
-            unsafe { msg_send::<()>()(self.0, selector("retain")) };
+            unsafe { msg_send![self.0, retain] }
         }
         IdRef(self.0)
     }
 
     fn clone_from(&mut self, source: &IdRef) {
         if source.0 != nil {
-            unsafe { msg_send::<()>()(source.0, selector("retain")) };
+            unsafe { msg_send![source.0, retain] }
         }
         if self.0 != nil {
-            unsafe { msg_send::<()>()(self.0, selector("release")) };
+            unsafe { msg_send![self.0, release] }
         }
         self.0 = source.0;
     }

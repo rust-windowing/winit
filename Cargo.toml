@@ -31,6 +31,7 @@ clock_ticks = "*"
 version = "0"
 
 [target.x86_64-apple-darwin.dependencies]
+objc = "0.1"
 glutin_cocoa = "0"
 glutin_core_graphics = "0"
 glutin_core_foundation = "0"
