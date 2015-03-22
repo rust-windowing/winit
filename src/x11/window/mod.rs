@@ -348,7 +348,7 @@ impl Window {
                 return Err(OsError(format!("Could not query the video modes")));
             }
 
-            for i in range(0, mode_num) {
+            for i in 0..mode_num {
                 let mode: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _);
                 if mode.hdisplay == dimensions.0 as u16 && mode.vdisplay == dimensions.1 as u16 {
                     best_mode = i;

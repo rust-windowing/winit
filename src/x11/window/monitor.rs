@@ -18,7 +18,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
     };
 
     let mut monitors = VecDeque::new();
-    monitors.extend(range(0, nb_monitors).map(|i| MonitorID(i as u32)));
+    monitors.extend((0..nb_monitors).map(|i| MonitorID(i as u32)));
     monitors
 }
 
