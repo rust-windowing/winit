@@ -12,7 +12,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
         display::CGGetActiveDisplayList(max_displays,
                                                         &mut active_displays[0],
                                                         &mut display_count);
-        for i in range(0, display_count as usize) {
+        for i in 0..display_count as usize {
             monitors.push_back(MonitorID(active_displays[i]));
         }
     }
