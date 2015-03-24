@@ -164,6 +164,12 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
             (None, None)
         };
 
+        let (x, y) = if builder.monitor.is_some() {
+            (Some(rect.left), Some(rect.top))
+        } else {
+            (None, None)
+        };
+
         let style = if !builder.visible || builder.headless {
             style
         } else {
@@ -173,8 +179,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         let handle = user32::CreateWindowExW(ex_style, class_name.as_ptr(),
             title.as_ptr() as winapi::LPCWSTR,
             style | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN,
-            if builder.monitor.is_some() { 0 } else { winapi::CW_USEDEFAULT },
-            if builder.monitor.is_some() { 0 } else { winapi::CW_USEDEFAULT },
+            x.unwrap_or(winapi::CW_USEDEFAULT), y.unwrap_or(winapi::CW_USEDEFAULT),
             width.unwrap_or(winapi::CW_USEDEFAULT), height.unwrap_or(winapi::CW_USEDEFAULT),
             ptr::null_mut(), ptr::null_mut(), kernel32::GetModuleHandleW(ptr::null()),
             ptr::null_mut());
