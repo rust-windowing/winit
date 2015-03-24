@@ -301,7 +301,7 @@ unsafe fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorID)
     screen_settings.dmBitsPerPel = 32;      // TODO: ?
     screen_settings.dmFields = winapi::DM_BITSPERPEL | winapi::DM_PELSWIDTH | winapi::DM_PELSHEIGHT;
 
-    let result = user32::ChangeDisplaySettingsExW(monitor.get_system_name().as_ptr(),
+    let result = user32::ChangeDisplaySettingsExW(monitor.get_adapter_name().as_ptr(),
                                                   &mut screen_settings, ptr::null_mut(),
                                                   winapi::CDS_FULLSCREEN, ptr::null_mut());
     
