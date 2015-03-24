@@ -7,6 +7,7 @@ use CreationError;
 use Event;
 use GlRequest;
 use MouseCursor;
+use native_monitor::NativeMonitorId;
 
 use gl_common;
 use libc;
@@ -507,6 +508,12 @@ impl MonitorID {
     pub fn get_name(&self) -> Option<String> {
         let &MonitorID(ref id) = self;
         id.get_name()
+    }
+
+    /// Returns the native platform identifier for this monitor.
+    pub fn get_native_identifier(&self) -> NativeMonitorId {
+        let &MonitorID(ref id) = self;
+        id.get_native_identifier()
     }
 
     /// Returns the number of pixels currently displayed on the monitor.
