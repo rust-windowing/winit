@@ -235,7 +235,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     // handling vsync
     if builder.vsync {
         if extra_functions.SwapIntervalEXT.is_loaded() {
-            let guard = try!(CurrentContextGuard::make_current(&real_window, &context));
+            let _guard = try!(CurrentContextGuard::make_current(&real_window, &context));
 
             if extra_functions.SwapIntervalEXT(1) == 0 {
                 return Err(OsError(format!("wglSwapIntervalEXT failed")));

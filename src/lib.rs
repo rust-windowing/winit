@@ -1,4 +1,4 @@
-#![feature(unsafe_destructor,core,std_misc)]
+#![feature(collections, unsafe_destructor, os, core, std_misc, alloc)]
 #![unstable]
 
 //! The purpose of this library is to provide an OpenGL context on as many
@@ -32,17 +32,17 @@ extern crate libc;
 #[cfg(target_os = "windows")]
 extern crate winapi;
 #[cfg(target_os = "windows")]
-extern crate "kernel32-sys" as kernel32;
+extern crate kernel32_sys as kernel32;
 #[cfg(target_os = "windows")]
-extern crate "gdi32-sys" as gdi32;
+extern crate gdi32_sys as gdi32;
 #[cfg(target_os = "windows")]
-extern crate "user32-sys" as user32;
+extern crate user32_sys as user32;
 #[cfg(target_os = "macos")]
 extern crate cocoa;
 #[cfg(target_os = "macos")]
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
-extern crate "glutin_core_graphics" as core_graphics;
+extern crate glutin_core_graphics as core_graphics;
 
 pub use events::*;
 #[cfg(feature = "headless")]
@@ -86,7 +86,7 @@ pub enum CreationError {
 impl CreationError {
     fn to_string(&self) -> &str {
         match *self {
-            CreationError::OsError(ref text) => text.as_slice(),
+            CreationError::OsError(ref text) => &text,
             CreationError::NotSupported => "Some of the requested attributes are not supported",
         }
     }

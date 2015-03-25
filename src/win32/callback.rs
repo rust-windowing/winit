@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::sync::mpsc::{Sender, Receiver, channel};
+use std::sync::mpsc::Sender;
 
 use Event;
 use super::event;
@@ -52,7 +52,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 };
 
                 if win == &window {
-                    unsafe { user32::PostQuitMessage(0); }
+                    user32::PostQuitMessage(0);
                 }
             });
 
@@ -83,7 +83,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         winapi::WM_CHAR => {
             use std::mem;
             use events::Event::ReceivedCharacter;
-            let chr: char = unsafe { mem::transmute(wparam as u32) };
+            let chr: char = mem::transmute(wparam as u32);
             send_event(window, ReceivedCharacter(chr));
             0
         },
@@ -188,7 +188,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        _ => unsafe {
+        _ => {
             user32::DefWindowProcW(window, msg, wparam, lparam)
         }
     }

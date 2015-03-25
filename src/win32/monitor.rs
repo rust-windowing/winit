@@ -2,6 +2,7 @@ use winapi;
 use user32;
 
 use std::collections::VecDeque;
+use std::mem;
 
 use native_monitor::NativeMonitorId;
 
@@ -83,15 +84,12 @@ impl Iterator for DeviceEnumerator {
 
 fn wchar_as_string(wchar: &[winapi::WCHAR]) -> String {
     String::from_utf16_lossy(wchar)
-        .as_slice()
         .trim_right_matches(0 as char)
         .to_string()
 }
 
 /// Win32 implementation of the main `get_available_monitors` function.
 pub fn get_available_monitors() -> VecDeque<MonitorID> {
-    use std::{iter, mem, ptr};
-
     // return value
     let mut result = VecDeque::new();
 
@@ -120,8 +118,8 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
             // adding to the resulting list
             result.push_back(MonitorID {
                 adapter_name: adapter.DeviceName,
-                monitor_name: wchar_as_string(monitor.DeviceName.as_slice()),
-                readable_name: wchar_as_string(monitor.DeviceString.as_slice()),
+                monitor_name: wchar_as_string(&monitor.DeviceName),
+                readable_name: wchar_as_string(&monitor.DeviceString),
                 flags: monitor.StateFlags,
                 position: position,
                 dimensions: dimensions,
@@ -165,7 +163,7 @@ impl MonitorID {
     /// This is a Win32-only function for `MonitorID` that returns the system name of the adapter
     /// device.
     pub fn get_adapter_name(&self) -> &[winapi::WCHAR] {
-        self.adapter_name.as_slice()
+        &self.adapter_name
     }
 
     /// This is a Win32-only function for `MonitorID` that returns the position of the
