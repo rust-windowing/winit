@@ -30,23 +30,11 @@ clock_ticks = "*"
 [target.arm-linux-androideabi.dependencies.android_glue]
 version = "0"
 
-[target.i686-apple-darwin.dependencies.glutin_cocoa]
-version = "0"
-
-[target.x86_64-apple-darwin.dependencies.glutin_cocoa]
-version = "0"
-
-[target.i686-apple-darwin.dependencies.glutin_core_graphics]
-version = "0"
-
-[target.x86_64-apple-darwin.dependencies.glutin_core_graphics]
-version = "0"
-
-[target.i686-apple-darwin.dependencies.glutin_core_foundation]
-version = "0"
-
-[target.x86_64-apple-darwin.dependencies.glutin_core_foundation]
-version = "0"
+[target.x86_64-apple-darwin.dependencies]
+objc = "0.1"
+glutin_cocoa = "0"
+glutin_core_graphics = "0"
+glutin_core_foundation = "0"
 
 [target.i686-pc-windows-gnu.dependencies]
 winapi = "0.1"

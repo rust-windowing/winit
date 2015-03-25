@@ -38,6 +38,9 @@ extern crate gdi32_sys as gdi32;
 #[cfg(target_os = "windows")]
 extern crate user32_sys as user32;
 #[cfg(target_os = "macos")]
+#[macro_use]
+extern crate objc;
+#[cfg(target_os = "macos")]
 extern crate cocoa;
 #[cfg(target_os = "macos")]
 extern crate core_foundation;
