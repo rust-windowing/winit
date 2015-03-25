@@ -1,3 +1,5 @@
+#![feature(std_misc)]
+
 #[cfg(target_os = "android")]
 #[macro_use]
 extern crate android_glue;

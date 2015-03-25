@@ -1,7 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::ptr;
 use std::ffi::CString;
-use std::collections::VecDeque;
 use std::sync::mpsc::Receiver;
 use libc;
 use {CreationError, Event, MouseCursor};
