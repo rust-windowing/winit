@@ -161,6 +161,11 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     }
                 },
 
+                ffi::Expose => {
+                    use events::Event::Refresh;
+                    return Some(Refresh);
+                },
+
                 ffi::MotionNotify => {
                     use events::Event::MouseMoved;
                     let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
