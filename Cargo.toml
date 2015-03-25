@@ -3,7 +3,7 @@
 name = "glutin"
 version = "0.0.13"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
-description = "Cross-plaform OpenGL context provider. Important: the crates.io only supports Windows and Linux for the moment."
+description = "Cross-plaform OpenGL context provider."
 keywords = ["windowing", "opengl"]
 license = "Apache-2.0"
 readme = "README.md"
