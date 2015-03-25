@@ -419,7 +419,7 @@ impl Window {
                     let count: NSUInteger = msg_send()(screens, selector("count"));
                     let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
                     let mut matching_screen: Option<id> = None;
-                    for i in range(0, count) {
+                    for i in (0..count) {
                         let screen = msg_send()(screens, selector("objectAtIndex:"), i as NSUInteger);
                         let device_description = NSScreen::deviceDescription(screen);
                         let value = msg_send()(device_description, selector("objectForKey:"), *key);
