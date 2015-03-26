@@ -358,6 +358,10 @@ impl Window {
     pub fn set_cursor(&self, _: MouseCursor) {
     }
 
+    pub fn grab_cursor(&self) -> Result<(), String> { Ok(()) }
+
+    pub fn ungrab_cursor(&self) {}
+
     pub fn hidpi_factor(&self) -> f32 {
         1.0
     }

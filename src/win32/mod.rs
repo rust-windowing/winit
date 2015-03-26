@@ -255,6 +255,14 @@ impl Window {
         unimplemented!()
     }
 
+    pub fn grab_cursor(&self) -> Result<(), String> {
+        unimplemented!()
+    }
+
+    pub fn ungrab_cursor(&self) {
+        unimplemented!()
+    }
+
     pub fn hidpi_factor(&self) -> f32 {
         1.0
     }

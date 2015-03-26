@@ -42,6 +42,17 @@ pub const Button5: libc::c_uint = 5;
 pub const InputOutput: libc::c_uint = 1;
 pub const InputOnly: libc::c_uint = 2;
 
+pub const CurrentTime: Time = 0;
+
+pub const GrabModeSync: libc::c_int = 0;
+pub const GrabModeAsync: libc::c_int = 1;
+
+pub const GrabSuccess: libc::c_int = 0;
+pub const AlreadyGrabbed: libc::c_int =  1;
+pub const GrabInvalidTime: libc::c_int = 2;
+pub const GrabNotViewable: libc::c_int = 3;
+pub const GrabFrozen: libc::c_int = 4;
+
 pub const CWBackPixmap: libc::c_ulong = (1<<0);
 pub const CWBackPixel: libc::c_ulong = (1<<1);
 pub const CWBorderPixmap: libc::c_ulong = (1<<2);
@@ -1470,6 +1481,10 @@ extern "C" {
 
     pub fn XcursorLibraryLoadCursor(dpy: *mut Display, name: *const libc::c_char) -> Cursor;
     pub fn XDefineCursor(dby: *mut Display, w: Window, cursor: Cursor);
+    pub fn XGrabPointer(dpy: *mut Display, w: Window, owner_events: bool, event_mask: libc::c_long,
+        pointer_mode: libc::c_int, keyboard_mode: libc::c_int, confine_to: Window, cursor: Cursor,
+        time: Time) -> libc::c_int;
+    pub fn XUngrabPointer(dpy: *mut Display, time: Time);
 }
 
 /*
