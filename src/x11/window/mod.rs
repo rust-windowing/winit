@@ -283,7 +283,7 @@ pub struct Window {
     current_size: Cell<(libc::c_int, libc::c_int)>,
     /// Events that have been retreived with XLib but not dispatched with iterators yet
     pending_events: Mutex<VecDeque<Event>>,
-    cursor_state: CursorState,
+    cursor_state: Mutex<CursorState>,
 }
 
 impl Window {
@@ -603,7 +603,7 @@ impl Window {
             wm_delete_window: wm_delete_window,
             current_size: Cell::new((0, 0)),
             pending_events: Mutex::new(VecDeque::new()),
-            cursor_state: CursorState::Normal,
+            cursor_state: Mutex::new(CursorState::Normal),
         };
 
         // returning
@@ -786,17 +786,20 @@ impl Window {
     }
 
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        match (state, self.cursor_state) {
+        let mut cursor_state = self.cursor_state.lock().unwrap();
+
+        match (state, *cursor_state) {
             (CursorState::Normal, CursorState::Grab) => {
                 unsafe {
                     ffi::XUngrabPointer(self.x.display, ffi::CurrentTime);
-                    self.cursor_state = CursorState::Normal;
+                    *cursor_state = CursorState::Normal;
+                    Ok(())
                 }
             },
 
             (CursorState::Grab, CursorState::Normal) => {
                 unsafe {
-                    self.cursor_state = CursorState::Grab;
+                    *cursor_state = CursorState::Grab;
 
                     match ffi::XGrabPointer(
                         self.x.display, self.x.window, false,
