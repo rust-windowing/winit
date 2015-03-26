@@ -42,6 +42,11 @@ fn main() {
                               .ok().expect("could not grab mouse cursor");
                     }
                 },
+
+                a @ Event::MouseMoved(_) => {
+                    println!("{:?}", a);
+                },
+
                 _ => (),
             }
             

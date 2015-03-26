@@ -262,7 +262,12 @@ impl Window {
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
         let mut current_state = self.cursor_state.lock().unwrap();
 
-        match (state, *current_state) {
+        let foreground_thread_id = unsafe { user32::GetWindowThreadProcessId(self.window.0, ptr::null_mut()) };
+        let current_thread_id = unsafe { kernel32::GetCurrentThreadId() };
+
+        unsafe { user32::AttachThreadInput(foreground_thread_id, current_thread_id, 1) };
+
+        let res = match (state, *current_state) {
             (CursorState::Normal, CursorState::Normal) => Ok(()),
             (CursorState::Hide, CursorState::Hide) => Ok(()),
             (CursorState::Grab, CursorState::Grab) => Ok(()),
@@ -310,7 +315,11 @@ impl Window {
             },
 
             _ => unimplemented!(),
-        }
+        };
+
+        unsafe { user32::AttachThreadInput(foreground_thread_id, current_thread_id, 0) };
+
+        res
     }
 
     pub fn hidpi_factor(&self) -> f32 {
