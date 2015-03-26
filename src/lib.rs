@@ -198,6 +198,23 @@ pub enum MouseCursor {
     RowResize,
 }
 
+/// Describes how glutin handles the cursor.
+#[derive(Debug, Copy)]
+pub enum CursorState {
+    /// Normal cursor behavior.
+    Normal,
+
+    /// The cursor will be invisible when over the window.
+    Hide,
+
+    /// Grabs the mouse cursor. The cursor's motion will be confined to this
+    /// window and the window has exclusive access to further events regarding
+    /// the cursor.
+    ///
+    /// This is useful for first-person cameras for example.
+    Grab,
+}
+
 /// Describes a possible format. Unused.
 #[allow(missing_docs)]
 #[derive(Debug, Clone)]

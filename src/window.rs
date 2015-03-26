@@ -4,6 +4,7 @@ use std::default::Default;
 use Api;
 use BuilderAttribs;
 use CreationError;
+use CursorState;
 use Event;
 use GlRequest;
 use MouseCursor;
@@ -415,21 +416,12 @@ impl Window {
         self.window.set_cursor_position(x, y)
     }
 
-    /// Grabs the mouse cursor. The cursor's motion will be confined to this
-    /// window and the window has exclusive access to further events regarding
-    /// the cursor.
-    /// Fails if it is not possible to grab the window for some reason, e.g.
-    /// when another window has already done so.
+    /// Sets how glutin handles the cursor. See the documentation of `CursorState` for details.
+    ///
     /// Has no effect on Android.
-    pub fn grab_cursor(&self) -> Result<(), String> {
-        self.window.grab_cursor()
+    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        self.window.set_cursor_state(state)
     }
-
-    /// Release a previously grabbed mouse cursor.
-    pub fn ungrab_cursor(&self) {
-        self.window.ungrab_cursor();
-    }
-
 }
 
 impl gl_common::GlFunctionsSource for Window {

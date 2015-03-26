@@ -4,6 +4,7 @@ use std::ffi::CString;
 use std::sync::mpsc::Receiver;
 use libc;
 use {CreationError, Event, MouseCursor};
+use CursorState;
 
 use BuilderAttribs;
 
@@ -255,12 +256,8 @@ impl Window {
         unimplemented!()
     }
 
-    pub fn grab_cursor(&self) -> Result<(), String> {
-        unimplemented!()
-    }
-
-    pub fn ungrab_cursor(&self) {
-        unimplemented!()
+    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        unimplemented!();
     }
 
     pub fn hidpi_factor(&self) -> f32 {

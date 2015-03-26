@@ -1,7 +1,7 @@
 #[cfg(feature = "headless")]
 pub use self::headless::HeadlessContext;
 
-use {CreationError, Event, MouseCursor};
+use {CreationError, Event, MouseCursor, CursorState};
 use CreationError::OsError;
 use libc;
 
@@ -659,6 +659,10 @@ impl Window {
             let cursor: id = ().send(cls as *const _ as id, sel);
             let _: id = msg_send![cursor, set];
         }
+    }
+
+    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        unimplemented!();
     }
 
     pub fn hidpi_factor(&self) -> f32 {
