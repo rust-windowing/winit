@@ -249,7 +249,7 @@ impl Window {
     /// Returns the position of the top-left hand corner of the window relative to the
     ///  top-left hand corner of the desktop.
     ///
-    /// Note that the top-left hand corner of the desktop is not necessarly the same as
+    /// Note that the top-left hand corner of the desktop is not necessarily the same as
     ///  the screen. If the user uses a desktop with multiple monitors, the top-left hand corner
     ///  of the desktop is the top-left hand corner of the monitor at the top-left of the desktop.
     ///
