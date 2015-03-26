@@ -1,6 +1,8 @@
 use std::sync::atomic::AtomicBool;
+use std::mem;
 use std::ptr;
 use std::ffi::CString;
+use std::sync::Mutex;
 use std::sync::mpsc::Receiver;
 use libc;
 use {CreationError, Event, MouseCursor};
@@ -43,6 +45,9 @@ pub struct Window {
 
     /// True if a `Closed` event has been received.
     is_closed: AtomicBool,
+
+    /// The current cursor state.
+    cursor_state: Mutex<CursorState>,
 }
 
 unsafe impl Send for Window {}
@@ -148,7 +153,6 @@ impl Window {
 
     /// See the docs in the crate root file.
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        use std::mem;
         let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
         if unsafe { user32::GetClientRect(self.window.0, &mut rect) } == 0 {
@@ -163,7 +167,6 @@ impl Window {
 
     /// See the docs in the crate root file.
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
-        use std::mem;
         let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
         if unsafe { user32::GetWindowRect(self.window.0, &mut rect) } == 0 {
@@ -257,7 +260,57 @@ impl Window {
     }
 
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        unimplemented!();
+        let mut current_state = self.cursor_state.lock().unwrap();
+
+        match (state, *current_state) {
+            (CursorState::Normal, CursorState::Normal) => Ok(()),
+            (CursorState::Hide, CursorState::Hide) => Ok(()),
+            (CursorState::Grab, CursorState::Grab) => Ok(()),
+
+            (CursorState::Hide, CursorState::Normal) => {
+                unsafe {
+                    user32::SetCursor(ptr::null_mut());
+                    *current_state = CursorState::Hide;
+                    Ok(())
+                }
+            },
+
+            (CursorState::Normal, CursorState::Hide) => {
+                unsafe {
+                    user32::SetCursor(user32::LoadCursorW(ptr::null_mut(), winapi::IDC_ARROW));
+                    *current_state = CursorState::Normal;
+                    Ok(())
+                }
+            },
+
+            (CursorState::Grab, CursorState::Normal) => {
+                unsafe {
+                    user32::SetCursor(ptr::null_mut());
+                    let mut rect = mem::uninitialized();
+                    if user32::GetWindowRect(self.window.0, &mut rect) == 0 {
+                        return Err(format!("GetWindowRect failed"));
+                    }
+                    if user32::ClipCursor(&rect) == 0 {
+                        return Err(format!("ClipCursor failed"));
+                    }
+                    *current_state = CursorState::Grab;
+                    Ok(())
+                }
+            },
+
+            (CursorState::Normal, CursorState::Grab) => {
+                unsafe {
+                    user32::SetCursor(user32::LoadCursorW(ptr::null_mut(), winapi::IDC_ARROW));
+                    if user32::ClipCursor(ptr::null()) == 0 {
+                        return Err(format!("ClipCursor failed"));
+                    }
+                    *current_state = CursorState::Normal;
+                    Ok(())
+                }
+            },
+
+            _ => unimplemented!(),
+        }
     }
 
     pub fn hidpi_factor(&self) -> f32 {
