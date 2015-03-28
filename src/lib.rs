@@ -32,7 +32,7 @@ extern crate libc;
 #[cfg(target_os = "windows")]
 extern crate winapi;
 #[cfg(target_os = "windows")]
-extern crate kernel32_sys as kernel32;
+extern crate kernel32;
 #[cfg(target_os = "windows")]
 extern crate gdi32_sys as gdi32;
 #[cfg(target_os = "windows")]
