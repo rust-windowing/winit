@@ -81,7 +81,7 @@ impl WindowDelegate {
                 let state: *mut libc::c_void = *this.get_ivar("glutinState");
                 let state = &mut *(state as *mut DelegateState);
 
-                let _: id = msg_send![*state.context, update];
+                let _: () = msg_send![*state.context, update];
 
                 if let Some(handler) = state.handler {
                     let rect = NSView::frame(*state.view);
@@ -120,7 +120,7 @@ impl WindowDelegate {
     fn new(window: id) -> WindowDelegate {
         unsafe {
             let delegate: id = msg_send![WindowDelegate::class(), new];
-            let _: id = msg_send![window, setDelegate:delegate];
+            let _: () = msg_send![window, setDelegate:delegate];
             WindowDelegate { this: delegate }
         }
     }
@@ -393,7 +393,7 @@ impl Window {
                         let device_description = NSScreen::deviceDescription(screen);
                         let value = msg_send![device_description, objectForKey:*key];
                         if value != nil {
-                            let screen_number: NSUInteger = msg_send![value, unsignedIntValue];
+                            let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
                             if screen_number as u32 == native_id {
                                 matching_screen = Some(screen);
                                 break;
@@ -574,7 +574,7 @@ impl Window {
     }
 
     pub unsafe fn make_current(&self) {
-        let _: id = msg_send![*self.context, update];
+        let _: () = msg_send![*self.context, update];
         self.context.makeCurrentContext();
     }
 
@@ -582,8 +582,8 @@ impl Window {
         unsafe {
             let current = NSOpenGLContext::currentContext(nil);
             if current != nil {
-                let is_equal: bool = msg_send![current, isEqual:*self.context];
-                is_equal
+                let is_equal: BOOL = msg_send![current, isEqual:*self.context];
+                is_equal != NO
             } else {
                 false
             }
@@ -657,7 +657,7 @@ impl Window {
         unsafe {
             use objc::MessageArguments;
             let cursor: id = ().send(cls as *const _ as id, sel);
-            let _: id = msg_send![cursor, set];
+            let _: () = msg_send![cursor, set];
         }
     }
 
@@ -685,7 +685,7 @@ impl IdRef {
 
     fn retain(i: id) -> IdRef {
         if i != nil {
-            unsafe { msg_send![i, retain] }
+            let _: id = unsafe { msg_send![i, retain] };
         }
         IdRef(i)
     }
@@ -698,7 +698,7 @@ impl IdRef {
 impl Drop for IdRef {
     fn drop(&mut self) {
         if self.0 != nil {
-            unsafe { msg_send![self.0, release] }
+            let _: () = unsafe { msg_send![self.0, release] };
         }
     }
 }
@@ -713,17 +713,17 @@ impl Deref for IdRef {
 impl Clone for IdRef {
     fn clone(&self) -> IdRef {
         if self.0 != nil {
-            unsafe { msg_send![self.0, retain] }
+            let _: id = unsafe { msg_send![self.0, retain] };
         }
         IdRef(self.0)
     }
 
     fn clone_from(&mut self, source: &IdRef) {
         if source.0 != nil {
-            unsafe { msg_send![source.0, retain] }
+            let _: id = unsafe { msg_send![source.0, retain] };
         }
         if self.0 != nil {
-            unsafe { msg_send![self.0, release] }
+            let _: () = unsafe { msg_send![self.0, release] };
         }
         self.0 = source.0;
     }
