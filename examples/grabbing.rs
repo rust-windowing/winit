@@ -1,3 +1,5 @@
+#![feature(std_misc)]
+
 #[cfg(target_os = "android")]
 #[macro_use]
 extern crate android_glue;
@@ -16,7 +18,6 @@ fn main() { println!("This example requires glutin to be compiled with the `wind
 
 #[cfg(feature = "window")]
 fn main() {
-    
     let window = glutin::Window::new().unwrap();
     window.set_title("glutin - Cursor grabbing test");
     unsafe { window.make_current() };
@@ -33,11 +34,12 @@ fn main() {
                 Event::KeyboardInput(ElementState::Pressed, _, _) => {
                     if grabbed {
                         grabbed = false;
-                        window.ungrab_cursor();
-                    }
-                    else {
+                        window.set_cursor_state(glutin::CursorState::Normal)
+                              .ok().expect("could not ungrab mouse cursor");
+                    } else {
                         grabbed = true;
-                        window.grab_cursor().ok().expect("could not grab mouse cursor");
+                        window.set_cursor_state(glutin::CursorState::Grab)
+                              .ok().expect("could not grab mouse cursor");
                     }
                 },
                 _ => (),

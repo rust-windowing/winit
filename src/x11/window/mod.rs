@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex, Once, ONCE_INIT, Weak};
 use std::sync::{StaticMutex, MUTEX_INIT};
 
 use Api;
+use CursorState;
 use GlRequest;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
@@ -282,6 +283,7 @@ pub struct Window {
     current_size: Cell<(libc::c_int, libc::c_int)>,
     /// Events that have been retreived with XLib but not dispatched with iterators yet
     pending_events: Mutex<VecDeque<Event>>,
+    cursor_state: Mutex<CursorState>,
 }
 
 impl Window {
@@ -601,6 +603,7 @@ impl Window {
             wm_delete_window: wm_delete_window,
             current_size: Cell::new((0, 0)),
             pending_events: Mutex::new(VecDeque::new()),
+            cursor_state: Mutex::new(CursorState::Normal),
         };
 
         // returning
@@ -782,30 +785,42 @@ impl Window {
         }
     }
 
-    pub fn grab_cursor(&self) -> Result<(), String> {
-        unsafe {
-            match ffi::XGrabPointer(
-                self.x.display, self.x.window, false,
-                ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
-                ffi::LeaveWindowMask | ffi::PointerMotionMask | ffi::PointerMotionHintMask |
-                ffi::Button1MotionMask | ffi::Button2MotionMask | ffi::Button3MotionMask |
-                ffi::Button4MotionMask | ffi::Button5MotionMask | ffi::ButtonMotionMask |
-                ffi::KeymapStateMask,
-                ffi::GrabModeAsync, ffi::GrabModeAsync,
-                self.x.window, 0, ffi::CurrentTime
-            ) {
-                ffi::GrabSuccess => Ok(()),
-                ffi::AlreadyGrabbed | ffi::GrabInvalidTime |
-                ffi::GrabNotViewable | ffi::GrabFrozen
-                    => Err("cursor could not be grabbed".to_string()),
-                _ => unreachable!(),
-            }
-        }
-    }
+    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        let mut cursor_state = self.cursor_state.lock().unwrap();
 
-    pub fn ungrab_cursor(&self) {
-        unsafe {
-            ffi::XUngrabPointer(self.x.display, ffi::CurrentTime);
+        match (state, *cursor_state) {
+            (CursorState::Normal, CursorState::Grab) => {
+                unsafe {
+                    ffi::XUngrabPointer(self.x.display, ffi::CurrentTime);
+                    *cursor_state = CursorState::Normal;
+                    Ok(())
+                }
+            },
+
+            (CursorState::Grab, CursorState::Normal) => {
+                unsafe {
+                    *cursor_state = CursorState::Grab;
+
+                    match ffi::XGrabPointer(
+                        self.x.display, self.x.window, false,
+                        ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
+                        ffi::LeaveWindowMask | ffi::PointerMotionMask | ffi::PointerMotionHintMask |
+                        ffi::Button1MotionMask | ffi::Button2MotionMask | ffi::Button3MotionMask |
+                        ffi::Button4MotionMask | ffi::Button5MotionMask | ffi::ButtonMotionMask |
+                        ffi::KeymapStateMask,
+                        ffi::GrabModeAsync, ffi::GrabModeAsync,
+                        self.x.window, 0, ffi::CurrentTime
+                    ) {
+                        ffi::GrabSuccess => Ok(()),
+                        ffi::AlreadyGrabbed | ffi::GrabInvalidTime |
+                        ffi::GrabNotViewable | ffi::GrabFrozen
+                            => Err("cursor could not be grabbed".to_string()),
+                        _ => unreachable!(),
+                    }
+                }
+            },
+
+            _ => unimplemented!(),
         }
     }
 

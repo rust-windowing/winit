@@ -13,6 +13,7 @@ use std::collections::VecDeque;
 
 use Api;
 use BuilderAttribs;
+use CursorState;
 use GlRequest;
 use native_monitor::NativeMonitorId;
 
@@ -358,9 +359,9 @@ impl Window {
     pub fn set_cursor(&self, _: MouseCursor) {
     }
 
-    pub fn grab_cursor(&self) -> Result<(), String> { Ok(()) }
-
-    pub fn ungrab_cursor(&self) {}
+    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        Ok(())
+    }
 
     pub fn hidpi_factor(&self) -> f32 {
         1.0
