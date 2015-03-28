@@ -304,7 +304,7 @@ impl<'a> BuilderAttribs<'a> {
         (new_attribs, sharing)
     }
 
-    fn choose_pixel_format<T, I>(&self, iter: I) -> (T, PixelFormat)
+    fn choose_pixel_format<T, I>(&self, iter: I) -> Result<(T, PixelFormat), CreationError>
                                  where I: Iterator<Item=(T, PixelFormat)>, T: Clone
     {
         let mut current_result = None;
@@ -343,7 +343,7 @@ impl<'a> BuilderAttribs<'a> {
         }
 
         current_result.or(current_software_result)
-                      .expect("Could not find compliant pixel format")
+                      .ok_or(CreationError::NotSupported)
     }
 }
 

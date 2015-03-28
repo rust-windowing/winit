@@ -136,7 +136,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         // getting the pixel format that we will use and setting it
         {
             let formats = enumerate_native_pixel_formats(&dummy_window);
-            let (id, _) = builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a)));
+            let (id, _) = try!(builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a))));
             try!(set_pixel_format(&dummy_window, id));
         }
 
@@ -206,7 +206,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
             enumerate_native_pixel_formats(&real_window)
         };
 
-        let (id, _) = builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a)));
+        let (id, _) = try!(builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a))));
         try!(set_pixel_format(&real_window, id));
     }
 
