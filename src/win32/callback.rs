@@ -1,3 +1,4 @@
+use std::mem;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
@@ -174,6 +175,26 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::ElementState::Released;
             send_event(window, MouseInput(Released, Middle));
             0
+        },
+
+        winapi::WM_INPUT => {
+            let mut data: winapi::RAWINPUT = mem::uninitialized();
+            let mut data_size = mem::size_of::<winapi::RAWINPUT>() as winapi::UINT;
+            user32::GetRawInputData(mem::transmute(lparam), winapi::RID_INPUT,
+                                    mem::transmute(&mut data), &mut data_size,
+                                    mem::size_of::<winapi::RAWINPUTHEADER>() as winapi::UINT);
+
+            if data.header.dwType == winapi::RIM_TYPEMOUSE {
+                let _x = data.mouse.lLastX;  // FIXME: this is not always the relative movement
+                let _y = data.mouse.lLastY;
+                // TODO: 
+                //send_event(window, Event::MouseRawMovement { x: x, y: y });
+
+                0
+
+            } else {
+                user32::DefWindowProcW(window, msg, wparam, lparam)
+            }
         },
 
         winapi::WM_SETFOCUS => {
