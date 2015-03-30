@@ -34,9 +34,9 @@ extern crate winapi;
 #[cfg(target_os = "windows")]
 extern crate kernel32;
 #[cfg(target_os = "windows")]
-extern crate gdi32_sys as gdi32;
+extern crate gdi32;
 #[cfg(target_os = "windows")]
-extern crate user32_sys as user32;
+extern crate user32;
 #[cfg(target_os = "macos")]
 #[macro_use]
 extern crate objc;
