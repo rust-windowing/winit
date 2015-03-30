@@ -292,9 +292,11 @@ impl Window {
                 unsafe {
                     user32::SetCursor(ptr::null_mut());
                     let mut rect = mem::uninitialized();
-                    if user32::GetWindowRect(self.window.0, &mut rect) == 0 {
+                    if user32::GetClientRect(self.window.0, &mut rect) == 0 {
                         return Err(format!("GetWindowRect failed"));
                     }
+                    user32::ClientToScreen(self.window.0, mem::transmute(&mut rect.left));
+                    user32::ClientToScreen(self.window.0, mem::transmute(&mut rect.right));
                     if user32::ClipCursor(&rect) == 0 {
                         return Err(format!("ClipCursor failed"));
                     }
