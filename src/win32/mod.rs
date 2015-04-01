@@ -2,7 +2,10 @@ use std::sync::atomic::AtomicBool;
 use std::mem;
 use std::ptr;
 use std::ffi::CString;
-use std::sync::Mutex;
+use std::sync::{
+    Arc,
+    Mutex
+};
 use std::sync::mpsc::Receiver;
 use libc;
 use {CreationError, Event, MouseCursor};
@@ -47,7 +50,7 @@ pub struct Window {
     is_closed: AtomicBool,
 
     /// The current cursor state.
-    cursor_state: Mutex<CursorState>,
+    cursor_state: Arc<Mutex<CursorState>>,
 }
 
 unsafe impl Send for Window {}

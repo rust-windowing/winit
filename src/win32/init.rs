@@ -1,4 +1,8 @@
 use std::sync::atomic::AtomicBool;
+use std::sync::{
+    Arc,
+    Mutex
+};
 use std::ptr;
 use std::mem;
 use std::os;
@@ -21,7 +25,6 @@ use PixelFormat;
 
 use std::ffi::CString;
 use std::sync::mpsc::channel;
-use std::sync::Mutex;
 
 use libc;
 use super::gl;
@@ -221,12 +224,20 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         user32::SetForegroundWindow(real_window.0);
     }
 
-    // filling the WINDOW task-local storage so that we can start receiving events
+    // Creating a mutex to track the current cursor state
+    let cursor_state = Arc::new(Mutex::new(CursorState::Normal));
+
+    // filling the CONTEXT_STASH task-local storage so that we can start receiving events
     let events_receiver = {
         let (tx, rx) = channel();
         let mut tx = Some(tx);
-        callback::WINDOW.with(|window| {
-            (*window.borrow_mut()) = Some((real_window.0, tx.take().unwrap()));
+        callback::CONTEXT_STASH.with(|context_stash| {
+            let data = callback::ThreadLocalData {
+                win: real_window.0,
+                sender: tx.take().unwrap(),
+                cursor_state: cursor_state.clone()
+            };
+            (*context_stash.borrow_mut()) = Some(data);
         });
         rx
     };
@@ -252,7 +263,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         gl_library: gl_library,
         events_receiver: events_receiver,
         is_closed: AtomicBool::new(false),
-        cursor_state: Mutex::new(CursorState::Normal),
+        cursor_state: cursor_state,
     })
 }
 
