@@ -391,7 +391,7 @@ impl Window {
                     for i in (0..count) {
                         let screen = msg_send![screens, objectAtIndex:i as NSUInteger];
                         let device_description = NSScreen::deviceDescription(screen);
-                        let value = msg_send![device_description, objectForKey:*key];
+                        let value: id = msg_send![device_description, objectForKey:*key];
                         if value != nil {
                             let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
                             if screen_number as u32 == native_id {
