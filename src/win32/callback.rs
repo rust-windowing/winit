@@ -1,30 +1,41 @@
 use std::mem;
+use std::ptr;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
+use std::sync::{
+    Arc,
+    Mutex
+};
 
+use CursorState;
 use Event;
 use super::event;
 
 use user32;
 use winapi;
 
-/// Stores the current window and its events dispatcher.
-/// 
-/// We only have one window per thread. We still store the HWND in case where we
-///  receive an event for another window.
-thread_local!(pub static WINDOW: Rc<RefCell<Option<(winapi::HWND, Sender<Event>)>>> = Rc::new(RefCell::new(None)));
+/// There's no parameters passed to the callback function, so it needs to get
+/// its context (the HWND, the Sender for events, etc.) stashed in
+/// a thread-local variable.
+thread_local!(pub static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::new(None));
+
+pub struct ThreadLocalData {
+    pub win: winapi::HWND,
+    pub sender: Sender<Event>,
+    pub cursor_state: Arc<Mutex<CursorState>>
+}
 
 /// Checks that the window is the good one, and if so send the event to it.
 fn send_event(input_window: winapi::HWND, event: Event) {
-    WINDOW.with(|window| {
-        let window = window.borrow();
-        let stored = match *window {
+    CONTEXT_STASH.with(|context_stash| {
+        let context_stash = context_stash.borrow();
+        let stored = match *context_stash {
             None => return,
             Some(ref v) => v
         };
 
-        let &(ref win, ref sender) = stored;
+        let &ThreadLocalData { ref win, ref sender, .. } = stored;
 
         if win != &input_window {
             return;
@@ -45,12 +56,14 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         winapi::WM_DESTROY => {
             use events::Event::Closed;
 
-            WINDOW.with(|w| {
-                let w = w.borrow();
-                let &(ref win, _) = match *w {
+            CONTEXT_STASH.with(|context_stash| {
+                let context_stash = context_stash.borrow();
+                let stored = match *context_stash {
                     None => return,
                     Some(ref v) => v
                 };
+
+                let &ThreadLocalData { ref win, .. } = stored;
 
                 if win == &window {
                     user32::PostQuitMessage(0);
@@ -206,6 +219,38 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         winapi::WM_KILLFOCUS => {
             use events::Event::Focused;
             send_event(window, Focused(false));
+            0
+        },
+
+        winapi::WM_SETCURSOR => {
+            CONTEXT_STASH.with(|context_stash| {
+                let cstash = context_stash.borrow();
+                let cstash = cstash.as_ref();
+                // there's a very bizarre borrow checker bug
+                // possibly related to rust-lang/rust/#23338
+                let cursor_state = if let Some(cstash) = cstash { 
+                    if let Ok(cursor_state) = cstash.cursor_state.lock() {
+                        match *cursor_state {
+                            CursorState::Normal => {
+                                unsafe {
+                                    user32::SetCursor(user32::LoadCursorW(
+                                            ptr::null_mut(),
+                                            winapi::IDC_ARROW));
+                                }
+                            },
+                            CursorState::Grab | CursorState::Hide => {
+                                unsafe {
+                                    user32::SetCursor(ptr::null_mut());
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    return
+                };
+
+//                let &ThreadLocalData { ref cursor_state, .. } = stored;
+            });
             0
         },
 
