@@ -1,12 +1,17 @@
 language: rust
 
+sudo: false
+
+addons:
+  apt:
+    packages:
+    - libxxf86vm-dev
+    - libosmesa6-dev
+
 env:
   global:
     - secure: "FfubMXYXu2e7chvdfKBkc+aKPkvoBOb5Idg0KCYuD++qPFIBYg6pUE8H8WvU+V7RsEBu5vshhn3dzjkKs+LXIdo5PQUMZutAgy83g5SGxRn8Ra79GjBVBs6+XOEhFun/+7fGj2Ly/AK6BTDpqyYAhAUS7jIaF6/+JWNwPwEYfdQ="
     - secure: "kVjHgK+6ivT5tUleNH/m6+69tPf8gkPNSPLsnXrkMJaIeXSnnKKQegP1O0UCThYAUbbwrUGlrKJUngDxkD8jSANhzAULX9t1iXho41InzYBEErTanXBYF8WO1rK1keKjLwiYw4KuvbiBoSeKabzQRwv0kMttxY57+hKVROr5dSg="
-
-install:
-  - sudo apt-get install libXxf86vm-dev libosmesa6-dev
 
 script:
   - cargo build --verbose
