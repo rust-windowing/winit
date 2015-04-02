@@ -62,16 +62,16 @@ use this_platform_is_not_supported;
 
 #[cfg(target_os = "windows")]
 #[path="win32/mod.rs"]
-mod winimpl;
+mod platform;
 #[cfg(target_os = "linux")]
 #[path="x11/mod.rs"]
-mod winimpl;
+mod platform;
 #[cfg(target_os = "macos")]
 #[path="cocoa/mod.rs"]
-mod winimpl;
+mod platform;
 #[cfg(target_os = "android")]
 #[path="android/mod.rs"]
-mod winimpl;
+mod platform;
 
 mod events;
 #[cfg(feature = "headless")]
@@ -239,10 +239,10 @@ pub struct BuilderAttribs<'a> {
     #[allow(dead_code)]
     headless: bool,
     strict: bool,
-    sharing: Option<&'a winimpl::Window>,
+    sharing: Option<&'a platform::Window>,
     dimensions: Option<(u32, u32)>,
     title: String,
-    monitor: Option<winimpl::MonitorID>,
+    monitor: Option<platform::MonitorID>,
     gl_version: GlRequest,
     gl_debug: bool,
     vsync: bool,
@@ -279,7 +279,7 @@ impl BuilderAttribs<'static> {
 }
 
 impl<'a> BuilderAttribs<'a> {
-    fn extract_non_static(mut self) -> (BuilderAttribs<'static>, Option<&'a winimpl::Window>) {
+    fn extract_non_static(mut self) -> (BuilderAttribs<'static>, Option<&'a platform::Window>) {
         let sharing = self.sharing.take();
 
         let new_attribs = BuilderAttribs {
