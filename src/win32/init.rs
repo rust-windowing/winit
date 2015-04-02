@@ -23,7 +23,7 @@ use CursorState;
 use GlRequest;
 use PixelFormat;
 
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::sync::mpsc::channel;
 
 use libc;
@@ -344,7 +344,22 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                     attributes.push(gl::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
                     attributes.push(minor as libc::c_int);
                 },
-                GlRequest::Specific(_, _) => panic!("Only OpenGL is supported"),
+                GlRequest::Specific(Api::OpenGlEs, (major, minor)) => {
+                    if is_extension_supported(extra_functions, hdc,
+                                              "WGL_EXT_create_context_es2_profile")
+                    {
+                        attributes.push(gl::wgl_extra::CONTEXT_PROFILE_MASK_ARB as libc::c_int);
+                        attributes.push(gl::wgl_extra::CONTEXT_ES2_PROFILE_BIT_EXT as libc::c_int);
+                    } else {
+                        return Err(CreationError::NotSupported);
+                    }
+
+                    attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
+                    attributes.push(major as libc::c_int);
+                    attributes.push(gl::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
+                    attributes.push(minor as libc::c_int);
+                },
+                GlRequest::Specific(_, _) => return Err(CreationError::NotSupported),
                 GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
                     attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
                     attributes.push(major as libc::c_int);
@@ -514,4 +529,24 @@ unsafe fn load_opengl32_dll() -> Result<winapi::HMODULE, CreationError> {
     }
 
     Ok(lib)
+}
+
+unsafe fn is_extension_supported(extra: &gl::wgl_extra::Wgl, hdc: &WindowWrapper,
+                                 extension: &str) -> bool
+{
+    let extensions = if extra.GetExtensionsStringARB.is_loaded() {
+        let data = extra.GetExtensionsStringARB(hdc.1 as *const _);
+        let data = CStr::from_ptr(data).to_bytes().to_vec();
+        String::from_utf8(data).unwrap()
+
+    } else if extra.GetExtensionsStringEXT.is_loaded() {
+        let data = extra.GetExtensionsStringEXT();
+        let data = CStr::from_ptr(data).to_bytes().to_vec();
+        String::from_utf8(data).unwrap()
+
+    } else {
+        return false;
+    };
+
+    extensions.split(" ").find(|&e| e == extension).is_some()
 }
