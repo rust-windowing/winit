@@ -1,11 +1,8 @@
 use std::sync::atomic::AtomicBool;
-use std::sync::{
-    Arc,
-    Mutex
-};
+use std::sync::{Arc, Mutex};
+use std::io;
 use std::ptr;
 use std::mem;
-use std::os;
 use std::thread;
 
 use super::callback;
@@ -41,7 +38,7 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<C
                   -> Result<Window, CreationError>
 {
     // initializing variables to be sent to the task
-    let title = builder.title.as_slice().utf16_units()
+    let title = builder.title.utf16_units()
                        .chain(Some(0).into_iter()).collect::<Vec<u16>>();    // title to utf16
 
     let (tx, rx) = channel();
@@ -125,13 +122,13 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 
             if handle.is_null() {
                 return Err(OsError(format!("CreateWindowEx function failed: {}",
-                                           os::error_string(os::errno()))));
+                                           format!("{}", io::Error::last_os_error()))));
             }
 
             let hdc = user32::GetDC(handle);
             if hdc.is_null() {
                 let err = Err(OsError(format!("GetDC function failed: {}",
-                                              os::error_string(os::errno()))));
+                                              format!("{}", io::Error::last_os_error()))));
                 return err;
             }
 
@@ -191,13 +188,13 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 
         if handle.is_null() {
             return Err(OsError(format!("CreateWindowEx function failed: {}",
-                                       os::error_string(os::errno()))));
+                                       format!("{}", io::Error::last_os_error()))));
         }
 
         let hdc = user32::GetDC(handle);
         if hdc.is_null() {
             return Err(OsError(format!("GetDC function failed: {}",
-                                       os::error_string(os::errno()))));
+                                       format!("{}", io::Error::last_os_error()))));
         }
 
         WindowWrapper(handle, hdc)
@@ -377,7 +374,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
 
             Some(extra_functions.CreateContextAttribsARB(hdc.1 as *const libc::c_void,
                                                          share as *const libc::c_void,
-                                                         attributes.as_slice().as_ptr()))
+                                                         attributes.as_ptr()))
 
         } else {
             None
@@ -399,7 +396,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
 
     if ctxt.is_null() {
         return Err(OsError(format!("OpenGL context creation failed: {}",
-                           os::error_string(os::errno()))));
+                           format!("{}", io::Error::last_os_error()))));
     }
 
     Ok(ContextWrapper(ctxt as winapi::HGLRC))
@@ -506,12 +503,12 @@ unsafe fn set_pixel_format(hdc: &WindowWrapper, id: libc::c_int) -> Result<(), C
                                   as winapi::UINT, &mut output) == 0
     {
         return Err(OsError(format!("DescribePixelFormat function failed: {}",
-                                   os::error_string(os::errno()))));
+                                   format!("{}", io::Error::last_os_error()))));
     }
 
     if gdi32::SetPixelFormat(hdc.1, id, &output) == 0 {
         return Err(OsError(format!("SetPixelFormat function failed: {}",
-                                   os::error_string(os::errno()))));
+                                   format!("{}", io::Error::last_os_error()))));
     }
 
     Ok(())
@@ -525,7 +522,7 @@ unsafe fn load_opengl32_dll() -> Result<winapi::HMODULE, CreationError> {
 
     if lib.is_null() {
         return Err(OsError(format!("LoadLibrary function failed: {}",
-                                    os::error_string(os::errno()))));
+                                    format!("{}", io::Error::last_os_error()))));
     }
 
     Ok(lib)

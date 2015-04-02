@@ -1,12 +1,8 @@
 use std::mem;
 use std::ptr;
-use std::rc::Rc;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
-use std::sync::{
-    Arc,
-    Mutex
-};
+use std::sync::{Arc, Mutex};
 
 use CursorState;
 use Event;
@@ -232,16 +228,12 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                     if let Ok(cursor_state) = cstash.cursor_state.lock() {
                         match *cursor_state {
                             CursorState::Normal => {
-                                unsafe {
-                                    user32::SetCursor(user32::LoadCursorW(
-                                            ptr::null_mut(),
-                                            winapi::IDC_ARROW));
-                                }
+                                user32::SetCursor(user32::LoadCursorW(
+                                        ptr::null_mut(),
+                                        winapi::IDC_ARROW));
                             },
                             CursorState::Grab | CursorState::Hide => {
-                                unsafe {
-                                    user32::SetCursor(ptr::null_mut());
-                                }
+                                user32::SetCursor(ptr::null_mut());
                             }
                         }
                     }
