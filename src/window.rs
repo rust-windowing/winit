@@ -13,7 +13,7 @@ use native_monitor::NativeMonitorId;
 use gl_common;
 use libc;
 
-use winimpl;
+use platform;
 
 /// Object that allows you to build windows.
 pub struct WindowBuilder<'a> {
@@ -145,7 +145,7 @@ impl<'a> WindowBuilder<'a> {
         }
 
         // building
-        winimpl::Window::new(self.attribs).map(|w| Window { window: w })
+        platform::Window::new(self.attribs).map(|w| Window { window: w })
     }
 
     /// Builds the window.
@@ -182,7 +182,7 @@ impl<'a> WindowBuilder<'a> {
 /// }
 /// ```
 pub struct Window {
-    window: winimpl::Window,
+    window: platform::Window,
 }
 
 impl Default for Window {
@@ -435,7 +435,7 @@ impl gl_common::GlFunctionsSource for Window {
 /// threads.
 #[derive(Clone)]
 pub struct WindowProxy {
-    proxy: winimpl::WindowProxy,
+    proxy: platform::WindowProxy,
 }
 
 impl WindowProxy {
@@ -449,7 +449,7 @@ impl WindowProxy {
     }
 }
 /// An iterator for the `poll_events` function.
-pub struct PollEventsIterator<'a>(winimpl::PollEventsIterator<'a>);
+pub struct PollEventsIterator<'a>(platform::PollEventsIterator<'a>);
 
 impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
@@ -464,7 +464,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
 }
 
 /// An iterator for the `wait_events` function.
-pub struct WaitEventsIterator<'a>(winimpl::WaitEventsIterator<'a>);
+pub struct WaitEventsIterator<'a>(platform::WaitEventsIterator<'a>);
 
 impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
@@ -482,7 +482,7 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
 pub struct AvailableMonitorsIter {
-    data: VecDequeIter<winimpl::MonitorID>,
+    data: VecDequeIter<platform::MonitorID>,
 }
 
 impl Iterator for AvailableMonitorsIter {
@@ -499,17 +499,17 @@ impl Iterator for AvailableMonitorsIter {
 
 /// Returns the list of all available monitors.
 pub fn get_available_monitors() -> AvailableMonitorsIter {
-    let data = winimpl::get_available_monitors();
+    let data = platform::get_available_monitors();
     AvailableMonitorsIter{ data: data.into_iter() }
 }
 
 /// Returns the primary monitor of the system.
 pub fn get_primary_monitor() -> MonitorID {
-    MonitorID(winimpl::get_primary_monitor())
+    MonitorID(platform::get_primary_monitor())
 }
 
 /// Identifier for a monitor.
-pub struct MonitorID(winimpl::MonitorID);
+pub struct MonitorID(platform::MonitorID);
 
 impl MonitorID {
     /// Returns a human-readable name of the monitor.

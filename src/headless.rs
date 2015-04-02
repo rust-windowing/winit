@@ -6,7 +6,7 @@ use GlRequest;
 use gl_common;
 use libc;
 
-use winimpl;
+use platform;
 
 /// Object that allows you to build headless contexts.
 pub struct HeadlessRendererBuilder {
@@ -52,7 +52,7 @@ impl HeadlessRendererBuilder {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     pub fn build(self) -> Result<HeadlessContext, CreationError> {
-        winimpl::HeadlessContext::new(self.attribs).map(|w| HeadlessContext { context: w })
+        platform::HeadlessContext::new(self.attribs).map(|w| HeadlessContext { context: w })
     }
 
     /// Builds the headless context.
@@ -67,7 +67,7 @@ impl HeadlessRendererBuilder {
 
 /// Represents a headless OpenGL context.
 pub struct HeadlessContext {
-    context: winimpl::HeadlessContext,
+    context: platform::HeadlessContext,
 }
 
 impl HeadlessContext {
