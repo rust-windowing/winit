@@ -74,7 +74,7 @@ impl<'a> WindowBuilder<'a> {
 
     /// Sets the *debug* flag for the OpenGL context.
     ///
-    /// The default value for this flag is `cfg!(ndebug)`, which means that it's enabled
+    /// The default value for this flag is `!cfg!(ndebug)`, which means that it's enabled
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
     pub fn with_gl_debug_flag(mut self, flag: bool) -> WindowBuilder<'a> {
         self.attribs.gl_debug = flag;
