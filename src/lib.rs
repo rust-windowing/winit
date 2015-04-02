@@ -265,7 +265,7 @@ impl BuilderAttribs<'static> {
             title: "glutin window".to_string(),
             monitor: None,
             gl_version: GlRequest::Latest,
-            gl_debug: cfg!(ndebug),
+            gl_debug: !cfg!(ndebug),
             vsync: false,
             visible: true,
             multisampling: None,
