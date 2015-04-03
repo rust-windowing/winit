@@ -1,5 +1,3 @@
-#![feature(convert)]
-
 extern crate gl_generator;
 extern crate khronos_api;
 
