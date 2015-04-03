@@ -111,8 +111,8 @@ impl Window {
     ///
     /// Calls SetWindowText on the HWND.
     pub fn set_title(&self, text: &str) {
-        let text = OsStr::from_str(text).encode_wide().chain(Some(0).into_iter())
-                                        .collect::<Vec<_>>();
+        let text = OsStr::new(text).encode_wide().chain(Some(0).into_iter())
+                                   .collect::<Vec<_>>();
 
         unsafe {
             user32::SetWindowTextW(self.window.0, text.as_ptr() as winapi::LPCWSTR);

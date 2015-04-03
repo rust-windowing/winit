@@ -40,8 +40,8 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<C
 {
     // initializing variables to be sent to the task
 
-    let title = OsStr::from_str(&builder.title).encode_wide().chain(Some(0).into_iter())
-                                               .collect::<Vec<_>>();
+    let title = OsStr::new(&builder.title).encode_wide().chain(Some(0).into_iter())
+                                          .collect::<Vec<_>>();
 
     let (tx, rx) = channel();
 
@@ -267,8 +267,8 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 }
 
 unsafe fn register_window_class() -> Vec<u16> {
-    let class_name = OsStr::from_str("Window Class").encode_wide().chain(Some(0).into_iter())
-                                                    .collect::<Vec<_>>();
+    let class_name = OsStr::new("Window Class").encode_wide().chain(Some(0).into_iter())
+                                               .collect::<Vec<_>>();
     
     let class = winapi::WNDCLASSEXW {
         cbSize: mem::size_of::<winapi::WNDCLASSEXW>() as winapi::UINT,
@@ -530,8 +530,8 @@ unsafe fn set_pixel_format(hdc: &WindowWrapper, id: libc::c_int) -> Result<(), C
 }
 
 unsafe fn load_opengl32_dll() -> Result<winapi::HMODULE, CreationError> {
-    let name = OsStr::from_str("opengl32.dll").encode_wide().chain(Some(0).into_iter())
-                                              .collect::<Vec<_>>();
+    let name = OsStr::new("opengl32.dll").encode_wide().chain(Some(0).into_iter())
+                                         .collect::<Vec<_>>();
 
     let lib = kernel32::LoadLibraryW(name.as_ptr());
 
