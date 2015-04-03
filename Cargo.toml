@@ -17,6 +17,7 @@ headless = []
 
 [dependencies]
 gl_common = "*"
+lazy_static = "0.1"
 libc = "*"
 
 [build-dependencies]

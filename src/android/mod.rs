@@ -385,7 +385,6 @@ impl WindowProxy {
     }
 }
 
-#[unsafe_destructor]
 impl Drop for Window {
     fn drop(&mut self) {
         use std::ptr;

@@ -42,7 +42,6 @@ impl<'a, 'b> CurrentContextGuard<'a, 'b> {
     }
 }
 
-#[unsafe_destructor]
 impl<'a, 'b> Drop for CurrentContextGuard<'a, 'b> {
     fn drop(&mut self) {
         unsafe {
