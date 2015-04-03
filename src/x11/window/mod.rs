@@ -8,7 +8,6 @@ use std::sync::atomic::AtomicBool;
 use std::collections::VecDeque;
 use super::ffi;
 use std::sync::{Arc, Mutex, Once, ONCE_INIT, Weak};
-use std::sync::{StaticMutex, MUTEX_INIT};
 
 use Api;
 use CursorState;
@@ -20,6 +19,11 @@ mod events;
 mod monitor;
 
 static THREAD_INIT: Once = ONCE_INIT;
+
+// XOpenIM doesn't seem to be thread-safe
+lazy_static! {      // TODO: use a static mutex when that's possible, and put me back in my function
+    static ref GLOBAL_XOPENIM_LOCK: Mutex<()> = Mutex::new(());
+}
 
 fn x_error_callback(_: *mut ffi::Display, event: *mut ffi::XErrorEvent) -> libc::c_int {
     unsafe {
@@ -82,30 +86,25 @@ impl Drop for XWindow {
 
 #[derive(Clone)]
 pub struct WindowProxy {
-    x: Weak<XWindow>,
+    x: Arc<XWindow>,
 }
 
 impl WindowProxy {
     pub fn wakeup_event_loop(&self) {
-        match self.x.upgrade() {
-            Some(x) => {
-                let mut xev = ffi::XClientMessageEvent {
-                    type_: ffi::ClientMessage,
-                    window: x.window,
-                    format: 32,
-                    message_type: 0,
-                    serial: 0,
-                    send_event: 0,
-                    display: x.display,
-                    l: [0, 0, 0, 0, 0],
-                };
+        let mut xev = ffi::XClientMessageEvent {
+            type_: ffi::ClientMessage,
+            window: self.x.window,
+            format: 32,
+            message_type: 0,
+            serial: 0,
+            send_event: 0,
+            display: self.x.display,
+            l: [0, 0, 0, 0, 0],
+        };
 
-                unsafe {
-                    ffi::XSendEvent(x.display, x.window, 0, 0, mem::transmute(&mut xev));
-                    ffi::XFlush(x.display);
-                }
-            }
-            None => {}
+        unsafe {
+            ffi::XSendEvent(self.x.display, self.x.window, 0, 0, mem::transmute(&mut xev));
+            ffi::XFlush(self.x.display);
         }
     }
 }
@@ -118,15 +117,13 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        use std::num::Int;
-
         if let Some(ev) = self.window.pending_events.lock().unwrap().pop_front() {
             return Some(ev);
         }
 
         loop {
             let mut xev = unsafe { mem::uninitialized() };
-            let res = unsafe { ffi::XCheckMaskEvent(self.window.x.display, Int::max_value(), &mut xev) };
+            let res = unsafe { ffi::XCheckMaskEvent(self.window.x.display, -1, &mut xev) };
     
             if res == 0 {
                 let res = unsafe { ffi::XCheckTypedEvent(self.window.x.display, ffi::ClientMessage, &mut xev) };
@@ -192,12 +189,12 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                             mem::transmute(buffer.as_mut_ptr()),
                             buffer.len() as libc::c_int, ptr::null_mut(), ptr::null_mut());
     
-                        str::from_utf8(&buffer.as_slice()[..count as usize]).unwrap_or("").to_string()
+                        str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
                     };
     
                     {
                         let mut pending = self.window.pending_events.lock().unwrap();
-                        for chr in written.as_slice().chars() {
+                        for chr in written.chars() {
                             pending.push_back(ReceivedCharacter(chr));
                         }
                     }
@@ -445,8 +442,6 @@ impl Window {
 
         // creating IM
         let im = unsafe {
-            // XOpenIM doesn't seem to be thread-safe
-            static GLOBAL_XOPENIM_LOCK: StaticMutex = MUTEX_INIT;
             let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
 
             let im = ffi::XOpenIM(display, ptr::null(), ptr::null_mut(), ptr::null_mut());
@@ -681,7 +676,7 @@ impl Window {
 
     pub fn create_window_proxy(&self) -> WindowProxy {
         WindowProxy {
-            x: self.x.downgrade()
+            x: self.x.clone()
         }
     }
 
@@ -828,7 +823,7 @@ impl Window {
         1.0
     }
 
-    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
         unimplemented!();
     }
 }

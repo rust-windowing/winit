@@ -2,6 +2,8 @@ use std::sync::atomic::AtomicBool;
 use std::mem;
 use std::ptr;
 use std::ffi::CString;
+use std::ffi::OsStr;
+use std::os::windows::ffi::OsStrExt;
 use std::sync::{
     Arc,
     Mutex
@@ -109,10 +111,11 @@ impl Window {
     ///
     /// Calls SetWindowText on the HWND.
     pub fn set_title(&self, text: &str) {
+        let text = OsStr::from_str(text).encode_wide().chain(Some(0).into_iter())
+                                        .collect::<Vec<_>>();
+
         unsafe {
-            user32::SetWindowTextW(self.window.0,
-                text.utf16_units().chain(Some(0).into_iter())
-                .collect::<Vec<u16>>().as_ptr() as winapi::LPCWSTR);
+            user32::SetWindowTextW(self.window.0, text.as_ptr() as winapi::LPCWSTR);
         }
     }
 
@@ -395,7 +398,6 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     }
 }
 
-#[unsafe_destructor]
 impl Drop for Window {
     fn drop(&mut self) {
         unsafe {

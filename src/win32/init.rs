@@ -20,7 +20,8 @@ use CursorState;
 use GlRequest;
 use PixelFormat;
 
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr, CString, OsStr};
+use std::os::windows::ffi::OsStrExt;
 use std::sync::mpsc::channel;
 
 use libc;
@@ -38,8 +39,9 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<C
                   -> Result<Window, CreationError>
 {
     // initializing variables to be sent to the task
-    let title = builder.title.utf16_units()
-                       .chain(Some(0).into_iter()).collect::<Vec<u16>>();    // title to utf16
+
+    let title = OsStr::from_str(&builder.title).encode_wide().chain(Some(0).into_iter())
+                                               .collect::<Vec<_>>();
 
     let (tx, rx) = channel();
 
@@ -265,8 +267,8 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 }
 
 unsafe fn register_window_class() -> Vec<u16> {
-    let class_name: Vec<u16> = "Window Class".utf16_units().chain(Some(0).into_iter())
-                                             .collect::<Vec<u16>>();
+    let class_name = OsStr::from_str("Window Class").encode_wide().chain(Some(0).into_iter())
+                                                    .collect::<Vec<_>>();
     
     let class = winapi::WNDCLASSEXW {
         cbSize: mem::size_of::<winapi::WNDCLASSEXW>() as winapi::UINT,
@@ -515,10 +517,10 @@ unsafe fn set_pixel_format(hdc: &WindowWrapper, id: libc::c_int) -> Result<(), C
 }
 
 unsafe fn load_opengl32_dll() -> Result<winapi::HMODULE, CreationError> {
-    let name = "opengl32.dll".utf16_units().chain(Some(0).into_iter())
-                             .collect::<Vec<u16>>().as_ptr();
+    let name = OsStr::from_str("opengl32.dll").encode_wide().chain(Some(0).into_iter())
+                                              .collect::<Vec<_>>();
 
-    let lib = kernel32::LoadLibraryW(name);
+    let lib = kernel32::LoadLibraryW(name.as_ptr());
 
     if lib.is_null() {
         return Err(OsError(format!("LoadLibrary function failed: {}",
