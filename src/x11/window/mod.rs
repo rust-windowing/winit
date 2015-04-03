@@ -7,7 +7,7 @@ use std::cell::Cell;
 use std::sync::atomic::AtomicBool;
 use std::collections::VecDeque;
 use super::ffi;
-use std::sync::{Arc, Mutex, Once, ONCE_INIT, Weak};
+use std::sync::{Arc, Mutex, Once, ONCE_INIT};
 
 use Api;
 use CursorState;
