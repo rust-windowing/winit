@@ -81,7 +81,6 @@ fn main() {
  - Some events are not implemented
  - Implementation is still work-in-progress
  - Vsync not implemented
- - Changing the cursor (set_cursor) is not implemented
 
 ### Win32
 
