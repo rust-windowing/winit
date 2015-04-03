@@ -1,4 +1,4 @@
-#![feature(collections, unsafe_destructor, os, core, std_misc, alloc)]
+#![feature(collections, unsafe_destructor, core, std_misc, alloc)]
 #![unstable]
 
 //! The purpose of this library is to provide an OpenGL context on as many

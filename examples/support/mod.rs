@@ -1,5 +1,6 @@
 #![cfg(feature = "window")]
 
+use std::ffi::CStr;
 use glutin;
 
 #[cfg(not(target_os = "android"))]
@@ -21,8 +22,8 @@ pub fn load(window: &glutin::Window) -> Context {
     let gl = gl::Gl::load(window);
 
     let version = unsafe {
-        use std::ffi;
-        String::from_utf8(ffi::c_str_to_bytes(&(gl.GetString(gl::VERSION) as *const i8)).to_vec()).unwrap()
+        let data = CStr::from_ptr(gl.GetString(gl::VERSION) as *const i8).to_bytes().to_vec();
+        String::from_utf8(data).unwrap()
     };
 
     println!("OpenGL version {}", version);

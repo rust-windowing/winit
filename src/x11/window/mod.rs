@@ -39,7 +39,7 @@ fn ensure_thread_init() {
 
 fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> T {
     use std::ffi::CString;
-    let c_str = CString::from_slice(s.as_bytes());
+    let c_str = CString::new(s.as_bytes().to_vec()).unwrap();
     f(c_str.as_ptr())
 }
 
@@ -778,7 +778,7 @@ impl Window {
                 MouseCursor::AllScroll | MouseCursor::ZoomIn |
                 MouseCursor::ZoomOut => "left_ptr",
             };
-            let c_string = CString::from_slice(cursor_name.as_bytes());
+            let c_string = CString::new(cursor_name.as_bytes().to_vec()).unwrap();
             let xcursor = ffi::XcursorLibraryLoadCursor(self.x.display, c_string.as_ptr());
             ffi::XDefineCursor (self.x.display, self.x.window, xcursor);
             ffi::XFlush(self.x.display);

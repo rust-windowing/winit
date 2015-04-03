@@ -5,12 +5,6 @@ use libc;
 use std::{mem, ptr};
 use super::ffi;
 
-fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> T {
-    use std::ffi::CString;
-    let c_str = CString::from_slice(s.as_bytes());
-    f(c_str.as_ptr())    
-}
-
 pub struct HeadlessContext {
     context: ffi::OSMesaContext,
     buffer: Vec<u32>,
@@ -53,9 +47,9 @@ impl HeadlessContext {
 
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         unsafe {
-            with_c_str(addr, |s| {
-                ffi::OSMesaGetProcAddress(mem::transmute(s)) as *const ()
-            })
+            use std::ffi::CString;
+            let c_str = CString::new(addr.as_bytes().to_vec()).unwrap();
+            ffi::OSMesaGetProcAddress(mem::transmute(c_str.as_ptr())) as *const ()
         }
     }
 
