@@ -129,6 +129,12 @@ impl<'a> WindowBuilder<'a> {
         self
     }
 
+    /// Sets whether sRGB should be enabled on the window. `None` means "I don't care".
+    pub fn with_srgb(mut self, srgb_enabled: Option<bool>) -> WindowBuilder<'a> {
+        self.attribs.srgb = srgb_enabled;
+        self
+    }
+
     /// Builds the window.
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
