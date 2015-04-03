@@ -13,7 +13,9 @@ use native_monitor::NativeMonitorId;
 use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
 use objc::declare::ClassDecl;
 
-use cocoa::base::{id, nil, NSUInteger};
+use cocoa::base::{id, nil};
+use cocoa::foundation::{NSAutoreleasePool, NSDate, NSDefaultRunLoopMode, NSPoint, NSRect, NSSize, 
+                        NSString, NSUInteger}; 
 use cocoa::appkit;
 use cocoa::appkit::*;
 use cocoa::appkit::NSEventSubtype::*;
