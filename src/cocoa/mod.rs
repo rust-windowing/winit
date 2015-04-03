@@ -75,7 +75,7 @@ impl WindowDelegate {
                 let state = state as *mut DelegateState;
                 (*state).is_closed = true;
             }
-            NO
+            YES
         }
 
         extern fn window_did_resize(this: &Object, _: Sel, _: id) {
