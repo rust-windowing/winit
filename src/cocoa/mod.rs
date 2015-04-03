@@ -719,15 +719,5 @@ impl Clone for IdRef {
         }
         IdRef(self.0)
     }
-
-    fn clone_from(&mut self, source: &IdRef) {
-        if source.0 != nil {
-            let _: id = unsafe { msg_send![source.0, retain] };
-        }
-        if self.0 != nil {
-            let _: () = unsafe { msg_send![self.0, release] };
-        }
-        self.0 = source.0;
-    }
 }
 
