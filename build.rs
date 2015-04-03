@@ -27,6 +27,7 @@ fn main() {
                                             "WGL_ARB_create_context_profile".to_string(),
                                             "WGL_ARB_extensions_string".to_string(),
                                             "WGL_ARB_framebuffer_sRGB".to_string(),
+                                            "WGL_ARB_multisample".to_string(),
                                             "WGL_ARB_pixel_format".to_string(),
                                             "WGL_EXT_create_context_es2_profile".to_string(),
                                             "WGL_EXT_extensions_string".to_string(),

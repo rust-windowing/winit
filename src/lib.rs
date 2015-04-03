@@ -332,10 +332,6 @@ impl<'a> BuilderAttribs<'a> {
                 continue;
             }
 
-            if self.multisampling.is_some() && format.multisampling.is_none() {
-                continue;
-            }
-
             current_software_result = Some((id.clone(), format.clone()));
             if format.hardware_accelerated {
                 current_result = Some((id, format));

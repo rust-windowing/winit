@@ -490,8 +490,21 @@ unsafe fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: &WindowWr
             stencil_bits: get_info(index, gl::wgl_extra::STENCIL_BITS_ARB) as u8,
             stereoscopy: get_info(index, gl::wgl_extra::STEREO_ARB) != 0,
             double_buffer: get_info(index, gl::wgl_extra::DOUBLE_BUFFER_ARB) != 0,
-            multisampling: None,        // FIXME: 
-            srgb: false,        // FIXME: 
+            multisampling: {
+                if is_extension_supported(extra, hdc, "WGL_ARB_multisample") {
+                    match get_info(index, gl::wgl_extra::SAMPLES_ARB) {
+                        0 => None,
+                        a => Some(a as u16),
+                    }
+                } else {
+                    None
+                }
+            },
+            srgb: if is_extension_supported(extra, hdc, "WGL_ARB_framebuffer_sRGB") {
+                get_info(index, gl::wgl_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB) != 0
+            } else {
+                false
+            },
         }, index as libc::c_int));
     }
 
