@@ -255,7 +255,7 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     fn next(&mut self) -> Option<Event> {
         use std::mem;
 
-        loop {
+        while !self.window.is_closed() {
             if let Some(ev) = self.window.pending_events.lock().unwrap().pop_front() {
                 return Some(ev);
             }
@@ -270,6 +270,8 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
                 return Some(ev);
             }
         }
+
+        None
     }
 }
 
