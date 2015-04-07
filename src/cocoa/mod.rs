@@ -24,9 +24,7 @@ use core_foundation::base::TCFType;
 use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
-use std::cell::Cell;
 use std::ffi::CStr;
-use std::ptr;
 use std::collections::VecDeque;
 use std::str::FromStr;
 use std::str::from_utf8;
@@ -57,11 +55,12 @@ struct DelegateState {
     context: IdRef,
     view: IdRef,
     window: IdRef,
-    handler: Option<fn(u32, u32)>,
+    resize_handler: Option<fn(u32, u32)>,
 }
 
 struct WindowDelegate {
-    this: id,
+    state: Box<DelegateState>,
+    _this: IdRef,
 }
 
 impl WindowDelegate {
@@ -85,7 +84,7 @@ impl WindowDelegate {
 
                 let _: () = msg_send![*state.context, update];
 
-                if let Some(handler) = state.handler {
+                if let Some(handler) = state.resize_handler {
                     let rect = NSView::frame(*state.view);
                     let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
                     (handler)((scale_factor * rect.size.width as f32) as u32,
@@ -119,16 +118,27 @@ impl WindowDelegate {
         }
     }
 
-    fn new(window: id) -> WindowDelegate {
+    fn new(state: DelegateState) -> WindowDelegate {
+        // Box the state so we can give a pointer to it
+        let mut state = Box::new(state);
+        let state_ptr: *mut DelegateState = &mut *state;
         unsafe {
-            let delegate: id = msg_send![WindowDelegate::class(), new];
-            let _: () = msg_send![window, setDelegate:delegate];
-            WindowDelegate { this: delegate }
+            let delegate = IdRef::new(msg_send![WindowDelegate::class(), new]);
+
+            (&mut **delegate).set_ivar("glutinState", state_ptr as *mut libc::c_void);
+            let _: () = msg_send![*state.window, setDelegate:*delegate];
+
+            WindowDelegate { state: state, _this: delegate }
         }
     }
+}
 
-    unsafe fn set_state(&self, state: *mut DelegateState) {
-        (&mut *self.this).set_ivar("glutinState", state as *mut libc::c_void);
+impl Drop for WindowDelegate {
+    fn drop(&mut self) {
+        unsafe {
+            // Nil the window's delegate so it doesn't still reference us
+            let _: () = msg_send![*self.state.window, setDelegate:nil];
+        }
     }
 }
 
@@ -137,9 +147,6 @@ pub struct Window {
     window: IdRef,
     context: IdRef,
     delegate: WindowDelegate,
-    resize: Option<fn(u32, u32)>,
-
-    is_closed: Cell<bool>,
 
     /// Events that have been retreived with XLib but not dispatched with iterators yet
     pending_events: Mutex<VecDeque<Event>>,
@@ -187,23 +194,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 NSDefaultRunLoopMode,
                 YES);
             if event == nil { return None; }
-            {
-                // Create a temporary structure with state that delegates called internally
-                // by sendEvent can read and modify. When that returns, update window state.
-                // This allows the synchronous resize loop to continue issuing callbacks
-                // to the user application, by passing handler through to the delegate state.
-                let mut ds = DelegateState {
-                    is_closed: self.window.is_closed.get(),
-                    context: self.window.context.clone(),
-                    window: self.window.window.clone(),
-                    view: self.window.view.clone(),
-                    handler: self.window.resize,
-                };
-                self.window.delegate.set_state(&mut ds);
-                NSApp().sendEvent_(event);
-                self.window.delegate.set_state(ptr::null_mut());
-                self.window.is_closed.set(ds.is_closed);
-            }
+            NSApp().sendEvent_(event);
 
             let event = match msg_send![event, type] {
                 NSLeftMouseDown         => { Some(MouseInput(Pressed, MouseButton::Left)) },
@@ -350,15 +341,20 @@ impl Window {
             }
         }
 
-        let window_id = *window;
+        let ds = DelegateState {
+            is_closed: false,
+            context: context.clone(),
+            view: view.clone(),
+            window: window.clone(),
+            resize_handler: None,
+        };
+
         let window = Window {
             view: view,
             window: window,
             context: context,
-            delegate: WindowDelegate::new(window_id),
-            resize: None,
+            delegate: WindowDelegate::new(ds),
 
-            is_closed: Cell::new(false),
             pending_events: Mutex::new(VecDeque::new()),
         };
 
@@ -496,7 +492,7 @@ impl Window {
     }
 
     pub fn is_closed(&self) -> bool {
-        self.is_closed.get()
+        self.delegate.state.is_closed
     }
 
     pub fn set_title(&self, title: &str) {
@@ -621,7 +617,7 @@ impl Window {
     }
 
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
-        self.resize = callback;
+        self.delegate.state.resize_handler = callback;
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
