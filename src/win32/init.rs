@@ -140,7 +140,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         // getting the pixel format that we will use and setting it
         {
             let formats = enumerate_native_pixel_formats(&dummy_window);
-            let (id, _) = try!(builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a))));
+            let id = try!(choose_dummy_pixel_format(formats.into_iter()));
             try!(set_pixel_format(&dummy_window, id));
         }
 
@@ -502,6 +502,8 @@ unsafe fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: &WindowWr
             },
             srgb: if is_extension_supported(extra, hdc, "WGL_ARB_framebuffer_sRGB") {
                 get_info(index, gl::wgl_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB) != 0
+            } else if is_extension_supported(extra, hdc, "WGL_EXT_framebuffer_sRGB") {
+                get_info(index, gl::wgl_extra::FRAMEBUFFER_SRGB_CAPABLE_EXT) != 0
             } else {
                 false
             },
@@ -561,4 +563,22 @@ unsafe fn is_extension_supported(extra: &gl::wgl_extra::Wgl, hdc: &WindowWrapper
     };
 
     extensions.split(" ").find(|&e| e == extension).is_some()
+}
+
+fn choose_dummy_pixel_format<I>(iter: I) -> Result<libc::c_int, CreationError>
+                                where I: Iterator<Item=(PixelFormat, libc::c_int)>
+{
+    let mut backup_id = None;
+
+    for (format, id) in iter {
+        if backup_id.is_none() {
+            backup_id = Some(id);
+        }
+
+        if format.hardware_accelerated {
+            return Ok(id);
+        }
+    }
+
+    backup_id.ok_or(CreationError::NotSupported)
 }
