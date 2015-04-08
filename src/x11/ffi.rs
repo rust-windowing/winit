@@ -1485,6 +1485,10 @@ extern "C" {
         pointer_mode: libc::c_int, keyboard_mode: libc::c_int, confine_to: Window, cursor: Cursor,
         time: Time) -> libc::c_int;
     pub fn XUngrabPointer(dpy: *mut Display, time: Time);
+
+    pub fn XWarpPointer(display: *mut Display, src_w: Window, dest_w: Window, src_x: libc::c_int,
+    					src_y: libc::c_int, src_width: libc::c_uint, src_height: libc::c_uint,
+    					dest_x: libc::c_int, dest_y: libc::c_int);
 }
 
 /*

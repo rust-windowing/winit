@@ -825,7 +825,11 @@ impl Window {
         1.0
     }
 
-    pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
-        unimplemented!();
+    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+        unsafe {
+            ffi::XWarpPointer(self.x.display, 0, self.x.window, 0, 0, 0, 0, x, y);
+        }
+
+        Ok(())
     }
 }
