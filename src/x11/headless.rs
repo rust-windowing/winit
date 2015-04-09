@@ -22,7 +22,7 @@ impl HeadlessContext {
             buffer: ::std::iter::repeat(unsafe { mem::uninitialized() })
                 .take((dimensions.0 * dimensions.1) as usize).collect(),
             context: unsafe {
-                let ctxt = ffi::OSMesaCreateContext(0x1908, ptr::null());
+                let ctxt = ffi::OSMesaCreateContext(0x1908, ptr::null_mut());
                 if ctxt.is_null() {
                     return Err(OsError("OSMesaCreateContext failed".to_string()));
                 }
@@ -49,7 +49,7 @@ impl HeadlessContext {
         unsafe {
             use std::ffi::CString;
             let c_str = CString::new(addr.as_bytes().to_vec()).unwrap();
-            ffi::OSMesaGetProcAddress(mem::transmute(c_str.as_ptr())) as *const ()
+            mem::transmute(ffi::OSMesaGetProcAddress(mem::transmute(c_str.as_ptr())))
         }
     }
 

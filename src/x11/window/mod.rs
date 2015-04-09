@@ -25,10 +25,8 @@ lazy_static! {      // TODO: use a static mutex when that's possible, and put me
     static ref GLOBAL_XOPENIM_LOCK: Mutex<()> = Mutex::new(());
 }
 
-fn x_error_callback(_: *mut ffi::Display, event: *mut ffi::XErrorEvent) -> libc::c_int {
-    unsafe {
-        println!("[glutin] x error code={} major={} minor={}!", (*event).error_code, (*event).request_code, (*event).minor_code);
-    }
+unsafe extern "C" fn x_error_callback(_: *mut ffi::Display, event: *mut ffi::XErrorEvent) -> libc::c_int {
+    println!("[glutin] x error code={} major={} minor={}!", (*event).error_code, (*event).request_code, (*event).minor_code);
     0
 }
 
@@ -36,7 +34,7 @@ fn ensure_thread_init() {
     THREAD_INIT.call_once(|| {
         unsafe {
             ffi::XInitThreads();
-            ffi::XSetErrorHandler(x_error_callback);
+            ffi::XSetErrorHandler(Some(x_error_callback));
         }
     });
 }
@@ -69,7 +67,7 @@ impl Drop for XWindow {
         unsafe {
             // we don't call MakeCurrent(0, 0) because we are not sure that the context
             // is still the current one
-            ffi::glx::DestroyContext(self.display, self.context);
+            ffi::glx::DestroyContext(self.display as *mut _, self.context);
 
             if self.is_fullscreen {
                 ffi::XF86VidModeSwitchToMode(self.display, self.screen_id, self.xf86_desk_mode);
@@ -92,14 +90,14 @@ pub struct WindowProxy {
 impl WindowProxy {
     pub fn wakeup_event_loop(&self) {
         let mut xev = ffi::XClientMessageEvent {
-            type_: ffi::ClientMessage,
+            _type: ffi::ClientMessage,
             window: self.x.window,
             format: 32,
             message_type: 0,
             serial: 0,
             send_event: 0,
             display: self.x.display,
-            l: [0, 0, 0, 0, 0],
+            data: unsafe { mem::zeroed() },
         };
 
         unsafe {
@@ -124,34 +122,34 @@ impl<'a> Iterator for PollEventsIterator<'a> {
         loop {
             let mut xev = unsafe { mem::uninitialized() };
             let res = unsafe { ffi::XCheckMaskEvent(self.window.x.display, -1, &mut xev) };
-    
+
             if res == 0 {
                 let res = unsafe { ffi::XCheckTypedEvent(self.window.x.display, ffi::ClientMessage, &mut xev) };
-    
+
                 if res == 0 {
                     return None;
                 }
             }
-    
-            match xev.type_ {
+
+            match xev.get_type() {
                 ffi::KeymapNotify => {
-                    unsafe { ffi::XRefreshKeyboardMapping(&xev) }
+                    unsafe { ffi::XRefreshKeyboardMapping(mem::transmute(&xev)); }
                 },
-    
+
                 ffi::ClientMessage => {
                     use events::Event::{Closed, Awakened};
                     use std::sync::atomic::Ordering::Relaxed;
-    
+
                     let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
-    
-                    if client_msg.l[0] == self.window.wm_delete_window as libc::c_long {
+
+                    if client_msg.data.get_long(0) == self.window.wm_delete_window as libc::c_long {
                         self.window.is_closed.store(true, Relaxed);
                         return Some(Closed);
                     } else {
                         return Some(Awakened);
                     }
                 },
-    
+
                 ffi::ConfigureNotify => {
                     use events::Event::Resized;
                     let cfg_event: &ffi::XConfigureEvent = unsafe { mem::transmute(&xev) };
@@ -161,62 +159,62 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                         return Some(Resized(cfg_event.width as u32, cfg_event.height as u32));
                     }
                 },
-    
+
                 ffi::MotionNotify => {
                     use events::Event::MouseMoved;
                     let event: &ffi::XMotionEvent = unsafe { mem::transmute(&xev) };
                     return Some(MouseMoved((event.x as i32, event.y as i32)));
                 },
-    
+
                 ffi::KeyPress | ffi::KeyRelease => {
                     use events::Event::{KeyboardInput, ReceivedCharacter};
                     use events::ElementState::{Pressed, Released};
                     let event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
-    
-                    if event.type_ == ffi::KeyPress {
+
+                    if event._type == ffi::KeyPress {
                         let raw_ev: *mut ffi::XKeyEvent = event;
                         unsafe { ffi::XFilterEvent(mem::transmute(raw_ev), self.window.x.window) };
                     }
-    
-                    let state = if xev.type_ == ffi::KeyPress { Pressed } else { Released };
-    
+
+                    let state = if xev.get_type() == ffi::KeyPress { Pressed } else { Released };
+
                     let written = unsafe {
                         use std::str;
-    
+
                         let mut buffer: [u8; 16] = [mem::uninitialized(); 16];
                         let raw_ev: *mut ffi::XKeyEvent = event;
                         let count = ffi::Xutf8LookupString(self.window.x.ic, mem::transmute(raw_ev),
                             mem::transmute(buffer.as_mut_ptr()),
                             buffer.len() as libc::c_int, ptr::null_mut(), ptr::null_mut());
-    
+
                         str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
                     };
-    
+
                     {
                         let mut pending = self.window.pending_events.lock().unwrap();
                         for chr in written.chars() {
                             pending.push_back(ReceivedCharacter(chr));
                         }
                     }
-    
+
                     let keysym = unsafe {
                         ffi::XKeycodeToKeysym(self.window.x.display, event.keycode as ffi::KeyCode, 0)
                     };
-    
+
                     let vkey =  events::keycode_to_element(keysym as libc::c_uint);
-    
+
                     return Some(KeyboardInput(state, event.keycode as u8, vkey));
                 },
-    
+
                 ffi::ButtonPress | ffi::ButtonRelease => {
                     use events::Event::{MouseInput, MouseWheel};
                     use events::ElementState::{Pressed, Released};
                     use events::MouseButton::{Left, Right, Middle};
-    
+
                     let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
-    
-                    let state = if xev.type_ == ffi::ButtonPress { Pressed } else { Released };
-    
+
+                    let state = if xev.get_type() == ffi::ButtonPress { Pressed } else { Released };
+
                     let button = match event.button {
                         ffi::Button1 => Some(Left),
                         ffi::Button2 => Some(Middle),
@@ -231,14 +229,14 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                         }
                         _ => None
                     };
-    
+
                     match button {
                         Some(button) =>
                             return Some(MouseInput(state, button)),
                         None => ()
                     };
                 },
-    
+
                 _ => ()
             };
         }
@@ -307,17 +305,17 @@ impl Window {
         // getting the FBConfig
         let fb_config = unsafe {
             let mut visual_attributes = vec![
-                ffi::GLX_X_RENDERABLE,  1,
-                ffi::GLX_DRAWABLE_TYPE, ffi::GLX_WINDOW_BIT,
-                ffi::GLX_RENDER_TYPE,   ffi::GLX_RGBA_BIT,
-                ffi::GLX_X_VISUAL_TYPE, ffi::GLX_TRUE_COLOR,
-                ffi::GLX_RED_SIZE,      8,
-                ffi::GLX_GREEN_SIZE,    8,
-                ffi::GLX_BLUE_SIZE,     8,
-                ffi::GLX_ALPHA_SIZE,    8,
-                ffi::GLX_DEPTH_SIZE,    24,
-                ffi::GLX_STENCIL_SIZE,  8,
-                ffi::GLX_DOUBLEBUFFER,  1,
+                ffi::glx::X_RENDERABLE as libc::c_int,  1,
+                ffi::glx::DRAWABLE_TYPE as libc::c_int, ffi::glx::WINDOW_BIT as libc::c_int,
+                ffi::glx::RENDER_TYPE as libc::c_int,   ffi::glx::RGBA_BIT as libc::c_int,
+                ffi::glx::X_VISUAL_TYPE as libc::c_int, ffi::glx::TRUE_COLOR as libc::c_int,
+                ffi::glx::RED_SIZE as libc::c_int,      8,
+                ffi::glx::GREEN_SIZE as libc::c_int,    8,
+                ffi::glx::BLUE_SIZE as libc::c_int,     8,
+                ffi::glx::ALPHA_SIZE as libc::c_int,    8,
+                ffi::glx::DEPTH_SIZE as libc::c_int,    24,
+                ffi::glx::STENCIL_SIZE as libc::c_int,  8,
+                ffi::glx::DOUBLEBUFFER as libc::c_int,  1,
             ];
 
             if let Some(val) = builder.multisampling {
@@ -331,13 +329,13 @@ impl Window {
 
             let mut num_fb: libc::c_int = mem::uninitialized();
 
-            let fb = ffi::glx::ChooseFBConfig(display, ffi::XDefaultScreen(display),
+            let fb = ffi::glx::ChooseFBConfig(display as *mut _, ffi::XDefaultScreen(display),
                 visual_attributes.as_ptr(), &mut num_fb);
             if fb.is_null() {
                 return Err(OsError(format!("glx::ChooseFBConfig failed")));
             }
             let preferred_fb = *fb;     // TODO: choose more wisely
-            ffi::XFree(fb as *const libc::c_void);
+            ffi::XFree(fb as *mut ());
             preferred_fb
         };
 
@@ -368,12 +366,12 @@ impl Window {
 
         // getting the visual infos
         let mut visual_infos: ffi::glx::types::XVisualInfo = unsafe {
-            let vi = ffi::glx::GetVisualFromFBConfig(display, fb_config);
+            let vi = ffi::glx::GetVisualFromFBConfig(display as *mut _, fb_config);
             if vi.is_null() {
                 return Err(OsError(format!("glx::ChooseVisual failed")));
             }
             let vi_copy = ptr::read(vi as *const _);
-            ffi::XFree(vi as *const libc::c_void);
+            ffi::XFree(vi as *mut _);
             vi_copy
         };
 
@@ -383,7 +381,7 @@ impl Window {
         // creating the color map
         let cmap = unsafe {
             let cmap = ffi::XCreateColormap(display, root,
-                visual_infos.visual, ffi::AllocNone);
+                visual_infos.visual as *mut _, ffi::AllocNone);
             // TODO: error checking?
             cmap
         };
@@ -414,8 +412,8 @@ impl Window {
         // finally creating the window
         let window = unsafe {
             let win = ffi::XCreateWindow(display, root, 0, 0, dimensions.0 as libc::c_uint,
-                dimensions.1 as libc::c_uint, 0, visual_infos.depth, ffi::InputOutput,
-                visual_infos.visual, window_attributes,
+                dimensions.1 as libc::c_uint, 0, visual_infos.depth, ffi::InputOutput as libc::c_uint,
+                visual_infos.visual as *mut _, window_attributes,
                 &mut set_win_attr);
             win
         };
@@ -430,7 +428,7 @@ impl Window {
 
         // creating window, step 2
         let wm_delete_window = unsafe {
-            let mut wm_delete_window = with_c_str("WM_DELETE_WINDOW", |delete_window| 
+            let mut wm_delete_window = with_c_str("WM_DELETE_WINDOW", |delete_window|
                 ffi::XInternAtom(display, delete_window, 0)
             );
             ffi::XSetWMProtocols(display, window, &mut wm_delete_window, 1);
@@ -446,7 +444,7 @@ impl Window {
         let im = unsafe {
             let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
 
-            let im = ffi::XOpenIM(display, ptr::null(), ptr::null_mut(), ptr::null_mut());
+            let im = ffi::XOpenIM(display, ptr::null_mut(), ptr::null_mut(), ptr::null_mut());
             if im.is_null() {
                 return Err(OsError(format!("XOpenIM failed")));
             }
@@ -460,7 +458,7 @@ impl Window {
                     ffi::XCreateIC(
                         im, input_style,
                         ffi::XIMPreeditNothing | ffi::XIMStatusNothing, client_window,
-                        window, ptr::null()
+                        window, ptr::null::<()>()
                     )
                 )
             );
@@ -473,9 +471,9 @@ impl Window {
 
         // Attempt to make keyboard input repeat detectable
         unsafe {
-            let mut supported_ptr = false;
-            ffi::XkbSetDetectableAutoRepeat(display, true, &mut supported_ptr);
-            if !supported_ptr {
+            let mut supported_ptr = ffi::False;
+            ffi::XkbSetDetectableAutoRepeat(display, ffi::True, &mut supported_ptr);
+            if supported_ptr == ffi::False {
                 return Err(OsError(format!("XkbSetDetectableAutoRepeat failed")));
             }
         }
@@ -488,16 +486,16 @@ impl Window {
             match builder.gl_version {
                 GlRequest::Latest => {},
                 GlRequest::Specific(Api::OpenGl, (major, minor)) => {
-                    attributes.push(ffi::GLX_CONTEXT_MAJOR_VERSION);
+                    attributes.push(ffi::glx_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
                     attributes.push(major as libc::c_int);
-                    attributes.push(ffi::GLX_CONTEXT_MINOR_VERSION);
+                    attributes.push(ffi::glx_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
                     attributes.push(minor as libc::c_int);
                 },
                 GlRequest::Specific(_, _) => panic!("Only OpenGL is supported"),
                 GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
-                    attributes.push(ffi::GLX_CONTEXT_MAJOR_VERSION);
+                    attributes.push(ffi::glx_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
                     attributes.push(major as libc::c_int);
-                    attributes.push(ffi::GLX_CONTEXT_MINOR_VERSION);
+                    attributes.push(ffi::glx_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
                     attributes.push(minor as libc::c_int);
                 },
             }
@@ -531,7 +529,7 @@ impl Window {
             };
 
             if context.is_null() {
-                context = ffi::glx::CreateContext(display, &mut visual_infos, share, 1)
+                context = ffi::glx::CreateContext(display as *mut _, &mut visual_infos, share, 1)
             }
 
             if context.is_null() {
@@ -543,7 +541,7 @@ impl Window {
 
         // vsync
         if builder.vsync {
-            unsafe { ffi::glx::MakeCurrent(display, window, context) };
+            unsafe { ffi::glx::MakeCurrent(display as *mut _, window, context) };
 
             if extra_functions.SwapIntervalEXT.is_loaded() {
                 // this should be the most common extension
@@ -555,7 +553,7 @@ impl Window {
                 if builder.strict {
                     let mut swap = unsafe { mem::uninitialized() };
                     unsafe {
-                        ffi::glx::QueryDrawable(display, window,
+                        ffi::glx::QueryDrawable(display as *mut _, window,
                                                 ffi::glx_extra::SWAP_INTERVAL_EXT as i32,
                                                 &mut swap);
                     }
@@ -581,7 +579,7 @@ impl Window {
                 return Err(OsError(format!("Couldn't find any available vsync extension")));
             }
 
-            unsafe { ffi::glx::MakeCurrent(display, 0, ptr::null()) };
+            unsafe { ffi::glx::MakeCurrent(display as *mut _, 0, ptr::null()) };
         }
 
         // creating the window object
@@ -661,7 +659,7 @@ impl Window {
     }
 
     pub fn set_position(&self, x: i32, y: i32) {
-        unsafe { ffi::XMoveWindow(self.x.display, self.x.window, x as libc::c_int, y as libc::c_int) }
+        unsafe { ffi::XMoveWindow(self.x.display, self.x.window, x as libc::c_int, y as libc::c_int); }
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
@@ -695,7 +693,7 @@ impl Window {
     }
 
     pub unsafe fn make_current(&self) {
-        let res = ffi::glx::MakeCurrent(self.x.display, self.x.window, self.x.context);
+        let res = ffi::glx::MakeCurrent(self.x.display as *mut _, self.x.window, self.x.context);
         if res == 0 {
             panic!("glx::MakeCurrent failed");
         }
@@ -716,7 +714,7 @@ impl Window {
     }
 
     pub fn swap_buffers(&self) {
-        unsafe { ffi::glx::SwapBuffers(self.x.display, self.x.window) }
+        unsafe { ffi::glx::SwapBuffers(self.x.display as *mut _, self.x.window) }
     }
 
     pub fn platform_display(&self) -> *mut libc::c_void {
@@ -769,7 +767,7 @@ impl Window {
 
                 MouseCursor::Text | MouseCursor::VerticalText => "xterm",
                 MouseCursor::Wait => "watch",
-                
+
                 /// TODO: Find matching X11 cursors
                 MouseCursor::ContextMenu | MouseCursor::NoneCursor |
                 MouseCursor::AllScroll | MouseCursor::ZoomIn |
@@ -799,12 +797,12 @@ impl Window {
                     *cursor_state = CursorState::Grab;
 
                     match ffi::XGrabPointer(
-                        self.x.display, self.x.window, false,
-                        ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
+                        self.x.display, self.x.window, ffi::False,
+                        (ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
                         ffi::LeaveWindowMask | ffi::PointerMotionMask | ffi::PointerMotionHintMask |
                         ffi::Button1MotionMask | ffi::Button2MotionMask | ffi::Button3MotionMask |
                         ffi::Button4MotionMask | ffi::Button5MotionMask | ffi::ButtonMotionMask |
-                        ffi::KeymapStateMask,
+                        ffi::KeymapStateMask) as libc::c_uint,
                         ffi::GrabModeAsync, ffi::GrabModeAsync,
                         self.x.window, 0, ffi::CurrentTime
                     ) {

@@ -47,3 +47,11 @@ winapi = "0.1"
 gdi32-sys = "0.1"
 user32-sys = "0.1"
 kernel32-sys = "0.1"
+
+[target.i686-unknown-linux-gnu.dependencies]
+osmesa-sys = "*"
+x11 = "*"
+
+[target.x86_64-unknown-linux-gnu.dependencies]
+osmesa-sys = "*"
+x11 = "*"
