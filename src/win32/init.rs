@@ -203,16 +203,17 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     };
 
     // calling SetPixelFormat
-    {
+    let pixel_format = {
         let formats = if extra_functions.GetPixelFormatAttribivARB.is_loaded() {
             enumerate_arb_pixel_formats(&extra_functions, &real_window)
         } else {
             enumerate_native_pixel_formats(&real_window)
         };
 
-        let (id, _) = try!(builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a))));
+        let (id, f) = try!(builder.choose_pixel_format(formats.into_iter().map(|(a, b)| (b, a))));
         try!(set_pixel_format(&real_window, id));
-    }
+        f
+    };
 
     // creating the OpenGL context
     let context = try!(create_context(Some((&extra_functions, &builder)), &real_window,
@@ -263,6 +264,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         events_receiver: events_receiver,
         is_closed: AtomicBool::new(false),
         cursor_state: cursor_state,
+        pixel_format: pixel_format,
     })
 }
 

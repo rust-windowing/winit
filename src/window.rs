@@ -8,6 +8,7 @@ use CursorState;
 use Event;
 use GlRequest;
 use MouseCursor;
+use PixelFormat;
 use native_monitor::NativeMonitorId;
 
 use gl_common;
@@ -386,6 +387,11 @@ impl Window {
     /// - On Linux, it must be checked at runtime.
     pub fn get_api(&self) -> Api {
         self.window.get_api()
+    }
+
+    /// Returns the pixel format of this window.
+    pub fn get_pixel_format(&self) -> PixelFormat {
+        self.window.get_pixel_format()
     }
 
     /// Create a window proxy for this window, that can be freely

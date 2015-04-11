@@ -15,6 +15,7 @@ use Api;
 use BuilderAttribs;
 use CursorState;
 use GlRequest;
+use PixelFormat;
 use native_monitor::NativeMonitorId;
 
 pub struct Window {
@@ -351,6 +352,10 @@ impl Window {
 
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGlEs
+    }
+
+    pub fn get_pixel_format(&self) -> PixelFormat {
+        unimplemented!();
     }
 
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
