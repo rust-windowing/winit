@@ -281,6 +281,7 @@ pub struct Window {
     is_closed: AtomicBool,
     wm_delete_window: ffi::Atom,
     current_size: Cell<(libc::c_int, libc::c_int)>,
+    pixel_format: PixelFormat,
     /// Events that have been retreived with XLib but not dispatched with iterators yet
     pending_events: Mutex<VecDeque<Event>>,
     cursor_state: Mutex<CursorState>,
@@ -326,6 +327,11 @@ impl Window {
                 visual_attributes.push(1);
                 visual_attributes.push(ffi::glx::SAMPLES as libc::c_int);
                 visual_attributes.push(val as libc::c_int);
+            }
+
+            if let Some(val) = builder.srgb {
+                visual_attributes.push(ffi::glx_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB as libc::c_int);
+                visual_attributes.push(if val {1} else {0});
             }
 
             visual_attributes.push(0);
@@ -376,6 +382,31 @@ impl Window {
             let vi_copy = ptr::read(vi as *const _);
             ffi::XFree(vi as *const libc::c_void);
             vi_copy
+        };
+
+        // querying the chosen pixel format
+        let pixel_format = {
+            let get_attrib = |attrib: libc::c_int| -> i32 {
+                let mut value = 0;
+                unsafe { ffi::glx::GetFBConfigAttrib(display, fb_config, attrib, &mut value); }
+                value
+            };
+
+            PixelFormat {
+                hardware_accelerated: true,
+                red_bits: get_attrib(ffi::GLX_RED_SIZE) as u8,
+                green_bits: get_attrib(ffi::GLX_GREEN_SIZE) as u8,
+                blue_bits: get_attrib(ffi::GLX_BLUE_SIZE) as u8,
+                alpha_bits: get_attrib(ffi::GLX_ALPHA_SIZE) as u8,
+                depth_bits: get_attrib(ffi::GLX_DEPTH_SIZE) as u8,
+                stencil_bits: get_attrib(ffi::GLX_STENCIL_SIZE) as u8,
+                stereoscopy: get_attrib(ffi::GLX_STEREO) != 0,
+                double_buffer: get_attrib(ffi::GLX_DOUBLEBUFFER) != 0,
+                multisampling: if get_attrib(ffi::glx::SAMPLE_BUFFERS as libc::c_int) != 0 {
+                    Some(get_attrib(ffi::glx::SAMPLES as libc::c_int) as u16)
+                }else { None },
+                srgb: get_attrib(ffi::glx_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB as libc::c_int) != 0,
+            }
         };
 
         // getting the root window
@@ -600,6 +631,7 @@ impl Window {
             is_closed: AtomicBool::new(false),
             wm_delete_window: wm_delete_window,
             current_size: Cell::new((0, 0)),
+            pixel_format: pixel_format,
             pending_events: Mutex::new(VecDeque::new()),
             cursor_state: Mutex::new(CursorState::Normal),
         };
@@ -734,7 +766,7 @@ impl Window {
     }
 
     pub fn get_pixel_format(&self) -> PixelFormat {
-        unimplemented!();
+        self.pixel_format.clone()
     }
 
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
