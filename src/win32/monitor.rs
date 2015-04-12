@@ -21,6 +21,9 @@ pub struct MonitorID {
     /// http://msdn.microsoft.com/en-us/library/dd183569(v=vs.85).aspx
     flags: winapi::DWORD,
 
+    /// True if this is the primary monitor.
+    primary: bool,
+
     /// The position of the monitor in pixels on the desktop.
     ///
     /// A window that is positionned at these coordinates will overlap the monitor.
@@ -114,13 +117,15 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
             (position, dimensions)
         };
 
-        for monitor in DeviceEnumerator::monitors(adapter.DeviceName.as_ptr()) {
+        for (num, monitor) in DeviceEnumerator::monitors(adapter.DeviceName.as_ptr()).enumerate() {
             // adding to the resulting list
             result.push_back(MonitorID {
                 adapter_name: adapter.DeviceName,
                 monitor_name: wchar_as_string(&monitor.DeviceName),
                 readable_name: wchar_as_string(&monitor.DeviceString),
                 flags: monitor.StateFlags,
+                primary: (adapter.StateFlags & winapi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 &&
+                         num == 0,
                 position: position,
                 dimensions: dimensions,
             });
@@ -135,8 +140,8 @@ pub fn get_primary_monitor() -> MonitorID {
     // TODO: it is possible to query the win32 API for the primary monitor, this should be done
     //  instead
     for monitor in get_available_monitors().into_iter() {
-        if (monitor.flags & winapi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 {
-            return monitor
+        if monitor.primary {
+            return monitor;
         }
     }
 
