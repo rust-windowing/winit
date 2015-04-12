@@ -52,6 +52,8 @@ fn main() {
                                         khronos_api::GLX_XML,
                                         vec![
                                             "GLX_ARB_create_context".to_string(),
+                                            "GLX_ARB_framebuffer_sRGB".to_string(),
+                                            "GLX_EXT_framebuffer_sRGB".to_string(),
                                             "GLX_EXT_swap_control".to_string(),
                                             "GLX_SGI_swap_control".to_string()
                                         ],
