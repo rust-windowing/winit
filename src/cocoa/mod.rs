@@ -8,6 +8,7 @@ use libc;
 use Api;
 use BuilderAttribs;
 use GlRequest;
+use PixelFormat;
 use native_monitor::NativeMonitorId;
 
 use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
@@ -614,6 +615,10 @@ impl Window {
 
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGl
+    }
+
+    pub fn get_pixel_format(&self) -> PixelFormat {
+        unimplemented!();
     }
 
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {

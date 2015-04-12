@@ -13,6 +13,7 @@ use libc;
 use {CreationError, Event, MouseCursor};
 use CursorState;
 
+use PixelFormat;
 use BuilderAttribs;
 
 pub use self::headless::HeadlessContext;
@@ -53,6 +54,9 @@ pub struct Window {
 
     /// The current cursor state.
     cursor_state: Arc<Mutex<CursorState>>,
+
+    /// The pixel format that has been used to create this window.
+    pixel_format: PixelFormat,
 }
 
 unsafe impl Send for Window {}
@@ -256,6 +260,10 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGl
+    }
+
+    pub fn get_pixel_format(&self) -> PixelFormat {
+        self.pixel_format.clone()
     }
 
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {

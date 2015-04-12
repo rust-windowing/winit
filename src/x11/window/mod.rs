@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex, Once, ONCE_INIT};
 use Api;
 use CursorState;
 use GlRequest;
+use PixelFormat;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
@@ -730,6 +731,10 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn get_api(&self) -> ::Api {
         ::Api::OpenGl
+    }
+
+    pub fn get_pixel_format(&self) -> PixelFormat {
+        unimplemented!();
     }
 
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
