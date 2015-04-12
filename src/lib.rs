@@ -46,10 +46,10 @@ extern crate cocoa;
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
 extern crate glutin_core_graphics as core_graphics;
-#[cfg(target_os = "linux")]
-extern crate osmesa_sys;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 extern crate x11;
+#[cfg(all(any(target_os = "linux", target_os = "freebsd"), feature="headless"))]
+extern crate osmesa_sys;
 
 pub use events::*;
 #[cfg(feature = "headless")]

@@ -90,7 +90,7 @@ pub struct WindowProxy {
 impl WindowProxy {
     pub fn wakeup_event_loop(&self) {
         let mut xev = ffi::XClientMessageEvent {
-            _type: ffi::ClientMessage,
+            type_: ffi::ClientMessage,
             window: self.x.window,
             format: 32,
             message_type: 0,
@@ -171,7 +171,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     use events::ElementState::{Pressed, Released};
                     let event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
 
-                    if event._type == ffi::KeyPress {
+                    if event.type_ == ffi::KeyPress {
                         let raw_ev: *mut ffi::XKeyEvent = event;
                         unsafe { ffi::XFilterEvent(mem::transmute(raw_ev), self.window.x.window) };
                     }
@@ -335,7 +335,7 @@ impl Window {
                 return Err(OsError(format!("glx::ChooseFBConfig failed")));
             }
             let preferred_fb = *fb;     // TODO: choose more wisely
-            ffi::XFree(fb as *mut ());
+            ffi::XFree(fb as *mut _);
             preferred_fb
         };
 
