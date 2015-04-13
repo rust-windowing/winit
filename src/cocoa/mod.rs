@@ -33,7 +33,7 @@ use std::sync::Mutex;
 use std::ascii::AsciiExt;
 use std::ops::Deref;
 
-use events::Event::{Awakened, MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel};
+use events::Event::{Awakened, MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel, Closed};
 use events::ElementState::{Pressed, Released};
 use events::MouseButton;
 use events;
@@ -57,6 +57,9 @@ struct DelegateState {
     view: IdRef,
     window: IdRef,
     resize_handler: Option<fn(u32, u32)>,
+
+    /// Events that have been retreived with XLib but not dispatched with iterators yet
+    pending_events: Mutex<VecDeque<Event>>,
 }
 
 struct WindowDelegate {
@@ -74,6 +77,8 @@ impl WindowDelegate {
                 let state: *mut libc::c_void = *this.get_ivar("glutinState");
                 let state = state as *mut DelegateState;
                 (*state).is_closed = true;
+
+                (*state).pending_events.lock().unwrap().push_back(Closed);
             }
             YES
         }
@@ -148,9 +153,6 @@ pub struct Window {
     window: IdRef,
     context: IdRef,
     delegate: WindowDelegate,
-
-    /// Events that have been retreived with XLib but not dispatched with iterators yet
-    pending_events: Mutex<VecDeque<Event>>,
 }
 
 #[cfg(feature = "window")]
@@ -184,7 +186,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        if let Some(ev) = self.window.pending_events.lock().unwrap().pop_front() {
+        if let Some(ev) = self.window.delegate.state.pending_events.lock().unwrap().pop_front() {
             return Some(ev);
         }
 
@@ -232,7 +234,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     let vkey =  event::vkeycode_to_element(NSEvent::keyCode(event));
                     events.push_back(KeyboardInput(Pressed, NSEvent::keyCode(event) as u8, vkey));
                     let event = events.pop_front();
-                    self.window.pending_events.lock().unwrap().extend(events.into_iter());
+                    self.window.delegate.state.pending_events.lock().unwrap().extend(events.into_iter());
                     event
                 },
                 NSKeyUp                 => {
@@ -262,12 +264,14 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                         events.push_back(alt_modifier.unwrap());
                     }
                     let event = events.pop_front();
-                    self.window.pending_events.lock().unwrap().extend(events.into_iter());
+                    self.window.delegate.state.pending_events.lock().unwrap().extend(events.into_iter());
                     event
                 },
                 NSScrollWheel           => { Some(MouseWheel(event.scrollingDeltaY() as i32)) },
                 _                       => { None },
             };
+
+
 
             event
         }
@@ -283,7 +287,7 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
     fn next(&mut self) -> Option<Event> {
         loop {
-            if let Some(ev) = self.window.pending_events.lock().unwrap().pop_front() {
+            if let Some(ev) = self.window.delegate.state.pending_events.lock().unwrap().pop_front() {
                 return Some(ev);
             }
 
@@ -348,6 +352,7 @@ impl Window {
             view: view.clone(),
             window: window.clone(),
             resize_handler: None,
+            pending_events: Mutex::new(VecDeque::new()),
         };
 
         let window = Window {
@@ -355,8 +360,6 @@ impl Window {
             window: window,
             context: context,
             delegate: WindowDelegate::new(ds),
-
-            pending_events: Mutex::new(VecDeque::new()),
         };
 
         Ok(window)
