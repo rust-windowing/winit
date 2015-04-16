@@ -4,8 +4,6 @@ rust:
   - nightly
   - 1.0.0-beta
 
-sudo: false
-
 addons:
   apt:
     packages:
