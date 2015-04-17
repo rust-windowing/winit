@@ -386,20 +386,20 @@ impl Window {
         let pixel_format = {
             let get_attrib = |attrib: libc::c_int| -> i32 {
                 let mut value = 0;
-                unsafe { ffi::glx::GetFBConfigAttrib(display, fb_config, attrib, &mut value); }
+                unsafe { ffi::glx::GetFBConfigAttrib(display as *mut _, fb_config, attrib, &mut value); }
                 value
             };
 
             PixelFormat {
                 hardware_accelerated: true,
-                red_bits: get_attrib(ffi::GLX_RED_SIZE) as u8,
-                green_bits: get_attrib(ffi::GLX_GREEN_SIZE) as u8,
-                blue_bits: get_attrib(ffi::GLX_BLUE_SIZE) as u8,
-                alpha_bits: get_attrib(ffi::GLX_ALPHA_SIZE) as u8,
-                depth_bits: get_attrib(ffi::GLX_DEPTH_SIZE) as u8,
-                stencil_bits: get_attrib(ffi::GLX_STENCIL_SIZE) as u8,
-                stereoscopy: get_attrib(ffi::GLX_STEREO) != 0,
-                double_buffer: get_attrib(ffi::GLX_DOUBLEBUFFER) != 0,
+                red_bits: get_attrib(ffi::glx::RED_SIZE as libc::c_int) as u8,
+                green_bits: get_attrib(ffi::glx::GREEN_SIZE as libc::c_int) as u8,
+                blue_bits: get_attrib(ffi::glx::BLUE_SIZE as libc::c_int) as u8,
+                alpha_bits: get_attrib(ffi::glx::ALPHA_SIZE as libc::c_int) as u8,
+                depth_bits: get_attrib(ffi::glx::DEPTH_SIZE as libc::c_int) as u8,
+                stencil_bits: get_attrib(ffi::glx::STENCIL_SIZE as libc::c_int) as u8,
+                stereoscopy: get_attrib(ffi::glx::STEREO as libc::c_int) != 0,
+                double_buffer: get_attrib(ffi::glx::DOUBLEBUFFER as libc::c_int) != 0,
                 multisampling: if get_attrib(ffi::glx::SAMPLE_BUFFERS as libc::c_int) != 0 {
                     Some(get_attrib(ffi::glx::SAMPLES as libc::c_int) as u16)
                 }else { None },
