@@ -120,9 +120,6 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        use std::time::Duration;
-        use std::old_io::timer;
-
         loop {
             // calling poll_events()
             if let Some(ev) = self.window.poll_events().next() {
@@ -130,7 +127,7 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
             }
 
             // TODO: Implement a proper way of sleeping on the event queue
-            timer::sleep(Duration::milliseconds(16));
+            // timer::sleep(Duration::milliseconds(16));
         }
     }
 }
@@ -182,10 +179,8 @@ impl Window {
         let mut attribute_list = vec!();
 
         if use_gles2 {
-            attribute_list.push_all(&[
-                ffi::egl::RENDERABLE_TYPE as i32,
-                ffi::egl::OPENGL_ES2_BIT as i32,
-            ]);
+            attribute_list.push(ffi::egl::RENDERABLE_TYPE as i32);
+            attribute_list.push(ffi::egl::OPENGL_ES2_BIT as i32);
         }
 
         {
@@ -194,15 +189,16 @@ impl Window {
                 16 => (6, 5, 6),
                 _ => panic!("Bad color_bits"),
             };
-            attribute_list.push_all(&[ffi::egl::RED_SIZE as i32, red]);
-            attribute_list.push_all(&[ffi::egl::GREEN_SIZE as i32, green]);
-            attribute_list.push_all(&[ffi::egl::BLUE_SIZE as i32, blue]);
+            attribute_list.push(ffi::egl::RED_SIZE as i32);
+            attribute_list.push(red);
+            attribute_list.push(ffi::egl::GREEN_SIZE as i32);
+            attribute_list.push(green);
+            attribute_list.push(ffi::egl::BLUE_SIZE as i32);
+            attribute_list.push(blue);
         }
 
-        attribute_list.push_all(&[
-            ffi::egl::DEPTH_SIZE as i32,
-            builder.depth_bits.unwrap_or(8) as i32,
-        ]);
+        attribute_list.push(ffi::egl::DEPTH_SIZE as i32);
+        attribute_list.push(builder.depth_bits.unwrap_or(8) as i32);
 
         attribute_list.push(ffi::egl::NONE as i32);
 
@@ -227,7 +223,8 @@ impl Window {
         let context = unsafe {
             let mut context_attributes = vec!();
             if use_gles2 {
-                context_attributes.push_all(&[ffi::egl::CONTEXT_CLIENT_VERSION as i32, 2]);
+                context_attributes.push(ffi::egl::CONTEXT_CLIENT_VERSION as i32);
+                context_attributes.push(2);
             }
             context_attributes.push(ffi::egl::NONE as i32);
 
@@ -329,7 +326,7 @@ impl Window {
     }
 
     pub fn get_proc_address(&self, addr: &str) -> *const () {
-        let addr = CString::from_slice(addr.as_bytes());
+        let addr = CString::new(addr.as_bytes()).unwrap();
         let addr = addr.as_ptr();
         unsafe {
             ffi::egl::GetProcAddress(addr) as *const ()
