@@ -59,13 +59,6 @@ impl<'a> WindowBuilder<'a> {
         self
     }
 
-    /// THIS FUNCTION IS DEPRECATED
-    #[deprecated = "Use with_gl instead"]
-    pub fn with_gl_version(mut self, version: (u32, u32)) -> WindowBuilder<'a> {
-        self.attribs.gl_version = GlRequest::Specific(::Api::OpenGl, (version.0 as u8, version.1 as u8));
-        self
-    }
-
     /// Sets how the backend should choose the OpenGL API and version.
     pub fn with_gl(mut self, request: GlRequest) -> WindowBuilder<'a> {
         self.attribs.gl_version = request;
@@ -214,13 +207,6 @@ impl Window {
     #[inline]
     pub fn is_closed(&self) -> bool {
         self.window.is_closed()
-    }
-
-    /// Returns true if the window has previously been closed by the user.
-    #[inline]
-    #[deprecated = "Use is_closed instead"]
-    pub fn should_close(&self) -> bool {
-        self.is_closed()
     }
 
     /// Modifies the title of the window.

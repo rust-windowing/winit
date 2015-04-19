@@ -25,13 +25,6 @@ impl HeadlessRendererBuilder {
         }
     }
 
-    /// THIS FUNCTION IS DEPRECATED
-    #[deprecated = "Use with_gl instead"]
-    pub fn with_gl_version(mut self, version: (u32, u32)) -> HeadlessRendererBuilder {
-        self.attribs.gl_version = GlRequest::Specific(::Api::OpenGl, (version.0 as u8, version.1 as u8));
-        self
-    }
-
     /// Sets how the backend should choose the OpenGL API and version.
     pub fn with_gl(mut self, request: GlRequest) -> HeadlessRendererBuilder {
         self.attribs.gl_version = request;
