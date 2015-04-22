@@ -233,7 +233,7 @@ pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
         ffi::XK_Z => events::VirtualKeyCode::Z,
         ffi::XK_bracketleft => events::VirtualKeyCode::LBracket,
         ffi::XK_backslash => events::VirtualKeyCode::Backslash,
-        ffi::XK_bracketright => events::VirtualKeyCode::LBracket,
+        ffi::XK_bracketright => events::VirtualKeyCode::RBracket,
         //ffi::XK_asciicircum => events::VirtualKeyCode::Asciicircum,
         //ffi::XK_underscore => events::VirtualKeyCode::Underscore,
         //ffi::XK_grave => events::VirtualKeyCode::Grave,
