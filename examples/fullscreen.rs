@@ -4,7 +4,7 @@ extern crate android_glue;
 
 extern crate glutin;
 
-use std::old_io::stdio::stdin;
+use std::io;
 
 mod support;
 
@@ -23,8 +23,10 @@ fn main() {
         }
 
         print!("Please write the number of the monitor to use: ");
-        let num = stdin().read_line().unwrap().as_slice().trim().parse()
-                         .ok().expect("Please enter a number");
+
+        let mut num = String::new();
+        io::stdin().read_line(&mut num).unwrap();
+        let num = num.trim().parse().ok().expect("Please enter a number");
         let monitor = glutin::get_available_monitors().nth(num).expect("Please enter a valid ID");
 
         println!("Using {:?}", monitor.get_name());
