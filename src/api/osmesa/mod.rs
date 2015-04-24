@@ -1,28 +1,32 @@
+#![cfg(all(any(target_os = "linux", target_os = "freebsd"), feature="headless"))]
+
+extern crate osmesa_sys;
+
 use BuilderAttribs;
 use CreationError;
 use CreationError::OsError;
 use libc;
 use std::{mem, ptr};
-use super::ffi;
+use std::ffi::CString;
 
-pub struct HeadlessContext {
-    context: ffi::OSMesaContext,
+pub struct OsMesaContext {
+    context: osmesa_sys::OSMesaContext,
     buffer: Vec<u32>,
     width: u32,
     height: u32,
 }
 
-impl HeadlessContext {
-    pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
+impl OsMesaContext {
+    pub fn new(builder: BuilderAttribs) -> Result<OsMesaContext, CreationError> {
         let dimensions = builder.dimensions.unwrap();
 
-        Ok(HeadlessContext {
+        Ok(OsMesaContext {
             width: dimensions.0,
             height: dimensions.1,
             buffer: ::std::iter::repeat(unsafe { mem::uninitialized() })
                 .take((dimensions.0 * dimensions.1) as usize).collect(),
             context: unsafe {
-                let ctxt = ffi::OSMesaCreateContext(0x1908, ptr::null_mut());
+                let ctxt = osmesa_sys::OSMesaCreateContext(0x1908, ptr::null_mut());
                 if ctxt.is_null() {
                     return Err(OsError("OSMesaCreateContext failed".to_string()));
                 }
@@ -32,7 +36,7 @@ impl HeadlessContext {
     }
 
     pub unsafe fn make_current(&self) {
-        let ret = ffi::OSMesaMakeCurrent(self.context,
+        let ret = osmesa_sys::OSMesaMakeCurrent(self.context,
             self.buffer.as_ptr() as *mut libc::c_void,
             0x1401, self.width as libc::c_int, self.height as libc::c_int);
 
@@ -42,14 +46,13 @@ impl HeadlessContext {
     }
 
     pub fn is_current(&self) -> bool {
-        unsafe { ffi::OSMesaGetCurrentContext() == self.context }
+        unsafe { osmesa_sys::OSMesaGetCurrentContext() == self.context }
     }
 
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         unsafe {
-            use std::ffi::CString;
             let c_str = CString::new(addr.as_bytes().to_vec()).unwrap();
-            mem::transmute(ffi::OSMesaGetProcAddress(mem::transmute(c_str.as_ptr())))
+            mem::transmute(osmesa_sys::OSMesaGetProcAddress(mem::transmute(c_str.as_ptr())))
         }
     }
 
@@ -62,11 +65,11 @@ impl HeadlessContext {
     }
 }
 
-impl Drop for HeadlessContext {
+impl Drop for OsMesaContext {
     fn drop(&mut self) {
-        unsafe { ffi::OSMesaDestroyContext(self.context) }
+        unsafe { osmesa_sys::OSMesaDestroyContext(self.context) }
     }
 }
 
-unsafe impl Send for HeadlessContext {}
-unsafe impl Sync for HeadlessContext {}
+unsafe impl Send for OsMesaContext {}
+unsafe impl Sync for OsMesaContext {}
