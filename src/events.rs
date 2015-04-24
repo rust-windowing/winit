@@ -34,6 +34,9 @@ pub enum Event {
 
     /// The event loop was woken up by another thread.
     Awakened,
+
+    /// The window needs to be redrawn.
+    Refresh,
 }
 
 pub type ScanCode = u8;
