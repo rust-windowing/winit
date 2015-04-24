@@ -1,3 +1,5 @@
+#![cfg(target_os = "windows")]
+
 use std::sync::atomic::AtomicBool;
 use std::mem;
 use std::ptr;

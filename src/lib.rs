@@ -61,22 +61,8 @@ pub use window::{AvailableMonitorsIter, MonitorID, get_available_monitors, get_p
 #[cfg(feature = "window")]
 pub use native_monitor::NativeMonitorId;
 
-#[cfg(all(not(target_os = "windows"), not(target_os = "linux"), not(target_os = "macos"), not(target_os = "android")))]
-use this_platform_is_not_supported;
-
-#[cfg(target_os = "windows")]
-#[path="win32/mod.rs"]
+mod api;
 mod platform;
-#[cfg(target_os = "linux")]
-#[path="x11/mod.rs"]
-mod platform;
-#[cfg(target_os = "macos")]
-#[path="cocoa/mod.rs"]
-mod platform;
-#[cfg(target_os = "android")]
-#[path="android/mod.rs"]
-mod platform;
-
 mod events;
 #[cfg(feature = "headless")]
 mod headless;

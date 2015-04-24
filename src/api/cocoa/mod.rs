@@ -1,3 +1,5 @@
+#![cfg(target_os = "macos")]
+
 #[cfg(feature = "headless")]
 pub use self::headless::HeadlessContext;
 
