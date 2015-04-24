@@ -48,8 +48,6 @@ extern crate core_foundation;
 extern crate glutin_core_graphics as core_graphics;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 extern crate x11;
-#[cfg(all(any(target_os = "linux", target_os = "freebsd"), feature="headless"))]
-extern crate osmesa_sys;
 
 pub use events::*;
 #[cfg(feature = "headless")]

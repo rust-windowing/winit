@@ -1,5 +1,3 @@
-#[cfg(feature="headless")]
-pub use osmesa_sys::*;
 pub use x11::keysym::*;
 pub use x11::xcursor::*;
 pub use x11::xf86vmode::*;

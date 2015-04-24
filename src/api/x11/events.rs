@@ -1,5 +1,5 @@
 use {events, libc};
-use super::super::ffi;
+use super::ffi;
 use VirtualKeyCode;
 
 pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
