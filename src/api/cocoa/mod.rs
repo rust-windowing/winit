@@ -199,9 +199,11 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 NSDefaultRunLoopMode,
                 YES);
             if event == nil { return None; }
-            NSApp().sendEvent_(event);
 
-            let event = match msg_send![event, type] {
+            let event_type = msg_send![event, type];
+            NSApp().sendEvent_(if let NSKeyDown = event_type { nil } else { event });
+
+            let event = match event_type {
                 NSLeftMouseDown         => { Some(MouseInput(Pressed, MouseButton::Left)) },
                 NSLeftMouseUp           => { Some(MouseInput(Released, MouseButton::Left)) },
                 NSRightMouseDown        => { Some(MouseInput(Pressed, MouseButton::Right)) },
@@ -220,6 +222,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     };
                     let view_rect = NSView::frame(*self.window.view);
                     let scale_factor = self.window.hidpi_factor();
+
                     Some(MouseMoved(((scale_factor * view_point.x as f32) as i32,
                                     (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32)))
                 },
@@ -241,6 +244,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 },
                 NSKeyUp                 => {
                     let vkey =  event::vkeycode_to_element(NSEvent::keyCode(event));
+
                     Some(KeyboardInput(Released, NSEvent::keyCode(event) as u8, vkey))
                 },
                 NSFlagsChanged          => {
@@ -272,8 +276,6 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 NSScrollWheel           => { Some(MouseWheel(event.scrollingDeltaY() as i32)) },
                 _                       => { None },
             };
-
-
 
             event
         }
