@@ -1,4 +1,4 @@
-#![cfg(all(target_os = "windows", target_os = "linux"))]        // always false of the moment
+#![cfg(target_os = "linux")]
 
 use BuilderAttribs;
 use CreationError;
