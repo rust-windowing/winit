@@ -35,6 +35,14 @@ impl OsMesaContext {
         })
     }
 
+    pub fn get_framebuffer(&self) -> &[u32] {
+        &self.buffer
+    }
+
+    pub fn get_dimensions(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+
     pub unsafe fn make_current(&self) {
         let ret = osmesa_sys::OSMesaMakeCurrent(self.context,
             self.buffer.as_ptr() as *mut libc::c_void,
