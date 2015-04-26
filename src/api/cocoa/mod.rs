@@ -328,7 +328,7 @@ impl Window {
         };
         let window = match Window::create_window(builder.dimensions.unwrap_or((800, 600)),
                                                  &*builder.title,
-                                                 builder.monitor)
+                                                 &builder.monitor)
         {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
@@ -338,7 +338,7 @@ impl Window {
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
 
-        let context = match Window::create_context(*view, builder.vsync, builder.gl_version) {
+        let context = match Window::create_context(*view, &builder) {
             Some(context) => context,
             None          => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
         };
@@ -384,34 +384,37 @@ impl Window {
         }
     }
 
-    fn create_window(dimensions: (u32, u32), title: &str, monitor: Option<MonitorID>) -> Option<IdRef> {
-        unsafe {
-            let screen = monitor.map(|monitor_id| {
-                let native_id = match monitor_id.get_native_identifier() {
-                    NativeMonitorId::Numeric(num) => num,
-                    _ => panic!("OS X monitors should always have a numeric native ID")
-                };
-                let matching_screen = {
-                    let screens = NSScreen::screens(nil);
-                    let count: NSUInteger = msg_send![screens, count];
-                    let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
-                    let mut matching_screen: Option<id> = None;
-                    for i in (0..count) {
-                        let screen = msg_send![screens, objectAtIndex:i as NSUInteger];
-                        let device_description = NSScreen::deviceDescription(screen);
-                        let value: id = msg_send![device_description, objectForKey:*key];
-                        if value != nil {
-                            let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
-                            if screen_number as u32 == native_id {
-                                matching_screen = Some(screen);
-                                break;
+    fn create_window(dimensions: (u32, u32), title: &str, monitor: &Option<MonitorID>) -> Option<IdRef> {
+        unsafe { 
+            let screen = match *monitor {
+                Some(ref monitor_id) => {
+                    let native_id = match monitor_id.get_native_identifier() {
+                        NativeMonitorId::Numeric(num) => num,
+                        _ => panic!("OS X monitors should always have a numeric native ID")
+                    };
+                    let matching_screen = {
+                        let screens = NSScreen::screens(nil);
+                        let count: NSUInteger = msg_send![screens, count];
+                        let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
+                        let mut matching_screen: Option<id> = None;
+                        for i in (0..count) {
+                            let screen = msg_send![screens, objectAtIndex:i as NSUInteger];
+                            let device_description = NSScreen::deviceDescription(screen);
+                            let value: id = msg_send![device_description, objectForKey:*key];
+                            if value != nil {
+                                let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
+                                if screen_number as u32 == native_id {
+                                    matching_screen = Some(screen);
+                                    break;
+                                }
                             }
                         }
-                    }
-                    matching_screen
-                };
-                matching_screen.unwrap_or(NSScreen::mainScreen(nil))
-            });
+                        matching_screen
+                    };
+                    Some(matching_screen.unwrap_or(NSScreen::mainScreen(nil)))
+                },
+                None => None
+            };
             let frame = match screen {
                 Some(screen) => NSScreen::frame(screen),
                 None => {
@@ -461,8 +464,8 @@ impl Window {
         }
     }
 
-    fn create_context(view: id, vsync: bool, gl_version: GlRequest) -> Option<IdRef> {
-        let profile = match gl_version {
+    fn create_context(view: id, builder: &BuilderAttribs) -> Option<IdRef> {
+        let profile = match builder.gl_version {
             GlRequest::Latest => NSOpenGLProfileVersion4_1Core as u32,
             GlRequest::Specific(Api::OpenGl, (1 ... 2, _)) => NSOpenGLProfileVersionLegacy as u32,
             GlRequest::Specific(Api::OpenGl, (3, 0)) => NSOpenGLProfileVersionLegacy as u32,
@@ -475,7 +478,7 @@ impl Window {
             GlRequest::GlThenGles { .. } => NSOpenGLProfileVersion4_1Core as u32,
         };
         unsafe {
-            let attributes = [
+            let mut attributes = vec![
                 NSOpenGLPFADoubleBuffer as u32,
                 NSOpenGLPFAClosestPolicy as u32,
                 NSOpenGLPFAColorSize as u32, 24,
@@ -483,15 +486,24 @@ impl Window {
                 NSOpenGLPFADepthSize as u32, 24,
                 NSOpenGLPFAStencilSize as u32, 8,
                 NSOpenGLPFAOpenGLProfile as u32, profile,
-                0
             ];
+
+            if let Some(samples) = builder.multisampling {
+                attributes = attributes + &[
+                    NSOpenGLPFAMultisample as u32,
+                    NSOpenGLPFASampleBuffers as u32, 1,
+                    NSOpenGLPFASamples as u32, samples as u32,
+                ];
+            }
+
+            attributes.push(0);
 
             let pixelformat = IdRef::new(NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes));
             pixelformat.non_nil().map(|pixelformat| {
                 let context = IdRef::new(NSOpenGLContext::alloc(nil).initWithFormat_shareContext_(*pixelformat, nil));
                 context.non_nil().map(|context| {
                     context.setView_(view);
-                    if vsync {
+                    if builder.vsync {
                         let value = 1;
                         context.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
                     }
