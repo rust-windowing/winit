@@ -1,5 +1,6 @@
 pub mod android;
 pub mod cocoa;
+pub mod dlopen;
 pub mod egl;
 pub mod glx;
 pub mod osmesa;

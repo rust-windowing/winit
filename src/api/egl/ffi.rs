@@ -2,8 +2,6 @@ use libc;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
-#[cfg(target_os = "linux")]
-use api::x11::ffi;
 #[cfg(target_os = "android")]
 use api::android::ffi;
 
@@ -32,10 +30,6 @@ pub type EGLNativePixmapType = *const libc::c_void;     // FIXME: egl_native_pix
 #[cfg(target_os = "windows")]
 pub type EGLNativeWindowType = winapi::HWND;
 #[cfg(target_os = "linux")]
-pub type EGLNativeWindowType = ffi::Window;
+pub type EGLNativeWindowType = *const libc::c_void;
 #[cfg(target_os = "android")]
 pub type EGLNativeWindowType = *const ffi::ANativeWindow;
-
-#[cfg(not(target_os = "windows"))]
-#[link(name = "EGL")]
-extern {}

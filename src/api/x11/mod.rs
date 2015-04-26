@@ -6,6 +6,7 @@ use CreationError::OsError;
 use libc;
 use std::{mem, ptr};
 use std::cell::Cell;
+use std::ffi::CString;
 use std::sync::atomic::AtomicBool;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Once, ONCE_INIT};
@@ -15,7 +16,9 @@ use CursorState;
 use GlRequest;
 use PixelFormat;
 
+use api::dlopen;
 use api::glx::Context as GlxContext;
+use api::egl::Context as EglContext;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
@@ -64,6 +67,7 @@ pub struct XWindow {
 
 pub enum Context {
     Glx(GlxContext),
+    Egl(EglContext),
     None,
 }
 
@@ -543,10 +547,17 @@ impl Window {
                 Context::Glx(try!(GlxContext::new(builder, display, window,
                                                   fb_config, visual_infos)))
             },
-            /*GlRequest::Specific(Api::OpenGlEs, _) => {
-                let egl = ::egl::ffi::egl::Egl;
-                Context::Egl(try!(EglContext::new(egl, builder, Some(display as *const _), window)))
-            },*/
+            GlRequest::Specific(Api::OpenGlEs, _) => {
+                let libegl = unsafe { dlopen::dlopen(b"libEGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
+                if libegl.is_null() {
+                    return Err(CreationError::NotSupported);
+                }
+                let egl = ::api::egl::ffi::egl::Egl::load_with(|sym| {
+                    let sym = CString::new(sym).unwrap();
+                    unsafe { dlopen::dlsym(libegl, sym.as_ptr()) }
+                });
+                Context::Egl(try!(EglContext::new(egl, builder, Some(display as *const _), unsafe { mem::transmute(window) })))
+            },
             GlRequest::Specific(_, _) => {
                 return Err(CreationError::NotSupported);
             },
@@ -666,7 +677,7 @@ impl Window {
     pub unsafe fn make_current(&self) {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.make_current(),
-            //Context::Egl(ref ctxt) => ctxt.make_current(),
+            Context::Egl(ref ctxt) => ctxt.make_current(),
             Context::None => {}
         }
     }
@@ -674,7 +685,7 @@ impl Window {
     pub fn is_current(&self) -> bool {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.is_current(),
-            //Context::Egl(ref ctxt) => ctxt.is_current(),
+            Context::Egl(ref ctxt) => ctxt.is_current(),
             Context::None => panic!()
         }
     }
@@ -682,7 +693,7 @@ impl Window {
     pub fn get_proc_address(&self, addr: &str) -> *const () {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.get_proc_address(addr),
-            //Context::Egl(ref ctxt) => ctxt.get_proc_address(addr),
+            Context::Egl(ref ctxt) => ctxt.get_proc_address(addr),
             Context::None => ptr::null()
         }
     }
@@ -690,7 +701,7 @@ impl Window {
     pub fn swap_buffers(&self) {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.swap_buffers(),
-            //Context::Egl(ref ctxt) => ctxt.swap_buffers(),
+            Context::Egl(ref ctxt) => ctxt.swap_buffers(),
             Context::None => {}
         }
     }
@@ -707,7 +718,7 @@ impl Window {
     pub fn get_api(&self) -> ::Api {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.get_api(),
-            //Context::Egl(ref ctxt) => ctxt.get_api(),
+            Context::Egl(ref ctxt) => ctxt.get_api(),
             Context::None => panic!()
         }
     }
