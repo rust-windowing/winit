@@ -1,4 +1,5 @@
 pub mod android;
+pub mod caca;
 pub mod cocoa;
 pub mod dlopen;
 pub mod egl;
