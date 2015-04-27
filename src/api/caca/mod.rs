@@ -11,15 +11,16 @@ use CursorState;
 use MouseCursor;
 
 use std::collections::VecDeque;
+use std::path::Path;
 use std::ptr;
 
-mod libcaca;
+mod ffi;
 
 pub struct Window {
-    libcaca: libcaca::LibCaca,
-    display: *mut libcaca::caca_display_t,
+    libcaca: ffi::LibCaca,
+    display: *mut ffi::caca_display_t,
     opengl: OsMesaContext,
-    dither: *mut libcaca::caca_dither_t,
+    dither: *mut ffi::caca_dither_t,
 }
 
 #[derive(Clone)]
@@ -83,12 +84,12 @@ impl Window {
         let opengl = try!(OsMesaContext::new(builder));
         let opengl_dimensions = opengl.get_dimensions();
 
-        let libcaca = match libcaca::LibCaca::open() {
+        let libcaca = match ffi::LibCaca::open(&Path::new("libcaca.so.0")) {
             Err(_) => return Err(CreationError::NotSupported),
             Ok(l) => l
         };
 
-        let display = unsafe { libcaca.caca_create_display(ptr::null_mut()) };
+        let display = unsafe { (libcaca.caca_create_display)(ptr::null_mut()) };
 
         if display.is_null() {
             return Err(CreationError::OsError("caca_create_display failed".to_string()));
@@ -101,14 +102,14 @@ impl Window {
             fn get_masks() -> (u32, u32, u32, u32) { (0xff000000, 0xff0000, 0xff00, 0xff) }
 
             let masks = get_masks();
-            libcaca.caca_create_dither(32, opengl_dimensions.0 as libc::c_int,
-                                       opengl_dimensions.1 as libc::c_int,
-                                       opengl_dimensions.0 as libc::c_int * 4,
-                                       masks.0, masks.1, masks.2, masks.3)
+            (libcaca.caca_create_dither)(32, opengl_dimensions.0 as libc::c_int,
+                                         opengl_dimensions.1 as libc::c_int,
+                                         opengl_dimensions.0 as libc::c_int * 4,
+                                         masks.0, masks.1, masks.2, masks.3)
         };
 
         if dither.is_null() {
-            unsafe { libcaca.caca_free_display(display) };
+            unsafe { (libcaca.caca_free_display)(display) };
             return Err(CreationError::OsError("caca_create_dither failed".to_string()));
         }
 
@@ -182,17 +183,17 @@ impl Window {
 
     pub fn swap_buffers(&self) {
         unsafe {
-            let canvas = self.libcaca.caca_get_canvas(self.display);
-            let width = self.libcaca.caca_get_canvas_width(canvas);
-            let height = self.libcaca.caca_get_canvas_height(canvas);
+            let canvas = (self.libcaca.caca_get_canvas)(self.display);
+            let width = (self.libcaca.caca_get_canvas_width)(canvas);
+            let height = (self.libcaca.caca_get_canvas_height)(canvas);
 
             let buffer = self.opengl.get_framebuffer().chunks(self.opengl.get_dimensions().0 as usize)
                                     .flat_map(|i| i.iter().cloned()).rev().collect::<Vec<u32>>();
 
-            self.libcaca.caca_dither_bitmap(canvas, 0, 0, width as libc::c_int,
-                                            height as libc::c_int, self.dither,
-                                            buffer.as_ptr() as *const _);
-            self.libcaca.caca_refresh_display(self.display);
+            (self.libcaca.caca_dither_bitmap)(canvas, 0, 0, width as libc::c_int,
+                                              height as libc::c_int, self.dither,
+                                              buffer.as_ptr() as *const _);
+            (self.libcaca.caca_refresh_display)(self.display);
         };
     }
 
@@ -234,8 +235,8 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         unsafe {
-            self.libcaca.caca_free_dither(self.dither);
-            self.libcaca.caca_free_display(self.display);
+            (self.libcaca.caca_free_dither)(self.dither);
+            (self.libcaca.caca_free_display)(self.display);
         }
     }
 }
