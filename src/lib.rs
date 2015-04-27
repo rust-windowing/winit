@@ -26,6 +26,9 @@
 #[macro_use]
 extern crate lazy_static;
 
+#[macro_use]
+extern crate shared_library;
+
 extern crate gl_common;
 extern crate libc;
 

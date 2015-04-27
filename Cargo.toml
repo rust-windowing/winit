@@ -19,6 +19,7 @@ headless = []
 gl_common = "*"
 lazy_static = "0.1"
 libc = "*"
+shared_library = "0.1"
 
 [build-dependencies]
 gl_generator = "*"
