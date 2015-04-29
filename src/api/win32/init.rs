@@ -205,7 +205,12 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     // calling SetPixelFormat
     let pixel_format = {
         let formats = if extra_functions.GetPixelFormatAttribivARB.is_loaded() {
-            enumerate_arb_pixel_formats(&extra_functions, &real_window)
+            let f = enumerate_arb_pixel_formats(&extra_functions, &real_window);
+            if f.is_empty() {
+                enumerate_native_pixel_formats(&real_window)
+            } else {
+                f
+            }
         } else {
             enumerate_native_pixel_formats(&real_window)
         };
