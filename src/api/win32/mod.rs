@@ -18,7 +18,6 @@ use CursorState;
 use PixelFormat;
 use BuilderAttribs;
 
-pub use self::headless::HeadlessContext;
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
 use winapi;
@@ -29,7 +28,6 @@ use gdi32;
 mod callback;
 mod event;
 mod gl;
-mod headless;
 mod init;
 mod make_current_guard;
 mod monitor;
