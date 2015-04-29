@@ -240,11 +240,11 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                         ffi::Button2 => Some(Middle),
                         ffi::Button3 => Some(Right),
                         ffi::Button4 => {
-                            self.window.pending_events.lock().unwrap().push_back(MouseWheel(1));
+                            self.window.pending_events.lock().unwrap().push_back(MouseWheel(0.0, 1.0));
                             None
                         }
                         ffi::Button5 => {
-                            self.window.pending_events.lock().unwrap().push_back(MouseWheel(-1));
+                            self.window.pending_events.lock().unwrap().push_back(MouseWheel(0.0, -1.0));
                             None
                         }
                         _ => None
