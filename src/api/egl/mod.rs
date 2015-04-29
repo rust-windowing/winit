@@ -3,6 +3,7 @@
 use BuilderAttribs;
 use CreationError;
 use GlRequest;
+use PixelFormat;
 use Api;
 
 use libc;
@@ -16,6 +17,8 @@ pub struct Context {
     display: ffi::egl::types::EGLDisplay,
     context: ffi::egl::types::EGLContext,
     surface: ffi::egl::types::EGLSurface,
+    api: Api,
+    pixel_format: PixelFormat,
 }
 
 impl Context {
@@ -35,7 +38,7 @@ impl Context {
             display
         };
 
-        let (_major, _minor) = unsafe {
+        let egl_version = unsafe {
             let mut major: ffi::egl::types::EGLint = mem::uninitialized();
             let mut minor: ffi::egl::types::EGLint = mem::uninitialized();
 
@@ -46,62 +49,61 @@ impl Context {
             (major, minor)
         };
 
-        let use_gles2 = match builder.gl_version {
-            GlRequest::Specific(Api::OpenGlEs, (2, _)) => true,
-            GlRequest::Specific(Api::OpenGlEs, _) => false,
-            GlRequest::Specific(_, _) => return Err(CreationError::NotSupported),
-            GlRequest::GlThenGles { opengles_version: (2, _), .. } => true,
-            _ => false,
+        // binding the right API and choosing the version
+        let (version, api) = unsafe {
+            match builder.gl_version {
+                GlRequest::Latest => {
+                    if egl_version >= (1, 4) {
+                        if egl.BindAPI(ffi::egl::OPENGL_API) != 0 {
+                            (None, Api::OpenGl)
+                        } else if egl.BindAPI(ffi::egl::OPENGL_ES_API) != 0 {
+                            (None, Api::OpenGlEs)
+                        } else {
+                            return Err(CreationError::NotSupported);
+                        }
+                    } else {
+                        (None, Api::OpenGlEs)
+                    }
+                },
+                GlRequest::Specific(Api::OpenGlEs, version) => {
+                    if egl_version >= (1, 2) {
+                        if egl.BindAPI(ffi::egl::OPENGL_ES_API) == 0 {
+                            return Err(CreationError::NotSupported);
+                        }
+                    }
+                    (Some(version), Api::OpenGlEs)
+                },
+                GlRequest::Specific(Api::OpenGl, version) => {
+                    if egl_version < (1, 4) {
+                        return Err(CreationError::NotSupported);
+                    }
+                    if egl.BindAPI(ffi::egl::OPENGL_API) == 0 {
+                        return Err(CreationError::NotSupported);
+                    }
+                    (Some(version), Api::OpenGl)
+                },
+                GlRequest::Specific(_, _) => return Err(CreationError::NotSupported),
+                GlRequest::GlThenGles { opengles_version, opengl_version } => {
+                    if egl_version >= (1, 4) {
+                        if egl.BindAPI(ffi::egl::OPENGL_API) != 0 {
+                            (Some(opengl_version), Api::OpenGl)
+                        } else if egl.BindAPI(ffi::egl::OPENGL_ES_API) != 0 {
+                            (Some(opengles_version), Api::OpenGlEs)
+                        } else {
+                            return Err(CreationError::NotSupported);
+                        }
+                    } else {
+                        (Some(opengles_version), Api::OpenGlEs)
+                    }
+                },
+            }
         };
 
-        let mut attribute_list = vec!();
-        attribute_list.push(ffi::egl::RENDERABLE_TYPE as i32);
-        attribute_list.push(ffi::egl::OPENGL_ES2_BIT as i32);
-
-        attribute_list.push(ffi::egl::CONFORMANT as i32);
-        attribute_list.push(ffi::egl::OPENGL_ES2_BIT as i32);
-
-        attribute_list.push(ffi::egl::SURFACE_TYPE as i32);
-        attribute_list.push(ffi::egl::WINDOW_BIT as i32);
-
-        {
-            let (red, green, blue) = match builder.color_bits.unwrap_or(24) {
-                24 => (8, 8, 8),
-                16 => (6, 5, 6),
-                _ => panic!("Bad color_bits"),
-            };
-
-            attribute_list.push(ffi::egl::RED_SIZE as i32);
-            attribute_list.push(red);
-            attribute_list.push(ffi::egl::GREEN_SIZE as i32);
-            attribute_list.push(green);
-            attribute_list.push(ffi::egl::BLUE_SIZE as i32);
-            attribute_list.push(blue);
-        }
-
-        attribute_list.push(ffi::egl::DEPTH_SIZE as i32);
-        attribute_list.push(builder.depth_bits.unwrap_or(8) as i32);
-
-        attribute_list.push(ffi::egl::NONE as i32);
-
-        let config = unsafe {
-            let mut num_config: ffi::egl::types::EGLint = mem::uninitialized();
-            let mut config: ffi::egl::types::EGLConfig = mem::uninitialized();
-            if egl.ChooseConfig(display, attribute_list.as_ptr(), &mut config, 1,
-                                &mut num_config) == 0
-            {
-                return Err(CreationError::OsError(format!("eglChooseConfig failed")))
-            }
-
-            if num_config <= 0 {
-                return Err(CreationError::OsError(format!("eglChooseConfig returned no available config")))
-            }
-
-            config
-        };
+        let configs = unsafe { try!(enumerate_configs(&egl, display, &egl_version, api, version)) };
+        let (config_id, pixel_format) = try!(builder.choose_pixel_format(configs.into_iter()));
 
         let surface = unsafe {
-            let surface = egl.CreateWindowSurface(display, config, native_window, ptr::null());
+            let surface = egl.CreateWindowSurface(display, config_id, native_window, ptr::null());
             if surface.is_null() {
                 return Err(CreationError::OsError(format!("eglCreateWindowSurface failed")))
             }
@@ -109,17 +111,40 @@ impl Context {
         };
 
         let context = unsafe {
-            let mut context_attributes = vec!();
-            context_attributes.push(ffi::egl::CONTEXT_CLIENT_VERSION as i32);
-            context_attributes.push(2);
-            context_attributes.push(ffi::egl::NONE as i32);
+            if let Some(version) = version {
+                try!(create_context(&egl, display, &egl_version, api, version, config_id,
+                                    builder.gl_debug).map_err(|_| CreationError::NotSupported))
 
-            let context = egl.CreateContext(display, config, ptr::null(),
-                                            context_attributes.as_ptr());
-            if context.is_null() {
-                return Err(CreationError::OsError(format!("eglCreateContext failed")))
+            } else if api == Api::OpenGlEs {
+                if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (2, 0),
+                                                 config_id, builder.gl_debug)
+                {
+                    ctxt
+                } else if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (1, 0),
+                                                        config_id, builder.gl_debug)
+                {
+                    ctxt
+                } else {
+                    return Err(CreationError::NotSupported);
+                }
+
+            } else {
+                if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (3, 2),
+                                                 config_id, builder.gl_debug)
+                {
+                    ctxt
+                } else if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (3, 1),
+                                                        config_id, builder.gl_debug)
+                {
+                    ctxt
+                } else if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (1, 0),
+                                                        config_id, builder.gl_debug)
+                {
+                    ctxt
+                } else {
+                    return Err(CreationError::NotSupported);
+                }
             }
-            context
         };
 
         Ok(Context {
@@ -127,6 +152,8 @@ impl Context {
             display: display,
             context: context,
             surface: surface,
+            api: api,
+            pixel_format: pixel_format,
         })
     }
 
@@ -138,6 +165,10 @@ impl Context {
         if ret == 0 {
             panic!("eglMakeCurrent failed");
         }
+    }
+
+    pub fn get_pixel_format(&self) -> &PixelFormat {
+        &self.pixel_format
     }
 
     pub fn is_current(&self) -> bool {
@@ -162,8 +193,8 @@ impl Context {
         }
     }
 
-    pub fn get_api(&self) -> ::Api {
-        ::Api::OpenGlEs
+    pub fn get_api(&self) -> Api {
+        self.api
     }
 }
 
@@ -182,4 +213,144 @@ impl Drop for Context {
             self.egl.Terminate(self.display);
         }
     }
+}
+
+unsafe fn enumerate_configs(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisplay,
+                            egl_version: &(ffi::egl::types::EGLint, ffi::egl::types::EGLint),
+                            api: Api, version: Option<(u8, u8)>)
+                            -> Result<Vec<(ffi::egl::types::EGLConfig, PixelFormat)>, CreationError>
+{
+    let mut num_configs = mem::uninitialized();
+    if egl.GetConfigs(display, ptr::null_mut(), 0, &mut num_configs) == 0 {
+        return Err(CreationError::OsError(format!("eglGetConfigs failed")));
+    }
+
+    let mut configs_ids = Vec::with_capacity(num_configs as usize);
+    if egl.GetConfigs(display, configs_ids.as_mut_ptr(),
+                      configs_ids.capacity() as ffi::egl::types::EGLint,
+                      &mut num_configs) == 0
+    {
+        return Err(CreationError::OsError(format!("eglGetConfigs failed")));
+    }
+    configs_ids.set_len(num_configs as usize);
+
+    // analyzing each config
+    let mut result = Vec::with_capacity(num_configs as usize);
+    for config_id in configs_ids {
+        macro_rules! attrib {
+            ($egl:expr, $display:expr, $config:expr, $attr:expr) => (
+                {
+                    let mut value = mem::uninitialized();
+                    let res = $egl.GetConfigAttrib($display, $config,
+                                                   $attr as ffi::egl::types::EGLint, &mut value);
+                    if res == 0 {
+                        return Err(CreationError::OsError(format!("eglGetConfigAttrib failed")));
+                    }
+                    value
+                }
+            )
+        };
+
+        let renderable = attrib!(egl, display, config_id, ffi::egl::RENDERABLE_TYPE) as u32;
+        let conformant = attrib!(egl, display, config_id, ffi::egl::CONFORMANT) as u32;
+
+        if api == Api::OpenGlEs {
+            if let Some(version) = version {
+                if version.0 == 3 && (renderable & ffi::egl::OPENGL_ES3_BIT == 0 ||
+                                      conformant & ffi::egl::OPENGL_ES3_BIT == 0)
+                {
+                    continue;
+                }
+
+                if version.0 == 2 && (renderable & ffi::egl::OPENGL_ES2_BIT == 0 ||
+                                      conformant & ffi::egl::OPENGL_ES2_BIT == 0)
+                {
+                    continue;
+                }
+
+                if version.0 == 1 && (renderable & ffi::egl::OPENGL_ES_BIT == 0 ||
+                                      conformant & ffi::egl::OPENGL_ES_BIT == 0)
+                {
+                    continue;
+                }
+            }
+
+        } else if api == Api::OpenGl {
+            if renderable & ffi::egl::OPENGL_BIT == 0 ||
+               conformant & ffi::egl::OPENGL_BIT == 0
+            {
+                continue;
+            }
+        }
+
+        if attrib!(egl, display, config_id, ffi::egl::SURFACE_TYPE) & ffi::egl::WINDOW_BIT as i32 == 0 {
+            continue;
+        }
+
+        if attrib!(egl, display, config_id, ffi::egl::TRANSPARENT_TYPE) != ffi::egl::NONE as i32 {
+            continue;
+        }
+
+        if attrib!(egl, display, config_id, ffi::egl::COLOR_BUFFER_TYPE) != ffi::egl::RGB_BUFFER as i32 {
+            continue;
+        }
+
+        result.push((config_id, PixelFormat {
+            hardware_accelerated: attrib!(egl, display, config_id, ffi::egl::CONFIG_CAVEAT)
+                                          != ffi::egl::SLOW_CONFIG as i32,
+            red_bits: attrib!(egl, display, config_id, ffi::egl::RED_SIZE) as u8,
+            green_bits: attrib!(egl, display, config_id, ffi::egl::BLUE_SIZE) as u8,
+            blue_bits: attrib!(egl, display, config_id, ffi::egl::GREEN_SIZE) as u8,
+            alpha_bits: attrib!(egl, display, config_id, ffi::egl::ALPHA_SIZE) as u8,
+            depth_bits: attrib!(egl, display, config_id, ffi::egl::DEPTH_SIZE) as u8,
+            stencil_bits: attrib!(egl, display, config_id, ffi::egl::STENCIL_SIZE) as u8,
+            stereoscopy: false,
+            double_buffer: true,
+            multisampling: match attrib!(egl, display, config_id, ffi::egl::SAMPLES) {
+                0 | 1 => None,
+                a => Some(a as u16),
+            },
+            srgb: false,        // TODO: use EGL_KHR_gl_colorspace to know that
+        }));
+    }
+
+    Ok(result)
+}
+
+unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisplay,
+                         egl_version: &(ffi::egl::types::EGLint, ffi::egl::types::EGLint),
+                         api: Api, version: (u8, u8), config_id: ffi::egl::types::EGLConfig,
+                         gl_debug: bool)
+                         -> Result<ffi::egl::types::EGLContext, ()>
+{
+    let mut context_attributes = vec![];
+
+    if egl_version >= &(1, 5) {
+        context_attributes.push(ffi::egl::CONTEXT_MAJOR_VERSION as i32);
+        context_attributes.push(version.0 as i32);
+        context_attributes.push(ffi::egl::CONTEXT_MINOR_VERSION as i32);
+        context_attributes.push(version.1 as i32);
+
+        if gl_debug {
+            context_attributes.push(ffi::egl::CONTEXT_OPENGL_DEBUG as i32);
+            context_attributes.push(ffi::egl::TRUE as i32);
+        }
+
+    } else {
+        if api == Api::OpenGlEs {
+            context_attributes.push(ffi::egl::CONTEXT_CLIENT_VERSION as i32);
+            context_attributes.push(version.0 as i32);
+        }
+    }
+
+    context_attributes.push(ffi::egl::NONE as i32);
+
+    let context = egl.CreateContext(display, config_id, ptr::null(),
+                                    context_attributes.as_ptr());
+
+    if context.is_null() {
+        return Err(());
+    }
+
+    Ok(context)
 }
