@@ -770,7 +770,7 @@ impl GlContext for Window {
     }
 
     fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
-        let symbol_name: CFString = FromStr::from_str(_addr).unwrap();
+        let symbol_name: CFString = FromStr::from_str(addr).unwrap();
         let framework_name: CFString = FromStr::from_str("com.apple.opengl").unwrap();
         let framework = unsafe {
             CFBundleGetBundleWithIdentifier(framework_name.as_concrete_TypeRef())
