@@ -197,7 +197,7 @@ impl Window {
 
         unsafe {
             user32::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, x as libc::c_int,
-                y as libc::c_int, winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION);
+                y as libc::c_int, winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION | winapi::SWP_NOMOVE);
             user32::UpdateWindow(self.window.0);
         }
     }
