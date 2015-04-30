@@ -6,6 +6,7 @@ use BuilderAttribs;
 use CreationError;
 use CursorState;
 use Event;
+use GlContext;
 use GlRequest;
 use MouseCursor;
 use PixelFormat;
@@ -428,6 +429,32 @@ impl gl_common::GlFunctionsSource for Window {
     }
 }
 
+impl GlContext for Window {
+    unsafe fn make_current(&self) {
+        self.make_current()
+    }
+
+    fn is_current(&self) -> bool {
+        self.is_current()
+    }
+
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+        self.get_proc_address(addr)
+    }
+
+    fn swap_buffers(&self) {
+        self.swap_buffers()
+    }
+
+    fn get_api(&self) -> Api {
+        self.get_api()
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        self.get_pixel_format()
+    }
+}
+
 /// Represents a thread safe subset of operations that can be called
 /// on a window. This structure can be safely cloned and sent between
 /// threads.
@@ -437,7 +464,6 @@ pub struct WindowProxy {
 }
 
 impl WindowProxy {
-
     /// Triggers a blocked event loop to wake up. This is
     /// typically called when another thread wants to wake
     /// up the blocked rendering thread to cause a refresh.

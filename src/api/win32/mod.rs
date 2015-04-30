@@ -14,7 +14,9 @@ use std::sync::mpsc::Receiver;
 use libc;
 use {CreationError, Event, MouseCursor};
 use CursorState;
+use GlContext;
 
+use Api;
 use PixelFormat;
 use BuilderAttribs;
 
@@ -218,52 +220,12 @@ impl Window {
         }
     }
 
-    /// See the docs in the crate root file.
-    pub unsafe fn make_current(&self) {
-        // TODO: check return value
-        gl::wgl::MakeCurrent(self.window.1 as *const libc::c_void,
-                             self.context.0 as *const libc::c_void);
-    }
-
-    /// See the docs in the crate root file.
-    pub fn is_current(&self) -> bool {
-        unsafe { gl::wgl::GetCurrentContext() == self.context.0 as *const libc::c_void }
-    }
-
-    /// See the docs in the crate root file.
-    pub fn get_proc_address(&self, addr: &str) -> *const () {
-        let addr = CString::new(addr.as_bytes()).unwrap();
-        let addr = addr.as_ptr();
-
-        unsafe {
-            let p = gl::wgl::GetProcAddress(addr) as *const ();
-            if !p.is_null() { return p; }
-            kernel32::GetProcAddress(self.gl_library, addr) as *const ()
-        }
-    }
-
-    /// See the docs in the crate root file.
-    pub fn swap_buffers(&self) {
-        unsafe {
-            gdi32::SwapBuffers(self.window.1);
-        }
-    }
-
     pub fn platform_display(&self) -> *mut libc::c_void {
         unimplemented!()
     }
 
     pub fn platform_window(&self) -> *mut libc::c_void {
         self.window.0 as *mut libc::c_void
-    }
-
-    /// See the docs in the crate root file.
-    pub fn get_api(&self) -> ::Api {
-        ::Api::OpenGl
-    }
-
-    pub fn get_pixel_format(&self) -> PixelFormat {
-        self.pixel_format.clone()
     }
 
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
@@ -359,6 +321,43 @@ impl Window {
         }
 
         Ok(())
+    }
+}
+
+impl GlContext for Window {
+    unsafe fn make_current(&self) {
+        // TODO: check return value
+        gl::wgl::MakeCurrent(self.window.1 as *const libc::c_void,
+                             self.context.0 as *const libc::c_void);
+    }
+
+    fn is_current(&self) -> bool {
+        unsafe { gl::wgl::GetCurrentContext() == self.context.0 as *const libc::c_void }
+    }
+
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+        let addr = CString::new(addr.as_bytes()).unwrap();
+        let addr = addr.as_ptr();
+
+        unsafe {
+            let p = gl::wgl::GetProcAddress(addr) as *const _;
+            if !p.is_null() { return p; }
+            kernel32::GetProcAddress(self.gl_library, addr) as *const _
+        }
+    }
+
+    fn swap_buffers(&self) {
+        unsafe {
+            gdi32::SwapBuffers(self.window.1);
+        }
+    }
+
+    fn get_api(&self) -> Api {
+        Api::OpenGl
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        self.pixel_format.clone()
     }
 }
 

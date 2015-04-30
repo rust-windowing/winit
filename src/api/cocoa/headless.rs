@@ -1,6 +1,7 @@
 use CreationError;
 use CreationError::OsError;
 use BuilderAttribs;
+use GlContext;
 use libc;
 use std::ptr;
 
@@ -56,8 +57,10 @@ impl HeadlessContext {
 
         Ok(headless)
     }
+}
 
-    pub unsafe fn make_current(&self) {
+impl GlContext for HeadlessContext {
+    unsafe fn make_current(&self) {
         self.context.makeCurrentContext();
 
         gl::GenFramebuffersEXT(1, &mut framebuffer);
@@ -76,11 +79,11 @@ impl HeadlessContext {
         }
     }
 
-    pub fn is_current(&self) -> bool {
+    fn is_current(&self) -> bool {
         unimplemented!()
     }
 
-    pub fn get_proc_address(&self, _addr: &str) -> *const () {
+    fn get_proc_address(&self, _addr: &str) -> *const () {
         let symbol_name: CFString = _addr.parse().unwrap();
         let framework_name: CFString = "com.apple.opengl".parse().unwrap();
         let framework = unsafe {
@@ -92,8 +95,15 @@ impl HeadlessContext {
         symbol as *const ()
     }
 
-    pub fn get_api(&self) -> ::Api {
+    fn swap_buffers(&self) {
+    }
+
+    fn get_api(&self) -> ::Api {
         ::Api::OpenGl
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        unimplemented!();
     }
 }
 

@@ -9,6 +9,7 @@ use libc;
 
 use Api;
 use BuilderAttribs;
+use GlContext;
 use GlRequest;
 use PixelFormat;
 use native_monitor::NativeMonitorId;
@@ -672,53 +673,12 @@ impl Window {
         return None;
     }
 
-    pub unsafe fn make_current(&self) {
-        let _: () = msg_send![*self.context, update];
-        self.context.makeCurrentContext();
-    }
-
-    pub fn is_current(&self) -> bool {
-        unsafe {
-            let current = NSOpenGLContext::currentContext(nil);
-            if current != nil {
-                let is_equal: BOOL = msg_send![current, isEqual:*self.context];
-                is_equal != NO
-            } else {
-                false
-            }
-        }
-    }
-
-    pub fn get_proc_address(&self, _addr: &str) -> *const () {
-        let symbol_name: CFString = FromStr::from_str(_addr).unwrap();
-        let framework_name: CFString = FromStr::from_str("com.apple.opengl").unwrap();
-        let framework = unsafe {
-            CFBundleGetBundleWithIdentifier(framework_name.as_concrete_TypeRef())
-        };
-        let symbol = unsafe {
-            CFBundleGetFunctionPointerForName(framework, symbol_name.as_concrete_TypeRef())
-        };
-        symbol as *const ()
-    }
-
-    pub fn swap_buffers(&self) {
-        unsafe { self.context.flushBuffer(); }
-    }
-
     pub fn platform_display(&self) -> *mut libc::c_void {
         unimplemented!()
     }
 
     pub fn platform_window(&self) -> *mut libc::c_void {
         unimplemented!()
-    }
-
-    pub fn get_api(&self) -> ::Api {
-        ::Api::OpenGl
-    }
-
-    pub fn get_pixel_format(&self) -> PixelFormat {
-        self.pixel_format.clone()
     }
 
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
@@ -788,6 +748,49 @@ impl Window {
 
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         unimplemented!();
+    }
+}
+
+impl GlContext for Window {
+    unsafe fn make_current(&self) {
+        let _: () = msg_send![*self.context, update];
+        self.context.makeCurrentContext();
+    }
+
+    fn is_current(&self) -> bool {
+        unsafe {
+            let current = NSOpenGLContext::currentContext(nil);
+            if current != nil {
+                let is_equal: BOOL = msg_send![current, isEqual:*self.context];
+                is_equal != NO
+            } else {
+                false
+            }
+        }
+    }
+
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+        let symbol_name: CFString = FromStr::from_str(_addr).unwrap();
+        let framework_name: CFString = FromStr::from_str("com.apple.opengl").unwrap();
+        let framework = unsafe {
+            CFBundleGetBundleWithIdentifier(framework_name.as_concrete_TypeRef())
+        };
+        let symbol = unsafe {
+            CFBundleGetFunctionPointerForName(framework, symbol_name.as_concrete_TypeRef())
+        };
+        symbol as *const _
+    }
+
+    fn swap_buffers(&self) {
+        unsafe { self.context.flushBuffer(); }
+    }
+
+    fn get_api(&self) -> ::Api {
+        ::Api::OpenGl
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        self.pixel_format.clone()
     }
 }
 

@@ -2,9 +2,13 @@
 
 pub use api::win32::*;
 
+use libc;
+
 use Api;
 use BuilderAttribs;
 use CreationError;
+use PixelFormat;
+use GlContext;
 
 ///
 pub struct HeadlessContext(Window);
@@ -14,20 +18,30 @@ impl HeadlessContext {
         builder.visible = false;
         Window::new(builder).map(|w| HeadlessContext(w))
     }
+}
 
-    pub unsafe fn make_current(&self) {
+impl GlContext for HeadlessContext {
+    unsafe fn make_current(&self) {
         self.0.make_current()
     }
 
-    pub fn is_current(&self) -> bool {
+    fn is_current(&self) -> bool {
         self.0.is_current()
     }
 
-    pub fn get_proc_address(&self, addr: &str) -> *const () {
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
         self.0.get_proc_address(addr)
     }
 
-    pub fn get_api(&self) -> Api {
+    fn swap_buffers(&self) {
+        self.0.swap_buffers()
+    }
+
+    fn get_api(&self) -> Api {
         self.0.get_api()
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        self.0.get_pixel_format()
     }
 }
