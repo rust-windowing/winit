@@ -211,9 +211,7 @@ pub enum CursorState {
 #[derive(Debug, Clone)]
 pub struct PixelFormat {
     pub hardware_accelerated: bool,
-    pub red_bits: u8,
-    pub green_bits: u8,
-    pub blue_bits: u8,
+    pub color_bits: u8,
     pub alpha_bits: u8,
     pub depth_bits: u8,
     pub stencil_bits: u8,
@@ -306,7 +304,7 @@ impl<'a> BuilderAttribs<'a> {
 
         // TODO: do this more properly
         for (id, format) in iter {
-            if format.red_bits + format.green_bits + format.blue_bits < self.color_bits.unwrap_or(0) {
+            if format.color_bits < self.color_bits.unwrap_or(0) {
                 continue;
             }
 

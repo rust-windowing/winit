@@ -438,9 +438,7 @@ unsafe fn enumerate_native_pixel_formats(hdc: &WindowWrapper) -> Vec<(PixelForma
 
         result.push((PixelFormat {
             hardware_accelerated: (output.dwFlags & winapi::PFD_GENERIC_FORMAT) == 0,
-            red_bits: output.cRedBits,
-            green_bits: output.cGreenBits,
-            blue_bits: output.cBlueBits,
+            color_bits: output.cRedBits + output.cGreenBits + output.cBlueBits,
             alpha_bits: output.cAlphaBits,
             depth_bits: output.cDepthBits,
             stencil_bits: output.cStencilBits,
@@ -489,9 +487,9 @@ unsafe fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, hdc: &WindowWr
 
         result.push((PixelFormat {
             hardware_accelerated: true,
-            red_bits: get_info(index, gl::wgl_extra::RED_BITS_ARB) as u8,
-            green_bits: get_info(index, gl::wgl_extra::GREEN_BITS_ARB) as u8,
-            blue_bits: get_info(index, gl::wgl_extra::BLUE_BITS_ARB) as u8,
+            color_bits: get_info(index, gl::wgl_extra::RED_BITS_ARB) as u8 + 
+                        get_info(index, gl::wgl_extra::GREEN_BITS_ARB) as u8 +
+                        get_info(index, gl::wgl_extra::BLUE_BITS_ARB) as u8,
             alpha_bits: get_info(index, gl::wgl_extra::ALPHA_BITS_ARB) as u8,
             depth_bits: get_info(index, gl::wgl_extra::DEPTH_BITS_ARB) as u8,
             stencil_bits: get_info(index, gl::wgl_extra::STENCIL_BITS_ARB) as u8,

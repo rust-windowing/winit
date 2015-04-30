@@ -156,6 +156,7 @@ pub struct Window {
     view: IdRef,
     window: IdRef,
     context: IdRef,
+    pixel_format: PixelFormat,
     delegate: WindowDelegate,
 }
 
@@ -326,21 +327,23 @@ impl Window {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
-        let window = match Window::create_window(builder.dimensions.unwrap_or((800, 600)),
-                                                 &*builder.title,
-                                                 &builder.monitor)
+
+        let window = match Window::create_window(&builder)
         {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
+
         let view = match Window::create_view(*window) {
             Some(view) => view,
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
 
-        let context = match Window::create_context(*view, &builder) {
-            Some(context) => context,
-            None          => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
+        // TODO: perhaps we should return error from create_context so we can
+        // determine the cause of failure and possibly recover?
+        let (context, pf) = match Window::create_context(*view, &builder) {
+            (Some(context), Some(pf)) => (context, pf),
+            (_,             _)        => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
         };
 
         unsafe {
@@ -365,6 +368,7 @@ impl Window {
             view: view,
             window: window,
             context: context,
+            pixel_format: pf,
             delegate: WindowDelegate::new(ds),
         };
 
@@ -384,9 +388,9 @@ impl Window {
         }
     }
 
-    fn create_window(dimensions: (u32, u32), title: &str, monitor: &Option<MonitorID>) -> Option<IdRef> {
+    fn create_window(builder: &BuilderAttribs) -> Option<IdRef> {
         unsafe { 
-            let screen = match *monitor {
+            let screen = match builder.monitor {
                 Some(ref monitor_id) => {
                     let native_id = match monitor_id.get_native_identifier() {
                         NativeMonitorId::Numeric(num) => num,
@@ -418,7 +422,7 @@ impl Window {
             let frame = match screen {
                 Some(screen) => NSScreen::frame(screen),
                 None => {
-                    let (width, height) = dimensions;
+                    let (width, height) = builder.dimensions.unwrap_or((800, 600));
                     NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64))
                 }
             };
@@ -439,7 +443,7 @@ impl Window {
                 NO,
             ));
             window.non_nil().map(|window| {
-                let title = IdRef::new(NSString::alloc(nil).init_str(title));
+                let title = IdRef::new(NSString::alloc(nil).init_str(&builder.title));
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
                 if screen.is_some() {
@@ -464,7 +468,7 @@ impl Window {
         }
     }
 
-    fn create_context(view: id, builder: &BuilderAttribs) -> Option<IdRef> {
+    fn create_context(view: id, builder: &BuilderAttribs) -> (Option<IdRef>, Option<PixelFormat>) {
         let profile = match builder.gl_version {
             GlRequest::Latest => NSOpenGLProfileVersion4_1Core as u32,
             GlRequest::Specific(Api::OpenGl, (1 ... 2, _)) => NSOpenGLProfileVersionLegacy as u32,
@@ -477,39 +481,99 @@ impl Window {
             GlRequest::GlThenGles { opengl_version: (3, 1 ... 2), .. } => NSOpenGLProfileVersion3_2Core as u32,
             GlRequest::GlThenGles { .. } => NSOpenGLProfileVersion4_1Core as u32,
         };
+
+        // NOTE: OS X no longer has the concept of setting individual
+        // color component's bit size. Instead we can only specify the
+        // full color size and hope for the best. Another hiccup is that
+        // `NSOpenGLPFAColorSize` also includes `NSOpenGLPFAAlphaSize`,
+        // so we have to account for that as well.
+        let alpha_depth = builder.alpha_bits.unwrap_or(8);
+        let color_depth = builder.color_bits.unwrap_or(24) + alpha_depth;
+
+        let mut attributes = vec![
+            NSOpenGLPFADoubleBuffer as u32,
+            NSOpenGLPFAClosestPolicy as u32,
+            NSOpenGLPFAColorSize as u32, color_depth as u32,
+            NSOpenGLPFAAlphaSize as u32, alpha_depth as u32,
+            NSOpenGLPFADepthSize as u32, builder.depth_bits.unwrap_or(24) as u32,
+            NSOpenGLPFAStencilSize as u32, builder.stencil_bits.unwrap_or(8) as u32,
+            NSOpenGLPFAOpenGLProfile as u32, profile,
+        ];
+
+        // A color depth higher than 64 implies we're using either 16-bit
+        // floats or 32-bit floats and OS X requires a flag to be set
+        // accordingly. 
+        if color_depth >= 64 {
+            attributes.push(NSOpenGLPFAColorFloat as u32);
+        }
+
+        builder.multisampling.map(|samples| {
+            attributes.push(NSOpenGLPFAMultisample as u32);
+            attributes.push(NSOpenGLPFASampleBuffers as u32); attributes.push(1);
+            attributes.push(NSOpenGLPFASamples as u32); attributes.push(samples as u32);
+        });
+
+        // attribute list must be null terminated.
+        attributes.push(0);
+
         unsafe {
-            let mut attributes = vec![
-                NSOpenGLPFADoubleBuffer as u32,
-                NSOpenGLPFAClosestPolicy as u32,
-                NSOpenGLPFAColorSize as u32, 24,
-                NSOpenGLPFAAlphaSize as u32, 8,
-                NSOpenGLPFADepthSize as u32, 24,
-                NSOpenGLPFAStencilSize as u32, 8,
-                NSOpenGLPFAOpenGLProfile as u32, profile,
-            ];
-
-            if let Some(samples) = builder.multisampling {
-                attributes = attributes + &[
-                    NSOpenGLPFAMultisample as u32,
-                    NSOpenGLPFASampleBuffers as u32, 1,
-                    NSOpenGLPFASamples as u32, samples as u32,
-                ];
-            }
-
-            attributes.push(0);
-
             let pixelformat = IdRef::new(NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes));
-            pixelformat.non_nil().map(|pixelformat| {
+
+            if let Some(pixelformat) = pixelformat.non_nil() {
+
+                // TODO: Add context sharing
                 let context = IdRef::new(NSOpenGLContext::alloc(nil).initWithFormat_shareContext_(*pixelformat, nil));
-                context.non_nil().map(|context| {
-                    context.setView_(view);
+
+                if let Some(cxt) = context.non_nil() {
+                    let pf = {
+                        let getValues_forAttribute_forVirtualScreen_ = |fmt: id,
+                                                                        vals: *mut GLint,
+                                                                        attrib: NSOpenGLPixelFormatAttribute,
+                                                                        screen: GLint| -> () {
+                            msg_send![fmt, getValues:vals forAttribute:attrib forVirtualScreen:screen]
+                        };
+                        let get_attr = |attrib: NSOpenGLPixelFormatAttribute| -> i32 {
+                            let mut value = 0;
+                            // TODO: Wait for servo/rust-cocoa/#85 to get merged
+                            /*NSOpenGLPixelFormat::*/getValues_forAttribute_forVirtualScreen_(
+                                *pixelformat,
+                                &mut value,
+                                attrib,
+                                NSOpenGLContext::currentVirtualScreen(*cxt));
+
+                            value
+                        };
+
+                        PixelFormat {
+                            hardware_accelerated: get_attr(NSOpenGLPFAAccelerated) != 0,
+                            color_bits: (get_attr(NSOpenGLPFAColorSize) - get_attr(NSOpenGLPFAAlphaSize)) as u8,
+                            alpha_bits: get_attr(NSOpenGLPFAAlphaSize) as u8,
+                            depth_bits: get_attr(NSOpenGLPFADepthSize) as u8,
+                            stencil_bits: get_attr(NSOpenGLPFAStencilSize) as u8,
+                            stereoscopy: get_attr(NSOpenGLPFAStereo) != 0,
+                            double_buffer: get_attr(NSOpenGLPFADoubleBuffer) != 0,
+                            multisampling: if get_attr(NSOpenGLPFAMultisample) > 0 {
+                                Some(get_attr(NSOpenGLPFASamples) as u16)
+                            } else {
+                                None
+                            },
+                            srgb: true,
+                        }
+                    };
+
+                    cxt.setView_(view);
                     if builder.vsync {
                         let value = 1;
-                        context.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
+                        cxt.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
                     }
-                    context
-                })
-            }).unwrap_or(None)
+
+                    (Some(cxt), Some(pf))
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            }
         }
     }
 
@@ -654,7 +718,7 @@ impl Window {
     }
 
     pub fn get_pixel_format(&self) -> PixelFormat {
-        unimplemented!();
+        self.pixel_format.clone()
     }
 
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
