@@ -52,6 +52,16 @@ impl Context {
                 },
             }
 
+            if let Some(core) = builder.gl_core {
+                attributes.push(ffi::glx_extra::CONTEXT_PROFILE_MASK_ARB as libc::c_int);
+                attributes.push(if core {
+                        ffi::glx_extra::CONTEXT_CORE_PROFILE_BIT_ARB
+                    } else {
+                        ffi::glx_extra::CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB
+                    } as libc::c_int
+                );
+            }
+
             if builder.gl_debug {
                 attributes.push(ffi::glx_extra::CONTEXT_FLAGS_ARB as libc::c_int);
                 attributes.push(ffi::glx_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);
@@ -184,8 +194,6 @@ unsafe impl Sync for Context {}
 
 impl Drop for Context {
     fn drop(&mut self) {
-        use std::ptr;
-
         unsafe {
             // we don't call MakeCurrent(0, 0) because we are not sure that the context
             // is still the current one

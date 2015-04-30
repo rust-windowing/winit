@@ -374,6 +374,22 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                 },
             }
 
+            if let Some(core) = builder.gl_core {
+                if is_extension_supported(extra_functions, hdc,
+                                          "WGL_ARB_create_context_profile")
+                {
+                    attributes.push(gl::wgl_extra::CONTEXT_PROFILE_MASK_ARB as libc::c_int);
+                    attributes.push(if core {
+                            gl::wgl_extra::CONTEXT_CORE_PROFILE_BIT_ARB
+                        } else {
+                            gl::wgl_extra::CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB
+                        } as libc::c_int
+                    );
+                } else {
+                    return Err(CreationError::NotSupported);
+                }
+            }
+
             if builder.gl_debug {
                 attributes.push(gl::wgl_extra::CONTEXT_FLAGS_ARB as libc::c_int);
                 attributes.push(gl::wgl_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);

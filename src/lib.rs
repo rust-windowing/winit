@@ -161,6 +161,22 @@ pub enum GlRequest {
     },
 }
 
+impl GlRequest {
+    /// Extract the desktop GL version, if any.
+    pub fn to_gl_version(&self) -> Option<(u8, u8)> {
+        match self {
+            &GlRequest::Specific(Api::OpenGl, version) => Some(version),
+            &GlRequest::GlThenGles { opengl_version: version, .. } => Some(version),
+            _ => None,
+        }
+    }
+}
+
+/// The minimum core profile GL context. Useful for getting the minimum
+/// required GL version while still running on OSX, which often forbids
+/// the compatibility profile features.
+pub static GL_CORE: GlRequest = GlRequest::Specific(Api::OpenGl, (3, 2));
+
 #[derive(Debug, Copy, Clone)]
 pub enum MouseCursor {
     /// The platform-dependent default cursor.
@@ -261,6 +277,7 @@ pub struct BuilderAttribs<'a> {
     title: String,
     monitor: Option<platform::MonitorID>,
     gl_version: GlRequest,
+    gl_core: Option<bool>,
     gl_debug: bool,
     vsync: bool,
     visible: bool,
@@ -283,6 +300,7 @@ impl BuilderAttribs<'static> {
             title: "glutin window".to_string(),
             monitor: None,
             gl_version: GlRequest::Latest,
+            gl_core: None,
             gl_debug: cfg!(debug_assertions),
             vsync: false,
             visible: true,
@@ -309,6 +327,7 @@ impl<'a> BuilderAttribs<'a> {
             title: self.title,
             monitor: self.monitor,
             gl_version: self.gl_version,
+            gl_core: self.gl_core,
             gl_debug: self.gl_debug,
             vsync: self.vsync,
             visible: self.visible,

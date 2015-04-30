@@ -67,6 +67,12 @@ impl<'a> WindowBuilder<'a> {
         self
     }
 
+    /// Sets the Core/Compatibility flag of the created OpenGL context.
+    pub fn with_gl_core_profile(mut self, core: bool) -> WindowBuilder<'a> {
+        self.attribs.gl_core = Some(core);
+        self
+    }
+
     /// Sets the *debug* flag for the OpenGL context.
     ///
     /// The default value for this flag is `cfg!(debug_assertions)`, which means that it's enabled
@@ -124,9 +130,9 @@ impl<'a> WindowBuilder<'a> {
         self
     }
 
-    /// Sets whether sRGB should be enabled on the window. `None` means "I don't care".
-    pub fn with_srgb(mut self, srgb_enabled: Option<bool>) -> WindowBuilder<'a> {
-        self.attribs.srgb = srgb_enabled;
+    /// Sets whether sRGB should be enabled on the window.
+    pub fn with_srgb(mut self, srgb: bool) -> WindowBuilder<'a> {
+        self.attribs.srgb = Some(srgb);
         self
     }
 
