@@ -2,8 +2,10 @@
 
 use BuilderAttribs;
 use CreationError;
+use GlContext;
 use GlRequest;
 use Api;
+use PixelFormat;
 
 use libc;
 use std::ffi::CString;
@@ -140,34 +142,40 @@ impl Context {
             context: context,
         })
     }
+}
 
-    pub fn make_current(&self) {
-        let res = unsafe { ffi::glx::MakeCurrent(self.display as *mut _, self.window, self.context) };
+impl GlContext for Context {
+    unsafe fn make_current(&self) {
+        let res = ffi::glx::MakeCurrent(self.display as *mut _, self.window, self.context);
         if res == 0 {
             panic!("glx::MakeCurrent failed");
         }
     }
 
-    pub fn is_current(&self) -> bool {
+    fn is_current(&self) -> bool {
         unsafe { ffi::glx::GetCurrentContext() == self.context }
     }
 
-    pub fn get_proc_address(&self, addr: &str) -> *const () {
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
         let addr = CString::new(addr.as_bytes()).unwrap();
         let addr = addr.as_ptr();
         unsafe {
-            ffi::glx::GetProcAddress(addr as *const _) as *const ()
+            ffi::glx::GetProcAddress(addr as *const _) as *const _
         }
     }
 
-    pub fn swap_buffers(&self) {
+    fn swap_buffers(&self) {
         unsafe {
             ffi::glx::SwapBuffers(self.display as *mut _, self.window)
         }
     }
 
-    pub fn get_api(&self) -> ::Api {
+    fn get_api(&self) -> ::Api {
         ::Api::OpenGl
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        unimplemented!();
     }
 }
 

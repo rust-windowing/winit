@@ -3,9 +3,11 @@
 use libc;
 use api::osmesa::OsMesaContext;
 
+use Api;
 use BuilderAttribs;
 use CreationError;
 use Event;
+use GlContext;
 use PixelFormat;
 use CursorState;
 use MouseCursor;
@@ -169,44 +171,12 @@ impl Window {
         }
     }
 
-    pub unsafe fn make_current(&self) {
-        self.opengl.make_current()
-    }
-
-    pub fn is_current(&self) -> bool {
-        self.opengl.is_current()
-    }
-
-    pub fn get_proc_address(&self, addr: &str) -> *const () {
-        self.opengl.get_proc_address(addr) as *const _
-    }
-
-    pub fn swap_buffers(&self) {
-        unsafe {
-            let canvas = (self.libcaca.caca_get_canvas)(self.display);
-            let width = (self.libcaca.caca_get_canvas_width)(canvas);
-            let height = (self.libcaca.caca_get_canvas_height)(canvas);
-
-            let buffer = self.opengl.get_framebuffer().chunks(self.opengl.get_dimensions().0 as usize)
-                                    .flat_map(|i| i.iter().cloned()).rev().collect::<Vec<u32>>();
-
-            (self.libcaca.caca_dither_bitmap)(canvas, 0, 0, width as libc::c_int,
-                                              height as libc::c_int, self.dither,
-                                              buffer.as_ptr() as *const _);
-            (self.libcaca.caca_refresh_display)(self.display);
-        };
-    }
-
     pub fn platform_display(&self) -> *mut libc::c_void {
         unimplemented!()
     }
 
     pub fn platform_window(&self) -> *mut libc::c_void {
         unimplemented!()
-    }
-
-    pub fn get_api(&self) -> ::Api {
-        self.opengl.get_api()
     }
 
     pub fn get_pixel_format(&self) -> PixelFormat {
@@ -229,6 +199,44 @@ impl Window {
 
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         Ok(())
+    }
+}
+
+impl GlContext for Window {
+    unsafe fn make_current(&self) {
+        self.opengl.make_current()
+    }
+
+    fn is_current(&self) -> bool {
+        self.opengl.is_current()
+    }
+
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+        self.opengl.get_proc_address(addr)
+    }
+
+    fn swap_buffers(&self) {
+        unsafe {
+            let canvas = (self.libcaca.caca_get_canvas)(self.display);
+            let width = (self.libcaca.caca_get_canvas_width)(canvas);
+            let height = (self.libcaca.caca_get_canvas_height)(canvas);
+
+            let buffer = self.opengl.get_framebuffer().chunks(self.opengl.get_dimensions().0 as usize)
+                                    .flat_map(|i| i.iter().cloned()).rev().collect::<Vec<u32>>();
+
+            (self.libcaca.caca_dither_bitmap)(canvas, 0, 0, width as libc::c_int,
+                                              height as libc::c_int, self.dither,
+                                              buffer.as_ptr() as *const _);
+            (self.libcaca.caca_refresh_display)(self.display);
+        };
+    }
+
+    fn get_api(&self) -> Api {
+        self.opengl.get_api()
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        self.opengl.get_pixel_format()
     }
 }
 

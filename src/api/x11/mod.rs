@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex, Once, ONCE_INIT};
 
 use Api;
 use CursorState;
+use GlContext;
 use GlRequest;
 use PixelFormat;
 
@@ -674,38 +675,6 @@ impl Window {
         }
     }
 
-    pub unsafe fn make_current(&self) {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.make_current(),
-            Context::Egl(ref ctxt) => ctxt.make_current(),
-            Context::None => {}
-        }
-    }
-
-    pub fn is_current(&self) -> bool {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.is_current(),
-            Context::Egl(ref ctxt) => ctxt.is_current(),
-            Context::None => panic!()
-        }
-    }
-
-    pub fn get_proc_address(&self, addr: &str) -> *const () {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.get_proc_address(addr),
-            Context::Egl(ref ctxt) => ctxt.get_proc_address(addr),
-            Context::None => ptr::null()
-        }
-    }
-
-    pub fn swap_buffers(&self) {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.swap_buffers(),
-            Context::Egl(ref ctxt) => ctxt.swap_buffers(),
-            Context::None => {}
-        }
-    }
-
     pub fn platform_display(&self) -> *mut libc::c_void {
         self.x.display as *mut libc::c_void
     }
@@ -714,18 +683,6 @@ impl Window {
         unimplemented!()
     }
 
-    /// See the docs in the crate root file.
-    pub fn get_api(&self) -> ::Api {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.get_api(),
-            Context::Egl(ref ctxt) => ctxt.get_api(),
-            Context::None => panic!()
-        }
-    }
-
-    pub fn get_pixel_format(&self) -> PixelFormat {
-        self.pixel_format.clone()
-    }
 
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
@@ -826,5 +783,51 @@ impl Window {
         }
 
         Ok(())
+    }
+}
+
+impl GlContext for Window {
+    unsafe fn make_current(&self) {
+        match self.x.context {
+            Context::Glx(ref ctxt) => ctxt.make_current(),
+            Context::Egl(ref ctxt) => ctxt.make_current(),
+            Context::None => {}
+        }
+    }
+
+    fn is_current(&self) -> bool {
+        match self.x.context {
+            Context::Glx(ref ctxt) => ctxt.is_current(),
+            Context::Egl(ref ctxt) => ctxt.is_current(),
+            Context::None => panic!()
+        }
+    }
+
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+        match self.x.context {
+            Context::Glx(ref ctxt) => ctxt.get_proc_address(addr),
+            Context::Egl(ref ctxt) => ctxt.get_proc_address(addr),
+            Context::None => ptr::null()
+        }
+    }
+
+    fn swap_buffers(&self) {
+        match self.x.context {
+            Context::Glx(ref ctxt) => ctxt.swap_buffers(),
+            Context::Egl(ref ctxt) => ctxt.swap_buffers(),
+            Context::None => {}
+        }
+    }
+
+    fn get_api(&self) -> Api {
+        match self.x.context {
+            Context::Glx(ref ctxt) => ctxt.get_api(),
+            Context::Egl(ref ctxt) => ctxt.get_api(),
+            Context::None => panic!()
+        }
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        self.pixel_format.clone()
     }
 }

@@ -2,9 +2,12 @@
 
 extern crate osmesa_sys;
 
+use Api;
 use BuilderAttribs;
 use CreationError;
 use CreationError::OsError;
+use GlContext;
+use PixelFormat;
 use libc;
 use std::{mem, ptr};
 use std::ffi::CString;
@@ -43,7 +46,13 @@ impl OsMesaContext {
         (self.width, self.height)
     }
 
-    pub unsafe fn make_current(&self) {
+    // TODO: can we remove this without causing havoc?
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
+    }
+}
+
+impl GlContext for OsMesaContext {
+    unsafe fn make_current(&self) {
         let ret = osmesa_sys::OSMesaMakeCurrent(self.context,
             self.buffer.as_ptr() as *mut libc::c_void,
             0x1401, self.width as libc::c_int, self.height as libc::c_int);
@@ -53,23 +62,26 @@ impl OsMesaContext {
         }
     }
 
-    pub fn is_current(&self) -> bool {
+    fn is_current(&self) -> bool {
         unsafe { osmesa_sys::OSMesaGetCurrentContext() == self.context }
     }
 
-    pub fn get_proc_address(&self, addr: &str) -> *const () {
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
         unsafe {
             let c_str = CString::new(addr.as_bytes().to_vec()).unwrap();
             mem::transmute(osmesa_sys::OSMesaGetProcAddress(mem::transmute(c_str.as_ptr())))
         }
     }
 
-    /// See the docs in the crate root file.
-    pub fn get_api(&self) -> ::Api {
-        ::Api::OpenGl
+    fn swap_buffers(&self) {
     }
 
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
+    fn get_api(&self) -> Api {
+        Api::OpenGl
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        unimplemented!();
     }
 }
 

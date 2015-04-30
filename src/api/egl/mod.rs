@@ -2,6 +2,7 @@
 
 use BuilderAttribs;
 use CreationError;
+use GlContext;
 use GlRequest;
 use PixelFormat;
 use Api;
@@ -156,8 +157,10 @@ impl Context {
             pixel_format: pixel_format,
         })
     }
+}
 
-    pub fn make_current(&self) {
+impl GlContext for Context {
+    unsafe fn make_current(&self) {
         let ret = unsafe {
             self.egl.MakeCurrent(self.display, self.surface, self.surface, self.context)
         };
@@ -167,23 +170,19 @@ impl Context {
         }
     }
 
-    pub fn get_pixel_format(&self) -> &PixelFormat {
-        &self.pixel_format
-    }
-
-    pub fn is_current(&self) -> bool {
+    fn is_current(&self) -> bool {
         unsafe { self.egl.GetCurrentContext() == self.context }
     }
 
-    pub fn get_proc_address(&self, addr: &str) -> *const () {
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
         let addr = CString::new(addr.as_bytes()).unwrap();
         let addr = addr.as_ptr();
         unsafe {
-            self.egl.GetProcAddress(addr) as *const ()
+            self.egl.GetProcAddress(addr) as *const _
         }
     }
 
-    pub fn swap_buffers(&self) {
+    fn swap_buffers(&self) {
         let ret = unsafe {
             self.egl.SwapBuffers(self.display, self.surface)
         };
@@ -193,8 +192,12 @@ impl Context {
         }
     }
 
-    pub fn get_api(&self) -> Api {
+    fn get_api(&self) -> Api {
         self.api
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        self.pixel_format.clone()
     }
 }
 

@@ -2,6 +2,8 @@ use Api;
 use BuilderAttribs;
 use CreationError;
 use GlRequest;
+use GlContext;
+use PixelFormat;
 
 use gl_common;
 use libc;
@@ -99,5 +101,31 @@ impl HeadlessContext {
 impl gl_common::GlFunctionsSource for HeadlessContext {
     fn get_proc_addr(&self, addr: &str) -> *const libc::c_void {
         self.get_proc_address(addr)
+    }
+}
+
+impl GlContext for HeadlessContext {
+    unsafe fn make_current(&self) {
+        self.make_current()
+    }
+
+    fn is_current(&self) -> bool {
+        self.is_current()
+    }
+
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+        self.get_proc_address(addr)
+    }
+
+    fn swap_buffers(&self) {
+        self.swap_buffers()
+    }
+
+    fn get_api(&self) -> Api {
+        self.get_api()
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        self.get_pixel_format()
     }
 }
