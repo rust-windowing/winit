@@ -411,9 +411,9 @@ impl Window {
 
             PixelFormat {
                 hardware_accelerated: true,
-                red_bits: get_attrib(ffi::glx::RED_SIZE as libc::c_int) as u8,
-                green_bits: get_attrib(ffi::glx::GREEN_SIZE as libc::c_int) as u8,
-                blue_bits: get_attrib(ffi::glx::BLUE_SIZE as libc::c_int) as u8,
+                color_bits: get_attrib(ffi::glx::RED_SIZE as libc::c_int) as u8 +
+                            get_attrib(ffi::glx::GREEN_SIZE as libc::c_int) as u8 +
+                            get_attrib(ffi::glx::BLUE_SIZE as libc::c_int) as u8,
                 alpha_bits: get_attrib(ffi::glx::ALPHA_SIZE as libc::c_int) as u8,
                 depth_bits: get_attrib(ffi::glx::DEPTH_SIZE as libc::c_int) as u8,
                 stencil_bits: get_attrib(ffi::glx::STENCIL_SIZE as libc::c_int) as u8,
