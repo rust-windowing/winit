@@ -53,6 +53,8 @@ impl Context {
 
     #[cfg(target_os = "android")]
     pub fn draw_frame(&self, color: (f32, f32, f32, f32)) {
+        use std::mem;
+
         unsafe {
             self.gl.ClearColor(color.0, color.1, color.2, color.3);
             self.gl.Clear(gl::COLOR_BUFFER_BIT);
@@ -60,13 +62,10 @@ impl Context {
             self.gl.EnableClientState(gl::VERTEX_ARRAY);
             self.gl.EnableClientState(gl::COLOR_ARRAY);
 
-            unsafe {
-                use std::mem;
-                self.gl.VertexPointer(2, gl::FLOAT, (mem::size_of::<f32>() * 5) as i32,
-                    mem::transmute(VERTEX_DATA.as_slice().as_ptr()));
-                self.gl.ColorPointer(3, gl::FLOAT, (mem::size_of::<f32>() * 5) as i32,
-                    mem::transmute(VERTEX_DATA.as_slice().as_ptr().offset(2)));
-            }
+            self.gl.VertexPointer(2, gl::FLOAT, (mem::size_of::<f32>() * 5) as i32,
+                                  mem::transmute(VERTEX_DATA.as_ptr()));
+            self.gl.ColorPointer(3, gl::FLOAT, (mem::size_of::<f32>() * 5) as i32,
+                                  mem::transmute(VERTEX_DATA.as_ptr().offset(2)));
 
             self.gl.DrawArrays(gl::TRIANGLES, 0, 3);
             self.gl.DisableClientState(gl::VERTEX_ARRAY);
