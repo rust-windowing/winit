@@ -2,8 +2,6 @@ use libc;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
-#[cfg(target_os = "android")]
-use api::android::ffi;
 
 pub mod egl {
     pub type khronos_utime_nanoseconds_t = super::khronos_utime_nanoseconds_t;
@@ -32,4 +30,4 @@ pub type EGLNativeWindowType = winapi::HWND;
 #[cfg(target_os = "linux")]
 pub type EGLNativeWindowType = *const libc::c_void;
 #[cfg(target_os = "android")]
-pub type EGLNativeWindowType = *const ffi::ANativeWindow;
+pub type EGLNativeWindowType = *const libc::c_void;
