@@ -7,6 +7,7 @@ use CreationError;
 use CursorState;
 use Event;
 use GlContext;
+use GlProfile;
 use GlRequest;
 use MouseCursor;
 use PixelFormat;
@@ -64,6 +65,12 @@ impl<'a> WindowBuilder<'a> {
     /// Sets how the backend should choose the OpenGL API and version.
     pub fn with_gl(mut self, request: GlRequest) -> WindowBuilder<'a> {
         self.attribs.gl_version = request;
+        self
+    }
+
+    /// Sets the desired OpenGL context profile.
+    pub fn with_gl_profile(mut self, profile: GlProfile) -> WindowBuilder<'a> {
+        self.attribs.gl_profile = Some(profile);
         self
     }
 

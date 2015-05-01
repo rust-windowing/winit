@@ -137,6 +137,15 @@ pub enum Api {
     WebGl,
 }
 
+/// Describes the requested OpenGL context profiles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GlProfile {
+    /// Include all the immediate more functions and definitions.
+    Compatibility,
+    /// Include all the future-compatible functions and definitions.
+    Core,
+}
+
 /// Describes the OpenGL API and version that are being requested when a context is created.
 #[derive(Debug, Copy, Clone)]
 pub enum GlRequest {
@@ -160,6 +169,22 @@ pub enum GlRequest {
         opengles_version: (u8, u8),
     },
 }
+
+impl GlRequest {
+    /// Extract the desktop GL version, if any.
+    pub fn to_gl_version(&self) -> Option<(u8, u8)> {
+        match self {
+            &GlRequest::Specific(Api::OpenGl, version) => Some(version),
+            &GlRequest::GlThenGles { opengl_version: version, .. } => Some(version),
+            _ => None,
+        }
+    }
+}
+
+/// The minimum core profile GL context. Useful for getting the minimum
+/// required GL version while still running on OSX, which often forbids
+/// the compatibility profile features.
+pub static GL_CORE: GlRequest = GlRequest::Specific(Api::OpenGl, (3, 2));
 
 #[derive(Debug, Copy, Clone)]
 pub enum MouseCursor {
@@ -261,6 +286,7 @@ pub struct BuilderAttribs<'a> {
     title: String,
     monitor: Option<platform::MonitorID>,
     gl_version: GlRequest,
+    gl_profile: Option<GlProfile>,
     gl_debug: bool,
     vsync: bool,
     visible: bool,
@@ -283,6 +309,7 @@ impl BuilderAttribs<'static> {
             title: "glutin window".to_string(),
             monitor: None,
             gl_version: GlRequest::Latest,
+            gl_profile: None,
             gl_debug: cfg!(debug_assertions),
             vsync: false,
             visible: true,
@@ -309,6 +336,7 @@ impl<'a> BuilderAttribs<'a> {
             title: self.title,
             monitor: self.monitor,
             gl_version: self.gl_version,
+            gl_profile: self.gl_profile,
             gl_debug: self.gl_debug,
             vsync: self.vsync,
             visible: self.visible,

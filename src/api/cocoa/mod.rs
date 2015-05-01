@@ -9,7 +9,9 @@ use libc;
 
 use Api;
 use BuilderAttribs;
+use CreationError;
 use GlContext;
+use GlProfile;
 use GlRequest;
 use PixelFormat;
 use native_monitor::NativeMonitorId;
@@ -334,7 +336,6 @@ impl Window {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
-
         let view = match Window::create_view(*window) {
             Some(view) => view,
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
@@ -469,18 +470,17 @@ impl Window {
         }
     }
 
-    fn create_context(view: id, builder: &BuilderAttribs) -> (Option<IdRef>, Option<PixelFormat>) {
-        let profile = match builder.gl_version {
-            GlRequest::Latest => NSOpenGLProfileVersion4_1Core as u32,
-            GlRequest::Specific(Api::OpenGl, (1 ... 2, _)) => NSOpenGLProfileVersionLegacy as u32,
-            GlRequest::Specific(Api::OpenGl, (3, 0)) => NSOpenGLProfileVersionLegacy as u32,
-            GlRequest::Specific(Api::OpenGl, (3, 1 ... 2)) => NSOpenGLProfileVersion3_2Core as u32,
-            GlRequest::Specific(Api::OpenGl, _) => NSOpenGLProfileVersion4_1Core as u32,
-            GlRequest::Specific(_, _) => panic!("Only the OpenGL API is supported"),    // FIXME: return Result
-            GlRequest::GlThenGles { opengl_version: (1 ... 2, _), .. } => NSOpenGLProfileVersionLegacy as u32,
-            GlRequest::GlThenGles { opengl_version: (3, 0), .. } => NSOpenGLProfileVersionLegacy as u32,
-            GlRequest::GlThenGles { opengl_version: (3, 1 ... 2), .. } => NSOpenGLProfileVersion3_2Core as u32,
-            GlRequest::GlThenGles { .. } => NSOpenGLProfileVersion4_1Core as u32,
+    fn create_context(view: id, builder: &BuilderAttribs) -> Result<(Option<IdRef>, Option<PixelFormat>), CreationError> {
+        let profile = match (builder.gl_version, builder.gl_version.to_gl_version(), builder.gl_profile) {
+            (GlRequest::Latest, _, Some(GlProfile::Compatibility)) => NSOpenGLProfileVersionLegacy as u32,
+            (GlRequest::Latest, _, _) => NSOpenGLProfileVersion4_1Core as u32,
+            (_, Some(1 ... 2, _), Some(GlProfile::Core)) |
+            (_, Some(3 ... 4, _), Some(GlProfile::Compatibility)) =>
+                return Err(CreationError::NotSupported),
+            (_, Some(1 ... 2, _), _) => NSOpenGLProfileVersionLegacy as u32,
+            (_, Some(3, 0 ... 2), _) => NSOpenGLProfileVersion3_2Core as u32,
+            (_, Some(3 ... 4, _), _) => NSOpenGLProfileVersion4_1Core as u32,
+            _ => return Err(CreationError::NotSupported),
         };
 
         // NOTE: OS X no longer has the concept of setting individual
@@ -517,7 +517,7 @@ impl Window {
         // attribute list must be null terminated.
         attributes.push(0);
 
-        unsafe {
+        Ok(unsafe {
             let pixelformat = IdRef::new(NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes));
 
             if let Some(pixelformat) = pixelformat.non_nil() {
@@ -575,7 +575,7 @@ impl Window {
             } else {
                 (None, None)
             }
-        }
+        })
     }
 
     pub fn is_closed(&self) -> bool {

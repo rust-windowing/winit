@@ -3,6 +3,7 @@
 use BuilderAttribs;
 use CreationError;
 use GlContext;
+use GlProfile;
 use GlRequest;
 use Api;
 use PixelFormat;
@@ -50,6 +51,17 @@ impl Context {
                     attributes.push(ffi::glx_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
                     attributes.push(minor as libc::c_int);
                 },
+            }
+
+            if let Some(profile) = builder.gl_profile {
+                let flag = match profile {
+                    GlProfile::Compatibility =>
+                        ffi::glx_extra::CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+                    GlProfile::Core =>
+                        ffi::glx_extra::CONTEXT_CORE_PROFILE_BIT_ARB,
+                };
+                attributes.push(ffi::glx_extra::CONTEXT_PROFILE_MASK_ARB as libc::c_int);
+                attributes.push(flag as libc::c_int);
             }
 
             if builder.gl_debug {
@@ -184,8 +196,6 @@ unsafe impl Sync for Context {}
 
 impl Drop for Context {
     fn drop(&mut self) {
-        use std::ptr;
-
         unsafe {
             // we don't call MakeCurrent(0, 0) because we are not sure that the context
             // is still the current one
