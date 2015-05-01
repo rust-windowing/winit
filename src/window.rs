@@ -7,6 +7,7 @@ use CreationError;
 use CursorState;
 use Event;
 use GlContext;
+use GlProfile;
 use GlRequest;
 use MouseCursor;
 use PixelFormat;
@@ -67,9 +68,9 @@ impl<'a> WindowBuilder<'a> {
         self
     }
 
-    /// Sets the Core/Compatibility flag of the created OpenGL context.
-    pub fn with_gl_core_profile(mut self, core: bool) -> WindowBuilder<'a> {
-        self.attribs.gl_core = Some(core);
+    /// Sets the desired OpenGL context profile.
+    pub fn with_gl_profile(mut self, profile: GlProfile) -> WindowBuilder<'a> {
+        self.attribs.gl_profile = Some(profile);
         self
     }
 
@@ -130,9 +131,9 @@ impl<'a> WindowBuilder<'a> {
         self
     }
 
-    /// Sets whether sRGB should be enabled on the window.
-    pub fn with_srgb(mut self, srgb: bool) -> WindowBuilder<'a> {
-        self.attribs.srgb = Some(srgb);
+    /// Sets whether sRGB should be enabled on the window. `None` means "I don't care".
+    pub fn with_srgb(mut self, srgb_enabled: Option<bool>) -> WindowBuilder<'a> {
+        self.attribs.srgb = srgb_enabled;
         self
     }
 

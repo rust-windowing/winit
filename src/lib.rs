@@ -137,6 +137,15 @@ pub enum Api {
     WebGl,
 }
 
+/// Describes the requested OpenGL context profiles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GlProfile {
+    /// Include all the immediate more functions and definitions.
+    Compatibility,
+    /// Include all the future-compatible functions and definitions.
+    Core,
+}
+
 /// Describes the OpenGL API and version that are being requested when a context is created.
 #[derive(Debug, Copy, Clone)]
 pub enum GlRequest {
@@ -277,7 +286,7 @@ pub struct BuilderAttribs<'a> {
     title: String,
     monitor: Option<platform::MonitorID>,
     gl_version: GlRequest,
-    gl_core: Option<bool>,
+    gl_profile: Option<GlProfile>,
     gl_debug: bool,
     vsync: bool,
     visible: bool,
@@ -300,7 +309,7 @@ impl BuilderAttribs<'static> {
             title: "glutin window".to_string(),
             monitor: None,
             gl_version: GlRequest::Latest,
-            gl_core: None,
+            gl_profile: None,
             gl_debug: cfg!(debug_assertions),
             vsync: false,
             visible: true,
@@ -327,7 +336,7 @@ impl<'a> BuilderAttribs<'a> {
             title: self.title,
             monitor: self.monitor,
             gl_version: self.gl_version,
-            gl_core: self.gl_core,
+            gl_profile: self.gl_profile,
             gl_debug: self.gl_debug,
             vsync: self.vsync,
             visible: self.visible,

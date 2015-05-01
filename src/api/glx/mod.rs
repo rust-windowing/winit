@@ -3,6 +3,7 @@
 use BuilderAttribs;
 use CreationError;
 use GlContext;
+use GlProfile;
 use GlRequest;
 use Api;
 use PixelFormat;
@@ -52,14 +53,15 @@ impl Context {
                 },
             }
 
-            if let Some(core) = builder.gl_core {
+            if let Some(profile) = builder.gl_profile {
+                let flag = match profile {
+                    GlProfile::Compatibility =>
+                        ffi::glx_extra::CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+                    GlProfile::Core =>
+                        ffi::glx_extra::CONTEXT_CORE_PROFILE_BIT_ARB,
+                };
                 attributes.push(ffi::glx_extra::CONTEXT_PROFILE_MASK_ARB as libc::c_int);
-                attributes.push(if core {
-                        ffi::glx_extra::CONTEXT_CORE_PROFILE_BIT_ARB
-                    } else {
-                        ffi::glx_extra::CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB
-                    } as libc::c_int
-                );
+                attributes.push(flag as libc::c_int);
             }
 
             if builder.gl_debug {

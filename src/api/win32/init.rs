@@ -17,6 +17,7 @@ use BuilderAttribs;
 use CreationError;
 use CreationError::OsError;
 use CursorState;
+use GlProfile;
 use GlRequest;
 use PixelFormat;
 
@@ -374,17 +375,18 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                 },
             }
 
-            if let Some(core) = builder.gl_core {
+            if let Some(profile) = builder.gl_profile {
                 if is_extension_supported(extra_functions, hdc,
                                           "WGL_ARB_create_context_profile")
                 {
+                    let flag = match profile {
+                        GlProfile::Compatibility =>
+                            gl::wgl_extra::CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+                        GlProfile::Core =>
+                            gl::wgl_extra::CONTEXT_CORE_PROFILE_BIT_ARB,
+                    };
                     attributes.push(gl::wgl_extra::CONTEXT_PROFILE_MASK_ARB as libc::c_int);
-                    attributes.push(if core {
-                            gl::wgl_extra::CONTEXT_CORE_PROFILE_BIT_ARB
-                        } else {
-                            gl::wgl_extra::CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB
-                        } as libc::c_int
-                    );
+                    attributes.push(flag as libc::c_int);
                 } else {
                     return Err(CreationError::NotSupported);
                 }

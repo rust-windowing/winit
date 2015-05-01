@@ -11,6 +11,7 @@ use Api;
 use BuilderAttribs;
 use CreationError;
 use GlContext;
+use GlProfile;
 use GlRequest;
 use PixelFormat;
 use native_monitor::NativeMonitorId;
@@ -470,11 +471,11 @@ impl Window {
     }
 
     fn create_context(view: id, builder: &BuilderAttribs) -> Result<(Option<IdRef>, Option<PixelFormat>), CreationError> {
-        let profile = match (builder.gl_version, builder.gl_version.to_gl_version(), builder.gl_core) {
-            (GlRequest::Latest, _, Some(false)) => NSOpenGLProfileVersionLegacy as u32,
+        let profile = match (builder.gl_version, builder.gl_version.to_gl_version(), builder.gl_profile) {
+            (GlRequest::Latest, _, Some(GlProfile::Compatibility)) => NSOpenGLProfileVersionLegacy as u32,
             (GlRequest::Latest, _, _) => NSOpenGLProfileVersion4_1Core as u32,
-            (_, Some(1 ... 2, _), Some(true)) |
-            (_, Some(3 ... 4, _), Some(false)) =>
+            (_, Some(1 ... 2, _), Some(GlProfile::Core)) |
+            (_, Some(3 ... 4, _), Some(GlProfile::Compatibility)) =>
                 return Err(CreationError::NotSupported),
             (_, Some(1 ... 2, _), _) => NSOpenGLProfileVersionLegacy as u32,
             (_, Some(3, 0 ... 2), _) => NSOpenGLProfileVersion3_2Core as u32,
