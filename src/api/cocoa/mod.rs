@@ -343,8 +343,8 @@ impl Window {
         // TODO: perhaps we should return error from create_context so we can
         // determine the cause of failure and possibly recover?
         let (context, pf) = match Window::create_context(*view, &builder) {
-            (Some(context), Some(pf)) => (context, pf),
-            (_,             _)        => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
+            Ok((Some(context), Some(pf))) => (context, pf),
+            _ => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
         };
 
         unsafe {
@@ -473,12 +473,12 @@ impl Window {
         let profile = match (builder.gl_version, builder.gl_version.to_gl_version(), builder.gl_profile) {
             (GlRequest::Latest, _, Some(GlProfile::Compatibility)) => NSOpenGLProfileVersionLegacy as u32,
             (GlRequest::Latest, _, _) => NSOpenGLProfileVersion4_1Core as u32,
-            (_, Some(1 ... 2, _), Some(GlProfile::Core)) |
-            (_, Some(3 ... 4, _), Some(GlProfile::Compatibility)) =>
+            (_, Some((1 ... 2, _)), Some(GlProfile::Core)) |
+            (_, Some((3 ... 4, _)), Some(GlProfile::Compatibility)) =>
                 return Err(CreationError::NotSupported),
-            (_, Some(1 ... 2, _), _) => NSOpenGLProfileVersionLegacy as u32,
-            (_, Some(3, 0 ... 2), _) => NSOpenGLProfileVersion3_2Core as u32,
-            (_, Some(3 ... 4, _), _) => NSOpenGLProfileVersion4_1Core as u32,
+            (_, Some((1 ... 2, _)), _) => NSOpenGLProfileVersionLegacy as u32,
+            (_, Some((3, 0 ... 2)), _) => NSOpenGLProfileVersion3_2Core as u32,
+            (_, Some((3 ... 4, _)), _) => NSOpenGLProfileVersion4_1Core as u32,
             _ => return Err(CreationError::NotSupported),
         };
 
