@@ -9,7 +9,6 @@ use libc;
 
 use Api;
 use BuilderAttribs;
-use CreationError;
 use GlContext;
 use GlProfile;
 use GlRequest;
