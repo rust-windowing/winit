@@ -24,6 +24,8 @@ fn main() {
     window.set_window_resize_callback(Some(resize_callback as fn(u32, u32)));
     unsafe { window.make_current() };
 
+    println!("Pixel format of the window: {:?}", window.get_pixel_format());
+
     let context = support::load(&window);
 
     while !window.is_closed() {
