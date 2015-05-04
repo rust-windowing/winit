@@ -10,6 +10,7 @@ use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 use cocoa::base::{id, nil};
 use cocoa::appkit::*;
+use PixelFormat;
 
 mod gl {
     include!(concat!(env!("OUT_DIR"), "/gl_bindings.rs"));
@@ -83,7 +84,7 @@ impl GlContext for HeadlessContext {
         unimplemented!()
     }
 
-    fn get_proc_address(&self, _addr: &str) -> *const () {
+    fn get_proc_address(&self, _addr: &str) -> *const libc::c_void {
         let symbol_name: CFString = _addr.parse().unwrap();
         let framework_name: CFString = "com.apple.opengl".parse().unwrap();
         let framework = unsafe {
@@ -92,7 +93,7 @@ impl GlContext for HeadlessContext {
         let symbol = unsafe {
             CFBundleGetFunctionPointerForName(framework, symbol_name.as_concrete_TypeRef())
         };
-        symbol as *const ()
+        symbol as *const libc::c_void
     }
 
     fn swap_buffers(&self) {
