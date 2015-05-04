@@ -1,11 +1,10 @@
-#![cfg(all(any(target_os = "linux", target_os = "freebsd"), feature="headless"))]
+#![cfg(any(target_os = "linux", target_os = "freebsd"))]
 
 extern crate osmesa_sys;
 
 use Api;
 use BuilderAttribs;
 use CreationError;
-use CreationError::OsError;
 use GlContext;
 use PixelFormat;
 use libc;
@@ -19,8 +18,23 @@ pub struct OsMesaContext {
     height: u32,
 }
 
+pub enum OsMesaCreationError {
+    CreationError(CreationError),
+    NotSupported,
+}
+
+impl From<CreationError> for OsMesaCreationError {
+    fn from(e: CreationError) -> OsMesaCreationError {
+        OsMesaCreationError::CreationError(e)
+    }
+}
+
 impl OsMesaContext {
-    pub fn new(builder: BuilderAttribs) -> Result<OsMesaContext, CreationError> {
+    pub fn new(builder: BuilderAttribs) -> Result<OsMesaContext, OsMesaCreationError> {
+        if let Err(_) = osmesa_sys::OsMesa::try_loading() {
+            return Err(OsMesaCreationError::NotSupported);
+        }
+
         let dimensions = builder.dimensions.unwrap();
 
         Ok(OsMesaContext {
@@ -31,7 +45,7 @@ impl OsMesaContext {
             context: unsafe {
                 let ctxt = osmesa_sys::OSMesaCreateContext(0x1908, ptr::null_mut());
                 if ctxt.is_null() {
-                    return Err(OsError("OSMesaCreateContext failed".to_string()));
+                    return Err(CreationError::OsError("OSMesaCreateContext failed".to_string()).into());
                 }
                 ctxt
             }

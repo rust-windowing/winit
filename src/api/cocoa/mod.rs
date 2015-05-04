@@ -1,6 +1,5 @@
 #![cfg(target_os = "macos")]
 
-#[cfg(feature = "headless")]
 pub use self::headless::HeadlessContext;
 
 use {CreationError, Event, MouseCursor, CursorState};
@@ -48,8 +47,6 @@ pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
 mod monitor;
 mod event;
-
-#[cfg(feature = "headless")]
 mod headless;
 
 static mut shift_pressed: bool = false;

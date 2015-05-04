@@ -5,10 +5,8 @@ use GlContext;
 pub use api::emscripten::{Window, WindowProxy, MonitorID, get_available_monitors};
 pub use api::emscripten::{get_primary_monitor, WaitEventsIterator, PollEventsIterator};
 
-#[cfg(feature = "headless")]
 pub struct HeadlessContext(Window);
 
-#[cfg(feature = "headless")]
 impl HeadlessContext {
     /// See the docs in the crate root file.
     pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
@@ -16,7 +14,6 @@ impl HeadlessContext {
     }
 }
 
-#[cfg(feature = "headless")]
 impl GlContext for HeadlessContext {
     unsafe fn make_current(&self) {
         self.0.make_current()
@@ -43,7 +40,5 @@ impl GlContext for HeadlessContext {
     }
 }
 
-#[cfg(feature = "headless")]
 unsafe impl Send for HeadlessContext {}
-#[cfg(feature = "headless")]
 unsafe impl Sync for HeadlessContext {}
