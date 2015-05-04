@@ -2,10 +2,8 @@
 
 pub use api::android::*;
 
-#[cfg(feature = "headless")]
 pub struct HeadlessContext(i32);
 
-#[cfg(feature = "headless")]
 impl HeadlessContext {
     /// See the docs in the crate root file.
     pub fn new(_builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
@@ -32,7 +30,5 @@ impl HeadlessContext {
     }
 }
 
-#[cfg(feature = "headless")]
 unsafe impl Send for HeadlessContext {}
-#[cfg(feature = "headless")]
 unsafe impl Sync for HeadlessContext {}

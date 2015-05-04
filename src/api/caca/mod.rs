@@ -1,7 +1,7 @@
-#![cfg(all(any(target_os = "linux", target_os = "freebsd"), feature="headless"))]
+#![cfg(any(target_os = "linux", target_os = "freebsd"))]
 
 use libc;
-use api::osmesa::OsMesaContext;
+use api::osmesa::{OsMesaContext, OsMesaCreationError};
 
 use Api;
 use BuilderAttribs;
@@ -83,7 +83,12 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
 impl Window {
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        let opengl = try!(OsMesaContext::new(builder));
+        let opengl = match OsMesaContext::new(builder) {
+            Err(OsMesaCreationError::NotSupported) => return Err(CreationError::NotSupported),
+            Err(OsMesaCreationError::CreationError(e)) => return Err(e),
+            Ok(c) => c
+        };
+
         let opengl_dimensions = opengl.get_dimensions();
 
         let libcaca = match ffi::LibCaca::open(&Path::new("libcaca.so.0")) {
