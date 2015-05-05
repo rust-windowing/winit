@@ -67,10 +67,6 @@ Note that glutin aims at being a low-level brick in your rendering infrastructur
 
  - To compile the examples for android, initialize the submodules, go to `deps/apk-builder/apk-builder` and run `cargo build`, then go back to `glutin` and call `ANDROID_HOME=/path/to/sdk NDK_HOME=/path/to/ndk NDK_STANDALONE=/path/to/standalone cargo test --no-run --target=arm-linux-androideabi`
 
-### Win32
-
- - You must call `glFlush` before `swap_buffers`, or else on Windows 8 nothing will be visible on the window
-
 ### X11
 
  - The plan is that glutin tries to dynamically link-to and use wayland if possible. If it doesn't work, it will try xlib instead. If it doesn't work, it will try libcaca. This is work-in-progress.
