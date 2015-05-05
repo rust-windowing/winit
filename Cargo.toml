@@ -56,3 +56,7 @@ x11 = "*"
 [target.x86_64-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
 x11 = "*"
+
+[target.arm-unknown-linux-gnueabihf.dependencies]
+osmesa-sys = "0.0.5"
+x11 = "*"
