@@ -28,7 +28,7 @@ use core_foundation::base::TCFType;
 use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
-use core_graphics::display::{CGMainDisplayID, CGDisplayPixelsHigh};
+use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID, CGDisplayPixelsHigh};
 
 use std::ffi::CStr;
 use std::collections::VecDeque;
@@ -523,16 +523,10 @@ impl Window {
 
                 if let Some(cxt) = context.non_nil() {
                     let pf = {
-                        let getValues_forAttribute_forVirtualScreen_ = |fmt: id,
-                                                                        vals: *mut GLint,
-                                                                        attrib: NSOpenGLPixelFormatAttribute,
-                                                                        screen: GLint| -> () {
-                            msg_send![fmt, getValues:vals forAttribute:attrib forVirtualScreen:screen]
-                        };
                         let get_attr = |attrib: NSOpenGLPixelFormatAttribute| -> i32 {
                             let mut value = 0;
-                            // TODO: Wait for servo/rust-cocoa/#85 to get merged
-                            /*NSOpenGLPixelFormat::*/getValues_forAttribute_forVirtualScreen_(
+
+                            NSOpenGLPixelFormat::getValues_forAttribute_forVirtualScreen_(
                                 *pixelformat,
                                 &mut value,
                                 attrib,
@@ -721,9 +715,12 @@ impl Window {
 
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
         let cls = Class::get("NSCursor").unwrap();
+
+        // TODO: Check for errors.
         match state {
             CursorState::Normal => {
                 let _: () = unsafe { msg_send![cls, unhide] };
+                let _: i32 = unsafe { CGAssociateMouseAndMouseCursorPosition(true) };
                 Ok(())
             },
             CursorState::Hide => {
@@ -731,7 +728,8 @@ impl Window {
                 Ok(())
             },
             CursorState::Grab => {
-                Err("Mouse grabbing is unimplemented".to_string())
+                let _: i32 = unsafe { CGAssociateMouseAndMouseCursorPosition(false) };
+                Ok(())
             }
         }
     }
