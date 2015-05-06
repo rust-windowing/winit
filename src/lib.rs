@@ -53,7 +53,6 @@ extern crate glutin_core_graphics as core_graphics;
 extern crate x11;
 
 pub use events::*;
-#[cfg(feature = "headless")]
 pub use headless::{HeadlessRendererBuilder, HeadlessContext};
 #[cfg(feature = "window")]
 pub use window::{WindowBuilder, Window, WindowProxy, PollEventsIterator, WaitEventsIterator};
@@ -65,7 +64,6 @@ pub use native_monitor::NativeMonitorId;
 mod api;
 mod platform;
 mod events;
-#[cfg(feature = "headless")]
 mod headless;
 #[cfg(feature = "window")]
 mod window;

@@ -18,7 +18,6 @@ env:
 script:
   - cargo build --verbose
   - cargo test --verbose
-  - cargo test --verbose --features "headless" --no-default-features
 
 os:
   - linux

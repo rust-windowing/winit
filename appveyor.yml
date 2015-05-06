@@ -9,5 +9,4 @@ install:
 build: false
 
 test_script:
-  - cargo test --verbose --no-default-features --features "window"
-  - cargo test --verbose --no-default-features --features "headless"
+  - cargo test --verbose
