@@ -114,8 +114,9 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
+            let value = value as f64 / winapi::WHEEL_DELTA as f64;
 
-            send_event(window, MouseWheel(value));
+            send_event(window, MouseWheel(0.0, value));
 
             0
         },

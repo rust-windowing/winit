@@ -275,7 +275,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     self.window.delegate.state.pending_events.lock().unwrap().extend(events.into_iter());
                     event
                 },
-                NSScrollWheel           => { Some(MouseWheel(event.scrollingDeltaY() as i32)) },
+                NSScrollWheel           => { Some(MouseWheel(event.scrollingDeltaX() as f64, event.scrollingDeltaY() as f64)) },
                 _                       => { None },
             };
 

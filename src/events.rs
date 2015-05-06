@@ -25,9 +25,11 @@ pub enum Event {
     /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
     MouseMoved((i32, i32)),
 
+    /// Returns the horizontal and vertical mouse scrolling.
+    ///
     /// A positive value indicates that the wheel was rotated forward, away from the user;
-    ///  a negative value indicates that the wheel was rotated backward, toward the user.
-    MouseWheel(i32),
+    /// a negative value indicates that the wheel was rotated backward, toward the user.
+    MouseWheel(f64, f64),
 
     /// An event from the mouse has been received.
     MouseInput(ElementState, MouseButton),
