@@ -51,23 +51,14 @@ kernel32-sys = "0.1"
 [target.i686-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = "*"
-
-[target.i686-unknown-linux-gnu.dependencies.x11]
-version = "*"
-features = ["dynamic"]
+x11-dl = "*"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = "*"
-
-[target.x86_64-unknown-linux-gnu.dependencies.x11]
-version = "*"
-features = ["dynamic"]
+x11-dl = "*"
 
 [target.arm-unknown-linux-gnueabihf.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = "*"
-
-[target.arm-unknown-linux-gnueabihf.dependencies.x11]
-version = "*"
-features = ["dynamic"]
+x11-dl = "*"

@@ -50,7 +50,7 @@ extern crate core_foundation;
 #[cfg(target_os = "macos")]
 extern crate glutin_core_graphics as core_graphics;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-extern crate x11;
+extern crate x11_dl;
 
 pub use events::*;
 pub use headless::{HeadlessRendererBuilder, HeadlessContext};
