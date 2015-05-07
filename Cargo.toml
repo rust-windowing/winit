@@ -1,6 +1,6 @@
 [package]
 name = "glutin"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 description = "Cross-plaform OpenGL context provider."
 keywords = ["windowing", "opengl"]
