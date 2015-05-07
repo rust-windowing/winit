@@ -7,14 +7,16 @@ use native_monitor::NativeMonitorId;
 pub struct MonitorID(pub u32);
 
 pub fn get_available_monitors() -> VecDeque<MonitorID> {
-    ensure_thread_init();
+    let xlib = ffi::Xlib::open().unwrap();        // FIXME: gracious handling
+
+    ensure_thread_init(&xlib);
     let nb_monitors = unsafe {
-        let display = ffi::XOpenDisplay(ptr::null());
+        let display = (xlib.XOpenDisplay)(ptr::null());
         if display.is_null() {
             panic!("get_available_monitors failed");
         }
-        let nb_monitors = ffi::XScreenCount(display);
-        ffi::XCloseDisplay(display);
+        let nb_monitors = (xlib.XScreenCount)(display);
+        (xlib.XCloseDisplay)(display);
         nb_monitors
     };
 
@@ -24,14 +26,16 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
 }
 
 pub fn get_primary_monitor() -> MonitorID {
-    ensure_thread_init();
+    let xlib = ffi::Xlib::open().unwrap();        // FIXME: gracious handling
+
+    ensure_thread_init(&xlib);
     let primary_monitor = unsafe {
-        let display = ffi::XOpenDisplay(ptr::null());
+        let display = (xlib.XOpenDisplay)(ptr::null());
         if display.is_null() {
             panic!("get_available_monitors failed");
         }
-        let primary_monitor = ffi::XDefaultScreen(display);
-        ffi::XCloseDisplay(display);
+        let primary_monitor = (xlib.XDefaultScreen)(display);
+        (xlib.XCloseDisplay)(display);
         primary_monitor
     };
 
@@ -50,13 +54,15 @@ impl MonitorID {
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
+        let xlib = ffi::Xlib::open().unwrap();        // FIXME: gracious handling
+
         let dimensions = unsafe {
-            let display = ffi::XOpenDisplay(ptr::null());
+            let display = (xlib.XOpenDisplay)(ptr::null());
             let MonitorID(screen_num) = *self;
-            let screen = ffi::XScreenOfDisplay(display, screen_num as i32);
-            let width = ffi::XWidthOfScreen(screen);
-            let height = ffi::XHeightOfScreen(screen);
-            ffi::XCloseDisplay(display);
+            let screen = (xlib.XScreenOfDisplay)(display, screen_num as i32);
+            let width = (xlib.XWidthOfScreen)(screen);
+            let height = (xlib.XHeightOfScreen)(screen);
+            (xlib.XCloseDisplay)(display);
             (width as u32, height as u32)
         };
 

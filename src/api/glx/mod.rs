@@ -15,6 +15,7 @@ use std::{mem, ptr};
 use api::x11::ffi;
 
 pub struct Context {
+    glx: ffi::glx::Glx,
     display: *mut ffi::Display,
     window: ffi::Window,
     context: ffi::GLXContext,
@@ -28,7 +29,7 @@ fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> 
 }
 
 impl Context {
-    pub fn new(builder: BuilderAttribs, display: *mut ffi::Display, window: ffi::Window,
+    pub fn new(glx: ffi::glx::Glx, builder: BuilderAttribs, display: *mut ffi::Display, window: ffi::Window,
                fb_config: ffi::glx::types::GLXFBConfig, mut visual_infos: ffi::glx::types::XVisualInfo)
                -> Result<Context, CreationError>
     {
@@ -74,7 +75,7 @@ impl Context {
             // loading the extra GLX functions
             let extra_functions = ffi::glx_extra::Glx::load_with(|addr| {
                 with_c_str(addr, |s| {
-                    ffi::glx::GetProcAddress(s as *const u8) as *const libc::c_void
+                    glx.GetProcAddress(s as *const u8) as *const libc::c_void
                 })
             });
 
@@ -95,7 +96,7 @@ impl Context {
             };
 
             if context.is_null() {
-                context = ffi::glx::CreateContext(display as *mut _, &mut visual_infos, share, 1)
+                context = glx.CreateContext(display as *mut _, &mut visual_infos, share, 1)
             }
 
             if context.is_null() {
@@ -107,7 +108,7 @@ impl Context {
 
         // vsync
         if builder.vsync {
-            unsafe { ffi::glx::MakeCurrent(display as *mut _, window, context) };
+            unsafe { glx.MakeCurrent(display as *mut _, window, context) };
 
             if extra_functions.SwapIntervalEXT.is_loaded() {
                 // this should be the most common extension
@@ -119,7 +120,7 @@ impl Context {
                 if builder.strict {
                     let mut swap = unsafe { mem::uninitialized() };
                     unsafe {
-                        ffi::glx::QueryDrawable(display as *mut _, window,
+                        glx.QueryDrawable(display as *mut _, window,
                                                 ffi::glx_extra::SWAP_INTERVAL_EXT as i32,
                                                 &mut swap);
                     }
@@ -145,10 +146,11 @@ impl Context {
                 return Err(CreationError::OsError(format!("Couldn't find any available vsync extension")));
             }
 
-            unsafe { ffi::glx::MakeCurrent(display as *mut _, 0, ptr::null()) };
+            unsafe { glx.MakeCurrent(display as *mut _, 0, ptr::null()) };
         }
 
         Ok(Context {
+            glx: glx,
             display: display,
             window: window,
             context: context,
@@ -158,27 +160,27 @@ impl Context {
 
 impl GlContext for Context {
     unsafe fn make_current(&self) {
-        let res = ffi::glx::MakeCurrent(self.display as *mut _, self.window, self.context);
+        let res = self.glx.MakeCurrent(self.display as *mut _, self.window, self.context);
         if res == 0 {
             panic!("glx::MakeCurrent failed");
         }
     }
 
     fn is_current(&self) -> bool {
-        unsafe { ffi::glx::GetCurrentContext() == self.context }
+        unsafe { self.glx.GetCurrentContext() == self.context }
     }
 
     fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
         let addr = CString::new(addr.as_bytes()).unwrap();
         let addr = addr.as_ptr();
         unsafe {
-            ffi::glx::GetProcAddress(addr as *const _) as *const _
+            self.glx.GetProcAddress(addr as *const _) as *const _
         }
     }
 
     fn swap_buffers(&self) {
         unsafe {
-            ffi::glx::SwapBuffers(self.display as *mut _, self.window)
+            self.glx.SwapBuffers(self.display as *mut _, self.window)
         }
     }
 
@@ -199,7 +201,7 @@ impl Drop for Context {
         unsafe {
             // we don't call MakeCurrent(0, 0) because we are not sure that the context
             // is still the current one
-            ffi::glx::DestroyContext(self.display as *mut _, self.context);
+            self.glx.DestroyContext(self.display as *mut _, self.context);
         }
     }
 }

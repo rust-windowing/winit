@@ -39,7 +39,7 @@ fn main() {
 
     if target.contains("linux") {
         let mut file = File::create(&dest.join("glx_bindings.rs")).unwrap();
-        gl_generator::generate_bindings(gl_generator::StaticGenerator,
+        gl_generator::generate_bindings(gl_generator::StructGenerator,
                                         gl_generator::registry::Ns::Glx,
                                         gl_generator::Fallbacks::All,
                                         khronos_api::GLX_XML, vec![],
