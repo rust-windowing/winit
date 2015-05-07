@@ -1,7 +1,7 @@
-pub use x11::keysym::*;
-pub use x11::xcursor::*;
-pub use x11::xf86vmode::*;
-pub use x11::xlib::*;
+pub use x11_dl::keysym::*;
+pub use x11_dl::xcursor::*;
+pub use x11_dl::xf86vmode::*;
+pub use x11_dl::xlib::*;
 
 pub use self::glx::types::GLXContext;
 
