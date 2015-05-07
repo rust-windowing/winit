@@ -315,10 +315,14 @@ impl Window {
         let xf86vmode = ffi::Xf86vmode::open().unwrap();        // FIXME: gracious handling
 
         let glx = {
-            let libglx = unsafe { dlopen::dlopen(b"libGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
+            let mut libglx = unsafe { dlopen::dlopen(b"libGL.so.1\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
+            if libglx.is_null() {
+                libglx = unsafe { dlopen::dlopen(b"libGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
+            }
             if libglx.is_null() {
                 return Err(CreationError::NotSupported);
             }
+
             ffi::glx::Glx::load_with(|sym| {
                 let sym = CString::new(sym).unwrap();
                 unsafe { dlopen::dlsym(libglx, sym.as_ptr()) }

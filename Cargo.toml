@@ -66,6 +66,7 @@ features = ["dynamic"]
 
 [target.arm-unknown-linux-gnueabihf.dependencies]
 osmesa-sys = "0.0.5"
+wayland-client = "*"
 
 [target.arm-unknown-linux-gnueabihf.dependencies.x11]
 version = "*"
