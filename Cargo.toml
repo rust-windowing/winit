@@ -15,17 +15,17 @@ default = ["window"]
 window = []
 
 [dependencies]
-gl_common = "*"
-lazy_static = "0.1"
-libc = "*"
-shared_library = "0.1"
+gl_common = "0.0.4"
+lazy_static = "0.1.10"
+libc = "0.1"
+shared_library = "0.1.0"
 
 [build-dependencies]
-gl_generator = "*"
-khronos_api = "*"
+gl_generator = "0.0.25"
+khronos_api = "0.0.5"
 
 [dev-dependencies]
-clock_ticks = "*"
+clock_ticks = "0.0.5"
 
 [target.arm-linux-androideabi.dependencies.android_glue]
 version = "0"
@@ -50,15 +50,15 @@ kernel32-sys = "0.1"
 
 [target.i686-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = "*"
-x11-dl = "*"
+wayland-client = "0.1.3"
+x11-dl = "=1.0.1"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = "*"
-x11-dl = "*"
+wayland-client = "0.1.3"
+x11-dl = "=1.0.1"
 
 [target.arm-unknown-linux-gnueabihf.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = "*"
-x11-dl = "*"
+wayland-client = "0.1.3"
+x11-dl = "=1.0.1"
