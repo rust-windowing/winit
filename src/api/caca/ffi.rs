@@ -1,6 +1,6 @@
+#![allow(non_camel_case_types)]
+
 use libc;
-use std::ffi::CStr;
-use std::mem;
 
 pub type caca_display_t = libc::c_void;
 pub type caca_canvas_t = libc::c_void;

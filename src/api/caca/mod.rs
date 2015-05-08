@@ -1,4 +1,5 @@
 #![cfg(any(target_os = "linux", target_os = "freebsd"))]
+#![allow(unused_variables, dead_code)]
 
 use libc;
 use api::osmesa::{OsMesaContext, OsMesaCreationError};

@@ -1,4 +1,5 @@
 #![cfg(any(target_os = "linux", target_os = "android"))]
+#![allow(unused_variables)]
 
 use BuilderAttribs;
 use CreationError;
@@ -161,9 +162,7 @@ impl Context {
 
 impl GlContext for Context {
     unsafe fn make_current(&self) {
-        let ret = unsafe {
-            self.egl.MakeCurrent(self.display, self.surface, self.surface, self.context)
-        };
+        let ret = self.egl.MakeCurrent(self.display, self.surface, self.surface, self.context);
 
         if ret == 0 {
             panic!("eglMakeCurrent failed");
@@ -206,8 +205,6 @@ unsafe impl Sync for Context {}
 
 impl Drop for Context {
     fn drop(&mut self) {
-        use std::ptr;
-
         unsafe {
             // we don't call MakeCurrent(0, 0) because we are not sure that the context
             // is still the current one

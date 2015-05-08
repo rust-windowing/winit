@@ -414,7 +414,7 @@ impl Window {
         };
 
         // getting the visual infos
-        let mut visual_infos: ffi::glx::types::XVisualInfo = unsafe {
+        let visual_infos: ffi::glx::types::XVisualInfo = unsafe {
             let vi = glx.GetVisualFromFBConfig(display as *mut _, fb_config);
             if vi.is_null() {
                 return Err(OsError(format!("glx::ChooseVisual failed")));
