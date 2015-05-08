@@ -193,7 +193,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 ffi::KeyPress | ffi::KeyRelease => {
                     use events::Event::{KeyboardInput, ReceivedCharacter};
                     use events::ElementState::{Pressed, Released};
-                    let event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&xev) };
+                    let event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&mut xev) };
 
                     if event.type_ == ffi::KeyPress {
                         let raw_ev: *mut ffi::XKeyEvent = event;
