@@ -4,7 +4,7 @@
 use self::wayland::egl::{EGLSurface, is_egl_available};
 use self::wayland::core::{Display, Registry, Compositor, Shell, ShellSurface,
                           Seat, Pointer, default_display, WSurface, SurfaceId,
-                          Surface};
+                          Surface, Output};
 
 use libc;
 use api::dlopen;
@@ -32,7 +32,8 @@ struct WaylandContext {
     pub seat: Seat,
     pub pointer: Option<Pointer<WSurface>>,
     windows_event_queues: Arc<Mutex<HashMap<SurfaceId, Arc<Mutex<VecDeque<Event>>>>>>,
-    current_pointer_surface: Arc<Mutex<Option<SurfaceId>>>
+    current_pointer_surface: Arc<Mutex<Option<SurfaceId>>>,
+    outputs: Vec<Arc<Output>>
 }
 
 impl WaylandContext {
@@ -56,6 +57,7 @@ impl WaylandContext {
             Some(s) => s,
             None => return None,
         };
+        let outputs = registry.get_outputs().into_iter().map(Arc::new).collect::<Vec<_>>();
         // let the other globals get their events
         display.sync_roundtrip();
 
@@ -125,7 +127,8 @@ impl WaylandContext {
             seat: seat,
             pointer: pointer,
             windows_event_queues: windows_event_queues,
-            current_pointer_surface: current_pointer_surface
+            current_pointer_surface: current_pointer_surface,
+            outputs: outputs
         })
     }
 
@@ -159,22 +162,35 @@ pub struct WindowProxy;
 
 impl WindowProxy {
     pub fn wakeup_event_loop(&self) {
-        unimplemented!()
+        if let Some(ref ctxt) = *WAYLAND_CONTEXT {
+            ctxt.display.sync();
+        }
     }
 }
 
-pub struct MonitorID;
+pub struct MonitorID {
+    output: Arc<Output>
+}
 
 pub fn get_available_monitors() -> VecDeque<MonitorID> {
-    VecDeque::new()
+    WAYLAND_CONTEXT.as_ref().unwrap().outputs.iter().map(|o| MonitorID::new(o.clone())).collect()
 }
 pub fn get_primary_monitor() -> MonitorID {
-    MonitorID
+    match WAYLAND_CONTEXT.as_ref().unwrap().outputs.iter().next() {
+        Some(o) => MonitorID::new(o.clone()),
+        None => panic!("No monitor is available.")
+    }
 }
 
 impl MonitorID {
+    fn new(output: Arc<Output>) -> MonitorID {
+        MonitorID {
+            output: output
+        }
+    }
+
     pub fn get_name(&self) -> Option<String> {
-        unimplemented!();
+        Some(format!("{} - {}", self.output.manufacturer(), self.output.model()))
     }
 
     pub fn get_native_identifier(&self) -> ::native_monitor::NativeMonitorId {
@@ -182,7 +198,8 @@ impl MonitorID {
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
-        unimplemented!();
+        let (w, h) = self.output.dimensions();
+        (w as u32, h as u32)
     }
 }
 
@@ -282,10 +299,12 @@ impl Window {
     }
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
-        unimplemented!()
+        // not available with wayland
+        None
     }
 
-    pub fn set_position(&self, x: i32, y: i32) {
+    pub fn set_position(&self, _x: i32, _y: i32) {
+        // not available with wayland
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
@@ -301,7 +320,7 @@ impl Window {
     }
 
     pub fn create_window_proxy(&self) -> WindowProxy {
-        unimplemented!()
+        WindowProxy
     }
 
     pub fn poll_events(&self) -> PollEventsIterator {
