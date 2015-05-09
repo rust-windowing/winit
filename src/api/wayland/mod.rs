@@ -4,7 +4,7 @@
 use self::wayland::egl::{EGLSurface, is_egl_available};
 use self::wayland::core::{Display, Registry, Compositor, Shell, ShellSurface,
                           Seat, Pointer, default_display, WSurface, SurfaceId,
-                          Surface, Output};
+                          Surface, Output, ShellFullscreenMethod};
 
 use libc;
 use api::dlopen;
@@ -172,6 +172,7 @@ impl WindowProxy {
     }
 }
 
+#[derive(Clone)]
 pub struct MonitorID {
     output: Arc<Output>
 }
@@ -202,7 +203,11 @@ impl MonitorID {
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
-        let (w, h) = self.output.dimensions();
+        let (w, h) = self.output.modes()
+                                .into_iter()
+                                .find(|m| m.is_current())
+                                .map(|m| (m.width, m.height))
+                                .unwrap();
         (w as u32, h as u32)
     }
 }
@@ -257,6 +262,13 @@ impl Window {
             h as i32
         );
 
+        let shell_surface = wayland_context.shell.get_shell_surface(surface);
+        if let Some(ref monitor) = builder.monitor {
+            shell_surface.set_fullscreen(ShellFullscreenMethod::Default, Some(&monitor.output));
+        } else {
+            shell_surface.set_toplevel();
+        }
+
         let context = {
             let libegl = unsafe { dlopen::dlopen(b"libEGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
             if libegl.is_null() {
@@ -270,12 +282,10 @@ impl Window {
                 egl,
                 builder,
                 Some(wayland_context.display.ptr() as *const _),
-                surface.ptr() as *const _
+                (*shell_surface).ptr() as *const _
             ))
         };
 
-        let shell_surface = wayland_context.shell.get_shell_surface(surface);
-        shell_surface.set_toplevel();
         let events = Arc::new(Mutex::new(VecDeque::new()));
 
         wayland_context.register_surface(shell_surface.get_wsurface().get_id(), events.clone());
