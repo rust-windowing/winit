@@ -323,6 +323,7 @@ impl BuilderAttribs<'static> {
 }
 
 impl<'a> BuilderAttribs<'a> {
+    #[allow(dead_code)]
     fn extract_non_static(mut self) -> (BuilderAttribs<'static>, Option<&'a platform::Window>) {
         let sharing = self.sharing.take();
 

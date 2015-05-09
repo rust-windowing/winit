@@ -60,6 +60,7 @@ impl OsMesaContext {
         (self.width, self.height)
     }
 
+    #[allow(dead_code)]
     // TODO: can we remove this without causing havoc?
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }

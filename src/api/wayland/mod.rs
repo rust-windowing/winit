@@ -1,4 +1,5 @@
 #![cfg(target_os = "linux")]
+#![allow(unused_variables, dead_code)]
 
 use self::wayland::egl::{EGLSurface, is_egl_available};
 use self::wayland::core::{Display, Registry, Compositor, Shell, ShellSurface,
@@ -258,7 +259,7 @@ impl Window {
 
         wayland_context.register_surface(shell_surface.get_wsurface().get_id(), events.clone());
 
-        wayland_context.display.flush();
+        wayland_context.display.flush().unwrap();
 
         Ok(Window {
             shell_surface: shell_surface,
