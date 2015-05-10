@@ -157,10 +157,6 @@ pub struct Window {
     pub context: EglContext,
 }
 
-// It is okay, as the window is completely self-owned: it has its
-// own wayland connexion.
-unsafe impl Send for Window {}
-
 #[derive(Clone)]
 pub struct WindowProxy;
 
@@ -300,16 +296,21 @@ impl Window {
     }
 
     pub fn is_closed(&self) -> bool {
+        // TODO
         false
     }
 
     pub fn set_title(&self, title: &str) {
+        let ctitle = CString::new(title).unwrap();
+        self.shell_surface.set_title(&ctitle);
     }
 
     pub fn show(&self) {
+        // TODO
     }
 
     pub fn hide(&self) {
+        // TODO
     }
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
@@ -322,15 +323,18 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        unimplemented!()
+        let (w, h) = self.shell_surface.get_attached_size();
+        Some((w as u32, h as u32))
     }
 
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
-        unimplemented!()
+        // maybe available if we draw the border ourselves ?
+        // but for now, no.
+        None
     }
 
-    pub fn set_inner_size(&self, _x: u32, _y: u32) {
-        unimplemented!()
+    pub fn set_inner_size(&self, x: u32, y: u32) {
+        self.shell_surface.resize(x as i32, y as i32, 0, 0)
     }
 
     pub fn create_window_proxy(&self) -> WindowProxy {
@@ -349,13 +353,24 @@ impl Window {
         }
     }
 
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
+    pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
+        if let Some(callback) = callback {
+            self.shell_surface.set_configure_callback(
+                move |_,w,h| { callback(w as u32, h as u32) }
+            );
+        } else {
+            self.shell_surface.set_configure_callback(
+                move |_,_,_| {}
+            );
+        }
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
+        // TODO
     }
 
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        // TODO
         Ok(())
     }
 
@@ -364,6 +379,7 @@ impl Window {
     }
 
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+        // TODO
         Ok(())
     }
 
