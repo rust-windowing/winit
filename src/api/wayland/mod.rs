@@ -147,6 +147,10 @@ lazy_static! {
     };
 }
 
+pub fn is_available() -> bool {
+    WAYLAND_CONTEXT.is_some()
+}
+
 pub struct Window {
     shell_surface: ShellSurface<EGLSurface>,
     pending_events: Arc<Mutex<VecDeque<Event>>>,

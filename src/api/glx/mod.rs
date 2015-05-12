@@ -14,6 +14,8 @@ use std::{mem, ptr};
 
 use api::x11::ffi;
 
+use platform::Window as PlatformWindow;
+
 pub struct Context {
     glx: ffi::glx::Glx,
     display: *mut ffi::Display,
@@ -80,9 +82,12 @@ impl Context {
             });
 
             let share = if let Some(win) = builder.sharing {
-                match win.x.context {
-                    ::api::x11::Context::Glx(ref c) => c.context,
-                    _ => panic!("Cannot share contexts between different APIs")
+                match win {
+                    &PlatformWindow::X(ref win) => match win.x.context {
+                        ::api::x11::Context::Glx(ref c) => c.context,
+                        _ => panic!("Cannot share contexts between different APIs")
+                    },
+                    _ => panic!("Cannot use glx on a non-X11 window.")
                 }
             } else {
                 ptr::null()
