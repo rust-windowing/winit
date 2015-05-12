@@ -705,7 +705,7 @@ impl Window {
     }
 
     pub fn platform_window(&self) -> *mut libc::c_void {
-        unimplemented!()
+        self.x.window as *mut libc::c_void
     }
 
 
