@@ -49,7 +49,7 @@ pub enum MonitorID {
 }
 
 pub fn get_available_monitors() -> VecDeque<MonitorID> {
-    if wayland::is_available() {
+    if false && wayland::is_available() {
         // We are doing wayland
         wayland::get_available_monitors()
             .into_iter()
@@ -64,7 +64,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
     }
 }
 pub fn get_primary_monitor() -> MonitorID {
-    if wayland::is_available() {
+    if false && wayland::is_available() {
         MonitorID::Wayland(wayland::get_primary_monitor())
     } else {
         MonitorID::X(x11::get_primary_monitor())
@@ -133,7 +133,7 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
 impl Window {
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        if wayland::is_available() {
+        if false && wayland::is_available() {
             // we have a wayland connection, go for it
             let window = try!(wayland::Window::new(builder));
             Ok(Window::Wayland(window))
