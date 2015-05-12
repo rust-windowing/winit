@@ -65,7 +65,9 @@ fn main() {
                                         gl_generator::registry::Ns::Egl,
                                         gl_generator::Fallbacks::All,
                                         khronos_api::EGL_XML,
-                                        vec![],
+                                        vec![
+                                            "EGL_KHR_create_context".to_string()
+                                        ],
                                         "1.5", "core", &mut file).unwrap();
     }
 
@@ -74,7 +76,10 @@ fn main() {
         gl_generator::generate_bindings(gl_generator::StaticStructGenerator,
                                         gl_generator::registry::Ns::Egl,
                                         gl_generator::Fallbacks::All,
-                                        khronos_api::EGL_XML, vec![],
+                                        khronos_api::EGL_XML,
+                                        vec![
+                                            "EGL_KHR_create_context".to_string()
+                                        ],
                                         "1.5", "core", &mut file).unwrap();
     }
 
