@@ -9,7 +9,7 @@ use PixelFormat;
 use Api;
 
 use libc;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::{mem, ptr};
 
 pub mod ffi;
@@ -323,24 +323,37 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
                          gl_debug: bool)
                          -> Result<ffi::egl::types::EGLContext, ()>
 {
+    let extensions = if egl_version >= &(1, 2) {
+        let p = CStr::from_ptr(egl.QueryString(display, ffi::egl::EXTENSIONS as i32));
+        String::from_utf8(p.to_bytes().to_vec()).unwrap_or_else(|_| format!(""))
+    } else {
+        format!("")
+    };
+
     let mut context_attributes = vec![];
 
-    if egl_version >= &(1, 5) {
+    if egl_version >= &(1, 5) ||
+       extensions.contains("EGL_KHR_create_context ") ||
+       extensions.ends_with("EGL_KHR_create_context")
+    {
         context_attributes.push(ffi::egl::CONTEXT_MAJOR_VERSION as i32);
         context_attributes.push(version.0 as i32);
         context_attributes.push(ffi::egl::CONTEXT_MINOR_VERSION as i32);
         context_attributes.push(version.1 as i32);
 
         if gl_debug {
-            context_attributes.push(ffi::egl::CONTEXT_OPENGL_DEBUG as i32);
-            context_attributes.push(ffi::egl::TRUE as i32);
+            if egl_version >= &(1, 5) {
+                context_attributes.push(ffi::egl::CONTEXT_OPENGL_DEBUG as i32);
+                context_attributes.push(ffi::egl::TRUE as i32);
+            } else {
+                context_attributes.push(ffi::egl::CONTEXT_FLAGS_KHR as i32);
+                context_attributes.push(ffi::egl::CONTEXT_OPENGL_DEBUG_BIT_KHR as i32);
+            }
         }
 
-    } else {
-        if api == Api::OpenGlEs {
-            context_attributes.push(ffi::egl::CONTEXT_CLIENT_VERSION as i32);
-            context_attributes.push(version.0 as i32);
-        }
+    } else if egl_version >= &(1, 3) && api == Api::OpenGlEs {
+        context_attributes.push(ffi::egl::CONTEXT_CLIENT_VERSION as i32);
+        context_attributes.push(version.0 as i32);
     }
 
     context_attributes.push(ffi::egl::NONE as i32);
