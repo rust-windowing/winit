@@ -2,9 +2,7 @@
 #![allow(unused_variables, dead_code)]
 
 use self::wayland::egl::{EGLSurface, is_egl_available};
-use self::wayland::core::{Display, Registry, Compositor, Shell, ShellSurface,
-                          Seat, Pointer, default_display, WSurface, SurfaceId,
-                          Surface, Output};
+use self::wayland::core::{ShellSurface, Surface, Output, ShellFullscreenMethod};
 
 use libc;
 use api::dlopen;
@@ -18,128 +16,17 @@ use CursorState;
 use MouseCursor;
 use GlContext;
 
-use std::collections::{VecDeque, HashMap};
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::ffi::CString;
 
+use platform::MonitorID as PlatformMonitorID;
+
+use self::context::WaylandContext;
+
 extern crate wayland_client as wayland;
 
-struct WaylandContext {
-    pub display: Display,
-    pub registry: Registry,
-    pub compositor: Compositor,
-    pub shell: Shell,
-    pub seat: Seat,
-    pub pointer: Option<Pointer<WSurface>>,
-    windows_event_queues: Arc<Mutex<HashMap<SurfaceId, Arc<Mutex<VecDeque<Event>>>>>>,
-    current_pointer_surface: Arc<Mutex<Option<SurfaceId>>>,
-    outputs: Vec<Arc<Output>>
-}
-
-impl WaylandContext {
-    pub fn new() -> Option<WaylandContext> {
-        let display = match default_display() {
-            Some(d) => d,
-            None => return None,
-        };
-        let registry = display.get_registry();
-        // let the registry get its events
-        display.sync_roundtrip();
-        let compositor = match registry.get_compositor() {
-            Some(c) => c,
-            None => return None,
-        };
-        let shell = match registry.get_shell() {
-            Some(s) => s,
-            None => return None,
-        };
-        let seat = match registry.get_seats().into_iter().next() {
-            Some(s) => s,
-            None => return None,
-        };
-        let outputs = registry.get_outputs().into_iter().map(Arc::new).collect::<Vec<_>>();
-        // let the other globals get their events
-        display.sync_roundtrip();
-
-        let current_pointer_surface = Arc::new(Mutex::new(None));
-
-        // rustc has trouble finding the correct type here, so we explicit it.
-        let windows_event_queues = Arc::new(Mutex::new(
-            HashMap::<SurfaceId, Arc<Mutex<VecDeque<Event>>>>::new()
-        ));
-
-        // handle inputs
-        let mut pointer = seat.get_pointer();
-        if let Some(ref mut p) = pointer {
-            // set the enter/leave callbacks
-            let current_surface = current_pointer_surface.clone();
-            p.set_enter_action(move |_, sid, x, y| {
-                *current_surface.lock().unwrap() = Some(sid);
-            });
-            let current_surface = current_pointer_surface.clone();
-            p.set_leave_action(move |_, sid| {
-                *current_surface.lock().unwrap() = None;
-            });
-            // set the events callbacks
-            let current_surface = current_pointer_surface.clone();
-            let event_queues = windows_event_queues.clone();
-            p.set_motion_action(move |_, _, x, y| {
-                // dispatch to the appropriate queue
-                let sid = *current_surface.lock().unwrap();
-                if let Some(sid) = sid {
-                    let map = event_queues.lock().unwrap();
-                    if let Some(queue) = map.get(&sid) {
-                        queue.lock().unwrap().push_back(Event::Moved(x as i32,y as i32))
-                    }
-                }
-            });
-            let current_surface = current_pointer_surface.clone();
-            let event_queues = windows_event_queues.clone();
-            p.set_button_action(move |_, sid, b, s| {
-                use self::wayland::core::ButtonState;
-                use MouseButton;
-                use ElementState;
-                let button = match b {
-                    0x110 => MouseButton::Left,
-                    0x111 => MouseButton::Right,
-                    0x112 => MouseButton::Middle,
-                    _ => return
-                };
-                let state = match s {
-                    ButtonState::WL_POINTER_BUTTON_STATE_RELEASED => ElementState::Released,
-                    ButtonState::WL_POINTER_BUTTON_STATE_PRESSED => ElementState::Pressed
-                };
-                // dispatch to the appropriate queue
-                let sid = *current_surface.lock().unwrap();
-                if let Some(sid) = sid {
-                    let map = event_queues.lock().unwrap();
-                    if let Some(queue) = map.get(&sid) {
-                        queue.lock().unwrap().push_back(Event::MouseInput(state, button))
-                    }
-                }
-            });
-        }
-        Some(WaylandContext {
-            display: display,
-            registry: registry,
-            compositor: compositor,
-            shell: shell,
-            seat: seat,
-            pointer: pointer,
-            windows_event_queues: windows_event_queues,
-            current_pointer_surface: current_pointer_surface,
-            outputs: outputs
-        })
-    }
-
-    fn register_surface(&self, sid: SurfaceId, queue: Arc<Mutex<VecDeque<Event>>>) {
-        self.windows_event_queues.lock().unwrap().insert(sid, queue);
-    }
-
-    fn deregister_surface(&self, sid: SurfaceId) {
-        self.windows_event_queues.lock().unwrap().remove(&sid);
-    }
-}
+mod context;
 
 lazy_static! {
     static ref WAYLAND_CONTEXT: Option<WaylandContext> = {
@@ -157,10 +44,6 @@ pub struct Window {
     pub context: EglContext,
 }
 
-// It is okay, as the window is completely self-owned: it has its
-// own wayland connexion.
-unsafe impl Send for Window {}
-
 #[derive(Clone)]
 pub struct WindowProxy;
 
@@ -172,6 +55,7 @@ impl WindowProxy {
     }
 }
 
+#[derive(Clone)]
 pub struct MonitorID {
     output: Arc<Output>
 }
@@ -202,7 +86,11 @@ impl MonitorID {
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
-        let (w, h) = self.output.dimensions();
+        let (w, h) = self.output.modes()
+                                .into_iter()
+                                .find(|m| m.is_current())
+                                .map(|m| (m.width, m.height))
+                                .unwrap();
         (w as u32, h as u32)
     }
 }
@@ -257,6 +145,13 @@ impl Window {
             h as i32
         );
 
+        let shell_surface = wayland_context.shell.get_shell_surface(surface);
+        if let Some(PlatformMonitorID::Wayland(ref monitor)) = builder.monitor {
+            shell_surface.set_fullscreen(ShellFullscreenMethod::Default, Some(&monitor.output));
+        } else {
+            shell_surface.set_toplevel();
+        }
+
         let context = {
             let libegl = unsafe { dlopen::dlopen(b"libEGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
             if libegl.is_null() {
@@ -270,12 +165,10 @@ impl Window {
                 egl,
                 builder,
                 Some(wayland_context.display.ptr() as *const _),
-                surface.ptr() as *const _
+                (*shell_surface).ptr() as *const _
             ))
         };
 
-        let shell_surface = wayland_context.shell.get_shell_surface(surface);
-        shell_surface.set_toplevel();
         let events = Arc::new(Mutex::new(VecDeque::new()));
 
         wayland_context.register_surface(shell_surface.get_wsurface().get_id(), events.clone());
@@ -290,16 +183,21 @@ impl Window {
     }
 
     pub fn is_closed(&self) -> bool {
+        // TODO
         false
     }
 
     pub fn set_title(&self, title: &str) {
+        let ctitle = CString::new(title).unwrap();
+        self.shell_surface.set_title(&ctitle);
     }
 
     pub fn show(&self) {
+        // TODO
     }
 
     pub fn hide(&self) {
+        // TODO
     }
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
@@ -312,15 +210,18 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        unimplemented!()
+        let (w, h) = self.shell_surface.get_attached_size();
+        Some((w as u32, h as u32))
     }
 
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
-        unimplemented!()
+        // maybe available if we draw the border ourselves ?
+        // but for now, no.
+        None
     }
 
-    pub fn set_inner_size(&self, _x: u32, _y: u32) {
-        unimplemented!()
+    pub fn set_inner_size(&self, x: u32, y: u32) {
+        self.shell_surface.resize(x as i32, y as i32, 0, 0)
     }
 
     pub fn create_window_proxy(&self) -> WindowProxy {
@@ -339,13 +240,24 @@ impl Window {
         }
     }
 
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
+    pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
+        if let Some(callback) = callback {
+            self.shell_surface.set_configure_callback(
+                move |_,w,h| { callback(w as u32, h as u32) }
+            );
+        } else {
+            self.shell_surface.set_configure_callback(
+                move |_,_,_| {}
+            );
+        }
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
+        // TODO
     }
 
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        // TODO
         Ok(())
     }
 
@@ -354,6 +266,7 @@ impl Window {
     }
 
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+        // TODO
         Ok(())
     }
 
