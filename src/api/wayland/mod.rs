@@ -20,6 +20,8 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::ffi::CString;
 
+use platform::MonitorID as PlatformMonitorID;
+
 use self::context::WaylandContext;
 
 extern crate wayland_client as wayland;
@@ -144,7 +146,7 @@ impl Window {
         );
 
         let shell_surface = wayland_context.shell.get_shell_surface(surface);
-        if let Some(ref monitor) = builder.monitor {
+        if let Some(PlatformMonitorID::Wayland(ref monitor)) = builder.monitor {
             shell_surface.set_fullscreen(ShellFullscreenMethod::Default, Some(&monitor.output));
         } else {
             shell_surface.set_toplevel();
