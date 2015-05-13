@@ -21,6 +21,8 @@ use api::dlopen;
 use api::glx::Context as GlxContext;
 use api::egl::Context as EglContext;
 
+use platform::MonitorID as PlatformMonitorID;
+
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
 mod events;
@@ -310,9 +312,9 @@ pub struct Window {
 
 impl Window {
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        let xlib = ffi::Xlib::open().unwrap();        // FIXME: gracious handling
-        let xcursor = ffi::Xcursor::open().unwrap();        // FIXME: gracious handling
-        let xf86vmode = ffi::Xf86vmode::open().unwrap();        // FIXME: gracious handling
+        let xlib = try!(ffi::Xlib::open().map_err(|_| CreationError::NotSupported));
+        let xcursor = try!(ffi::Xcursor::open().map_err(|_| CreationError::NotSupported));
+        let xf86vmode = try!(ffi::Xf86vmode::open().map_err(|_| CreationError::NotSupported));
 
         let glx = {
             let mut libglx = unsafe { dlopen::dlopen(b"libGL.so.1\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
@@ -342,8 +344,8 @@ impl Window {
         };
 
         let screen_id = match builder.monitor {
-            Some(MonitorID(monitor)) => monitor as i32,
-            None => unsafe { (xlib.XDefaultScreen)(display) },
+            Some(PlatformMonitorID::X(MonitorID(monitor))) => monitor as i32,
+            _ => unsafe { (xlib.XDefaultScreen)(display) },
         };
 
         // getting the FBConfig
