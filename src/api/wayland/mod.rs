@@ -25,8 +25,10 @@ use platform::MonitorID as PlatformMonitorID;
 use self::context::WaylandContext;
 
 extern crate wayland_client as wayland;
+extern crate wayland_kbd;
 
 mod context;
+mod keyboard;
 
 lazy_static! {
     static ref WAYLAND_CONTEXT: Option<WaylandContext> = {

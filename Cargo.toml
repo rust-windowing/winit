@@ -50,15 +50,18 @@ kernel32-sys = "0.1"
 
 [target.i686-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = "0.1.5"
+wayland-client = "0.1.6"
+wayland-kbd = "0.1.1"
 x11-dl = "=1.0.1"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = "0.1.5"
+wayland-client = "0.1.6"
+wayland-kbd = "0.1.1"
 x11-dl = "=1.0.1"
 
 [target.arm-unknown-linux-gnueabihf.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = "0.1.5"
+wayland-client = "0.1.6"
+wayland-kbd = "0.1.1"
 x11-dl = "=1.0.1"
