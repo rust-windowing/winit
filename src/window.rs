@@ -137,10 +137,22 @@ impl<'a> WindowBuilder<'a> {
         self
     }
 
+    /// Sets whether the background of the window should be transparent.
+    pub fn with_transparency(mut self, transparent: bool) -> WindowBuilder<'a> {
+        self.attribs.transparent = transparent;
+        self
+    }
+
+    /// Sets whether the window should have a border, a title bar, etc.
+    pub fn with_decorations(mut self, decorations: bool) -> WindowBuilder<'a> {
+        self.attribs.decorations = decorations;
+        self
+    }
+
     /// Builds the window.
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
-    ///  out of memory, etc.
+    /// out of memory, etc.
     pub fn build(mut self) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
         if self.attribs.dimensions.is_none() && self.attribs.monitor.is_some() {
