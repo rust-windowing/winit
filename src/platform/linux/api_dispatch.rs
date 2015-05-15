@@ -17,6 +17,22 @@ use libc;
 use api::wayland;
 use api::x11;
 
+enum Backend {
+    X,
+    Wayland
+}
+
+lazy_static!(
+    static ref BACKEND: Backend = {
+        // Wayland backend is not production-ready yet so we disable it
+        if false && wayland::is_available() {
+            Backend::Wayland
+        } else {
+            Backend::X
+        }
+    };
+);
+
 pub enum Window {
     #[doc(hidden)]
     X(x11::Window),
@@ -49,25 +65,21 @@ pub enum MonitorID {
 }
 
 pub fn get_available_monitors() -> VecDeque<MonitorID> {
-    if false && wayland::is_available() {
-        // We are doing wayland
-        wayland::get_available_monitors()
-            .into_iter()
-            .map(|m| MonitorID::Wayland(m))
-            .collect()
-    } else {
-        // Fallback on X
-        x11::get_available_monitors()
-            .into_iter()
-            .map(|m| MonitorID::X(m))
-            .collect()
+    match *BACKEND {
+        Backend::Wayland => wayland::get_available_monitors()
+                                .into_iter()
+                                .map(MonitorID::Wayland)
+                                .collect(),
+        Backend::X => x11::get_available_monitors()
+                        .into_iter()
+                        .map(MonitorID::X)
+                        .collect(),
     }
 }
 pub fn get_primary_monitor() -> MonitorID {
-    if false && wayland::is_available() {
-        MonitorID::Wayland(wayland::get_primary_monitor())
-    } else {
-        MonitorID::X(x11::get_primary_monitor())
+    match *BACKEND {
+        Backend::Wayland => MonitorID::Wayland(wayland::get_primary_monitor()),
+        Backend::X => MonitorID::X(x11::get_primary_monitor()),
     }
 }
 
@@ -133,14 +145,9 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
 impl Window {
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        if false && wayland::is_available() {
-            // we have a wayland connection, go for it
-            let window = try!(wayland::Window::new(builder));
-            Ok(Window::Wayland(window))
-        } else {
-            // fallback on X
-            let window = try!(x11::Window::new(builder));
-            Ok(Window::X(window))
+        match *BACKEND {
+            Backend::Wayland => wayland::Window::new(builder).map(Window::Wayland),
+            Backend::X => x11::Window::new(builder).map(Window::X),
         }
     }
 
