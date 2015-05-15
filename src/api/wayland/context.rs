@@ -1,10 +1,21 @@
-use super::wayland::core::{Display, Registry, Compositor, Shell, Output,
-                           Seat, Pointer, default_display, WSurface, SurfaceId};
+use super::wayland::core::{Display, Registry, Compositor, Shell, Output, ButtonState,
+                           Seat, Pointer, default_display, WSurface, SurfaceId, Keyboard,
+                           KeyState};
+use super::wayland_kbd::MappedKeyboard;
+use super::keyboard::keycode_to_vkey;
+
 
 use std::collections::{VecDeque, HashMap};
 use std::sync::{Arc, Mutex};
 
 use Event;
+use MouseButton;
+use ElementState;
+
+enum AnyKeyboard {
+    RawKeyBoard(Keyboard),
+    XKB(MappedKeyboard)
+}
 
 pub struct WaylandContext {
     pub display: Display,
@@ -13,8 +24,10 @@ pub struct WaylandContext {
     pub shell: Shell,
     pub seat: Seat,
     pub pointer: Option<Pointer<WSurface>>,
+    keyboard: Option<AnyKeyboard>,
     windows_event_queues: Arc<Mutex<HashMap<SurfaceId, Arc<Mutex<VecDeque<Event>>>>>>,
     current_pointer_surface: Arc<Mutex<Option<SurfaceId>>>,
+    current_keyboard_surface: Arc<Mutex<Option<SurfaceId>>>,
     pub outputs: Vec<Arc<Output>>
 }
 
@@ -50,7 +63,7 @@ impl WaylandContext {
             HashMap::<SurfaceId, Arc<Mutex<VecDeque<Event>>>>::new()
         ));
 
-        // handle inputs
+        // handle pointer inputs
         let mut pointer = seat.get_pointer();
         if let Some(ref mut p) = pointer {
             // set the enter/leave callbacks
@@ -78,9 +91,6 @@ impl WaylandContext {
             let current_surface = current_pointer_surface.clone();
             let event_queues = windows_event_queues.clone();
             p.set_button_action(move |_, sid, b, s| {
-                use super::wayland::core::ButtonState;
-                use MouseButton;
-                use ElementState;
                 let button = match b {
                     0x110 => MouseButton::Left,
                     0x111 => MouseButton::Right,
@@ -101,6 +111,83 @@ impl WaylandContext {
                 }
             });
         }
+
+        // handle keyboard inputs
+        let mut keyboard = None;
+        let current_keyboard_surface = Arc::new(Mutex::new(None));
+        if let Some(mut wkbd) = seat.get_keyboard() {
+            display.sync_roundtrip();
+
+            let current_surface = current_keyboard_surface.clone();
+            wkbd.set_enter_action(move |_, sid, _| {
+                *current_surface.lock().unwrap() = Some(sid);
+            });
+            let current_surface = current_keyboard_surface.clone();
+            wkbd.set_leave_action(move |_, sid| {
+                *current_surface.lock().unwrap() = None;
+            });
+
+            let kbd = match MappedKeyboard::new(wkbd) {
+                Ok(mkbd) => {
+                    // We managed to load a keymap
+                    let current_surface = current_keyboard_surface.clone();
+                    let event_queues = windows_event_queues.clone();
+                    mkbd.set_key_action(move |state, _, _, keycode, keystate| {
+                        let kstate = match keystate {
+                            KeyState::WL_KEYBOARD_KEY_STATE_RELEASED => ElementState::Released,
+                            KeyState::WL_KEYBOARD_KEY_STATE_PRESSED => ElementState::Pressed
+                        };
+                        let mut events = Vec::new();
+                        // key event
+                        events.push(Event::KeyboardInput(
+                            kstate,
+                            (keycode & 0xff) as u8,
+                            keycode_to_vkey(state, keycode)
+                        ));
+                        // utf8 events
+                        if kstate == ElementState::Pressed {
+                            if let Some(txt) = state.get_utf8(keycode) {
+                                events.extend(
+                                    txt.chars().map(Event::ReceivedCharacter)
+                                );
+                            }
+                        }
+                        // dispatch to the appropriate queue
+                        let sid = *current_surface.lock().unwrap();
+                        if let Some(sid) = sid {
+                            let map = event_queues.lock().unwrap();
+                            if let Some(queue) = map.get(&sid) {
+                                queue.lock().unwrap().extend(events.into_iter());
+                            }
+                        }
+                    });
+                    AnyKeyboard::XKB(mkbd)
+                },
+                Err(mut rkbd) => {
+                    // fallback to raw inputs, no virtual keycodes
+                    let current_surface = current_keyboard_surface.clone();
+                    let event_queues = windows_event_queues.clone();
+                    rkbd.set_key_action(move |_, _, keycode, keystate| {
+                        let kstate = match keystate {
+                            KeyState::WL_KEYBOARD_KEY_STATE_RELEASED => ElementState::Released,
+                            KeyState::WL_KEYBOARD_KEY_STATE_PRESSED => ElementState::Pressed
+                        };
+                        let event = Event::KeyboardInput(kstate, (keycode & 0xff) as u8, None);
+                        // dispatch to the appropriate queue
+                        let sid = *current_surface.lock().unwrap();
+                        if let Some(sid) = sid {
+                            let map = event_queues.lock().unwrap();
+                            if let Some(queue) = map.get(&sid) {
+                                queue.lock().unwrap().push_back(event);
+                            }
+                        }
+                    });
+                    AnyKeyboard::RawKeyBoard(rkbd)
+                }
+            };
+            keyboard = Some(kbd);
+        }
+
         Some(WaylandContext {
             display: display,
             registry: registry,
@@ -108,8 +195,10 @@ impl WaylandContext {
             shell: shell,
             seat: seat,
             pointer: pointer,
+            keyboard: keyboard,
             windows_event_queues: windows_event_queues,
             current_pointer_surface: current_pointer_surface,
+            current_keyboard_surface: current_keyboard_surface,
             outputs: outputs
         })
     }
