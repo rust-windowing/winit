@@ -137,17 +137,27 @@ impl WaylandContext {
                             KeyState::WL_KEYBOARD_KEY_STATE_RELEASED => ElementState::Released,
                             KeyState::WL_KEYBOARD_KEY_STATE_PRESSED => ElementState::Pressed
                         };
-                        let event = Event::KeyboardInput(
+                        let mut events = Vec::new();
+                        // key event
+                        events.push(Event::KeyboardInput(
                             kstate,
                             (keycode & 0xff) as u8,
                             keycode_to_vkey(state, keycode)
-                        );
+                        ));
+                        // utf8 events
+                        if kstate == ElementState::Pressed {
+                            if let Some(txt) = state.get_utf8(keycode) {
+                                events.extend(
+                                    txt.chars().map(Event::ReceivedCharacter)
+                                );
+                            }
+                        }
                         // dispatch to the appropriate queue
                         let sid = *current_surface.lock().unwrap();
                         if let Some(sid) = sid {
                             let map = event_queues.lock().unwrap();
                             if let Some(queue) = map.get(&sid) {
-                                queue.lock().unwrap().push_back(event);
+                                queue.lock().unwrap().extend(events.into_iter());
                             }
                         }
                     });
