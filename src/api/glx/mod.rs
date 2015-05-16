@@ -35,80 +35,55 @@ impl Context {
                fb_config: ffi::glx::types::GLXFBConfig, mut visual_infos: ffi::glx::types::XVisualInfo)
                -> Result<Context, CreationError>
     {
+        let share = if let Some(win) = builder.sharing {
+            match win {
+                &PlatformWindow::X(ref win) => match win.x.context {
+                    ::api::x11::Context::Glx(ref c) => c.context,
+                    _ => panic!("Cannot share contexts between different APIs")
+                },
+                _ => panic!("Cannot use glx on a non-X11 window.")
+            }
+        } else {
+            ptr::null()
+        };
+
+        // loading the extra GLX functions
+        let extra_functions = ffi::glx_extra::Glx::load_with(|addr| {
+            with_c_str(addr, |s| {
+                unsafe { glx.GetProcAddress(s as *const u8) as *const _ }
+            })
+        });
+
         // creating GL context
-        let (context, extra_functions) = unsafe {
-            let mut attributes = Vec::new();
+        let context = match builder.gl_version {
+            GlRequest::Latest => {
+                if let Ok(ctxt) = create_context(&glx, &extra_functions, (3, 2),
+                                                 builder.gl_profile, builder.gl_debug, share,
+                                                 display, fb_config, &mut visual_infos)
+                {
+                    ctxt
+                } else if let Ok(ctxt) = create_context(&glx, &extra_functions, (3, 1),
+                                                        builder.gl_profile, builder.gl_debug,
+                                                        share, display, fb_config,
+                                                        &mut visual_infos)
+                {
+                    ctxt
 
-            match builder.gl_version {
-                GlRequest::Latest => {},
-                GlRequest::Specific(Api::OpenGl, (major, minor)) => {
-                    attributes.push(ffi::glx_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
-                    attributes.push(major as libc::c_int);
-                    attributes.push(ffi::glx_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
-                    attributes.push(minor as libc::c_int);
-                },
-                GlRequest::Specific(_, _) => panic!("Only OpenGL is supported"),
-                GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
-                    attributes.push(ffi::glx_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
-                    attributes.push(major as libc::c_int);
-                    attributes.push(ffi::glx_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
-                    attributes.push(minor as libc::c_int);
-                },
-            }
-
-            if let Some(profile) = builder.gl_profile {
-                let flag = match profile {
-                    GlProfile::Compatibility =>
-                        ffi::glx_extra::CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-                    GlProfile::Core =>
-                        ffi::glx_extra::CONTEXT_CORE_PROFILE_BIT_ARB,
-                };
-                attributes.push(ffi::glx_extra::CONTEXT_PROFILE_MASK_ARB as libc::c_int);
-                attributes.push(flag as libc::c_int);
-            }
-
-            if builder.gl_debug {
-                attributes.push(ffi::glx_extra::CONTEXT_FLAGS_ARB as libc::c_int);
-                attributes.push(ffi::glx_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);
-            }
-
-            attributes.push(0);
-
-            // loading the extra GLX functions
-            let extra_functions = ffi::glx_extra::Glx::load_with(|addr| {
-                with_c_str(addr, |s| {
-                    glx.GetProcAddress(s as *const u8) as *const libc::c_void
-                })
-            });
-
-            let share = if let Some(win) = builder.sharing {
-                match win {
-                    &PlatformWindow::X(ref win) => match win.x.context {
-                        ::api::x11::Context::Glx(ref c) => c.context,
-                        _ => panic!("Cannot share contexts between different APIs")
-                    },
-                    _ => panic!("Cannot use glx on a non-X11 window.")
+                } else {
+                    try!(create_context(&glx, &extra_functions, (1, 0), builder.gl_profile,
+                                        builder.gl_debug, share, display, fb_config,
+                                        &mut visual_infos))
                 }
-            } else {
-                ptr::null()
-            };
-
-            let mut context = if extra_functions.CreateContextAttribsARB.is_loaded() {
-                extra_functions.CreateContextAttribsARB(display as *mut ffi::glx_extra::types::Display,
-                    fb_config, share, 1, attributes.as_ptr())
-            } else {
-                ptr::null()
-            };
-
-            if context.is_null() {
-                context = glx.CreateContext(display as *mut _, &mut visual_infos, share, 1)
-            }
-
-            if context.is_null() {
-                return Err(CreationError::OsError(format!("GL context creation failed")));
-            }
-
-            (context, extra_functions)
+            },
+            GlRequest::Specific(Api::OpenGl, (major, minor)) => {
+                try!(create_context(&glx, &extra_functions, (major, minor), builder.gl_profile,
+                                    builder.gl_debug, share, display, fb_config, &mut visual_infos))
+            },
+            GlRequest::Specific(_, _) => panic!("Only OpenGL is supported"),
+            GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
+                try!(create_context(&glx, &extra_functions, (major, minor), builder.gl_profile,
+                                    builder.gl_debug, share, display, fb_config, &mut visual_infos))
+            },
         };
 
         // vsync
@@ -208,5 +183,55 @@ impl Drop for Context {
             // is still the current one
             self.glx.DestroyContext(self.display as *mut _, self.context);
         }
+    }
+}
+
+fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx,
+                  version: (u8, u8), profile: Option<GlProfile>, debug: bool,
+                  share: ffi::GLXContext, display: *mut ffi::Display,
+                  fb_config: ffi::glx::types::GLXFBConfig,
+                  visual_infos: &mut ffi::glx::types::XVisualInfo)
+                  -> Result<ffi::GLXContext, CreationError>
+{
+    unsafe {
+        let context = if extra_functions.CreateContextAttribsARB.is_loaded() {
+            let mut attributes = Vec::with_capacity(9);
+
+            attributes.push(ffi::glx_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
+            attributes.push(version.0 as libc::c_int);
+            attributes.push(ffi::glx_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
+            attributes.push(version.1 as libc::c_int);
+
+            if let Some(profile) = profile {
+                let flag = match profile {
+                    GlProfile::Compatibility =>
+                        ffi::glx_extra::CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+                    GlProfile::Core =>
+                        ffi::glx_extra::CONTEXT_CORE_PROFILE_BIT_ARB,
+                };
+
+                attributes.push(ffi::glx_extra::CONTEXT_PROFILE_MASK_ARB as libc::c_int);
+                attributes.push(flag as libc::c_int);
+            }
+
+            if debug {
+                attributes.push(ffi::glx_extra::CONTEXT_FLAGS_ARB as libc::c_int);
+                attributes.push(ffi::glx_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);
+            }
+
+            attributes.push(0);
+
+            extra_functions.CreateContextAttribsARB(display as *mut _, fb_config, share, 1,
+                                                    attributes.as_ptr())
+
+        } else {
+            glx.CreateContext(display as *mut _, visual_infos, share, 1)
+        };
+
+        if context.is_null() {
+            return Err(CreationError::OsError(format!("GL context creation failed")));
+        }
+
+        Ok(context)
     }
 }
