@@ -4,6 +4,7 @@ pub use api::x11::{Window, WindowProxy, MonitorID, get_available_monitors, get_p
 pub use api::x11::{WaitEventsIterator, PollEventsIterator};*/
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use BuilderAttribs;
 use CreationError;
@@ -16,9 +17,10 @@ use libc;
 
 use api::wayland;
 use api::x11;
+use api::x11::XConnection;
 
 enum Backend {
-    X,
+    X(Arc<XConnection>),
     Wayland
 }
 
@@ -28,7 +30,7 @@ lazy_static!(
         if false && wayland::is_available() {
             Backend::Wayland
         } else {
-            Backend::X
+            Backend::X(Arc::new(XConnection::new().unwrap()))
         }
     };
 );
@@ -70,16 +72,17 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
                                 .into_iter()
                                 .map(MonitorID::Wayland)
                                 .collect(),
-        Backend::X => x11::get_available_monitors()
-                        .into_iter()
-                        .map(MonitorID::X)
-                        .collect(),
+        Backend::X(ref connec) => x11::get_available_monitors(connec)
+                                    .into_iter()
+                                    .map(MonitorID::X)
+                                    .collect(),
     }
 }
+
 pub fn get_primary_monitor() -> MonitorID {
     match *BACKEND {
         Backend::Wayland => MonitorID::Wayland(wayland::get_primary_monitor()),
-        Backend::X => MonitorID::X(x11::get_primary_monitor()),
+        Backend::X(ref connec) => MonitorID::X(x11::get_primary_monitor(connec)),
     }
 }
 
@@ -147,7 +150,7 @@ impl Window {
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
         match *BACKEND {
             Backend::Wayland => wayland::Window::new(builder).map(Window::Wayland),
-            Backend::X => x11::Window::new(builder).map(Window::X),
+            Backend::X(ref connec) => x11::Window::new(connec, builder).map(Window::X),
         }
     }
 
@@ -286,7 +289,6 @@ impl Window {
 }
 
 impl GlContext for Window {
-
     unsafe fn make_current(&self) {
         match self {
             &Window::X(ref w) => w.make_current(),
