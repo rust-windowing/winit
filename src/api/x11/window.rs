@@ -202,7 +202,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                         (self.window.x.display.xlib.XKeycodeToKeysym)(self.window.x.display.display, event.keycode as ffi::KeyCode, 0)
                     };
 
-                    if (ffi::XK_KP_Space as u64 <= keysym) || (keysym <= ffi::XK_KP_9 as u64) {
+                    if (ffi::XK_KP_Space as u64 <= keysym) && (keysym <= ffi::XK_KP_9 as u64) {
                         keysym = kp_keysym
                     };
 
