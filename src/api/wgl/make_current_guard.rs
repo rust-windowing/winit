@@ -6,9 +6,6 @@ use winapi;
 use CreationError;
 
 use super::gl;
-use super::ContextWrapper;
-use super::WindowWrapper;
-
 /// A guard for when you want to make the context current. Destroying the guard restores the
 /// previously-current context.
 pub struct CurrentContextGuard<'a, 'b> {
@@ -19,15 +16,13 @@ pub struct CurrentContextGuard<'a, 'b> {
 }
 
 impl<'a, 'b> CurrentContextGuard<'a, 'b> {
-    pub unsafe fn make_current(window: &'a WindowWrapper, context: &'b ContextWrapper)
+    pub unsafe fn make_current(hdc: winapi::HDC, context: winapi::HGLRC)
                                -> Result<CurrentContextGuard<'a, 'b>, CreationError>
     {
         let previous_hdc = gl::wgl::GetCurrentDC() as winapi::HDC;
         let previous_hglrc = gl::wgl::GetCurrentContext() as winapi::HGLRC;
 
-        let result = gl::wgl::MakeCurrent(window.1 as *const libc::c_void,
-                                          context.0 as *const libc::c_void);
-
+        let result = gl::wgl::MakeCurrent(hdc as *const _, context as *const _);
         if result == 0 {
             return Err(CreationError::OsError(format!("wglMakeCurrent function failed: {}",
                                                       format!("{}", io::Error::last_os_error()))));
