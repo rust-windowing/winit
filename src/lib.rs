@@ -40,6 +40,8 @@ extern crate kernel32;
 extern crate gdi32;
 #[cfg(target_os = "windows")]
 extern crate user32;
+#[cfg(target_os = "windows")]
+extern crate dwmapi;
 #[cfg(target_os = "macos")]
 #[macro_use]
 extern crate objc;

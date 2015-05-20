@@ -25,6 +25,7 @@ use std::sync::mpsc::channel;
 
 use winapi;
 use kernel32;
+use dwmapi;
 use user32;
 
 use api::wgl;
@@ -223,15 +224,8 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
             fTransitionOnMaximized: 0,
         };
 
-        let dll = kernel32::LoadLibraryA(b"dwmapi.dll\0".as_ptr() as *const _);
-        if !dll.is_null() {
-            let pr = kernel32::GetProcAddress(dll, b"DwmEnableBlurBehindWindow\0".as_ptr() as *const _);
-            if !pr.is_null() {
-                let pr: unsafe extern "system" fn(winapi::HWND, *const winapi::DWM_BLURBEHIND)
-                        -> winapi::HRESULT = mem::transmute(pr);
-                pr(real_window.0, &bb);
-            }
-            kernel32::FreeLibrary(dll);
+        unsafe {
+            dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
         }
     }
 
