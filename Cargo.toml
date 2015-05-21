@@ -39,13 +39,13 @@ glutin_core_foundation = "0"
 [target.i686-pc-windows-gnu.dependencies]
 winapi = "0.1"
 gdi32-sys = "0.1"
-user32-sys = "0.1"
+user32-sys = "~0.1.1"
 kernel32-sys = "0.1"
 
 [target.x86_64-pc-windows-gnu.dependencies]
 winapi = "0.1"
 gdi32-sys = "0.1"
-user32-sys = "0.1"
+user32-sys = "~0.1.1"
 kernel32-sys = "0.1"
 
 [target.i686-unknown-linux-gnu.dependencies]

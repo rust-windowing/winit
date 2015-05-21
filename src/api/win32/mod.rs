@@ -3,7 +3,6 @@
 use std::sync::atomic::AtomicBool;
 use std::mem;
 use std::ptr;
-use std::ffi::CString;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::sync::{
@@ -25,13 +24,12 @@ pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 use winapi;
 use user32;
 use kernel32;
-use gdi32;
+
+use api::wgl;
 
 mod callback;
 mod event;
-mod gl;
 mod init;
-mod make_current_guard;
 mod monitor;
 
 /// The Win32 implementation of the main `Window` object.
@@ -40,13 +38,7 @@ pub struct Window {
     window: WindowWrapper,
 
     /// OpenGL context.
-    context: ContextWrapper,
-
-    /// Binded to `opengl32.dll`.
-    ///
-    /// `wglGetProcAddress` returns null for GL 1.1 functions because they are
-    ///  already defined by the system. This module contains them.
-    gl_library: winapi::HMODULE,
+    context: wgl::Context,
 
     /// Receiver for the events dispatched by the window callback.
     events_receiver: Receiver<Event>,
@@ -56,26 +48,10 @@ pub struct Window {
 
     /// The current cursor state.
     cursor_state: Arc<Mutex<CursorState>>,
-
-    /// The pixel format that has been used to create this window.
-    pixel_format: PixelFormat,
 }
 
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
-
-/// A simple wrapper that destroys the context when it is destroyed.
-// FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
-#[doc(hidden)]
-pub struct ContextWrapper(pub winapi::HGLRC);
-
-impl Drop for ContextWrapper {
-    fn drop(&mut self) {
-        unsafe {
-            gl::wgl::DeleteContext(self.0 as *const libc::c_void);
-        }
-    }
-}
 
 /// A simple wrapper that destroys the window when it is destroyed.
 // FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
@@ -103,7 +79,7 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
         let (builder, sharing) = builder.extract_non_static();
-        let sharing = sharing.map(|w| init::ContextHack(w.context.0));
+        let sharing = sharing.map(|w| w.context.get_hglrc());
         init::new_window(builder, sharing)
     }
 
@@ -326,38 +302,27 @@ impl Window {
 
 impl GlContext for Window {
     unsafe fn make_current(&self) {
-        // TODO: check return value
-        gl::wgl::MakeCurrent(self.window.1 as *const libc::c_void,
-                             self.context.0 as *const libc::c_void);
+        self.context.make_current()
     }
 
     fn is_current(&self) -> bool {
-        unsafe { gl::wgl::GetCurrentContext() == self.context.0 as *const libc::c_void }
+        self.context.is_current()
     }
 
     fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
-        let addr = CString::new(addr.as_bytes()).unwrap();
-        let addr = addr.as_ptr();
-
-        unsafe {
-            let p = gl::wgl::GetProcAddress(addr) as *const _;
-            if !p.is_null() { return p; }
-            kernel32::GetProcAddress(self.gl_library, addr) as *const _
-        }
+        self.context.get_proc_address(addr)
     }
 
     fn swap_buffers(&self) {
-        unsafe {
-            gdi32::SwapBuffers(self.window.1);
-        }
+        self.context.swap_buffers()
     }
 
     fn get_api(&self) -> Api {
-        Api::OpenGl
+        self.context.get_api()
     }
 
     fn get_pixel_format(&self) -> PixelFormat {
-        self.pixel_format.clone()
+        self.context.get_pixel_format()
     }
 }
 
