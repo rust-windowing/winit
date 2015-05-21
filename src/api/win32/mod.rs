@@ -26,6 +26,10 @@ use user32;
 use kernel32;
 
 use api::wgl;
+use api::wgl::Context as WglContext;
+use api::egl::Context as EglContext;
+
+use self::init::RawContext;
 
 mod callback;
 mod event;
@@ -38,7 +42,7 @@ pub struct Window {
     window: WindowWrapper,
 
     /// OpenGL context.
-    context: wgl::Context,
+    context: Context,
 
     /// Receiver for the events dispatched by the window callback.
     events_receiver: Receiver<Event>,
@@ -52,6 +56,11 @@ pub struct Window {
 
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
+
+enum Context {
+    Egl(EglContext),
+    Wgl(WglContext),
+}
 
 /// A simple wrapper that destroys the window when it is destroyed.
 // FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
@@ -79,7 +88,12 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
         let (builder, sharing) = builder.extract_non_static();
-        let sharing = sharing.map(|w| w.context.get_hglrc());
+
+        let sharing = sharing.map(|w| match w.context {
+            Context::Wgl(ref c) => RawContext::Wgl(c.get_hglrc()),
+            Context::Egl(_) => unimplemented!(),        // FIXME: 
+        });
+
         init::new_window(builder, sharing)
     }
 
@@ -302,27 +316,45 @@ impl Window {
 
 impl GlContext for Window {
     unsafe fn make_current(&self) {
-        self.context.make_current()
+        match self.context {
+            Context::Wgl(ref c) => c.make_current(),
+            Context::Egl(ref c) => c.make_current(),
+        }
     }
 
     fn is_current(&self) -> bool {
-        self.context.is_current()
+        match self.context {
+            Context::Wgl(ref c) => c.is_current(),
+            Context::Egl(ref c) => c.is_current(),
+        }
     }
 
     fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
-        self.context.get_proc_address(addr)
+        match self.context {
+            Context::Wgl(ref c) => c.get_proc_address(addr),
+            Context::Egl(ref c) => c.get_proc_address(addr),
+        }
     }
 
     fn swap_buffers(&self) {
-        self.context.swap_buffers()
+        match self.context {
+            Context::Wgl(ref c) => c.swap_buffers(),
+            Context::Egl(ref c) => c.swap_buffers(),
+        }
     }
 
     fn get_api(&self) -> Api {
-        self.context.get_api()
+        match self.context {
+            Context::Wgl(ref c) => c.get_api(),
+            Context::Egl(ref c) => c.get_api(),
+        }
     }
 
     fn get_pixel_format(&self) -> PixelFormat {
-        self.context.get_pixel_format()
+        match self.context {
+            Context::Wgl(ref c) => c.get_pixel_format(),
+            Context::Egl(ref c) => c.get_pixel_format(),
+        }
     }
 }
 

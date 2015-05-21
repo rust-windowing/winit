@@ -4,18 +4,22 @@ use std::io;
 use std::ptr;
 use std::mem;
 use std::thread;
+use libc;
 
 use super::callback;
 use super::Window;
 use super::MonitorID;
 use super::WindowWrapper;
+use super::Context;
 
+use Api;
 use BuilderAttribs;
 use CreationError;
 use CreationError::OsError;
 use CursorState;
+use GlRequest;
 
-use std::ffi::OsStr;
+use std::ffi::{CString, OsStr};
 use std::os::windows::ffi::OsStrExt;
 use std::sync::mpsc::channel;
 
@@ -23,17 +27,22 @@ use winapi;
 use kernel32;
 use user32;
 
-use api::wgl::{self, Context};
+use api::wgl;
+use api::wgl::Context as WglContext;
+use api::egl;
+use api::egl::Context as EglContext;
 
-/// Work-around the fact that HGLRC doesn't implement Send
-struct ContextHack(winapi::HGLRC);
-unsafe impl Send for ContextHack {}
+pub enum RawContext {
+    Egl(egl::ffi::egl::types::EGLContext),
+    Wgl(winapi::HGLRC),
+}
 
-pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<winapi::HGLRC>)
+unsafe impl Send for RawContext {}
+unsafe impl Sync for RawContext {}
+
+pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<RawContext>)
                   -> Result<Window, CreationError>
 {
-    let builder_sharelists = builder_sharelists.map(|s| ContextHack(s));
-
     // initializing variables to be sent to the task
 
     let title = OsStr::new(&builder.title).encode_wide().chain(Some(0).into_iter())
@@ -73,10 +82,8 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<w
 }
 
 unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
-               builder_sharelists: Option<ContextHack>) -> Result<Window, CreationError>
+               builder_sharelists: Option<RawContext>) -> Result<Window, CreationError>
 {
-    let builder_sharelists = builder_sharelists.map(|s| s.0);
-
     // registering the window class
     let class_name = register_window_class();
 
@@ -147,8 +154,65 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         WindowWrapper(handle, hdc)
     };
 
-    // 
-    let context = try!(wgl::Context::new(&builder, real_window.0, builder_sharelists));
+    // creating the OpenGL context
+    let context = match builder.gl_version {
+        GlRequest::Specific(Api::OpenGlEs, (major, minor)) => {
+            // trying to load EGL from the ATI drivers
+
+            // TODO: use LoadLibraryA instead
+            let dll_name = if cfg!(target_pointer_width = "64") {
+                "atio6axx.dll"
+            } else {
+                "atioglxx.dll" 
+            };
+            let dll_name = OsStr::new(dll_name).encode_wide().chain(Some(0).into_iter())
+                                               .collect::<Vec<_>>();
+            let dll = unsafe { kernel32::LoadLibraryW(dll_name.as_ptr()) };
+
+            if !dll.is_null() {
+                let egl = ::api::egl::ffi::egl::Egl::load_with(|name| {
+                    let name = CString::new(name).unwrap();
+                    unsafe { kernel32::GetProcAddress(dll, name.as_ptr()) as *const libc::c_void }
+                });
+
+                if let Ok(c) = EglContext::new(egl, &builder, Some(ptr::null()),
+                                               real_window.0)
+                {
+                    Context::Egl(c)
+
+                } else {
+                    let builder_sharelists = match builder_sharelists {
+                        None => None,
+                        Some(RawContext::Wgl(c)) => Some(c),
+                        _ => unimplemented!()
+                    };
+
+                    try!(WglContext::new(&builder, real_window.0, builder_sharelists)
+                                        .map(Context::Wgl))
+                }
+
+            } else {
+                // falling back to WGL, which is always available
+                let builder_sharelists = match builder_sharelists {
+                    None => None,
+                    Some(RawContext::Wgl(c)) => Some(c),
+                    _ => unimplemented!()
+                };
+
+                try!(WglContext::new(&builder, real_window.0, builder_sharelists)
+                                    .map(Context::Wgl))
+            }
+        },
+        _ => {
+            let builder_sharelists = match builder_sharelists {
+                None => None,
+                Some(RawContext::Wgl(c)) => Some(c),
+                _ => unimplemented!()
+            };
+
+            try!(WglContext::new(&builder, real_window.0, builder_sharelists).map(Context::Wgl))       
+        }
+    };
 
     // calling SetForegroundWindow if fullscreen
     if builder.monitor.is_some() {
