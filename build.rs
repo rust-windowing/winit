@@ -35,6 +35,16 @@ fn main() {
                                             "WGL_EXT_swap_control".to_string(),
                                         ],
                                         "1.0", "core", &mut file).unwrap();
+
+        let mut file = File::create(&dest.join("egl_bindings.rs")).unwrap();
+        gl_generator::generate_bindings(gl_generator::StructGenerator,
+                                        gl_generator::registry::Ns::Egl,
+                                        gl_generator::Fallbacks::All,
+                                        khronos_api::EGL_XML,
+                                        vec![
+                                            "EGL_KHR_create_context".to_string()
+                                        ],
+                                        "1.5", "core", &mut file).unwrap();
     }
 
     if target.contains("linux") {

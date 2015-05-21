@@ -165,7 +165,7 @@ impl Window {
             });
             try!(EglContext::new(
                 egl,
-                builder,
+                &builder,
                 Some(wayland_context.display.ptr() as *const _),
                 (*shell_surface).ptr() as *const _
             ))

@@ -1,4 +1,4 @@
-#![cfg(any(target_os = "linux", target_os = "android"))]
+#![cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))]
 #![allow(unused_variables)]
 
 use BuilderAttribs;
@@ -24,7 +24,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(egl: ffi::egl::Egl, builder: BuilderAttribs,
+    pub fn new(egl: ffi::egl::Egl, builder: &BuilderAttribs,
                native_display: Option<ffi::EGLNativeDisplayType>,
                native_window: ffi::EGLNativeWindowType) -> Result<Context, CreationError>
     {

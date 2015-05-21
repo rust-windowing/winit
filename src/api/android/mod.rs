@@ -110,7 +110,7 @@ impl Window {
             return Err(OsError(format!("Android's native window is null")));
         }
 
-        let context = try!(EglContext::new(egl::ffi::egl::Egl, builder, None,
+        let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder, None,
                                            native_window as *const _));
 
         let (tx, rx) = channel();
