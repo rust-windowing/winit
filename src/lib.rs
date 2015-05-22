@@ -352,7 +352,7 @@ impl<'a> BuilderAttribs<'a> {
     }
 
     fn choose_pixel_format<T, I>(&self, iter: I) -> Result<(T, PixelFormat), CreationError>
-                                 where I: Iterator<Item=(T, PixelFormat)>, T: Clone
+                                 where I: IntoIterator<Item=(T, PixelFormat)>, T: Clone
     {
         let mut current_result = None;
         let mut current_software_result = None;
