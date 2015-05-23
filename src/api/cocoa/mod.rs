@@ -553,10 +553,8 @@ impl Window {
                     };
 
                     cxt.setView_(view);
-                    if builder.vsync {
-                        let value = 1;
-                        cxt.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
-                    }
+                    let value = if builder.vsync { 1 } else { 0 };
+                    cxt.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
 
                     (Some(cxt), Some(pf))
                 } else {
