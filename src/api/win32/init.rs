@@ -25,6 +25,7 @@ use std::sync::mpsc::channel;
 
 use winapi;
 use kernel32;
+use dwmapi;
 use user32;
 
 use api::wgl;
@@ -102,7 +103,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     }
 
     // computing the style and extended style of the window
-    let (ex_style, style) = if builder.monitor.is_some() {
+    let (ex_style, style) = if builder.monitor.is_some() || builder.decorations == false {
         (winapi::WS_EX_APPWINDOW, winapi::WS_POPUP | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN)
     } else {
         (winapi::WS_EX_APPWINDOW | winapi::WS_EX_WINDOWEDGE,
@@ -213,6 +214,20 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
             try!(WglContext::new(&builder, real_window.0, builder_sharelists).map(Context::Wgl))       
         }
     };
+
+    // making the window transparent
+    if builder.transparent {
+        let bb = winapi::DWM_BLURBEHIND {
+            dwFlags: 0x1, // FIXME: DWM_BB_ENABLE;
+            fEnable: 1,
+            hRgnBlur: ptr::null_mut(),
+            fTransitionOnMaximized: 0,
+        };
+
+        unsafe {
+            dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
+        }
+    }
 
     // calling SetForegroundWindow if fullscreen
     if builder.monitor.is_some() {

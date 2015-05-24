@@ -44,6 +44,7 @@ fn send_event(input_window: winapi::HWND, event: Event) {
 /// This is the callback that is called by `DispatchMessage` in the events loop.
 /// 
 /// Returning 0 tells the Win32 API that the message has been processed.
+// FIXME: detect WM_DWMCOMPOSITIONCHANGED and call DwmEnableBlurBehindWindow if necessary
 pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                                        wparam: winapi::WPARAM, lparam: winapi::LPARAM)
                                        -> winapi::LRESULT

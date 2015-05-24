@@ -40,6 +40,8 @@ extern crate kernel32;
 extern crate gdi32;
 #[cfg(target_os = "windows")]
 extern crate user32;
+#[cfg(target_os = "windows")]
+extern crate dwmapi;
 #[cfg(target_os = "macos")]
 #[macro_use]
 extern crate objc;
@@ -295,6 +297,8 @@ pub struct BuilderAttribs<'a> {
     alpha_bits: Option<u8>,
     stereoscopy: bool,
     srgb: Option<bool>,
+    transparent: bool,
+    decorations: bool,
 }
 
 impl BuilderAttribs<'static> {
@@ -318,6 +322,8 @@ impl BuilderAttribs<'static> {
             alpha_bits: None,
             stereoscopy: false,
             srgb: None,
+            transparent: false,
+            decorations: true,
         }
     }
 }
@@ -346,6 +352,8 @@ impl<'a> BuilderAttribs<'a> {
             alpha_bits: self.alpha_bits,
             stereoscopy: self.stereoscopy,
             srgb: self.srgb,
+            transparent: self.transparent,
+            decorations: self.decorations,
         };
 
         (new_attribs, sharing)
