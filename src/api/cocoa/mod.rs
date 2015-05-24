@@ -340,8 +340,8 @@ impl Window {
         // TODO: perhaps we should return error from create_context so we can
         // determine the cause of failure and possibly recover?
         let (context, pf) = match Window::create_context(*view, &builder) {
-            Ok((Some(context), Some(pf))) => (context, pf),
-            _ => { return Err(OsError(format!("Couldn't create OpenGL context"))); },
+            Ok((context, pf)) => (context, pf),
+            Err(e) => { return Err(OsError(format!("Couldn't create OpenGL context: {}", e))); },
         };
 
         unsafe {
@@ -466,10 +466,18 @@ impl Window {
         }
     }
 
-    fn create_context(view: id, builder: &BuilderAttribs) -> Result<(Option<IdRef>, Option<PixelFormat>), CreationError> {
+    fn create_context(view: id, builder: &BuilderAttribs) -> Result<(IdRef, PixelFormat), CreationError> {
         let profile = match (builder.gl_version, builder.gl_version.to_gl_version(), builder.gl_profile) {
             (GlRequest::Latest, _, Some(GlProfile::Compatibility)) => NSOpenGLProfileVersionLegacy as u32,
-            (GlRequest::Latest, _, _) => NSOpenGLProfileVersion4_1Core as u32,
+            (GlRequest::Latest, _, _) => {
+                if NSAppKitVersionNumber.floor() >= NSAppKitVersionNumber10_9 {
+                    NSOpenGLProfileVersion4_1Core as u32
+                } else if NSAppKitVersionNumber.floor() >= NSAppKitVersionNumber10_7 {
+                    NSOpenGLProfileVersion3_2Core as u32
+                } else {
+                    NSOpenGLProfileVersionLegacy as u32
+                }
+            },
             (_, Some((1 ... 2, _)), Some(GlProfile::Core)) |
             (_, Some((3 ... 4, _)), Some(GlProfile::Compatibility)) =>
                 return Err(CreationError::NotSupported),
@@ -513,7 +521,7 @@ impl Window {
         // attribute list must be null terminated.
         attributes.push(0);
 
-        Ok(unsafe {
+        unsafe {
             let pixelformat = IdRef::new(NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes));
 
             if let Some(pixelformat) = pixelformat.non_nil() {
@@ -556,14 +564,14 @@ impl Window {
                     let value = if builder.vsync { 1 } else { 0 };
                     cxt.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
 
-                    (Some(cxt), Some(pf))
+                    Ok((cxt, pf))
                 } else {
-                    (None, None)
+                    Err(CreationError::NotSupported)
                 }
             } else {
-                (None, None)
+                Err(CreationError::NotSupported)
             }
-        })
+        }
     }
 
     pub fn is_closed(&self) -> bool {
