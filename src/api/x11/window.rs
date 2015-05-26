@@ -711,20 +711,22 @@ impl Window {
     }
 
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        use CursorState::{ Grab, Normal };
+
         let mut cursor_state = self.cursor_state.lock().unwrap();
 
         match (state, *cursor_state) {
-            (CursorState::Normal, CursorState::Grab) => {
+            (Normal, Grab) => {
                 unsafe {
                     (self.x.display.xlib.XUngrabPointer)(self.x.display.display, ffi::CurrentTime);
-                    *cursor_state = CursorState::Normal;
+                    *cursor_state = Normal;
                     Ok(())
                 }
             },
 
-            (CursorState::Grab, CursorState::Normal) => {
+            (Grab, Normal) => {
                 unsafe {
-                    *cursor_state = CursorState::Grab;
+                    *cursor_state = Grab;
 
                     match (self.x.display.xlib.XGrabPointer)(
                         self.x.display.display, self.x.window, ffi::False,
@@ -744,6 +746,9 @@ impl Window {
                     }
                 }
             },
+
+            // Nothing needs to change
+            (Grab, Grab) | (Normal, Normal) => Ok(()),
 
             _ => unimplemented!(),
         }
