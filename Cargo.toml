@@ -32,9 +32,9 @@ version = "0"
 
 [target.x86_64-apple-darwin.dependencies]
 objc = "0.1"
-glutin_cocoa = "0"
-glutin_core_graphics = "0"
-glutin_core_foundation = "0"
+cocoa = "0"
+core-foundation = "0"
+core-graphics = "0"
 
 [target.i686-pc-windows-gnu.dependencies]
 winapi = "~0.1.18"
