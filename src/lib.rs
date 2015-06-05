@@ -42,7 +42,7 @@ extern crate gdi32;
 extern crate user32;
 #[cfg(target_os = "windows")]
 extern crate dwmapi;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;
 #[cfg(target_os = "macos")]
@@ -299,6 +299,7 @@ pub struct BuilderAttribs<'a> {
     srgb: Option<bool>,
     transparent: bool,
     decorations: bool,
+    multitouch: bool
 }
 
 impl BuilderAttribs<'static> {
@@ -324,6 +325,7 @@ impl BuilderAttribs<'static> {
             srgb: None,
             transparent: false,
             decorations: true,
+            multitouch: false
         }
     }
 }
@@ -354,6 +356,7 @@ impl<'a> BuilderAttribs<'a> {
             srgb: self.srgb,
             transparent: self.transparent,
             decorations: self.decorations,
+            multitouch: self.multitouch
         };
 
         (new_attribs, sharing)

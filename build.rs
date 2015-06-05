@@ -93,6 +93,26 @@ fn main() {
                                         "1.5", "core", &mut file).unwrap();
     }
 
+    if target.contains("ios") {
+        let mut file = File::create(&dest.join("egl_bindings.rs")).unwrap();
+        gl_generator::generate_bindings(gl_generator::StaticStructGenerator,
+                                        gl_generator::registry::Ns::Egl,
+                                        gl_generator::Fallbacks::All,
+                                        khronos_api::EGL_XML,
+                                        vec![
+                                            "EGL_KHR_create_context".to_string()
+                                        ],
+                                        "1.5", "core", &mut file).unwrap();
+
+        let mut file = File::create(&dest.join("gles2_bindings.rs")).unwrap();
+        gl_generator::generate_bindings(gl_generator::StaticStructGenerator,
+                                        gl_generator::registry::Ns::Gles2,
+                                        gl_generator::Fallbacks::None,
+                                        khronos_api::GL_XML,
+                                        vec![],
+                                        "2.0", "core", &mut file).unwrap();
+    }
+
     if target.contains("darwin") {
         let mut file = File::create(&dest.join("gl_bindings.rs")).unwrap();
         gl_generator::generate_bindings(gl_generator::GlobalGenerator,
