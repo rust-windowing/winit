@@ -13,6 +13,7 @@ use super::ffi::{
     nil,
     CGRect,
     CGPoint,
+    CGFloat,
     UIViewAutoresizingFlexibleWidth,
     UIViewAutoresizingFlexibleHeight
  };
@@ -25,6 +26,8 @@ pub fn create_delegate_class() {
         unsafe {
             let main_screen: id = msg_send![Class::get("UIScreen").unwrap(), mainScreen];
             let bounds: CGRect = msg_send![main_screen, bounds];
+            let scale: CGFloat = msg_send![main_screen, nativeScale];
+
             let window: id = msg_send![Class::get("UIWindow").unwrap(), alloc];
             let window: id = msg_send![window, initWithFrame:bounds.clone()];
 
@@ -47,7 +50,7 @@ pub fn create_delegate_class() {
             let _: () = msg_send![window, addSubview:view];
             let _: () = msg_send![window, makeKeyAndVisible];
 
-            let state = Box::new(DelegateState::new(window, view_controller, view, size));
+            let state = Box::new(DelegateState::new(window, view_controller, view, size, scale as f32));
             let state_ptr: *mut DelegateState = mem::transmute(state);
             this.set_ivar("glutinState", state_ptr as *mut libc::c_void);
 

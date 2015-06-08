@@ -95,7 +95,8 @@ use self::ffi::{
     RTLD_GLOBAL,
     id,
     nil,
-    NSString
+    NSString,
+    CGFloat
  };
 
 
@@ -125,18 +126,20 @@ struct DelegateState {
     window: id,
     controller: id,
     view: id,
-    size: (u32,u32)
+    size: (u32,u32),
+    scale: f32
 }
 
 
 impl DelegateState {
-    fn new(window: id, controller:id, view: id, size: (u32,u32)) -> DelegateState {
+    fn new(window: id, controller:id, view: id, size: (u32,u32), scale: f32) -> DelegateState {
         DelegateState {
             events_queue: VecDeque::new(),
             window: window,
             controller: controller,
             view: view,
-            size: size
+            size: size,
+            scale: scale
         }
     }
 }
@@ -220,7 +223,10 @@ impl Window {
             let _: () = msg_send![state.view, setMultipleTouchEnabled:YES];
         }
 
+        let _: () = msg_send![state.view, setContentScaleFactor:state.scale as CGFloat];
+
         let layer: id = msg_send![state.view, layer];
+        let _: () = msg_send![layer, setContentsScale:state.scale as CGFloat];
         let _: () = msg_send![layer, setDrawableProperties: draw_props];
 
         let gl = gles::Gles2::load_with(|symbol| self.get_proc_address(symbol));
@@ -243,7 +249,6 @@ impl Window {
         if gl.CheckFramebufferStatus(gles::FRAMEBUFFER) != gles::FRAMEBUFFER_COMPLETE {
             panic!("framebuffer status: {:?}", status);
         }
-
     }
 
     fn create_context() -> id {
@@ -326,7 +331,7 @@ impl Window {
     }
 
     pub fn hidpi_factor(&self) -> f32 {
-        1.0
+        unsafe { (&*self.delegate_state) }.scale
     }
 
     pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
