@@ -43,6 +43,7 @@ pub struct XWindow {
     xf86_desk_mode: *mut ffi::XF86VidModeModeInfo,
     ic: ffi::XIC,
     im: ffi::XIM,
+    colormap: ffi::Colormap,
 }
 
 pub enum Context {
@@ -64,6 +65,8 @@ impl Drop for XWindow {
             // is still the current one
             self.context = Context::None;
 
+            let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
+
             if self.is_fullscreen {
                 (self.display.xf86vmode.XF86VidModeSwitchToMode)(self.display.display, self.screen_id, self.xf86_desk_mode);
                 (self.display.xf86vmode.XF86VidModeSetViewPort)(self.display.display, self.screen_id, 0, 0);
@@ -72,6 +75,7 @@ impl Drop for XWindow {
             (self.display.xlib.XDestroyIC)(self.ic);
             (self.display.xlib.XCloseIM)(self.im);
             (self.display.xlib.XDestroyWindow)(self.display.display, self.window);
+            (self.display.xlib.XFreeColormap)(self.display.display, self.colormap);
         }
     }
 }
@@ -425,7 +429,7 @@ impl Window {
             swa
         };
 
-        let mut window_attributes = ffi::CWBorderPixel | ffi::CWColormap | ffi:: CWEventMask;
+        let mut window_attributes = ffi::CWBorderPixel | ffi::CWColormap | ffi::CWEventMask;
         if builder.monitor.is_some() {
             window_attributes |= ffi::CWOverrideRedirect;
             unsafe {
@@ -551,6 +555,7 @@ impl Window {
                 screen_id: screen_id,
                 is_fullscreen: is_fullscreen,
                 xf86_desk_mode: xf86_desk_mode,
+                colormap: cmap,
             }),
             is_closed: AtomicBool::new(false),
             wm_delete_window: wm_delete_window,
