@@ -34,9 +34,9 @@ libc = "*"
 ```
 
 ```rust
+extern crate gl;
 extern crate glutin;
 extern crate libc;
-extern crate gl;
 
 fn main() {
     let window = glutin::Window::new().unwrap();
