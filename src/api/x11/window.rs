@@ -219,6 +219,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     use events::Event::{MouseInput, MouseWheel};
                     use events::ElementState::{Pressed, Released};
                     use events::MouseButton::{Left, Right, Middle};
+                    use events::MouseScrollDelta::{LineDelta};
 
                     let event: &ffi::XButtonEvent = unsafe { mem::transmute(&xev) };
 
@@ -229,11 +230,13 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                         ffi::Button2 => Some(Middle),
                         ffi::Button3 => Some(Right),
                         ffi::Button4 => {
-                            self.window.pending_events.lock().unwrap().push_back(MouseWheel(0.0, 1.0));
+                            let delta = LineDelta(0.0, 1.0);
+                            self.window.pending_events.lock().unwrap().push_back(MouseWheel(delta));
                             None
                         }
                         ffi::Button5 => {
-                            self.window.pending_events.lock().unwrap().push_back(MouseWheel(0.0, -1.0));
+                            let delta = LineDelta(0.0, -1.0);
+                            self.window.pending_events.lock().unwrap().push_back(MouseWheel(delta));
                             None
                         }
                         _ => None

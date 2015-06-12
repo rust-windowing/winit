@@ -17,7 +17,7 @@ fn main() { println!("This example requires glutin to be compiled with the `wind
 #[cfg(feature = "window")]
 fn main() {
     
-    let mut window = glutin::Window::new().unwrap();
+    let window = glutin::Window::new().unwrap();
     window.set_title("A fantastic window!");   
     unsafe { window.make_current() };
 
