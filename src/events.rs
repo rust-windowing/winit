@@ -63,7 +63,7 @@ pub enum MouseScrollDelta {
 	/// and vertical directions.
 	///
 	/// Positive values indicate movement forward
-	/// (away from the user) or righwards.
+	/// (away from the user) or rightwards.
 	LineDelta(f32, f32),
 	/// Amount in pixels to scroll in the horizontal and
 	/// vertical direction.
