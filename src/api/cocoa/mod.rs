@@ -276,8 +276,12 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     event
                 },
                 NSScrollWheel => {
-                    use events::MouseScrollDelta::PixelDelta;
-                    let delta = PixelDelta(event.scrollingDeltaX() as f32, event.scrollingDeltaY() as f32);
+                    use events::MouseScrollDelta::{LineDelta, PixelDelta};
+                    let delta = if event.hasPreciseScrollingDeltas() == YES {
+                        PixelDelta(event.scrollingDeltaX() as f32, event.scrollingDeltaY() as f32)
+                    } else {
+                        LineDelta(event.scrollingDeltaX() as f32, event.scrollingDeltaY() as f32)
+                    };
                     Some(MouseWheel(delta))
                 },
                 _                       => { None },
