@@ -25,10 +25,7 @@ pub enum Event {
     /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
     MouseMoved((i32, i32)),
 
-    /// A mouse wheel or touchpad scroll occurred. Depending on whether the 
-    ///
-    /// A positive value indicates that the wheel was rotated forward, away from the user;
-    /// a negative value indicates that the wheel was rotated backward, toward the user.
+    /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel(MouseScrollDelta),
 
     /// An event from the mouse has been received.
