@@ -17,6 +17,10 @@ use native_monitor::NativeMonitorId;
 use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
 use objc::declare::ClassDecl;
 
+use cgl;
+use cgl::{CGLEnable, kCGLCECrashOnRemovedFunctions, CGLSetParameter, kCGLCPSurfaceOpacity};
+use cgl::CGLContextObj as CGL_CGLContextObj;
+
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSAutoreleasePool, NSDate, NSDefaultRunLoopMode, NSPoint, NSRect, NSSize, 
                         NSString, NSUInteger}; 
@@ -571,6 +575,8 @@ impl Window {
                     cxt.setView_(view);
                     let value = if builder.vsync { 1 } else { 0 };
                     cxt.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
+
+                    CGLEnable(cxt.CGLContextObj(), kCGLCECrashOnRemovedFunctions);
 
                     Ok((cxt, pf))
                 } else {

@@ -23,7 +23,9 @@ fn main() {
     println!("Vsync example. This example may panic if your driver or your system forces \
               you out of vsync. This is intended when `build_strict` is used.");
 
-    let mut window = glutin::WindowBuilder::new().with_vsync().build_strict().unwrap();
+    let mut window = glutin::WindowBuilder::new().with_gl_profile(glutin::GlProfile::Compatibility)
+                                                 .with_vsync()
+                                                 .build_strict().unwrap();
     window.set_window_resize_callback(Some(resize_callback as fn(u32, u32)));
     unsafe { window.make_current() };
 
