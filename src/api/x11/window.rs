@@ -342,7 +342,23 @@ impl Window {
             if fb.is_null() {
                 return Err(OsError(format!("glx::ChooseFBConfig failed")));
             }
-            let preferred_fb = *fb;     // TODO: choose more wisely
+
+            let preferred_fb = if builder.transparent {
+                let mut best_fbi_for_transparent = 0isize;
+
+                for i in 0isize..num_fb as isize {
+                    let vi = display.glx.as_ref().unwrap().GetVisualFromFBConfig(display.display as *mut _, *fb.offset(i));
+                    if (*vi).depth == 32 {
+                        best_fbi_for_transparent = i;
+                        break;
+                    }
+                }
+
+                *fb.offset(best_fbi_for_transparent)
+            } else {
+                *fb // TODO: choose more wisely
+            };
+
             (display.xlib.XFree)(fb as *mut _);
             preferred_fb
         };
@@ -428,11 +444,19 @@ impl Window {
                 ffi::KeyReleaseMask | ffi::ButtonPressMask |
                 ffi::ButtonReleaseMask | ffi::KeymapStateMask;
             swa.border_pixel = 0;
+            if builder.transparent {
+                swa.background_pixel = 0;
+            }
             swa.override_redirect = 0;
             swa
         };
 
         let mut window_attributes = ffi::CWBorderPixel | ffi::CWColormap | ffi::CWEventMask;
+
+        if builder.transparent {
+            window_attributes |= ffi::CWBackPixel;
+        }
+
         if builder.monitor.is_some() {
             window_attributes |= ffi::CWOverrideRedirect;
             unsafe {
