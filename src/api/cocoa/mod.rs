@@ -357,6 +357,21 @@ impl Window {
         };
 
         unsafe {
+            if builder.transparent {
+                let clear_col = {
+                    let cls = Class::get("NSColor").unwrap();
+
+                    msg_send![cls, clearColor]
+                };
+                window.setOpaque_(NO);
+                window.setBackgroundColor_(clear_col);
+
+                let obj = context.CGLContextObj();
+
+                let mut opacity = 0;
+                CGLSetParameter(obj, kCGLCPSurfaceOpacity, &mut opacity);
+            }
+            
             app.activateIgnoringOtherApps_(YES);
             if builder.visible {
                 window.makeKeyAndOrderFront_(nil);
@@ -437,7 +452,7 @@ impl Window {
                 }
             };
 
-            let masks = if screen.is_some() {
+            let masks = if screen.is_some() || !builder.decorations {
                 NSBorderlessWindowMask as NSUInteger
             } else {
                 NSTitledWindowMask as NSUInteger |
