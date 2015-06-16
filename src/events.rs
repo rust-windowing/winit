@@ -25,11 +25,8 @@ pub enum Event {
     /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
     MouseMoved((i32, i32)),
 
-    /// Returns the horizontal and vertical mouse scrolling.
-    ///
-    /// A positive value indicates that the wheel was rotated forward, away from the user;
-    /// a negative value indicates that the wheel was rotated backward, toward the user.
-    MouseWheel(f64, f64),
+    /// A mouse wheel movement or touchpad scroll occurred.
+    MouseWheel(MouseScrollDelta),
 
     /// An event from the mouse has been received.
     MouseInput(ElementState, MouseButton),
@@ -55,6 +52,23 @@ pub enum MouseButton {
     Right,
     Middle,
     Other(u8),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum MouseScrollDelta {
+	/// Amount in lines or rows to scroll in the horizontal
+	/// and vertical directions.
+	///
+	/// Positive values indicate movement forward
+	/// (away from the user) or rightwards.
+	LineDelta(f32, f32),
+	/// Amount in pixels to scroll in the horizontal and
+	/// vertical direction.
+	///
+	/// Scroll events are expressed as a PixelDelta if
+	/// supported by the device (eg. a touchpad) and
+	/// platform.
+	PixelDelta(f32, f32)
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
