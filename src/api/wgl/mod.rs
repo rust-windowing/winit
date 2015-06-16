@@ -1,6 +1,7 @@
 #![cfg(any(target_os = "windows"))]
 
 use BuilderAttribs;
+use ContextError;
 use CreationError;
 use GlContext;
 use GlRequest;
@@ -156,9 +157,12 @@ impl Context {
 }
 
 impl GlContext for Context {
-    unsafe fn make_current(&self) {
-        // TODO: check return value
-        gl::wgl::MakeCurrent(self.hdc as *const _, self.context.0 as *const _);
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
+        if gl::wgl::MakeCurrent(self.hdc as *const _, self.context.0 as *const _) != 0 {
+            Ok(())
+        } else {
+            Err(ContextError::IoError(io::Error::last_os_error()))
+        }
     }
 
     fn is_current(&self) -> bool {
@@ -176,9 +180,11 @@ impl GlContext for Context {
         }
     }
 
-    fn swap_buffers(&self) {
-        unsafe {
-            gdi32::SwapBuffers(self.hdc);
+    fn swap_buffers(&self) -> Result<(), ContextError> {
+        if unsafe { gdi32::SwapBuffers(self.hdc) } != 0 {
+            Ok(())
+        } else {
+            Err(ContextError::IoError(io::Error::last_os_error()))
         }
     }
 

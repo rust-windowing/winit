@@ -3,6 +3,7 @@ use std::default::Default;
 
 use Api;
 use BuilderAttribs;
+use ContextError;
 use CreationError;
 use CursorState;
 use Event;
@@ -339,7 +340,7 @@ impl Window {
 
     /// Sets the context as the current context.
     #[inline]
-    pub unsafe fn make_current(&self) {
+    pub unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.window.make_current()
     }
 
@@ -366,7 +367,7 @@ impl Window {
     /// is refreshed. However drivers can choose to override your vsync settings, which means that
     /// you can't know in advance whether `swap_buffers` will block or not.
     #[inline]
-    pub fn swap_buffers(&self) {
+    pub fn swap_buffers(&self) -> Result<(), ContextError> {
         self.window.swap_buffers()
     }
 
@@ -449,7 +450,7 @@ impl gl_common::GlFunctionsSource for Window {
 }
 
 impl GlContext for Window {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.make_current()
     }
 
@@ -461,7 +462,7 @@ impl GlContext for Window {
         self.get_proc_address(addr)
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         self.swap_buffers()
     }
 

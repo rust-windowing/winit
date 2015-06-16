@@ -4,6 +4,7 @@ extern crate osmesa_sys;
 
 use Api;
 use BuilderAttribs;
+use ContextError;
 use CreationError;
 use GlContext;
 use PixelFormat;
@@ -67,14 +68,18 @@ impl OsMesaContext {
 }
 
 impl GlContext for OsMesaContext {
-    unsafe fn make_current(&self) {
-        let ret = osmesa_sys::OSMesaMakeCurrent(self.context,
-            self.buffer.as_ptr() as *mut libc::c_void,
-            0x1401, self.width as libc::c_int, self.height as libc::c_int);
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
+        let ret = osmesa_sys::OSMesaMakeCurrent(self.context, self.buffer.as_ptr()
+                                                as *mut libc::c_void, 0x1401, self.width
+                                                as libc::c_int, self.height as libc::c_int);
 
+        // an error can only happen in case of invalid parameter, which would indicate a bug
+        // in glutin
         if ret == 0 {
-            panic!("OSMesaMakeCurrent failed")
+            panic!("OSMesaMakeCurrent failed");
         }
+
+        Ok(())
     }
 
     fn is_current(&self) -> bool {
@@ -88,7 +93,8 @@ impl GlContext for OsMesaContext {
         }
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
+        Ok(())
     }
 
     fn get_api(&self) -> Api {

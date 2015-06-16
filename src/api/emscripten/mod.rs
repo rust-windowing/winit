@@ -5,6 +5,7 @@ use libc;
 use {Event, BuilderAttribs, CreationError, MouseCursor};
 use Api;
 use PixelFormat;
+use ContextError;
 use GlContext;
 
 use std::collections::VecDeque;
@@ -191,9 +192,10 @@ impl Window {
 }
 
 impl GlContext for Window {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         // TOOD: check if == EMSCRIPTEN_RESULT
         ffi::emscripten_webgl_make_context_current(self.context);
+        Ok(())
     }
 
     fn is_current(&self) -> bool {
@@ -209,10 +211,9 @@ impl GlContext for Window {
         }
     }
 
-    fn swap_buffers(&self) {
-        unsafe {
-            ffi::emscripten_sleep(1);   // FIXME: 
-        }
+    fn swap_buffers(&self) -> Result<(), ContextError> {
+        unsafe { ffi::emscripten_sleep(1); }  // FIXME:  
+        Ok(())
     }
 
     fn get_api(&self) -> Api {

@@ -6,6 +6,7 @@ use api::osmesa::{OsMesaContext, OsMesaCreationError};
 
 use Api;
 use BuilderAttribs;
+use ContextError;
 use CreationError;
 use Event;
 use GlContext;
@@ -209,7 +210,7 @@ impl Window {
 }
 
 impl GlContext for Window {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.opengl.make_current()
     }
 
@@ -221,7 +222,7 @@ impl GlContext for Window {
         self.opengl.get_proc_address(addr)
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         unsafe {
             let canvas = (self.libcaca.caca_get_canvas)(self.display);
             let width = (self.libcaca.caca_get_canvas_width)(canvas);
@@ -235,6 +236,8 @@ impl GlContext for Window {
                                               buffer.as_ptr() as *const _);
             (self.libcaca.caca_refresh_display)(self.display);
         };
+
+        Ok(())
     }
 
     fn get_api(&self) -> Api {

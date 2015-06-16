@@ -9,6 +9,7 @@ use api::dlopen;
 use api::egl::Context as EglContext;
 
 use BuilderAttribs;
+use ContextError;
 use CreationError;
 use Event;
 use PixelFormat;
@@ -282,8 +283,7 @@ impl Window {
 }
 
 impl GlContext for Window {
-
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.context.make_current()
     }
 
@@ -295,7 +295,7 @@ impl GlContext for Window {
         self.context.get_proc_address(addr)
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         self.context.swap_buffers()
     }
 

@@ -2,6 +2,7 @@
 
 use Api;
 use BuilderAttribs;
+use ContextError;
 use CreationError;
 use GlContext;
 use PixelFormat;
@@ -37,7 +38,7 @@ impl HeadlessContext {
 
 impl GlContext for HeadlessContext {
     #[inline]
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.0.make_current()
     }
 
@@ -52,7 +53,7 @@ impl GlContext for HeadlessContext {
     }
 
     #[inline]
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         self.0.swap_buffers()
     }
 
