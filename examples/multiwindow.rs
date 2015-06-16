@@ -16,9 +16,9 @@ fn main() { println!("This example requires glutin to be compiled with the `wind
 
 #[cfg(feature = "window")]
 fn main() {
-    let window1 = glutin::Window::new().unwrap();
-    let window2 = glutin::Window::new().unwrap();
-    let window3 = glutin::Window::new().unwrap();
+    let window1 = glutin::WindowBuilder::new().with_gl_profile(glutin::GlProfile::Compatibility).build().unwrap();
+    let window2 = glutin::WindowBuilder::new().with_gl_profile(glutin::GlProfile::Compatibility).build().unwrap();
+    let window3 = glutin::WindowBuilder::new().with_gl_profile(glutin::GlProfile::Compatibility).build().unwrap();
 
     let t1 = thread::spawn(move || {
         run(window1, (0.0, 1.0, 0.0, 1.0));
