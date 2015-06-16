@@ -184,11 +184,6 @@ impl Window {
         })
     }
 
-    pub fn is_closed(&self) -> bool {
-        // TODO
-        false
-    }
-
     pub fn set_title(&self, title: &str) {
         let ctitle = CString::new(title).unwrap();
         self.shell_surface.set_title(&ctitle);

@@ -154,13 +154,6 @@ impl Window {
         }
     }
 
-    pub fn is_closed(&self) -> bool {
-        match self {
-            &Window::X(ref w) => w.is_closed(),
-            &Window::Wayland(ref w) => w.is_closed()
-        }
-    }
-
     pub fn set_title(&self, title: &str) {
         match self {
             &Window::X(ref w) => w.set_title(title),

@@ -23,33 +23,29 @@ fn main() {
     let context = support::load(&window);
     let mut grabbed = false;
     
-    while !window.is_closed() {
+    for event in window.poll_events() {
+        match event {
+            Event::KeyboardInput(ElementState::Pressed, _, _) => {
+                if grabbed {
+                    grabbed = false;
+                    window.set_cursor_state(glutin::CursorState::Normal)
+                          .ok().expect("could not ungrab mouse cursor");
+                } else {
+                    grabbed = true;
+                    window.set_cursor_state(glutin::CursorState::Grab)
+                          .ok().expect("could not grab mouse cursor");
+                }
+            },
+
+            a @ Event::MouseMoved(_) => {
+                println!("{:?}", a);
+            },
+
+            _ => (),
+        }
+
         context.draw_frame((0.0, 1.0, 0.0, 1.0));
         window.swap_buffers();
-
-        for event in window.poll_events() {
-            match event {
-                Event::KeyboardInput(ElementState::Pressed, _, _) => {
-                    if grabbed {
-                        grabbed = false;
-                        window.set_cursor_state(glutin::CursorState::Normal)
-                              .ok().expect("could not ungrab mouse cursor");
-                    } else {
-                        grabbed = true;
-                        window.set_cursor_state(glutin::CursorState::Grab)
-                              .ok().expect("could not grab mouse cursor");
-                    }
-                },
-
-                a @ Event::MouseMoved(_) => {
-                    println!("{:?}", a);
-                },
-
-                _ => (),
-            }
-            
-        }
-        
     }
 }
 

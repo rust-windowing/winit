@@ -43,10 +43,13 @@ fn run(window: glutin::Window, color: (f32, f32, f32, f32)) {
 
     let context = support::load(&window);
 
-    while !window.is_closed() {
+    for event in window.wait_events() {
         context.draw_frame(color);
         window.swap_buffers();
 
-        window.wait_events().next();
+        match event {
+            glutin::Event::Closed => break,
+            _ => ()
+        }
     }
 }

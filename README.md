@@ -49,12 +49,14 @@ fn main() {
         gl::ClearColor(0.0, 1.0, 0.0, 1.0);
     }
 
-    while !window.is_closed() {
-        window.wait_events();
-
+    for event in window.wait_events() {
         unsafe { gl::Clear(gl::COLOR_BUFFER_BIT) };
-
         window.swap_buffers();
+
+        match event {
+            glutin::Event::Closed => break,
+            _ => ()
+        }
     }
 }
 ```
