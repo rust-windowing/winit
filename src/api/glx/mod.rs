@@ -179,8 +179,10 @@ unsafe impl Sync for Context {}
 impl Drop for Context {
     fn drop(&mut self) {
         unsafe {
-            // we don't call MakeCurrent(0, 0) because we are not sure that the context
-            // is still the current one
+            if self.is_current() {
+                self.glx.MakeCurrent(self.display as *mut _, 0, ptr::null_mut());
+            }
+
             self.glx.DestroyContext(self.display as *mut _, self.context);
         }
     }
