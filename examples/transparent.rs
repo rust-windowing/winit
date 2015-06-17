@@ -31,10 +31,15 @@ fn main() {
 
     let context = support::load(&window);
 
-    while !window.is_closed() {
+    for event in window.wait_events() {
         context.draw_frame((0.0, 0.0, 0.0, 0.0));
         window.swap_buffers();
 
-        println!("{:?}", window.wait_events().next());
+        println!("{:?}", event);
+
+        match event {
+            glutin::Event::Closed => break,
+            _ => ()
+        }
     }
 }

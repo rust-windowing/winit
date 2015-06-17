@@ -257,7 +257,6 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
         window: real_window,
         context: context,
         events_receiver: events_receiver,
-        is_closed: AtomicBool::new(false),
         cursor_state: cursor_state,
     })
 }

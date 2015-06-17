@@ -60,7 +60,6 @@ static mut win_pressed: bool = false;
 static mut alt_pressed: bool = false;
 
 struct DelegateState {
-    is_closed: bool,
     context: IdRef,
     view: IdRef,
     window: IdRef,
@@ -84,8 +83,6 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut libc::c_void = *this.get_ivar("glutinState");
                 let state = state as *mut DelegateState;
-                (*state).is_closed = true;
-
                 (*state).pending_events.lock().unwrap().push_back(Closed);
             }
             YES
@@ -382,7 +379,6 @@ impl Window {
         }
 
         let ds = DelegateState {
-            is_closed: false,
             context: context.clone(),
             view: view.clone(),
             window: window.clone(),
@@ -602,10 +598,6 @@ impl Window {
                 Err(CreationError::NotSupported)
             }
         }
-    }
-
-    pub fn is_closed(&self) -> bool {
-        self.delegate.state.is_closed
     }
 
     pub fn set_title(&self, title: &str) {

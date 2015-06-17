@@ -48,9 +48,6 @@ pub struct Window {
     /// Receiver for the events dispatched by the window callback.
     events_receiver: Receiver<Event>,
 
-    /// True if a `Closed` event has been received.
-    is_closed: AtomicBool,
-
     /// The current cursor state.
     cursor_state: Arc<Mutex<CursorState>>,
 }
@@ -96,12 +93,6 @@ impl Window {
         });
 
         init::new_window(builder, sharing)
-    }
-
-    /// See the docs in the crate root file.
-    pub fn is_closed(&self) -> bool {
-        use std::sync::atomic::Ordering::Relaxed;
-        self.is_closed.load(Relaxed)
     }
 
     /// See the docs in the crate root file.
@@ -367,17 +358,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        use events::Event::Closed;
-
-        match self.window.events_receiver.try_recv() {
-            Ok(Closed) => {
-                use std::sync::atomic::Ordering::Relaxed;
-                self.window.is_closed.store(true, Relaxed);
-                Some(Closed)
-            },
-            Ok(ev) => Some(ev),
-            Err(_) => None
-        }
+        self.window.events_receiver.try_recv().ok()
     }
 }
 
@@ -389,17 +370,7 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        use events::Event::Closed;
-
-        match self.window.events_receiver.recv() {
-            Ok(Closed) => {
-                use std::sync::atomic::Ordering::Relaxed;
-                self.window.is_closed.store(true, Relaxed);
-                Some(Closed)
-            },
-            Ok(ev) => Some(ev),
-            Err(_) => None
-        }
+        self.window.events_receiver.recv().ok()
     }
 }
 

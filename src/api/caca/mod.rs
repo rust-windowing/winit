@@ -130,10 +130,6 @@ impl Window {
         })
     }
 
-    pub fn is_closed(&self) -> bool {
-        false
-    }
-
     pub fn set_title(&self, title: &str) {
     }
 

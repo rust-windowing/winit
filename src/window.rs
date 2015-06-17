@@ -225,12 +225,6 @@ impl Window {
         builder.build()
     }
 
-    /// Returns true if the window has previously been closed by the user.
-    #[inline]
-    pub fn is_closed(&self) -> bool {
-        self.window.is_closed()
-    }
-
     /// Modifies the title of the window.
     ///
     /// This is a no-op if the window has already been closed.

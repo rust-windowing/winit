@@ -264,9 +264,10 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
+        use std::sync::atomic::Ordering::Relaxed;
         use std::mem;
 
-        while !self.window.is_closed() {
+        while !self.window.is_closed.load(Relaxed) {
             if let Some(ev) = self.window.pending_events.lock().unwrap().pop_front() {
                 return Some(ev);
             }
@@ -595,11 +596,6 @@ impl Window {
 
         // returning
         Ok(window)
-    }
-
-    pub fn is_closed(&self) -> bool {
-        use std::sync::atomic::Ordering::Relaxed;
-        self.is_closed.load(Relaxed)
     }
 
     pub fn set_title(&self, title: &str) {

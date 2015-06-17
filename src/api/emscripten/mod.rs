@@ -109,11 +109,6 @@ impl Window {
         })
     }
 
-    pub fn is_closed(&self) -> bool {
-        use std::ptr;
-        unsafe { ffi::emscripten_is_webgl_context_lost(ptr::null()) != 0 }
-    }
-
     pub fn set_title(&self, _title: &str) {
     }
 
