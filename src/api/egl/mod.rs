@@ -2,6 +2,7 @@
 #![allow(unused_variables)]
 
 use BuilderAttribs;
+use ContextError;
 use CreationError;
 use GlContext;
 use GlRequest;
@@ -161,11 +162,18 @@ impl Context {
 }
 
 impl GlContext for Context {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         let ret = self.egl.MakeCurrent(self.display, self.surface, self.surface, self.context);
 
         if ret == 0 {
-            panic!("eglMakeCurrent failed");
+            if self.egl.GetError() as u32 == ffi::egl::CONTEXT_LOST {
+                return Err(ContextError::ContextLost);
+            } else {
+                panic!("eglMakeCurrent failed");
+            }
+
+        } else {
+            Ok(())
         }
     }
 
@@ -181,13 +189,20 @@ impl GlContext for Context {
         }
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         let ret = unsafe {
             self.egl.SwapBuffers(self.display, self.surface)
         };
 
         if ret == 0 {
-            panic!("eglSwapBuffers failed");
+            if unsafe { self.egl.GetError() } as u32 == ffi::egl::CONTEXT_LOST {
+                return Err(ContextError::ContextLost);
+            } else {
+                panic!("eglSwapBuffers failed");
+            }
+
+        } else {
+            Ok(())
         }
     }
 

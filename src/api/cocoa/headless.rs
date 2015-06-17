@@ -1,3 +1,4 @@
+use ContextError;
 use CreationError;
 use CreationError::OsError;
 use BuilderAttribs;
@@ -61,7 +62,7 @@ impl HeadlessContext {
 }
 
 impl GlContext for HeadlessContext {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.context.makeCurrentContext();
 
         gl::GenFramebuffersEXT(1, &mut framebuffer);
@@ -78,6 +79,8 @@ impl GlContext for HeadlessContext {
         if status != gl::FRAMEBUFFER_COMPLETE_EXT {
             panic!("Error while creating the framebuffer");
         }
+
+        Ok(())
     }
 
     fn is_current(&self) -> bool {
@@ -96,7 +99,8 @@ impl GlContext for HeadlessContext {
         symbol as *const libc::c_void
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
+        Ok(())
     }
 
     fn get_api(&self) -> ::Api {

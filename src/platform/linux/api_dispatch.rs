@@ -7,6 +7,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use BuilderAttribs;
+use ContextError;
 use CreationError;
 use CursorState;
 use Event;
@@ -289,7 +290,7 @@ impl Window {
 }
 
 impl GlContext for Window {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         match self {
             &Window::X(ref w) => w.make_current(),
             &Window::Wayland(ref w) => w.make_current()
@@ -310,7 +311,7 @@ impl GlContext for Window {
         }
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         match self {
             &Window::X(ref w) => w.swap_buffers(),
             &Window::Wayland(ref w) => w.swap_buffers()

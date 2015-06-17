@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use Api;
+use ContextError;
 use CursorState;
 use GlContext;
 use GlRequest;
@@ -800,11 +801,11 @@ impl Window {
 }
 
 impl GlContext for Window {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.make_current(),
             Context::Egl(ref ctxt) => ctxt.make_current(),
-            Context::None => {}
+            Context::None => Ok(())
         }
     }
 
@@ -824,11 +825,11 @@ impl GlContext for Window {
         }
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.swap_buffers(),
             Context::Egl(ref ctxt) => ctxt.swap_buffers(),
-            Context::None => {}
+            Context::None => Ok(())
         }
     }
 

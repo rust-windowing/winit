@@ -15,6 +15,7 @@ use std::collections::VecDeque;
 
 use Api;
 use BuilderAttribs;
+use ContextError;
 use CursorState;
 use GlContext;
 use GlRequest;
@@ -213,7 +214,7 @@ unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
 impl GlContext for Window {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.context.make_current()
     }
 
@@ -225,7 +226,7 @@ impl GlContext for Window {
         self.context.get_proc_address(addr)
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         self.context.swap_buffers()
     }
 

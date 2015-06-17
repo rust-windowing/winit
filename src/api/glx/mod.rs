@@ -1,6 +1,7 @@
 #![cfg(all(target_os = "linux", feature = "window"))]
 
 use BuilderAttribs;
+use ContextError;
 use CreationError;
 use GlContext;
 use GlProfile;
@@ -139,11 +140,13 @@ impl Context {
 }
 
 impl GlContext for Context {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
+        // TODO: glutin needs some internal changes for proper error recovery
         let res = self.glx.MakeCurrent(self.display as *mut _, self.window, self.context);
         if res == 0 {
             panic!("glx::MakeCurrent failed");
         }
+        Ok(())
     }
 
     fn is_current(&self) -> bool {
@@ -158,10 +161,10 @@ impl GlContext for Context {
         }
     }
 
-    fn swap_buffers(&self) {
-        unsafe {
-            self.glx.SwapBuffers(self.display as *mut _, self.window)
-        }
+    fn swap_buffers(&self) -> Result<(), ContextError> {
+        // TODO: glutin needs some internal changes for proper error recovery
+        unsafe { self.glx.SwapBuffers(self.display as *mut _, self.window); }
+        Ok(())
     }
 
     fn get_api(&self) -> ::Api {

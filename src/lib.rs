@@ -65,6 +65,8 @@ pub use window::{AvailableMonitorsIter, MonitorID, get_available_monitors, get_p
 #[cfg(feature = "window")]
 pub use native_monitor::NativeMonitorId;
 
+use std::io;
+
 mod api;
 mod platform;
 mod events;
@@ -75,7 +77,7 @@ mod window;
 /// Trait that describes objects that have access to an OpenGL context.
 pub trait GlContext {
     /// Sets the context as the current context.
-    unsafe fn make_current(&self);
+    unsafe fn make_current(&self) -> Result<(), ContextError>;
 
     /// Returns true if this context is the current one in this thread.
     fn is_current(&self) -> bool;
@@ -86,12 +88,12 @@ pub trait GlContext {
     /// Swaps the buffers in case of double or triple buffering.
     ///
     /// You should call this function every time you have finished rendering, or the image
-    ///  may not be displayed on the screen.
+    /// may not be displayed on the screen.
     ///
     /// **Warning**: if you enabled vsync, this function will block until the next time the screen
     /// is refreshed. However drivers can choose to override your vsync settings, which means that
     /// you can't know in advance whether `swap_buffers` will block or not.
-    fn swap_buffers(&self);
+    fn swap_buffers(&self) -> Result<(), ContextError>;
 
     /// Returns the OpenGL API being used.
     fn get_api(&self) -> Api;
@@ -126,6 +128,13 @@ impl std::error::Error for CreationError {
     fn description(&self) -> &str {
         self.to_string()
     }
+}
+
+/// Error that can happen when manipulating an OpenGL context.
+#[derive(Debug)]
+pub enum ContextError {
+    IoError(io::Error),
+    ContextLost,
 }
 
 /// All APIs related to OpenGL that you can possibly get while using glutin.

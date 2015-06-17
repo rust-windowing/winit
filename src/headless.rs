@@ -1,5 +1,6 @@
 use Api;
 use BuilderAttribs;
+use ContextError;
 use CreationError;
 use GlRequest;
 use GlContext;
@@ -69,7 +70,7 @@ impl HeadlessContext {
     /// Creates a new OpenGL context
     /// Sets the context as the current context.
     #[inline]
-    pub unsafe fn make_current(&self) {
+    pub unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.context.make_current()
     }
     
@@ -105,7 +106,7 @@ impl gl_common::GlFunctionsSource for HeadlessContext {
 }
 
 impl GlContext for HeadlessContext {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.context.make_current()
     }
 
@@ -117,7 +118,7 @@ impl GlContext for HeadlessContext {
         self.context.get_proc_address(addr)
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         self.context.swap_buffers()
     }
 

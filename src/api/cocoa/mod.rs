@@ -8,6 +8,7 @@ use libc;
 
 use Api;
 use BuilderAttribs;
+use ContextError;
 use GlContext;
 use GlProfile;
 use GlRequest;
@@ -781,9 +782,10 @@ impl Window {
 }
 
 impl GlContext for Window {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         let _: () = msg_send![*self.context, update];
         self.context.makeCurrentContext();
+        Ok(())
     }
 
     fn is_current(&self) -> bool {
@@ -810,8 +812,9 @@ impl GlContext for Window {
         symbol as *const _
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         unsafe { self.context.flushBuffer(); }
+        Ok(())
     }
 
     fn get_api(&self) -> ::Api {

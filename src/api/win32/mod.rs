@@ -11,6 +11,7 @@ use std::sync::{
 };
 use std::sync::mpsc::Receiver;
 use libc;
+use ContextError;
 use {CreationError, Event, MouseCursor};
 use CursorState;
 use GlContext;
@@ -315,7 +316,7 @@ impl Window {
 }
 
 impl GlContext for Window {
-    unsafe fn make_current(&self) {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
         match self.context {
             Context::Wgl(ref c) => c.make_current(),
             Context::Egl(ref c) => c.make_current(),
@@ -336,7 +337,7 @@ impl GlContext for Window {
         }
     }
 
-    fn swap_buffers(&self) {
+    fn swap_buffers(&self) -> Result<(), ContextError> {
         match self.context {
             Context::Wgl(ref c) => c.swap_buffers(),
             Context::Egl(ref c) => c.swap_buffers(),

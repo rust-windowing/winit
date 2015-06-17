@@ -2,6 +2,8 @@
 
 pub use api::android::*;
 
+use ContextError;
+
 pub struct HeadlessContext(i32);
 
 impl HeadlessContext {
@@ -11,7 +13,7 @@ impl HeadlessContext {
     }
 
     /// See the docs in the crate root file.
-    pub unsafe fn make_current(&self) {
+    pub unsafe fn make_current(&self) -> Result<(), ContextError> {
         unimplemented!()
     }
 
