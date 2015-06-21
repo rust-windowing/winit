@@ -51,6 +51,13 @@ user32-sys = "~0.1.1"
 kernel32-sys = "0.1"
 dwmapi-sys = "0.1"
 
+[target.x86_64-pc-windows-msvc.dependencies]
+winapi = "~0.1.18"
+gdi32-sys = "0.1"
+user32-sys = "~0.1.1"
+kernel32-sys = "0.1"
+dwmapi-sys = "0.1"
+
 [target.i686-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = "0.1.6"
