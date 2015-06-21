@@ -398,8 +398,15 @@ impl<'a> BuilderAttribs<'a> {
                 continue;
             }
 
-            if self.multisampling.is_some() && format.multisampling.is_none() {
-                continue;
+            if let Some(req_ms) = self.multisampling {
+                match format.multisampling {
+                    Some(val) if val >= req_ms => (),
+                    _ => continue
+                }
+            } else {
+                if format.multisampling.is_some() {
+                    continue;
+                }
             }
 
             if let Some(srgb) = self.srgb {
