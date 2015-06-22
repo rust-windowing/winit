@@ -12,6 +12,7 @@ use GlProfile;
 use GlRequest;
 use MouseCursor;
 use PixelFormat;
+use Robustness;
 use native_monitor::NativeMonitorId;
 
 use gl_common;
@@ -81,6 +82,12 @@ impl<'a> WindowBuilder<'a> {
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
     pub fn with_gl_debug_flag(mut self, flag: bool) -> WindowBuilder<'a> {
         self.attribs.gl_debug = flag;
+        self
+    }
+
+    /// Sets the robustness of the OpenGL context. See the docs of `Robustness`.
+    pub fn with_gl_robustness(mut self, robustness: Robustness) -> WindowBuilder<'a> {
+        self.attribs.gl_robustness = robustness;
         self
     }
 

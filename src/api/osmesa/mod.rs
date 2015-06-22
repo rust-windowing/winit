@@ -8,6 +8,7 @@ use ContextError;
 use CreationError;
 use GlContext;
 use PixelFormat;
+use Robustness;
 use libc;
 use std::{mem, ptr};
 use std::ffi::CString;
@@ -37,6 +38,13 @@ impl OsMesaContext {
         }
 
         let dimensions = builder.dimensions.unwrap();
+
+        match builder.gl_robustness {
+            Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
+                return Err(CreationError::NotSupported.into());
+            },
+            _ => ()
+        }
 
         Ok(OsMesaContext {
             width: dimensions.0,

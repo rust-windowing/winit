@@ -13,6 +13,7 @@ use GlContext;
 use GlProfile;
 use GlRequest;
 use PixelFormat;
+use Robustness;
 use native_monitor::NativeMonitorId;
 
 use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
@@ -330,6 +331,13 @@ impl Window {
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
         if builder.sharing.is_some() {
             unimplemented!()
+        }
+
+        match builder.gl_robustness {
+            Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
+                return Err(CreationError::NotSupported);
+            },
+            _ => ()
         }
 
         let app = match Window::create_app() {

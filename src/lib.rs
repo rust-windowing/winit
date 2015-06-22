@@ -197,6 +197,33 @@ impl GlRequest {
 /// the compatibility profile features.
 pub static GL_CORE: GlRequest = GlRequest::Specific(Api::OpenGl, (3, 2));
 
+/// Specifies the tolerance of the OpenGL context to faults. If you accept raw OpenGL commands
+/// and/or raw shader code from an untrusted source, you should definitely care about this.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Robustness {
+    /// Not everything is checked. Your application can crash if you do something wrong with your
+    /// shaders.
+    NotRobust,
+
+    /// Everything is checked to avoid any crash. The driver will attempt to avoid any problem,
+    /// but if a problem occurs the behavior is implementation-defined. You are just guaranteed not
+    /// to get a crash.
+    RobustNoResetNotification,
+
+    /// Same as `RobustNoResetNotification` but the context creation doesn't fail if it's not
+    /// supported.
+    TryRobustNoResetNotification,
+
+    /// Everything is checked to avoid any crash. If a problem occurs, the context will enter a
+    /// "context lost" state. It must then be recreated. For the moment, glutin doesn't provide a
+    /// way to recreate a context with the same window :-/
+    RobustLoseContextOnReset,
+
+    /// Same as `RobustLoseContextOnReset` but the context creation doesn't fail if it's not
+    /// supported.
+    TryRobustLoseContextOnReset,
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum MouseCursor {
     /// The platform-dependent default cursor.
@@ -299,6 +326,7 @@ pub struct BuilderAttribs<'a> {
     gl_version: GlRequest,
     gl_profile: Option<GlProfile>,
     gl_debug: bool,
+    gl_robustness: Robustness,
     vsync: bool,
     visible: bool,
     multisampling: Option<u16>,
@@ -324,6 +352,7 @@ impl BuilderAttribs<'static> {
             gl_version: GlRequest::Latest,
             gl_profile: None,
             gl_debug: cfg!(debug_assertions),
+            gl_robustness: Robustness::NotRobust,
             vsync: false,
             visible: true,
             multisampling: None,
@@ -354,6 +383,7 @@ impl<'a> BuilderAttribs<'a> {
             gl_version: self.gl_version,
             gl_profile: self.gl_profile,
             gl_debug: self.gl_debug,
+            gl_robustness: self.gl_robustness,
             vsync: self.vsync,
             visible: self.visible,
             multisampling: self.multisampling,
