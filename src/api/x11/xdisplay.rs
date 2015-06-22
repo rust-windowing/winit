@@ -12,6 +12,7 @@ pub struct XConnection {
     pub xlib: ffi::Xlib,
     pub xf86vmode: ffi::Xf86vmode,
     pub xcursor: ffi::Xcursor,
+    pub xinput2: ffi::XInput2,
     pub glx: Option<ffi::glx::Glx>,
     pub egl: Option<Egl>,
     pub display: *mut ffi::Display,
@@ -30,6 +31,7 @@ impl XConnection {
         let xlib = try!(ffi::Xlib::open().map_err(|_| XNotSupported));
         let xcursor = try!(ffi::Xcursor::open().map_err(|_| XNotSupported));
         let xf86vmode = try!(ffi::Xf86vmode::open().map_err(|_| XNotSupported));
+        let xinput2 = try!(ffi::XInput2::open().map_err(|_| XNotSupported));
 
         unsafe extern "C" fn x_error_callback(_: *mut ffi::Display, event: *mut ffi::XErrorEvent)
                                               -> libc::c_int
@@ -86,6 +88,7 @@ impl XConnection {
             xlib: xlib,
             xf86vmode: xf86vmode,
             xcursor: xcursor,
+            xinput2: xinput2,
             glx: glx,
             egl: egl,
             display: display,
