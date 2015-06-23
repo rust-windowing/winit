@@ -5,6 +5,7 @@ use CreationError;
 use GlRequest;
 use GlContext;
 use PixelFormat;
+use Robustness;
 
 use gl_common;
 use libc;
@@ -40,6 +41,12 @@ impl HeadlessRendererBuilder {
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
     pub fn with_gl_debug_flag(mut self, flag: bool) -> HeadlessRendererBuilder {
         self.attribs.gl_debug = flag;
+        self
+    }
+
+    /// Sets the robustness of the OpenGL context. See the docs of `Robustness`.
+    pub fn with_gl_robustness(mut self, robustness: Robustness) -> HeadlessRendererBuilder {
+        self.attribs.gl_robustness = robustness;
         self
     }
 

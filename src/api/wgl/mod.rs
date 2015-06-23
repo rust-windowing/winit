@@ -7,6 +7,7 @@ use GlContext;
 use GlRequest;
 use GlProfile;
 use PixelFormat;
+use Robustness;
 use Api;
 
 use self::make_current_guard::CurrentContextGuard;
@@ -266,10 +267,42 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                 }
             }
 
-            if builder.gl_debug {
-                attributes.push(gl::wgl_extra::CONTEXT_FLAGS_ARB as libc::c_int);
-                attributes.push(gl::wgl_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);
-            }
+            let flags = {
+                let mut flags = 0;
+
+                // robustness
+                if extensions.split(' ').find(|&i| i == "WGL_ARB_create_context_robustness").is_some() {
+                    match builder.gl_robustness {
+                        Robustness::RobustNoResetNotification | Robustness::TryRobustNoResetNotification => {
+                            attributes.push(gl::wgl_extra::CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB as libc::c_int);
+                            attributes.push(gl::wgl_extra::NO_RESET_NOTIFICATION_ARB as libc::c_int);
+                            flags = flags | gl::wgl_extra::CONTEXT_ROBUST_ACCESS_BIT_ARB as libc::c_int;
+                        },
+                        Robustness::RobustLoseContextOnReset | Robustness::TryRobustLoseContextOnReset => {
+                            attributes.push(gl::wgl_extra::CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB as libc::c_int);
+                            attributes.push(gl::wgl_extra::LOSE_CONTEXT_ON_RESET_ARB as libc::c_int);
+                            flags = flags | gl::wgl_extra::CONTEXT_ROBUST_ACCESS_BIT_ARB as libc::c_int;
+                        },
+                        Robustness::NotRobust => ()
+                    }
+                } else {
+                    match builder.gl_robustness {
+                        Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
+                            return Err(CreationError::NotSupported);
+                        },
+                        _ => ()
+                    }
+                }
+
+                if builder.gl_debug {
+                    flags = flags | gl::wgl_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int;
+                }
+
+                flags
+            };
+
+            attributes.push(gl::wgl_extra::CONTEXT_FLAGS_ARB as libc::c_int);
+            attributes.push(flags);
 
             attributes.push(0);
 

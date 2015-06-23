@@ -7,6 +7,7 @@ use CreationError;
 use GlContext;
 use GlRequest;
 use PixelFormat;
+use Robustness;
 use Api;
 
 use libc;
@@ -116,15 +117,16 @@ impl Context {
         let context = unsafe {
             if let Some(version) = version {
                 try!(create_context(&egl, display, &egl_version, api, version, config_id,
-                                    builder.gl_debug).map_err(|_| CreationError::NotSupported))
+                                    builder.gl_debug, builder.gl_robustness))
 
             } else if api == Api::OpenGlEs {
                 if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (2, 0),
-                                                 config_id, builder.gl_debug)
+                                                 config_id, builder.gl_debug, builder.gl_robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (1, 0),
-                                                        config_id, builder.gl_debug)
+                                                        config_id, builder.gl_debug,
+                                                        builder.gl_robustness)
                 {
                     ctxt
                 } else {
@@ -133,15 +135,17 @@ impl Context {
 
             } else {
                 if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (3, 2),
-                                                 config_id, builder.gl_debug)
+                                                 config_id, builder.gl_debug, builder.gl_robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (3, 1),
-                                                        config_id, builder.gl_debug)
+                                                        config_id, builder.gl_debug,
+                                                        builder.gl_robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (1, 0),
-                                                        config_id, builder.gl_debug)
+                                                        config_id, builder.gl_debug,
+                                                        builder.gl_robustness)
                 {
                     ctxt
                 } else {
@@ -335,8 +339,8 @@ unsafe fn enumerate_configs(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDi
 unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisplay,
                          egl_version: &(ffi::egl::types::EGLint, ffi::egl::types::EGLint),
                          api: Api, version: (u8, u8), config_id: ffi::egl::types::EGLConfig,
-                         gl_debug: bool)
-                         -> Result<ffi::egl::types::EGLContext, ()>
+                         gl_debug: bool, gl_robustness: Robustness)
+                         -> Result<ffi::egl::types::EGLContext, CreationError>
 {
     let extensions = if egl_version >= &(1, 2) {
         let p = CStr::from_ptr(egl.QueryString(display, ffi::egl::EXTENSIONS as i32));
@@ -346,6 +350,7 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
     };
 
     let mut context_attributes = vec![];
+    let mut flags = 0;
 
     if egl_version >= &(1, 5) ||
        extensions.contains("EGL_KHR_create_context ") ||
@@ -356,17 +361,52 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
         context_attributes.push(ffi::egl::CONTEXT_MINOR_VERSION as i32);
         context_attributes.push(version.1 as i32);
 
+        if egl_version >= &(1, 5) ||
+           extensions.contains("EGL_EXT_create_context_robustness ") ||
+           extensions.ends_with("EGL_EXT_create_context_robustness")
+        {
+            match gl_robustness {
+                Robustness::RobustNoResetNotification | Robustness::TryRobustNoResetNotification => {
+                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY as libc::c_int);
+                    context_attributes.push(ffi::egl::NO_RESET_NOTIFICATION as libc::c_int);
+                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
+                },
+                Robustness::RobustLoseContextOnReset | Robustness::TryRobustLoseContextOnReset => {
+                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY as libc::c_int);
+                    context_attributes.push(ffi::egl::LOSE_CONTEXT_ON_RESET as libc::c_int);
+                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
+                },
+                Robustness::NotRobust => ()
+            }
+        } else {
+            match gl_robustness {
+                Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
+                    return Err(CreationError::NotSupported);
+                },
+                _ => ()
+            }
+        }
+
         if gl_debug {
             if egl_version >= &(1, 5) {
                 context_attributes.push(ffi::egl::CONTEXT_OPENGL_DEBUG as i32);
                 context_attributes.push(ffi::egl::TRUE as i32);
             } else {
-                context_attributes.push(ffi::egl::CONTEXT_FLAGS_KHR as i32);
-                context_attributes.push(ffi::egl::CONTEXT_OPENGL_DEBUG_BIT_KHR as i32);
+                flags = flags | ffi::egl::CONTEXT_OPENGL_DEBUG_BIT_KHR as i32;
             }
         }
 
+        context_attributes.push(ffi::egl::CONTEXT_FLAGS_KHR as i32);
+        context_attributes.push(flags);
+
     } else if egl_version >= &(1, 3) && api == Api::OpenGlEs {
+        match gl_robustness {
+            Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
+                return Err(CreationError::NotSupported);
+            },
+            _ => ()
+        }
+
         context_attributes.push(ffi::egl::CONTEXT_CLIENT_VERSION as i32);
         context_attributes.push(version.0 as i32);
     }
@@ -377,7 +417,7 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
                                     context_attributes.as_ptr());
 
     if context.is_null() {
-        return Err(());
+        return Err(CreationError::NotSupported);
     }
 
     Ok(context)

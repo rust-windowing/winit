@@ -8,9 +8,10 @@ use GlProfile;
 use GlRequest;
 use Api;
 use PixelFormat;
+use Robustness;
 
 use libc;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::{mem, ptr};
 
 use api::x11::ffi;
@@ -48,6 +49,13 @@ impl Context {
             ptr::null()
         };
 
+        // loading the list of extensions
+        let extensions = unsafe {
+            let extensions = glx.QueryExtensionsString(display as *mut _, 0);     // FIXME: screen number
+            let extensions = CStr::from_ptr(extensions).to_bytes().to_vec();
+            String::from_utf8(extensions).unwrap()
+        };
+
         // loading the extra GLX functions
         let extra_functions = ffi::glx_extra::Glx::load_with(|addr| {
             with_c_str(addr, |s| {
@@ -58,32 +66,35 @@ impl Context {
         // creating GL context
         let context = match builder.gl_version {
             GlRequest::Latest => {
-                if let Ok(ctxt) = create_context(&glx, &extra_functions, (3, 2),
-                                                 builder.gl_profile, builder.gl_debug, share,
+                if let Ok(ctxt) = create_context(&glx, &extra_functions, &extensions, (3, 2),
+                                                 builder.gl_profile, builder.gl_debug,
+                                                 builder.gl_robustness, share,
                                                  display, fb_config, &mut visual_infos)
                 {
                     ctxt
-                } else if let Ok(ctxt) = create_context(&glx, &extra_functions, (3, 1),
+                } else if let Ok(ctxt) = create_context(&glx, &extra_functions, &extensions, (3, 1),
                                                         builder.gl_profile, builder.gl_debug,
-                                                        share, display, fb_config,
-                                                        &mut visual_infos)
+                                                        builder.gl_robustness, share, display,
+                                                        fb_config, &mut visual_infos)
                 {
                     ctxt
 
                 } else {
-                    try!(create_context(&glx, &extra_functions, (1, 0), builder.gl_profile,
-                                        builder.gl_debug, share, display, fb_config,
-                                        &mut visual_infos))
+                    try!(create_context(&glx, &extra_functions, &extensions, (1, 0),
+                                        builder.gl_profile, builder.gl_debug, builder.gl_robustness,
+                                        share, display, fb_config, &mut visual_infos))
                 }
             },
             GlRequest::Specific(Api::OpenGl, (major, minor)) => {
-                try!(create_context(&glx, &extra_functions, (major, minor), builder.gl_profile,
-                                    builder.gl_debug, share, display, fb_config, &mut visual_infos))
+                try!(create_context(&glx, &extra_functions, &extensions, (major, minor),
+                                    builder.gl_profile, builder.gl_debug, builder.gl_robustness,
+                                    share, display, fb_config, &mut visual_infos))
             },
             GlRequest::Specific(_, _) => panic!("Only OpenGL is supported"),
             GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
-                try!(create_context(&glx, &extra_functions, (major, minor), builder.gl_profile,
-                                    builder.gl_debug, share, display, fb_config, &mut visual_infos))
+                try!(create_context(&glx, &extra_functions, &extensions, (major, minor),
+                                    builder.gl_profile, builder.gl_debug, builder.gl_robustness,
+                                    share, display, fb_config, &mut visual_infos))
             },
         };
 
@@ -191,9 +202,9 @@ impl Drop for Context {
     }
 }
 
-fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx,
+fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx, extensions: &str,
                   version: (u8, u8), profile: Option<GlProfile>, debug: bool,
-                  share: ffi::GLXContext, display: *mut ffi::Display,
+                  robustness: Robustness, share: ffi::GLXContext, display: *mut ffi::Display,
                   fb_config: ffi::glx::types::GLXFBConfig,
                   visual_infos: &mut ffi::glx::types::XVisualInfo)
                   -> Result<ffi::GLXContext, CreationError>
@@ -219,10 +230,42 @@ fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx,
                 attributes.push(flag as libc::c_int);
             }
 
-            if debug {
-                attributes.push(ffi::glx_extra::CONTEXT_FLAGS_ARB as libc::c_int);
-                attributes.push(ffi::glx_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int);
-            }
+            let flags = {
+                let mut flags = 0;
+
+                // robustness
+                if extensions.split(' ').find(|&i| i == "GLX_ARB_create_context_robustness").is_some() {
+                    match robustness {
+                        Robustness::RobustNoResetNotification | Robustness::TryRobustNoResetNotification => {
+                            attributes.push(ffi::glx_extra::CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB as libc::c_int);
+                            attributes.push(ffi::glx_extra::NO_RESET_NOTIFICATION_ARB as libc::c_int);
+                            flags = flags | ffi::glx_extra::CONTEXT_ROBUST_ACCESS_BIT_ARB as libc::c_int;
+                        },
+                        Robustness::RobustLoseContextOnReset | Robustness::TryRobustLoseContextOnReset => {
+                            attributes.push(ffi::glx_extra::CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB as libc::c_int);
+                            attributes.push(ffi::glx_extra::LOSE_CONTEXT_ON_RESET_ARB as libc::c_int);
+                            flags = flags | ffi::glx_extra::CONTEXT_ROBUST_ACCESS_BIT_ARB as libc::c_int;
+                        },
+                        Robustness::NotRobust => ()
+                    }
+                } else {
+                    match robustness {
+                        Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
+                            return Err(CreationError::NotSupported);
+                        },
+                        _ => ()
+                    }
+                }
+
+                if debug {
+                    flags = flags | ffi::glx_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int;
+                }
+
+                flags
+            };
+
+            attributes.push(ffi::glx_extra::CONTEXT_FLAGS_ARB as libc::c_int);
+            attributes.push(flags);
 
             attributes.push(0);
 
