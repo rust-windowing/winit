@@ -2,7 +2,9 @@
 #![allow(unused_variables, dead_code)]
 
 use self::wayland::egl::{EGLSurface, is_egl_available};
-use self::wayland::core::{ShellSurface, Surface, Output, ShellFullscreenMethod};
+use self::wayland::core::Surface;
+use self::wayland::core::output::Output;
+use self::wayland::core::shell::{ShellSurface, ShellFullscreenMethod};
 
 use libc;
 use api::dlopen;

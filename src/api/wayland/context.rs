@@ -1,6 +1,8 @@
-use super::wayland::core::{Display, Registry, Compositor, Shell, Output, ButtonState,
-                           Seat, Pointer, default_display, WSurface, SurfaceId, Keyboard,
-                           KeyState};
+use super::wayland::core::{default_display, Display, Registry};
+use super::wayland::core::compositor::{Compositor, SurfaceId, WSurface};
+use super::wayland::core::output::Output;
+use super::wayland::core::seat::{ButtonState, Seat, Pointer, Keyboard, KeyState};
+use super::wayland::core::shell::Shell;
 use super::wayland_kbd::MappedKeyboard;
 use super::keyboard::keycode_to_vkey;
 
@@ -68,11 +70,11 @@ impl WaylandContext {
         if let Some(ref mut p) = pointer {
             // set the enter/leave callbacks
             let current_surface = current_pointer_surface.clone();
-            p.set_enter_action(move |_, sid, x, y| {
+            p.set_enter_action(move |_, _, sid, x, y| {
                 *current_surface.lock().unwrap() = Some(sid);
             });
             let current_surface = current_pointer_surface.clone();
-            p.set_leave_action(move |_, sid| {
+            p.set_leave_action(move |_, _, sid| {
                 *current_surface.lock().unwrap() = None;
             });
             // set the events callbacks
@@ -90,7 +92,7 @@ impl WaylandContext {
             });
             let current_surface = current_pointer_surface.clone();
             let event_queues = windows_event_queues.clone();
-            p.set_button_action(move |_, sid, b, s| {
+            p.set_button_action(move |_, _, sid, b, s| {
                 let button = match b {
                     0x110 => MouseButton::Left,
                     0x111 => MouseButton::Right,
@@ -98,8 +100,8 @@ impl WaylandContext {
                     _ => return
                 };
                 let state = match s {
-                    ButtonState::WL_POINTER_BUTTON_STATE_RELEASED => ElementState::Released,
-                    ButtonState::WL_POINTER_BUTTON_STATE_PRESSED => ElementState::Pressed
+                    ButtonState::Released => ElementState::Released,
+                    ButtonState::Pressed => ElementState::Pressed
                 };
                 // dispatch to the appropriate queue
                 let sid = *current_surface.lock().unwrap();
@@ -119,11 +121,11 @@ impl WaylandContext {
             display.sync_roundtrip();
 
             let current_surface = current_keyboard_surface.clone();
-            wkbd.set_enter_action(move |_, sid, _| {
+            wkbd.set_enter_action(move |_, _, sid, _| {
                 *current_surface.lock().unwrap() = Some(sid);
             });
             let current_surface = current_keyboard_surface.clone();
-            wkbd.set_leave_action(move |_, sid| {
+            wkbd.set_leave_action(move |_, _, sid| {
                 *current_surface.lock().unwrap() = None;
             });
 
@@ -132,10 +134,10 @@ impl WaylandContext {
                     // We managed to load a keymap
                     let current_surface = current_keyboard_surface.clone();
                     let event_queues = windows_event_queues.clone();
-                    mkbd.set_key_action(move |state, _, _, keycode, keystate| {
+                    mkbd.set_key_action(move |state, _, _, _, keycode, keystate| {
                         let kstate = match keystate {
-                            KeyState::WL_KEYBOARD_KEY_STATE_RELEASED => ElementState::Released,
-                            KeyState::WL_KEYBOARD_KEY_STATE_PRESSED => ElementState::Pressed
+                            KeyState::Released => ElementState::Released,
+                            KeyState::Pressed => ElementState::Pressed
                         };
                         let mut events = Vec::new();
                         // key event
@@ -167,10 +169,10 @@ impl WaylandContext {
                     // fallback to raw inputs, no virtual keycodes
                     let current_surface = current_keyboard_surface.clone();
                     let event_queues = windows_event_queues.clone();
-                    rkbd.set_key_action(move |_, _, keycode, keystate| {
+                    rkbd.set_key_action(move |_, _, _, keycode, keystate| {
                         let kstate = match keystate {
-                            KeyState::WL_KEYBOARD_KEY_STATE_RELEASED => ElementState::Released,
-                            KeyState::WL_KEYBOARD_KEY_STATE_PRESSED => ElementState::Pressed
+                            KeyState::Released => ElementState::Released,
+                            KeyState::Pressed => ElementState::Pressed
                         };
                         let event = Event::KeyboardInput(kstate, (keycode & 0xff) as u8, None);
                         // dispatch to the appropriate queue
