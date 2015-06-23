@@ -133,7 +133,8 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
             style | winapi::WS_VISIBLE
         };
 
-        let handle = user32::CreateWindowExW(ex_style, class_name.as_ptr(),
+        let handle = user32::CreateWindowExW(ex_style | winapi::WS_EX_ACCEPTFILES,
+            class_name.as_ptr(),
             title.as_ptr() as winapi::LPCWSTR,
             style | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN,
             x.unwrap_or(winapi::CW_USEDEFAULT), y.unwrap_or(winapi::CW_USEDEFAULT),
