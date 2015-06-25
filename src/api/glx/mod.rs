@@ -246,7 +246,8 @@ fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx, ex
                             attributes.push(ffi::glx_extra::LOSE_CONTEXT_ON_RESET_ARB as libc::c_int);
                             flags = flags | ffi::glx_extra::CONTEXT_ROBUST_ACCESS_BIT_ARB as libc::c_int;
                         },
-                        Robustness::NotRobust => ()
+                        Robustness::NotRobust => (),
+                        Robustness::NoError => (),
                     }
                 } else {
                     match robustness {

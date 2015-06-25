@@ -45,6 +45,7 @@ fn main() {
                                         vec![
                                             "EGL_KHR_create_context".to_string(),
                                             "EGL_EXT_create_context_robustness".to_string(),
+                                            "EGL_KHR_create_context_no_error".to_string(),
                                         ],
                                         "1.5", "core", &mut file).unwrap();
     }
@@ -81,6 +82,7 @@ fn main() {
                                         vec![
                                             "EGL_KHR_create_context".to_string(),
                                             "EGL_EXT_create_context_robustness".to_string(),
+                                            "EGL_KHR_create_context_no_error".to_string(),
                                         ],
                                         "1.5", "core", &mut file).unwrap();
     }
@@ -92,7 +94,9 @@ fn main() {
                                         gl_generator::Fallbacks::All,
                                         khronos_api::EGL_XML,
                                         vec![
-                                            "EGL_KHR_create_context".to_string()
+                                            "EGL_KHR_create_context".to_string(),
+                                            "EGL_EXT_create_context_robustness".to_string(),
+                                            "EGL_KHR_create_context_no_error".to_string(),
                                         ],
                                         "1.5", "core", &mut file).unwrap();
     }
