@@ -132,9 +132,7 @@ impl Context {
 
         // handling vsync
         if builder.vsync {
-            // contrary to most extensions, it is permitted to discover the presence of
-            // `WGL_EXT_swap_control` by seeing if the function pointer is available
-            if extra_functions.SwapIntervalEXT.is_loaded() {
+            if extensions.split(' ').find(|&i| i == "WGL_EXT_swap_control").is_some() {
                 let _guard = try!(CurrentContextGuard::make_current(hdc, context.0));
 
                 if extra_functions.SwapIntervalEXT(1) == 0 {
