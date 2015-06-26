@@ -365,29 +365,44 @@ impl Window {
             preferred_fb
         };
 
-        let mut best_mode = -1;
-        let modes = unsafe {
+        // finding the mode to switch to if necessary
+        let (mode_to_switch_to, xf86_desk_mode) = unsafe {
             let mut mode_num: libc::c_int = mem::uninitialized();
             let mut modes: *mut *mut ffi::XF86VidModeModeInfo = mem::uninitialized();
             if (display.xf86vmode.XF86VidModeGetAllModeLines)(display.display, screen_id, &mut mode_num, &mut modes) == 0 {
                 return Err(OsError(format!("Could not query the video modes")));
             }
 
-            for i in 0..mode_num {
-                let mode: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _);
-                if mode.hdisplay == dimensions.0 as u16 && mode.vdisplay == dimensions.1 as u16 {
-                    best_mode = i;
+            let xf86_desk_mode = *modes.offset(0);
+
+            // FIXME: `XF86VidModeModeInfo` is missing its `hskew` field. Therefore we point to
+            //        `vsyncstart` instead of `vdisplay` as a temporary hack.
+
+            let mode_to_switch_to = if builder.monitor.is_some() {
+                let matching_mode = (0 .. mode_num).map(|i| {
+                    let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
+                }).find(|m| m.hdisplay == dimensions.0 as u16 && m.vsyncstart == dimensions.1 as u16);
+
+                if let Some(matching_mode) = matching_mode {
+                    Some(matching_mode)
+
+                } else {
+                    let m = (0 .. mode_num).map(|i| {
+                        let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
+                    }).find(|m| m.hdisplay >= dimensions.0 as u16 && m.vsyncstart == dimensions.1 as u16);
+
+                    match m {
+                        Some(m) => Some(m),
+                        None => return Err(OsError(format!("Could not find a suitable graphics mode")))
+                    }
                 }
+            } else {
+                None
             };
-            if best_mode == -1 && builder.monitor.is_some() {
-                return Err(OsError(format!("Could not find a suitable graphics mode")));
-            }
 
-            modes
-        };
+            (display.xlib.XFree)(modes as *mut _);
 
-        let xf86_desk_mode = unsafe {
-            *modes.offset(0)
+            (mode_to_switch_to, xf86_desk_mode)
         };
 
         // getting the visual infos
@@ -459,10 +474,11 @@ impl Window {
             window_attributes |= ffi::CWBackPixel;
         }
 
-        if builder.monitor.is_some() {
+        // switching to fullscreen
+        if let Some(mut mode_to_switch_to) = mode_to_switch_to {
             window_attributes |= ffi::CWOverrideRedirect;
             unsafe {
-                (display.xf86vmode.XF86VidModeSwitchToMode)(display.display, screen_id, *modes.offset(best_mode as isize));
+                (display.xf86vmode.XF86VidModeSwitchToMode)(display.display, screen_id, &mut mode_to_switch_to);
                 (display.xf86vmode.XF86VidModeSetViewPort)(display.display, screen_id, 0, 0);
                 set_win_attr.override_redirect = 1;
             }
