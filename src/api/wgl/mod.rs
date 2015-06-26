@@ -281,7 +281,8 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                             attributes.push(gl::wgl_extra::LOSE_CONTEXT_ON_RESET_ARB as libc::c_int);
                             flags = flags | gl::wgl_extra::CONTEXT_ROBUST_ACCESS_BIT_ARB as libc::c_int;
                         },
-                        Robustness::NotRobust => ()
+                        Robustness::NotRobust => (),
+                        Robustness::NoError => (),
                     }
                 } else {
                     match builder.gl_robustness {

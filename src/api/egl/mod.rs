@@ -349,7 +349,7 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
         format!("")
     };
 
-    let mut context_attributes = vec![];
+    let mut context_attributes = Vec::with_capacity(10);
     let mut flags = 0;
 
     if egl_version >= &(1, 5) ||
@@ -361,30 +361,62 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
         context_attributes.push(ffi::egl::CONTEXT_MINOR_VERSION as i32);
         context_attributes.push(version.1 as i32);
 
-        if egl_version >= &(1, 5) ||
-           extensions.contains("EGL_EXT_create_context_robustness ") ||
-           extensions.ends_with("EGL_EXT_create_context_robustness")
-        {
-            match gl_robustness {
-                Robustness::RobustNoResetNotification | Robustness::TryRobustNoResetNotification => {
-                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY as libc::c_int);
+        // handling robustness
+        let supports_robustness = egl_version >= &(1, 5) ||
+                                  extensions.contains("EGL_EXT_create_context_robustness ") ||
+                                  extensions.ends_with("EGL_EXT_create_context_robustness");
+
+        match gl_robustness {
+            Robustness::NotRobust => (),
+
+            Robustness::NoError => {
+                if extensions.contains("EGL_KHR_create_context_no_error ") ||
+                   extensions.ends_with("EGL_KHR_create_context_no_error")
+                {
+                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_NO_ERROR_KHR as libc::c_int);
+                    context_attributes.push(1);
+                }
+            },
+
+            Robustness::RobustNoResetNotification => {
+                if supports_robustness {
+                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY
+                                            as libc::c_int);
                     context_attributes.push(ffi::egl::NO_RESET_NOTIFICATION as libc::c_int);
                     flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
-                },
-                Robustness::RobustLoseContextOnReset | Robustness::TryRobustLoseContextOnReset => {
-                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY as libc::c_int);
+                } else {
+                    return Err(CreationError::NotSupported);
+                }
+            },
+
+            Robustness::TryRobustNoResetNotification => {
+                if supports_robustness {
+                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY
+                                            as libc::c_int);
+                    context_attributes.push(ffi::egl::NO_RESET_NOTIFICATION as libc::c_int);
+                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
+                }
+            },
+
+            Robustness::RobustLoseContextOnReset => {
+                if supports_robustness {
+                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY
+                                            as libc::c_int);
                     context_attributes.push(ffi::egl::LOSE_CONTEXT_ON_RESET as libc::c_int);
                     flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
-                },
-                Robustness::NotRobust => ()
-            }
-        } else {
-            match gl_robustness {
-                Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
+                } else {
                     return Err(CreationError::NotSupported);
-                },
-                _ => ()
-            }
+                }
+            },
+
+            Robustness::TryRobustLoseContextOnReset => {
+                if supports_robustness {
+                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY
+                                            as libc::c_int);
+                    context_attributes.push(ffi::egl::LOSE_CONTEXT_ON_RESET as libc::c_int);
+                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
+                }
+            },
         }
 
         if gl_debug {
@@ -400,6 +432,7 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
         context_attributes.push(flags);
 
     } else if egl_version >= &(1, 3) && api == Api::OpenGlEs {
+        // robustness is not supported
         match gl_robustness {
             Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
                 return Err(CreationError::NotSupported);

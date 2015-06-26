@@ -205,6 +205,13 @@ pub enum Robustness {
     /// shaders.
     NotRobust,
 
+    /// The driver doesn't check anything. This option is very dangerous. Please know what you're
+    /// doing before using it. See the `GL_KHR_no_error` extension.
+    ///
+    /// Since this option is purely an optimisation, no error will be returned if the backend
+    /// doesn't support it. Instead it will automatically fall back to `NotRobust`.
+    NoError,
+
     /// Everything is checked to avoid any crash. The driver will attempt to avoid any problem,
     /// but if a problem occurs the behavior is implementation-defined. You are just guaranteed not
     /// to get a crash.
