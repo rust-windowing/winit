@@ -180,11 +180,14 @@ impl GlContext for Context {
     }
 
     fn swap_buffers(&self) -> Result<(), ContextError> {
-        if unsafe { gdi32::SwapBuffers(self.hdc) } != 0 {
+        // TODO: decide how to handle the error
+        /*if unsafe { gdi32::SwapBuffers(self.hdc) } != 0 {
             Ok(())
         } else {
             Err(ContextError::IoError(io::Error::last_os_error()))
-        }
+        }*/
+        unsafe { gdi32::SwapBuffers(self.hdc) };
+        Ok(())
     }
 
     fn get_api(&self) -> Api {
