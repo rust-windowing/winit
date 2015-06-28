@@ -13,8 +13,7 @@ use super::XConnection;
 #[derive(Debug)]
 enum AxisType {
     HorizontalScroll,
-    VerticalScroll,
-    Other
+    VerticalScroll
 }
 
 #[derive(Debug)]
@@ -33,7 +32,11 @@ struct AxisValue {
 }
 
 struct InputState {
+    /// Last-seen cursor position within a window in (x, y)
+    /// coordinates
     cursor_pos: (f64, f64),
+    /// Last-seen positions of axes, used to report delta
+    /// movements when a new absolute axis value is received
     axis_values: Vec<AxisValue>
 }
 
@@ -68,7 +71,10 @@ impl XInputEventHandler {
             }
         }
 
-        // specify the XInput events we want to receive
+        // specify the XInput events we want to receive.
+        // Button clicks and mouse events are handled via XInput
+        // events. Key presses are still handled via plain core
+        // X11 events.
         let mut mask: [libc::c_uchar; 1] = [0];
         let mut input_event_mask = ffi::XIEventMask {
             deviceid: ffi::XIAllDevices,
@@ -132,10 +138,8 @@ impl XInputEventHandler {
             str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
         };
 
-        {
-            for chr in written.chars() {
-                translated_events.push(ReceivedCharacter(chr));
-            }
+        for chr in written.chars() {
+            translated_events.push(ReceivedCharacter(chr));
         }
 
         let mut keysym = unsafe {
@@ -159,19 +163,6 @@ impl XInputEventHandler {
         use events::MouseScrollDelta::{PixelDelta, LineDelta};
 
         match cookie.evtype {
-            ffi::XI_KeyPress | ffi::XI_KeyRelease => {
-                let event_data: &ffi::XIDeviceEvent = unsafe{mem::transmute(cookie.data)};
-                if cookie.evtype == ffi::XI_KeyPress {
-                    if event_data.flags & ffi::XIKeyRepeat == 0 {
-                        println!("XInput Key {} pressed", event_data.detail);
-                        None
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            },
             ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
                 let event_data: &ffi::XIDeviceEvent = unsafe{mem::transmute(cookie.data)};
                 let state = if cookie.evtype == ffi::XI_ButtonPress {
@@ -183,23 +174,23 @@ impl XInputEventHandler {
                     ffi::Button1 => Some(MouseInput(state, Left)),
                     ffi::Button2 => Some(MouseInput(state, Middle)),
                     ffi::Button3 => Some(MouseInput(state, Right)),
-                    ffi::Button4 => {
+                    ffi::Button4 | ffi::Button5 => {
                         if event_data.flags & ffi::XIPointerEmulated == 0 {
-                            Some(MouseWheel(LineDelta(0.0, 1.0)))
+                            // scroll event from a traditional wheel with
+                            // distinct 'clicks'
+                            let delta = if event_data.detail as u32 == ffi::Button4 {
+                                1.0
+                            } else {
+                                -1.0
+                            };
+                            Some(MouseWheel(LineDelta(0.0, delta)))
                         } else {
                             // emulated button event from a touch/smooth-scroll
-                            // event. Scrolling is instead reported via the
-                            // XI_Motion event handler
+                            // event. Ignore these events and handle scrolling
+                            // via XI_Motion event handler instead
                             None
                         }
-                    },
-                    ffi::Button5 => {
-                        if event_data.flags & ffi::XIPointerEmulated == 0 {
-                            Some(MouseWheel(LineDelta(0.0, -1.0)))
-                        } else {
-                            None
-                        }
-                    },
+                    }
                     _ => None
                 }
             },
@@ -252,6 +243,9 @@ fn read_input_axis_info(display: &Arc<XConnection>) -> Vec<Axis> {
         for k in 0..device.num_classes {
             let class = unsafe { *(device.classes.offset(k as isize)) };
             match unsafe { (*class)._type } {
+                // Note that scroll axis
+                // are reported both as 'XIScrollClass' and 'XIValuatorClass'
+                // axes. For the moment we only care about scrolling axes.
                 ffi::XIScrollClass => {
                     let scroll_class: &ffi::XIScrollClassInfo = unsafe{mem::transmute(class)};
                     axis_list.push(Axis{
@@ -265,34 +259,16 @@ fn read_input_axis_info(display: &Arc<XConnection>) -> Vec<Axis> {
                         }
                     })
                 },
-                ffi::XIValuatorClass => {
-                    let valuator_class: &ffi::XIValuatorClassInfo = unsafe{mem::transmute(class)};
-                    axis_list.push(Axis{
-                        id: valuator_class.sourceid,
-                        device_id: device.deviceid,
-                        axis_number: valuator_class.number,
-                        axis_type: AxisType::Other
-                    })
-                },
                 _ => {}
             }
         }
     }
-
-    axis_list.sort_by(|a, b| {
-        if a.device_id != b.device_id {
-            a.device_id.cmp(&b.device_id)
-        } else if a.id != b.id {
-            a.id.cmp(&b.id)
-        } else {
-            a.axis_number.cmp(&b.axis_number)
-        }
-    });
+    
     axis_list
 }
 
 /// Given an input motion event for an axis and the previous
-/// state of the axises, return the horizontal/vertical
+/// state of the axes, return the horizontal/vertical
 /// scroll deltas
 fn calc_scroll_deltas(event: &ffi::XIDeviceEvent,
                      axis_id: i32,
@@ -326,8 +302,7 @@ fn calc_scroll_deltas(event: &ffi::XIDeviceEvent,
             axis.axis_number == axis_id {
                 match axis.axis_type {
                     AxisType::HorizontalScroll => scroll_delta.0 = delta,
-                    AxisType::VerticalScroll => scroll_delta.1 = delta,
-                    _ => {}
+                    AxisType::VerticalScroll => scroll_delta.1 = delta
                 }
             }
     }

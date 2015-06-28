@@ -177,15 +177,17 @@ impl<'a> Iterator for PollEventsIterator<'a> {
             return Some(ev);
         }
 
+        let xlib = &self.window.x.display.xlib;
+
         loop {
             let mut xev = unsafe { mem::uninitialized() };
-            let res = unsafe { (self.window.x.display.xlib.XCheckMaskEvent)(self.window.x.display.display, -1, &mut xev) };
+            let res = unsafe { (xlib.XCheckMaskEvent)(self.window.x.display.display, -1, &mut xev) };
 
             if res == 0 {
-                let res = unsafe { (self.window.x.display.xlib.XCheckTypedEvent)(self.window.x.display.display, ffi::ClientMessage, &mut xev) };
+                let res = unsafe { (xlib.XCheckTypedEvent)(self.window.x.display.display, ffi::ClientMessage, &mut xev) };
 
                 if res == 0 {
-                    let res = unsafe { (self.window.x.display.xlib.XCheckTypedEvent)(self.window.x.display.display, ffi::GenericEvent, &mut xev) };
+                    let res = unsafe { (xlib.XCheckTypedEvent)(self.window.x.display.display, ffi::GenericEvent, &mut xev) };
                     if res == 0 {
                         return None;
                     }
@@ -194,7 +196,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
 
             match xev.get_type() {
                 ffi::KeymapNotify => {
-                    unsafe { (self.window.x.display.xlib.XRefreshKeyboardMapping)(mem::transmute(&xev)); }
+                    unsafe { (xlib.XRefreshKeyboardMapping)(mem::transmute(&xev)); }
                 },
 
                 ffi::ClientMessage => {
