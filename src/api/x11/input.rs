@@ -75,7 +75,7 @@ impl XInputEventHandler {
         // Button clicks and mouse events are handled via XInput
         // events. Key presses are still handled via plain core
         // X11 events.
-        let mut mask: [libc::c_uchar; 1] = [0];
+        let mut mask: [libc::c_uchar; 2] = [0, 0];
         let mut input_event_mask = ffi::XIEventMask {
             deviceid: ffi::XIAllDevices,
             mask_len: mask.len() as i32,
@@ -84,7 +84,9 @@ impl XInputEventHandler {
         let events = &[
             ffi::XI_ButtonPress,
             ffi::XI_ButtonRelease,
-            ffi::XI_Motion
+            ffi::XI_Motion,
+            ffi::XI_Enter,
+            ffi::XI_Leave
         ];
         for event in events {
             ffi::XISetMask(&mut mask, *event);
@@ -224,6 +226,16 @@ impl XInputEventHandler {
                     }
                 }
             },
+            ffi::XI_Enter => {
+                // axis movements whilst the cursor is outside the window
+                // will alter the absolute value of the axes. We only want to
+                // report changes in the axis value whilst the cursor is above
+                // our window however, so clear the previous axis state whenever
+                // the cursor re-enters the window
+                self.current_state.axis_values.clear();
+                None
+            },
+            ffi::XI_Leave => None,
             _ => None
         }
     }

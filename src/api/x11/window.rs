@@ -7,7 +7,6 @@ use std::{mem, ptr};
 use std::cell::Cell;
 use std::sync::atomic::AtomicBool;
 use std::collections::VecDeque;
-use std::slice::from_raw_parts;
 use std::sync::{Arc, Mutex};
 
 use Api;
@@ -23,7 +22,7 @@ use api::egl::Context as EglContext;
 use platform::MonitorID as PlatformMonitorID;
 
 use super::input::XInputEventHandler;
-use super::{events, ffi};
+use super::{ffi};
 use super::{MonitorID, XConnection};
 
 // XOpenIM doesn't seem to be thread-safe
