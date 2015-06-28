@@ -86,7 +86,9 @@ impl XInputEventHandler {
             ffi::XI_ButtonRelease,
             ffi::XI_Motion,
             ffi::XI_Enter,
-            ffi::XI_Leave
+            ffi::XI_Leave,
+            ffi::XI_FocusIn,
+            ffi::XI_FocusOut
         ];
         for event in events {
             ffi::XISetMask(&mut mask, *event);
@@ -159,7 +161,7 @@ impl XInputEventHandler {
     }
 
     pub fn translate_event(&mut self, cookie: &ffi::XGenericEventCookie) -> Option<Event> {
-        use events::Event::{MouseInput, MouseMoved, MouseWheel};
+        use events::Event::{Focused, MouseInput, MouseMoved, MouseWheel};
         use events::ElementState::{Pressed, Released};
         use events::MouseButton::{Left, Right, Middle};
         use events::MouseScrollDelta::{PixelDelta, LineDelta};
@@ -236,6 +238,8 @@ impl XInputEventHandler {
                 None
             },
             ffi::XI_Leave => None,
+            ffi::XI_FocusIn => Some(Focused(true)),
+            ffi::XI_FocusOut => Some(Focused(false)),
             _ => None
         }
     }
