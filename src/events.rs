@@ -36,6 +36,46 @@ pub enum Event {
 
     /// The window needs to be redrawn.
     Refresh,
+
+    /// App has been suspended or resumed.
+    ///
+    /// The parameter is true if app was suspended, and false if it has been resumed.
+    Suspended(bool),
+
+
+    /// Touch event has been received
+    Touch(Touch)
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+pub enum TouchPhase {
+    Started,
+    Moved,
+    Ended,
+    Cancelled
+}
+
+#[derive(Debug, Clone, Copy)]
+/// Represents touch event
+///
+/// Every time user touches screen new Start event with some finger id is generated.
+/// When the finger is removed from the screen End event with same id is generated.
+///
+/// For every id there will be at least 2 events with phases Start and End (or Cancelled).
+/// There may be 0 or more Move events.
+///
+///
+/// Depending on platform implementation id may or may not be reused by system after End event.
+///
+/// Gesture regonizer using this event should assume that Start event received with same id
+/// as previously received End event is a new finger and has nothing to do with an old one.
+///
+/// Touch may be cancelled if for example window lost focus.
+pub struct Touch {
+    pub phase: TouchPhase,
+    pub location: (f64,f64),
+    /// unique identifier of a finger.
+    pub id: u64
 }
 
 pub type ScanCode = u8;

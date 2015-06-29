@@ -157,6 +157,12 @@ impl<'a> WindowBuilder<'a> {
         self
     }
 
+    /// Enables multitouch
+    pub fn with_multitouch(mut self) -> WindowBuilder<'a> {
+        self.attribs.multitouch = true;
+        self
+    }
+
     /// Builds the window.
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
