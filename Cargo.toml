@@ -62,16 +62,16 @@ dwmapi-sys = "0.1"
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.2.0", features = ["egl", "dlopen"] }
 wayland-kbd = "0.2.0"
-x11-dl = "=1.0.1"
+x11-dl = "~2.0"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.2.0", features = ["egl", "dlopen"] }
 wayland-kbd = "0.2.0"
-x11-dl = "=1.0.1"
+x11-dl = "~2.0"
 
 [target.arm-unknown-linux-gnueabihf.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.2.0", features = ["egl", "dlopen"] }
 wayland-kbd = "0.2.0"
-x11-dl = "=1.0.1"
+x11-dl = "~2.0"
