@@ -216,7 +216,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
 {
     let share = share.unwrap_or(ptr::null_mut());
 
-    let ctxt = if let Some((extra_functions, builder, extensions)) = extra {
+    if let Some((extra_functions, builder, extensions)) = extra {
         if extensions.split(' ').find(|&i| i == "WGL_ARB_create_context").is_some() {
             let mut attributes = Vec::new();
 
@@ -308,32 +308,31 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
 
             attributes.push(0);
 
-            Some(extra_functions.CreateContextAttribsARB(hdc as *const libc::c_void,
-                                                         share as *const libc::c_void,
-                                                         attributes.as_ptr()))
+            let ctxt = extra_functions.CreateContextAttribsARB(hdc as *const libc::c_void,
+                                                               share as *const libc::c_void,
+                                                               attributes.as_ptr());
 
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let ctxt = match ctxt {
-        Some(ctxt) => ctxt,
-        None => {
-            let ctxt = gl::wgl::CreateContext(hdc as *const libc::c_void);
-            if !ctxt.is_null() && !share.is_null() {
-                gl::wgl::ShareLists(share as *const libc::c_void, ctxt);
-            };
-            ctxt
+            if ctxt.is_null() {
+                return Err(CreationError::OsError(format!("wglCreateContextAttribsARB failed: {}",
+                                                      format!("{}", io::Error::last_os_error()))));
+            } else {
+                return Ok(ContextWrapper(ctxt as winapi::HGLRC));
+            }
         }
     };
 
+    let ctxt = gl::wgl::CreateContext(hdc as *const libc::c_void);
     if ctxt.is_null() {
-        return Err(CreationError::OsError(format!("OpenGL context creation failed: {}",
+        return Err(CreationError::OsError(format!("wglCreateContext failed: {}",
                                                   format!("{}", io::Error::last_os_error()))));
     }
+
+    if !share.is_null() {
+        if gl::wgl::ShareLists(share as *const libc::c_void, ctxt) == 0 {
+            return Err(CreationError::OsError(format!("wglShareLists failed: {}",
+                                                      format!("{}", io::Error::last_os_error()))));
+        }
+    };
 
     Ok(ContextWrapper(ctxt as winapi::HGLRC))
 }
