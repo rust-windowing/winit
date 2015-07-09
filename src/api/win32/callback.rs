@@ -3,12 +3,15 @@ use std::ptr;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::ffi::OsString;
+use std::os::windows::ffi::OsStringExt;
 
 use CursorState;
 use Event;
 use super::event;
 
 use user32;
+use shell32;
 use winapi;
 
 /// There's no parameters passed to the callback function, so it needs to get
@@ -246,6 +249,25 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
 //                let &ThreadLocalData { ref cursor_state, .. } = stored;
             });
+            0
+        },
+
+        winapi::WM_DROPFILES => {
+            use events::Event::DroppedFile;
+
+            let hdrop = wparam as winapi::HDROP;
+            let mut pathbuf: [u16; winapi::MAX_PATH] = unsafe { mem::uninitialized() };
+            let num_drops = shell32::DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0);
+
+            for i in 0..num_drops {
+                let nch = shell32::DragQueryFileW(hdrop, i, pathbuf.as_mut_ptr(),
+                                                  winapi::MAX_PATH as u32) as usize;
+                if nch > 0 {
+                    send_event(window, DroppedFile(OsString::from_wide(&pathbuf[0..nch]).into()));
+                }
+            }
+
+            shell32::DragFinish(hdrop);
             0
         },
 

@@ -1,4 +1,6 @@
-#[derive(Clone, Debug, Copy)]
+use std::path::PathBuf;
+
+#[derive(Clone, Debug)]
 pub enum Event {
     /// The size of the window has changed.
     Resized(u32, u32),
@@ -8,6 +10,9 @@ pub enum Event {
 
     /// The window has been closed.
     Closed,
+
+    /// A file has been dropped into the window.
+    DroppedFile(PathBuf),
 
     /// The window received a unicode character.
     ReceivedCharacter(char),

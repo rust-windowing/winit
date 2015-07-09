@@ -37,6 +37,8 @@ extern crate winapi;
 #[cfg(target_os = "windows")]
 extern crate kernel32;
 #[cfg(target_os = "windows")]
+extern crate shell32;
+#[cfg(target_os = "windows")]
 extern crate gdi32;
 #[cfg(target_os = "windows")]
 extern crate user32;
