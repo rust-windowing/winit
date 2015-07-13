@@ -143,42 +143,17 @@ pub struct PollEventsIterator<'a> {
     window: &'a Window
 }
 
-impl<'a> PollEventsIterator<'a> {
-    fn queue_event(&mut self, event: Event) {
-        self.window.pending_events.lock().unwrap().push_back(event);
-    }
-
-    fn process_generic_event(&mut self, event: &ffi::XEvent) {
-        if let Some(cookie) = GenericEventCookie::from_event(self.window.x.display.borrow(), *event) {
-            match cookie.cookie.evtype {
-                ffi::XI_DeviceChanged...ffi::XI_LASTEVENT => {
-                    match self.window.input_handler.lock() {
-                        Ok(mut handler) => {
-                            match handler.translate_event(&cookie.cookie) {
-                                Some(event) => self.queue_event(event),
-                                None => {}
-                            }
-                        },
-                        Err(_) => {}
-                    }
-                },
-                _ => {}
-            }
-        }
-    }
-}
-
 impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        if let Some(ev) = self.window.pending_events.lock().unwrap().pop_front() {
-            return Some(ev);
-        }
-
         let xlib = &self.window.x.display.xlib;
 
         loop {
+            if let Some(ev) = self.window.pending_events.lock().unwrap().pop_front() {
+                return Some(ev);
+            }
+
             let mut xev = unsafe { mem::uninitialized() };
             let res = unsafe { (xlib.XCheckMaskEvent)(self.window.x.display.display, -1, &mut xev) };
 
@@ -231,10 +206,28 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     let mut event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&mut xev) };
                     let events = self.window.input_handler.lock().unwrap().translate_key_event(&mut event);
                     for event in events {
-                        self.queue_event(event);
+                        self.window.pending_events.lock().unwrap().push_back(event);
                     }
                 },
-                ffi::GenericEvent => { self.process_generic_event(&mut xev); }
+
+                ffi::GenericEvent => {
+                    if let Some(cookie) = GenericEventCookie::from_event(self.window.x.display.borrow(), xev) {
+                        match cookie.cookie.evtype {
+                            ffi::XI_DeviceChanged...ffi::XI_LASTEVENT => {
+                                match self.window.input_handler.lock() {
+                                    Ok(mut handler) => {
+                                        match handler.translate_event(&cookie.cookie) {
+                                            Some(event) => self.window.pending_events.lock().unwrap().push_back(event),
+                                            None => {}
+                                        }
+                                    },
+                                    Err(_) => {}
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                }
 
                 _ => {}
             };
