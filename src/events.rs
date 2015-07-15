@@ -99,7 +99,7 @@ pub enum MouseButton {
     Other(u8),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MouseScrollDelta {
 	/// Amount in lines or rows to scroll in the horizontal
 	/// and vertical directions.
