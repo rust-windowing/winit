@@ -7,6 +7,7 @@ pub use self::xdisplay::XConnection;
 pub mod ffi;
 
 mod events;
+mod input;
 mod monitor;
 mod window;
 mod xdisplay;
