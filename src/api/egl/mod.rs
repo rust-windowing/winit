@@ -26,9 +26,14 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(egl: ffi::egl::Egl, builder: &BuilderAttribs,
-               native_display: Option<ffi::EGLNativeDisplayType>,
-               native_window: ffi::EGLNativeWindowType) -> Result<Context, CreationError>
+    /// Start building an EGL context.
+    ///
+    /// This function initializes some things and chooses the pixel format.
+    ///
+    /// To finish the process, you must call `.finish(window)` on the `ContextPrototype`.
+    pub fn new<'a>(egl: ffi::egl::Egl, builder: &'a BuilderAttribs<'a>,
+                   native_display: Option<ffi::EGLNativeDisplayType>)
+                   -> Result<ContextPrototype<'a>, CreationError>
     {
         if builder.sharing.is_some() {
             unimplemented!()
@@ -106,60 +111,14 @@ impl Context {
         let configs = unsafe { try!(enumerate_configs(&egl, display, &egl_version, api, version)) };
         let (config_id, pixel_format) = try!(builder.choose_pixel_format(configs.into_iter()));
 
-        let surface = unsafe {
-            let surface = egl.CreateWindowSurface(display, config_id, native_window, ptr::null());
-            if surface.is_null() {
-                return Err(CreationError::OsError(format!("eglCreateWindowSurface failed")))
-            }
-            surface
-        };
-
-        let context = unsafe {
-            if let Some(version) = version {
-                try!(create_context(&egl, display, &egl_version, api, version, config_id,
-                                    builder.gl_debug, builder.gl_robustness))
-
-            } else if api == Api::OpenGlEs {
-                if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (2, 0),
-                                                 config_id, builder.gl_debug, builder.gl_robustness)
-                {
-                    ctxt
-                } else if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (1, 0),
-                                                        config_id, builder.gl_debug,
-                                                        builder.gl_robustness)
-                {
-                    ctxt
-                } else {
-                    return Err(CreationError::NotSupported);
-                }
-
-            } else {
-                if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (3, 2),
-                                                 config_id, builder.gl_debug, builder.gl_robustness)
-                {
-                    ctxt
-                } else if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (3, 1),
-                                                        config_id, builder.gl_debug,
-                                                        builder.gl_robustness)
-                {
-                    ctxt
-                } else if let Ok(ctxt) = create_context(&egl, display, &egl_version, api, (1, 0),
-                                                        config_id, builder.gl_debug,
-                                                        builder.gl_robustness)
-                {
-                    ctxt
-                } else {
-                    return Err(CreationError::NotSupported);
-                }
-            }
-        };
-
-        Ok(Context {
+        Ok(ContextPrototype {
+            builder: builder,
             egl: egl,
             display: display,
-            context: context,
-            surface: surface,
+            egl_version: egl_version,
             api: api,
+            version: version,
+            config_id: config_id,
             pixel_format: pixel_format,
         })
     }
@@ -231,6 +190,96 @@ impl Drop for Context {
             self.egl.DestroySurface(self.display, self.surface);
             self.egl.Terminate(self.display);
         }
+    }
+}
+
+pub struct ContextPrototype<'a> {
+    builder: &'a BuilderAttribs<'a>,
+    egl: ffi::egl::Egl,
+    display: ffi::egl::types::EGLDisplay,
+    egl_version: (ffi::egl::types::EGLint, ffi::egl::types::EGLint),
+    api: Api,
+    version: Option<(u8, u8)>,
+    config_id: ffi::egl::types::EGLConfig,
+    pixel_format: PixelFormat,
+}
+
+impl<'a> ContextPrototype<'a> {
+    pub fn get_native_visual_id(&self) -> ffi::egl::types::EGLint {
+        let mut value = unsafe { mem::uninitialized() };
+        let ret = unsafe { self.egl.GetConfigAttrib(self.display, self.config_id,
+                                                    ffi::egl::NATIVE_VISUAL_ID
+                                                    as ffi::egl::types::EGLint, &mut value) };
+        if ret == 0 { panic!("eglGetConfigAttrib failed") };
+        value
+    }
+
+    pub fn finish(self, native_window: ffi::EGLNativeWindowType)
+                  -> Result<Context, CreationError>
+    {
+        let surface = unsafe {
+            let surface = self.egl.CreateWindowSurface(self.display, self.config_id, native_window,
+                                                       ptr::null());
+            if surface.is_null() {
+                return Err(CreationError::OsError(format!("eglCreateWindowSurface failed")))
+            }
+            surface
+        };
+
+        let context = unsafe {
+            if let Some(version) = self.version {
+                try!(create_context(&self.egl, self.display, &self.egl_version, self.api,
+                                    version, self.config_id, self.builder.gl_debug,
+                                    self.builder.gl_robustness))
+
+            } else if self.api == Api::OpenGlEs {
+                if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
+                                                 self.api, (2, 0), self.config_id,
+                                                 self.builder.gl_debug, self.builder.gl_robustness)
+                {
+                    ctxt
+                } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
+                                                        self.api, (1, 0), self.config_id,
+                                                        self.builder.gl_debug,
+                                                        self.builder.gl_robustness)
+                {
+                    ctxt
+                } else {
+                    return Err(CreationError::NotSupported);
+                }
+
+            } else {
+                if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
+                                                 self.api, (3, 2), self.config_id,
+                                                 self.builder.gl_debug, self.builder.gl_robustness)
+                {
+                    ctxt
+                } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
+                                                        self.api, (3, 1), self.config_id,
+                                                        self.builder.gl_debug,
+                                                        self.builder.gl_robustness)
+                {
+                    ctxt
+                } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
+                                                        self.api, (1, 0), self.config_id,
+                                                        self.builder.gl_debug,
+                                                        self.builder.gl_robustness)
+                {
+                    ctxt
+                } else {
+                    return Err(CreationError::NotSupported);
+                }
+            }
+        };
+
+        Ok(Context {
+            egl: self.egl,
+            display: self.display,
+            context: context,
+            surface: surface,
+            api: self.api,
+            pixel_format: self.pixel_format,
+        })
     }
 }
 

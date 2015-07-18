@@ -177,8 +177,8 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
                     unsafe { kernel32::GetProcAddress(dll, name.as_ptr()) as *const libc::c_void }
                 });
 
-                if let Ok(c) = EglContext::new(egl, &builder, Some(ptr::null()),
-                                               real_window.0)
+                if let Ok(c) = EglContext::new(egl, &builder, Some(ptr::null()))
+                                                              .and_then(|p| p.finish(real_window.0))
                 {
                     Context::Egl(c)
 

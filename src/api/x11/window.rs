@@ -572,14 +572,14 @@ impl Window {
                     Context::Glx(try!(GlxContext::new(glx.clone(), builder, display.display, window,
                                                       fb_config, visual_infos)))
                 } else if let Some(ref egl) = display.egl {
-                    Context::Egl(try!(EglContext::new(egl.clone(), &builder, Some(display.display as *const _), window as *const _)))
+                    Context::Egl(try!(EglContext::new(egl.clone(), &builder, Some(display.display as *const _)).and_then(|p| p.finish(window as *const _))))
                 } else {
                     return Err(CreationError::NotSupported);
                 }
             },
             GlRequest::Specific(Api::OpenGlEs, _) => {
                 if let Some(ref egl) = display.egl {
-                    Context::Egl(try!(EglContext::new(egl.clone(), &builder, Some(display.display as *const _), window as *const _)))
+                    Context::Egl(try!(EglContext::new(egl.clone(), &builder, Some(display.display as *const _)).and_then(|p| p.finish(window as *const _))))
                 } else {
                     return Err(CreationError::NotSupported);
                 }

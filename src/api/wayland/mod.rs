@@ -169,9 +169,9 @@ impl Window {
             try!(EglContext::new(
                 egl,
                 &builder,
-                Some(wayland_context.display.ptr() as *const _),
-                (*shell_surface).ptr() as *const _
-            ))
+                Some(wayland_context.display.ptr() as *const _))
+                .and_then(|p| p.finish((*shell_surface).ptr() as *const _))
+            )
         };
 
         let events = Arc::new(Mutex::new(VecDeque::new()));
