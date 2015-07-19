@@ -4,6 +4,7 @@ use std::sync::Arc;
 use super::XConnection;
 use native_monitor::NativeMonitorId;
 
+#[derive(Clone)]
 pub struct MonitorID(pub Arc<XConnection>, pub u32);
 
 pub fn get_available_monitors(x: &Arc<XConnection>) -> VecDeque<MonitorID> {
