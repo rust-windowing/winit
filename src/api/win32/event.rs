@@ -2,7 +2,7 @@ use events::VirtualKeyCode;
 use winapi;
 
 pub fn vkeycode_to_element(code: winapi::WPARAM) -> Option<VirtualKeyCode> {
-    match code {
+    match code as i32 {
         //winapi::VK_LBUTTON => Some(VirtualKeyCode::Lbutton),
         //winapi::VK_RBUTTON => Some(VirtualKeyCode::Rbutton),
         //winapi::VK_CANCEL => Some(VirtualKeyCode::Cancel),
