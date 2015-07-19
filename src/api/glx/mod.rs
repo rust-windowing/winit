@@ -12,7 +12,7 @@ use Robustness;
 
 use libc;
 use std::ffi::{CStr, CString};
-use std::{mem, ptr};
+use std::{mem, ptr, slice};
 
 use api::x11::ffi;
 
@@ -39,62 +39,9 @@ impl Context {
                    -> Result<ContextPrototype<'a>, CreationError>
     {
         // finding the pixel format we want
-        // TODO: enumerate them instead
-        let fb_config = unsafe {
-            let mut visual_attributes = vec![
-                ffi::glx::X_RENDERABLE as libc::c_int,  1,
-                ffi::glx::DRAWABLE_TYPE as libc::c_int, ffi::glx::WINDOW_BIT as libc::c_int,
-                ffi::glx::RENDER_TYPE as libc::c_int,   ffi::glx::RGBA_BIT as libc::c_int,
-                ffi::glx::X_VISUAL_TYPE as libc::c_int, ffi::glx::TRUE_COLOR as libc::c_int,
-                ffi::glx::RED_SIZE as libc::c_int,      8,
-                ffi::glx::GREEN_SIZE as libc::c_int,    8,
-                ffi::glx::BLUE_SIZE as libc::c_int,     8,
-                ffi::glx::ALPHA_SIZE as libc::c_int,    8,
-                ffi::glx::DEPTH_SIZE as libc::c_int,    24,
-                ffi::glx::STENCIL_SIZE as libc::c_int,  8,
-                ffi::glx::DOUBLEBUFFER as libc::c_int,  1,
-            ];
-
-            if let Some(val) = builder.multisampling {
-                visual_attributes.push(ffi::glx::SAMPLE_BUFFERS as libc::c_int);
-                visual_attributes.push(1);
-                visual_attributes.push(ffi::glx::SAMPLES as libc::c_int);
-                visual_attributes.push(val as libc::c_int);
-            }
-
-            if let Some(val) = builder.srgb {
-                visual_attributes.push(ffi::glx_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB as libc::c_int);
-                visual_attributes.push(if val {1} else {0});
-            }
-
-            visual_attributes.push(0);
-
-            let mut num_fb: libc::c_int = mem::uninitialized();
-
-            let fb = glx.ChooseFBConfig(display as *mut _, (xlib.XDefaultScreen)(display),
-                visual_attributes.as_ptr(), &mut num_fb);
-            if fb.is_null() {
-                return Err(CreationError::OsError(format!("glxChooseFBConfig failed")));
-            }
-
-            let preferred_fb = if builder.transparent {
-                let mut best_fbi_for_transparent = 0isize;
-
-                for i in 0isize..num_fb as isize {
-                    let vi = glx.GetVisualFromFBConfig(display as *mut _, *fb.offset(i));
-                    if (*vi).depth == 32 {
-                        best_fbi_for_transparent = i;
-                        break;
-                    }
-                }
-
-                *fb.offset(best_fbi_for_transparent)
-            } else {
-                *fb // TODO: choose more wisely
-            };
-
-            (xlib.XFree)(fb as *mut _);
-            preferred_fb
+        let (fb_config, pixel_format) = {
+            let configs = unsafe { try!(enumerate_configs(&glx, xlib, display)) };
+            try!(builder.choose_pixel_format(configs.into_iter()))
         };
 
         // getting the visual infos
@@ -114,6 +61,7 @@ impl Context {
             display: display,
             fb_config: fb_config,
             visual_infos: unsafe { mem::transmute(visual_infos) },
+            pixel_format: pixel_format,
         })
     }
 }
@@ -176,6 +124,7 @@ pub struct ContextPrototype<'a> {
     display: *mut ffi::Display,
     fb_config: ffi::glx::types::GLXFBConfig,
     visual_infos: ffi::XVisualInfo,
+    pixel_format: PixelFormat,
 }
 
 impl<'a> ContextPrototype<'a> {
@@ -292,14 +241,12 @@ impl<'a> ContextPrototype<'a> {
             unsafe { self.glx.MakeCurrent(self.display as *mut _, 0, ptr::null()) };
         }
 
-        let pixel_format = unsafe { get_pixel_format(&self.glx, self.display, self.fb_config) };
-
         Ok(Context {
             glx: self.glx,
             display: self.display,
             window: window,
             context: context,
-            pixel_format: pixel_format,
+            pixel_format: self.pixel_format,
         })
     }
 }
@@ -388,32 +335,51 @@ fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx, ex
     }
 }
 
-unsafe fn get_pixel_format(glx: &ffi::glx::Glx, display: *mut ffi::Display,
-                           fb_config: ffi::glx::types::GLXFBConfig) -> PixelFormat
+/// Enumerates all available FBConfigs
+unsafe fn enumerate_configs(glx: &ffi::glx::Glx, xlib: &ffi::Xlib, display: *mut ffi::Display)
+                            -> Result<Vec<(ffi::glx::types::GLXFBConfig, PixelFormat)>, CreationError>
 {
-    let get_attrib = |attrib: libc::c_int| -> i32 {
+    let configs = {
+        let mut num_configs = 0;
+        let vals = glx.GetFBConfigs(display as *mut _, 0, &mut num_configs);      // TODO: screen number
+        assert!(!vals.is_null());
+        let configs = slice::from_raw_parts(vals, num_configs as usize);
+        (xlib.XFree)(vals as *mut _);
+        configs.to_vec()
+    };
+
+    let get_attrib = |attrib: libc::c_int, fb_config: ffi::glx::types::GLXFBConfig| -> i32 {
         let mut value = 0;
         glx.GetFBConfigAttrib(display as *mut _, fb_config, attrib, &mut value);
         // TODO: check return value
         value
     };
 
-    // TODO: make sure everything is supported
-    PixelFormat {
-        hardware_accelerated: true,
-        color_bits: get_attrib(ffi::glx::RED_SIZE as libc::c_int) as u8 +
-                    get_attrib(ffi::glx::GREEN_SIZE as libc::c_int) as u8 +
-                    get_attrib(ffi::glx::BLUE_SIZE as libc::c_int) as u8,
-        alpha_bits: get_attrib(ffi::glx::ALPHA_SIZE as libc::c_int) as u8,
-        depth_bits: get_attrib(ffi::glx::DEPTH_SIZE as libc::c_int) as u8,
-        stencil_bits: get_attrib(ffi::glx::STENCIL_SIZE as libc::c_int) as u8,
-        stereoscopy: get_attrib(ffi::glx::STEREO as libc::c_int) != 0,
-        double_buffer: get_attrib(ffi::glx::DOUBLEBUFFER as libc::c_int) != 0,
-        multisampling: if get_attrib(ffi::glx::SAMPLE_BUFFERS as libc::c_int) != 0 {
-            Some(get_attrib(ffi::glx::SAMPLES as libc::c_int) as u16)
-        } else {
-            None
-        },
-        srgb: get_attrib(ffi::glx_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB as libc::c_int) != 0,
-    }
+    Ok(configs.into_iter().filter_map(|config| {
+        let caveat = get_attrib(ffi::glx::CONFIG_CAVEAT as libc::c_int, config);
+        if caveat == ffi::glx::NON_CONFORMANT_CONFIG as libc::c_int {
+            return None;
+        }
+
+        // TODO: make sure everything is supported
+        let pf = PixelFormat {
+            hardware_accelerated: caveat == ffi::glx::NONE as libc::c_int,
+            color_bits: get_attrib(ffi::glx::RED_SIZE as libc::c_int, config) as u8 +
+                        get_attrib(ffi::glx::GREEN_SIZE as libc::c_int, config) as u8 +
+                        get_attrib(ffi::glx::BLUE_SIZE as libc::c_int, config) as u8,
+            alpha_bits: get_attrib(ffi::glx::ALPHA_SIZE as libc::c_int, config) as u8,
+            depth_bits: get_attrib(ffi::glx::DEPTH_SIZE as libc::c_int, config) as u8,
+            stencil_bits: get_attrib(ffi::glx::STENCIL_SIZE as libc::c_int, config) as u8,
+            stereoscopy: get_attrib(ffi::glx::STEREO as libc::c_int, config) != 0,
+            double_buffer: get_attrib(ffi::glx::DOUBLEBUFFER as libc::c_int, config) != 0,
+            multisampling: if get_attrib(ffi::glx::SAMPLE_BUFFERS as libc::c_int, config) != 0 {
+                Some(get_attrib(ffi::glx::SAMPLES as libc::c_int, config) as u16)
+            } else {
+                None
+            },
+            srgb: get_attrib(ffi::glx_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB as libc::c_int, config) != 0,
+        };
+
+        Some((config, pf))
+    }).collect())
 }
