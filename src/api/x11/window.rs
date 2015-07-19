@@ -271,7 +271,6 @@ pub struct Window {
     is_closed: AtomicBool,
     wm_delete_window: ffi::Atom,
     current_size: Cell<(libc::c_int, libc::c_int)>,
-    pixel_format: PixelFormat,
     /// Events that have been retreived with XLib but not dispatched with iterators yet
     pending_events: Mutex<VecDeque<Event>>,
     cursor_state: Mutex<CursorState>,
@@ -285,64 +284,6 @@ impl Window {
         let screen_id = match builder.monitor {
             Some(PlatformMonitorID::X(MonitorID(_, monitor))) => monitor as i32,
             _ => unsafe { (display.xlib.XDefaultScreen)(display.display) },
-        };
-
-        // getting the FBConfig
-        let fb_config = unsafe {
-            let mut visual_attributes = vec![
-                ffi::glx::X_RENDERABLE as libc::c_int,  1,
-                ffi::glx::DRAWABLE_TYPE as libc::c_int, ffi::glx::WINDOW_BIT as libc::c_int,
-                ffi::glx::RENDER_TYPE as libc::c_int,   ffi::glx::RGBA_BIT as libc::c_int,
-                ffi::glx::X_VISUAL_TYPE as libc::c_int, ffi::glx::TRUE_COLOR as libc::c_int,
-                ffi::glx::RED_SIZE as libc::c_int,      8,
-                ffi::glx::GREEN_SIZE as libc::c_int,    8,
-                ffi::glx::BLUE_SIZE as libc::c_int,     8,
-                ffi::glx::ALPHA_SIZE as libc::c_int,    8,
-                ffi::glx::DEPTH_SIZE as libc::c_int,    24,
-                ffi::glx::STENCIL_SIZE as libc::c_int,  8,
-                ffi::glx::DOUBLEBUFFER as libc::c_int,  1,
-            ];
-
-            if let Some(val) = builder.multisampling {
-                visual_attributes.push(ffi::glx::SAMPLE_BUFFERS as libc::c_int);
-                visual_attributes.push(1);
-                visual_attributes.push(ffi::glx::SAMPLES as libc::c_int);
-                visual_attributes.push(val as libc::c_int);
-            }
-
-            if let Some(val) = builder.srgb {
-                visual_attributes.push(ffi::glx_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB as libc::c_int);
-                visual_attributes.push(if val {1} else {0});
-            }
-
-            visual_attributes.push(0);
-
-            let mut num_fb: libc::c_int = mem::uninitialized();
-
-            let fb = display.glx.as_ref().unwrap().ChooseFBConfig(display.display as *mut _, (display.xlib.XDefaultScreen)(display.display),
-                visual_attributes.as_ptr(), &mut num_fb);
-            if fb.is_null() {
-                return Err(OsError(format!("glx::ChooseFBConfig failed")));
-            }
-
-            let preferred_fb = if builder.transparent {
-                let mut best_fbi_for_transparent = 0isize;
-
-                for i in 0isize..num_fb as isize {
-                    let vi = display.glx.as_ref().unwrap().GetVisualFromFBConfig(display.display as *mut _, *fb.offset(i));
-                    if (*vi).depth == 32 {
-                        best_fbi_for_transparent = i;
-                        break;
-                    }
-                }
-
-                *fb.offset(best_fbi_for_transparent)
-            } else {
-                *fb // TODO: choose more wisely
-            };
-
-            (display.xlib.XFree)(fb as *mut _);
-            preferred_fb
         };
 
         // finding the mode to switch to if necessary
@@ -385,40 +326,53 @@ impl Window {
             (mode_to_switch_to, xf86_desk_mode)
         };
 
-        // getting the visual infos
-        let visual_infos: ffi::glx::types::XVisualInfo = unsafe {
-            let vi = display.glx.as_ref().unwrap().GetVisualFromFBConfig(display.display as *mut _, fb_config);
-            if vi.is_null() {
-                return Err(OsError(format!("glx::ChooseVisual failed")));
-            }
-            let vi_copy = ptr::read(vi as *const _);
-            (display.xlib.XFree)(vi as *mut _);
-            vi_copy
+        // start the context building process
+        enum Prototype<'a> {
+            Glx(::api::glx::ContextPrototype<'a>),
+            Egl(::api::egl::ContextPrototype<'a>),
+        }
+        let builder_clone = builder.clone();
+        let context = match builder.gl_version {
+            GlRequest::Latest | GlRequest::Specific(Api::OpenGl, _) | GlRequest::GlThenGles { .. } => {
+                if let Some(ref glx) = display.glx {
+                    Prototype::Glx(try!(GlxContext::new(glx.clone(), &display.xlib, &builder_clone, display.display)))
+                } else if let Some(ref egl) = display.egl {
+                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone, Some(display.display as *const _))))
+                } else {
+                    return Err(CreationError::NotSupported);
+                }
+            },
+            GlRequest::Specific(Api::OpenGlEs, _) => {
+                if let Some(ref egl) = display.egl {
+                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone, Some(display.display as *const _))))
+                } else {
+                    return Err(CreationError::NotSupported);
+                }
+            },
+            GlRequest::Specific(_, _) => {
+                return Err(CreationError::NotSupported);
+            },
         };
 
-        // querying the chosen pixel format
-        let pixel_format = {
-            let get_attrib = |attrib: libc::c_int| -> i32 {
-                let mut value = 0;
-                unsafe { display.glx.as_ref().unwrap().GetFBConfigAttrib(display.display as *mut _, fb_config, attrib, &mut value); }
-                value
-            };
+        // getting the `visual_infos` (a struct that contains information about the visual to use)
+        let visual_infos = match context {
+            Prototype::Glx(ref p) => p.get_visual_infos().clone(),
+            Prototype::Egl(ref p) => {
+                unsafe {
+                    let mut template: ffi::XVisualInfo = mem::zeroed();
+                    template.visualid = p.get_native_visual_id() as ffi::VisualID;
 
-            PixelFormat {
-                hardware_accelerated: true,
-                color_bits: get_attrib(ffi::glx::RED_SIZE as libc::c_int) as u8 +
-                            get_attrib(ffi::glx::GREEN_SIZE as libc::c_int) as u8 +
-                            get_attrib(ffi::glx::BLUE_SIZE as libc::c_int) as u8,
-                alpha_bits: get_attrib(ffi::glx::ALPHA_SIZE as libc::c_int) as u8,
-                depth_bits: get_attrib(ffi::glx::DEPTH_SIZE as libc::c_int) as u8,
-                stencil_bits: get_attrib(ffi::glx::STENCIL_SIZE as libc::c_int) as u8,
-                stereoscopy: get_attrib(ffi::glx::STEREO as libc::c_int) != 0,
-                double_buffer: get_attrib(ffi::glx::DOUBLEBUFFER as libc::c_int) != 0,
-                multisampling: if get_attrib(ffi::glx::SAMPLE_BUFFERS as libc::c_int) != 0 {
-                    Some(get_attrib(ffi::glx::SAMPLES as libc::c_int) as u16)
-                }else { None },
-                srgb: get_attrib(ffi::glx_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB as libc::c_int) != 0,
-            }
+                    let mut num_visuals = 0;
+                    let vi = (display.xlib.XGetVisualInfo)(display.display, ffi::VisualIDMask,
+                                                           &mut template, &mut num_visuals);
+                    assert!(!vi.is_null());
+                    assert!(num_visuals == 1);
+
+                    let vi_copy = ptr::read(vi as *const _);
+                    (display.xlib.XFree)(vi as *mut _);
+                    vi_copy
+                }
+            },
         };
 
         // getting the root window
@@ -427,7 +381,8 @@ impl Window {
         // creating the color map
         let cmap = unsafe {
             let cmap = (display.xlib.XCreateColormap)(display.display, root,
-                visual_infos.visual as *mut _, ffi::AllocNone);
+                                                      visual_infos.visual as *mut _,
+                                                      ffi::AllocNone);
             // TODO: error checking?
             cmap
         };
@@ -545,27 +500,14 @@ impl Window {
         }
 
         let is_fullscreen = builder.monitor.is_some();
-        // creating the context
-        let context = match builder.gl_version {
-            GlRequest::Latest | GlRequest::Specific(Api::OpenGl, _) | GlRequest::GlThenGles { .. } => {
-                if let Some(ref glx) = display.glx {
-                    Context::Glx(try!(GlxContext::new(glx.clone(), builder, display.display, window,
-                                                      fb_config, visual_infos)))
-                } else if let Some(ref egl) = display.egl {
-                    Context::Egl(try!(EglContext::new(egl.clone(), &builder, Some(display.display as *const _)).and_then(|p| p.finish(window as *const _))))
-                } else {
-                    return Err(CreationError::NotSupported);
-                }
+
+        // finish creating the OpenGL context
+        let context = match context {
+            Prototype::Glx(ctxt) => {
+                Context::Glx(try!(ctxt.finish(window)))
             },
-            GlRequest::Specific(Api::OpenGlEs, _) => {
-                if let Some(ref egl) = display.egl {
-                    Context::Egl(try!(EglContext::new(egl.clone(), &builder, Some(display.display as *const _)).and_then(|p| p.finish(window as *const _))))
-                } else {
-                    return Err(CreationError::NotSupported);
-                }
-            },
-            GlRequest::Specific(_, _) => {
-                return Err(CreationError::NotSupported);
+            Prototype::Egl(ctxt) => {
+                Context::Egl(try!(ctxt.finish(window as *const libc::c_void)))
             },
         };
 
@@ -585,7 +527,6 @@ impl Window {
             is_closed: AtomicBool::new(false),
             wm_delete_window: wm_delete_window,
             current_size: Cell::new((0, 0)),
-            pixel_format: pixel_format,
             pending_events: Mutex::new(VecDeque::new()),
             cursor_state: Mutex::new(CursorState::Normal),
             input_handler: Mutex::new(XInputEventHandler::new(display, window, ic))
@@ -835,6 +776,10 @@ impl GlContext for Window {
     }
 
     fn get_pixel_format(&self) -> PixelFormat {
-        self.pixel_format.clone()
+        match self.x.context {
+            Context::Glx(ref ctxt) => ctxt.get_pixel_format(),
+            Context::Egl(ref ctxt) => ctxt.get_pixel_format(),
+            Context::None => panic!()
+        }
     }
 }

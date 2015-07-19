@@ -30,6 +30,7 @@ pub struct Window {
     event_rx: Receiver<android_glue::Event>,
 }
 
+#[derive(Clone)]
 pub struct MonitorID;
 
 mod ffi;

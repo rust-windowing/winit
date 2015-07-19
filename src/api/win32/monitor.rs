@@ -7,6 +7,7 @@ use std::mem;
 use native_monitor::NativeMonitorId;
 
 /// Win32 implementation of the main `MonitorID` object.
+#[derive(Clone)]
 pub struct MonitorID {
     /// The system name of the adapter.
     adapter_name: [winapi::WCHAR; 32],

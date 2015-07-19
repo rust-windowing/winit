@@ -60,6 +60,7 @@ impl WindowProxy {
     }
 }
 
+#[derive(Clone)]
 pub enum MonitorID {
     #[doc(hidden)]
     X(x11::MonitorID),

@@ -323,6 +323,7 @@ pub struct PixelFormat {
 
 /// Attributes
 // FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
+#[derive(Clone)]
 #[doc(hidden)]
 pub struct BuilderAttribs<'a> {
     #[allow(dead_code)]
@@ -471,7 +472,7 @@ impl<'a> BuilderAttribs<'a> {
 mod native_monitor {
     /// Native platform identifier for a monitor. Different platforms use fundamentally different types
     /// to represent a monitor ID.
-    #[derive(PartialEq, Eq)]
+    #[derive(Clone, PartialEq, Eq)]
     pub enum NativeMonitorId {
         /// Cocoa and X11 use a numeric identifier to represent a monitor.
         Numeric(u32),
