@@ -472,9 +472,13 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
             if egl_version >= &(1, 5) {
                 context_attributes.push(ffi::egl::CONTEXT_OPENGL_DEBUG as i32);
                 context_attributes.push(ffi::egl::TRUE as i32);
-            } else {
-                flags = flags | ffi::egl::CONTEXT_OPENGL_DEBUG_BIT_KHR as i32;
             }
+
+            // TODO: using this flag sometimes generates an error
+            //       there was a change in the specs that added this flag, so it may not be
+            //       supported everywhere ; however it is not possible to know whether it is
+            //       supported or not
+            //flags = flags | ffi::egl::CONTEXT_OPENGL_DEBUG_BIT_KHR as i32;
         }
 
         context_attributes.push(ffi::egl::CONTEXT_FLAGS_KHR as i32);
@@ -499,7 +503,10 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
                                     context_attributes.as_ptr());
 
     if context.is_null() {
-        return Err(CreationError::NotSupported);
+        match egl.GetError() as u32 {
+            ffi::egl::BAD_ATTRIBUTE => return Err(CreationError::NotSupported),
+            e => panic!("eglCreateContext failed: 0x{:x}", e),
+        }
     }
 
     Ok(context)
