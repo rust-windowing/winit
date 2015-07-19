@@ -111,8 +111,8 @@ impl Window {
             return Err(OsError(format!("Android's native window is null")));
         }
 
-        let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder, None,
-                                           native_window as *const _));
+        let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder, None)
+                                                .and_then(|p| p.finish(native_window as *const _)));
 
         let (tx, rx) = channel();
         android_glue::add_sender(tx);
