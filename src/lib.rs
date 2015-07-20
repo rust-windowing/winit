@@ -108,6 +108,7 @@ pub trait GlContext {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CreationError {
     OsError(String),
+    /// TODO: remove this error
     NotSupported,
     RobustnessNotSupported,
     OpenGlVersionNotSupported,
