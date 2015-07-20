@@ -573,5 +573,5 @@ fn choose_dummy_pixel_format<I>(iter: I) -> Result<libc::c_int, CreationError>
         }
     }
 
-    backup_id.ok_or(CreationError::NotSupported)
+    backup_id.ok_or(CreationError::OsError("No available pixel format".to_string()))
 }

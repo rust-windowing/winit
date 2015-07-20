@@ -603,7 +603,7 @@ impl Window {
                     Err(CreationError::NotSupported)
                 }
             } else {
-                Err(CreationError::NotSupported)
+                Err(CreationError::NoAvailablePixelFormat)
             }
         }
     }

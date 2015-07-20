@@ -111,6 +111,7 @@ pub enum CreationError {
     NotSupported,
     RobustnessNotSupported,
     OpenGlVersionNotSupported,
+    NoAvailablePixelFormat,
 }
 
 impl CreationError {
@@ -122,6 +123,8 @@ impl CreationError {
                                                       not supported.",
             CreationError::OpenGlVersionNotSupported => "The requested OpenGL version is not \
                                                          supported.",
+            CreationError::NoAvailablePixelFormat => "Couldn't find any pixel format that matches \
+                                                      the criterias.",
         }
     }
 }
@@ -471,7 +474,7 @@ impl<'a> BuilderAttribs<'a> {
         }
 
         current_result.or(current_software_result)
-                      .ok_or(CreationError::NotSupported)
+                      .ok_or(CreationError::NoAvailablePixelFormat)
     }
 }
 
