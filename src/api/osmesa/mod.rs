@@ -41,7 +41,7 @@ impl OsMesaContext {
 
         match builder.gl_robustness {
             Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
-                return Err(CreationError::NotSupported.into());
+                return Err(CreationError::RobustnessNotSupported.into());
             },
             _ => ()
         }

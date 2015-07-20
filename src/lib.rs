@@ -109,6 +109,7 @@ pub trait GlContext {
 pub enum CreationError {
     OsError(String),
     NotSupported,
+    RobustnessNotSupported,
 }
 
 impl CreationError {
@@ -116,6 +117,8 @@ impl CreationError {
         match *self {
             CreationError::OsError(ref text) => &text,
             CreationError::NotSupported => "Some of the requested attributes are not supported",
+            CreationError::RobustnessNotSupported => "Your requested robustness, but it is \
+                                                      not supported.",
         }
     }
 }

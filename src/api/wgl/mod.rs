@@ -290,7 +290,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                 } else {
                     match builder.gl_robustness {
                         Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
-                            return Err(CreationError::NotSupported);
+                            return Err(CreationError::RobustnessNotSupported);
                         },
                         _ => ()
                     }

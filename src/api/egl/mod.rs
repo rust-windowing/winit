@@ -434,7 +434,7 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
                     context_attributes.push(ffi::egl::NO_RESET_NOTIFICATION as libc::c_int);
                     flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
                 } else {
-                    return Err(CreationError::NotSupported);
+                    return Err(CreationError::RobustnessNotSupported);
                 }
             },
 
@@ -454,7 +454,7 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
                     context_attributes.push(ffi::egl::LOSE_CONTEXT_ON_RESET as libc::c_int);
                     flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
                 } else {
-                    return Err(CreationError::NotSupported);
+                    return Err(CreationError::RobustnessNotSupported);
                 }
             },
 
@@ -488,7 +488,7 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
         // robustness is not supported
         match gl_robustness {
             Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
-                return Err(CreationError::NotSupported);
+                return Err(CreationError::RobustnessNotSupported);
             },
             _ => ()
         }

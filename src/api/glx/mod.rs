@@ -301,7 +301,7 @@ fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx, ex
                 } else {
                     match robustness {
                         Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
-                            return Err(CreationError::NotSupported);
+                            return Err(CreationError::RobustnessNotSupported);
                         },
                         _ => ()
                     }
