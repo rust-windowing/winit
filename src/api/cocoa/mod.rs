@@ -512,11 +512,11 @@ impl Window {
             },
             (_, Some((1 ... 2, _)), Some(GlProfile::Core)) |
             (_, Some((3 ... 4, _)), Some(GlProfile::Compatibility)) =>
-                return Err(CreationError::NotSupported),
+                return Err(CreationError::OpenGlVersionNotSupported),
             (_, Some((1 ... 2, _)), _) => NSOpenGLProfileVersionLegacy as u32,
             (_, Some((3, 0 ... 2)), _) => NSOpenGLProfileVersion3_2Core as u32,
             (_, Some((3 ... 4, _)), _) => NSOpenGLProfileVersion4_1Core as u32,
-            _ => return Err(CreationError::NotSupported),
+            _ => return Err(CreationError::OpenGlVersionNotSupported),
         };
 
         // NOTE: OS X no longer has the concept of setting individual

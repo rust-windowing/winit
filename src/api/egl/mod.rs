@@ -68,7 +68,7 @@ impl Context {
                         } else if egl.BindAPI(ffi::egl::OPENGL_ES_API) != 0 {
                             (None, Api::OpenGlEs)
                         } else {
-                            return Err(CreationError::NotSupported);
+                            return Err(CreationError::OpenGlVersionNotSupported);
                         }
                     } else {
                         (None, Api::OpenGlEs)
@@ -77,21 +77,21 @@ impl Context {
                 GlRequest::Specific(Api::OpenGlEs, version) => {
                     if egl_version >= (1, 2) {
                         if egl.BindAPI(ffi::egl::OPENGL_ES_API) == 0 {
-                            return Err(CreationError::NotSupported);
+                            return Err(CreationError::OpenGlVersionNotSupported);
                         }
                     }
                     (Some(version), Api::OpenGlEs)
                 },
                 GlRequest::Specific(Api::OpenGl, version) => {
                     if egl_version < (1, 4) {
-                        return Err(CreationError::NotSupported);
+                        return Err(CreationError::OpenGlVersionNotSupported);
                     }
                     if egl.BindAPI(ffi::egl::OPENGL_API) == 0 {
-                        return Err(CreationError::NotSupported);
+                        return Err(CreationError::OpenGlVersionNotSupported);
                     }
                     (Some(version), Api::OpenGl)
                 },
-                GlRequest::Specific(_, _) => return Err(CreationError::NotSupported),
+                GlRequest::Specific(_, _) => return Err(CreationError::OpenGlVersionNotSupported),
                 GlRequest::GlThenGles { opengles_version, opengl_version } => {
                     if egl_version >= (1, 4) {
                         if egl.BindAPI(ffi::egl::OPENGL_API) != 0 {
@@ -99,7 +99,7 @@ impl Context {
                         } else if egl.BindAPI(ffi::egl::OPENGL_ES_API) != 0 {
                             (Some(opengles_version), Api::OpenGlEs)
                         } else {
-                            return Err(CreationError::NotSupported);
+                            return Err(CreationError::OpenGlVersionNotSupported);
                         }
                     } else {
                         (Some(opengles_version), Api::OpenGlEs)
@@ -245,7 +245,7 @@ impl<'a> ContextPrototype<'a> {
                 {
                     ctxt
                 } else {
-                    return Err(CreationError::NotSupported);
+                    return Err(CreationError::OpenGlVersionNotSupported);
                 }
 
             } else {
@@ -267,7 +267,7 @@ impl<'a> ContextPrototype<'a> {
                 {
                     ctxt
                 } else {
-                    return Err(CreationError::NotSupported);
+                    return Err(CreationError::OpenGlVersionNotSupported);
                 }
             }
         };
@@ -504,7 +504,7 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
 
     if context.is_null() {
         match egl.GetError() as u32 {
-            ffi::egl::BAD_ATTRIBUTE => return Err(CreationError::NotSupported),
+            ffi::egl::BAD_ATTRIBUTE => return Err(CreationError::OpenGlVersionNotSupported),
             e => panic!("eglCreateContext failed: 0x{:x}", e),
         }
     }

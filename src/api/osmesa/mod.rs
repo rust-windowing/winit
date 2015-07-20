@@ -46,6 +46,8 @@ impl OsMesaContext {
             _ => ()
         }
 
+        // TODO: check OpenGL version and return `OpenGlVersionNotSupported` if necessary
+
         Ok(OsMesaContext {
             width: dimensions.0,
             height: dimensions.1,

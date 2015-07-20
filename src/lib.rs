@@ -110,6 +110,7 @@ pub enum CreationError {
     OsError(String),
     NotSupported,
     RobustnessNotSupported,
+    OpenGlVersionNotSupported,
 }
 
 impl CreationError {
@@ -119,6 +120,8 @@ impl CreationError {
             CreationError::NotSupported => "Some of the requested attributes are not supported",
             CreationError::RobustnessNotSupported => "Your requested robustness, but it is \
                                                       not supported.",
+            CreationError::OpenGlVersionNotSupported => "The requested OpenGL version is not \
+                                                         supported.",
         }
     }
 }

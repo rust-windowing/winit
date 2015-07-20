@@ -235,7 +235,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                         attributes.push(gl::wgl_extra::CONTEXT_PROFILE_MASK_ARB as libc::c_int);
                         attributes.push(gl::wgl_extra::CONTEXT_ES2_PROFILE_BIT_EXT as libc::c_int);
                     } else {
-                        return Err(CreationError::NotSupported);
+                        return Err(CreationError::OpenGlVersionNotSupported);
                     }
 
                     attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
@@ -243,7 +243,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                     attributes.push(gl::wgl_extra::CONTEXT_MINOR_VERSION_ARB as libc::c_int);
                     attributes.push(minor as libc::c_int);
                 },
-                GlRequest::Specific(_, _) => return Err(CreationError::NotSupported),
+                GlRequest::Specific(_, _) => return Err(CreationError::OpenGlVersionNotSupported),
                 GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
                     attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
                     attributes.push(major as libc::c_int);
