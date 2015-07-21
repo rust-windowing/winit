@@ -301,7 +301,7 @@ fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx, ex
                 } else {
                     match robustness {
                         Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
-                            return Err(CreationError::NotSupported);
+                            return Err(CreationError::RobustnessNotSupported);
                         },
                         _ => ()
                     }
@@ -328,6 +328,7 @@ fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx, ex
         };
 
         if context.is_null() {
+            // TODO: check for errors and return `OpenGlVersionNotSupported`
             return Err(CreationError::OsError(format!("GL context creation failed")));
         }
 

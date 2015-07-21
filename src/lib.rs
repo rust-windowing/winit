@@ -108,7 +108,11 @@ pub trait GlContext {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CreationError {
     OsError(String),
+    /// TODO: remove this error
     NotSupported,
+    RobustnessNotSupported,
+    OpenGlVersionNotSupported,
+    NoAvailablePixelFormat,
 }
 
 impl CreationError {
@@ -116,6 +120,12 @@ impl CreationError {
         match *self {
             CreationError::OsError(ref text) => &text,
             CreationError::NotSupported => "Some of the requested attributes are not supported",
+            CreationError::RobustnessNotSupported => "Your requested robustness, but it is \
+                                                      not supported.",
+            CreationError::OpenGlVersionNotSupported => "The requested OpenGL version is not \
+                                                         supported.",
+            CreationError::NoAvailablePixelFormat => "Couldn't find any pixel format that matches \
+                                                      the criterias.",
         }
     }
 }
@@ -465,7 +475,7 @@ impl<'a> BuilderAttribs<'a> {
         }
 
         current_result.or(current_software_result)
-                      .ok_or(CreationError::NotSupported)
+                      .ok_or(CreationError::NoAvailablePixelFormat)
     }
 }
 

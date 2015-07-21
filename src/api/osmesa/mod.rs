@@ -41,10 +41,12 @@ impl OsMesaContext {
 
         match builder.gl_robustness {
             Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
-                return Err(CreationError::NotSupported.into());
+                return Err(CreationError::RobustnessNotSupported.into());
             },
             _ => ()
         }
+
+        // TODO: check OpenGL version and return `OpenGlVersionNotSupported` if necessary
 
         Ok(OsMesaContext {
             width: dimensions.0,
