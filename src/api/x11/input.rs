@@ -77,7 +77,7 @@ impl XInputEventHandler {
         // X11 events.
         let mut mask: [libc::c_uchar; 2] = [0, 0];
         let mut input_event_mask = ffi::XIEventMask {
-            deviceid: ffi::XIAllDevices,
+            deviceid: ffi::XIAllMasterDevices,
             mask_len: mask.len() as i32,
             mask: mask.as_mut_ptr()
         };
