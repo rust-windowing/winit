@@ -358,6 +358,22 @@ unsafe fn enumerate_configs(glx: &ffi::glx::Glx, xlib: &ffi::Xlib, display: *mut
     };
 
     Ok(configs.into_iter().filter_map(|config| {
+        if get_attrib(ffi::glx::DRAWABLE_TYPE as libc::c_int, config) &
+                                        ffi::glx::WINDOW_BIT as libc::c_int == 0
+        {
+            return None;
+        }
+
+        if get_attrib(ffi::glx::VISUAL_ID as libc::c_int, config) == 0 {
+            return None;
+        }
+
+        if get_attrib(ffi::glx::RENDER_TYPE as libc::c_int, config) &
+                                        ffi::glx::RGBA_BIT as libc::c_int == 0
+        {
+            return None;
+        }
+
         let caveat = get_attrib(ffi::glx::CONFIG_CAVEAT as libc::c_int, config);
         if caveat == ffi::glx::NON_CONFORMANT_CONFIG as libc::c_int {
             return None;
