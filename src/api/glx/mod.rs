@@ -340,13 +340,14 @@ fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx, ex
 unsafe fn enumerate_configs(glx: &ffi::glx::Glx, xlib: &ffi::Xlib, display: *mut ffi::Display)
                             -> Result<Vec<(ffi::glx::types::GLXFBConfig, PixelFormat)>, CreationError>
 {
-    let configs = {
+    let configs: Vec<ffi::glx::types::GLXFBConfig> = {
         let mut num_configs = 0;
         let vals = glx.GetFBConfigs(display as *mut _, 0, &mut num_configs);      // TODO: screen number
         assert!(!vals.is_null());
         let configs = slice::from_raw_parts(vals, num_configs as usize);
+        let ret = configs.to_vec();
         (xlib.XFree)(vals as *mut _);
-        configs.to_vec()
+        ret
     };
 
     let get_attrib = |attrib: libc::c_int, fb_config: ffi::glx::types::GLXFBConfig| -> i32 {
