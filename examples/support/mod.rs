@@ -22,7 +22,7 @@ pub fn load(window: &glutin::Window) -> Context {
     let gl = gl::Gl::load(window);
 
     let version = unsafe {
-        let data = CStr::from_ptr(gl.GetString(gl::VERSION) as *const i8).to_bytes().to_vec();
+        let data = CStr::from_ptr(gl.GetString(gl::VERSION) as *const _).to_bytes().to_vec();
         String::from_utf8(data).unwrap()
     };
 
