@@ -202,7 +202,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     return Some(Refresh);
                 },
 
-                ffi::KeyPress | ffi::KeyRelease => { 
+                ffi::KeyPress | ffi::KeyRelease => {
                     let mut event: &mut ffi::XKeyEvent = unsafe { mem::transmute(&mut xev) };
                     let events = self.window.input_handler.lock().unwrap().translate_key_event(&mut event);
                     for event in events {
@@ -596,8 +596,8 @@ impl Window {
         self.get_geometry().map(|(_, _, w, h, b)| (w + b, h + b))       // TODO: is this really outside?
     }
 
-    pub fn set_inner_size(&self, _x: u32, _y: u32) {
-        unimplemented!()
+    pub fn set_inner_size(&self, x: u32, y: u32) {
+        unsafe { (self.x.display.xlib.XResizeWindow)(self.x.display.display, self.x.window, x as libc::c_uint, y as libc::c_uint); }
     }
 
     pub fn create_window_proxy(&self) -> WindowProxy {
