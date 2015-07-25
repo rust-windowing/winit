@@ -68,6 +68,7 @@ pub use window::{AvailableMonitorsIter, MonitorID, get_available_monitors, get_p
 pub use native_monitor::NativeMonitorId;
 
 use std::io;
+use std::cmp::Ordering;
 
 mod api;
 mod platform;
@@ -426,56 +427,100 @@ impl<'a> BuilderAttribs<'a> {
     fn choose_pixel_format<T, I>(&self, iter: I) -> Result<(T, PixelFormat), CreationError>
                                  where I: IntoIterator<Item=(T, PixelFormat)>, T: Clone
     {
-        let mut current_result = None;
-        let mut current_software_result = None;
-
-        // TODO: do this more properly
-        for (id, format) in iter {
+        // filtering formats that don't match the requirements
+        let iter = iter.into_iter().filter(|&(_, ref format)| {
             if format.color_bits < self.color_bits.unwrap_or(0) {
-                continue;
+                return false;
             }
 
             if format.alpha_bits < self.alpha_bits.unwrap_or(0) {
-                continue;
+                return false;
             }
 
             if format.depth_bits < self.depth_bits.unwrap_or(0) {
-                continue;
+                return false;
             }
 
             if format.stencil_bits < self.stencil_bits.unwrap_or(0) {
-                continue;
+                return false;
             }
 
             if !format.stereoscopy && self.stereoscopy {
-                continue;
+                return false;
             }
 
             if let Some(req_ms) = self.multisampling {
                 match format.multisampling {
                     Some(val) if val >= req_ms => (),
-                    _ => continue
+                    _ => return false
                 }
             } else {
                 if format.multisampling.is_some() {
-                    continue;
+                    return false;
                 }
             }
 
             if let Some(srgb) = self.srgb {
                 if srgb != format.srgb {
-                    continue;
+                    return false;
                 }
             }
 
-            current_software_result = Some((id.clone(), format.clone()));
-            if format.hardware_accelerated {
-                current_result = Some((id, format));
-            }
-        }
+            true
+        });
 
-        current_result.or(current_software_result)
-                      .ok_or(CreationError::NoAvailablePixelFormat)
+        // sorting so that the preferred format comes first
+        let mut formats = iter.collect::<Vec<_>>();
+        formats.sort_by(|&(_, ref left), &(_, ref right)| {
+            // prefer hardware-accelerated formats
+            if left.hardware_accelerated && !right.hardware_accelerated {
+                return Ordering::Less;
+            } else if right.hardware_accelerated && !left.hardware_accelerated {
+                return Ordering::Greater;
+            }
+
+            // prefer sRGB formats
+            if left.srgb && !right.srgb {
+                return Ordering::Less;
+            } else if right.srgb && !left.srgb {
+                return Ordering::Greater;
+            }
+
+            // prefer formats with the highest color+alpha bits
+            if left.color_bits + left.alpha_bits != right.color_bits + right.alpha_bits {
+                return (right.color_bits + right.alpha_bits)
+                                                        .cmp(&(left.color_bits + left.alpha_bits));
+            }
+
+            // prefer double-buffering formats
+            if left.double_buffer && !right.double_buffer {
+                return Ordering::Less;
+            } else if right.double_buffer && !left.double_buffer {
+                return Ordering::Greater;
+            }
+
+            // prefer formats with the highest depth bits
+            if left.depth_bits != right.depth_bits {
+                return (right.depth_bits).cmp(&left.depth_bits);
+            }
+
+            // prefer formats with the highest stencil bits
+            if left.stencil_bits != right.stencil_bits {
+                return (right.stencil_bits).cmp(&left.stencil_bits);
+            }
+
+            // prefer formats with multisampling
+            if left.multisampling.is_some() && right.multisampling.is_none() {
+                return Ordering::Less;
+            } else if right.multisampling.is_some() && left.multisampling.is_none() {
+                return Ordering::Greater;
+            }
+
+            // default
+            return Ordering::Equal;
+        });
+
+        formats.into_iter().next().ok_or(CreationError::NoAvailablePixelFormat)
     }
 }
 
