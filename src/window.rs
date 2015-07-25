@@ -294,11 +294,10 @@ impl Window {
         self.window.set_position(x, y)
     }
 
-    /// Returns the size in pixels of the client area of the window.
+    /// Returns the size in points of the client area of the window.
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
-    /// These are the dimensions of the frame buffer, and the dimensions that you should use
-    ///  when you call `glViewport`.
+    /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
