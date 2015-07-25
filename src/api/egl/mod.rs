@@ -226,6 +226,33 @@ impl<'a> ContextPrototype<'a> {
             surface
         };
 
+        self.finish_impl(surface)
+    }
+
+    pub fn finish_pbuffer(self) -> Result<Context, CreationError> {
+        let dimensions = self.builder.dimensions.unwrap_or((800, 600));
+
+        let attrs = &[
+            ffi::egl::WIDTH as libc::c_int, dimensions.0 as libc::c_int,
+            ffi::egl::HEIGHT as libc::c_int, dimensions.1 as libc::c_int,
+            ffi::egl::NONE as libc::c_int,
+        ];
+
+        let surface = unsafe {
+            let surface = self.egl.CreatePbufferSurface(self.display, self.config_id,
+                                                        attrs.as_ptr());
+            if surface.is_null() {
+                return Err(CreationError::OsError(format!("eglCreatePbufferSurface failed")))
+            }
+            surface
+        };
+
+        self.finish_impl(surface)
+    }
+
+    fn finish_impl(self, surface: ffi::egl::types::EGLSurface)
+                   -> Result<Context, CreationError>
+    {
         let context = unsafe {
             if let Some(version) = self.version {
                 try!(create_context(&self.egl, self.display, &self.egl_version, self.api,
@@ -351,7 +378,9 @@ unsafe fn enumerate_configs(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDi
             }
         }
 
-        if attrib!(egl, display, config_id, ffi::egl::SURFACE_TYPE) & ffi::egl::WINDOW_BIT as i32 == 0 {
+        if attrib!(egl, display, config_id, ffi::egl::SURFACE_TYPE) &
+                                        (ffi::egl::WINDOW_BIT | ffi::egl::PBUFFER_BIT) as i32 == 0
+        {
             continue;
         }
 
