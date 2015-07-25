@@ -301,8 +301,23 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
+    pub fn get_inner_size_points(&self) -> Option<(u32, u32)> {
         self.window.get_inner_size()
+    }
+
+    /// Returns the size in pixels of the client area of the window.
+    ///
+    /// The client area is the content of the window, excluding the title bar and borders.
+    /// These are the dimensions of the frame buffer, and the dimensions that you should use
+    ///  when you call `glViewport`.
+    ///
+    /// Returns `None` if the window no longer exists.
+    #[inline]
+    pub fn get_inner_size_pixels(&self) -> Option<(u32, u32)> {
+        self.window.get_inner_size().map(|(x, y)| {
+            let hidpi = self.hidpi_factor();
+            ((x as f32 * hidpi) as u32, (y as f32 * hidpi) as u32)
+        })
     }
 
     /// Returns the size in pixels of the window.
