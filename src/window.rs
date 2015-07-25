@@ -300,10 +300,24 @@ impl Window {
     /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
     ///
     /// Returns `None` if the window no longer exists.
+    ///
+    /// DEPRECATED
+    #[inline]
+    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
+        self.window.get_inner_size()
+    }
+    
+    /// Returns the size in points of the client area of the window.
+    ///
+    /// The client area is the content of the window, excluding the title bar and borders.
+    /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
+    ///
+    /// Returns `None` if the window no longer exists.
     #[inline]
     pub fn get_inner_size_points(&self) -> Option<(u32, u32)> {
         self.window.get_inner_size()
     }
+
 
     /// Returns the size in pixels of the client area of the window.
     ///
