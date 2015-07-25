@@ -358,6 +358,16 @@ unsafe fn enumerate_configs(glx: &ffi::glx::Glx, xlib: &ffi::Xlib, display: *mut
     };
 
     Ok(configs.into_iter().filter_map(|config| {
+        if get_attrib(ffi::glx::X_RENDERABLE as libc::c_int, config) == 0 {
+            return None;
+        }
+
+        if get_attrib(ffi::glx::X_VISUAL_TYPE as libc::c_int, config) !=
+                                                        ffi::glx::TRUE_COLOR as libc::c_int
+        {
+            return None;
+        }
+
         if get_attrib(ffi::glx::DRAWABLE_TYPE as libc::c_int, config) &
                                         ffi::glx::WINDOW_BIT as libc::c_int == 0
         {
