@@ -129,10 +129,9 @@ impl GlContext for Context {
         let ret = self.egl.MakeCurrent(self.display, self.surface, self.surface, self.context);
 
         if ret == 0 {
-            if self.egl.GetError() as u32 == ffi::egl::CONTEXT_LOST {
-                return Err(ContextError::ContextLost);
-            } else {
-                panic!("eglMakeCurrent failed");
+            match self.egl.GetError() as u32 {
+                ffi::egl::CONTEXT_LOST => return Err(ContextError::ContextLost),
+                err => panic!("eglMakeCurrent failed (eglGetError returned 0x{:x})", err)
             }
 
         } else {
@@ -158,10 +157,9 @@ impl GlContext for Context {
         };
 
         if ret == 0 {
-            if unsafe { self.egl.GetError() } as u32 == ffi::egl::CONTEXT_LOST {
-                return Err(ContextError::ContextLost);
-            } else {
-                panic!("eglSwapBuffers failed");
+            match unsafe { self.egl.GetError() } as u32 {
+                ffi::egl::CONTEXT_LOST => return Err(ContextError::ContextLost),
+                err => panic!("eglSwapBuffers failed (eglGetError returned 0x{:x})", err)
             }
 
         } else {
