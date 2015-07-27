@@ -32,6 +32,7 @@ use api::wgl;
 use api::wgl::Context as WglContext;
 use api::egl;
 use api::egl::Context as EglContext;
+use api::egl::ffi::egl::Egl;
 
 pub enum RawContext {
     Egl(egl::ffi::egl::types::EGLContext),
@@ -41,9 +42,12 @@ pub enum RawContext {
 unsafe impl Send for RawContext {}
 unsafe impl Sync for RawContext {}
 
-pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<RawContext>)
+pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<RawContext>,
+                  egl: Option<&Egl>)
                   -> Result<Window, CreationError>
 {
+    let egl = egl.map(|e| e.clone());
+
     // initializing variables to be sent to the task
 
     let title = OsStr::new(&builder.title).encode_wide().chain(Some(0).into_iter())
@@ -56,7 +60,7 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<R
     thread::spawn(move || {
         unsafe {
             // creating and sending the `Window`
-            match init(title, builder, builder_sharelists) {
+            match init(title, builder, builder_sharelists, egl) {
                 Ok(w) => tx.send(Ok(w)).ok(),
                 Err(e) => {
                     tx.send(Err(e)).ok();
@@ -83,7 +87,8 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<R
 }
 
 unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
-               builder_sharelists: Option<RawContext>) -> Result<Window, CreationError>
+               builder_sharelists: Option<RawContext>, egl: Option<Egl>)
+               -> Result<Window, CreationError>
 {
     // registering the window class
     let class_name = register_window_class();
@@ -159,24 +164,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     // creating the OpenGL context
     let context = match builder.gl_version {
         GlRequest::Specific(Api::OpenGlEs, (major, minor)) => {
-            // trying to load EGL from the ATI drivers
-
-            // TODO: use LoadLibraryA instead
-            let dll_name = if cfg!(target_pointer_width = "64") {
-                "atio6axx.dll"
-            } else {
-                "atioglxx.dll" 
-            };
-            let dll_name = OsStr::new(dll_name).encode_wide().chain(Some(0).into_iter())
-                                               .collect::<Vec<_>>();
-            let dll = unsafe { kernel32::LoadLibraryW(dll_name.as_ptr()) };
-
-            if !dll.is_null() {
-                let egl = ::api::egl::ffi::egl::Egl::load_with(|name| {
-                    let name = CString::new(name).unwrap();
-                    unsafe { kernel32::GetProcAddress(dll, name.as_ptr()) as *const libc::c_void }
-                });
-
+            if let Some(egl) = egl {
                 if let Ok(c) = EglContext::new(egl, &builder, Some(ptr::null()))
                                                               .and_then(|p| p.finish(real_window.0))
                 {
