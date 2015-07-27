@@ -14,6 +14,7 @@ use PixelFormat;
 use GlContext;
 
 use api::egl::ffi::egl::Egl;
+use api::egl::Context as EglContext;
 
 use std::ffi::CString;
 use std::ops::{Deref, DerefMut};
@@ -75,37 +76,74 @@ impl DerefMut for Window {
 }
 
 ///
-pub struct HeadlessContext(win32::Window);
+pub enum HeadlessContext {
+    /// A regular window, but invisible.
+    HiddenWindow(win32::Window),
+    /// An EGL pbuffer.
+    EglPbuffer(EglContext),
+}
 
 impl HeadlessContext {
     pub fn new(mut builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
         builder.visible = false;
-        win32::Window::new(builder, EGL.as_ref().map(|w| &w.0)).map(|w| HeadlessContext(w))
+
+        // if EGL is available, we try using EGL first
+        // if EGL returns an error, we try the hidden window method
+        if let &Some(ref egl) = &*EGL {
+            let context = EglContext::new(egl.0.clone(), &builder, None)
+                                .and_then(|prototype| prototype.finish_pbuffer())
+                                .map(|ctxt| HeadlessContext::EglPbuffer(ctxt));
+
+            if let Ok(context) = context {
+                return Ok(context);
+            }
+        }
+
+        let window = try!(win32::Window::new(builder, EGL.as_ref().map(|w| &w.0)));
+        Ok(HeadlessContext::HiddenWindow(window))
     }
 }
 
 impl GlContext for HeadlessContext {
     unsafe fn make_current(&self) -> Result<(), ContextError> {
-        self.0.make_current()
+        match self {
+            &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.make_current(),
+            &HeadlessContext::EglPbuffer(ref ctxt) => ctxt.make_current(),
+        }
     }
 
     fn is_current(&self) -> bool {
-        self.0.is_current()
+        match self {
+            &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.is_current(),
+            &HeadlessContext::EglPbuffer(ref ctxt) => ctxt.is_current(),
+        }
     }
 
     fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
-        self.0.get_proc_address(addr)
+        match self {
+            &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.get_proc_address(addr),
+            &HeadlessContext::EglPbuffer(ref ctxt) => ctxt.get_proc_address(addr),
+        }
     }
 
     fn swap_buffers(&self) -> Result<(), ContextError> {
-        self.0.swap_buffers()
+        match self {
+            &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.swap_buffers(),
+            &HeadlessContext::EglPbuffer(ref ctxt) => ctxt.swap_buffers(),
+        }
     }
 
     fn get_api(&self) -> Api {
-        self.0.get_api()
+        match self {
+            &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.get_api(),
+            &HeadlessContext::EglPbuffer(ref ctxt) => ctxt.get_api(),
+        }
     }
 
     fn get_pixel_format(&self) -> PixelFormat {
-        self.0.get_pixel_format()
+        match self {
+            &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.get_pixel_format(),
+            &HeadlessContext::EglPbuffer(ref ctxt) => ctxt.get_pixel_format(),
+        }
     }
 }
