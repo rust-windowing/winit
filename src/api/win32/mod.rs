@@ -29,6 +29,7 @@ use kernel32;
 use api::wgl;
 use api::wgl::Context as WglContext;
 use api::egl::Context as EglContext;
+use api::egl::ffi::egl::Egl;
 
 use self::init::RawContext;
 
@@ -84,7 +85,7 @@ impl WindowProxy {
 
 impl Window {
     /// See the docs in the crate root file.
-    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
+    pub fn new(builder: BuilderAttribs, egl: Option<&Egl>) -> Result<Window, CreationError> {
         let (builder, sharing) = builder.extract_non_static();
 
         let sharing = sharing.map(|w| match w.context {
@@ -92,7 +93,7 @@ impl Window {
             Context::Egl(_) => unimplemented!(),        // FIXME: 
         });
 
-        init::new_window(builder, sharing)
+        init::new_window(builder, sharing, egl)
     }
 
     /// See the docs in the crate root file.
