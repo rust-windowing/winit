@@ -249,3 +249,43 @@ impl WindowProxy {
         unimplemented!()
     }
 }
+
+pub struct HeadlessContext(EglContext);
+
+impl HeadlessContext {
+    /// See the docs in the crate root file.
+    pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
+        let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder, None));
+        let context = try!(context.finish_pbuffer());
+        Ok(context)
+    }
+}
+
+unsafe impl Send for HeadlessContext {}
+unsafe impl Sync for HeadlessContext {}
+
+impl GlContext for HeadlessContext {
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
+        self.0.make_current()
+    }
+
+    fn is_current(&self) -> bool {
+        self.0.is_current()
+    }
+
+    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+        self.0.get_proc_address(addr)
+    }
+
+    fn swap_buffers(&self) -> Result<(), ContextError> {
+        self.0.swap_buffers()
+    }
+
+    fn get_api(&self) -> Api {
+        self.0.get_api()
+    }
+
+    fn get_pixel_format(&self) -> PixelFormat {
+        self.0.get_pixel_format()
+    }
+}
