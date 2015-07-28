@@ -334,10 +334,10 @@ impl Window {
         let builder_clone = builder.clone();
         let context = match builder.gl_version {
             GlRequest::Latest | GlRequest::Specific(Api::OpenGl, _) | GlRequest::GlThenGles { .. } => {
-                if let Some(ref glx) = display.glx {
-                    Prototype::Glx(try!(GlxContext::new(glx.clone(), &display.xlib, &builder_clone, display.display)))
-                } else if let Some(ref egl) = display.egl {
+                if let Some(ref egl) = display.egl {
                     Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone, Some(display.display as *const _))))
+                } else if let Some(ref glx) = display.glx {
+                    Prototype::Glx(try!(GlxContext::new(glx.clone(), &display.xlib, &builder_clone, display.display)))
                 } else {
                     return Err(CreationError::NotSupported);
                 }
