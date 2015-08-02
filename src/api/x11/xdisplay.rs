@@ -63,7 +63,10 @@ impl XConnection {
 
         // TODO: use something safer than raw "dlopen"
         let egl = {
-            let libegl = unsafe { dlopen::dlopen(b"libEGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
+            let mut libegl = unsafe { dlopen::dlopen(b"libEGL.so.1\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
+            if libegl.is_null() {
+                libegl = unsafe { dlopen::dlopen(b"libEGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
+            }
 
             if libegl.is_null() {
                 None
