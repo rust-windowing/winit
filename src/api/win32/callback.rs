@@ -129,8 +129,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         winapi::WM_KEYDOWN => {
             use events::Event::KeyboardInput;
             use events::ElementState::Pressed;
-            let scancode = ((lparam >> 16) & 0xff) as u8;
-            let vkey = event::vkeycode_to_element(wparam);
+            let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
             send_event(window, KeyboardInput(Pressed, scancode, vkey));
             0
         },
@@ -138,8 +137,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         winapi::WM_KEYUP => {
             use events::Event::KeyboardInput;
             use events::ElementState::Released;
-            let scancode = ((lparam >> 16) & 0xff) as u8;
-            let vkey = event::vkeycode_to_element(wparam);
+            let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
             send_event(window, KeyboardInput(Released, scancode, vkey));
             0
         },
