@@ -155,7 +155,7 @@ impl ContextError {
         use std::error::Error;
         match *self {
             ContextError::IoError(ref err) => err.description(),
-            ContextError::ContextLost => "Context lost."
+            ContextError::ContextLost => "Context lost"
         }
     }
 }
