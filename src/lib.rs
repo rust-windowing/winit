@@ -121,7 +121,7 @@ impl CreationError {
         match *self {
             CreationError::OsError(ref text) => &text,
             CreationError::NotSupported => "Some of the requested attributes are not supported",
-            CreationError::RobustnessNotSupported => "Your requested robustness, but it is \
+            CreationError::RobustnessNotSupported => "You requested robustness, but it is \
                                                       not supported.",
             CreationError::OpenGlVersionNotSupported => "The requested OpenGL version is not \
                                                          supported.",
@@ -148,6 +148,28 @@ impl std::error::Error for CreationError {
 pub enum ContextError {
     IoError(io::Error),
     ContextLost,
+}
+
+impl ContextError {
+    fn to_string(&self) -> &str {
+        use std::error::Error;
+        match *self {
+            ContextError::IoError(ref err) => err.description(),
+            ContextError::ContextLost => "Context lost."
+        }
+    }
+}
+
+impl std::fmt::Display for ContextError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        formatter.write_str(self.to_string())
+    }
+}
+
+impl std::error::Error for ContextError {
+    fn description(&self) -> &str {
+        self.to_string()
+    }
 }
 
 /// All APIs related to OpenGL that you can possibly get while using glutin.
@@ -539,4 +561,3 @@ mod native_monitor {
         Unavailable
     }
 }
-
