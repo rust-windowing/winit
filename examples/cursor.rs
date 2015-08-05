@@ -17,7 +17,7 @@ fn main() { println!("This example requires glutin to be compiled with the `wind
 #[cfg(feature = "window")]
 fn main() {
     
-    let window = glutin::WindowBuilder::new().with_gl_profile(glutin::GlProfile::Compatibility).build().unwrap();
+    let window = glutin::WindowBuilder::new().build().unwrap();
     window.set_title("A fantastic window!");   
     unsafe { window.make_current() };
 

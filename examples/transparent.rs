@@ -19,8 +19,7 @@ fn resize_callback(width: u32, height: u32) {
 
 #[cfg(feature = "window")]
 fn main() {
-    let mut window = glutin::WindowBuilder::new().with_gl_profile(glutin::GlProfile::Compatibility)
-                                                 .with_decorations(false)
+    let mut window = glutin::WindowBuilder::new().with_decorations(false)
                                                  .with_transparency(true)
                                                  .build().unwrap();
     window.set_title("A fantastic window!");
