@@ -121,7 +121,7 @@ impl CreationError {
         match *self {
             CreationError::OsError(ref text) => &text,
             CreationError::NotSupported => "Some of the requested attributes are not supported",
-            CreationError::RobustnessNotSupported => "Your requested robustness, but it is \
+            CreationError::RobustnessNotSupported => "You requested robustness, but it is \
                                                       not supported.",
             CreationError::OpenGlVersionNotSupported => "The requested OpenGL version is not \
                                                          supported.",
