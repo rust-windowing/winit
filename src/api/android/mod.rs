@@ -112,7 +112,7 @@ impl Window {
             return Err(OsError(format!("Android's native window is null")));
         }
 
-        let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder, None)
+        let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder, egl::NativeDisplay::Android)
                                                 .and_then(|p| p.finish(native_window as *const _)));
 
         let (tx, rx) = channel();
@@ -255,7 +255,7 @@ pub struct HeadlessContext(EglContext);
 impl HeadlessContext {
     /// See the docs in the crate root file.
     pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
-        let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder, None));
+        let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder, egl::NativeDisplay::Android));
         let context = try!(context.finish_pbuffer());
         Ok(context)
     }

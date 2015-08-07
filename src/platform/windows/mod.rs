@@ -14,6 +14,7 @@ use PixelFormat;
 use GlContext;
 
 use api::egl::ffi::egl::Egl;
+use api::egl;
 use api::egl::Context as EglContext;
 
 use std::ffi::CString;
@@ -90,7 +91,7 @@ impl HeadlessContext {
         // if EGL is available, we try using EGL first
         // if EGL returns an error, we try the hidden window method
         if let &Some(ref egl) = &*EGL {
-            let context = EglContext::new(egl.0.clone(), &builder, None)
+            let context = EglContext::new(egl.0.clone(), &builder, egl::NativeDisplay::Other(None))
                                 .and_then(|prototype| prototype.finish_pbuffer())
                                 .map(|ctxt| HeadlessContext::EglPbuffer(ctxt));
 

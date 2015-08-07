@@ -17,6 +17,7 @@ use GlRequest;
 use PixelFormat;
 
 use api::glx::Context as GlxContext;
+use api::egl;
 use api::egl::Context as EglContext;
 
 use platform::MonitorID as PlatformMonitorID;
@@ -335,7 +336,7 @@ impl Window {
         let context = match builder.gl_version {
             GlRequest::Latest | GlRequest::Specific(Api::OpenGl, _) | GlRequest::GlThenGles { .. } => {
                 if let Some(ref egl) = display.egl {
-                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone, Some(display.display as *const _))))
+                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone, egl::NativeDisplay::X11(Some(display.display as *const _)))))
                 } else if let Some(ref glx) = display.glx {
                     Prototype::Glx(try!(GlxContext::new(glx.clone(), &display.xlib, &builder_clone, display.display)))
                 } else {
@@ -344,7 +345,7 @@ impl Window {
             },
             GlRequest::Specific(Api::OpenGlEs, _) => {
                 if let Some(ref egl) = display.egl {
-                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone, Some(display.display as *const _))))
+                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone, egl::NativeDisplay::X11(Some(display.display as *const _)))))
                 } else {
                     return Err(CreationError::NotSupported);
                 }

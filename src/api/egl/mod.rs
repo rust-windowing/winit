@@ -16,6 +16,22 @@ use std::{mem, ptr};
 
 pub mod ffi;
 
+/// Specifies the type of display passed as `native_display`.
+pub enum NativeDisplay {
+    /// `None` means `EGL_DEFAULT_DISPLAY`.
+    X11(Option<ffi::EGLNativeDisplayType>),
+    /// `None` means `EGL_DEFAULT_DISPLAY`.
+    Gbm(Option<ffi::EGLNativeDisplayType>),
+    /// `None` means `EGL_DEFAULT_DISPLAY`.
+    Wayland(Option<ffi::EGLNativeDisplayType>),
+    /// `EGL_DEFAULT_DISPLAY` is mandatory for Android.
+    Android,
+    // TODO: should be `EGLDeviceEXT`
+    Device(ffi::EGLNativeDisplayType),
+    /// Don't specify any display type. Useful on windows. `None` means `EGL_DEFAULT_DISPLAY`.
+    Other(Option<ffi::EGLNativeDisplayType>),
+}
+
 pub struct Context {
     egl: ffi::egl::Egl,
     display: ffi::egl::types::EGLDisplay,
@@ -32,20 +48,95 @@ impl Context {
     ///
     /// To finish the process, you must call `.finish(window)` on the `ContextPrototype`.
     pub fn new<'a>(egl: ffi::egl::Egl, builder: &'a BuilderAttribs<'a>,
-                   native_display: Option<ffi::EGLNativeDisplayType>)
+                   native_display: NativeDisplay)
                    -> Result<ContextPrototype<'a>, CreationError>
     {
         if builder.sharing.is_some() {
             unimplemented!()
         }
 
-        let display = unsafe {
-            let display = egl.GetDisplay(native_display.unwrap_or(mem::transmute(ffi::egl::DEFAULT_DISPLAY)));
-            if display.is_null() {
-                return Err(CreationError::OsError("No EGL display connection available".to_string()));
+        // the first step is to query the list of extensions without any display, if supported
+        let dp_extensions = unsafe {
+            let p = egl.QueryString(ffi::egl::NO_DISPLAY, ffi::egl::EXTENSIONS as i32);
+
+            // this possibility is available only with EGL 1.5 or EGL_EXT_platform_base, otherwise
+            // `eglQueryString` returns an error
+            if p.is_null() {
+                vec![]
+            } else {
+                let p = CStr::from_ptr(p);
+                let list = String::from_utf8(p.to_bytes().to_vec()).unwrap_or_else(|_| format!(""));
+                list.split(' ').map(|e| e.to_string()).collect::<Vec<_>>()
             }
-            display
         };
+
+        let has_dp_extension = |e: &str| dp_extensions.iter().find(|s| s == &e).is_some();
+
+        // calling `eglGetDisplay` or equivalent
+        let display = match native_display {
+            NativeDisplay::X11(display) if has_dp_extension("EGL_KHR_platform_x11") => {
+                let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
+                // TODO: `PLATFORM_X11_SCREEN_KHR`
+                unsafe { egl.GetPlatformDisplay(ffi::egl::PLATFORM_X11_KHR, d as *mut _,
+                                                ptr::null()) }
+            },
+
+            NativeDisplay::X11(display) if has_dp_extension("EGL_EXT_platform_x11") => {
+                let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
+                // TODO: `PLATFORM_X11_SCREEN_EXT`
+                unsafe { egl.GetPlatformDisplayEXT(ffi::egl::PLATFORM_X11_EXT, d as *mut _,
+                                                   ptr::null()) }
+            },
+
+            NativeDisplay::Gbm(display) if has_dp_extension("EGL_KHR_platform_gbm") => {
+                let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
+                unsafe { egl.GetPlatformDisplay(ffi::egl::PLATFORM_GBM_KHR, d as *mut _,
+                                                ptr::null()) }
+            },
+
+            NativeDisplay::Gbm(display) if has_dp_extension("EGL_MESA_platform_gbm") => {
+                let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
+                unsafe { egl.GetPlatformDisplayEXT(ffi::egl::PLATFORM_GBM_KHR, d as *mut _,
+                                                   ptr::null()) }
+            },
+
+            NativeDisplay::Wayland(display) if has_dp_extension("EGL_KHR_platform_wayland") => {
+                let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
+                unsafe { egl.GetPlatformDisplay(ffi::egl::PLATFORM_WAYLAND_KHR, d as *mut _,
+                                                ptr::null()) }
+            },
+
+            NativeDisplay::Wayland(display) if has_dp_extension("EGL_EXT_platform_wayland") => {
+                let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
+                unsafe { egl.GetPlatformDisplayEXT(ffi::egl::PLATFORM_WAYLAND_EXT, d as *mut _,
+                                                   ptr::null()) }
+            },
+
+            NativeDisplay::Android if has_dp_extension("EGL_KHR_platform_android") => {
+                unsafe { egl.GetPlatformDisplay(ffi::egl::PLATFORM_ANDROID_KHR,
+                                                ffi::egl::DEFAULT_DISPLAY as *mut _, ptr::null()) }
+            },
+
+            NativeDisplay::Device(display) if has_dp_extension("EGL_EXT_platform_device") => {
+                unsafe { egl.GetPlatformDisplay(ffi::egl::PLATFORM_DEVICE_EXT, display as *mut _,
+                                                ptr::null()) }
+            },
+
+            NativeDisplay::X11(Some(display)) | NativeDisplay::Gbm(Some(display)) |
+            NativeDisplay::Wayland(Some(display)) | NativeDisplay::Device(display) |
+            NativeDisplay::Other(Some(display)) => {
+                unsafe { egl.GetDisplay(display as *mut _) }
+            }
+
+            NativeDisplay::X11(None) | NativeDisplay::Gbm(None) | NativeDisplay::Wayland(None) |
+            NativeDisplay::Android | NativeDisplay::Other(None) => {
+                unsafe { egl.GetDisplay(ffi::egl::DEFAULT_DISPLAY as *mut _) }
+            },
+        };
+
+        if display.is_null() {
+            return Err(CreationError::OsError("Could not create EGL display object".to_string()));
+        }
 
         let egl_version = unsafe {
             let mut major: ffi::egl::types::EGLint = mem::uninitialized();
@@ -56,6 +147,17 @@ impl Context {
             }
 
             (major, minor)
+        };
+
+        // the list of extensions supported by the client once initialized is different from the
+        // list of extensions obtained earlier
+        let extensions = if egl_version >= (1, 2) {
+            let p = unsafe { CStr::from_ptr(egl.QueryString(display, ffi::egl::EXTENSIONS as i32)) };
+            let list = String::from_utf8(p.to_bytes().to_vec()).unwrap_or_else(|_| format!(""));
+            list.split(' ').map(|e| e.to_string()).collect::<Vec<_>>()
+
+        } else {
+            vec![]
         };
 
         // binding the right API and choosing the version
@@ -116,6 +218,7 @@ impl Context {
             egl: egl,
             display: display,
             egl_version: egl_version,
+            extensions: extensions,
             api: api,
             version: version,
             config_id: config_id,
@@ -196,6 +299,7 @@ pub struct ContextPrototype<'a> {
     egl: ffi::egl::Egl,
     display: ffi::egl::types::EGLDisplay,
     egl_version: (ffi::egl::types::EGLint, ffi::egl::types::EGLint),
+    extensions: Vec<String>,
     api: Api,
     version: Option<(u8, u8)>,
     config_id: ffi::egl::types::EGLConfig,
@@ -253,19 +357,19 @@ impl<'a> ContextPrototype<'a> {
     {
         let context = unsafe {
             if let Some(version) = self.version {
-                try!(create_context(&self.egl, self.display, &self.egl_version, self.api,
-                                    version, self.config_id, self.builder.gl_debug,
-                                    self.builder.gl_robustness))
+                try!(create_context(&self.egl, self.display, &self.egl_version,
+                                    &self.extensions, self.api, version, self.config_id,
+                                    self.builder.gl_debug, self.builder.gl_robustness))
 
             } else if self.api == Api::OpenGlEs {
                 if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
-                                                 self.api, (2, 0), self.config_id,
+                                                 &self.extensions, self.api, (2, 0), self.config_id,
                                                  self.builder.gl_debug, self.builder.gl_robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
-                                                        self.api, (1, 0), self.config_id,
-                                                        self.builder.gl_debug,
+                                                        &self.extensions, self.api, (1, 0),
+                                                        self.config_id, self.builder.gl_debug,
                                                         self.builder.gl_robustness)
                 {
                     ctxt
@@ -275,19 +379,19 @@ impl<'a> ContextPrototype<'a> {
 
             } else {
                 if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
-                                                 self.api, (3, 2), self.config_id,
+                                                 &self.extensions, self.api, (3, 2), self.config_id,
                                                  self.builder.gl_debug, self.builder.gl_robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
-                                                        self.api, (3, 1), self.config_id,
-                                                        self.builder.gl_debug,
+                                                        &self.extensions, self.api, (3, 1),
+                                                        self.config_id, self.builder.gl_debug,
                                                         self.builder.gl_robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
-                                                        self.api, (1, 0), self.config_id,
-                                                        self.builder.gl_debug,
+                                                        &self.extensions, self.api, (1, 0),
+                                                        self.config_id, self.builder.gl_debug,
                                                         self.builder.gl_robustness)
                 {
                     ctxt
@@ -414,23 +518,16 @@ unsafe fn enumerate_configs(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDi
 
 unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisplay,
                          egl_version: &(ffi::egl::types::EGLint, ffi::egl::types::EGLint),
-                         api: Api, version: (u8, u8), config_id: ffi::egl::types::EGLConfig,
-                         gl_debug: bool, gl_robustness: Robustness)
+                         extensions: &[String], api: Api, version: (u8, u8),
+                         config_id: ffi::egl::types::EGLConfig, gl_debug: bool,
+                         gl_robustness: Robustness)
                          -> Result<ffi::egl::types::EGLContext, CreationError>
 {
-    let extensions = if egl_version >= &(1, 2) {
-        let p = CStr::from_ptr(egl.QueryString(display, ffi::egl::EXTENSIONS as i32));
-        String::from_utf8(p.to_bytes().to_vec()).unwrap_or_else(|_| format!(""))
-    } else {
-        format!("")
-    };
-
     let mut context_attributes = Vec::with_capacity(10);
     let mut flags = 0;
 
-    if egl_version >= &(1, 5) ||
-       extensions.contains("EGL_KHR_create_context ") ||
-       extensions.ends_with("EGL_KHR_create_context")
+    if egl_version >= &(1, 5) || extensions.iter().find(|s| s == &"EGL_KHR_create_context")
+                                                  .is_some()
     {
         context_attributes.push(ffi::egl::CONTEXT_MAJOR_VERSION as i32);
         context_attributes.push(version.0 as i32);
@@ -439,16 +536,15 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
 
         // handling robustness
         let supports_robustness = egl_version >= &(1, 5) ||
-                                  extensions.contains("EGL_EXT_create_context_robustness ") ||
-                                  extensions.ends_with("EGL_EXT_create_context_robustness");
+                                  extensions.iter()
+                                            .find(|s| s == &"EGL_EXT_create_context_robustness")
+                                            .is_some();
 
         match gl_robustness {
             Robustness::NotRobust => (),
 
             Robustness::NoError => {
-                if extensions.contains("EGL_KHR_create_context_no_error ") ||
-                   extensions.ends_with("EGL_KHR_create_context_no_error")
-                {
+                if extensions.iter().find(|s| s == &"EGL_KHR_create_context_no_error").is_some() {
                     context_attributes.push(ffi::egl::CONTEXT_OPENGL_NO_ERROR_KHR as libc::c_int);
                     context_attributes.push(1);
                 }
