@@ -39,6 +39,21 @@ impl Context {
             unimplemented!()
         }
 
+        // the first step is to query the list of extensions without any display, if supported
+        let extensions = unsafe {
+            let p = egl.QueryString(ffi::egl::NO_DISPLAY, ffi::egl::EXTENSIONS as i32);
+
+            // this possibility is available only with EGL 1.5 or EGL_EXT_platform_base, otherwise
+            // `eglQueryString` returns an error
+            if p.is_null() {
+                None
+            } else {
+                let p = CStr::from_ptr(p);
+                let list = String::from_utf8(p.to_bytes().to_vec()).unwrap_or_else(|_| format!(""));
+                Some(list.split(' ').map(|e| e.to_string()).collect::<Vec<_>>())
+            }
+        };
+
         let display = unsafe {
             let display = egl.GetDisplay(native_display.unwrap_or(mem::transmute(ffi::egl::DEFAULT_DISPLAY)));
             if display.is_null() {
@@ -56,6 +71,19 @@ impl Context {
             }
 
             (major, minor)
+        };
+
+        // getting the list of extensions for real
+        let extensions = if let Some(extensions) = extensions {
+            extensions
+
+        } else if egl_version >= (1, 2) {
+            let p = unsafe { CStr::from_ptr(egl.QueryString(display, ffi::egl::EXTENSIONS as i32)) };
+            let list = String::from_utf8(p.to_bytes().to_vec()).unwrap_or_else(|_| format!(""));
+            list.split(' ').map(|e| e.to_string()).collect::<Vec<_>>()
+
+        } else {
+            vec![]
         };
 
         // binding the right API and choosing the version
@@ -116,6 +144,7 @@ impl Context {
             egl: egl,
             display: display,
             egl_version: egl_version,
+            extensions: extensions,
             api: api,
             version: version,
             config_id: config_id,
@@ -196,6 +225,7 @@ pub struct ContextPrototype<'a> {
     egl: ffi::egl::Egl,
     display: ffi::egl::types::EGLDisplay,
     egl_version: (ffi::egl::types::EGLint, ffi::egl::types::EGLint),
+    extensions: Vec<String>,
     api: Api,
     version: Option<(u8, u8)>,
     config_id: ffi::egl::types::EGLConfig,
@@ -253,19 +283,19 @@ impl<'a> ContextPrototype<'a> {
     {
         let context = unsafe {
             if let Some(version) = self.version {
-                try!(create_context(&self.egl, self.display, &self.egl_version, self.api,
-                                    version, self.config_id, self.builder.gl_debug,
-                                    self.builder.gl_robustness))
+                try!(create_context(&self.egl, self.display, &self.egl_version,
+                                    &self.extensions, self.api, version, self.config_id,
+                                    self.builder.gl_debug, self.builder.gl_robustness))
 
             } else if self.api == Api::OpenGlEs {
                 if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
-                                                 self.api, (2, 0), self.config_id,
+                                                 &self.extensions, self.api, (2, 0), self.config_id,
                                                  self.builder.gl_debug, self.builder.gl_robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
-                                                        self.api, (1, 0), self.config_id,
-                                                        self.builder.gl_debug,
+                                                        &self.extensions, self.api, (1, 0),
+                                                        self.config_id, self.builder.gl_debug,
                                                         self.builder.gl_robustness)
                 {
                     ctxt
@@ -275,19 +305,19 @@ impl<'a> ContextPrototype<'a> {
 
             } else {
                 if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
-                                                 self.api, (3, 2), self.config_id,
+                                                 &self.extensions, self.api, (3, 2), self.config_id,
                                                  self.builder.gl_debug, self.builder.gl_robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
-                                                        self.api, (3, 1), self.config_id,
-                                                        self.builder.gl_debug,
+                                                        &self.extensions, self.api, (3, 1),
+                                                        self.config_id, self.builder.gl_debug,
                                                         self.builder.gl_robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
-                                                        self.api, (1, 0), self.config_id,
-                                                        self.builder.gl_debug,
+                                                        &self.extensions, self.api, (1, 0),
+                                                        self.config_id, self.builder.gl_debug,
                                                         self.builder.gl_robustness)
                 {
                     ctxt
@@ -414,23 +444,16 @@ unsafe fn enumerate_configs(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDi
 
 unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisplay,
                          egl_version: &(ffi::egl::types::EGLint, ffi::egl::types::EGLint),
-                         api: Api, version: (u8, u8), config_id: ffi::egl::types::EGLConfig,
-                         gl_debug: bool, gl_robustness: Robustness)
+                         extensions: &[String], api: Api, version: (u8, u8),
+                         config_id: ffi::egl::types::EGLConfig, gl_debug: bool,
+                         gl_robustness: Robustness)
                          -> Result<ffi::egl::types::EGLContext, CreationError>
 {
-    let extensions = if egl_version >= &(1, 2) {
-        let p = CStr::from_ptr(egl.QueryString(display, ffi::egl::EXTENSIONS as i32));
-        String::from_utf8(p.to_bytes().to_vec()).unwrap_or_else(|_| format!(""))
-    } else {
-        format!("")
-    };
-
     let mut context_attributes = Vec::with_capacity(10);
     let mut flags = 0;
 
-    if egl_version >= &(1, 5) ||
-       extensions.contains("EGL_KHR_create_context ") ||
-       extensions.ends_with("EGL_KHR_create_context")
+    if egl_version >= &(1, 5) || extensions.iter().find(|s| s == &"EGL_KHR_create_context")
+                                                  .is_some()
     {
         context_attributes.push(ffi::egl::CONTEXT_MAJOR_VERSION as i32);
         context_attributes.push(version.0 as i32);
@@ -439,16 +462,15 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
 
         // handling robustness
         let supports_robustness = egl_version >= &(1, 5) ||
-                                  extensions.contains("EGL_EXT_create_context_robustness ") ||
-                                  extensions.ends_with("EGL_EXT_create_context_robustness");
+                                  extensions.iter()
+                                            .find(|s| s == &"EGL_EXT_create_context_robustness")
+                                            .is_some();
 
         match gl_robustness {
             Robustness::NotRobust => (),
 
             Robustness::NoError => {
-                if extensions.contains("EGL_KHR_create_context_no_error ") ||
-                   extensions.ends_with("EGL_KHR_create_context_no_error")
-                {
+                if extensions.iter().find(|s| s == &"EGL_KHR_create_context_no_error").is_some() {
                     context_attributes.push(ffi::egl::CONTEXT_OPENGL_NO_ERROR_KHR as libc::c_int);
                     context_attributes.push(1);
                 }
