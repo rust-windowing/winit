@@ -8,6 +8,7 @@ use self::wayland::core::shell::{ShellSurface, ShellFullscreenMethod};
 
 use libc;
 use api::dlopen;
+use api::egl;
 use api::egl::Context as EglContext;
 
 use BuilderAttribs;
@@ -169,7 +170,7 @@ impl Window {
             try!(EglContext::new(
                 egl,
                 &builder,
-                Some(wayland_context.display.ptr() as *const _))
+                egl::NativeDisplay::Wayland(Some(wayland_context.display.ptr() as *const _)))
                 .and_then(|p| p.finish((*shell_surface).ptr() as *const _))
             )
         };

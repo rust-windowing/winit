@@ -46,6 +46,15 @@ fn main() {
                                             "EGL_KHR_create_context".to_string(),
                                             "EGL_EXT_create_context_robustness".to_string(),
                                             "EGL_KHR_create_context_no_error".to_string(),
+                                            "EGL_KHR_platform_x11".to_string(),
+                                            "EGL_KHR_platform_android".to_string(),
+                                            "EGL_KHR_platform_wayland".to_string(),
+                                            "EGL_KHR_platform_gbm".to_string(),
+                                            "EGL_EXT_platform_base".to_string(),
+                                            "EGL_EXT_platform_x11".to_string(),
+                                            "EGL_MESA_platform_gbm".to_string(),
+                                            "EGL_EXT_platform_wayland".to_string(),
+                                            "EGL_EXT_platform_device".to_string(),
                                         ],
                                         "1.5", "core", &mut file).unwrap();
     }
@@ -83,6 +92,15 @@ fn main() {
                                             "EGL_KHR_create_context".to_string(),
                                             "EGL_EXT_create_context_robustness".to_string(),
                                             "EGL_KHR_create_context_no_error".to_string(),
+                                            "EGL_KHR_platform_x11".to_string(),
+                                            "EGL_KHR_platform_android".to_string(),
+                                            "EGL_KHR_platform_wayland".to_string(),
+                                            "EGL_KHR_platform_gbm".to_string(),
+                                            "EGL_EXT_platform_base".to_string(),
+                                            "EGL_EXT_platform_x11".to_string(),
+                                            "EGL_MESA_platform_gbm".to_string(),
+                                            "EGL_EXT_platform_wayland".to_string(),
+                                            "EGL_EXT_platform_device".to_string(),
                                         ],
                                         "1.5", "core", &mut file).unwrap();
     }
@@ -97,6 +115,15 @@ fn main() {
                                             "EGL_KHR_create_context".to_string(),
                                             "EGL_EXT_create_context_robustness".to_string(),
                                             "EGL_KHR_create_context_no_error".to_string(),
+                                            "EGL_KHR_platform_x11".to_string(),
+                                            "EGL_KHR_platform_android".to_string(),
+                                            "EGL_KHR_platform_wayland".to_string(),
+                                            "EGL_KHR_platform_gbm".to_string(),
+                                            "EGL_EXT_platform_base".to_string(),
+                                            "EGL_EXT_platform_x11".to_string(),
+                                            "EGL_MESA_platform_gbm".to_string(),
+                                            "EGL_EXT_platform_wayland".to_string(),
+                                            "EGL_EXT_platform_device".to_string(),
                                         ],
                                         "1.5", "core", &mut file).unwrap();
     }
@@ -108,7 +135,18 @@ fn main() {
                                         gl_generator::Fallbacks::All,
                                         khronos_api::EGL_XML,
                                         vec![
-                                            "EGL_KHR_create_context".to_string()
+                                            "EGL_KHR_create_context".to_string(),
+                                            "EGL_EXT_create_context_robustness".to_string(),
+                                            "EGL_KHR_create_context_no_error".to_string(),
+                                            "EGL_KHR_platform_x11".to_string(),
+                                            "EGL_KHR_platform_android".to_string(),
+                                            "EGL_KHR_platform_wayland".to_string(),
+                                            "EGL_KHR_platform_gbm".to_string(),
+                                            "EGL_EXT_platform_base".to_string(),
+                                            "EGL_EXT_platform_x11".to_string(),
+                                            "EGL_MESA_platform_gbm".to_string(),
+                                            "EGL_EXT_platform_wayland".to_string(),
+                                            "EGL_EXT_platform_device".to_string(),
                                         ],
                                         "1.5", "core", &mut file).unwrap();
 
