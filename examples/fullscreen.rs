@@ -35,7 +35,6 @@ fn main() {
     };
 
     let window = glutin::WindowBuilder::new()
-        .with_gl_profile(glutin::GlProfile::Compatibility)
         .with_title("Hello world!".to_string())
         .with_fullscreen(monitor)
         .build()
