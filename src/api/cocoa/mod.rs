@@ -500,6 +500,10 @@ impl Window {
 
     fn create_context(view: id, builder: &BuilderAttribs) -> Result<(IdRef, PixelFormat), CreationError> {
         let profile = match (builder.gl_version, builder.gl_version.to_gl_version(), builder.gl_profile) {
+
+            // Note: we are not using ranges because of a rust bug that should be fixed here:
+            // https://github.com/rust-lang/rust/pull/27050
+
             (GlRequest::Latest, _, Some(GlProfile::Compatibility)) => NSOpenGLProfileVersionLegacy as u32,
             (GlRequest::Latest, _, _) => {
                 if NSAppKitVersionNumber.floor() >= NSAppKitVersionNumber10_9 {
@@ -510,12 +514,16 @@ impl Window {
                     NSOpenGLProfileVersionLegacy as u32
                 }
             },
-            (_, Some((1 ... 2, _)), Some(GlProfile::Core)) |
-            (_, Some((3 ... 4, _)), Some(GlProfile::Compatibility)) =>
-                return Err(CreationError::OpenGlVersionNotSupported),
-            (_, Some((1 ... 2, _)), _) => NSOpenGLProfileVersionLegacy as u32,
-            (_, Some((3, 0 ... 2)), _) => NSOpenGLProfileVersion3_2Core as u32,
-            (_, Some((3 ... 4, _)), _) => NSOpenGLProfileVersion4_1Core as u32,
+
+            (_, Some((1, _)), _) => NSOpenGLProfileVersionLegacy as u32,
+            (_, Some((2, _)), _) => NSOpenGLProfileVersionLegacy as u32,
+            (_, Some((3, 0)), _) => NSOpenGLProfileVersionLegacy as u32,
+            (_, Some((3, 1)), _) => NSOpenGLProfileVersionLegacy as u32,
+            (_, Some((3, 2)), _) => NSOpenGLProfileVersion3_2Core as u32,
+            (_, Some((3, _)), Some(GlProfile::Compatibility)) => return Err(CreationError::OpenGlVersionNotSupported),
+            (_, Some((3, _)), _) => NSOpenGLProfileVersion4_1Core as u32,
+            (_, Some((4, _)), Some(GlProfile::Compatibility)) => return Err(CreationError::OpenGlVersionNotSupported),
+            (_, Some((4, _)), _) => NSOpenGLProfileVersion4_1Core as u32,
             _ => return Err(CreationError::OpenGlVersionNotSupported),
         };
 
