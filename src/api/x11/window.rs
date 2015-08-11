@@ -38,6 +38,13 @@ fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> 
     f(c_str.as_ptr())
 }
 
+struct WindowProxyData {
+    display: Arc<XConnection>,
+    window: ffi::Window,
+}
+
+unsafe impl Send for WindowProxyData {}
+
 pub struct XWindow {
     display: Arc<XConnection>,
     window: ffi::Window,
@@ -48,6 +55,7 @@ pub struct XWindow {
     ic: ffi::XIC,
     im: ffi::XIM,
     colormap: ffi::Colormap,
+    window_proxy_data: Arc<Mutex<Option<WindowProxyData>>>,
 }
 
 pub enum Context {
@@ -65,6 +73,10 @@ unsafe impl Sync for Window {}
 impl Drop for XWindow {
     fn drop(&mut self) {
         unsafe {
+            // Clear out the window proxy data arc, so that any window proxy objects
+            // are no longer able to send messages to this window.
+            *self.window_proxy_data.lock().unwrap() = None;
+
             // we don't call MakeCurrent(0, 0) because we are not sure that the context
             // is still the current one
             self.context = Context::None;
@@ -86,25 +98,29 @@ impl Drop for XWindow {
 
 #[derive(Clone)]
 pub struct WindowProxy {
-    x: Arc<XWindow>,
+    data: Arc<Mutex<Option<WindowProxyData>>>,
 }
 
 impl WindowProxy {
     pub fn wakeup_event_loop(&self) {
-        let mut xev = ffi::XClientMessageEvent {
-            type_: ffi::ClientMessage,
-            window: self.x.window,
-            format: 32,
-            message_type: 0,
-            serial: 0,
-            send_event: 0,
-            display: self.x.display.display,
-            data: unsafe { mem::zeroed() },
-        };
+        let window_proxy_data = self.data.lock().unwrap();
 
-        unsafe {
-            (self.x.display.xlib.XSendEvent)(self.x.display.display, self.x.window, 0, 0, mem::transmute(&mut xev));
-            (self.x.display.xlib.XFlush)(self.x.display.display);
+        if let Some(ref data) = *window_proxy_data {
+            let mut xev = ffi::XClientMessageEvent {
+                type_: ffi::ClientMessage,
+                window: data.window,
+                format: 32,
+                message_type: 0,
+                serial: 0,
+                send_event: 0,
+                display: data.display.display,
+                data: unsafe { mem::zeroed() },
+            };
+
+            unsafe {
+                (data.display.xlib.XSendEvent)(data.display.display, data.window, 0, 0, mem::transmute(&mut xev));
+                (data.display.xlib.XFlush)(data.display.display);
+            }
         }
     }
 }
@@ -513,6 +529,12 @@ impl Window {
         };
 
         // creating the window object
+        let window_proxy_data = WindowProxyData {
+            display: display.clone(),
+            window: window,
+        };
+        let window_proxy_data = Arc::new(Mutex::new(Some(window_proxy_data)));
+
         let window = Window {
             x: Arc::new(XWindow {
                 display: display.clone(),
@@ -524,6 +546,7 @@ impl Window {
                 is_fullscreen: is_fullscreen,
                 xf86_desk_mode: xf86_desk_mode,
                 colormap: cmap,
+                window_proxy_data: window_proxy_data,
             }),
             is_closed: AtomicBool::new(false),
             wm_delete_window: wm_delete_window,
@@ -603,7 +626,7 @@ impl Window {
 
     pub fn create_window_proxy(&self) -> WindowProxy {
         WindowProxy {
-            x: self.x.clone()
+            data: self.x.window_proxy_data.clone()
         }
     }
 
