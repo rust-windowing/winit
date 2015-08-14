@@ -351,10 +351,12 @@ impl Window {
         let builder_clone = builder.clone();
         let context = match builder.gl_version {
             GlRequest::Latest | GlRequest::Specific(Api::OpenGl, _) | GlRequest::GlThenGles { .. } => {
-                if let Some(ref egl) = display.egl {
-                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone, egl::NativeDisplay::X11(Some(display.display as *const _)))))
-                } else if let Some(ref glx) = display.glx {
+                // GLX should be preferred over EGL, otherwise crashes may occur
+                // on X11 – issue #314
+                if let Some(ref glx) = display.glx {
                     Prototype::Glx(try!(GlxContext::new(glx.clone(), &display.xlib, &builder_clone, display.display)))
+                } else if let Some(ref egl) = display.egl {
+                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone, egl::NativeDisplay::X11(Some(display.display as *const _)))))
                 } else {
                     return Err(CreationError::NotSupported);
                 }
