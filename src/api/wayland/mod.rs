@@ -257,16 +257,20 @@ impl Window {
             shell_surface.set_fullscreen(ShellFullscreenMethod::Default, Some(&monitor.output));
             ShellWindow::Plain(shell_surface)
         } else {
-            ShellWindow::Decorated(match DecoratedSurface::new(
-                surface,
-                w as i32,
-                h as i32,
-                &wayland_context.registry,
-                Some(&wayland_context.seat)
-            ) {
-                Ok(s) => s,
-                Err(_) => return Err(CreationError::NotSupported)
-            })
+            if builder.decorations {
+                ShellWindow::Decorated(match DecoratedSurface::new(
+                    surface,
+                    w as i32,
+                    h as i32,
+                    &wayland_context.registry,
+                    Some(&wayland_context.seat)
+                ) {
+                    Ok(s) => s,
+                    Err(_) => return Err(CreationError::NotSupported)
+                })
+            } else {
+                ShellWindow::Plain(wayland_context.shell.get_shell_surface(surface))
+            }
         };
 
         let context = {
