@@ -25,7 +25,7 @@ pub struct WaylandContext {
     pub compositor: Compositor,
     pub shell: Shell,
     pub seat: Seat,
-    pub pointer: Option<Pointer<WSurface>>,
+    pointer: Option<Mutex<Pointer<WSurface>>>,
     keyboard: Option<AnyKeyboard>,
     windows_event_queues: Arc<Mutex<HashMap<SurfaceId, Arc<Mutex<VecDeque<Event>>>>>>,
     current_pointer_surface: Arc<Mutex<Option<SurfaceId>>>,
@@ -196,7 +196,7 @@ impl WaylandContext {
             compositor: compositor,
             shell: shell,
             seat: seat,
-            pointer: pointer,
+            pointer: pointer.map(|p| Mutex::new(p)),
             keyboard: keyboard,
             windows_event_queues: windows_event_queues,
             current_pointer_surface: current_pointer_surface,
@@ -207,9 +207,15 @@ impl WaylandContext {
 
     pub fn register_surface(&self, sid: SurfaceId, queue: Arc<Mutex<VecDeque<Event>>>) {
         self.windows_event_queues.lock().unwrap().insert(sid, queue);
+        if let Some(ref p) = self.pointer {
+            p.lock().unwrap().add_handled_surface(sid);
+        }
     }
 
     pub fn deregister_surface(&self, sid: SurfaceId) {
         self.windows_event_queues.lock().unwrap().remove(&sid);
+        if let Some(ref p) = self.pointer {
+            p.lock().unwrap().remove_handled_surface(sid);
+        }
     }
 }
