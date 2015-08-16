@@ -6,6 +6,8 @@ use self::wayland::core::Surface;
 use self::wayland::core::output::Output;
 use self::wayland::core::shell::{ShellSurface, ShellFullscreenMethod};
 
+use self::wayland_window::{DecoratedSurface, SurfaceGuard, substract_borders};
+
 use libc;
 use api::dlopen;
 use api::egl;
@@ -21,6 +23,7 @@ use MouseCursor;
 use GlContext;
 
 use std::collections::VecDeque;
+use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 use std::ffi::CString;
 
@@ -30,6 +33,7 @@ use self::context::WaylandContext;
 
 extern crate wayland_client as wayland;
 extern crate wayland_kbd;
+extern crate wayland_window;
 
 mod context;
 mod keyboard;
@@ -44,10 +48,95 @@ pub fn is_available() -> bool {
     WAYLAND_CONTEXT.is_some()
 }
 
+enum ShellWindow {
+    Plain(ShellSurface<EGLSurface>),
+    Decorated(DecoratedSurface<EGLSurface>)
+}
+
+impl ShellWindow {
+    fn get_shell(&mut self) -> ShellGuard {
+        match self {
+            &mut ShellWindow::Plain(ref mut s) => {
+                ShellGuard::Plain(s)
+            },
+            &mut ShellWindow::Decorated(ref mut s) => {
+                ShellGuard::Decorated(s.get_shell())
+            }
+        }
+    }
+
+    fn resize(&mut self, w: i32, h: i32, x: i32, y: i32) {
+        match self {
+            &mut ShellWindow::Plain(ref s) => s.resize(w, h, x, y),
+            &mut ShellWindow::Decorated(ref mut s) => {
+                s.resize(w, h);
+                s.get_shell().resize(w, h, x, y);
+            }
+        }
+    }
+
+    fn set_cfg_callback(&mut self, arc: Arc<Mutex<(i32, i32, bool)>>) {
+        match self {
+            &mut ShellWindow::Decorated(ref mut s) => {
+                s.get_shell().set_configure_callback(move |_, w, h| {
+                    let (w, h) = substract_borders(w, h);
+                    let mut guard = arc.lock().unwrap();
+                    *guard = (w, h, true);
+                })
+            }
+            _ => {}
+        }
+    }
+}
+
+enum ShellGuard<'a> {
+    Plain(&'a mut ShellSurface<EGLSurface>),
+    Decorated(SurfaceGuard<'a, EGLSurface>)
+}
+
+impl<'a> Deref for ShellGuard<'a> {
+    type Target = ShellSurface<EGLSurface>;
+    fn deref(&self) -> &ShellSurface<EGLSurface> {
+        match self {
+            &ShellGuard::Plain(ref s) => s,
+            &ShellGuard::Decorated(ref s) => s.deref()
+        }
+    }
+}
+
+impl<'a> DerefMut for ShellGuard<'a> {
+    fn deref_mut(&mut self) -> &mut ShellSurface<EGLSurface> {
+        match self {
+            &mut ShellGuard::Plain(ref mut s) => s,
+            &mut ShellGuard::Decorated(ref mut s) => s.deref_mut()
+        }
+    }
+}
+
 pub struct Window {
-    shell_surface: ShellSurface<EGLSurface>,
+    shell_window: Mutex<ShellWindow>,
     pending_events: Arc<Mutex<VecDeque<Event>>>,
+    need_resize: Arc<Mutex<(i32, i32, bool)>>,
+    resize_callback: Option<fn(u32, u32)>,
     pub context: EglContext,
+}
+
+// private methods of wayalnd windows
+
+impl Window {
+    fn resize_if_needed(&self) -> bool {
+        let mut guard = self.need_resize.lock().unwrap();
+        let (w, h, b) = *guard;
+        *guard = (0, 0, false);
+        if b {
+            let mut guard = self.shell_window.lock().unwrap();
+            guard.resize(w, h, 0, 0);
+            if let Some(f) = self.resize_callback {
+                f(w as u32, h as u32);
+            }
+        }
+        b
+    }
 }
 
 #[derive(Clone)]
@@ -113,7 +202,11 @@ impl<'a> Iterator for PollEventsIterator<'a> {
         if let Some(ref ctxt) = *WAYLAND_CONTEXT {
             ctxt.display.dispatch_pending();
         }
-        self.window.pending_events.lock().unwrap().pop_front()
+        if self.window.resize_if_needed() {
+            Some(Event::Refresh)
+        } else {
+            self.window.pending_events.lock().unwrap().pop_front()
+        }
     }
 }
 
@@ -125,10 +218,18 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        if let Some(ref ctxt) = *WAYLAND_CONTEXT {
-            ctxt.display.dispatch();
+        let mut evt = None;
+        while evt.is_none() {
+            if let Some(ref ctxt) = *WAYLAND_CONTEXT {
+                ctxt.display.dispatch();
+            }
+            evt = if self.window.resize_if_needed() {
+                Some(Event::Refresh)
+            } else {
+                self.window.pending_events.lock().unwrap().pop_front()
+            };
         }
-        self.window.pending_events.lock().unwrap().pop_front()
+        evt
     }
 }
 
@@ -151,12 +252,22 @@ impl Window {
             h as i32
         );
 
-        let shell_surface = wayland_context.shell.get_shell_surface(surface);
-        if let Some(PlatformMonitorID::Wayland(ref monitor)) = builder.monitor {
+        let mut shell_window = if let Some(PlatformMonitorID::Wayland(ref monitor)) = builder.monitor {
+            let shell_surface = wayland_context.shell.get_shell_surface(surface);
             shell_surface.set_fullscreen(ShellFullscreenMethod::Default, Some(&monitor.output));
+            ShellWindow::Plain(shell_surface)
         } else {
-            shell_surface.set_toplevel();
-        }
+            ShellWindow::Decorated(match DecoratedSurface::new(
+                surface,
+                w as i32,
+                h as i32,
+                &wayland_context.registry,
+                Some(&wayland_context.seat)
+            ) {
+                Ok(s) => s,
+                Err(_) => return Err(CreationError::NotSupported)
+            })
+        };
 
         let context = {
             let libegl = unsafe { dlopen::dlopen(b"libEGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
@@ -171,26 +282,43 @@ impl Window {
                 egl,
                 &builder,
                 egl::NativeDisplay::Wayland(Some(wayland_context.display.ptr() as *const _)))
-                .and_then(|p| p.finish((*shell_surface).ptr() as *const _))
+                .and_then(|p| p.finish((**shell_window.get_shell()).ptr() as *const _))
             )
         };
 
-        let events = Arc::new(Mutex::new(VecDeque::new()));
+        // create a queue already containing a refresh event to trigger first draw
+        // it's harmless and a removes the need to do a first swap_buffers() before
+        // starting the event loop
+        let events = Arc::new(Mutex::new({
+            let mut v = VecDeque::new();
+            v.push_back(Event::Refresh);
+            v
+        }));
 
-        wayland_context.register_surface(shell_surface.get_wsurface().get_id(), events.clone());
+        wayland_context.register_surface(shell_window.get_shell().get_wsurface().get_id(),
+                                         events.clone());
+
+        let need_resize = Arc::new(Mutex::new((0, 0, false)));
+
+        shell_window.set_cfg_callback(need_resize.clone());
 
         wayland_context.display.flush().unwrap();
 
         Ok(Window {
-            shell_surface: shell_surface,
+            shell_window: Mutex::new(shell_window),
             pending_events: events,
+            need_resize: need_resize,
+            resize_callback: None,
             context: context
         })
     }
 
     pub fn set_title(&self, title: &str) {
         let ctitle = CString::new(title).unwrap();
-        self.shell_surface.set_title(&ctitle);
+        // intermediate variable is forced,
+        // see https://github.com/rust-lang/rust/issues/22921
+        let mut guard = self.shell_window.lock().unwrap();
+        guard.get_shell().set_title(&ctitle);
     }
 
     pub fn show(&self) {
@@ -211,7 +339,11 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        let (w, h) = self.shell_surface.get_attached_size();
+        // intermediate variables are forced,
+        // see https://github.com/rust-lang/rust/issues/22921
+        let mut guard = self.shell_window.lock().unwrap();
+        let shell = guard.get_shell();
+        let (w, h) = shell.get_attached_size();
         Some((w as u32, h as u32))
     }
 
@@ -222,7 +354,7 @@ impl Window {
     }
 
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        self.shell_surface.resize(x as i32, y as i32, 0, 0)
+        self.shell_window.lock().unwrap().resize(x as i32, y as i32, 0, 0)
     }
 
     pub fn create_window_proxy(&self) -> WindowProxy {
@@ -242,15 +374,7 @@ impl Window {
     }
 
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
-        if let Some(callback) = callback {
-            self.shell_surface.set_configure_callback(
-                move |_,w,h| { callback(w as u32, h as u32) }
-            );
-        } else {
-            self.shell_surface.set_configure_callback(
-                move |_,_,_| {}
-            );
-        }
+        self.resize_callback = callback;
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
@@ -309,7 +433,13 @@ impl GlContext for Window {
 impl Drop for Window {
     fn drop(&mut self) {
         if let Some(ref ctxt) = *WAYLAND_CONTEXT {
-            ctxt.deregister_surface(self.shell_surface.get_wsurface().get_id())
+            // intermediate variable is forced,
+            // see https://github.com/rust-lang/rust/issues/22921
+            let mut guard = self.shell_window.lock().unwrap();
+            let shell = guard.get_shell();
+            ctxt.deregister_surface(
+                shell.get_wsurface().get_id()
+            )
         }
     }
 }
