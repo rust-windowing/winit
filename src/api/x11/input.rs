@@ -75,7 +75,7 @@ impl XInputEventHandler {
         // Button clicks and mouse events are handled via XInput
         // events. Key presses are still handled via plain core
         // X11 events.
-        let mut mask: [libc::c_uchar; 2] = [0, 0];
+        let mut mask: [libc::c_uchar; 3] = [0; 3];
         let mut input_event_mask = ffi::XIEventMask {
             deviceid: ffi::XIAllMasterDevices,
             mask_len: mask.len() as i32,
@@ -88,7 +88,10 @@ impl XInputEventHandler {
             ffi::XI_Enter,
             ffi::XI_Leave,
             ffi::XI_FocusIn,
-            ffi::XI_FocusOut
+            ffi::XI_FocusOut,
+            ffi::XI_TouchBegin,
+            ffi::XI_TouchUpdate,
+            ffi::XI_TouchEnd,
         ];
         for event in events {
             ffi::XISetMask(&mut mask, *event);
@@ -165,6 +168,7 @@ impl XInputEventHandler {
         use events::ElementState::{Pressed, Released};
         use events::MouseButton::{Left, Right, Middle};
         use events::MouseScrollDelta::{PixelDelta, LineDelta};
+        use events::{Touch, TouchPhase};
 
         match cookie.evtype {
             ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
@@ -240,6 +244,20 @@ impl XInputEventHandler {
             ffi::XI_Leave => None,
             ffi::XI_FocusIn => Some(Focused(true)),
             ffi::XI_FocusOut => Some(Focused(false)),
+            ffi::XI_TouchBegin | ffi::XI_TouchUpdate | ffi::XI_TouchEnd => {
+                let event_data: &ffi::XIDeviceEvent = unsafe{mem::transmute(cookie.data)};
+                let phase = match cookie.evtype {
+                    ffi::XI_TouchBegin => TouchPhase::Started,
+                    ffi::XI_TouchUpdate => TouchPhase::Moved,
+                    ffi::XI_TouchEnd => TouchPhase::Ended,
+                    _ => unreachable!()
+                };
+                Some(Event::Touch(Touch {
+                    phase: phase,
+                    location: (event_data.event_x, event_data.event_y),
+                    id: event_data.detail as u64,
+                }))
+            }
             _ => None
         }
     }
