@@ -197,101 +197,16 @@ impl<'a> Iterator for PollEventsIterator<'a> {
             return Some(ev);
         }
 
+        let event: Option<Event>;
         unsafe {
-            let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
+            let nsevent = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                 NSAnyEventMask.bits(),
                 NSDate::distantPast(nil),
                 NSDefaultRunLoopMode,
                 YES);
-            if event == nil { return None; }
-
-            let event_type = msg_send![event, type];
-            NSApp().sendEvent_(if let NSKeyDown = event_type { nil } else { event });
-
-            let event = match event_type {
-                NSLeftMouseDown         => { Some(MouseInput(Pressed, MouseButton::Left)) },
-                NSLeftMouseUp           => { Some(MouseInput(Released, MouseButton::Left)) },
-                NSRightMouseDown        => { Some(MouseInput(Pressed, MouseButton::Right)) },
-                NSRightMouseUp          => { Some(MouseInput(Released, MouseButton::Right)) },
-                NSMouseMoved            |
-                NSLeftMouseDragged      |
-                NSOtherMouseDragged     |
-                NSRightMouseDragged     => {
-                    let window_point = event.locationInWindow();
-                    let window: id = msg_send![event, window];
-                    let view_point = if window == nil {
-                        let window_rect = self.window.window.convertRectFromScreen_(NSRect::new(window_point, NSSize::new(0.0, 0.0)));
-                        self.window.view.convertPoint_fromView_(window_rect.origin, nil)
-                    } else {
-                        self.window.view.convertPoint_fromView_(window_point, nil)
-                    };
-                    let view_rect = NSView::frame(*self.window.view);
-                    let scale_factor = self.window.hidpi_factor();
-
-                    Some(MouseMoved(((scale_factor * view_point.x as f32) as i32,
-                                    (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32)))
-                },
-                NSKeyDown               => {
-                    let mut events = VecDeque::new();
-                    let received_c_str = event.characters().UTF8String();
-                    let received_str = CStr::from_ptr(received_c_str);
-                    for received_char in from_utf8(received_str.to_bytes()).unwrap().chars() {
-                        if received_char.is_ascii() {
-                            events.push_back(ReceivedCharacter(received_char));
-                        }
-                    }
-
-                    let vkey =  event::vkeycode_to_element(NSEvent::keyCode(event));
-                    events.push_back(KeyboardInput(Pressed, NSEvent::keyCode(event) as u8, vkey));
-                    let event = events.pop_front();
-                    self.window.delegate.state.pending_events.lock().unwrap().extend(events.into_iter());
-                    event
-                },
-                NSKeyUp                 => {
-                    let vkey =  event::vkeycode_to_element(NSEvent::keyCode(event));
-
-                    Some(KeyboardInput(Released, NSEvent::keyCode(event) as u8, vkey))
-                },
-                NSFlagsChanged          => {
-                    let mut events = VecDeque::new();
-                    let shift_modifier = Window::modifier_event(event, appkit::NSShiftKeyMask, events::VirtualKeyCode::LShift, shift_pressed);
-                    if shift_modifier.is_some() {
-                        shift_pressed = !shift_pressed;
-                        events.push_back(shift_modifier.unwrap());
-                    }
-                    let ctrl_modifier = Window::modifier_event(event, appkit::NSControlKeyMask, events::VirtualKeyCode::LControl, ctrl_pressed);
-                    if ctrl_modifier.is_some() {
-                        ctrl_pressed = !ctrl_pressed;
-                        events.push_back(ctrl_modifier.unwrap());
-                    }
-                    let win_modifier = Window::modifier_event(event, appkit::NSCommandKeyMask, events::VirtualKeyCode::LWin, win_pressed);
-                    if win_modifier.is_some() {
-                        win_pressed = !win_pressed;
-                        events.push_back(win_modifier.unwrap());
-                    }
-                    let alt_modifier = Window::modifier_event(event, appkit::NSAlternateKeyMask, events::VirtualKeyCode::LAlt, alt_pressed);
-                    if alt_modifier.is_some() {
-                        alt_pressed = !alt_pressed;
-                        events.push_back(alt_modifier.unwrap());
-                    }
-                    let event = events.pop_front();
-                    self.window.delegate.state.pending_events.lock().unwrap().extend(events.into_iter());
-                    event
-                },
-                NSScrollWheel => {
-                    use events::MouseScrollDelta::{LineDelta, PixelDelta};
-                    let delta = if event.hasPreciseScrollingDeltas() == YES {
-                        PixelDelta(event.scrollingDeltaX() as f32, event.scrollingDeltaY() as f32)
-                    } else {
-                        LineDelta(event.scrollingDeltaX() as f32, event.scrollingDeltaY() as f32)
-                    };
-                    Some(MouseWheel(delta))
-                },
-                _                       => { None },
-            };
-
-            event
+            event = NSEventToEvent(self.window, nsevent);
         }
+        event
     }
 }
 
@@ -303,25 +218,24 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        loop {
-            if let Some(ev) = self.window.delegate.state.pending_events.lock().unwrap().pop_front() {
-                return Some(ev);
-            }
+        if let Some(ev) = self.window.delegate.state.pending_events.lock().unwrap().pop_front() {
+            return Some(ev);
+        }
 
-            unsafe {
-                let event = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                    NSAnyEventMask.bits(),
-                    NSDate::distantFuture(nil),
-                    NSDefaultRunLoopMode,
-                    NO);
-            }
+        let event: Option<Event>;
+        unsafe {
+            let nsevent = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
+                NSAnyEventMask.bits(),
+                NSDate::distantFuture(nil),
+                NSDefaultRunLoopMode,
+                YES);
+            event = NSEventToEvent(self.window, nsevent);
+        }
 
-            // calling poll_events()
-            if let Some(ev) = self.window.poll_events().next() {
-                return Some(ev);
-            } else {
-                return Some(Awakened);
-            }
+        if event.is_none() {
+            return Some(Awakened);
+        } else {
+            return event;
         }
     }
 }
@@ -877,3 +791,91 @@ impl Clone for IdRef {
     }
 }
 
+unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
+    if nsevent == nil { return None; }
+
+    let event_type = msg_send![nsevent, type];
+    NSApp().sendEvent_(if let NSKeyDown = event_type { nil } else { nsevent });
+
+    match event_type {
+        NSLeftMouseDown         => { Some(MouseInput(Pressed, MouseButton::Left)) },
+        NSLeftMouseUp           => { Some(MouseInput(Released, MouseButton::Left)) },
+        NSRightMouseDown        => { Some(MouseInput(Pressed, MouseButton::Right)) },
+        NSRightMouseUp          => { Some(MouseInput(Released, MouseButton::Right)) },
+        NSMouseMoved            |
+        NSLeftMouseDragged      |
+        NSOtherMouseDragged     |
+        NSRightMouseDragged     => {
+            let window_point = nsevent.locationInWindow();
+            let cWindow: id = msg_send![nsevent, window];
+            let view_point = if cWindow == nil {
+                let window_rect = window.window.convertRectFromScreen_(NSRect::new(window_point, NSSize::new(0.0, 0.0)));
+                window.view.convertPoint_fromView_(window_rect.origin, nil)
+            } else {
+                window.view.convertPoint_fromView_(window_point, nil)
+            };
+            let view_rect = NSView::frame(*window.view);
+            let scale_factor = window.hidpi_factor();
+
+            Some(MouseMoved(((scale_factor * view_point.x as f32) as i32,
+                            (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32)))
+        },
+        NSKeyDown => {
+            let mut events = VecDeque::new();
+            let received_c_str = nsevent.characters().UTF8String();
+            let received_str = CStr::from_ptr(received_c_str);
+            for received_char in from_utf8(received_str.to_bytes()).unwrap().chars() {
+                if received_char.is_ascii() {
+                    events.push_back(ReceivedCharacter(received_char));
+                }
+            }
+
+            let vkey =  event::vkeycode_to_element(NSEvent::keyCode(nsevent));
+            events.push_back(KeyboardInput(Pressed, NSEvent::keyCode(nsevent) as u8, vkey));
+            let event = events.pop_front();
+            window.delegate.state.pending_events.lock().unwrap().extend(events.into_iter());
+            event
+        },
+        NSKeyUp => {
+            let vkey =  event::vkeycode_to_element(NSEvent::keyCode(nsevent));
+
+            Some(KeyboardInput(Released, NSEvent::keyCode(nsevent) as u8, vkey))
+        },
+        NSFlagsChanged => {
+            let mut events = VecDeque::new();
+            let shift_modifier = Window::modifier_event(nsevent, appkit::NSShiftKeyMask, events::VirtualKeyCode::LShift, shift_pressed);
+            if shift_modifier.is_some() {
+                shift_pressed = !shift_pressed;
+                events.push_back(shift_modifier.unwrap());
+            }
+            let ctrl_modifier = Window::modifier_event(nsevent, appkit::NSControlKeyMask, events::VirtualKeyCode::LControl, ctrl_pressed);
+            if ctrl_modifier.is_some() {
+                ctrl_pressed = !ctrl_pressed;
+                events.push_back(ctrl_modifier.unwrap());
+            }
+            let win_modifier = Window::modifier_event(nsevent, appkit::NSCommandKeyMask, events::VirtualKeyCode::LWin, win_pressed);
+            if win_modifier.is_some() {
+                win_pressed = !win_pressed;
+                events.push_back(win_modifier.unwrap());
+            }
+            let alt_modifier = Window::modifier_event(nsevent, appkit::NSAlternateKeyMask, events::VirtualKeyCode::LAlt, alt_pressed);
+            if alt_modifier.is_some() {
+                alt_pressed = !alt_pressed;
+                events.push_back(alt_modifier.unwrap());
+            }
+            let event = events.pop_front();
+            window.delegate.state.pending_events.lock().unwrap().extend(events.into_iter());
+            event
+        },
+        NSScrollWheel => {
+            use events::MouseScrollDelta::{LineDelta, PixelDelta};
+            let delta = if nsevent.hasPreciseScrollingDeltas() == YES {
+                PixelDelta(nsevent.scrollingDeltaX() as f32, nsevent.scrollingDeltaY() as f32)
+            } else {
+                LineDelta(nsevent.scrollingDeltaX() as f32, nsevent.scrollingDeltaY() as f32)
+            };
+            Some(MouseWheel(delta))
+        },
+        _  => { None },
+    }
+}
