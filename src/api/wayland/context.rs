@@ -218,4 +218,11 @@ impl WaylandContext {
             p.lock().unwrap().remove_handled_surface(sid);
         }
     }
+
+    pub fn push_event_for(&self, sid: SurfaceId, evt: Event) {
+        let mut guard = self.windows_event_queues.lock().unwrap();
+        if let Some(queue) = guard.get(&sid) {
+            queue.lock().unwrap().push_back(evt);
+        }
+    }
 }
