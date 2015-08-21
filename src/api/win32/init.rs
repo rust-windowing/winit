@@ -1,10 +1,8 @@
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::io;
 use std::ptr;
 use std::mem;
 use std::thread;
-use libc;
 
 use super::callback;
 use super::Window;
@@ -19,7 +17,7 @@ use CreationError::OsError;
 use CursorState;
 use GlRequest;
 
-use std::ffi::{CString, OsStr};
+use std::ffi::{OsStr};
 use std::os::windows::ffi::OsStrExt;
 use std::sync::mpsc::channel;
 
@@ -28,7 +26,6 @@ use kernel32;
 use dwmapi;
 use user32;
 
-use api::wgl;
 use api::wgl::Context as WglContext;
 use api::egl;
 use api::egl::Context as EglContext;
@@ -163,7 +160,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 
     // creating the OpenGL context
     let context = match builder.gl_version {
-        GlRequest::Specific(Api::OpenGlEs, (major, minor)) => {
+        GlRequest::Specific(Api::OpenGlEs, (_major, _minor)) => {
             if let Some(egl) = egl {
                 if let Ok(c) = EglContext::new(egl, &builder,
                                                egl::NativeDisplay::Other(Some(ptr::null())))
@@ -201,7 +198,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
                 _ => unimplemented!()
             };
 
-            try!(WglContext::new(&builder, real_window.0, builder_sharelists).map(Context::Wgl))       
+            try!(WglContext::new(&builder, real_window.0, builder_sharelists).map(Context::Wgl))
         }
     };
 
@@ -214,9 +211,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
             fTransitionOnMaximized: 0,
         };
 
-        unsafe {
-            dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
-        }
+        dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
     }
 
     // calling SetForegroundWindow if fullscreen
@@ -254,7 +249,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 unsafe fn register_window_class() -> Vec<u16> {
     let class_name = OsStr::new("Window Class").encode_wide().chain(Some(0).into_iter())
                                                .collect::<Vec<_>>();
-    
+
     let class = winapi::WNDCLASSEXW {
         cbSize: mem::size_of::<winapi::WNDCLASSEXW>() as winapi::UINT,
         style: winapi::CS_HREDRAW | winapi::CS_VREDRAW | winapi::CS_OWNDC,
@@ -302,7 +297,7 @@ unsafe fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorID)
     let result = user32::ChangeDisplaySettingsExW(monitor.get_adapter_name().as_ptr(),
                                                   &mut screen_settings, ptr::null_mut(),
                                                   winapi::CDS_FULLSCREEN, ptr::null_mut());
-    
+
     if result != winapi::DISP_CHANGE_SUCCESSFUL {
         return Err(OsError(format!("ChangeDisplaySettings failed: {}", result)));
     }
