@@ -57,6 +57,14 @@ user32-sys = "~0.1.1"
 kernel32-sys = "0.1"
 dwmapi-sys = "0.1"
 
+[target.i686-pc-windows-msvc.dependencies]
+winapi = "0.2"
+shell32-sys = "0.1"
+gdi32-sys = "0.1"
+user32-sys = "~0.1.1"
+kernel32-sys = "0.1"
+dwmapi-sys = "0.1"
+
 [target.x86_64-pc-windows-gnu.dependencies]
 winapi = "0.2"
 shell32-sys = "0.1"

@@ -1,6 +1,5 @@
 #![cfg(target_os = "windows")]
 
-use std::sync::atomic::AtomicBool;
 use std::mem;
 use std::ptr;
 use std::ffi::OsStr;
@@ -26,7 +25,6 @@ use winapi;
 use user32;
 use kernel32;
 
-use api::wgl;
 use api::wgl::Context as WglContext;
 use api::egl::Context as EglContext;
 use api::egl::ffi::egl::Egl;
