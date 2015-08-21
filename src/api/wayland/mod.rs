@@ -134,6 +134,13 @@ impl Window {
             if let Some(f) = self.resize_callback {
                 f(w as u32, h as u32);
             }
+            if let Some(ref ctxt) = *WAYLAND_CONTEXT {
+                let mut window_guard = self.shell_window.lock().unwrap();
+                ctxt.push_event_for(
+                    window_guard.get_shell().get_wsurface().get_id(),
+                    Event::Resized(w as u32, h as u32)
+                );
+            }
         }
         b
     }
