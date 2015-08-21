@@ -86,7 +86,7 @@ impl WaylandContext {
                 if let Some(sid) = sid {
                     let map = event_queues.lock().unwrap();
                     if let Some(queue) = map.get(&sid) {
-                        queue.lock().unwrap().push_back(Event::Moved(x as i32,y as i32))
+                        queue.lock().unwrap().push_back(Event::MouseMoved((x as i32,y as i32)))
                     }
                 }
             });
