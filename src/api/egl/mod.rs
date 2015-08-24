@@ -74,50 +74,70 @@ impl Context {
 
         // calling `eglGetDisplay` or equivalent
         let display = match native_display {
-            NativeDisplay::X11(display) if has_dp_extension("EGL_KHR_platform_x11") => {
+            // Note: Some EGL implementations are missing the `eglGetPlatformDisplay(EXT)` symbol
+            //       despite reporting `EGL_EXT_platform_base`. I'm pretty sure this is a bug.
+            //       Therefore we detect whether the symbol is loaded in addition to checking for
+            //       extensions.
+            NativeDisplay::X11(display) if has_dp_extension("EGL_KHR_platform_x11") &&
+                                           egl.GetPlatformDisplay.is_loaded() =>
+            {
                 let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
                 // TODO: `PLATFORM_X11_SCREEN_KHR`
                 unsafe { egl.GetPlatformDisplay(ffi::egl::PLATFORM_X11_KHR, d as *mut _,
                                                 ptr::null()) }
             },
 
-            NativeDisplay::X11(display) if has_dp_extension("EGL_EXT_platform_x11") => {
+            NativeDisplay::X11(display) if has_dp_extension("EGL_EXT_platform_x11") &&
+                                           egl.GetPlatformDisplayEXT.is_loaded() =>
+            {
                 let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
                 // TODO: `PLATFORM_X11_SCREEN_EXT`
                 unsafe { egl.GetPlatformDisplayEXT(ffi::egl::PLATFORM_X11_EXT, d as *mut _,
                                                    ptr::null()) }
             },
 
-            NativeDisplay::Gbm(display) if has_dp_extension("EGL_KHR_platform_gbm") => {
+            NativeDisplay::Gbm(display) if has_dp_extension("EGL_KHR_platform_gbm") &&
+                                           egl.GetPlatformDisplay.is_loaded() =>
+            {
                 let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
                 unsafe { egl.GetPlatformDisplay(ffi::egl::PLATFORM_GBM_KHR, d as *mut _,
                                                 ptr::null()) }
             },
 
-            NativeDisplay::Gbm(display) if has_dp_extension("EGL_MESA_platform_gbm") => {
+            NativeDisplay::Gbm(display) if has_dp_extension("EGL_MESA_platform_gbm") &&
+                                           egl.GetPlatformDisplayEXT.is_loaded() =>
+            {
                 let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
                 unsafe { egl.GetPlatformDisplayEXT(ffi::egl::PLATFORM_GBM_KHR, d as *mut _,
                                                    ptr::null()) }
             },
 
-            NativeDisplay::Wayland(display) if has_dp_extension("EGL_KHR_platform_wayland") => {
+            NativeDisplay::Wayland(display) if has_dp_extension("EGL_KHR_platform_wayland") &&
+                                               egl.GetPlatformDisplay.is_loaded() =>
+            {
                 let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
                 unsafe { egl.GetPlatformDisplay(ffi::egl::PLATFORM_WAYLAND_KHR, d as *mut _,
                                                 ptr::null()) }
             },
 
-            NativeDisplay::Wayland(display) if has_dp_extension("EGL_EXT_platform_wayland") => {
+            NativeDisplay::Wayland(display) if has_dp_extension("EGL_EXT_platform_wayland") &&
+                                               egl.GetPlatformDisplayEXT.is_loaded() =>
+            {
                 let d = display.unwrap_or(ffi::egl::DEFAULT_DISPLAY as *const _);
                 unsafe { egl.GetPlatformDisplayEXT(ffi::egl::PLATFORM_WAYLAND_EXT, d as *mut _,
                                                    ptr::null()) }
             },
 
-            NativeDisplay::Android if has_dp_extension("EGL_KHR_platform_android") => {
+            NativeDisplay::Android if has_dp_extension("EGL_KHR_platform_android") &&
+                                      egl.GetPlatformDisplay.is_loaded() =>
+            {
                 unsafe { egl.GetPlatformDisplay(ffi::egl::PLATFORM_ANDROID_KHR,
                                                 ffi::egl::DEFAULT_DISPLAY as *mut _, ptr::null()) }
             },
 
-            NativeDisplay::Device(display) if has_dp_extension("EGL_EXT_platform_device") => {
+            NativeDisplay::Device(display) if has_dp_extension("EGL_EXT_platform_device") &&
+                                              egl.GetPlatformDisplay.is_loaded() =>
+            {
                 unsafe { egl.GetPlatformDisplay(ffi::egl::PLATFORM_DEVICE_EXT, display as *mut _,
                                                 ptr::null()) }
             },
