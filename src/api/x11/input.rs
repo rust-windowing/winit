@@ -268,10 +268,9 @@ fn read_input_axis_info(display: &Arc<XConnection>) -> Vec<Axis> {
     let mut axis_list = Vec::new();
     let mut device_count = 0;
 
-    // only get events from the master devices which are 'attached'
-    // to the keyboard or cursor
+    // Check all input devices for scroll axes.
     let devices = unsafe{
-        (display.xinput2.XIQueryDevice)(display.display, ffi::XIAllMasterDevices, &mut device_count)
+        (display.xinput2.XIQueryDevice)(display.display, ffi::XIAllDevices, &mut device_count)
     };
     for i in 0..device_count {
         let device = unsafe { *(devices.offset(i as isize)) };
