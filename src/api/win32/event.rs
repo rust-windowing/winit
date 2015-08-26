@@ -1,8 +1,20 @@
 use events::VirtualKeyCode;
 use winapi;
+use user32;
+use ScanCode;
 
-pub fn vkeycode_to_element(code: winapi::WPARAM) -> Option<VirtualKeyCode> {
-    match code as i32 {
+const MAPVK_VSC_TO_VK_EX: u32 = 3;
+
+pub fn vkeycode_to_element(wparam: winapi::WPARAM, lparam: winapi::LPARAM) -> (ScanCode, Option<VirtualKeyCode>) {
+    let scancode = ((lparam >> 16) & 0xff) as u8;
+    let extended = (lparam & 0x01000000) != 0;
+    let vk = match wparam as i32 {
+        winapi::VK_SHIFT => unsafe { user32::MapVirtualKeyA(scancode as u32, MAPVK_VSC_TO_VK_EX) as i32 },
+        winapi::VK_CONTROL => if extended { winapi::VK_RCONTROL } else { winapi::VK_LCONTROL },
+        winapi::VK_MENU => if extended { winapi::VK_RMENU } else { winapi::VK_LMENU },
+        other => other
+    };
+    (scancode, match vk {
         //winapi::VK_LBUTTON => Some(VirtualKeyCode::Lbutton),
         //winapi::VK_RBUTTON => Some(VirtualKeyCode::Rbutton),
         //winapi::VK_CANCEL => Some(VirtualKeyCode::Cancel),
@@ -13,9 +25,12 @@ pub fn vkeycode_to_element(code: winapi::WPARAM) -> Option<VirtualKeyCode> {
         winapi::VK_TAB => Some(VirtualKeyCode::Tab),
         //winapi::VK_CLEAR => Some(VirtualKeyCode::Clear),
         winapi::VK_RETURN => Some(VirtualKeyCode::Return),
-        //winapi::VK_SHIFT => Some(VirtualKeyCode::Shift),
-        //winapi::VK_CONTROL => Some(VirtualKeyCode::Control),
-        //winapi::VK_MENU => Some(VirtualKeyCode::Menu),
+        winapi::VK_LSHIFT => Some(VirtualKeyCode::LShift),
+        winapi::VK_RSHIFT => Some(VirtualKeyCode::RShift),
+        winapi::VK_LCONTROL => Some(VirtualKeyCode::LControl),
+        winapi::VK_RCONTROL => Some(VirtualKeyCode::RControl),
+        winapi::VK_LMENU => Some(VirtualKeyCode::LMenu),
+        winapi::VK_RMENU => Some(VirtualKeyCode::RMenu),
         winapi::VK_PAUSE => Some(VirtualKeyCode::Pause),
         winapi::VK_CAPITAL => Some(VirtualKeyCode::Capital),
         winapi::VK_KANA => Some(VirtualKeyCode::Kana),
@@ -177,5 +192,5 @@ pub fn vkeycode_to_element(code: winapi::WPARAM) -> Option<VirtualKeyCode> {
         winapi::VK_PA1 => Some(VirtualKeyCode::Pa1),
         winapi::VK_OEM_CLEAR => Some(VirtualKeyCode::Oem_clear),*/
         _ => None
-    }
+    })
 }
