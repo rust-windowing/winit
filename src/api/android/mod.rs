@@ -257,7 +257,7 @@ impl HeadlessContext {
     pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
         let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder, egl::NativeDisplay::Android));
         let context = try!(context.finish_pbuffer());
-        Ok(context)
+        Ok(HeadlessContext(context))
     }
 }
 
