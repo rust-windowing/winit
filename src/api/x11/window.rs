@@ -186,7 +186,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
             }
 
             match xev.get_type() {
-                ffi::KeymapNotify => {
+                ffi::MappingNotify => {
                     unsafe { (xlib.XRefreshKeyboardMapping)(mem::transmute(&xev)); }
                 },
 
