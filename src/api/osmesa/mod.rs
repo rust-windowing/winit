@@ -1,4 +1,4 @@
-#![cfg(any(target_os = "linux", target_os = "freebsd"))]
+#![cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly"))]
 
 extern crate osmesa_sys;
 

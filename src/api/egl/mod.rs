@@ -1,4 +1,5 @@
-#![cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))]
+#![cfg(any(target_os = "windows", target_os = "linux", target_os = "android",
+           target_os = "dragonfly", target_os = "freebsd"))]
 #![allow(unused_variables)]
 
 use BuilderAttribs;

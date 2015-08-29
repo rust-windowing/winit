@@ -33,3 +33,5 @@ pub type EGLNativeWindowType = winapi::HWND;
 pub type EGLNativeWindowType = *const libc::c_void;
 #[cfg(target_os = "android")]
 pub type EGLNativeWindowType = *const libc::c_void;
+#[cfg(any(target_os = "dragonfly", target_os = "freebsd"))]
+pub type EGLNativeWindowType = *const libc::c_void;

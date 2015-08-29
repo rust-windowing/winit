@@ -1,4 +1,4 @@
-#![cfg(all(target_os = "linux", feature = "window"))]
+#![cfg(all(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd"), feature = "window"))]
 
 use BuilderAttribs;
 use ContextError;

@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd"))]
 
 use Api;
 use BuilderAttribs;
