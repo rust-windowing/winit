@@ -46,9 +46,12 @@ pub fn load(window: &glutin::Window) -> Context {
                            (VERTEX_DATA.len() * mem::size_of::<f32>()) as gl::types::GLsizeiptr,
                            VERTEX_DATA.as_ptr() as *const _, gl::STATIC_DRAW);
 
-        /*let mut vao = mem::uninitialized();
-        gl.GenVertexArrays(1, &mut vao);
-        gl.BindVertexArray(vao);*/
+        if gl.BindVertexArray.is_loaded() {
+            let mut vao = mem::uninitialized();
+            gl.GenVertexArrays(1, &mut vao);
+            gl.BindVertexArray(vao);
+        }
+
         let pos_attrib = gl.GetAttribLocation(program, b"position\0".as_ptr() as *const _);
         let color_attrib = gl.GetAttribLocation(program, b"color\0".as_ptr() as *const _);
         gl.VertexAttribPointer(pos_attrib as gl::types::GLuint, 2, gl::FLOAT, 0,
@@ -85,11 +88,12 @@ static VERTEX_DATA: [f32; 15] = [
 
 const VS_SRC: &'static [u8] = b"
 #version 100
+precision mediump float;
 
-lowp attribute vec2 position;
-lowp attribute vec3 color;
+attribute vec2 position;
+attribute vec3 color;
 
-lowp varying vec3 v_color;
+varying vec3 v_color;
 
 void main() {
     gl_Position = vec4(position, 0.0, 1.0);
@@ -99,8 +103,9 @@ void main() {
 
 const FS_SRC: &'static [u8] = b"
 #version 100
+precision mediump float;
 
-lowp varying vec3 v_color;
+varying vec3 v_color;
 
 void main() {
     gl_FragColor = vec4(v_color, 1.0);
