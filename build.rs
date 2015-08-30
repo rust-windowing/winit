@@ -176,5 +176,5 @@ fn main() {
                                     gl_generator::registry::Ns::Gles2,
                                     gl_generator::Fallbacks::All,
                                     khronos_api::GL_XML, vec![],
-                                    "2.0", "core", &mut file).unwrap();
+                                    "3.0", "core", &mut file).unwrap();
 }
