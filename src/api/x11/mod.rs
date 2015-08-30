@@ -1,4 +1,4 @@
-#![cfg(all(target_os = "linux", feature = "window"))]
+#![cfg(all(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd"), feature = "window"))]
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 pub use self::window::{Window, XWindow, PollEventsIterator, WaitEventsIterator, Context, WindowProxy};

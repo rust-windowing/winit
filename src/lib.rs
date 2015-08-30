@@ -55,7 +55,7 @@ extern crate cocoa;
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
 extern crate core_graphics;
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly"))]
 extern crate x11_dl;
 
 pub use events::*;
