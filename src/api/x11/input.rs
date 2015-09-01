@@ -21,7 +21,8 @@ struct Axis {
     id: i32,
     device_id: i32,
     axis_number: i32,
-    axis_type: AxisType
+    axis_type: AxisType,
+    scroll_increment: f64,
 }
 
 #[derive(Debug)]
@@ -167,7 +168,7 @@ impl XInputEventHandler {
         use events::Event::{Focused, MouseInput, MouseMoved, MouseWheel};
         use events::ElementState::{Pressed, Released};
         use events::MouseButton::{Left, Right, Middle};
-        use events::MouseScrollDelta::{PixelDelta, LineDelta};
+        use events::MouseScrollDelta::LineDelta;
         use events::{Touch, TouchPhase};
 
         match cookie.evtype {
@@ -221,7 +222,7 @@ impl XInputEventHandler {
                 }
 
                 if scroll_delta.0.abs() > 0.0 || scroll_delta.1.abs() > 0.0 {
-                    Some(MouseWheel(PixelDelta(scroll_delta.0 as f32, scroll_delta.1 as f32)))
+                    Some(MouseWheel(LineDelta(scroll_delta.0 as f32, scroll_delta.1 as f32)))
                 } else {
                     let new_cursor_pos = (event_data.event_x, event_data.event_y);
                     if new_cursor_pos != self.current_state.cursor_pos {
@@ -267,10 +268,9 @@ fn read_input_axis_info(display: &Arc<XConnection>) -> Vec<Axis> {
     let mut axis_list = Vec::new();
     let mut device_count = 0;
 
-    // only get events from the master devices which are 'attached'
-    // to the keyboard or cursor
+    // Check all input devices for scroll axes.
     let devices = unsafe{
-        (display.xinput2.XIQueryDevice)(display.display, ffi::XIAllMasterDevices, &mut device_count)
+        (display.xinput2.XIQueryDevice)(display.display, ffi::XIAllDevices, &mut device_count)
     };
     for i in 0..device_count {
         let device = unsafe { *(devices.offset(i as isize)) };
@@ -290,7 +290,8 @@ fn read_input_axis_info(display: &Arc<XConnection>) -> Vec<Axis> {
                             ffi::XIScrollTypeHorizontal => AxisType::HorizontalScroll,
                             ffi::XIScrollTypeVertical => AxisType::VerticalScroll,
                             _ => { unreachable!() }
-                        }
+                        },
+                        scroll_increment: scroll_class.increment,
                     })
                 },
                 _ => {}
@@ -314,7 +315,7 @@ fn calc_scroll_deltas(event: &ffi::XIDeviceEvent,
             prev_axis.axis_number == axis_id
     });
     let delta = match prev_value_pos {
-        Some(idx) => axis_value - prev_axis_values[idx].value,
+        Some(idx) => prev_axis_values[idx].value - axis_value,
         None => 0.0
     };
 
@@ -335,8 +336,8 @@ fn calc_scroll_deltas(event: &ffi::XIDeviceEvent,
         if axis.id == event.sourceid &&
             axis.axis_number == axis_id {
                 match axis.axis_type {
-                    AxisType::HorizontalScroll => scroll_delta.0 = delta,
-                    AxisType::VerticalScroll => scroll_delta.1 = delta
+                    AxisType::HorizontalScroll => scroll_delta.0 = delta / axis.scroll_increment,
+                    AxisType::VerticalScroll => scroll_delta.1 = delta / axis.scroll_increment
                 }
             }
     }
