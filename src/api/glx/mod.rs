@@ -384,14 +384,15 @@ unsafe fn enumerate_configs(glx: &ffi::glx::Glx, xlib: &ffi::Xlib, display: *mut
             return None;
         }
 
+        // TODO: add a flag to PixelFormat for non-conformant configs
         let caveat = get_attrib(ffi::glx::CONFIG_CAVEAT as libc::c_int, config);
-        if caveat == ffi::glx::NON_CONFORMANT_CONFIG as libc::c_int {
+        /*if caveat == ffi::glx::NON_CONFORMANT_CONFIG as libc::c_int {
             return None;
-        }
+        }*/
 
         // TODO: make sure everything is supported
         let pf = PixelFormat {
-            hardware_accelerated: caveat == ffi::glx::NONE as libc::c_int,
+            hardware_accelerated: caveat != ffi::glx::SLOW_CONFIG as libc::c_int,
             color_bits: get_attrib(ffi::glx::RED_SIZE as libc::c_int, config) as u8 +
                         get_attrib(ffi::glx::GREEN_SIZE as libc::c_int, config) as u8 +
                         get_attrib(ffi::glx::BLUE_SIZE as libc::c_int, config) as u8,
