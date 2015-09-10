@@ -44,7 +44,7 @@ use std::sync::Mutex;
 use std::ascii::AsciiExt;
 use std::ops::Deref;
 
-use events::Event::{Awakened, MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel, Closed};
+use events::Event::{Awakened, MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel, Closed, Focused};
 use events::ElementState::{Pressed, Released};
 use events::MouseButton;
 use events;
@@ -105,6 +105,25 @@ impl WindowDelegate {
             }
         }
 
+        extern fn window_did_become_key(this: &Object, _: Sel, _: id) {
+            unsafe {
+                // TODO: center the cursor if the window had mouse grab when it
+                // lost focus
+
+                let state: *mut libc::c_void = *this.get_ivar("glutinState");
+                let state = state as *mut DelegateState;
+                (*state).pending_events.lock().unwrap().push_back(Focused(true));
+            }
+        }
+
+        extern fn window_did_resign_key(this: &Object, _: Sel, _: id) {
+            unsafe {
+                let state: *mut libc::c_void = *this.get_ivar("glutinState");
+                let state = state as *mut DelegateState;
+                (*state).pending_events.lock().unwrap().push_back(Focused(false));
+            }
+        }
+
         static mut delegate_class: *const Class = 0 as *const Class;
         static INIT: Once = ONCE_INIT;
 
@@ -118,6 +137,11 @@ impl WindowDelegate {
                 window_should_close as extern fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(windowDidResize:),
                 window_did_resize as extern fn(&Object, Sel, id));
+            
+            decl.add_method(sel!(windowDidBecomeKey:),
+                window_did_become_key as extern fn(&Object, Sel, id));
+            decl.add_method(sel!(windowDidResignKey:),
+                window_did_resign_key as extern fn(&Object, Sel, id));
 
             // Store internal state as user data
             decl.add_ivar::<*mut libc::c_void>("glutinState");
