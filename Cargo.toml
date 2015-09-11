@@ -21,7 +21,7 @@ libc = "0.1"
 shared_library = "0.1.0"
 
 [build-dependencies]
-gl_generator = "0.0.26"
+gl_generator = "0.0.27"
 khronos_api = "0.0.7"
 
 [dev-dependencies]
