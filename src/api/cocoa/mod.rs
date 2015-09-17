@@ -396,7 +396,8 @@ impl Window {
             };
 
             let masks = if screen.is_some() || !builder.decorations {
-                NSBorderlessWindowMask as NSUInteger
+                NSBorderlessWindowMask as NSUInteger |
+                NSResizableWindowMask as NSUInteger
             } else {
                 NSTitledWindowMask as NSUInteger |
                 NSClosableWindowMask as NSUInteger |
