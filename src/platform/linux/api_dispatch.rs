@@ -19,10 +19,12 @@ use libc;
 use api::wayland;
 use api::x11;
 use api::x11::XConnection;
+use api::x11::XNotSupported;
 
 enum Backend {
     X(Arc<XConnection>),
-    Wayland
+    Wayland,
+    Error(XNotSupported),
 }
 
 lazy_static!(
@@ -31,7 +33,10 @@ lazy_static!(
         if false && wayland::is_available() {
             Backend::Wayland
         } else {
-            Backend::X(Arc::new(XConnection::new().unwrap()))
+            match XConnection::new() {
+                Ok(x) => Backend::X(Arc::new(x)),
+                Err(e) => Backend::Error(e),
+            }
         }
     };
 );
@@ -65,7 +70,9 @@ pub enum MonitorID {
     #[doc(hidden)]
     X(x11::MonitorID),
     #[doc(hidden)]
-    Wayland(wayland::MonitorID)
+    Wayland(wayland::MonitorID),
+    #[doc(hidden)]
+    None,
 }
 
 pub fn get_available_monitors() -> VecDeque<MonitorID> {
@@ -78,6 +85,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
                                     .into_iter()
                                     .map(MonitorID::X)
                                     .collect(),
+        Backend::Error(_) => { let mut d = VecDeque::new(); d.push_back(MonitorID::None); d},
     }
 }
 
@@ -85,6 +93,7 @@ pub fn get_primary_monitor() -> MonitorID {
     match *BACKEND {
         Backend::Wayland => MonitorID::Wayland(wayland::get_primary_monitor()),
         Backend::X(ref connec) => MonitorID::X(x11::get_primary_monitor(connec)),
+        Backend::Error(_) => MonitorID::None,
     }
 }
 
@@ -92,21 +101,24 @@ impl MonitorID {
     pub fn get_name(&self) -> Option<String> {
         match self {
             &MonitorID::X(ref m) => m.get_name(),
-            &MonitorID::Wayland(ref m) => m.get_name()
+            &MonitorID::Wayland(ref m) => m.get_name(),
+            &MonitorID::None => None,
         }
     }
 
     pub fn get_native_identifier(&self) -> ::native_monitor::NativeMonitorId {
         match self {
             &MonitorID::X(ref m) => m.get_native_identifier(),
-            &MonitorID::Wayland(ref m) => m.get_native_identifier()
+            &MonitorID::Wayland(ref m) => m.get_native_identifier(),
+            &MonitorID::None => unimplemented!()        // FIXME: 
         }
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
         match self {
             &MonitorID::X(ref m) => m.get_dimensions(),
-            &MonitorID::Wayland(ref m) => m.get_dimensions()
+            &MonitorID::Wayland(ref m) => m.get_dimensions(),
+            &MonitorID::None => (800, 600),     // FIXME: 
         }
     }
 }
@@ -153,6 +165,7 @@ impl Window {
         match *BACKEND {
             Backend::Wayland => wayland::Window::new(builder).map(Window::Wayland),
             Backend::X(ref connec) => x11::Window::new(connec, builder).map(Window::X),
+            Backend::Error(ref error) => Err(CreationError::NoBackendAvailable(Box::new(error.clone())))
         }
     }
 

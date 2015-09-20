@@ -1,4 +1,6 @@
 use std::ptr;
+use std::fmt;
+use std::error::Error;
 use std::ffi::CString;
 
 use libc;
@@ -21,17 +23,13 @@ pub struct XConnection {
 unsafe impl Send for XConnection {}
 unsafe impl Sync for XConnection {}
 
-/// Error returned if this system doesn't have XLib or can't create an X connection.
-#[derive(Copy, Clone, Debug)]
-pub struct XNotSupported;
-
 impl XConnection {
     pub fn new() -> Result<XConnection, XNotSupported> {
         // opening the libraries
-        let xlib = try!(ffi::Xlib::open().map_err(|_| XNotSupported));
-        let xcursor = try!(ffi::Xcursor::open().map_err(|_| XNotSupported));
-        let xf86vmode = try!(ffi::Xf86vmode::open().map_err(|_| XNotSupported));
-        let xinput2 = try!(ffi::XInput2::open().map_err(|_| XNotSupported));
+        let xlib = try!(ffi::Xlib::open());
+        let xcursor = try!(ffi::Xcursor::open());
+        let xf86vmode = try!(ffi::Xf86vmode::open());
+        let xinput2 = try!(ffi::XInput2::open());
 
         unsafe extern "C" fn x_error_callback(_: *mut ffi::Display, event: *mut ffi::XErrorEvent)
                                               -> libc::c_int
@@ -82,7 +80,7 @@ impl XConnection {
         let display = unsafe {
             let display = (xlib.XOpenDisplay)(ptr::null());
             if display.is_null() {
-                return Err(XNotSupported);
+                return Err(XNotSupported::XOpenDisplayFailed);
             }
             display
         };
@@ -102,5 +100,42 @@ impl XConnection {
 impl Drop for XConnection {
     fn drop(&mut self) {
         unsafe { (self.xlib.XCloseDisplay)(self.display) };
+    }
+}
+
+/// Error returned if this system doesn't have XLib or can't create an X connection.
+#[derive(Clone, Debug)]
+pub enum XNotSupported {
+    /// Failed to load one or several shared libraries.
+    LibraryOpenError(ffi::OpenError),
+    /// Connecting to the X server with `XOpenDisplay` failed.
+    XOpenDisplayFailed,     // TODO: add better message
+}
+
+impl From<ffi::OpenError> for XNotSupported {
+    fn from(err: ffi::OpenError) -> XNotSupported {
+        XNotSupported::LibraryOpenError(err)
+    }
+}
+
+impl Error for XNotSupported {
+    fn description(&self) -> &str {
+        match *self {
+            XNotSupported::LibraryOpenError(_) => "Failed to load one of xlib's shared libraries",
+            XNotSupported::XOpenDisplayFailed => "Failed to open connection to X server",
+        }
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        match *self {
+            XNotSupported::LibraryOpenError(ref err) => Some(err),
+            _ => None
+        }
+    }
+}
+
+impl fmt::Display for XNotSupported {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        formatter.write_str(self.description())
     }
 }

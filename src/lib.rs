@@ -106,11 +106,12 @@ pub trait GlContext {
 }
 
 /// Error that can happen while creating a window or a headless renderer.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum CreationError {
     OsError(String),
     /// TODO: remove this error
     NotSupported,
+    NoBackendAvailable(Box<std::error::Error + Send>),
     RobustnessNotSupported,
     OpenGlVersionNotSupported,
     NoAvailablePixelFormat,
@@ -121,6 +122,7 @@ impl CreationError {
         match *self {
             CreationError::OsError(ref text) => &text,
             CreationError::NotSupported => "Some of the requested attributes are not supported",
+            CreationError::NoBackendAvailable(_) => "No backend is available",
             CreationError::RobustnessNotSupported => "You requested robustness, but it is \
                                                       not supported.",
             CreationError::OpenGlVersionNotSupported => "The requested OpenGL version is not \
@@ -140,6 +142,13 @@ impl std::fmt::Display for CreationError {
 impl std::error::Error for CreationError {
     fn description(&self) -> &str {
         self.to_string()
+    }
+
+    fn cause(&self) -> Option<&std::error::Error> {
+        match *self {
+            CreationError::NoBackendAvailable(ref err) => Some(&**err),
+            _ => None
+        }
     }
 }
 
