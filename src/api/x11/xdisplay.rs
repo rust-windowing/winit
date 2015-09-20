@@ -1,4 +1,6 @@
 use std::ptr;
+use std::fmt;
+use std::error::Error;
 use std::ffi::CString;
 
 use libc;
@@ -20,10 +22,6 @@ pub struct XConnection {
 
 unsafe impl Send for XConnection {}
 unsafe impl Sync for XConnection {}
-
-/// Error returned if this system doesn't have XLib or can't create an X connection.
-#[derive(Copy, Clone, Debug)]
-pub struct XNotSupported;
 
 impl XConnection {
     pub fn new() -> Result<XConnection, XNotSupported> {
@@ -102,5 +100,21 @@ impl XConnection {
 impl Drop for XConnection {
     fn drop(&mut self) {
         unsafe { (self.xlib.XCloseDisplay)(self.display) };
+    }
+}
+
+/// Error returned if this system doesn't have XLib or can't create an X connection.
+#[derive(Copy, Clone, Debug)]
+pub struct XNotSupported;
+
+impl Error for XNotSupported {
+    fn description(&self) -> &str {
+        "The X windowing system could not be initialized"
+    }
+}
+
+impl fmt::Display for XNotSupported {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        formatter.write_str(self.description())
     }
 }
