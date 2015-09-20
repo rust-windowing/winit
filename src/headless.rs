@@ -31,7 +31,7 @@ impl HeadlessRendererBuilder {
 
     /// Sets how the backend should choose the OpenGL API and version.
     pub fn with_gl(mut self, request: GlRequest) -> HeadlessRendererBuilder {
-        self.attribs.gl_version = request;
+        self.attribs.opengl.version = request;
         self
     }
 
@@ -40,13 +40,13 @@ impl HeadlessRendererBuilder {
     /// The default value for this flag is `cfg!(ndebug)`, which means that it's enabled
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
     pub fn with_gl_debug_flag(mut self, flag: bool) -> HeadlessRendererBuilder {
-        self.attribs.gl_debug = flag;
+        self.attribs.opengl.debug = flag;
         self
     }
 
     /// Sets the robustness of the OpenGL context. See the docs of `Robustness`.
     pub fn with_gl_robustness(mut self, robustness: Robustness) -> HeadlessRendererBuilder {
-        self.attribs.gl_robustness = robustness;
+        self.attribs.opengl.robustness = robustness;
         self
     }
 

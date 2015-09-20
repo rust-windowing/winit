@@ -371,15 +371,9 @@ pub struct BuilderAttribs<'a> {
     #[allow(dead_code)]
     headless: bool,
     strict: bool,
-    sharing: Option<&'a platform::Window>,
     dimensions: Option<(u32, u32)>,
     title: String,
     monitor: Option<platform::MonitorID>,
-    gl_version: GlRequest,
-    gl_profile: Option<GlProfile>,
-    gl_debug: bool,
-    gl_robustness: Robustness,
-    vsync: bool,
     visible: bool,
     multisampling: Option<u16>,
     depth_bits: Option<u8>,
@@ -390,7 +384,8 @@ pub struct BuilderAttribs<'a> {
     srgb: Option<bool>,
     transparent: bool,
     decorations: bool,
-    multitouch: bool
+    multitouch: bool,
+    opengl: GlAttributes<&'a platform::Window>,
 }
 
 impl BuilderAttribs<'static> {
@@ -398,15 +393,9 @@ impl BuilderAttribs<'static> {
         BuilderAttribs {
             headless: false,
             strict: false,
-            sharing: None,
             dimensions: None,
             title: "glutin window".to_string(),
             monitor: None,
-            gl_version: GlRequest::Latest,
-            gl_profile: None,
-            gl_debug: cfg!(debug_assertions),
-            gl_robustness: Robustness::NotRobust,
-            vsync: false,
             visible: true,
             multisampling: None,
             depth_bits: None,
@@ -417,7 +406,8 @@ impl BuilderAttribs<'static> {
             srgb: None,
             transparent: false,
             decorations: true,
-            multitouch: false
+            multitouch: false,
+            opengl: Default::default(),
         }
     }
 }
@@ -425,20 +415,14 @@ impl BuilderAttribs<'static> {
 impl<'a> BuilderAttribs<'a> {
     #[allow(dead_code)]
     fn extract_non_static(mut self) -> (BuilderAttribs<'static>, Option<&'a platform::Window>) {
-        let sharing = self.sharing.take();
+        let sharing = self.opengl.sharing.take();
 
         let new_attribs = BuilderAttribs {
             headless: self.headless,
             strict: self.strict,
-            sharing: None,
             dimensions: self.dimensions,
             title: self.title,
             monitor: self.monitor,
-            gl_version: self.gl_version,
-            gl_profile: self.gl_profile,
-            gl_debug: self.gl_debug,
-            gl_robustness: self.gl_robustness,
-            vsync: self.vsync,
             visible: self.visible,
             multisampling: self.multisampling,
             depth_bits: self.depth_bits,
@@ -449,7 +433,15 @@ impl<'a> BuilderAttribs<'a> {
             srgb: self.srgb,
             transparent: self.transparent,
             decorations: self.decorations,
-            multitouch: self.multitouch
+            multitouch: self.multitouch,
+            opengl: GlAttributes {
+                sharing: None,
+                version: self.opengl.version,
+                profile: self.opengl.profile,
+                debug: self.opengl.debug,
+                robustness: self.opengl.robustness,
+                vsync: self.opengl.vsync,
+            },
         };
 
         (new_attribs, sharing)
@@ -552,6 +544,57 @@ impl<'a> BuilderAttribs<'a> {
         });
 
         formats.into_iter().next().ok_or(CreationError::NoAvailablePixelFormat)
+    }
+}
+
+/// Attributes to use when creating an OpenGL context.
+#[derive(Clone)]
+pub struct GlAttributes<S> {
+    /// An existing context to share the new the context with.
+    ///
+    /// The default is `None`.
+    pub sharing: Option<S>,
+
+    /// Version to try create. See `GlRequest` for more infos.
+    ///
+    /// The default is `Latest`.
+    pub version: GlRequest,
+
+    /// OpenGL profile to use.
+    ///
+    /// The default is `None`.
+    pub profile: Option<GlProfile>,
+
+    /// Whether to enable the `debug` flag of the context.
+    ///
+    /// Debug contexts are usually slower but give better error reporting.
+    ///
+    /// The default is `true` in debug mode and `false` in release mode.
+    pub debug: bool,
+
+    /// How the OpenGL context should detect errors.
+    ///
+    /// The default is `NotRobust` because this is what is typically expected when you create an
+    /// OpenGL context. However for safety you should consider `TryRobustLoseContextOnReset`.
+    pub robustness: Robustness,
+
+    /// Whether to use vsync. If vsync is enabled, calling `swap_buffers` will block until the
+    /// screen refreshes. This is typically used to prevent screen tearing.
+    ///
+    /// The default is `false`.
+    pub vsync: bool,
+}
+
+impl<S> Default for GlAttributes<S> {
+    fn default() -> GlAttributes<S> {
+        GlAttributes {
+            sharing: None,
+            version: GlRequest::Latest,
+            profile: None,
+            debug: cfg!(debug_assertions),
+            robustness: Robustness::NotRobust,
+            vsync: false,
+        }
     }
 }
 

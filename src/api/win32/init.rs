@@ -159,7 +159,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     };
 
     // creating the OpenGL context
-    let context = match builder.gl_version {
+    let context = match builder.opengl.version {
         GlRequest::Specific(Api::OpenGlEs, (_major, _minor)) => {
             if let Some(egl) = egl {
                 if let Ok(c) = EglContext::new(egl, &builder,

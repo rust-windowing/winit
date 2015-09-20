@@ -60,19 +60,19 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// There are some exceptions, like FBOs or VAOs. See the OpenGL documentation.
     pub fn with_shared_lists(mut self, other: &'a Window) -> WindowBuilder<'a> {
-        self.attribs.sharing = Some(&other.window);
+        self.attribs.opengl.sharing = Some(&other.window);
         self
     }
 
     /// Sets how the backend should choose the OpenGL API and version.
     pub fn with_gl(mut self, request: GlRequest) -> WindowBuilder<'a> {
-        self.attribs.gl_version = request;
+        self.attribs.opengl.version = request;
         self
     }
 
     /// Sets the desired OpenGL context profile.
     pub fn with_gl_profile(mut self, profile: GlProfile) -> WindowBuilder<'a> {
-        self.attribs.gl_profile = Some(profile);
+        self.attribs.opengl.profile = Some(profile);
         self
     }
 
@@ -81,19 +81,19 @@ impl<'a> WindowBuilder<'a> {
     /// The default value for this flag is `cfg!(debug_assertions)`, which means that it's enabled
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
     pub fn with_gl_debug_flag(mut self, flag: bool) -> WindowBuilder<'a> {
-        self.attribs.gl_debug = flag;
+        self.attribs.opengl.debug = flag;
         self
     }
 
     /// Sets the robustness of the OpenGL context. See the docs of `Robustness`.
     pub fn with_gl_robustness(mut self, robustness: Robustness) -> WindowBuilder<'a> {
-        self.attribs.gl_robustness = robustness;
+        self.attribs.opengl.robustness = robustness;
         self
     }
 
     /// Requests that the window has vsync enabled.
     pub fn with_vsync(mut self) -> WindowBuilder<'a> {
-        self.attribs.vsync = true;
+        self.attribs.opengl.vsync = true;
         self
     }
 

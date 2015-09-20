@@ -349,7 +349,7 @@ impl Window {
             Egl(::api::egl::ContextPrototype<'a>),
         }
         let builder_clone = builder.clone();
-        let context = match builder.gl_version {
+        let context = match builder.opengl.version {
             GlRequest::Latest | GlRequest::Specific(Api::OpenGl, _) | GlRequest::GlThenGles { .. } => {
                 // GLX should be preferred over EGL, otherwise crashes may occur
                 // on X11 – issue #314

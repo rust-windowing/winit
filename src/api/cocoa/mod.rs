@@ -267,11 +267,11 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 impl Window {
     #[cfg(feature = "window")]
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        if builder.sharing.is_some() {
+        if builder.opengl.sharing.is_some() {
             unimplemented!()
         }
 
-        match builder.gl_robustness {
+        match builder.opengl.robustness {
             Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
                 return Err(CreationError::RobustnessNotSupported);
             },
@@ -438,7 +438,7 @@ impl Window {
     }
 
     fn create_context(view: id, builder: &BuilderAttribs) -> Result<(IdRef, PixelFormat), CreationError> {
-        let profile = match (builder.gl_version, builder.gl_version.to_gl_version(), builder.gl_profile) {
+        let profile = match (builder.opengl.version, builder.opengl.version.to_gl_version(), builder.opengl.profile) {
 
             // Note: we are not using ranges because of a rust bug that should be fixed here:
             // https://github.com/rust-lang/rust/pull/27050
@@ -540,7 +540,7 @@ impl Window {
                     };
 
                     cxt.setView_(view);
-                    let value = if builder.vsync { 1 } else { 0 };
+                    let value = if builder.opengl.vsync { 1 } else { 0 };
                     cxt.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
 
                     CGLEnable(cxt.CGLContextObj(), kCGLCECrashOnRemovedFunctions);

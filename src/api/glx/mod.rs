@@ -133,7 +133,7 @@ impl<'a> ContextPrototype<'a> {
     }
 
     pub fn finish(self, window: ffi::Window) -> Result<Context, CreationError> {
-        let share = if let Some(win) = self.builder.sharing {
+        let share = if let Some(win) = self.builder.opengl.sharing {
             match win {
                 &PlatformWindow::X(ref win) => match win.x.context {
                     ::api::x11::Context::Glx(ref c) => c.context,
@@ -160,46 +160,46 @@ impl<'a> ContextPrototype<'a> {
         });
 
         // creating GL context
-        let context = match self.builder.gl_version {
+        let context = match self.builder.opengl.version {
             GlRequest::Latest => {
                 if let Ok(ctxt) = create_context(&self.glx, &extra_functions, &extensions, (3, 2),
-                                                 self.builder.gl_profile, self.builder.gl_debug,
-                                                 self.builder.gl_robustness, share,
+                                                 self.builder.opengl.profile, self.builder.opengl.debug,
+                                                 self.builder.opengl.robustness, share,
                                                  self.display, self.fb_config, &self.visual_infos)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.glx, &extra_functions, &extensions,
-                                                        (3, 1), self.builder.gl_profile,
-                                                        self.builder.gl_debug,
-                                                        self.builder.gl_robustness, share, self.display,
+                                                        (3, 1), self.builder.opengl.profile,
+                                                        self.builder.opengl.debug,
+                                                        self.builder.opengl.robustness, share, self.display,
                                                         self.fb_config, &self.visual_infos)
                 {
                     ctxt
 
                 } else {
                     try!(create_context(&self.glx, &extra_functions, &extensions, (1, 0),
-                                        self.builder.gl_profile, self.builder.gl_debug,
-                                        self.builder.gl_robustness,
+                                        self.builder.opengl.profile, self.builder.opengl.debug,
+                                        self.builder.opengl.robustness,
                                         share, self.display, self.fb_config, &self.visual_infos))
                 }
             },
             GlRequest::Specific(Api::OpenGl, (major, minor)) => {
                 try!(create_context(&self.glx, &extra_functions, &extensions, (major, minor),
-                                    self.builder.gl_profile, self.builder.gl_debug,
-                                    self.builder.gl_robustness, share, self.display, self.fb_config,
+                                    self.builder.opengl.profile, self.builder.opengl.debug,
+                                    self.builder.opengl.robustness, share, self.display, self.fb_config,
                                     &self.visual_infos))
             },
             GlRequest::Specific(_, _) => panic!("Only OpenGL is supported"),
             GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
                 try!(create_context(&self.glx, &extra_functions, &extensions, (major, minor),
-                                    self.builder.gl_profile, self.builder.gl_debug,
-                                    self.builder.gl_robustness, share, self.display, self.fb_config,
+                                    self.builder.opengl.profile, self.builder.opengl.debug,
+                                    self.builder.opengl.robustness, share, self.display, self.fb_config,
                                     &self.visual_infos))
             },
         };
 
         // vsync
-        if self.builder.vsync {
+        if self.builder.opengl.vsync {
             unsafe { self.glx.MakeCurrent(self.display as *mut _, window, context) };
 
             if extra_functions.SwapIntervalEXT.is_loaded() {

@@ -83,7 +83,7 @@ impl Window {
 
         // setting the attributes
         // FIXME: 
-        /*match builder.gl_version {
+        /*match builder.opengl.version {
             Some((major, minor)) => {
                 attributes.majorVersion = major as libc::c_int;
                 attributes.minorVersion = minor as libc::c_int;

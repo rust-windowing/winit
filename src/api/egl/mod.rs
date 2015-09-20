@@ -162,7 +162,7 @@ impl Context {
                    native_display: NativeDisplay)
                    -> Result<ContextPrototype<'a>, CreationError>
     {
-        if builder.sharing.is_some() {
+        if builder.opengl.sharing.is_some() {
             unimplemented!()
         }
 
@@ -197,7 +197,7 @@ impl Context {
 
         // binding the right API and choosing the version
         let (version, api) = unsafe {
-            match builder.gl_version {
+            match builder.opengl.version {
                 GlRequest::Latest => {
                     if egl_version >= (1, 4) {
                         if egl.BindAPI(ffi::egl::OPENGL_API) != 0 {
@@ -394,18 +394,18 @@ impl<'a> ContextPrototype<'a> {
             if let Some(version) = self.version {
                 try!(create_context(&self.egl, self.display, &self.egl_version,
                                     &self.extensions, self.api, version, self.config_id,
-                                    self.builder.gl_debug, self.builder.gl_robustness))
+                                    self.builder.opengl.debug, self.builder.opengl.robustness))
 
             } else if self.api == Api::OpenGlEs {
                 if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
                                                  &self.extensions, self.api, (2, 0), self.config_id,
-                                                 self.builder.gl_debug, self.builder.gl_robustness)
+                                                 self.builder.opengl.debug, self.builder.opengl.robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
                                                         &self.extensions, self.api, (1, 0),
-                                                        self.config_id, self.builder.gl_debug,
-                                                        self.builder.gl_robustness)
+                                                        self.config_id, self.builder.opengl.debug,
+                                                        self.builder.opengl.robustness)
                 {
                     ctxt
                 } else {
@@ -415,19 +415,19 @@ impl<'a> ContextPrototype<'a> {
             } else {
                 if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
                                                  &self.extensions, self.api, (3, 2), self.config_id,
-                                                 self.builder.gl_debug, self.builder.gl_robustness)
+                                                 self.builder.opengl.debug, self.builder.opengl.robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
                                                         &self.extensions, self.api, (3, 1),
-                                                        self.config_id, self.builder.gl_debug,
-                                                        self.builder.gl_robustness)
+                                                        self.config_id, self.builder.opengl.debug,
+                                                        self.builder.opengl.robustness)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.egl, self.display, &self.egl_version,
                                                         &self.extensions, self.api, (1, 0),
-                                                        self.config_id, self.builder.gl_debug,
-                                                        self.builder.gl_robustness)
+                                                        self.config_id, self.builder.opengl.debug,
+                                                        self.builder.opengl.robustness)
                 {
                     ctxt
                 } else {

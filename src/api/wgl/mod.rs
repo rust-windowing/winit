@@ -131,7 +131,7 @@ impl Context {
         let gl_library = try!(load_opengl32_dll());
 
         // handling vsync
-        if builder.vsync {
+        if builder.opengl.vsync {
             if extensions.split(' ').find(|&i| i == "WGL_EXT_swap_control").is_some() {
                 let _guard = try!(CurrentContextGuard::make_current(hdc, context.0));
 
@@ -220,7 +220,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
         if extensions.split(' ').find(|&i| i == "WGL_ARB_create_context").is_some() {
             let mut attributes = Vec::new();
 
-            match builder.gl_version {
+            match builder.opengl.version {
                 GlRequest::Latest => {},
                 GlRequest::Specific(Api::OpenGl, (major, minor)) => {
                     attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
@@ -252,7 +252,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                 },
             }
 
-            if let Some(profile) = builder.gl_profile {
+            if let Some(profile) = builder.opengl.profile {
                 if extensions.split(' ').find(|&i| i == "WGL_ARB_create_context_profile").is_some()
                 {
                     let flag = match profile {
@@ -273,7 +273,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
 
                 // robustness
                 if extensions.split(' ').find(|&i| i == "WGL_ARB_create_context_robustness").is_some() {
-                    match builder.gl_robustness {
+                    match builder.opengl.robustness {
                         Robustness::RobustNoResetNotification | Robustness::TryRobustNoResetNotification => {
                             attributes.push(gl::wgl_extra::CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB as libc::c_int);
                             attributes.push(gl::wgl_extra::NO_RESET_NOTIFICATION_ARB as libc::c_int);
@@ -288,7 +288,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                         Robustness::NoError => (),
                     }
                 } else {
-                    match builder.gl_robustness {
+                    match builder.opengl.robustness {
                         Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
                             return Err(CreationError::RobustnessNotSupported);
                         },
@@ -296,7 +296,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                     }
                 }
 
-                if builder.gl_debug {
+                if builder.opengl.debug {
                     flags = flags | gl::wgl_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int;
                 }
 
