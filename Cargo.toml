@@ -30,6 +30,9 @@ clock_ticks = "0.0.5"
 [target.arm-linux-androideabi.dependencies.android_glue]
 version = "0"
 
+[target.i386-apple-ios.dependencies]
+objc = "0.1"
+
 [target.x86_64-apple-ios.dependencies]
 objc = "0.1"
 
