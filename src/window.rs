@@ -37,13 +37,13 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// Width and height are in pixels.
     pub fn with_dimensions(mut self, width: u32, height: u32) -> WindowBuilder<'a> {
-        self.attribs.dimensions = Some((width, height));
+        self.attribs.window.dimensions = Some((width, height));
         self
     }
 
     /// Requests a specific title for the window.
     pub fn with_title(mut self, title: String) -> WindowBuilder<'a> {
-        self.attribs.title = title;
+        self.attribs.window.title = title;
         self
     }
 
@@ -52,7 +52,7 @@ impl<'a> WindowBuilder<'a> {
     /// If you don't specify dimensions for the window, it will match the monitor's.
     pub fn with_fullscreen(mut self, monitor: MonitorID) -> WindowBuilder<'a> {
         let MonitorID(monitor) = monitor;
-        self.attribs.monitor = Some(monitor);
+        self.attribs.window.monitor = Some(monitor);
         self
     }
 
@@ -99,7 +99,7 @@ impl<'a> WindowBuilder<'a> {
 
     /// Sets whether the window will be initially hidden or visible.
     pub fn with_visibility(mut self, visible: bool) -> WindowBuilder<'a> {
-        self.attribs.visible = visible;
+        self.attribs.window.visible = visible;
         self
     }
 
@@ -147,19 +147,19 @@ impl<'a> WindowBuilder<'a> {
 
     /// Sets whether the background of the window should be transparent.
     pub fn with_transparency(mut self, transparent: bool) -> WindowBuilder<'a> {
-        self.attribs.transparent = transparent;
+        self.attribs.window.transparent = transparent;
         self
     }
 
     /// Sets whether the window should have a border, a title bar, etc.
     pub fn with_decorations(mut self, decorations: bool) -> WindowBuilder<'a> {
-        self.attribs.decorations = decorations;
+        self.attribs.window.decorations = decorations;
         self
     }
 
     /// Enables multitouch
     pub fn with_multitouch(mut self) -> WindowBuilder<'a> {
-        self.attribs.multitouch = true;
+        self.attribs.window.multitouch = true;
         self
     }
 
@@ -169,13 +169,13 @@ impl<'a> WindowBuilder<'a> {
     /// out of memory, etc.
     pub fn build(mut self) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
-        if self.attribs.dimensions.is_none() && self.attribs.monitor.is_some() {
-            self.attribs.dimensions = Some(self.attribs.monitor.as_ref().unwrap().get_dimensions())
+        if self.attribs.window.dimensions.is_none() && self.attribs.window.monitor.is_some() {
+            self.attribs.window.dimensions = Some(self.attribs.window.monitor.as_ref().unwrap().get_dimensions())
         }
 
         // default dimensions
-        if self.attribs.dimensions.is_none() {
-            self.attribs.dimensions = Some((1024, 768));
+        if self.attribs.window.dimensions.is_none() {
+            self.attribs.window.dimensions = Some((1024, 768));
         }
 
         // building

@@ -251,7 +251,7 @@ impl Window {
 
         if !is_egl_available() { return Err(CreationError::NotSupported) }
 
-        let (w, h) = builder.dimensions.unwrap_or((800, 600));
+        let (w, h) = builder.window.dimensions.unwrap_or((800, 600));
 
         let surface = EGLSurface::new(
             wayland_context.compositor.create_surface(),
@@ -259,12 +259,12 @@ impl Window {
             h as i32
         );
 
-        let mut shell_window = if let Some(PlatformMonitorID::Wayland(ref monitor)) = builder.monitor {
+        let mut shell_window = if let Some(PlatformMonitorID::Wayland(ref monitor)) = builder.window.monitor {
             let shell_surface = wayland_context.shell.get_shell_surface(surface);
             shell_surface.set_fullscreen(ShellFullscreenMethod::Default, Some(&monitor.output));
             ShellWindow::Plain(shell_surface)
         } else {
-            if builder.decorations {
+            if builder.window.decorations {
                 ShellWindow::Decorated(match DecoratedSurface::new(
                     surface,
                     w as i32,

@@ -37,7 +37,7 @@ impl OsMesaContext {
             return Err(OsMesaCreationError::NotSupported);
         }
 
-        let dimensions = builder.dimensions.unwrap();
+        let dimensions = builder.window.dimensions.unwrap();
 
         match builder.opengl.robustness {
             Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {

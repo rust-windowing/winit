@@ -219,7 +219,7 @@ impl Window {
 
         let state = &mut *self.delegate_state;
 
-        if builder.multitouch {
+        if builder.window.multitouch {
             let _: () = msg_send![state.view, setMultipleTouchEnabled:YES];
         }
 

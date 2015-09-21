@@ -367,7 +367,7 @@ impl<'a> ContextPrototype<'a> {
     }
 
     pub fn finish_pbuffer(self) -> Result<Context, CreationError> {
-        let dimensions = self.builder.dimensions.unwrap_or((800, 600));
+        let dimensions = self.builder.window.dimensions.unwrap_or((800, 600));
 
         let attrs = &[
             ffi::egl::WIDTH as libc::c_int, dimensions.0 as libc::c_int,

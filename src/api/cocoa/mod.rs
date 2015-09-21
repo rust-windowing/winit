@@ -301,7 +301,7 @@ impl Window {
         };
 
         unsafe {
-            if builder.transparent {
+            if builder.window.transparent {
                 let clear_col = {
                     let cls = Class::get("NSColor").unwrap();
 
@@ -317,7 +317,7 @@ impl Window {
             }
             
             app.activateIgnoringOtherApps_(YES);
-            if builder.visible {
+            if builder.window.visible {
                 window.makeKeyAndOrderFront_(nil);
             } else {
                 window.makeKeyWindow();
@@ -358,7 +358,7 @@ impl Window {
 
     fn create_window(builder: &BuilderAttribs) -> Option<IdRef> {
         unsafe { 
-            let screen = match builder.monitor {
+            let screen = match builder.window.monitor {
                 Some(ref monitor_id) => {
                     let native_id = match monitor_id.get_native_identifier() {
                         NativeMonitorId::Numeric(num) => num,
@@ -390,12 +390,12 @@ impl Window {
             let frame = match screen {
                 Some(screen) => NSScreen::frame(screen),
                 None => {
-                    let (width, height) = builder.dimensions.unwrap_or((800, 600));
+                    let (width, height) = builder.window.dimensions.unwrap_or((800, 600));
                     NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64))
                 }
             };
 
-            let masks = if screen.is_some() || !builder.decorations {
+            let masks = if screen.is_some() || !builder.window.decorations {
                 NSBorderlessWindowMask as NSUInteger |
                 NSResizableWindowMask as NSUInteger
             } else {
@@ -412,7 +412,7 @@ impl Window {
                 NO,
             ));
             window.non_nil().map(|window| {
-                let title = IdRef::new(NSString::alloc(nil).init_str(&builder.title));
+                let title = IdRef::new(NSString::alloc(nil).init_str(&builder.window.title));
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
                 if screen.is_some() {

@@ -296,9 +296,9 @@ pub struct Window {
 
 impl Window {
     pub fn new(display: &Arc<XConnection>, builder: BuilderAttribs) -> Result<Window, CreationError> {
-        let dimensions = builder.dimensions.unwrap_or((800, 600));
+        let dimensions = builder.window.dimensions.unwrap_or((800, 600));
 
-        let screen_id = match builder.monitor {
+        let screen_id = match builder.window.monitor {
             Some(PlatformMonitorID::X(MonitorID(_, monitor))) => monitor as i32,
             _ => unsafe { (display.xlib.XDefaultScreen)(display.display) },
         };
@@ -316,7 +316,7 @@ impl Window {
             // FIXME: `XF86VidModeModeInfo` is missing its `hskew` field. Therefore we point to
             //        `vsyncstart` instead of `vdisplay` as a temporary hack.
 
-            let mode_to_switch_to = if builder.monitor.is_some() {
+            let mode_to_switch_to = if builder.window.monitor.is_some() {
                 let matching_mode = (0 .. mode_num).map(|i| {
                     let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
                 }).find(|m| m.hdisplay == dimensions.0 as u16 && m.vsyncstart == dimensions.1 as u16);
@@ -415,7 +415,7 @@ impl Window {
                 ffi::KeyReleaseMask | ffi::ButtonPressMask |
                 ffi::ButtonReleaseMask | ffi::KeymapStateMask;
             swa.border_pixel = 0;
-            if builder.transparent {
+            if builder.window.transparent {
                 swa.background_pixel = 0;
             }
             swa.override_redirect = 0;
@@ -424,7 +424,7 @@ impl Window {
 
         let mut window_attributes = ffi::CWBorderPixel | ffi::CWColormap | ffi::CWEventMask;
 
-        if builder.transparent {
+        if builder.window.transparent {
             window_attributes |= ffi::CWBackPixel;
         }
 
@@ -448,7 +448,7 @@ impl Window {
         };
 
         // set visibility
-        if builder.visible {
+        if builder.window.visible {
             unsafe {
                 (display.xlib.XMapRaised)(display.display, window);
                 (display.xlib.XFlush)(display.display);
@@ -461,7 +461,7 @@ impl Window {
                 (display.xlib.XInternAtom)(display.display, delete_window, 0)
             );
             (display.xlib.XSetWMProtocols)(display.display, window, &mut wm_delete_window, 1);
-            with_c_str(&*builder.title, |title| {;
+            with_c_str(&*builder.window.title, |title| {;
                 (display.xlib.XStoreName)(display.display, window, title);
             });
             (display.xlib.XFlush)(display.display);
@@ -509,7 +509,7 @@ impl Window {
 
         // Set ICCCM WM_CLASS property based on initial window title
         unsafe {
-            with_c_str(&*builder.title, |c_name| {
+            with_c_str(&*builder.window.title, |c_name| {
                 let hint = (display.xlib.XAllocClassHint)();
                 (*hint).res_name = c_name as *mut libc::c_char;
                 (*hint).res_class = c_name as *mut libc::c_char;
@@ -518,7 +518,7 @@ impl Window {
             });
         }
 
-        let is_fullscreen = builder.monitor.is_some();
+        let is_fullscreen = builder.window.monitor.is_some();
 
         // finish creating the OpenGL context
         let context = match context {

@@ -86,7 +86,7 @@ pub enum HeadlessContext {
 
 impl HeadlessContext {
     pub fn new(mut builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
-        builder.visible = false;
+        builder.window.visible = false;
 
         // if EGL is available, we try using EGL first
         // if EGL returns an error, we try the hidden window method

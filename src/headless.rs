@@ -6,6 +6,7 @@ use GlRequest;
 use GlContext;
 use PixelFormat;
 use Robustness;
+use WindowAttributes;
 
 use gl_common;
 use libc;
@@ -23,7 +24,10 @@ impl HeadlessRendererBuilder {
         HeadlessRendererBuilder {
             attribs: BuilderAttribs {
                 headless: true,
-                dimensions: Some((width, height)),
+                window: WindowAttributes {
+                    dimensions: Some((width, height)),
+                    .. Default::default()
+                },
                 .. BuilderAttribs::new()
             },
         }

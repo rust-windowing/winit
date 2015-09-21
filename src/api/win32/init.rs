@@ -47,7 +47,7 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<R
 
     // initializing variables to be sent to the task
 
-    let title = OsStr::new(&builder.title).encode_wide().chain(Some(0).into_iter())
+    let title = OsStr::new(&builder.window.title).encode_wide().chain(Some(0).into_iter())
                                           .collect::<Vec<_>>();
 
     let (tx, rx) = channel();
@@ -92,20 +92,20 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 
     // building a RECT object with coordinates
     let mut rect = winapi::RECT {
-        left: 0, right: builder.dimensions.unwrap_or((1024, 768)).0 as winapi::LONG,
-        top: 0, bottom: builder.dimensions.unwrap_or((1024, 768)).1 as winapi::LONG,
+        left: 0, right: builder.window.dimensions.unwrap_or((1024, 768)).0 as winapi::LONG,
+        top: 0, bottom: builder.window.dimensions.unwrap_or((1024, 768)).1 as winapi::LONG,
     };
 
     // switching to fullscreen if necessary
     // this means adjusting the window's position so that it overlaps the right monitor,
     //  and change the monitor's resolution if necessary
-    if builder.monitor.is_some() {
-        let monitor = builder.monitor.as_ref().unwrap();
+    if builder.window.monitor.is_some() {
+        let monitor = builder.window.monitor.as_ref().unwrap();
         try!(switch_to_fullscreen(&mut rect, monitor));
     }
 
     // computing the style and extended style of the window
-    let (ex_style, style) = if builder.monitor.is_some() || builder.decorations == false {
+    let (ex_style, style) = if builder.window.monitor.is_some() || builder.window.decorations == false {
         (winapi::WS_EX_APPWINDOW, winapi::WS_POPUP | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN)
     } else {
         (winapi::WS_EX_APPWINDOW | winapi::WS_EX_WINDOWEDGE,
@@ -117,19 +117,19 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
-        let (width, height) = if builder.monitor.is_some() || builder.dimensions.is_some() {
+        let (width, height) = if builder.window.monitor.is_some() || builder.window.dimensions.is_some() {
             (Some(rect.right - rect.left), Some(rect.bottom - rect.top))
         } else {
             (None, None)
         };
 
-        let (x, y) = if builder.monitor.is_some() {
+        let (x, y) = if builder.window.monitor.is_some() {
             (Some(rect.left), Some(rect.top))
         } else {
             (None, None)
         };
 
-        let style = if !builder.visible || builder.headless {
+        let style = if !builder.window.visible || builder.headless {
             style
         } else {
             style | winapi::WS_VISIBLE
@@ -203,7 +203,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     };
 
     // making the window transparent
-    if builder.transparent {
+    if builder.window.transparent {
         let bb = winapi::DWM_BLURBEHIND {
             dwFlags: 0x1, // FIXME: DWM_BB_ENABLE;
             fEnable: 1,
@@ -215,7 +215,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     }
 
     // calling SetForegroundWindow if fullscreen
-    if builder.monitor.is_some() {
+    if builder.window.monitor.is_some() {
         user32::SetForegroundWindow(real_window.0);
     }
 

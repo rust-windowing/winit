@@ -371,10 +371,6 @@ pub struct BuilderAttribs<'a> {
     #[allow(dead_code)]
     headless: bool,
     strict: bool,
-    dimensions: Option<(u32, u32)>,
-    title: String,
-    monitor: Option<platform::MonitorID>,
-    visible: bool,
     multisampling: Option<u16>,
     depth_bits: Option<u8>,
     stencil_bits: Option<u8>,
@@ -382,9 +378,7 @@ pub struct BuilderAttribs<'a> {
     alpha_bits: Option<u8>,
     stereoscopy: bool,
     srgb: Option<bool>,
-    transparent: bool,
-    decorations: bool,
-    multitouch: bool,
+    window: WindowAttributes,
     opengl: GlAttributes<&'a platform::Window>,
 }
 
@@ -393,10 +387,6 @@ impl BuilderAttribs<'static> {
         BuilderAttribs {
             headless: false,
             strict: false,
-            dimensions: None,
-            title: "glutin window".to_string(),
-            monitor: None,
-            visible: true,
             multisampling: None,
             depth_bits: None,
             stencil_bits: None,
@@ -404,9 +394,7 @@ impl BuilderAttribs<'static> {
             alpha_bits: None,
             stereoscopy: false,
             srgb: None,
-            transparent: false,
-            decorations: true,
-            multitouch: false,
+            window: Default::default(),
             opengl: Default::default(),
         }
     }
@@ -420,10 +408,6 @@ impl<'a> BuilderAttribs<'a> {
         let new_attribs = BuilderAttribs {
             headless: self.headless,
             strict: self.strict,
-            dimensions: self.dimensions,
-            title: self.title,
-            monitor: self.monitor,
-            visible: self.visible,
             multisampling: self.multisampling,
             depth_bits: self.depth_bits,
             stencil_bits: self.stencil_bits,
@@ -431,9 +415,7 @@ impl<'a> BuilderAttribs<'a> {
             alpha_bits: self.alpha_bits,
             stereoscopy: self.stereoscopy,
             srgb: self.srgb,
-            transparent: self.transparent,
-            decorations: self.decorations,
-            multitouch: self.multitouch,
+            window: self.window,
             opengl: GlAttributes {
                 sharing: None,
                 version: self.opengl.version,
@@ -544,6 +526,59 @@ impl<'a> BuilderAttribs<'a> {
         });
 
         formats.into_iter().next().ok_or(CreationError::NoAvailablePixelFormat)
+    }
+}
+
+/// Attributes to use when creating a window.
+#[derive(Clone)]
+pub struct WindowAttributes {
+    /// The dimensions of the window. If this is `None`, some platform-specific dimensions will be
+    /// used.
+    ///
+    /// The default is `None`.
+    pub dimensions: Option<(u32, u32)>,
+
+    /// If `Some`, the window will be in fullscreen mode with the given monitor.
+    ///
+    /// The default is `None`.
+    pub monitor: Option<platform::MonitorID>,
+
+    /// The title of the window in the title bar.
+    ///
+    /// The default is `"glutin window"`.
+    pub title: String,
+
+    /// Whether the window should be immediately visible upon creation.
+    ///
+    /// The default is `true`.
+    pub visible: bool,
+
+    /// Whether the the window should be transparent. If this is true, writing colors
+    /// with alpha values different than `1.0` will produce a transparent window.
+    ///
+    /// The default is `false`.
+    pub transparent: bool,
+
+    /// Whether the window should have borders and bars.
+    ///
+    /// The default is `true`.
+    pub decorations: bool,
+
+    /// ??? TODO: document me
+    pub multitouch: bool,
+}
+
+impl Default for WindowAttributes {
+    fn default() -> WindowAttributes {
+        WindowAttributes {
+            dimensions: None,
+            monitor: None,
+            title: "glutin window".to_owned(),
+            visible: true,
+            transparent: false,
+            decorations: true,
+            multitouch: false,
+        }
     }
 }
 

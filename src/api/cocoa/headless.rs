@@ -28,7 +28,7 @@ pub struct HeadlessContext {
 
 impl HeadlessContext {
     pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
-        let (width, height) = builder.dimensions.unwrap_or((1024, 768));
+        let (width, height) = builder.window.dimensions.unwrap_or((1024, 768));
         let context = unsafe {
             let attributes = [
                 NSOpenGLPFAAccelerated as u32,
