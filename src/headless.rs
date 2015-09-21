@@ -16,9 +16,14 @@ use platform;
 
 /// Object that allows you to build headless contexts.
 pub struct HeadlessRendererBuilder<'a> {
-    dimensions: (u32, u32),
+    /// The dimensions to use.
+    pub dimensions: (u32, u32),
+
+    /// The OpenGL attributes to build the context with.
+    pub opengl: GlAttributes<&'a platform::HeadlessContext>,
+
+    // Should be made public once it's stabilized.
     pf_reqs: PixelFormatRequirements,
-    opengl: GlAttributes<&'a platform::HeadlessContext>,
 }
 
 impl<'a> HeadlessRendererBuilder<'a> {
