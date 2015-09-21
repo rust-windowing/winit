@@ -84,14 +84,14 @@ impl WindowProxy {
 impl Window {
     /// See the docs in the crate root file.
     pub fn new(builder: BuilderAttribs, egl: Option<&Egl>) -> Result<Window, CreationError> {
-        let (builder, sharing) = builder.extract_non_static();
-
-        let sharing = sharing.map(|w| match w.context {
-            Context::Wgl(ref c) => RawContext::Wgl(c.get_hglrc()),
-            Context::Egl(_) => unimplemented!(),        // FIXME: 
+        let opengl = builder.opengl.clone().map_sharing(|sharing| {
+            match sharing.context {
+                Context::Wgl(ref c) => RawContext::Wgl(c.get_hglrc()),
+                Context::Egl(_) => unimplemented!(),        // FIXME: 
+            }
         });
 
-        init::new_window(builder, sharing, egl)
+        init::new_window(&builder.window, &builder.pf_reqs, &opengl, egl)
     }
 
     /// See the docs in the crate root file.

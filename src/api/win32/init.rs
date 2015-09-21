@@ -15,7 +15,10 @@ use BuilderAttribs;
 use CreationError;
 use CreationError::OsError;
 use CursorState;
+use GlAttributes;
 use GlRequest;
+use PixelFormatRequirements;
+use WindowAttributes;
 
 use std::ffi::{OsStr};
 use std::os::windows::ffi::OsStrExt;
@@ -31,6 +34,7 @@ use api::egl;
 use api::egl::Context as EglContext;
 use api::egl::ffi::egl::Egl;
 
+#[derive(Clone)]
 pub enum RawContext {
     Egl(egl::ffi::egl::types::EGLContext),
     Wgl(winapi::HGLRC),
@@ -39,15 +43,18 @@ pub enum RawContext {
 unsafe impl Send for RawContext {}
 unsafe impl Sync for RawContext {}
 
-pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<RawContext>,
-                  egl: Option<&Egl>)
+pub fn new_window(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
+                  opengl: &GlAttributes<RawContext>, egl: Option<&Egl>)
                   -> Result<Window, CreationError>
 {
     let egl = egl.map(|e| e.clone());
+    let window = window.clone();
+    let pf_reqs = pf_reqs.clone();
+    let opengl = opengl.clone();
 
     // initializing variables to be sent to the task
 
-    let title = OsStr::new(&builder.window.title).encode_wide().chain(Some(0).into_iter())
+    let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
                                           .collect::<Vec<_>>();
 
     let (tx, rx) = channel();
@@ -57,7 +64,7 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<R
     thread::spawn(move || {
         unsafe {
             // creating and sending the `Window`
-            match init(title, builder, builder_sharelists, egl) {
+            match init(title, &window, &pf_reqs, &opengl, egl) {
                 Ok(w) => tx.send(Ok(w)).ok(),
                 Err(e) => {
                     tx.send(Err(e)).ok();
@@ -83,29 +90,36 @@ pub fn new_window(builder: BuilderAttribs<'static>, builder_sharelists: Option<R
     rx.recv().unwrap()
 }
 
-unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
-               builder_sharelists: Option<RawContext>, egl: Option<Egl>)
+unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<RawContext>, egl: Option<Egl>)
                -> Result<Window, CreationError>
 {
+    let opengl = opengl.clone().map_sharing(|sharelists| {
+        match sharelists {
+            RawContext::Wgl(c) => c,
+            _ => unimplemented!()
+        }
+    });
+
     // registering the window class
     let class_name = register_window_class();
 
     // building a RECT object with coordinates
     let mut rect = winapi::RECT {
-        left: 0, right: builder.window.dimensions.unwrap_or((1024, 768)).0 as winapi::LONG,
-        top: 0, bottom: builder.window.dimensions.unwrap_or((1024, 768)).1 as winapi::LONG,
+        left: 0, right: window.dimensions.unwrap_or((1024, 768)).0 as winapi::LONG,
+        top: 0, bottom: window.dimensions.unwrap_or((1024, 768)).1 as winapi::LONG,
     };
 
     // switching to fullscreen if necessary
     // this means adjusting the window's position so that it overlaps the right monitor,
     //  and change the monitor's resolution if necessary
-    if builder.window.monitor.is_some() {
-        let monitor = builder.window.monitor.as_ref().unwrap();
+    if window.monitor.is_some() {
+        let monitor = window.monitor.as_ref().unwrap();
         try!(switch_to_fullscreen(&mut rect, monitor));
     }
 
     // computing the style and extended style of the window
-    let (ex_style, style) = if builder.window.monitor.is_some() || builder.window.decorations == false {
+    let (ex_style, style) = if window.monitor.is_some() || window.decorations == false {
         (winapi::WS_EX_APPWINDOW, winapi::WS_POPUP | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN)
     } else {
         (winapi::WS_EX_APPWINDOW | winapi::WS_EX_WINDOWEDGE,
@@ -117,19 +131,19 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
 
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
-        let (width, height) = if builder.window.monitor.is_some() || builder.window.dimensions.is_some() {
+        let (width, height) = if window.monitor.is_some() || window.dimensions.is_some() {
             (Some(rect.right - rect.left), Some(rect.bottom - rect.top))
         } else {
             (None, None)
         };
 
-        let (x, y) = if builder.window.monitor.is_some() {
+        let (x, y) = if window.monitor.is_some() {
             (Some(rect.left), Some(rect.top))
         } else {
             (None, None)
         };
 
-        let style = if !builder.window.visible || builder.headless {
+        let style = if !window.visible {
             style
         } else {
             style | winapi::WS_VISIBLE
@@ -159,51 +173,33 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     };
 
     // creating the OpenGL context
-    let context = match builder.opengl.version {
+    let context = match opengl.version {
         GlRequest::Specific(Api::OpenGlEs, (_major, _minor)) => {
             if let Some(egl) = egl {
-                if let Ok(c) = EglContext::new(egl, &builder.pf_reqs, &builder.opengl.clone().map_sharing(|_| unimplemented!()),
+                if let Ok(c) = EglContext::new(egl, &pf_reqs, &opengl.clone().map_sharing(|_| unimplemented!()),
                                                egl::NativeDisplay::Other(Some(ptr::null())))
                                                              .and_then(|p| p.finish(real_window.0))
                 {
                     Context::Egl(c)
 
                 } else {
-                    let builder_sharelists = match builder_sharelists {
-                        None => None,
-                        Some(RawContext::Wgl(c)) => Some(c),
-                        _ => unimplemented!()
-                    };
-
-                    try!(WglContext::new(&builder, real_window.0, builder_sharelists)
+                    try!(WglContext::new(&pf_reqs, &opengl, real_window.0)
                                         .map(Context::Wgl))
                 }
 
             } else {
                 // falling back to WGL, which is always available
-                let builder_sharelists = match builder_sharelists {
-                    None => None,
-                    Some(RawContext::Wgl(c)) => Some(c),
-                    _ => unimplemented!()
-                };
-
-                try!(WglContext::new(&builder, real_window.0, builder_sharelists)
+                try!(WglContext::new(&pf_reqs, &opengl, real_window.0)
                                     .map(Context::Wgl))
             }
         },
         _ => {
-            let builder_sharelists = match builder_sharelists {
-                None => None,
-                Some(RawContext::Wgl(c)) => Some(c),
-                _ => unimplemented!()
-            };
-
-            try!(WglContext::new(&builder, real_window.0, builder_sharelists).map(Context::Wgl))
+            try!(WglContext::new(&pf_reqs, &opengl, real_window.0).map(Context::Wgl))
         }
     };
 
     // making the window transparent
-    if builder.window.transparent {
+    if window.transparent {
         let bb = winapi::DWM_BLURBEHIND {
             dwFlags: 0x1, // FIXME: DWM_BB_ENABLE;
             fEnable: 1,
@@ -215,7 +211,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     }
 
     // calling SetForegroundWindow if fullscreen
-    if builder.window.monitor.is_some() {
+    if window.monitor.is_some() {
         user32::SetForegroundWindow(real_window.0);
     }
 
