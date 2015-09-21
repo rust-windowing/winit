@@ -1,12 +1,13 @@
 #![cfg(any(target_os = "windows"))]
 
-use BuilderAttribs;
 use ContextError;
 use CreationError;
+use GlAttributes;
 use GlContext;
 use GlRequest;
 use GlProfile;
 use PixelFormat;
+use PixelFormatRequirements;
 use Robustness;
 use Api;
 
@@ -74,9 +75,8 @@ impl Context {
     /// # Unsafety
     ///
     /// The `window` must continue to exist as long as the resulting `Context` exists.
-    pub unsafe fn new(builder: &BuilderAttribs<'static>, window: winapi::HWND,
-                      builder_sharelists: Option<winapi::HGLRC>)
-                      -> Result<Context, CreationError>
+    pub unsafe fn new(pf_reqs: &PixelFormatRequirements, opengl: &GlAttributes<winapi::HGLRC>,
+                      window: winapi::HWND) -> Result<Context, CreationError>
     {
         let hdc = user32::GetDC(window);
         if hdc.is_null() {
@@ -118,20 +118,20 @@ impl Context {
                 enumerate_native_pixel_formats(hdc)
             };
 
-            let (id, f) = try!(builder.choose_pixel_format(formats));
+            let (id, f) = try!(pf_reqs.choose_pixel_format(formats));
             try!(set_pixel_format(hdc, id));
             f
         };
 
         // creating the OpenGL context
-        let context = try!(create_context(Some((&extra_functions, builder, &extensions)),
-                                          window, hdc, builder_sharelists));
+        let context = try!(create_context(Some((&extra_functions, pf_reqs, opengl, &extensions)),
+                                          window, hdc));
 
         // loading the opengl32 module
         let gl_library = try!(load_opengl32_dll());
 
         // handling vsync
-        if builder.vsync {
+        if opengl.vsync {
             if extensions.split(' ').find(|&i| i == "WGL_EXT_swap_control").is_some() {
                 let _guard = try!(CurrentContextGuard::make_current(hdc, context.0));
 
@@ -210,17 +210,20 @@ unsafe impl Sync for Context {}
 ///
 /// Otherwise, only the basic API will be used and the chances of `CreationError::NotSupported`
 /// being returned increase.
-unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'static>, &str)>,
-                         _: winapi::HWND, hdc: winapi::HDC, share: Option<winapi::HGLRC>)
+unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &PixelFormatRequirements,
+                                        &GlAttributes<winapi::HGLRC>, &str)>,
+                         _: winapi::HWND, hdc: winapi::HDC)
                          -> Result<ContextWrapper, CreationError>
 {
-    let share = share.unwrap_or(ptr::null_mut());
+    let share;
 
-    if let Some((extra_functions, builder, extensions)) = extra {
+    if let Some((extra_functions, pf_reqs, opengl, extensions)) = extra {
+        share = opengl.sharing.unwrap_or(ptr::null_mut());
+
         if extensions.split(' ').find(|&i| i == "WGL_ARB_create_context").is_some() {
             let mut attributes = Vec::new();
 
-            match builder.gl_version {
+            match opengl.version {
                 GlRequest::Latest => {},
                 GlRequest::Specific(Api::OpenGl, (major, minor)) => {
                     attributes.push(gl::wgl_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
@@ -252,7 +255,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                 },
             }
 
-            if let Some(profile) = builder.gl_profile {
+            if let Some(profile) = opengl.profile {
                 if extensions.split(' ').find(|&i| i == "WGL_ARB_create_context_profile").is_some()
                 {
                     let flag = match profile {
@@ -273,7 +276,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
 
                 // robustness
                 if extensions.split(' ').find(|&i| i == "WGL_ARB_create_context_robustness").is_some() {
-                    match builder.gl_robustness {
+                    match opengl.robustness {
                         Robustness::RobustNoResetNotification | Robustness::TryRobustNoResetNotification => {
                             attributes.push(gl::wgl_extra::CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB as libc::c_int);
                             attributes.push(gl::wgl_extra::NO_RESET_NOTIFICATION_ARB as libc::c_int);
@@ -288,7 +291,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                         Robustness::NoError => (),
                     }
                 } else {
-                    match builder.gl_robustness {
+                    match opengl.robustness {
                         Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
                             return Err(CreationError::RobustnessNotSupported);
                         },
@@ -296,7 +299,7 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                     }
                 }
 
-                if builder.gl_debug {
+                if opengl.debug {
                     flags = flags | gl::wgl_extra::CONTEXT_DEBUG_BIT_ARB as libc::c_int;
                 }
 
@@ -319,7 +322,10 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &BuilderAttribs<'st
                 return Ok(ContextWrapper(ctxt as winapi::HGLRC));
             }
         }
-    };
+
+    } else {
+        share = ptr::null_mut();
+    }
 
     let ctxt = gl::wgl::CreateContext(hdc as *const libc::c_void);
     if ctxt.is_null() {
@@ -544,7 +550,7 @@ unsafe fn load_extra_functions(window: winapi::HWND) -> Result<gl::wgl_extra::Wg
     }
 
     // creating the dummy OpenGL context and making it current
-    let dummy_context = try!(create_context(None, dummy_window.0, dummy_window.1, None));
+    let dummy_context = try!(create_context(None, dummy_window.0, dummy_window.1));
     let _current_context = try!(CurrentContextGuard::make_current(dummy_window.1,
                                                                   dummy_context.0));
 

@@ -6,14 +6,16 @@ pub use api::x11::{WaitEventsIterator, PollEventsIterator};*/
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use BuilderAttribs;
 use ContextError;
 use CreationError;
 use CursorState;
 use Event;
+use GlAttributes;
 use GlContext;
 use MouseCursor;
 use PixelFormat;
+use PixelFormatRequirements;
+use WindowAttributes;
 use libc;
 
 use api::wayland;
@@ -161,10 +163,28 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 }
 
 impl Window {
-    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
+    pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+    {
         match *BACKEND {
-            Backend::Wayland => wayland::Window::new(builder).map(Window::Wayland),
-            Backend::X(ref connec) => x11::Window::new(connec, builder).map(Window::X),
+            Backend::Wayland => {
+                let opengl = opengl.clone().map_sharing(|w| match w {
+                    &Window::Wayland(ref w) => w,
+                    _ => panic!()       // TODO: return an error
+                });
+
+                wayland::Window::new(window, pf_reqs, &opengl).map(Window::Wayland)
+            },
+
+            Backend::X(ref connec) => {
+                let opengl = opengl.clone().map_sharing(|w| match w {
+                    &Window::X(ref w) => w,
+                    _ => panic!()       // TODO: return an error
+                });
+
+                x11::Window::new(connec, window, pf_reqs, &opengl).map(Window::X)
+            },
+
             Backend::Error(ref error) => Err(CreationError::NoBackendAvailable(Box::new(error.clone())))
         }
     }

@@ -1,11 +1,13 @@
 use Api;
-use BuilderAttribs;
 use ContextError;
 use CreationError;
+use GlAttributes;
 use GlRequest;
 use GlContext;
 use PixelFormat;
+use PixelFormatRequirements;
 use Robustness;
+use WindowAttributes;
 
 use gl_common;
 use libc;
@@ -13,25 +15,25 @@ use libc;
 use platform;
 
 /// Object that allows you to build headless contexts.
-pub struct HeadlessRendererBuilder {
-    attribs: BuilderAttribs<'static>,
+pub struct HeadlessRendererBuilder<'a> {
+    dimensions: (u32, u32),
+    pf_reqs: PixelFormatRequirements,
+    opengl: GlAttributes<&'a platform::HeadlessContext>,
 }
 
-impl HeadlessRendererBuilder {
+impl<'a> HeadlessRendererBuilder<'a> {
     /// Initializes a new `HeadlessRendererBuilder` with default values.
-    pub fn new(width: u32, height: u32) -> HeadlessRendererBuilder {
+    pub fn new(width: u32, height: u32) -> HeadlessRendererBuilder<'a> {
         HeadlessRendererBuilder {
-            attribs: BuilderAttribs {
-                headless: true,
-                dimensions: Some((width, height)),
-                .. BuilderAttribs::new()
-            },
+            dimensions: (width, height),
+            pf_reqs: Default::default(),
+            opengl: Default::default(),
         }
     }
 
     /// Sets how the backend should choose the OpenGL API and version.
-    pub fn with_gl(mut self, request: GlRequest) -> HeadlessRendererBuilder {
-        self.attribs.gl_version = request;
+    pub fn with_gl(mut self, request: GlRequest) -> HeadlessRendererBuilder<'a> {
+        self.opengl.version = request;
         self
     }
 
@@ -39,14 +41,14 @@ impl HeadlessRendererBuilder {
     ///
     /// The default value for this flag is `cfg!(ndebug)`, which means that it's enabled
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
-    pub fn with_gl_debug_flag(mut self, flag: bool) -> HeadlessRendererBuilder {
-        self.attribs.gl_debug = flag;
+    pub fn with_gl_debug_flag(mut self, flag: bool) -> HeadlessRendererBuilder<'a> {
+        self.opengl.debug = flag;
         self
     }
 
     /// Sets the robustness of the OpenGL context. See the docs of `Robustness`.
-    pub fn with_gl_robustness(mut self, robustness: Robustness) -> HeadlessRendererBuilder {
-        self.attribs.gl_robustness = robustness;
+    pub fn with_gl_robustness(mut self, robustness: Robustness) -> HeadlessRendererBuilder<'a> {
+        self.opengl.robustness = robustness;
         self
     }
 
@@ -55,15 +57,15 @@ impl HeadlessRendererBuilder {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     pub fn build(self) -> Result<HeadlessContext, CreationError> {
-        platform::HeadlessContext::new(self.attribs).map(|w| HeadlessContext { context: w })
+        platform::HeadlessContext::new(self.dimensions, &self.pf_reqs, &self.opengl)
+                .map(|w| HeadlessContext { context: w })
     }
 
     /// Builds the headless context.
     ///
     /// The context is build in a *strict* way. That means that if the backend couldn't give
     /// you what you requested, an `Err` will be returned.
-    pub fn build_strict(mut self) -> Result<HeadlessContext, CreationError> {
-        self.attribs.strict = true;
+    pub fn build_strict(self) -> Result<HeadlessContext, CreationError> {
         self.build()
     }
 }

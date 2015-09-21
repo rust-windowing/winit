@@ -3,11 +3,12 @@
 extern crate osmesa_sys;
 
 use Api;
-use BuilderAttribs;
 use ContextError;
 use CreationError;
+use GlAttributes;
 use GlContext;
 use PixelFormat;
+use PixelFormatRequirements;
 use Robustness;
 use libc;
 use std::{mem, ptr};
@@ -32,20 +33,23 @@ impl From<CreationError> for OsMesaCreationError {
 }
 
 impl OsMesaContext {
-    pub fn new(builder: BuilderAttribs) -> Result<OsMesaContext, OsMesaCreationError> {
+    pub fn new(dimensions: (u32, u32), pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&OsMesaContext>) -> Result<OsMesaContext, OsMesaCreationError>
+    {
         if let Err(_) = osmesa_sys::OsMesa::try_loading() {
             return Err(OsMesaCreationError::NotSupported);
         }
 
-        let dimensions = builder.dimensions.unwrap();
+        if opengl.sharing.is_some() { unimplemented!() }        // TODO: proper error
 
-        match builder.gl_robustness {
+        match opengl.robustness {
             Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
                 return Err(CreationError::RobustnessNotSupported.into());
             },
             _ => ()
         }
 
+        // TODO: use `pf_reqs` for the format
         // TODO: check OpenGL version and return `OpenGlVersionNotSupported` if necessary
 
         Ok(OsMesaContext {

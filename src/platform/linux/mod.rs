@@ -1,11 +1,12 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd"))]
 
 use Api;
-use BuilderAttribs;
 use ContextError;
 use CreationError;
+use GlAttributes;
 use GlContext;
 use PixelFormat;
+use PixelFormatRequirements;
 use libc;
 
 use api::osmesa::{self, OsMesaContext};
@@ -25,8 +26,12 @@ pub type MonitorID = ();       // TODO: hack to make things work
 pub struct HeadlessContext(OsMesaContext);
 
 impl HeadlessContext {
-    pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
-        match OsMesaContext::new(builder) {
+    pub fn new(dimensions: (u32, u32), pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
+    {
+        let opengl = opengl.clone().map_sharing(|c| &c.0);
+
+        match OsMesaContext::new(dimensions, pf_reqs, &opengl) {
             Ok(c) => return Ok(HeadlessContext(c)),
             Err(osmesa::OsMesaCreationError::NotSupported) => (),
             Err(osmesa::OsMesaCreationError::CreationError(e)) => return Err(e),

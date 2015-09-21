@@ -362,99 +362,21 @@ pub struct PixelFormat {
     pub multisampling: Option<u16>,
     pub srgb: bool,
 }
-
-/// Attributes
-// FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
-#[derive(Clone)]
-#[doc(hidden)]
-pub struct BuilderAttribs<'a> {
-    #[allow(dead_code)]
-    headless: bool,
-    strict: bool,
-    sharing: Option<&'a platform::Window>,
-    dimensions: Option<(u32, u32)>,
-    title: String,
-    monitor: Option<platform::MonitorID>,
-    gl_version: GlRequest,
-    gl_profile: Option<GlProfile>,
-    gl_debug: bool,
-    gl_robustness: Robustness,
-    vsync: bool,
-    visible: bool,
-    multisampling: Option<u16>,
-    depth_bits: Option<u8>,
-    stencil_bits: Option<u8>,
-    color_bits: Option<u8>,
-    alpha_bits: Option<u8>,
-    stereoscopy: bool,
-    srgb: Option<bool>,
-    transparent: bool,
-    decorations: bool,
-    multitouch: bool
+    
+/// VERY UNSTABLE! Describes how the backend should choose a pixel format.
+#[derive(Clone, Debug)]
+#[allow(missing_docs)]
+pub struct PixelFormatRequirements {
+    pub multisampling: Option<u16>,
+    pub depth_bits: Option<u8>,
+    pub stencil_bits: Option<u8>,
+    pub color_bits: Option<u8>,
+    pub alpha_bits: Option<u8>,
+    pub stereoscopy: bool,
+    pub srgb: Option<bool>,
 }
 
-impl BuilderAttribs<'static> {
-    fn new() -> BuilderAttribs<'static> {
-        BuilderAttribs {
-            headless: false,
-            strict: false,
-            sharing: None,
-            dimensions: None,
-            title: "glutin window".to_string(),
-            monitor: None,
-            gl_version: GlRequest::Latest,
-            gl_profile: None,
-            gl_debug: cfg!(debug_assertions),
-            gl_robustness: Robustness::NotRobust,
-            vsync: false,
-            visible: true,
-            multisampling: None,
-            depth_bits: None,
-            stencil_bits: None,
-            color_bits: None,
-            alpha_bits: None,
-            stereoscopy: false,
-            srgb: None,
-            transparent: false,
-            decorations: true,
-            multitouch: false
-        }
-    }
-}
-
-impl<'a> BuilderAttribs<'a> {
-    #[allow(dead_code)]
-    fn extract_non_static(mut self) -> (BuilderAttribs<'static>, Option<&'a platform::Window>) {
-        let sharing = self.sharing.take();
-
-        let new_attribs = BuilderAttribs {
-            headless: self.headless,
-            strict: self.strict,
-            sharing: None,
-            dimensions: self.dimensions,
-            title: self.title,
-            monitor: self.monitor,
-            gl_version: self.gl_version,
-            gl_profile: self.gl_profile,
-            gl_debug: self.gl_debug,
-            gl_robustness: self.gl_robustness,
-            vsync: self.vsync,
-            visible: self.visible,
-            multisampling: self.multisampling,
-            depth_bits: self.depth_bits,
-            stencil_bits: self.stencil_bits,
-            color_bits: self.color_bits,
-            alpha_bits: self.alpha_bits,
-            stereoscopy: self.stereoscopy,
-            srgb: self.srgb,
-            transparent: self.transparent,
-            decorations: self.decorations,
-            multitouch: self.multitouch
-        };
-
-        (new_attribs, sharing)
-    }
-
+impl PixelFormatRequirements {
     fn choose_pixel_format<T, I>(&self, iter: I) -> Result<(T, PixelFormat), CreationError>
                                  where I: IntoIterator<Item=(T, PixelFormat)>, T: Clone
     {
@@ -552,6 +474,138 @@ impl<'a> BuilderAttribs<'a> {
         });
 
         formats.into_iter().next().ok_or(CreationError::NoAvailablePixelFormat)
+    }
+}
+
+impl Default for PixelFormatRequirements {
+    fn default() -> PixelFormatRequirements {
+        PixelFormatRequirements {
+            multisampling: None,
+            depth_bits: None,
+            stencil_bits: None,
+            color_bits: None,
+            alpha_bits: None,
+            stereoscopy: false,
+            srgb: None,
+        }
+    }
+}
+
+/// Attributes to use when creating a window.
+#[derive(Clone)]
+pub struct WindowAttributes {
+    /// The dimensions of the window. If this is `None`, some platform-specific dimensions will be
+    /// used.
+    ///
+    /// The default is `None`.
+    pub dimensions: Option<(u32, u32)>,
+
+    /// If `Some`, the window will be in fullscreen mode with the given monitor.
+    ///
+    /// The default is `None`.
+    pub monitor: Option<platform::MonitorID>,
+
+    /// The title of the window in the title bar.
+    ///
+    /// The default is `"glutin window"`.
+    pub title: String,
+
+    /// Whether the window should be immediately visible upon creation.
+    ///
+    /// The default is `true`.
+    pub visible: bool,
+
+    /// Whether the the window should be transparent. If this is true, writing colors
+    /// with alpha values different than `1.0` will produce a transparent window.
+    ///
+    /// The default is `false`.
+    pub transparent: bool,
+
+    /// Whether the window should have borders and bars.
+    ///
+    /// The default is `true`.
+    pub decorations: bool,
+
+    /// ??? TODO: document me
+    pub multitouch: bool,
+}
+
+impl Default for WindowAttributes {
+    fn default() -> WindowAttributes {
+        WindowAttributes {
+            dimensions: None,
+            monitor: None,
+            title: "glutin window".to_owned(),
+            visible: true,
+            transparent: false,
+            decorations: true,
+            multitouch: false,
+        }
+    }
+}
+
+/// Attributes to use when creating an OpenGL context.
+#[derive(Clone)]
+pub struct GlAttributes<S> {
+    /// An existing context to share the new the context with.
+    ///
+    /// The default is `None`.
+    pub sharing: Option<S>,
+
+    /// Version to try create. See `GlRequest` for more infos.
+    ///
+    /// The default is `Latest`.
+    pub version: GlRequest,
+
+    /// OpenGL profile to use.
+    ///
+    /// The default is `None`.
+    pub profile: Option<GlProfile>,
+
+    /// Whether to enable the `debug` flag of the context.
+    ///
+    /// Debug contexts are usually slower but give better error reporting.
+    ///
+    /// The default is `true` in debug mode and `false` in release mode.
+    pub debug: bool,
+
+    /// How the OpenGL context should detect errors.
+    ///
+    /// The default is `NotRobust` because this is what is typically expected when you create an
+    /// OpenGL context. However for safety you should consider `TryRobustLoseContextOnReset`.
+    pub robustness: Robustness,
+
+    /// Whether to use vsync. If vsync is enabled, calling `swap_buffers` will block until the
+    /// screen refreshes. This is typically used to prevent screen tearing.
+    ///
+    /// The default is `false`.
+    pub vsync: bool,
+}
+
+impl<S> GlAttributes<S> {
+    /// Turns the `sharing` parameter into another type by calling a closure.
+    pub fn map_sharing<F, T>(self, f: F) -> GlAttributes<T> where F: FnOnce(S) -> T {
+        GlAttributes {
+            sharing: self.sharing.map(f),
+            version: self.version,
+            profile: self.profile,
+            debug: self.debug,
+            robustness: self.robustness,
+            vsync: self.vsync,
+        }
+    }
+}
+
+impl<S> Default for GlAttributes<S> {
+    fn default() -> GlAttributes<S> {
+        GlAttributes {
+            sharing: None,
+            version: GlRequest::Latest,
+            profile: None,
+            debug: cfg!(debug_assertions),
+            robustness: Robustness::NotRobust,
+            vsync: false,
+        }
     }
 }
 

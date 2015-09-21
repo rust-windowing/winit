@@ -1,13 +1,14 @@
 #![cfg(all(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd"), feature = "window"))]
 
-use BuilderAttribs;
 use ContextError;
 use CreationError;
+use GlAttributes;
 use GlContext;
 use GlProfile;
 use GlRequest;
 use Api;
 use PixelFormat;
+use PixelFormatRequirements;
 use Robustness;
 
 use libc;
@@ -34,14 +35,14 @@ fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> 
 }
 
 impl Context {
-    pub fn new<'a>(glx: ffi::glx::Glx, xlib: &ffi::Xlib, builder: &'a BuilderAttribs<'a>,
-                   display: *mut ffi::Display)
+    pub fn new<'a>(glx: ffi::glx::Glx, xlib: &ffi::Xlib, pf_reqs: &PixelFormatRequirements,
+                   opengl: &'a GlAttributes<&'a Context>, display: *mut ffi::Display)
                    -> Result<ContextPrototype<'a>, CreationError>
     {
         // finding the pixel format we want
         let (fb_config, pixel_format) = {
             let configs = unsafe { try!(enumerate_configs(&glx, xlib, display)) };
-            try!(builder.choose_pixel_format(configs.into_iter()))
+            try!(pf_reqs.choose_pixel_format(configs.into_iter()))
         };
 
         // getting the visual infos
@@ -57,7 +58,7 @@ impl Context {
 
         Ok(ContextPrototype {
             glx: glx,
-            builder: builder,
+            opengl: opengl,
             display: display,
             fb_config: fb_config,
             visual_infos: unsafe { mem::transmute(visual_infos) },
@@ -120,7 +121,7 @@ impl Drop for Context {
 
 pub struct ContextPrototype<'a> {
     glx: ffi::glx::Glx,
-    builder: &'a BuilderAttribs<'a>,
+    opengl: &'a GlAttributes<&'a Context>,
     display: *mut ffi::Display,
     fb_config: ffi::glx::types::GLXFBConfig,
     visual_infos: ffi::XVisualInfo,
@@ -133,16 +134,9 @@ impl<'a> ContextPrototype<'a> {
     }
 
     pub fn finish(self, window: ffi::Window) -> Result<Context, CreationError> {
-        let share = if let Some(win) = self.builder.sharing {
-            match win {
-                &PlatformWindow::X(ref win) => match win.x.context {
-                    ::api::x11::Context::Glx(ref c) => c.context,
-                    _ => panic!("Cannot share contexts between different APIs")
-                },
-                _ => panic!("Cannot use glx on a non-X11 window.")
-            }
-        } else {
-            ptr::null()
+        let share = match self.opengl.sharing {
+            Some(ctxt) => ctxt.context,
+            None => ptr::null()
         };
 
         // loading the list of extensions
@@ -160,46 +154,46 @@ impl<'a> ContextPrototype<'a> {
         });
 
         // creating GL context
-        let context = match self.builder.gl_version {
+        let context = match self.opengl.version {
             GlRequest::Latest => {
                 if let Ok(ctxt) = create_context(&self.glx, &extra_functions, &extensions, (3, 2),
-                                                 self.builder.gl_profile, self.builder.gl_debug,
-                                                 self.builder.gl_robustness, share,
+                                                 self.opengl.profile, self.opengl.debug,
+                                                 self.opengl.robustness, share,
                                                  self.display, self.fb_config, &self.visual_infos)
                 {
                     ctxt
                 } else if let Ok(ctxt) = create_context(&self.glx, &extra_functions, &extensions,
-                                                        (3, 1), self.builder.gl_profile,
-                                                        self.builder.gl_debug,
-                                                        self.builder.gl_robustness, share, self.display,
+                                                        (3, 1), self.opengl.profile,
+                                                        self.opengl.debug,
+                                                        self.opengl.robustness, share, self.display,
                                                         self.fb_config, &self.visual_infos)
                 {
                     ctxt
 
                 } else {
                     try!(create_context(&self.glx, &extra_functions, &extensions, (1, 0),
-                                        self.builder.gl_profile, self.builder.gl_debug,
-                                        self.builder.gl_robustness,
+                                        self.opengl.profile, self.opengl.debug,
+                                        self.opengl.robustness,
                                         share, self.display, self.fb_config, &self.visual_infos))
                 }
             },
             GlRequest::Specific(Api::OpenGl, (major, minor)) => {
                 try!(create_context(&self.glx, &extra_functions, &extensions, (major, minor),
-                                    self.builder.gl_profile, self.builder.gl_debug,
-                                    self.builder.gl_robustness, share, self.display, self.fb_config,
+                                    self.opengl.profile, self.opengl.debug,
+                                    self.opengl.robustness, share, self.display, self.fb_config,
                                     &self.visual_infos))
             },
             GlRequest::Specific(_, _) => panic!("Only OpenGL is supported"),
             GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
                 try!(create_context(&self.glx, &extra_functions, &extensions, (major, minor),
-                                    self.builder.gl_profile, self.builder.gl_debug,
-                                    self.builder.gl_robustness, share, self.display, self.fb_config,
+                                    self.opengl.profile, self.opengl.debug,
+                                    self.opengl.robustness, share, self.display, self.fb_config,
                                     &self.visual_infos))
             },
         };
 
         // vsync
-        if self.builder.vsync {
+        if self.opengl.vsync {
             unsafe { self.glx.MakeCurrent(self.display as *mut _, window, context) };
 
             if extra_functions.SwapIntervalEXT.is_loaded() {
@@ -209,7 +203,8 @@ impl<'a> ContextPrototype<'a> {
                 }
 
                 // checking that it worked
-                if self.builder.strict {
+                // TODO: handle this
+                /*if self.builder.strict {
                     let mut swap = unsafe { mem::uninitialized() };
                     unsafe {
                         self.glx.QueryDrawable(self.display as *mut _, window,
@@ -221,7 +216,7 @@ impl<'a> ContextPrototype<'a> {
                         return Err(CreationError::OsError(format!("Couldn't setup vsync: expected \
                                                     interval `1` but got `{}`", swap)));
                     }
-                }
+                }*/
 
             // GLX_MESA_swap_control is not official
             /*} else if extra_functions.SwapIntervalMESA.is_loaded() {
@@ -234,9 +229,10 @@ impl<'a> ContextPrototype<'a> {
                     extra_functions.SwapIntervalSGI(1);
                 }
 
-            } else if self.builder.strict {
+            }/* else if self.builder.strict {
+                // TODO: handle this
                 return Err(CreationError::OsError(format!("Couldn't find any available vsync extension")));
-            }
+            }*/
 
             unsafe { self.glx.MakeCurrent(self.display as *mut _, 0, ptr::null()) };
         }
