@@ -414,29 +414,50 @@ impl<'a> BuilderAttribs<'a> {
     fn choose_pixel_format<T, I>(&self, iter: I) -> Result<(T, PixelFormat), CreationError>
                                  where I: IntoIterator<Item=(T, PixelFormat)>, T: Clone
     {
+        self.pf_reqs.choose_pixel_format(iter)
+    }
+}
+
+/// VERY UNSTABLE! Describes how the backend should choose a pixel format.
+#[derive(Clone, Debug)]
+#[allow(missing_docs)]
+pub struct PixelFormatRequirements {
+    pub multisampling: Option<u16>,
+    pub depth_bits: Option<u8>,
+    pub stencil_bits: Option<u8>,
+    pub color_bits: Option<u8>,
+    pub alpha_bits: Option<u8>,
+    pub stereoscopy: bool,
+    pub srgb: Option<bool>,
+}
+
+impl PixelFormatRequirements {
+    fn choose_pixel_format<T, I>(&self, iter: I) -> Result<(T, PixelFormat), CreationError>
+                                 where I: IntoIterator<Item=(T, PixelFormat)>, T: Clone
+    {
         // filtering formats that don't match the requirements
         let iter = iter.into_iter().filter(|&(_, ref format)| {
-            if format.color_bits < self.pf_reqs.color_bits.unwrap_or(0) {
+            if format.color_bits < self.color_bits.unwrap_or(0) {
                 return false;
             }
 
-            if format.alpha_bits < self.pf_reqs.alpha_bits.unwrap_or(0) {
+            if format.alpha_bits < self.alpha_bits.unwrap_or(0) {
                 return false;
             }
 
-            if format.depth_bits < self.pf_reqs.depth_bits.unwrap_or(0) {
+            if format.depth_bits < self.depth_bits.unwrap_or(0) {
                 return false;
             }
 
-            if format.stencil_bits < self.pf_reqs.stencil_bits.unwrap_or(0) {
+            if format.stencil_bits < self.stencil_bits.unwrap_or(0) {
                 return false;
             }
 
-            if !format.stereoscopy && self.pf_reqs.stereoscopy {
+            if !format.stereoscopy && self.stereoscopy {
                 return false;
             }
 
-            if let Some(req_ms) = self.pf_reqs.multisampling {
+            if let Some(req_ms) = self.multisampling {
                 match format.multisampling {
                     Some(val) if val >= req_ms => (),
                     _ => return false
@@ -447,7 +468,7 @@ impl<'a> BuilderAttribs<'a> {
                 }
             }
 
-            if let Some(srgb) = self.pf_reqs.srgb {
+            if let Some(srgb) = self.srgb {
                 if srgb != format.srgb {
                     return false;
                 }
@@ -509,19 +530,6 @@ impl<'a> BuilderAttribs<'a> {
 
         formats.into_iter().next().ok_or(CreationError::NoAvailablePixelFormat)
     }
-}
-
-/// VERY UNSTABLE! Describes how the backend should choose a pixel format.
-#[derive(Clone, Debug)]
-#[allow(missing_docs)]
-pub struct PixelFormatRequirements {
-    pub multisampling: Option<u16>,
-    pub depth_bits: Option<u8>,
-    pub stencil_bits: Option<u8>,
-    pub color_bits: Option<u8>,
-    pub alpha_bits: Option<u8>,
-    pub stereoscopy: bool,
-    pub srgb: Option<bool>,
 }
 
 impl Default for PixelFormatRequirements {

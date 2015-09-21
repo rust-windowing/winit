@@ -291,7 +291,7 @@ impl Window {
             });
             try!(EglContext::new(
                 egl,
-                &builder,
+                &builder.pf_reqs, &builder.opengl.clone().map_sharing(|_| unimplemented!()),        // TODO: 
                 egl::NativeDisplay::Wayland(Some(wayland_context.display.ptr() as *const _)))
                 .and_then(|p| p.finish((**shell_window.get_shell()).ptr() as *const _))
             )

@@ -91,8 +91,9 @@ impl HeadlessContext {
         // if EGL is available, we try using EGL first
         // if EGL returns an error, we try the hidden window method
         if let &Some(ref egl) = &*EGL {
-            let context = EglContext::new(egl.0.clone(), &builder, egl::NativeDisplay::Other(None))
-                                .and_then(|prototype| prototype.finish_pbuffer())
+            let context = EglContext::new(egl.0.clone(), &builder.pf_reqs, &builder.opengl.clone().map_sharing(|_| unimplemented!()),       // TODO: 
+                                          egl::NativeDisplay::Other(None))
+                                .and_then(|prototype| prototype.finish_pbuffer(builder.window.dimensions.unwrap_or((800, 600))))         // TODO:
                                 .map(|ctxt| HeadlessContext::EglPbuffer(ctxt));
 
             if let Ok(context) = context {

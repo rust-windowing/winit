@@ -162,7 +162,7 @@ unsafe fn init(title: Vec<u16>, builder: BuilderAttribs<'static>,
     let context = match builder.opengl.version {
         GlRequest::Specific(Api::OpenGlEs, (_major, _minor)) => {
             if let Some(egl) = egl {
-                if let Ok(c) = EglContext::new(egl, &builder,
+                if let Ok(c) = EglContext::new(egl, &builder.pf_reqs, &builder.opengl.clone().map_sharing(|_| unimplemented!()),
                                                egl::NativeDisplay::Other(Some(ptr::null())))
                                                              .and_then(|p| p.finish(real_window.0))
                 {
