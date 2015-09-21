@@ -629,6 +629,20 @@ pub struct GlAttributes<S> {
     pub vsync: bool,
 }
 
+impl<S> GlAttributes<S> {
+    /// Turns the `sharing` parameter into another type by calling a closure.
+    pub fn map_sharing<F, T>(self, f: F) -> GlAttributes<T> where F: FnOnce(S) -> T {
+        GlAttributes {
+            sharing: self.sharing.map(f),
+            version: self.version,
+            profile: self.profile,
+            debug: self.debug,
+            robustness: self.robustness,
+            vsync: self.vsync,
+        }
+    }
+}
+
 impl<S> Default for GlAttributes<S> {
     fn default() -> GlAttributes<S> {
         GlAttributes {
