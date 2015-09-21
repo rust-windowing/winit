@@ -389,28 +389,6 @@ impl BuilderAttribs<'static> {
 }
 
 impl<'a> BuilderAttribs<'a> {
-    #[allow(dead_code)]
-    fn extract_non_static(mut self) -> (BuilderAttribs<'static>, Option<&'a platform::Window>) {
-        let sharing = self.opengl.sharing.take();
-
-        let new_attribs = BuilderAttribs {
-            headless: self.headless,
-            strict: self.strict,
-            pf_reqs: self.pf_reqs,
-            window: self.window,
-            opengl: GlAttributes {
-                sharing: None,
-                version: self.opengl.version,
-                profile: self.opengl.profile,
-                debug: self.opengl.debug,
-                robustness: self.opengl.robustness,
-                vsync: self.opengl.vsync,
-            },
-        };
-
-        (new_attribs, sharing)
-    }
-
     fn choose_pixel_format<T, I>(&self, iter: I) -> Result<(T, PixelFormat), CreationError>
                                  where I: IntoIterator<Item=(T, PixelFormat)>, T: Clone
     {
