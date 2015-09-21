@@ -371,13 +371,7 @@ pub struct BuilderAttribs<'a> {
     #[allow(dead_code)]
     headless: bool,
     strict: bool,
-    multisampling: Option<u16>,
-    depth_bits: Option<u8>,
-    stencil_bits: Option<u8>,
-    color_bits: Option<u8>,
-    alpha_bits: Option<u8>,
-    stereoscopy: bool,
-    srgb: Option<bool>,
+    pf_reqs: PixelFormatRequirements,
     window: WindowAttributes,
     opengl: GlAttributes<&'a platform::Window>,
 }
@@ -387,13 +381,7 @@ impl BuilderAttribs<'static> {
         BuilderAttribs {
             headless: false,
             strict: false,
-            multisampling: None,
-            depth_bits: None,
-            stencil_bits: None,
-            color_bits: None,
-            alpha_bits: None,
-            stereoscopy: false,
-            srgb: None,
+            pf_reqs: Default::default(),
             window: Default::default(),
             opengl: Default::default(),
         }
@@ -408,13 +396,7 @@ impl<'a> BuilderAttribs<'a> {
         let new_attribs = BuilderAttribs {
             headless: self.headless,
             strict: self.strict,
-            multisampling: self.multisampling,
-            depth_bits: self.depth_bits,
-            stencil_bits: self.stencil_bits,
-            color_bits: self.color_bits,
-            alpha_bits: self.alpha_bits,
-            stereoscopy: self.stereoscopy,
-            srgb: self.srgb,
+            pf_reqs: self.pf_reqs,
             window: self.window,
             opengl: GlAttributes {
                 sharing: None,
@@ -434,27 +416,27 @@ impl<'a> BuilderAttribs<'a> {
     {
         // filtering formats that don't match the requirements
         let iter = iter.into_iter().filter(|&(_, ref format)| {
-            if format.color_bits < self.color_bits.unwrap_or(0) {
+            if format.color_bits < self.pf_reqs.color_bits.unwrap_or(0) {
                 return false;
             }
 
-            if format.alpha_bits < self.alpha_bits.unwrap_or(0) {
+            if format.alpha_bits < self.pf_reqs.alpha_bits.unwrap_or(0) {
                 return false;
             }
 
-            if format.depth_bits < self.depth_bits.unwrap_or(0) {
+            if format.depth_bits < self.pf_reqs.depth_bits.unwrap_or(0) {
                 return false;
             }
 
-            if format.stencil_bits < self.stencil_bits.unwrap_or(0) {
+            if format.stencil_bits < self.pf_reqs.stencil_bits.unwrap_or(0) {
                 return false;
             }
 
-            if !format.stereoscopy && self.stereoscopy {
+            if !format.stereoscopy && self.pf_reqs.stereoscopy {
                 return false;
             }
 
-            if let Some(req_ms) = self.multisampling {
+            if let Some(req_ms) = self.pf_reqs.multisampling {
                 match format.multisampling {
                     Some(val) if val >= req_ms => (),
                     _ => return false
@@ -465,7 +447,7 @@ impl<'a> BuilderAttribs<'a> {
                 }
             }
 
-            if let Some(srgb) = self.srgb {
+            if let Some(srgb) = self.pf_reqs.srgb {
                 if srgb != format.srgb {
                     return false;
                 }
@@ -526,6 +508,33 @@ impl<'a> BuilderAttribs<'a> {
         });
 
         formats.into_iter().next().ok_or(CreationError::NoAvailablePixelFormat)
+    }
+}
+
+/// VERY UNSTABLE! Describes how the backend should choose a pixel format.
+#[derive(Clone, Debug)]
+#[allow(missing_docs)]
+pub struct PixelFormatRequirements {
+    pub multisampling: Option<u16>,
+    pub depth_bits: Option<u8>,
+    pub stencil_bits: Option<u8>,
+    pub color_bits: Option<u8>,
+    pub alpha_bits: Option<u8>,
+    pub stereoscopy: bool,
+    pub srgb: Option<bool>,
+}
+
+impl Default for PixelFormatRequirements {
+    fn default() -> PixelFormatRequirements {
+        PixelFormatRequirements {
+            multisampling: None,
+            depth_bits: None,
+            stencil_bits: None,
+            color_bits: None,
+            alpha_bits: None,
+            stereoscopy: false,
+            srgb: None,
+        }
     }
 }
 

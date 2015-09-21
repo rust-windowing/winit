@@ -110,38 +110,38 @@ impl<'a> WindowBuilder<'a> {
     /// Will panic if `samples` is not a power of two.
     pub fn with_multisampling(mut self, samples: u16) -> WindowBuilder<'a> {
         assert!(samples.is_power_of_two());
-        self.attribs.multisampling = Some(samples);
+        self.attribs.pf_reqs.multisampling = Some(samples);
         self
     }
 
     /// Sets the number of bits in the depth buffer.
     pub fn with_depth_buffer(mut self, bits: u8) -> WindowBuilder<'a> {
-        self.attribs.depth_bits = Some(bits);
+        self.attribs.pf_reqs.depth_bits = Some(bits);
         self
     }
 
     /// Sets the number of bits in the stencil buffer.
     pub fn with_stencil_buffer(mut self, bits: u8) -> WindowBuilder<'a> {
-        self.attribs.stencil_bits = Some(bits);
+        self.attribs.pf_reqs.stencil_bits = Some(bits);
         self
     }
 
     /// Sets the number of bits in the color buffer.
     pub fn with_pixel_format(mut self, color_bits: u8, alpha_bits: u8) -> WindowBuilder<'a> {
-        self.attribs.color_bits = Some(color_bits);
-        self.attribs.alpha_bits = Some(alpha_bits);
+        self.attribs.pf_reqs.color_bits = Some(color_bits);
+        self.attribs.pf_reqs.alpha_bits = Some(alpha_bits);
         self
     }
 
     /// Request the backend to be stereoscopic.
     pub fn with_stereoscopy(mut self) -> WindowBuilder<'a> {
-        self.attribs.stereoscopy = true;
+        self.attribs.pf_reqs.stereoscopy = true;
         self
     }
 
     /// Sets whether sRGB should be enabled on the window. `None` means "I don't care".
     pub fn with_srgb(mut self, srgb_enabled: Option<bool>) -> WindowBuilder<'a> {
-        self.attribs.srgb = srgb_enabled;
+        self.attribs.pf_reqs.srgb = srgb_enabled;
         self
     }
 

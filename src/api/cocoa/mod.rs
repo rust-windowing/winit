@@ -471,16 +471,16 @@ impl Window {
         // full color size and hope for the best. Another hiccup is that
         // `NSOpenGLPFAColorSize` also includes `NSOpenGLPFAAlphaSize`,
         // so we have to account for that as well.
-        let alpha_depth = builder.alpha_bits.unwrap_or(8);
-        let color_depth = builder.color_bits.unwrap_or(24) + alpha_depth;
+        let alpha_depth = builder.pf_reqs.alpha_bits.unwrap_or(8);
+        let color_depth = builder.pf_reqs.color_bits.unwrap_or(24) + alpha_depth;
 
         let mut attributes = vec![
             NSOpenGLPFADoubleBuffer as u32,
             NSOpenGLPFAClosestPolicy as u32,
             NSOpenGLPFAColorSize as u32, color_depth as u32,
             NSOpenGLPFAAlphaSize as u32, alpha_depth as u32,
-            NSOpenGLPFADepthSize as u32, builder.depth_bits.unwrap_or(24) as u32,
-            NSOpenGLPFAStencilSize as u32, builder.stencil_bits.unwrap_or(8) as u32,
+            NSOpenGLPFADepthSize as u32, builder.pf_reqs.depth_bits.unwrap_or(24) as u32,
+            NSOpenGLPFAStencilSize as u32, builder.pf_reqs.stencil_bits.unwrap_or(8) as u32,
             NSOpenGLPFAOpenGLProfile as u32, profile,
         ];
 
@@ -491,7 +491,7 @@ impl Window {
             attributes.push(NSOpenGLPFAColorFloat as u32);
         }
 
-        builder.multisampling.map(|samples| {
+        builder.pf_reqs.multisampling.map(|samples| {
             attributes.push(NSOpenGLPFAMultisample as u32);
             attributes.push(NSOpenGLPFASampleBuffers as u32); attributes.push(1);
             attributes.push(NSOpenGLPFASamples as u32); attributes.push(samples as u32);
