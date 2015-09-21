@@ -9,11 +9,14 @@ use libc;
 use Api;
 use BuilderAttribs;
 use ContextError;
+use GlAttributes;
 use GlContext;
 use GlProfile;
 use GlRequest;
 use PixelFormat;
+use PixelFormatRequirements;
 use Robustness;
+use WindowAttributes;
 use native_monitor::NativeMonitorId;
 
 use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
@@ -283,7 +286,7 @@ impl Window {
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
 
-        let window = match Window::create_window(&builder)
+        let window = match Window::create_window(&builder.window)
         {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
@@ -295,7 +298,7 @@ impl Window {
 
         // TODO: perhaps we should return error from create_context so we can
         // determine the cause of failure and possibly recover?
-        let (context, pf) = match Window::create_context(*view, &builder) {
+        let (context, pf) = match Window::create_context(*view, &builder.pf_reqs, &builder.opengl) {
             Ok((context, pf)) => (context, pf),
             Err(e) => { return Err(OsError(format!("Couldn't create OpenGL context: {}", e))); },
         };
@@ -356,9 +359,9 @@ impl Window {
         }
     }
 
-    fn create_window(builder: &BuilderAttribs) -> Option<IdRef> {
+    fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
         unsafe { 
-            let screen = match builder.window.monitor {
+            let screen = match attrs.monitor {
                 Some(ref monitor_id) => {
                     let native_id = match monitor_id.get_native_identifier() {
                         NativeMonitorId::Numeric(num) => num,
@@ -390,12 +393,12 @@ impl Window {
             let frame = match screen {
                 Some(screen) => NSScreen::frame(screen),
                 None => {
-                    let (width, height) = builder.window.dimensions.unwrap_or((800, 600));
+                    let (width, height) = attrs.dimensions.unwrap_or((800, 600));
                     NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64))
                 }
             };
 
-            let masks = if screen.is_some() || !builder.window.decorations {
+            let masks = if screen.is_some() || !attrs.decorations {
                 NSBorderlessWindowMask as NSUInteger |
                 NSResizableWindowMask as NSUInteger
             } else {
@@ -412,7 +415,7 @@ impl Window {
                 NO,
             ));
             window.non_nil().map(|window| {
-                let title = IdRef::new(NSString::alloc(nil).init_str(&builder.window.title));
+                let title = IdRef::new(NSString::alloc(nil).init_str(&attrs.title));
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
                 if screen.is_some() {
@@ -437,8 +440,10 @@ impl Window {
         }
     }
 
-    fn create_context(view: id, builder: &BuilderAttribs) -> Result<(IdRef, PixelFormat), CreationError> {
-        let profile = match (builder.opengl.version, builder.opengl.version.to_gl_version(), builder.opengl.profile) {
+    fn create_context(view: id, pf_reqs: &PixelFormatRequirements, opengl: &GlAttributes<&Window>)
+                      -> Result<(IdRef, PixelFormat), CreationError>
+    {
+        let profile = match (opengl.version, opengl.version.to_gl_version(), opengl.profile) {
 
             // Note: we are not using ranges because of a rust bug that should be fixed here:
             // https://github.com/rust-lang/rust/pull/27050
@@ -471,16 +476,16 @@ impl Window {
         // full color size and hope for the best. Another hiccup is that
         // `NSOpenGLPFAColorSize` also includes `NSOpenGLPFAAlphaSize`,
         // so we have to account for that as well.
-        let alpha_depth = builder.pf_reqs.alpha_bits.unwrap_or(8);
-        let color_depth = builder.pf_reqs.color_bits.unwrap_or(24) + alpha_depth;
+        let alpha_depth = pf_reqs.alpha_bits.unwrap_or(8);
+        let color_depth = pf_reqs.color_bits.unwrap_or(24) + alpha_depth;
 
         let mut attributes = vec![
             NSOpenGLPFADoubleBuffer as u32,
             NSOpenGLPFAClosestPolicy as u32,
             NSOpenGLPFAColorSize as u32, color_depth as u32,
             NSOpenGLPFAAlphaSize as u32, alpha_depth as u32,
-            NSOpenGLPFADepthSize as u32, builder.pf_reqs.depth_bits.unwrap_or(24) as u32,
-            NSOpenGLPFAStencilSize as u32, builder.pf_reqs.stencil_bits.unwrap_or(8) as u32,
+            NSOpenGLPFADepthSize as u32, pf_reqs.depth_bits.unwrap_or(24) as u32,
+            NSOpenGLPFAStencilSize as u32, pf_reqs.stencil_bits.unwrap_or(8) as u32,
             NSOpenGLPFAOpenGLProfile as u32, profile,
         ];
 
@@ -491,7 +496,7 @@ impl Window {
             attributes.push(NSOpenGLPFAColorFloat as u32);
         }
 
-        builder.pf_reqs.multisampling.map(|samples| {
+        pf_reqs.multisampling.map(|samples| {
             attributes.push(NSOpenGLPFAMultisample as u32);
             attributes.push(NSOpenGLPFASampleBuffers as u32); attributes.push(1);
             attributes.push(NSOpenGLPFASamples as u32); attributes.push(samples as u32);
@@ -540,7 +545,7 @@ impl Window {
                     };
 
                     cxt.setView_(view);
-                    let value = if builder.opengl.vsync { 1 } else { 0 };
+                    let value = if opengl.vsync { 1 } else { 0 };
                     cxt.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
 
                     CGLEnable(cxt.CGLContextObj(), kCGLCECrashOnRemovedFunctions);
