@@ -151,16 +151,19 @@ pub fn get_primary_monitor() -> MonitorID {
 
 impl MonitorID {
     /// See the docs if the crate root file.
+    #[inline]
     pub fn get_name(&self) -> Option<String> {
         Some(self.readable_name.clone())
     }
 
     /// See the docs of the crate root file.
+    #[inline]
     pub fn get_native_identifier(&self) -> NativeMonitorId {
         NativeMonitorId::Name(self.monitor_name.clone())
     }
 
     /// See the docs if the crate root file.
+    #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         // TODO: retreive the dimensions every time this is called
         self.dimensions
@@ -168,6 +171,7 @@ impl MonitorID {
 
     /// This is a Win32-only function for `MonitorID` that returns the system name of the adapter
     /// device.
+    #[inline]
     pub fn get_adapter_name(&self) -> &[winapi::WCHAR] {
         &self.adapter_name
     }
@@ -175,6 +179,7 @@ impl MonitorID {
     /// This is a Win32-only function for `MonitorID` that returns the position of the
     ///  monitor on the desktop.
     /// A window that is positionned at these coordinates will overlap the monitor.
+    #[inline]
     pub fn get_position(&self) -> (u32, u32) {
         self.position
     }

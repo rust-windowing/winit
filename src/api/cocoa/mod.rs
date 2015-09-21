@@ -568,10 +568,12 @@ impl Window {
         }
     }
 
+    #[inline]
     pub fn show(&self) {
         unsafe { NSWindow::makeKeyAndOrderFront_(*self.window, nil); }
     }
 
+    #[inline]
     pub fn hide(&self) {
         unsafe { NSWindow::orderOut_(*self.window, nil); }
     }
@@ -606,6 +608,7 @@ impl Window {
         }
     }
 
+    #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         unsafe {
             let view_frame = NSView::frame(*self.view);
@@ -613,6 +616,7 @@ impl Window {
         }
     }
 
+    #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         unsafe {
             let window_frame = NSWindow::frame(*self.window);
@@ -620,22 +624,26 @@ impl Window {
         }
     }
 
+    #[inline]
     pub fn set_inner_size(&self, width: u32, height: u32) {
         unsafe {
             NSWindow::setContentSize_(*self.window, NSSize::new(width as f64, height as f64));
         }
     }
 
+    #[inline]
     pub fn create_window_proxy(&self) -> WindowProxy {
         WindowProxy
     }
 
+    #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
         PollEventsIterator {
             window: self
         }
     }
 
+    #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
         WaitEventsIterator {
             window: self
@@ -652,14 +660,17 @@ impl Window {
         return None;
     }
 
+    #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
         unimplemented!()
     }
 
+    #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
         unimplemented!()
     }
 
+    #[inline]
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
         self.delegate.state.resize_handler = callback;
     }
@@ -723,24 +734,28 @@ impl Window {
         }
     }
 
+    #[inline]
     pub fn hidpi_factor(&self) -> f32 {
         unsafe {
             NSWindow::backingScaleFactor(*self.window) as f32
         }
     }
 
+    #[inline]
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         unimplemented!();
     }
 }
 
 impl GlContext for Window {
+    #[inline]
     unsafe fn make_current(&self) -> Result<(), ContextError> {
         let _: () = msg_send![*self.context, update];
         self.context.makeCurrentContext();
         Ok(())
     }
 
+    #[inline]
     fn is_current(&self) -> bool {
         unsafe {
             let current = NSOpenGLContext::currentContext(nil);
@@ -765,15 +780,18 @@ impl GlContext for Window {
         symbol as *const _
     }
 
+    #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
         unsafe { self.context.flushBuffer(); }
         Ok(())
     }
 
+    #[inline]
     fn get_api(&self) -> ::Api {
         ::Api::OpenGl
     }
 
+    #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         self.pixel_format.clone()
     }

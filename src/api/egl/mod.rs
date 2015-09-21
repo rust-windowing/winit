@@ -44,6 +44,7 @@ pub struct Context {
 }
 
 #[cfg(target_os = "android")]
+#[inline]
 fn get_native_display(egl: &ffi::egl::Egl,
                       native_display: NativeDisplay) -> *const libc::c_void {
     unsafe { egl.GetDisplay(ffi::egl::DEFAULT_DISPLAY as *mut _) }
@@ -278,6 +279,7 @@ impl GlContext for Context {
         }
     }
 
+    #[inline]
     fn is_current(&self) -> bool {
         unsafe { self.egl.GetCurrentContext() == self.context }
     }
@@ -290,6 +292,7 @@ impl GlContext for Context {
         }
     }
 
+    #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
         let ret = unsafe {
             self.egl.SwapBuffers(self.display, self.surface)
@@ -306,10 +309,12 @@ impl GlContext for Context {
         }
     }
 
+    #[inline]
     fn get_api(&self) -> Api {
         self.api
     }
 
+    #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         self.pixel_format.clone()
     }

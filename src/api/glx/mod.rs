@@ -77,6 +77,7 @@ impl GlContext for Context {
         Ok(())
     }
 
+    #[inline]
     fn is_current(&self) -> bool {
         unsafe { self.glx.GetCurrentContext() == self.context }
     }
@@ -89,16 +90,19 @@ impl GlContext for Context {
         }
     }
 
+    #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
         // TODO: glutin needs some internal changes for proper error recovery
         unsafe { self.glx.SwapBuffers(self.display as *mut _, self.window); }
         Ok(())
     }
 
+    #[inline]
     fn get_api(&self) -> ::Api {
         ::Api::OpenGl
     }
 
+    #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         self.pixel_format.clone()
     }
@@ -129,6 +133,7 @@ pub struct ContextPrototype<'a> {
 }
 
 impl<'a> ContextPrototype<'a> {
+    #[inline]
     pub fn get_visual_infos(&self) -> &ffi::XVisualInfo {
         &self.visual_infos
     }

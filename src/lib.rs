@@ -478,6 +478,7 @@ impl PixelFormatRequirements {
 }
 
 impl Default for PixelFormatRequirements {
+    #[inline]
     fn default() -> PixelFormatRequirements {
         PixelFormatRequirements {
             multisampling: None,
@@ -532,6 +533,7 @@ pub struct WindowAttributes {
 }
 
 impl Default for WindowAttributes {
+    #[inline]
     fn default() -> WindowAttributes {
         WindowAttributes {
             dimensions: None,
@@ -585,6 +587,7 @@ pub struct GlAttributes<S> {
 
 impl<S> GlAttributes<S> {
     /// Turns the `sharing` parameter into another type by calling a closure.
+    #[inline]
     pub fn map_sharing<F, T>(self, f: F) -> GlAttributes<T> where F: FnOnce(S) -> T {
         GlAttributes {
             sharing: self.sharing.map(f),
@@ -598,6 +601,7 @@ impl<S> GlAttributes<S> {
 }
 
 impl<S> Default for GlAttributes<S> {
+    #[inline]
     fn default() -> GlAttributes<S> {
         GlAttributes {
             sharing: None,

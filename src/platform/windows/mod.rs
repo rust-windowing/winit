@@ -59,6 +59,7 @@ pub struct Window(win32::Window);
 
 impl Window {
     /// See the docs in the crate root file.
+    #[inline]
     pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
                opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
     {
@@ -70,12 +71,14 @@ impl Window {
 impl Deref for Window {
     type Target = win32::Window;
 
+    #[inline]
     fn deref(&self) -> &win32::Window {
         &self.0
     }
 }
 
 impl DerefMut for Window {
+    #[inline]
     fn deref_mut(&mut self) -> &mut win32::Window {
         &mut self.0
     }
@@ -114,6 +117,7 @@ impl HeadlessContext {
 }
 
 impl GlContext for HeadlessContext {
+    #[inline]
     unsafe fn make_current(&self) -> Result<(), ContextError> {
         match self {
             &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.make_current(),
@@ -121,6 +125,7 @@ impl GlContext for HeadlessContext {
         }
     }
 
+    #[inline]
     fn is_current(&self) -> bool {
         match self {
             &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.is_current(),
@@ -128,6 +133,7 @@ impl GlContext for HeadlessContext {
         }
     }
 
+    #[inline]
     fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
         match self {
             &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.get_proc_address(addr),
@@ -135,6 +141,7 @@ impl GlContext for HeadlessContext {
         }
     }
 
+    #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
         match self {
             &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.swap_buffers(),
@@ -142,6 +149,7 @@ impl GlContext for HeadlessContext {
         }
     }
 
+    #[inline]
     fn get_api(&self) -> Api {
         match self {
             &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.get_api(),
@@ -149,6 +157,7 @@ impl GlContext for HeadlessContext {
         }
     }
 
+    #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         match self {
             &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.get_pixel_format(),

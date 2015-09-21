@@ -613,6 +613,7 @@ impl Window {
         }
     }
 
+    #[inline]
     pub fn get_position(&self) -> Option<(i32, i32)> {
         self.get_geometry().map(|(x, y, _, _, _)| (x, y))
     }
@@ -621,45 +622,53 @@ impl Window {
         unsafe { (self.x.display.xlib.XMoveWindow)(self.x.display.display, self.x.window, x as libc::c_int, y as libc::c_int); }
     }
 
+    #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         self.get_geometry().map(|(_, _, w, h, _)| (w, h))
     }
 
+    #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         self.get_geometry().map(|(_, _, w, h, b)| (w + b, h + b))       // TODO: is this really outside?
     }
 
+    #[inline]
     pub fn set_inner_size(&self, x: u32, y: u32) {
         unsafe { (self.x.display.xlib.XResizeWindow)(self.x.display.display, self.x.window, x as libc::c_uint, y as libc::c_uint); }
     }
 
+    #[inline]
     pub fn create_window_proxy(&self) -> WindowProxy {
         WindowProxy {
             data: self.x.window_proxy_data.clone()
         }
     }
 
+    #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
         PollEventsIterator {
             window: self
         }
     }
 
+    #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
         WaitEventsIterator {
             window: self
         }
     }
 
+    #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
         self.x.display.display as *mut libc::c_void
     }
 
+    #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
         self.x.window as *mut libc::c_void
     }
 
-
+    #[inline]
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 
@@ -754,6 +763,7 @@ impl Window {
         }
     }
 
+    #[inline]
     pub fn hidpi_factor(&self) -> f32 {
         1.0
     }
@@ -768,6 +778,7 @@ impl Window {
 }
 
 impl GlContext for Window {
+    #[inline]
     unsafe fn make_current(&self) -> Result<(), ContextError> {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.make_current(),
@@ -776,6 +787,7 @@ impl GlContext for Window {
         }
     }
 
+    #[inline]
     fn is_current(&self) -> bool {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.is_current(),
@@ -784,6 +796,7 @@ impl GlContext for Window {
         }
     }
 
+    #[inline]
     fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.get_proc_address(addr),
@@ -792,6 +805,7 @@ impl GlContext for Window {
         }
     }
 
+    #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.swap_buffers(),
@@ -800,6 +814,7 @@ impl GlContext for Window {
         }
     }
 
+    #[inline]
     fn get_api(&self) -> Api {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.get_api(),
@@ -808,6 +823,7 @@ impl GlContext for Window {
         }
     }
 
+    #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         match self.x.context {
             Context::Glx(ref ctxt) => ctxt.get_pixel_format(),
