@@ -1,9 +1,11 @@
 #![cfg(target_os = "ios")]
 use libc::c_void;
 
-use BuilderAttribs;
+use GlAttributes;
 use CreationError;
 use PixelFormat;
+use PixelFormatRequirements;
+use ContextError;
 
 pub use api::ios::*;
 
@@ -11,16 +13,17 @@ pub struct HeadlessContext(i32);
 
 impl HeadlessContext {
     /// See the docs in the crate root file.
-    pub fn new(_builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
+    pub fn new(_: (u32, u32), _: &PixelFormatRequirements, _: &GlAttributes<&HeadlessContext>)
+            -> Result<HeadlessContext, CreationError> {
         unimplemented!()
     }
 
     /// See the docs in the crate root file.
-    pub unsafe fn make_current(&self) {
+    pub unsafe fn make_current(&self) -> Result<(), ContextError> {
         unimplemented!()
     }
 
-    pub fn swap_buffers(&self) {
+    pub fn swap_buffers(&self) -> Result<(), ContextError> {
         unimplemented!()
     }
 

@@ -362,7 +362,7 @@ pub struct PixelFormat {
     pub multisampling: Option<u16>,
     pub srgb: bool,
 }
-    
+
 /// VERY UNSTABLE! Describes how the backend should choose a pixel format.
 #[derive(Clone, Debug)]
 #[allow(missing_docs)]
@@ -526,7 +526,8 @@ pub struct WindowAttributes {
     /// The default is `true`.
     pub decorations: bool,
 
-    /// ??? TODO: document me
+    /// [iOS only] Enable multitouch, see [UIView#multipleTouchEnabled]
+    /// (https://developer.apple.com/library/ios/documentation/UIKit/Reference/UIView_Class/#//apple_ref/occ/instp/UIView/multipleTouchEnabled)
     pub multitouch: bool,
 }
 

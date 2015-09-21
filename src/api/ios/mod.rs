@@ -64,6 +64,7 @@
 
 use std::collections::VecDeque;
 use std::ptr;
+use std::io;
 use std::mem;
 use std::ffi::CString;
 
@@ -71,7 +72,8 @@ use libc;
 use objc::runtime::{Class, BOOL, YES, NO };
 
 use native_monitor::NativeMonitorId;
-use { Api, PixelFormat, CreationError, BuilderAttribs, GlContext, CursorState, MouseCursor, Event };
+use { Api, PixelFormat, CreationError, GlContext, CursorState, MouseCursor, Event };
+use { PixelFormatRequirements, GlAttributes, WindowAttributes, ContextError };
 use CreationError::OsError;
 
 mod delegate;
@@ -102,6 +104,7 @@ use self::ffi::{
 
 static mut jmpbuf: [libc::c_int;27] = [0;27];
 
+#[derive(Clone)]
 pub struct MonitorID;
 
 pub struct Window {
@@ -172,7 +175,7 @@ impl MonitorID {
 
 impl Window {
 
-    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
+    pub fn new(builder: &WindowAttributes, _: &PixelFormatRequirements, _: &GlAttributes<&Window>) -> Result<Window, CreationError> {
         unsafe {
             if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
                 let app: id = msg_send![Class::get("UIApplication").unwrap(), sharedApplication];
@@ -200,7 +203,7 @@ impl Window {
         Err(CreationError::OsError(format!("Couldn't create UIApplication")))
     }
 
-    unsafe fn init_context(&mut self, builder: BuilderAttribs) {
+    unsafe fn init_context(&mut self, builder: &WindowAttributes) {
         let draw_props: id = msg_send![Class::get("NSDictionary").unwrap(), alloc];
             let draw_props: id = msg_send![draw_props,
                     initWithObjects:
@@ -215,11 +218,11 @@ impl Window {
                         ].as_ptr()
                     count: 2
             ];
-        self.make_current();
+        let _ = self.make_current();
 
         let state = &mut *self.delegate_state;
 
-        if builder.window.multitouch {
+        if builder.multitouch {
             let _: () = msg_send![state.view, setMultipleTouchEnabled:YES];
         }
 
@@ -263,10 +266,6 @@ impl Window {
         unsafe {
             UIApplicationMain(0, ptr::null(), nil, NSString::alloc(nil).init_str("AppDelegate"));
         }
-    }
-
-    pub fn is_closed(&self) -> bool {
-        false
     }
 
     pub fn set_title(&self, _: &str) {
@@ -345,8 +344,13 @@ impl Window {
 }
 
 impl GlContext for Window {
-    unsafe fn make_current(&self) {
-        let _:BOOL = msg_send![Class::get("EAGLContext").unwrap(), setCurrentContext: self.eagl_context];
+    unsafe fn make_current(&self) -> Result<(), ContextError> {
+        let res: BOOL = msg_send![Class::get("EAGLContext").unwrap(), setCurrentContext: self.eagl_context];
+        if res == YES {
+            Ok(())
+        } else {
+            Err(ContextError::IoError(io::Error::new(io::ErrorKind::Other, "EAGLContext::setCurrentContext unsuccessful")))
+        }
     }
 
     fn is_current(&self) -> bool {
@@ -362,8 +366,15 @@ impl GlContext for Window {
         }
     }
 
-    fn swap_buffers(&self) {
-        unsafe { let _:BOOL = msg_send![self.eagl_context, presentRenderbuffer: gles::RENDERBUFFER]; }
+    fn swap_buffers(&self) -> Result<(), ContextError> {
+        unsafe {
+            let res: BOOL = msg_send![self.eagl_context, presentRenderbuffer: gles::RENDERBUFFER];
+            if res == YES {
+                Ok(())
+            } else {
+                Err(ContextError::IoError(io::Error::new(io::ErrorKind::Other, "EAGLContext.presentRenderbuffer unsuccessful")))
+            }
+        }
     }
 
     fn get_api(&self) -> Api {
