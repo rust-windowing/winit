@@ -19,7 +19,6 @@ use GlContext;
 use Api;
 use PixelFormat;
 use PixelFormatRequirements;
-use BuilderAttribs;
 use WindowAttributes;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};

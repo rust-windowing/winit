@@ -1,8 +1,9 @@
 use ContextError;
 use CreationError;
 use CreationError::OsError;
-use BuilderAttribs;
+use GlAttributes;
 use GlContext;
+use PixelFormatRequirements;
 use libc;
 use std::ptr;
 
@@ -27,8 +28,9 @@ pub struct HeadlessContext {
 }
 
 impl HeadlessContext {
-    pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
-        let (width, height) = builder.window.dimensions.unwrap_or((1024, 768));
+    pub fn new((width, height): (u32, u32), pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
+    {
         let context = unsafe {
             let attributes = [
                 NSOpenGLPFAAccelerated as u32,

@@ -7,7 +7,6 @@ use CreationError::OsError;
 use libc;
 
 use Api;
-use BuilderAttribs;
 use ContextError;
 use GlAttributes;
 use GlContext;
@@ -269,12 +268,14 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
 impl Window {
     #[cfg(feature = "window")]
-    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        if builder.opengl.sharing.is_some() {
+    pub fn new(win_attribs: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+    {
+        if opengl.sharing.is_some() {
             unimplemented!()
         }
 
-        match builder.opengl.robustness {
+        match opengl.robustness {
             Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
                 return Err(CreationError::RobustnessNotSupported);
             },
@@ -286,7 +287,7 @@ impl Window {
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
 
-        let window = match Window::create_window(&builder.window)
+        let window = match Window::create_window(win_attribs)
         {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
@@ -298,13 +299,13 @@ impl Window {
 
         // TODO: perhaps we should return error from create_context so we can
         // determine the cause of failure and possibly recover?
-        let (context, pf) = match Window::create_context(*view, &builder.pf_reqs, &builder.opengl) {
+        let (context, pf) = match Window::create_context(*view, pf_reqs, opengl) {
             Ok((context, pf)) => (context, pf),
             Err(e) => { return Err(OsError(format!("Couldn't create OpenGL context: {}", e))); },
         };
 
         unsafe {
-            if builder.window.transparent {
+            if win_attribs.transparent {
                 let clear_col = {
                     let cls = Class::get("NSColor").unwrap();
 
@@ -320,7 +321,7 @@ impl Window {
             }
             
             app.activateIgnoringOtherApps_(YES);
-            if builder.window.visible {
+            if win_attribs.visible {
                 window.makeKeyAndOrderFront_(nil);
             } else {
                 window.makeKeyWindow();

@@ -362,40 +362,7 @@ pub struct PixelFormat {
     pub multisampling: Option<u16>,
     pub srgb: bool,
 }
-
-/// Attributes
-// FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
-#[derive(Clone)]
-#[doc(hidden)]
-pub struct BuilderAttribs<'a> {
-    #[allow(dead_code)]
-    headless: bool,
-    strict: bool,
-    pf_reqs: PixelFormatRequirements,
-    window: WindowAttributes,
-    opengl: GlAttributes<&'a platform::Window>,
-}
-
-impl BuilderAttribs<'static> {
-    fn new() -> BuilderAttribs<'static> {
-        BuilderAttribs {
-            headless: false,
-            strict: false,
-            pf_reqs: Default::default(),
-            window: Default::default(),
-            opengl: Default::default(),
-        }
-    }
-}
-
-impl<'a> BuilderAttribs<'a> {
-    fn choose_pixel_format<T, I>(&self, iter: I) -> Result<(T, PixelFormat), CreationError>
-                                 where I: IntoIterator<Item=(T, PixelFormat)>, T: Clone
-    {
-        self.pf_reqs.choose_pixel_format(iter)
-    }
-}
-
+    
 /// VERY UNSTABLE! Describes how the backend should choose a pixel format.
 #[derive(Clone, Debug)]
 #[allow(missing_docs)]

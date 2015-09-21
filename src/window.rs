@@ -2,17 +2,19 @@ use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::default::Default;
 
 use Api;
-use BuilderAttribs;
 use ContextError;
 use CreationError;
 use CursorState;
 use Event;
+use GlAttributes;
 use GlContext;
 use GlProfile;
 use GlRequest;
 use MouseCursor;
 use PixelFormat;
+use PixelFormatRequirements;
 use Robustness;
+use WindowAttributes;
 use native_monitor::NativeMonitorId;
 
 use gl_common;
@@ -22,14 +24,18 @@ use platform;
 
 /// Object that allows you to build windows.
 pub struct WindowBuilder<'a> {
-    attribs: BuilderAttribs<'a>
+    pf_reqs: PixelFormatRequirements,
+    window: WindowAttributes,
+    opengl: GlAttributes<&'a platform::Window>,
 }
 
 impl<'a> WindowBuilder<'a> {
     /// Initializes a new `WindowBuilder` with default values.
     pub fn new() -> WindowBuilder<'a> {
         WindowBuilder {
-            attribs: BuilderAttribs::new(),
+            pf_reqs: Default::default(),
+            window: Default::default(),
+            opengl: Default::default(),
         }
     }
 
@@ -37,13 +43,13 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// Width and height are in pixels.
     pub fn with_dimensions(mut self, width: u32, height: u32) -> WindowBuilder<'a> {
-        self.attribs.window.dimensions = Some((width, height));
+        self.window.dimensions = Some((width, height));
         self
     }
 
     /// Requests a specific title for the window.
     pub fn with_title(mut self, title: String) -> WindowBuilder<'a> {
-        self.attribs.window.title = title;
+        self.window.title = title;
         self
     }
 
@@ -52,7 +58,7 @@ impl<'a> WindowBuilder<'a> {
     /// If you don't specify dimensions for the window, it will match the monitor's.
     pub fn with_fullscreen(mut self, monitor: MonitorID) -> WindowBuilder<'a> {
         let MonitorID(monitor) = monitor;
-        self.attribs.window.monitor = Some(monitor);
+        self.window.monitor = Some(monitor);
         self
     }
 
@@ -60,19 +66,19 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// There are some exceptions, like FBOs or VAOs. See the OpenGL documentation.
     pub fn with_shared_lists(mut self, other: &'a Window) -> WindowBuilder<'a> {
-        self.attribs.opengl.sharing = Some(&other.window);
+        self.opengl.sharing = Some(&other.window);
         self
     }
 
     /// Sets how the backend should choose the OpenGL API and version.
     pub fn with_gl(mut self, request: GlRequest) -> WindowBuilder<'a> {
-        self.attribs.opengl.version = request;
+        self.opengl.version = request;
         self
     }
 
     /// Sets the desired OpenGL context profile.
     pub fn with_gl_profile(mut self, profile: GlProfile) -> WindowBuilder<'a> {
-        self.attribs.opengl.profile = Some(profile);
+        self.opengl.profile = Some(profile);
         self
     }
 
@@ -81,25 +87,25 @@ impl<'a> WindowBuilder<'a> {
     /// The default value for this flag is `cfg!(debug_assertions)`, which means that it's enabled
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
     pub fn with_gl_debug_flag(mut self, flag: bool) -> WindowBuilder<'a> {
-        self.attribs.opengl.debug = flag;
+        self.opengl.debug = flag;
         self
     }
 
     /// Sets the robustness of the OpenGL context. See the docs of `Robustness`.
     pub fn with_gl_robustness(mut self, robustness: Robustness) -> WindowBuilder<'a> {
-        self.attribs.opengl.robustness = robustness;
+        self.opengl.robustness = robustness;
         self
     }
 
     /// Requests that the window has vsync enabled.
     pub fn with_vsync(mut self) -> WindowBuilder<'a> {
-        self.attribs.opengl.vsync = true;
+        self.opengl.vsync = true;
         self
     }
 
     /// Sets whether the window will be initially hidden or visible.
     pub fn with_visibility(mut self, visible: bool) -> WindowBuilder<'a> {
-        self.attribs.window.visible = visible;
+        self.window.visible = visible;
         self
     }
 
@@ -110,56 +116,56 @@ impl<'a> WindowBuilder<'a> {
     /// Will panic if `samples` is not a power of two.
     pub fn with_multisampling(mut self, samples: u16) -> WindowBuilder<'a> {
         assert!(samples.is_power_of_two());
-        self.attribs.pf_reqs.multisampling = Some(samples);
+        self.pf_reqs.multisampling = Some(samples);
         self
     }
 
     /// Sets the number of bits in the depth buffer.
     pub fn with_depth_buffer(mut self, bits: u8) -> WindowBuilder<'a> {
-        self.attribs.pf_reqs.depth_bits = Some(bits);
+        self.pf_reqs.depth_bits = Some(bits);
         self
     }
 
     /// Sets the number of bits in the stencil buffer.
     pub fn with_stencil_buffer(mut self, bits: u8) -> WindowBuilder<'a> {
-        self.attribs.pf_reqs.stencil_bits = Some(bits);
+        self.pf_reqs.stencil_bits = Some(bits);
         self
     }
 
     /// Sets the number of bits in the color buffer.
     pub fn with_pixel_format(mut self, color_bits: u8, alpha_bits: u8) -> WindowBuilder<'a> {
-        self.attribs.pf_reqs.color_bits = Some(color_bits);
-        self.attribs.pf_reqs.alpha_bits = Some(alpha_bits);
+        self.pf_reqs.color_bits = Some(color_bits);
+        self.pf_reqs.alpha_bits = Some(alpha_bits);
         self
     }
 
     /// Request the backend to be stereoscopic.
     pub fn with_stereoscopy(mut self) -> WindowBuilder<'a> {
-        self.attribs.pf_reqs.stereoscopy = true;
+        self.pf_reqs.stereoscopy = true;
         self
     }
 
     /// Sets whether sRGB should be enabled on the window. `None` means "I don't care".
     pub fn with_srgb(mut self, srgb_enabled: Option<bool>) -> WindowBuilder<'a> {
-        self.attribs.pf_reqs.srgb = srgb_enabled;
+        self.pf_reqs.srgb = srgb_enabled;
         self
     }
 
     /// Sets whether the background of the window should be transparent.
     pub fn with_transparency(mut self, transparent: bool) -> WindowBuilder<'a> {
-        self.attribs.window.transparent = transparent;
+        self.window.transparent = transparent;
         self
     }
 
     /// Sets whether the window should have a border, a title bar, etc.
     pub fn with_decorations(mut self, decorations: bool) -> WindowBuilder<'a> {
-        self.attribs.window.decorations = decorations;
+        self.window.decorations = decorations;
         self
     }
 
     /// Enables multitouch
     pub fn with_multitouch(mut self) -> WindowBuilder<'a> {
-        self.attribs.window.multitouch = true;
+        self.window.multitouch = true;
         self
     }
 
@@ -169,25 +175,25 @@ impl<'a> WindowBuilder<'a> {
     /// out of memory, etc.
     pub fn build(mut self) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
-        if self.attribs.window.dimensions.is_none() && self.attribs.window.monitor.is_some() {
-            self.attribs.window.dimensions = Some(self.attribs.window.monitor.as_ref().unwrap().get_dimensions())
+        if self.window.dimensions.is_none() && self.window.monitor.is_some() {
+            self.window.dimensions = Some(self.window.monitor.as_ref().unwrap().get_dimensions())
         }
 
         // default dimensions
-        if self.attribs.window.dimensions.is_none() {
-            self.attribs.window.dimensions = Some((1024, 768));
+        if self.window.dimensions.is_none() {
+            self.window.dimensions = Some((1024, 768));
         }
 
         // building
-        platform::Window::new(self.attribs).map(|w| Window { window: w })
+        platform::Window::new(&self.window, &self.pf_reqs, &self.opengl)
+                            .map(|w| Window { window: w })
     }
 
     /// Builds the window.
     ///
     /// The context is build in a *strict* way. That means that if the backend couldn't give
     /// you what you requested, an `Err` will be returned.
-    pub fn build_strict(mut self) -> Result<Window, CreationError> {
-        self.attribs.strict = true;
+    pub fn build_strict(self) -> Result<Window, CreationError> {
         self.build()
     }
 }

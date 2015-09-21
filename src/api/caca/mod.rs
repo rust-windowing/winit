@@ -5,14 +5,16 @@ use libc;
 use api::osmesa::{OsMesaContext, OsMesaCreationError};
 
 use Api;
-use BuilderAttribs;
 use ContextError;
 use CreationError;
 use Event;
+use GlAttributes;
 use GlContext;
 use PixelFormat;
+use PixelFormatRequirements;
 use CursorState;
 use MouseCursor;
+use WindowAttributes;
 
 use std::collections::VecDeque;
 use std::path::Path;
@@ -84,8 +86,14 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 }
 
 impl Window {
-    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        let opengl = match OsMesaContext::new(builder) {
+    pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+    {
+        let opengl = opengl.clone().map_sharing(|w| &w.opengl);
+
+        let opengl = match OsMesaContext::new(window.dimensions.unwrap_or((800, 600)), pf_reqs,
+                                              &opengl)
+        {
             Err(OsMesaCreationError::NotSupported) => return Err(CreationError::NotSupported),
             Err(OsMesaCreationError::CreationError(e)) => return Err(e),
             Ok(c) => c

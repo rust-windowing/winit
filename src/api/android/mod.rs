@@ -14,12 +14,14 @@ use events::MouseButton;
 use std::collections::VecDeque;
 
 use Api;
-use BuilderAttribs;
 use ContextError;
 use CursorState;
+use GlAttributes;
 use GlContext;
 use GlRequest;
 use PixelFormat;
+use PixelFormatRequirements;
+use WindowAttributes;
 use native_monitor::NativeMonitorId;
 
 use api::egl;
@@ -104,15 +106,19 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 }
 
 impl Window {
-    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
+    pub fn new(win_attribs: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+    {
         use std::{mem, ptr};
+
+        let opengl = opengl.clone().map_sharing(|w| &w.context);
 
         let native_window = unsafe { android_glue::get_native_window() };
         if native_window.is_null() {
             return Err(OsError(format!("Android's native window is null")));
         }
 
-        let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder.pf_reqs, &builder.opengl,
+        let context = try!(EglContext::new(egl::ffi::egl::Egl, pf_reqs, &opengl,
                                            egl::NativeDisplay::Android)
                                                 .and_then(|p| p.finish(native_window as *const _)));
 
@@ -255,9 +261,13 @@ pub struct HeadlessContext(EglContext);
 
 impl HeadlessContext {
     /// See the docs in the crate root file.
-    pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
-        let context = try!(EglContext::new(egl::ffi::egl::Egl, &builder, egl::NativeDisplay::Android));
-        let context = try!(context.finish_pbuffer(builder.window.dimensions.unwrap_or((800, 600))));     // TODO: 
+    pub fn new(dimensions: (u32, u32), pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
+    {
+        let opengl = opengl.clone().map_sharing(|c| &c.0);
+        let context = try!(EglContext::new(egl::ffi::egl::Egl, pf_reqs, &opengl,
+                           egl::NativeDisplay::Android));
+        let context = try!(context.finish_pbuffer(dimensions));     // TODO: 
         Ok(HeadlessContext(context))
     }
 }

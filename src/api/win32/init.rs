@@ -11,7 +11,6 @@ use super::WindowWrapper;
 use super::Context;
 
 use Api;
-use BuilderAttribs;
 use CreationError;
 use CreationError::OsError;
 use CursorState;

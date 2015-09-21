@@ -7,11 +7,13 @@ pub use api::win32::{WindowProxy, PollEventsIterator, WaitEventsIterator};
 use libc;
 
 use Api;
-use BuilderAttribs;
 use ContextError;
 use CreationError;
 use PixelFormat;
+use PixelFormatRequirements;
+use GlAttributes;
 use GlContext;
+use WindowAttributes;
 
 use api::egl::ffi::egl::Egl;
 use api::egl;
@@ -57,8 +59,10 @@ pub struct Window(win32::Window);
 
 impl Window {
     /// See the docs in the crate root file.
-    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        win32::Window::new(&builder.window, &builder.pf_reqs, &builder.opengl.clone().map_sharing(|w| &w.0),
+    pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+    {
+        win32::Window::new(window, pf_reqs, &opengl.clone().map_sharing(|w| &w.0),
                            EGL.as_ref().map(|w| &w.0)).map(|w| Window(w))
     }
 }
@@ -86,15 +90,15 @@ pub enum HeadlessContext {
 }
 
 impl HeadlessContext {
-    pub fn new(mut builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
-        builder.window.visible = false;
-
+    pub fn new(dimensions: (u32, u32), pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
+    {
         // if EGL is available, we try using EGL first
         // if EGL returns an error, we try the hidden window method
         if let &Some(ref egl) = &*EGL {
-            let context = EglContext::new(egl.0.clone(), &builder.pf_reqs, &builder.opengl.clone().map_sharing(|_| unimplemented!()),       // TODO: 
+            let context = EglContext::new(egl.0.clone(), pf_reqs, &opengl.clone().map_sharing(|_| unimplemented!()),       // TODO: 
                                           egl::NativeDisplay::Other(None))
-                                .and_then(|prototype| prototype.finish_pbuffer(builder.window.dimensions.unwrap_or((800, 600))))         // TODO:
+                                .and_then(|prototype| prototype.finish_pbuffer(dimensions))
                                 .map(|ctxt| HeadlessContext::EglPbuffer(ctxt));
 
             if let Ok(context) = context {
@@ -102,7 +106,8 @@ impl HeadlessContext {
             }
         }
 
-        let window = try!(win32::Window::new(&builder.window, &builder.pf_reqs, &builder.opengl.clone().map_sharing(|w| &w.0),
+        let window = try!(win32::Window::new(&WindowAttributes { visible: false, .. Default::default() },
+                                             pf_reqs, &opengl.clone().map_sharing(|_| unimplemented!()),            //TODO:
                                              EGL.as_ref().map(|w| &w.0)));
         Ok(HeadlessContext::HiddenWindow(window))
     }
