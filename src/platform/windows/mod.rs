@@ -58,7 +58,8 @@ pub struct Window(win32::Window);
 impl Window {
     /// See the docs in the crate root file.
     pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
-        win32::Window::new(builder, EGL.as_ref().map(|w| &w.0)).map(|w| Window(w))
+        win32::Window::new(&builder.window, &builder.pf_reqs, &builder.opengl.clone().map_sharing(|w| &w.0),
+                           EGL.as_ref().map(|w| &w.0)).map(|w| Window(w))
     }
 }
 
@@ -101,7 +102,8 @@ impl HeadlessContext {
             }
         }
 
-        let window = try!(win32::Window::new(builder, EGL.as_ref().map(|w| &w.0)));
+        let window = try!(win32::Window::new(&builder.window, &builder.pf_reqs, &builder.opengl.clone().map_sharing(|w| &w.0),
+                                             EGL.as_ref().map(|w| &w.0)));
         Ok(HeadlessContext::HiddenWindow(window))
     }
 }

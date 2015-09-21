@@ -13,11 +13,14 @@ use libc;
 use ContextError;
 use {CreationError, Event, MouseCursor};
 use CursorState;
+use GlAttributes;
 use GlContext;
 
 use Api;
 use PixelFormat;
+use PixelFormatRequirements;
 use BuilderAttribs;
+use WindowAttributes;
 
 pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
 
@@ -83,15 +86,18 @@ impl WindowProxy {
 
 impl Window {
     /// See the docs in the crate root file.
-    pub fn new(builder: BuilderAttribs, egl: Option<&Egl>) -> Result<Window, CreationError> {
-        let opengl = builder.opengl.clone().map_sharing(|sharing| {
+    pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&Window>, egl: Option<&Egl>)
+               -> Result<Window, CreationError>
+    {
+        let opengl = opengl.clone().map_sharing(|sharing| {
             match sharing.context {
                 Context::Wgl(ref c) => RawContext::Wgl(c.get_hglrc()),
                 Context::Egl(_) => unimplemented!(),        // FIXME: 
             }
         });
 
-        init::new_window(&builder.window, &builder.pf_reqs, &opengl, egl)
+        init::new_window(window, pf_reqs, &opengl, egl)
     }
 
     /// See the docs in the crate root file.
