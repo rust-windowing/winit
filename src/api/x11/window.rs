@@ -349,22 +349,23 @@ impl Window {
             Egl(::api::egl::ContextPrototype<'a>),
         }
         let builder_clone = builder.clone();
-        let builder_clone_opengl = builder_clone.opengl.clone().map_sharing(|_| unimplemented!());
+        let builder_clone_opengl_glx = builder_clone.opengl.clone().map_sharing(|_| unimplemented!());      // FIXME: 
+        let builder_clone_opengl_egl = builder_clone.opengl.clone().map_sharing(|_| unimplemented!());      // FIXME: 
         let context = match builder.opengl.version {
             GlRequest::Latest | GlRequest::Specific(Api::OpenGl, _) | GlRequest::GlThenGles { .. } => {
                 // GLX should be preferred over EGL, otherwise crashes may occur
                 // on X11 – issue #314
                 if let Some(ref glx) = display.glx {
-                    Prototype::Glx(try!(GlxContext::new(glx.clone(), &display.xlib, &builder_clone, display.display)))
+                    Prototype::Glx(try!(GlxContext::new(glx.clone(), &display.xlib, &builder_clone.pf_reqs, &builder_clone_opengl_glx, display.display)))
                 } else if let Some(ref egl) = display.egl {
-                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone.pf_reqs, &builder_clone_opengl, egl::NativeDisplay::X11(Some(display.display as *const _)))))
+                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone.pf_reqs, &builder_clone_opengl_egl, egl::NativeDisplay::X11(Some(display.display as *const _)))))
                 } else {
                     return Err(CreationError::NotSupported);
                 }
             },
             GlRequest::Specific(Api::OpenGlEs, _) => {
                 if let Some(ref egl) = display.egl {
-                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone.pf_reqs, &builder_clone_opengl, egl::NativeDisplay::X11(Some(display.display as *const _)))))
+                    Prototype::Egl(try!(EglContext::new(egl.clone(), &builder_clone.pf_reqs, &builder_clone_opengl_egl, egl::NativeDisplay::X11(Some(display.display as *const _)))))
                 } else {
                     return Err(CreationError::NotSupported);
                 }
