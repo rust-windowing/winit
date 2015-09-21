@@ -399,14 +399,24 @@ impl Window {
                 }
             };
 
-            let masks = if screen.is_some() || !attrs.decorations {
-                NSBorderlessWindowMask as NSUInteger |
-                NSResizableWindowMask as NSUInteger
-            } else {
-                NSTitledWindowMask as NSUInteger |
-                NSClosableWindowMask as NSUInteger |
-                NSMiniaturizableWindowMask as NSUInteger |
-                NSResizableWindowMask as NSUInteger
+            let masks = match (attrs.decorations, attrs.transparent) {
+                (true, false) =>
+                    // Classic opaque window with titlebar
+                    NSClosableWindowMask as NSUInteger |
+                    NSMiniaturizableWindowMask as NSUInteger |
+                    NSResizableWindowMask as NSUInteger |
+                    NSTitledWindowMask as NSUInteger,
+                (false, false) =>
+                    // Opaque window without a titlebar
+                    NSClosableWindowMask as NSUInteger |
+                    NSMiniaturizableWindowMask as NSUInteger |
+                    NSResizableWindowMask as NSUInteger |
+                    NSTitledWindowMask as NSUInteger |
+                    NSFullSizeContentViewWindowMask as NSUInteger,
+                (_, true) =>
+                    // Fully transparent window.
+                    // No shadow, decorations or borders.
+                    NSBorderlessWindowMask as NSUInteger
             };
 
             let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
@@ -419,6 +429,12 @@ impl Window {
                 let title = IdRef::new(NSString::alloc(nil).init_str(&attrs.title));
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
+
+                if !attrs.decorations {
+                    window.setTitleVisibility_(NSWindowTitleVisibility::NSWindowTitleHidden);
+                    window.setTitlebarAppearsTransparent_(YES);
+                }
+
                 if screen.is_some() {
                     window.setLevel_(NSMainMenuWindowLevel as i64 + 1);
                 }
