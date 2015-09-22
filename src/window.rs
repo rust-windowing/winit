@@ -24,9 +24,14 @@ use platform;
 
 /// Object that allows you to build windows.
 pub struct WindowBuilder<'a> {
+    /// The attributes to use to create the window.
+    pub window: WindowAttributes,
+
+    /// The attributes to use to create the context.
+    pub opengl: GlAttributes<&'a platform::Window>,
+
+    // Should be made public once it's stabilized.
     pf_reqs: PixelFormatRequirements,
-    window: WindowAttributes,
-    opengl: GlAttributes<&'a platform::Window>,
 }
 
 impl<'a> WindowBuilder<'a> {
