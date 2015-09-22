@@ -8,8 +8,7 @@ use std::sync::mpsc::{Receiver, channel};
 use {CreationError, Event, MouseCursor};
 use CreationError::OsError;
 use events::ElementState::{Pressed, Released};
-use events::Event::{MouseInput, MouseMoved};
-use events::MouseButton;
+use events::{Touch, TouchPhase};
 
 use std::collections::VecDeque;
 
@@ -68,15 +67,19 @@ impl<'a> Iterator for PollEventsIterator<'a> {
 
     fn next(&mut self) -> Option<Event> {
         match self.window.event_rx.try_recv() {
-            Ok(event) => {
-                match event {
-                    android_glue::Event::EventDown => Some(MouseInput(Pressed, MouseButton::Left)),
-                    android_glue::Event::EventUp => Some(MouseInput(Released, MouseButton::Left)),
-                    android_glue::Event::EventMove(x, y) => Some(MouseMoved((x as i32, y as i32))),
-                    _ => None,
-                }
+            Ok(android_glue::Event::EventMotion(motion)) => {
+                Some(Event::Touch(Touch {
+                    phase: match motion.action {
+                        android_glue::MotionAction::Down => TouchPhase::Started,
+                        android_glue::MotionAction::Move => TouchPhase::Moved,
+                        android_glue::MotionAction::Up => TouchPhase::Ended,
+                        android_glue::MotionAction::Cancel => TouchPhase::Cancelled,
+                    },
+                    location: (motion.x as f64, motion.y as f64),
+                    id: motion.pointer_id as u64,
+                }))
             }
-            Err(_) => {
+            _ => {
                 None
             }
         }
