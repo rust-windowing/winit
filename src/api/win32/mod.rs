@@ -215,7 +215,10 @@ impl Window {
     }
 
     pub fn platform_display(&self) -> *mut libc::c_void {
-        unimplemented!()
+        // What should this return on win32?
+        // It could be GetDC(NULL), but that requires a ReleaseDC()
+        // to avoid leaking the DC.
+        ptr::null_mut()
     }
 
     pub fn platform_window(&self) -> *mut libc::c_void {
