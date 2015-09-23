@@ -85,10 +85,12 @@ impl GlContext for HeadlessContext {
         Ok(())
     }
 
+    #[inline]
     fn is_current(&self) -> bool {
         unimplemented!()
     }
 
+    #[inline]
     fn get_proc_address(&self, _addr: &str) -> *const libc::c_void {
         let symbol_name: CFString = _addr.parse().unwrap();
         let framework_name: CFString = "com.apple.opengl".parse().unwrap();
@@ -101,14 +103,17 @@ impl GlContext for HeadlessContext {
         symbol as *const libc::c_void
     }
 
+    #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
         Ok(())
     }
 
+    #[inline]
     fn get_api(&self) -> ::Api {
         ::Api::OpenGl
     }
 
+    #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         unimplemented!();
     }
@@ -118,6 +123,7 @@ unsafe impl Send for HeadlessContext {}
 unsafe impl Sync for HeadlessContext {}
 
 impl Drop for HeadlessContext {
+    #[inline]
     fn drop(&mut self) {
         unsafe {
             gl::DeleteTextures(1, &texture);

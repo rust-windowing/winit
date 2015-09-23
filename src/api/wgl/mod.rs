@@ -49,6 +49,7 @@ pub struct Context {
 struct WindowWrapper(winapi::HWND, winapi::HDC);
 
 impl Drop for WindowWrapper {
+    #[inline]
     fn drop(&mut self) {
         unsafe {
             user32::DestroyWindow(self.0);
@@ -60,6 +61,7 @@ impl Drop for WindowWrapper {
 struct ContextWrapper(winapi::HGLRC);
 
 impl Drop for ContextWrapper {
+    #[inline]
     fn drop(&mut self) {
         unsafe {
             gl::wgl::DeleteContext(self.0 as *const _);
@@ -150,12 +152,14 @@ impl Context {
     }
 
     /// Returns the raw HGLRC.
+    #[inline]
     pub fn get_hglrc(&self) -> winapi::HGLRC {
         self.context.0
     }
 }
 
 impl GlContext for Context {
+    #[inline]
     unsafe fn make_current(&self) -> Result<(), ContextError> {
         if gl::wgl::MakeCurrent(self.hdc as *const _, self.context.0 as *const _) != 0 {
             Ok(())
@@ -164,6 +168,7 @@ impl GlContext for Context {
         }
     }
 
+    #[inline]
     fn is_current(&self) -> bool {
         unsafe { gl::wgl::GetCurrentContext() == self.context.0 as *const libc::c_void }
     }
@@ -179,6 +184,7 @@ impl GlContext for Context {
         }
     }
 
+    #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
         // TODO: decide how to handle the error
         /*if unsafe { gdi32::SwapBuffers(self.hdc) } != 0 {
@@ -190,11 +196,13 @@ impl GlContext for Context {
         Ok(())
     }
 
+    #[inline]
     fn get_api(&self) -> Api {
         // FIXME: can be opengl es
         Api::OpenGl
     }
 
+    #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         self.pixel_format.clone()
     }

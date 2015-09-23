@@ -98,6 +98,7 @@ impl XConnection {
 }
 
 impl Drop for XConnection {
+    #[inline]
     fn drop(&mut self) {
         unsafe { (self.xlib.XCloseDisplay)(self.display) };
     }
@@ -113,12 +114,14 @@ pub enum XNotSupported {
 }
 
 impl From<ffi::OpenError> for XNotSupported {
+    #[inline]
     fn from(err: ffi::OpenError) -> XNotSupported {
         XNotSupported::LibraryOpenError(err)
     }
 }
 
 impl Error for XNotSupported {
+    #[inline]
     fn description(&self) -> &str {
         match *self {
             XNotSupported::LibraryOpenError(_) => "Failed to load one of xlib's shared libraries",
@@ -126,6 +129,7 @@ impl Error for XNotSupported {
         }
     }
 
+    #[inline]
     fn cause(&self) -> Option<&Error> {
         match *self {
             XNotSupported::LibraryOpenError(ref err) => Some(err),

@@ -21,6 +21,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
     monitors
 }
 
+#[inline]
 pub fn get_primary_monitor() -> MonitorID {
     let id = unsafe {
         MonitorID(display::CGMainDisplayID())
@@ -37,6 +38,7 @@ impl MonitorID {
         Some(format!("Monitor #{}", screen_num))
     }
 
+    #[inline]
     pub fn get_native_identifier(&self) -> NativeMonitorId {
         let MonitorID(display_id) = *self;
         NativeMonitorId::Numeric(display_id)

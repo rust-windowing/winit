@@ -28,6 +28,7 @@ pub struct HeadlessRendererBuilder<'a> {
 
 impl<'a> HeadlessRendererBuilder<'a> {
     /// Initializes a new `HeadlessRendererBuilder` with default values.
+    #[inline]
     pub fn new(width: u32, height: u32) -> HeadlessRendererBuilder<'a> {
         HeadlessRendererBuilder {
             dimensions: (width, height),
@@ -37,6 +38,7 @@ impl<'a> HeadlessRendererBuilder<'a> {
     }
 
     /// Sets how the backend should choose the OpenGL API and version.
+    #[inline]
     pub fn with_gl(mut self, request: GlRequest) -> HeadlessRendererBuilder<'a> {
         self.opengl.version = request;
         self
@@ -46,12 +48,14 @@ impl<'a> HeadlessRendererBuilder<'a> {
     ///
     /// The default value for this flag is `cfg!(ndebug)`, which means that it's enabled
     /// when you run `cargo build` and disabled when you run `cargo build --release`.
+    #[inline]
     pub fn with_gl_debug_flag(mut self, flag: bool) -> HeadlessRendererBuilder<'a> {
         self.opengl.debug = flag;
         self
     }
 
     /// Sets the robustness of the OpenGL context. See the docs of `Robustness`.
+    #[inline]
     pub fn with_gl_robustness(mut self, robustness: Robustness) -> HeadlessRendererBuilder<'a> {
         self.opengl.robustness = robustness;
         self
@@ -61,6 +65,7 @@ impl<'a> HeadlessRendererBuilder<'a> {
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
+    #[inline]
     pub fn build(self) -> Result<HeadlessContext, CreationError> {
         platform::HeadlessContext::new(self.dimensions, &self.pf_reqs, &self.opengl)
                 .map(|w| HeadlessContext { context: w })
@@ -70,6 +75,7 @@ impl<'a> HeadlessRendererBuilder<'a> {
     ///
     /// The context is build in a *strict* way. That means that if the backend couldn't give
     /// you what you requested, an `Err` will be returned.
+    #[inline]
     pub fn build_strict(self) -> Result<HeadlessContext, CreationError> {
         self.build()
     }
@@ -105,41 +111,50 @@ impl HeadlessContext {
     /// Returns the API that is currently provided by this window.
     ///
     /// See `Window::get_api` for more infos.
+    #[inline]
     pub fn get_api(&self) -> Api {
         self.context.get_api()
     }
 
+    #[inline]
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 }
 
 impl gl_common::GlFunctionsSource for HeadlessContext {
+    #[inline]
     fn get_proc_addr(&self, addr: &str) -> *const libc::c_void {
         self.get_proc_address(addr)
     }
 }
 
 impl GlContext for HeadlessContext {
+    #[inline]
     unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.context.make_current()
     }
 
+    #[inline]
     fn is_current(&self) -> bool {
         self.context.is_current()
     }
 
+    #[inline]
     fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
         self.context.get_proc_address(addr)
     }
 
+    #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
         self.context.swap_buffers()
     }
 
+    #[inline]
     fn get_api(&self) -> Api {
         self.context.get_api()
     }
 
+    #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         self.context.get_pixel_format()
     }

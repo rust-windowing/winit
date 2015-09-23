@@ -135,6 +135,7 @@ struct DelegateState {
 
 
 impl DelegateState {
+    #[inline]
     fn new(window: id, controller:id, view: id, size: (u32,u32), scale: f32) -> DelegateState {
         DelegateState {
             events_queue: VecDeque::new(),
@@ -147,26 +148,30 @@ impl DelegateState {
     }
 }
 
-
+#[inline]
 pub fn get_available_monitors() -> VecDeque<MonitorID> {
     let mut rb = VecDeque::new();
     rb.push_back(MonitorID);
     rb
 }
 
+#[inline]
 pub fn get_primary_monitor() -> MonitorID {
     MonitorID
 }
 
 impl MonitorID {
+    #[inline]
     pub fn get_name(&self) -> Option<String> {
         Some("Primary".to_string())
     }
 
+    #[inline]
     pub fn get_native_identifier(&self) -> NativeMonitorId {
         NativeMonitorId::Unavailable
     }
 
+    #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         unimplemented!()
     }
@@ -262,81 +267,101 @@ impl Window {
         }
     }
 
+    #[inline]
     fn start_app() {
         unsafe {
             UIApplicationMain(0, ptr::null(), nil, NSString::alloc(nil).init_str("AppDelegate"));
         }
     }
 
+    #[inline]
     pub fn set_title(&self, _: &str) {
     }
 
+    #[inline]
     pub fn show(&self) {
     }
 
+    #[inline]
     pub fn hide(&self) {
     }
 
+    #[inline]
     pub fn get_position(&self) -> Option<(i32, i32)> {
         None
     }
 
+    #[inline]
     pub fn set_position(&self, _x: i32, _y: i32) {
     }
 
+    #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         unsafe { Some((&*self.delegate_state).size) }
     }
 
+    #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         self.get_inner_size()
     }
 
+    #[inline]
     pub fn set_inner_size(&self, _x: u32, _y: u32) {
     }
 
+    #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
         PollEventsIterator {
             window: self
         }
     }
 
+    #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
         WaitEventsIterator {
             window: self
         }
     }
 
+    #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
         unimplemented!();
     }
 
+    #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
         unimplemented!()
     }
 
+    #[inline]
     pub fn get_pixel_format(&self) -> PixelFormat {
         unimplemented!();
     }
 
+    #[inline]
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 
+    #[inline]
     pub fn set_cursor(&self, _: MouseCursor) {
     }
 
+    #[inline]
     pub fn set_cursor_state(&self, _: CursorState) -> Result<(), String> {
         Ok(())
     }
 
+    #[inline]
     pub fn hidpi_factor(&self) -> f32 {
         unsafe { (&*self.delegate_state) }.scale
     }
 
+    #[inline]
     pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
         unimplemented!();
     }
 
+    #[inline]
     pub fn create_window_proxy(&self) -> WindowProxy {
         WindowProxy
     }
@@ -344,6 +369,7 @@ impl Window {
 }
 
 impl GlContext for Window {
+    #[inline]
     unsafe fn make_current(&self) -> Result<(), ContextError> {
         let res: BOOL = msg_send![Class::get("EAGLContext").unwrap(), setCurrentContext: self.eagl_context];
         if res == YES {
@@ -353,6 +379,7 @@ impl GlContext for Window {
         }
     }
 
+    #[inline]
     fn is_current(&self) -> bool {
         false
     }
@@ -366,6 +393,7 @@ impl GlContext for Window {
         }
     }
 
+    #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
         unsafe {
             let res: BOOL = msg_send![self.eagl_context, presentRenderbuffer: gles::RENDERBUFFER];
@@ -377,16 +405,19 @@ impl GlContext for Window {
         }
     }
 
+    #[inline]
     fn get_api(&self) -> Api {
         unimplemented!()
     }
 
+    #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         unimplemented!()
     }
 }
 
 impl WindowProxy {
+    #[inline]
     pub fn wakeup_event_loop(&self) {
         unimplemented!()
     }
@@ -396,6 +427,7 @@ impl WindowProxy {
 impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
+    #[inline]
     fn next(&mut self) -> Option<Event> {
         loop {
             if let Some(ev) = self.window.poll_events().next() {

@@ -27,6 +27,7 @@ pub enum OsMesaCreationError {
 }
 
 impl From<CreationError> for OsMesaCreationError {
+    #[inline]
     fn from(e: CreationError) -> OsMesaCreationError {
         OsMesaCreationError::CreationError(e)
     }
@@ -67,21 +68,25 @@ impl OsMesaContext {
         })
     }
 
+    #[inline]
     pub fn get_framebuffer(&self) -> &[u32] {
         &self.buffer
     }
 
+    #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         (self.width, self.height)
     }
 
     #[allow(dead_code)]
     // TODO: can we remove this without causing havoc?
+    #[inline]
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 }
 
 impl GlContext for OsMesaContext {
+    #[inline]
     unsafe fn make_current(&self) -> Result<(), ContextError> {
         let ret = osmesa_sys::OSMesaMakeCurrent(self.context, self.buffer.as_ptr()
                                                 as *mut libc::c_void, 0x1401, self.width
@@ -96,6 +101,7 @@ impl GlContext for OsMesaContext {
         Ok(())
     }
 
+    #[inline]
     fn is_current(&self) -> bool {
         unsafe { osmesa_sys::OSMesaGetCurrentContext() == self.context }
     }
@@ -107,20 +113,24 @@ impl GlContext for OsMesaContext {
         }
     }
 
+    #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
         Ok(())
     }
 
+    #[inline]
     fn get_api(&self) -> Api {
         Api::OpenGl
     }
 
+    #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         unimplemented!();
     }
 }
 
 impl Drop for OsMesaContext {
+    #[inline]
     fn drop(&mut self) {
         unsafe { osmesa_sys::OSMesaDestroyContext(self.context) }
     }

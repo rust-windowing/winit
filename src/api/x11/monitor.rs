@@ -15,6 +15,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> VecDeque<MonitorID> {
     monitors
 }
 
+#[inline]
 pub fn get_primary_monitor(x: &Arc<XConnection>) -> MonitorID {
     let primary_monitor = unsafe { (x.xlib.XDefaultScreen)(x.display) };
     MonitorID(x.clone(), primary_monitor as u32)
@@ -26,6 +27,7 @@ impl MonitorID {
         Some(format!("Monitor #{}", screen_num))
     }
 
+    #[inline]
     pub fn get_native_identifier(&self) -> NativeMonitorId {
         NativeMonitorId::Numeric(self.1)
     }
