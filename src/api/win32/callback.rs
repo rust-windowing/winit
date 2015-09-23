@@ -281,6 +281,12 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
+        x if x == *super::WAKEUP_MSG_ID => {
+            use events::Event::Awakened;
+            send_event(window, Awakened);
+            0
+        },
+
         _ => {
             user32::DefWindowProcW(window, msg, wparam, lparam)
         }
