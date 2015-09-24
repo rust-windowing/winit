@@ -84,6 +84,9 @@ pub struct WindowProxy {
     hwnd: winapi::HWND,
 }
 
+unsafe impl Send for WindowProxy {}
+unsafe impl Sync for WindowProxy {}
+
 impl WindowProxy {
     #[inline]
     pub fn wakeup_event_loop(&self) {
