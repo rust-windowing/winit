@@ -196,8 +196,17 @@ impl Window {
         use libc;
 
         unsafe {
-            user32::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, x as libc::c_int,
-                y as libc::c_int, winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION | winapi::SWP_NOMOVE);
+            // Calculate the outer size based upon the specified inner size
+            let mut rect = winapi::RECT { top: 0, left: 0, bottom: y as winapi::LONG, right: x as winapi::LONG };
+            let dw_style = user32::GetWindowLongA(self.window.0, winapi::GWL_STYLE) as winapi::DWORD;
+            let b_menu = !user32::GetMenu(self.window.0).is_null() as winapi::BOOL;
+            let dw_style_ex = user32::GetWindowLongA(self.window.0, winapi::GWL_EXSTYLE) as winapi::DWORD;
+            user32::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
+            let outer_x = (rect.right - rect.left).abs() as libc::c_int;
+            let outer_y = (rect.top - rect.bottom).abs() as libc::c_int;
+
+            user32::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
+                winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION | winapi::SWP_NOMOVE);
             user32::UpdateWindow(self.window.0);
         }
     }
