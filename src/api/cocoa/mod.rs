@@ -51,7 +51,7 @@ use events::ElementState::{Pressed, Released};
 use events::MouseButton;
 use events;
 
-pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
+pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 
 mod monitor;
 mod event;

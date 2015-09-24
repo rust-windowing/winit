@@ -32,23 +32,23 @@ pub struct Window {
 }
 
 #[derive(Clone)]
-pub struct MonitorID;
+pub struct MonitorId;
 
 mod ffi;
 
 #[inline]
-pub fn get_available_monitors() -> VecDeque<MonitorID> {
+pub fn get_available_monitors() -> VecDeque<MonitorId> {
     let mut rb = VecDeque::new();
-    rb.push_back(MonitorID);
+    rb.push_back(MonitorId);
     rb
 }
 
 #[inline]
-pub fn get_primary_monitor() -> MonitorID {
-    MonitorID
+pub fn get_primary_monitor() -> MonitorId {
+    MonitorId
 }
 
-impl MonitorID {
+impl MonitorId {
     #[inline]
     pub fn get_name(&self) -> Option<String> {
         Some("Primary".to_string())

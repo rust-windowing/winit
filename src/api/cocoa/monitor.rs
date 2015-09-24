@@ -3,9 +3,9 @@ use std::collections::VecDeque;
 use native_monitor::NativeMonitorId;
 
 #[derive(Clone)]
-pub struct MonitorID(u32);
+pub struct MonitorId(u32);
 
-pub fn get_available_monitors() -> VecDeque<MonitorID> {
+pub fn get_available_monitors() -> VecDeque<MonitorId> {
     let mut monitors = VecDeque::new();
     unsafe {
         let max_displays = 10u32;
@@ -15,23 +15,23 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
                                                         &mut active_displays[0],
                                                         &mut display_count);
         for i in 0..display_count as usize {
-            monitors.push_back(MonitorID(active_displays[i]));
+            monitors.push_back(MonitorId(active_displays[i]));
         }
     }
     monitors
 }
 
 #[inline]
-pub fn get_primary_monitor() -> MonitorID {
+pub fn get_primary_monitor() -> MonitorId {
     let id = unsafe {
-        MonitorID(display::CGMainDisplayID())
+        MonitorId(display::CGMainDisplayID())
     };
     id
 }
 
-impl MonitorID {
+impl MonitorId {
     pub fn get_name(&self) -> Option<String> {
-        let MonitorID(display_id) = *self;
+        let MonitorId(display_id) = *self;
         let screen_num = unsafe {
             display::CGDisplayModelNumber(display_id)
         };
@@ -40,12 +40,12 @@ impl MonitorID {
 
     #[inline]
     pub fn get_native_identifier(&self) -> NativeMonitorId {
-        let MonitorID(display_id) = *self;
+        let MonitorId(display_id) = *self;
         NativeMonitorId::Numeric(display_id)
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
-        let MonitorID(display_id) = *self;
+        let MonitorId(display_id) = *self;
         let dimension = unsafe {
             let height = display::CGDisplayPixelsHigh(display_id);
             let width = display::CGDisplayPixelsWide(display_id);

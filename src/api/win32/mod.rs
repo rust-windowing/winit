@@ -21,7 +21,7 @@ use PixelFormat;
 use PixelFormatRequirements;
 use WindowAttributes;
 
-pub use self::monitor::{MonitorID, get_available_monitors, get_primary_monitor};
+pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 
 use winapi;
 use user32;

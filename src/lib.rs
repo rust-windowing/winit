@@ -63,7 +63,7 @@ pub use headless::{HeadlessRendererBuilder, HeadlessContext};
 #[cfg(feature = "window")]
 pub use window::{WindowBuilder, Window, WindowProxy, PollEventsIterator, WaitEventsIterator};
 #[cfg(feature = "window")]
-pub use window::{AvailableMonitorsIter, MonitorID, get_available_monitors, get_primary_monitor};
+pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
 #[cfg(feature = "window")]
 pub use native_monitor::NativeMonitorId;
 
@@ -504,7 +504,7 @@ pub struct WindowAttributes {
     /// If `Some`, the window will be in fullscreen mode with the given monitor.
     ///
     /// The default is `None`.
-    pub monitor: Option<platform::MonitorID>,
+    pub monitor: Option<platform::MonitorId>,
 
     /// The title of the window in the title bar.
     ///
