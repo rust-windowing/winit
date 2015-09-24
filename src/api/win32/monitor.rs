@@ -6,9 +6,9 @@ use std::mem;
 
 use native_monitor::NativeMonitorId;
 
-/// Win32 implementation of the main `MonitorID` object.
+/// Win32 implementation of the main `MonitorId` object.
 #[derive(Clone)]
-pub struct MonitorID {
+pub struct MonitorId {
     /// The system name of the adapter.
     adapter_name: [winapi::WCHAR; 32],
 
@@ -93,7 +93,7 @@ fn wchar_as_string(wchar: &[winapi::WCHAR]) -> String {
 }
 
 /// Win32 implementation of the main `get_available_monitors` function.
-pub fn get_available_monitors() -> VecDeque<MonitorID> {
+pub fn get_available_monitors() -> VecDeque<MonitorId> {
     // return value
     let mut result = VecDeque::new();
 
@@ -120,7 +120,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
 
         for (num, monitor) in DeviceEnumerator::monitors(adapter.DeviceName.as_ptr()).enumerate() {
             // adding to the resulting list
-            result.push_back(MonitorID {
+            result.push_back(MonitorId {
                 adapter_name: adapter.DeviceName,
                 monitor_name: wchar_as_string(&monitor.DeviceName),
                 readable_name: wchar_as_string(&monitor.DeviceString),
@@ -136,7 +136,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorID> {
 }
 
 /// Win32 implementation of the main `get_primary_monitor` function.
-pub fn get_primary_monitor() -> MonitorID {
+pub fn get_primary_monitor() -> MonitorId {
     // we simply get all available monitors and return the one with the `PRIMARY_DEVICE` flag
     // TODO: it is possible to query the win32 API for the primary monitor, this should be done
     //  instead
@@ -149,7 +149,7 @@ pub fn get_primary_monitor() -> MonitorID {
     panic!("Failed to find the primary monitor")
 }
 
-impl MonitorID {
+impl MonitorId {
     /// See the docs if the crate root file.
     #[inline]
     pub fn get_name(&self) -> Option<String> {
@@ -169,14 +169,14 @@ impl MonitorID {
         self.dimensions
     }
 
-    /// This is a Win32-only function for `MonitorID` that returns the system name of the adapter
+    /// This is a Win32-only function for `MonitorId` that returns the system name of the adapter
     /// device.
     #[inline]
     pub fn get_adapter_name(&self) -> &[winapi::WCHAR] {
         &self.adapter_name
     }
 
-    /// This is a Win32-only function for `MonitorID` that returns the position of the
+    /// This is a Win32-only function for `MonitorId` that returns the position of the
     ///  monitor on the desktop.
     /// A window that is positionned at these coordinates will overlap the monitor.
     #[inline]

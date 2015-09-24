@@ -29,7 +29,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 use std::ffi::CString;
 
-use platform::MonitorID as PlatformMonitorID;
+use platform::MonitorId as PlatformMonitorId;
 
 use self::context::WaylandContext;
 
@@ -166,25 +166,25 @@ impl WindowProxy {
 }
 
 #[derive(Clone)]
-pub struct MonitorID {
+pub struct MonitorId {
     output: Arc<Output>
 }
 
 #[inline]
-pub fn get_available_monitors() -> VecDeque<MonitorID> {
-    WAYLAND_CONTEXT.as_ref().unwrap().outputs.iter().map(|o| MonitorID::new(o.clone())).collect()
+pub fn get_available_monitors() -> VecDeque<MonitorId> {
+    WAYLAND_CONTEXT.as_ref().unwrap().outputs.iter().map(|o| MonitorId::new(o.clone())).collect()
 }
 #[inline]
-pub fn get_primary_monitor() -> MonitorID {
+pub fn get_primary_monitor() -> MonitorId {
     match WAYLAND_CONTEXT.as_ref().unwrap().outputs.iter().next() {
-        Some(o) => MonitorID::new(o.clone()),
+        Some(o) => MonitorId::new(o.clone()),
         None => panic!("No monitor is available.")
     }
 }
 
-impl MonitorID {
-    fn new(output: Arc<Output>) -> MonitorID {
-        MonitorID {
+impl MonitorId {
+    fn new(output: Arc<Output>) -> MonitorId {
+        MonitorId {
             output: output
         }
     }
@@ -272,7 +272,7 @@ impl Window {
             h as i32
         );
 
-        let mut shell_window = if let Some(PlatformMonitorID::Wayland(ref monitor)) = window.monitor {
+        let mut shell_window = if let Some(PlatformMonitorId::Wayland(ref monitor)) = window.monitor {
             let shell_surface = wayland_context.shell.get_shell_surface(surface);
             shell_surface.set_fullscreen(ShellFullscreenMethod::Default, Some(&monitor.output));
             ShellWindow::Plain(shell_surface)

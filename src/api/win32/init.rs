@@ -6,7 +6,7 @@ use std::thread;
 
 use super::callback;
 use super::Window;
-use super::MonitorID;
+use super::MonitorId;
 use super::WindowWrapper;
 use super::Context;
 
@@ -269,7 +269,7 @@ unsafe fn register_window_class() -> Vec<u16> {
     class_name
 }
 
-unsafe fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorID)
+unsafe fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorId)
                                -> Result<(), CreationError>
 {
     // adjusting the rect

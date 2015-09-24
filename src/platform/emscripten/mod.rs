@@ -3,7 +3,7 @@
 use ContextError;
 use GlContext;
 
-pub use api::emscripten::{Window, WindowProxy, MonitorID, get_available_monitors};
+pub use api::emscripten::{Window, WindowProxy, MonitorId, get_available_monitors};
 pub use api::emscripten::{get_primary_monitor, WaitEventsIterator, PollEventsIterator};
 
 pub struct HeadlessContext(Window);

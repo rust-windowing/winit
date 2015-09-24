@@ -23,11 +23,11 @@ use api::glx::Context as GlxContext;
 use api::egl;
 use api::egl::Context as EglContext;
 
-use platform::MonitorID as PlatformMonitorID;
+use platform::MonitorId as PlatformMonitorId;
 
 use super::input::XInputEventHandler;
 use super::{ffi};
-use super::{MonitorID, XConnection};
+use super::{MonitorId, XConnection};
 
 // XOpenIM doesn't seem to be thread-safe
 lazy_static! {      // TODO: use a static mutex when that's possible, and put me back in my function
@@ -305,7 +305,7 @@ impl Window {
         let dimensions = window_attrs.dimensions.unwrap_or((800, 600));
 
         let screen_id = match window_attrs.monitor {
-            Some(PlatformMonitorID::X(MonitorID(_, monitor))) => monitor as i32,
+            Some(PlatformMonitorId::X(MonitorId(_, monitor))) => monitor as i32,
             _ => unsafe { (display.xlib.XDefaultScreen)(display.display) },
         };
 

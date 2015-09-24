@@ -1,5 +1,5 @@
 /*#[cfg(feature = "window")]
-pub use api::x11::{Window, WindowProxy, MonitorID, get_available_monitors, get_primary_monitor};
+pub use api::x11::{Window, WindowProxy, MonitorId, get_available_monitors, get_primary_monitor};
 #[cfg(feature = "window")]
 pub use api::x11::{WaitEventsIterator, PollEventsIterator};*/
 
@@ -69,64 +69,64 @@ impl WindowProxy {
 }
 
 #[derive(Clone)]
-pub enum MonitorID {
+pub enum MonitorId {
     #[doc(hidden)]
-    X(x11::MonitorID),
+    X(x11::MonitorId),
     #[doc(hidden)]
-    Wayland(wayland::MonitorID),
+    Wayland(wayland::MonitorId),
     #[doc(hidden)]
     None,
 }
 
 #[inline]
-pub fn get_available_monitors() -> VecDeque<MonitorID> {
+pub fn get_available_monitors() -> VecDeque<MonitorId> {
     match *BACKEND {
         Backend::Wayland => wayland::get_available_monitors()
                                 .into_iter()
-                                .map(MonitorID::Wayland)
+                                .map(MonitorId::Wayland)
                                 .collect(),
         Backend::X(ref connec) => x11::get_available_monitors(connec)
                                     .into_iter()
-                                    .map(MonitorID::X)
+                                    .map(MonitorId::X)
                                     .collect(),
-        Backend::Error(_) => { let mut d = VecDeque::new(); d.push_back(MonitorID::None); d},
+        Backend::Error(_) => { let mut d = VecDeque::new(); d.push_back(MonitorId::None); d},
     }
 }
 
 #[inline]
-pub fn get_primary_monitor() -> MonitorID {
+pub fn get_primary_monitor() -> MonitorId {
     match *BACKEND {
-        Backend::Wayland => MonitorID::Wayland(wayland::get_primary_monitor()),
-        Backend::X(ref connec) => MonitorID::X(x11::get_primary_monitor(connec)),
-        Backend::Error(_) => MonitorID::None,
+        Backend::Wayland => MonitorId::Wayland(wayland::get_primary_monitor()),
+        Backend::X(ref connec) => MonitorId::X(x11::get_primary_monitor(connec)),
+        Backend::Error(_) => MonitorId::None,
     }
 }
 
-impl MonitorID {
+impl MonitorId {
     #[inline]
     pub fn get_name(&self) -> Option<String> {
         match self {
-            &MonitorID::X(ref m) => m.get_name(),
-            &MonitorID::Wayland(ref m) => m.get_name(),
-            &MonitorID::None => None,
+            &MonitorId::X(ref m) => m.get_name(),
+            &MonitorId::Wayland(ref m) => m.get_name(),
+            &MonitorId::None => None,
         }
     }
 
     #[inline]
     pub fn get_native_identifier(&self) -> ::native_monitor::NativeMonitorId {
         match self {
-            &MonitorID::X(ref m) => m.get_native_identifier(),
-            &MonitorID::Wayland(ref m) => m.get_native_identifier(),
-            &MonitorID::None => unimplemented!()        // FIXME: 
+            &MonitorId::X(ref m) => m.get_native_identifier(),
+            &MonitorId::Wayland(ref m) => m.get_native_identifier(),
+            &MonitorId::None => unimplemented!()        // FIXME: 
         }
     }
 
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         match self {
-            &MonitorID::X(ref m) => m.get_dimensions(),
-            &MonitorID::Wayland(ref m) => m.get_dimensions(),
-            &MonitorID::None => (800, 600),     // FIXME: 
+            &MonitorId::X(ref m) => m.get_dimensions(),
+            &MonitorId::Wayland(ref m) => m.get_dimensions(),
+            &MonitorId::None => (800, 600),     // FIXME: 
         }
     }
 }

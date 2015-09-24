@@ -1,7 +1,7 @@
 #![cfg(target_os = "windows")]
 
 pub use api::win32;
-pub use api::win32::{MonitorID, get_available_monitors, get_primary_monitor};
+pub use api::win32::{MonitorId, get_available_monitors, get_primary_monitor};
 pub use api::win32::{WindowProxy, PollEventsIterator, WaitEventsIterator};
 
 use libc;
