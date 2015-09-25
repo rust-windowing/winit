@@ -659,8 +659,18 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_xlib_display(&self) -> *mut libc::c_void {
+        self.x.display.display as *mut libc::c_void
+    }
+
+    #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
         self.x.display.display as *mut libc::c_void
+    }
+
+    #[inline]
+    pub fn get_xlib_window(&self) -> *mut libc::c_void {
+        self.x.window as *mut libc::c_void
     }
 
     #[inline]

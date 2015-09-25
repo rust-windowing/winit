@@ -14,6 +14,7 @@ use MouseCursor;
 use PixelFormat;
 use PixelFormatRequirements;
 use Robustness;
+use Window;
 use WindowAttributes;
 use native_monitor::NativeMonitorId;
 
@@ -224,32 +225,6 @@ impl<'a> WindowBuilder<'a> {
     }
 }
 
-/// Represents an OpenGL context and the Window or environment around it.
-///
-/// # Example
-///
-/// ```ignore
-/// let window = Window::new().unwrap();
-///
-/// unsafe { window.make_current() };
-///
-/// loop {
-///     for event in window.poll_events() {
-///         match(event) {
-///             // process events here
-///             _ => ()
-///         }
-///     }
-///
-///     // draw everything here
-///
-///     window.swap_buffers();
-///     std::old_io::timer::sleep(17);
-/// }
-/// ```
-pub struct Window {
-    window: platform::Window,
-}
 
 impl Default for Window {
     #[inline]
@@ -439,7 +414,7 @@ impl Window {
         self.window.swap_buffers()
     }
 
-    /// Gets the native platform specific display for this window.
+    /// DEPRECATED. Gets the native platform specific display for this window.
     /// This is typically only required when integrating with
     /// other libraries that need this information.
     #[inline]
@@ -447,7 +422,7 @@ impl Window {
         self.window.platform_display()
     }
 
-    /// Gets the native platform specific window handle. This is
+    /// DEPRECATED. Gets the native platform specific window handle. This is
     /// typically only required when integrating with other libraries
     /// that need this information.
     #[inline]

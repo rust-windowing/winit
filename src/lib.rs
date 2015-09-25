@@ -61,7 +61,7 @@ extern crate x11_dl;
 pub use events::*;
 pub use headless::{HeadlessRendererBuilder, HeadlessContext};
 #[cfg(feature = "window")]
-pub use window::{WindowBuilder, Window, WindowProxy, PollEventsIterator, WaitEventsIterator};
+pub use window::{WindowBuilder, WindowProxy, PollEventsIterator, WaitEventsIterator};
 #[cfg(feature = "window")]
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
 #[cfg(feature = "window")]
@@ -77,6 +77,35 @@ mod events;
 mod headless;
 #[cfg(feature = "window")]
 mod window;
+
+pub mod os;
+
+/// Represents an OpenGL context and the Window or environment around it.
+///
+/// # Example
+///
+/// ```ignore
+/// let window = Window::new().unwrap();
+///
+/// unsafe { window.make_current() };
+///
+/// loop {
+///     for event in window.poll_events() {
+///         match(event) {
+///             // process events here
+///             _ => ()
+///         }
+///     }
+///
+///     // draw everything here
+///
+///     window.swap_buffers();
+///     std::old_io::timer::sleep(17);
+/// }
+/// ```
+pub struct Window {
+    window: platform::Window,
+}
 
 /// Trait that describes objects that have access to an OpenGL context.
 pub trait GlContext {
