@@ -69,8 +69,6 @@ pub fn load(window: &glutin::Window) -> Context {
 
 impl Context {
     pub fn draw_frame(&self, color: (f32, f32, f32, f32)) {
-        use std::mem;
-
         unsafe {
             self.gl.ClearColor(color.0, color.1, color.2, color.3);
             self.gl.Clear(gl::COLOR_BUFFER_BIT);

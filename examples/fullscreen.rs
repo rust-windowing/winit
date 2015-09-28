@@ -40,14 +40,14 @@ fn main() {
         .build()
         .unwrap();
 
-    unsafe { window.make_current() };
+    let _ = unsafe { window.make_current() };
 
     
     let context = support::load(&window);
 
     for event in window.wait_events() {
         context.draw_frame((0.0, 1.0, 0.0, 1.0));
-        window.swap_buffers();
+        let _ = window.swap_buffers();
 
         println!("{:?}", event);
 

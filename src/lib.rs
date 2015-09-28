@@ -68,6 +68,7 @@ pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_p
 pub use native_monitor::NativeMonitorId;
 
 use std::io;
+#[cfg(not(target_os = "macos"))]
 use std::cmp::Ordering;
 
 mod api;
@@ -377,6 +378,7 @@ pub struct PixelFormatRequirements {
 }
 
 impl PixelFormatRequirements {
+    #[cfg(not(target_os = "macos"))]
     fn choose_pixel_format<T, I>(&self, iter: I) -> Result<(T, PixelFormat), CreationError>
                                  where I: IntoIterator<Item=(T, PixelFormat)>, T: Clone
     {

@@ -39,13 +39,13 @@ fn main() {
 
 #[cfg(feature = "window")]
 fn run(window: glutin::Window, color: (f32, f32, f32, f32)) {
-    unsafe { window.make_current() };
+    let _ = unsafe { window.make_current() };
 
     let context = support::load(&window);
 
     for event in window.wait_events() {
         context.draw_frame(color);
-        window.swap_buffers();
+        let _ = window.swap_buffers();
 
         match event {
             glutin::Event::Closed => break,

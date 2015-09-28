@@ -28,8 +28,8 @@ pub struct HeadlessContext {
 }
 
 impl HeadlessContext {
-    pub fn new((width, height): (u32, u32), pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
+    pub fn new((width, height): (u32, u32), _pf_reqs: &PixelFormatRequirements,
+               _opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
     {
         let context = unsafe {
             let attributes = [

@@ -24,7 +24,7 @@ fn main() {
                                                  .build().unwrap();
     window.set_title("A fantastic window!");
     window.set_window_resize_callback(Some(resize_callback as fn(u32, u32)));
-    unsafe { window.make_current() };
+    let _ = unsafe { window.make_current() };
 
     println!("Pixel format of the window: {:?}", window.get_pixel_format());
 
@@ -32,7 +32,7 @@ fn main() {
 
     for event in window.wait_events() {
         context.draw_frame((0.0, 0.0, 0.0, 0.0));
-        window.swap_buffers();
+        let _ = window.swap_buffers();
 
         println!("{:?}", event);
 

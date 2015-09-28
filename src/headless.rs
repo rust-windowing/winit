@@ -7,7 +7,6 @@ use GlContext;
 use PixelFormat;
 use PixelFormatRequirements;
 use Robustness;
-use WindowAttributes;
 
 use gl_common;
 use libc;
