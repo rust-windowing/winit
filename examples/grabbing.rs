@@ -18,7 +18,7 @@ fn main() { println!("This example requires glutin to be compiled with the `wind
 fn main() {
     let window = glutin::WindowBuilder::new().build().unwrap();
     window.set_title("glutin - Cursor grabbing test");
-    unsafe { window.make_current() };
+    let _ = unsafe { window.make_current() };
 
     let context = support::load(&window);
     let mut grabbed = false;
@@ -45,7 +45,7 @@ fn main() {
         }
 
         context.draw_frame((0.0, 1.0, 0.0, 1.0));
-        window.swap_buffers();
+        let _ = window.swap_buffers();
     }
 }
 

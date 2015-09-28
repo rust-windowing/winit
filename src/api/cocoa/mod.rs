@@ -6,7 +6,6 @@ use {CreationError, Event, MouseCursor, CursorState};
 use CreationError::OsError;
 use libc;
 
-use Api;
 use ContextError;
 use GlAttributes;
 use GlContext;
@@ -21,9 +20,7 @@ use native_monitor::NativeMonitorId;
 use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
 use objc::declare::ClassDecl;
 
-use cgl;
 use cgl::{CGLEnable, kCGLCECrashOnRemovedFunctions, CGLSetParameter, kCGLCPSurfaceOpacity};
-use cgl::CGLContextObj as CGL_CGLContextObj;
 
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSAutoreleasePool, NSDate, NSDefaultRunLoopMode, NSPoint, NSRect, NSSize, 
@@ -758,7 +755,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
         unimplemented!();
     }
 }
@@ -820,6 +817,7 @@ impl IdRef {
         IdRef(i)
     }
 
+    #[allow(dead_code)]
     fn retain(i: id) -> IdRef {
         if i != nil {
             let _: id = unsafe { msg_send![i, retain] };
@@ -856,6 +854,7 @@ impl Clone for IdRef {
     }
 }
 
+#[allow(non_snake_case)]
 unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
     if nsevent == nil { return None; }
 
