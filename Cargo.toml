@@ -1,6 +1,6 @@
 [package]
 name = "glutin"
-version = "0.3.6"
+version = "0.3.7"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 description = "Cross-plaform OpenGL context provider."
 keywords = ["windowing", "opengl"]
@@ -15,13 +15,13 @@ default = ["window"]
 window = []
 
 [dependencies]
-gl_common = "0.0.4"
+gl_common = "0.1.0"
 lazy_static = "0.1.10"
 libc = "0.1"
 shared_library = "0.1.0"
 
 [build-dependencies]
-gl_generator = "0.0.27"
+gl_generator = "0.1.0"
 khronos_api = "0.0.7"
 
 [dev-dependencies]
