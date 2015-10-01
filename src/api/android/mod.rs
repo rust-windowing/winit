@@ -133,6 +133,7 @@ impl Window {
 
         let (tx, rx) = channel();
         android_glue::add_sender(tx);
+        android_glue::set_multitouch(win_attribs.multitouch);
 
         Ok(Window {
             context: context,
