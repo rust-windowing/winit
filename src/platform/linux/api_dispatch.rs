@@ -1,6 +1,4 @@
-/*#[cfg(feature = "window")]
-pub use api::x11::{Window, WindowProxy, MonitorId, get_available_monitors, get_primary_monitor};
-#[cfg(feature = "window")]
+/*pub use api::x11::{Window, WindowProxy, MonitorId, get_available_monitors, get_primary_monitor};
 pub use api::x11::{WaitEventsIterator, PollEventsIterator};*/
 
 use std::collections::VecDeque;

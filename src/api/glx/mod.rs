@@ -1,4 +1,4 @@
-#![cfg(all(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd"), feature = "window"))]
+#![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd"))]
 
 use ContextError;
 use CreationError;

@@ -60,11 +60,8 @@ extern crate x11_dl;
 
 pub use events::*;
 pub use headless::{HeadlessRendererBuilder, HeadlessContext};
-#[cfg(feature = "window")]
 pub use window::{WindowBuilder, WindowProxy, PollEventsIterator, WaitEventsIterator};
-#[cfg(feature = "window")]
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
-#[cfg(feature = "window")]
 pub use native_monitor::NativeMonitorId;
 
 use std::io;
@@ -75,7 +72,6 @@ mod api;
 mod platform;
 mod events;
 mod headless;
-#[cfg(feature = "window")]
 mod window;
 
 pub mod os;

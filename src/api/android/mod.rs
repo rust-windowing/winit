@@ -283,7 +283,6 @@ impl GlContext for Window {
     }
 }
 
-#[cfg(feature = "window")]
 #[derive(Clone)]
 pub struct WindowProxy;
 
