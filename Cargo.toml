@@ -10,10 +10,6 @@ repository = "https://github.com/tomaka/glutin"
 documentation = "https://tomaka.github.io/glutin/"
 build = "build.rs"
 
-[features]
-default = ["window"]
-window = []
-
 [dependencies]
 gl_common = "0.1.0"
 lazy_static = "0.1.10"

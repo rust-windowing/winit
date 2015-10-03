@@ -11,17 +11,9 @@ use libc;
 
 use api::osmesa::{self, OsMesaContext};
 
-#[cfg(feature = "window")]
 pub use self::api_dispatch::{Window, WindowProxy, MonitorId, get_available_monitors, get_primary_monitor};
-#[cfg(feature = "window")]
 pub use self::api_dispatch::{WaitEventsIterator, PollEventsIterator};
-#[cfg(feature = "window")]
 mod api_dispatch;
-
-#[cfg(not(feature = "window"))]
-pub type Window = ();       // TODO: hack to make things work
-#[cfg(not(feature = "window"))]
-pub type MonitorId = ();       // TODO: hack to make things work
 
 pub struct HeadlessContext(OsMesaContext);
 

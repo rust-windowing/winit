@@ -185,12 +185,9 @@ pub struct Window {
     delegate: WindowDelegate,
 }
 
-#[cfg(feature = "window")]
 unsafe impl Send for Window {}
-#[cfg(feature = "window")]
 unsafe impl Sync for Window {}
 
-#[cfg(feature = "window")]
 #[derive(Clone)]
 pub struct WindowProxy;
 
@@ -264,7 +261,6 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 }
 
 impl Window {
-    #[cfg(feature = "window")]
     pub fn new(win_attribs: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
                opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
     {
