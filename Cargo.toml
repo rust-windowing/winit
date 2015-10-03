@@ -18,7 +18,7 @@ shared_library = "0.1.0"
 
 [build-dependencies]
 gl_generator = "0.1.0"
-khronos_api = "0.0.7"
+khronos_api = "0.0.8"
 
 [dev-dependencies]
 clock_ticks = "0.0.5"
