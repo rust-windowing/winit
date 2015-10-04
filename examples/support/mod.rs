@@ -1,5 +1,3 @@
-#![cfg(feature = "window")]
-
 use std::ffi::CStr;
 use std::mem;
 use std::ptr;
