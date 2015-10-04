@@ -133,13 +133,11 @@ impl Context {
         let gl_library = try!(load_opengl32_dll());
 
         // handling vsync
-        if opengl.vsync {
-            if extensions.split(' ').find(|&i| i == "WGL_EXT_swap_control").is_some() {
-                let _guard = try!(CurrentContextGuard::make_current(hdc, context.0));
+        if extensions.split(' ').find(|&i| i == "WGL_EXT_swap_control").is_some() {
+            let _guard = try!(CurrentContextGuard::make_current(hdc, context.0));
 
-                if extra_functions.SwapIntervalEXT(1) == 0 {
-                    return Err(CreationError::OsError(format!("wglSwapIntervalEXT failed")));
-                }
+            if extra_functions.SwapIntervalEXT(if opengl.vsync { 1 } else { 0 }) == 0 {
+                return Err(CreationError::OsError(format!("wglSwapIntervalEXT failed")));
             }
         }
 
