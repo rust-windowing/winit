@@ -11,10 +11,6 @@ mod support;
 #[cfg(target_os = "android")]
 android_start!(main);
 
-#[cfg(not(feature = "window"))]
-fn main() { println!("This example requires glutin to be compiled with the `window` feature"); }
-
-#[cfg(feature = "window")]
 fn main() {
     let window1 = glutin::WindowBuilder::new().build().unwrap();
     let window2 = glutin::WindowBuilder::new().build().unwrap();
@@ -37,7 +33,6 @@ fn main() {
     let _ = t3.join();
 }
 
-#[cfg(feature = "window")]
 fn run(window: glutin::Window, color: (f32, f32, f32, f32)) {
     let _ = unsafe { window.make_current() };
 
