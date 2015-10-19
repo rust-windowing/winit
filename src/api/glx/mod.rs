@@ -260,7 +260,7 @@ fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx, ex
                   -> Result<ffi::GLXContext, CreationError>
 {
     unsafe {
-        let context = if extra_functions.CreateContextAttribsARB.is_loaded() {
+        let context = if extensions.split(' ').find(|&i| i == "GLX_ARB_create_context").is_some() {
             let mut attributes = Vec::with_capacity(9);
 
             attributes.push(ffi::glx_extra::CONTEXT_MAJOR_VERSION_ARB as libc::c_int);
