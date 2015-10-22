@@ -5,6 +5,8 @@ use std::{mem, ptr};
 use std::ffi::CString;
 use std::slice::from_raw_parts;
 
+use WindowAttributes;
+
 use events::Event;
 
 use super::{events, ffi};
@@ -46,11 +48,13 @@ pub struct XInputEventHandler {
     window: ffi::Window,
     ic: ffi::XIC,
     axis_list: Vec<Axis>,
-    current_state: InputState
+    current_state: InputState,
+    multitouch: bool,
 }
 
 impl XInputEventHandler {
-    pub fn new(display: &Arc<XConnection>, window: ffi::Window, ic: ffi::XIC) -> XInputEventHandler {
+    pub fn new(display: &Arc<XConnection>, window: ffi::Window, ic: ffi::XIC,
+               window_attrs: &WindowAttributes) -> XInputEventHandler {
         // query XInput support
         let mut opcode: libc::c_int = 0;
         let mut event: libc::c_int = 0;
@@ -113,7 +117,8 @@ impl XInputEventHandler {
             current_state: InputState {
                 cursor_pos: (0.0, 0.0),
                 axis_values: Vec::new()
-            }
+            },
+            multitouch: window_attrs.multitouch,
         }
     }
 
@@ -174,6 +179,10 @@ impl XInputEventHandler {
         match cookie.evtype {
             ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
                 let event_data: &ffi::XIDeviceEvent = unsafe{mem::transmute(cookie.data)};
+                if self.multitouch && (event_data.flags & ffi::XIPointerEmulated) != 0 {
+                    // Deliver multi-touch events instead of emulated mouse events.
+                    return None
+                }
                 let state = if cookie.evtype == ffi::XI_ButtonPress {
                     Pressed
                 } else {
@@ -205,6 +214,10 @@ impl XInputEventHandler {
             },
             ffi::XI_Motion => {
                 let event_data: &ffi::XIDeviceEvent = unsafe{mem::transmute(cookie.data)};
+                if self.multitouch && (event_data.flags & ffi::XIPointerEmulated) != 0 {
+                    // Deliver multi-touch events instead of emulated mouse events.
+                    return None
+                }
                 let axis_state = event_data.valuators;
                 let mask = unsafe{ from_raw_parts(axis_state.mask, axis_state.mask_len as usize) };
                 let mut axis_count = 0;
@@ -246,6 +259,9 @@ impl XInputEventHandler {
             ffi::XI_FocusIn => Some(Focused(true)),
             ffi::XI_FocusOut => Some(Focused(false)),
             ffi::XI_TouchBegin | ffi::XI_TouchUpdate | ffi::XI_TouchEnd => {
+                if !self.multitouch {
+                    return None
+                }
                 let event_data: &ffi::XIDeviceEvent = unsafe{mem::transmute(cookie.data)};
                 let phase = match cookie.evtype {
                     ffi::XI_TouchBegin => TouchPhase::Started,
