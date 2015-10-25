@@ -50,6 +50,7 @@ fn main() {
 
         match event {
             glutin::Event::Closed => break,
+            glutin::Event::KeyboardInput(_, _, Some(glutin::VirtualKeyCode::Escape)) => break,
             _ => ()
         }
     }
