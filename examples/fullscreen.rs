@@ -4,7 +4,7 @@ extern crate android_glue;
 
 extern crate glutin;
 
-use std::io;
+use std::io::{self, Write};
 
 mod support;
 
@@ -19,6 +19,7 @@ fn main() {
         }
 
         print!("Please write the number of the monitor to use: ");
+        io::stdout().flush().unwrap();
 
         let mut num = String::new();
         io::stdin().read_line(&mut num).unwrap();
@@ -49,6 +50,7 @@ fn main() {
 
         match event {
             glutin::Event::Closed => break,
+            glutin::Event::KeyboardInput(_, _, Some(glutin::VirtualKeyCode::Escape)) => break,
             _ => ()
         }
     }
