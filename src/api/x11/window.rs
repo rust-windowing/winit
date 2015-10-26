@@ -565,6 +565,16 @@ impl Window {
             input_handler: Mutex::new(XInputEventHandler::new(display, window, ic, window_attrs))
         };
 
+        unsafe {
+            let ref x_window: &XWindow = window.x.borrow();
+            (display.xlib.XSetInputFocus)(
+                display.display,
+                x_window.window,
+                ffi::RevertToParent,
+                ffi::CurrentTime
+            );
+        }
+
         // returning
         Ok(window)
     }
