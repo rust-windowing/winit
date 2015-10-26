@@ -436,14 +436,14 @@ impl Window {
         }
 
         // switching to fullscreen
-        if let Some(mut mode_to_switch_to) = mode_to_switch_to {
-            window_attributes |= ffi::CWOverrideRedirect;
-            unsafe {
-                (display.xf86vmode.XF86VidModeSwitchToMode)(display.display, screen_id, &mut mode_to_switch_to);
-                (display.xf86vmode.XF86VidModeSetViewPort)(display.display, screen_id, 0, 0);
-                set_win_attr.override_redirect = 1;
-            }
-        }
+        // if let Some(mut mode_to_switch_to) = mode_to_switch_to {
+        //     window_attributes |= ffi::CWOverrideRedirect;
+        //     unsafe {
+        //         (display.xf86vmode.XF86VidModeSwitchToMode)(display.display, screen_id, &mut mode_to_switch_to);
+        //         (display.xf86vmode.XF86VidModeSetViewPort)(display.display, screen_id, 0, 0);
+        //         set_win_attr.override_redirect = 1;
+        //     }
+        // }
 
         // finally creating the window
         let window = unsafe {
@@ -526,6 +526,49 @@ impl Window {
         }
 
         let is_fullscreen = window_attrs.monitor.is_some();
+
+        if is_fullscreen {
+            let state_atom = unsafe {
+                with_c_str("_NET_WM_STATE", |state|
+                    (display.xlib.XInternAtom)(display.display, state, 0)
+                )
+            };
+            let fs_atom = unsafe {
+                with_c_str("_NET_WM_STATE_FULLSCREEN", |state_fullscreen|
+                    (display.xlib.XInternAtom)(display.display, state_fullscreen, 0)
+                )
+            };
+
+            let client_message_event = ffi::XClientMessageEvent {
+                type_: ffi::ClientMessage,
+                serial: 0,
+                send_event: 1,
+                display: display.display,
+                window: window,
+                message_type: state_atom,
+                format: 32,
+                data: {
+                    let mut data = unsafe {
+                        mem::transmute::<[libc::c_long; 5], ffi::ClientMessageData>([0; 5])
+                    };
+                    data.set_long(0, 1);
+                    data.set_long(1, fs_atom as i64);
+                    data.set_long(2, 0);
+                    data
+                }
+            };
+            let mut x_event = ffi::XEvent::from(client_message_event);
+
+            unsafe {
+                (display.xlib.XSendEvent)(
+                    display.display,
+                    root,
+                    0,
+                    ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask,
+                    &mut x_event as *mut _
+                );
+            }
+        }
 
         // finish creating the OpenGL context
         let context = match context {
