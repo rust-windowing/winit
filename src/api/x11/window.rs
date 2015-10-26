@@ -533,7 +533,7 @@ impl Window {
                     (display.xlib.XInternAtom)(display.display, state, 0)
                 )
             };
-            let fs_atom = unsafe {
+            let fullscreen_atom = unsafe {
                 with_c_str("_NET_WM_STATE_FULLSCREEN", |state_fullscreen|
                     (display.xlib.XInternAtom)(display.display, state_fullscreen, 0)
                 )
@@ -542,18 +542,21 @@ impl Window {
             let client_message_event = ffi::XClientMessageEvent {
                 type_: ffi::ClientMessage,
                 serial: 0,
-                send_event: 1,
+                send_event: 1,            // true because we are sending this through `XSendEvent`
                 display: display.display,
                 window: window,
-                message_type: state_atom,
-                format: 32,
+                message_type: state_atom, // the _NET_WM_STATE atom is sent to change the state of a window
+                format: 32,               // view `data` as `c_long`s
                 data: {
+                    // TODO replace this with normal instantiation when x11-rs makes
+                    // ClientMessageData instantiable.
                     let mut data = unsafe {
                         mem::transmute::<[libc::c_long; 5], ffi::ClientMessageData>([0; 5])
                     };
+                    // This first `long` is the action; `1` means add/set following property.
                     data.set_long(0, 1);
-                    data.set_long(1, fs_atom as i64);
-                    data.set_long(2, 0);
+                    // This second `long` is the property to set (fullscreen)
+                    data.set_long(1, fullscreen_atom as i64);
                     data
                 }
             };
