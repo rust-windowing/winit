@@ -319,9 +319,6 @@ impl Window {
 
             let xf86_desk_mode = *modes.offset(0);
 
-            // FIXME: `XF86VidModeModeInfo` is missing its `hskew` field. Therefore we point to
-            //        `vsyncstart` instead of `vdisplay` as a temporary hack.
-
             let mode_to_switch_to = if window_attrs.monitor.is_some() {
                 let matching_mode = (0 .. mode_num).map(|i| {
                     let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
