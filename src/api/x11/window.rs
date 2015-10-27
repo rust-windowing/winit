@@ -435,16 +435,6 @@ impl Window {
             window_attributes |= ffi::CWBackPixel;
         }
 
-        // switching to fullscreen
-        // if let Some(mut mode_to_switch_to) = mode_to_switch_to {
-        //     window_attributes |= ffi::CWOverrideRedirect;
-        //     unsafe {
-        //         (display.xf86vmode.XF86VidModeSwitchToMode)(display.display, screen_id, &mut mode_to_switch_to);
-        //         (display.xf86vmode.XF86VidModeSetViewPort)(display.display, screen_id, 0, 0);
-        //         set_win_attr.override_redirect = 1;
-        //     }
-        // }
-
         // finally creating the window
         let window = unsafe {
             let win = (display.xlib.XCreateWindow)(display.display, root, 0, 0, dimensions.0 as libc::c_uint,
@@ -570,6 +560,22 @@ impl Window {
                     ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask,
                     &mut x_event as *mut _
                 );
+            }
+
+            if let Some(mut mode_to_switch_to) = mode_to_switch_to {
+                unsafe {
+                    (display.xf86vmode.XF86VidModeSwitchToMode)(
+                        display.display,
+                        screen_id,
+                        &mut mode_to_switch_to
+                    );
+                }
+            }
+            else {
+                println!("[glutin] Unexpected state: `mode` is None creating fullscreen window");
+            }
+            unsafe {
+                (display.xf86vmode.XF86VidModeSetViewPort)(display.display, screen_id, 0, 0);
             }
         }
 
