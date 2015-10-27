@@ -54,7 +54,7 @@ pub struct XWindow {
     pub context: Context,
     is_fullscreen: bool,
     screen_id: libc::c_int,
-    xf86_desk_mode: *mut ffi::XF86VidModeModeInfo,
+    xf86_desk_mode: ffi::XF86VidModeModeInfo,
     ic: ffi::XIC,
     im: ffi::XIM,
     colormap: ffi::Colormap,
@@ -87,7 +87,7 @@ impl Drop for XWindow {
             let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
 
             if self.is_fullscreen {
-                (self.display.xf86vmode.XF86VidModeSwitchToMode)(self.display.display, self.screen_id, self.xf86_desk_mode);
+                (self.display.xf86vmode.XF86VidModeSwitchToMode)(self.display.display, self.screen_id, &mut self.xf86_desk_mode);
                 (self.display.xf86vmode.XF86VidModeSetViewPort)(self.display.display, self.screen_id, 0, 0);
             }
 
@@ -317,7 +317,7 @@ impl Window {
                 return Err(OsError(format!("Could not query the video modes")));
             }
 
-            let xf86_desk_mode = *modes.offset(0);
+            let xf86_desk_mode: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(0));
 
             let mode_to_switch_to = if window_attrs.monitor.is_some() {
                 let matching_mode = (0 .. mode_num).map(|i| {
