@@ -333,7 +333,7 @@ impl Window {
                 } else {
                     let m = (0 .. mode_num).map(|i| {
                         let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
-                    }).find(|m| m.hdisplay >= dimensions.0 as u16 && m.vdisplay == dimensions.1 as u16);
+                    }).find(|m| m.hdisplay >= dimensions.0 as u16 && m.vdisplay >= dimensions.1 as u16);
 
                     match m {
                         Some(m) => Some(m),
