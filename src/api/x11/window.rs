@@ -535,11 +535,7 @@ impl Window {
                 message_type: state_atom, // the _NET_WM_STATE atom is sent to change the state of a window
                 format: 32,               // view `data` as `c_long`s
                 data: {
-                    // TODO replace this with normal instantiation when x11-rs makes
-                    // ClientMessageData instantiable.
-                    let mut data = unsafe {
-                        mem::transmute::<[libc::c_long; 5], ffi::ClientMessageData>([0; 5])
-                    };
+                    let mut data = ffi::ClientMessageData::new();
                     // This first `long` is the action; `1` means add/set following property.
                     data.set_long(0, 1);
                     // This second `long` is the property to set (fullscreen)
