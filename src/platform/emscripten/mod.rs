@@ -28,7 +28,7 @@ impl GlContext for HeadlessContext {
     }
 
     #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+    fn get_proc_address(&self, addr: &str) -> *const () {
         self.0.get_proc_address(addr)
     }
 

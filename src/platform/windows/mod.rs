@@ -4,8 +4,6 @@ pub use api::win32;
 pub use api::win32::{MonitorId, get_available_monitors, get_primary_monitor};
 pub use api::win32::{WindowProxy, PollEventsIterator, WaitEventsIterator};
 
-use libc;
-
 use Api;
 use ContextError;
 use CreationError;
@@ -134,7 +132,7 @@ impl GlContext for HeadlessContext {
     }
 
     #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+    fn get_proc_address(&self, addr: &str) -> *const () {
         match self {
             &HeadlessContext::HiddenWindow(ref ctxt) => ctxt.get_proc_address(addr),
             &HeadlessContext::EglPbuffer(ref ctxt) => ctxt.get_proc_address(addr),

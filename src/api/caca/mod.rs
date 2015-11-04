@@ -252,7 +252,7 @@ impl GlContext for Window {
     }
 
     #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+    fn get_proc_address(&self, addr: &str) -> *const () {
         self.opengl.get_proc_address(addr)
     }
 

@@ -777,7 +777,7 @@ impl GlContext for Window {
         }
     }
 
-    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+    fn get_proc_address(&self, addr: &str) -> *const () {
         let symbol_name: CFString = FromStr::from_str(addr).unwrap();
         let framework_name: CFString = FromStr::from_str("com.apple.opengl").unwrap();
         let framework = unsafe {

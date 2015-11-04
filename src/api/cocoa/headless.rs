@@ -91,7 +91,7 @@ impl GlContext for HeadlessContext {
     }
 
     #[inline]
-    fn get_proc_address(&self, _addr: &str) -> *const libc::c_void {
+    fn get_proc_address(&self, _addr: &str) -> *const () {
         let symbol_name: CFString = _addr.parse().unwrap();
         let framework_name: CFString = "com.apple.opengl".parse().unwrap();
         let framework = unsafe {
@@ -100,7 +100,7 @@ impl GlContext for HeadlessContext {
         let symbol = unsafe {
             CFBundleGetFunctionPointerForName(framework, symbol_name.as_concrete_TypeRef())
         };
-        symbol as *const libc::c_void
+        symbol as *const ()
     }
 
     #[inline]

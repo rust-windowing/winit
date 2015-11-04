@@ -112,7 +112,7 @@ pub trait GlContext {
     fn is_current(&self) -> bool;
 
     /// Returns the address of an OpenGL function.
-    fn get_proc_address(&self, addr: &str) -> *const libc::c_void;
+    fn get_proc_address(&self, addr: &str) -> *const ();
 
     /// Swaps the buffers in case of double or triple buffering.
     ///
