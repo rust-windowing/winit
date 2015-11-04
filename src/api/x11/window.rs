@@ -521,7 +521,7 @@ impl Window {
                 (*hint).res_name = c_name as *mut libc::c_char;
                 (*hint).res_class = c_name as *mut libc::c_char;
                 (display.xlib.XSetClassHint)(display.display, window, hint);
-                (display.xlib.XFree)(hint as *mut libc::c_void);
+                (display.xlib.XFree)(hint as *mut _);
             });
         }
 
