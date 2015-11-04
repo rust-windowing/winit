@@ -89,7 +89,7 @@ impl GlContext for OsMesaContext {
     #[inline]
     unsafe fn make_current(&self) -> Result<(), ContextError> {
         let ret = osmesa_sys::OSMesaMakeCurrent(self.context, self.buffer.as_ptr()
-                                                as *mut libc::c_void, 0x1401, self.width
+                                                as *mut _, 0x1401, self.width
                                                 as libc::c_int, self.height as libc::c_int);
 
         // an error can only happen in case of invalid parameter, which would indicate a bug

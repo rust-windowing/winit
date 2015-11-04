@@ -354,8 +354,8 @@ impl Window {
             Glx(::api::glx::ContextPrototype<'a>),
             Egl(::api::egl::ContextPrototype<'a>),
         }
-        let builder_clone_opengl_glx = opengl.clone().map_sharing(|_| unimplemented!());      // FIXME: 
-        let builder_clone_opengl_egl = opengl.clone().map_sharing(|_| unimplemented!());      // FIXME: 
+        let builder_clone_opengl_glx = opengl.clone().map_sharing(|_| unimplemented!());      // FIXME:
+        let builder_clone_opengl_egl = opengl.clone().map_sharing(|_| unimplemented!());      // FIXME:
         let context = match opengl.version {
             GlRequest::Latest | GlRequest::Specific(Api::OpenGl, _) | GlRequest::GlThenGles { .. } => {
                 // GLX should be preferred over EGL, otherwise crashes may occur
@@ -521,7 +521,7 @@ impl Window {
                 (*hint).res_name = c_name as *mut libc::c_char;
                 (*hint).res_class = c_name as *mut libc::c_char;
                 (display.xlib.XSetClassHint)(display.display, window, hint);
-                (display.xlib.XFree)(hint as *mut libc::c_void);
+                (display.xlib.XFree)(hint as *mut _);
             });
         }
 
