@@ -1,6 +1,6 @@
 [package]
 name = "glutin"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 description = "Cross-plaform OpenGL context provider."
 keywords = ["windowing", "opengl"]
@@ -21,7 +21,7 @@ gl_generator = "0.1.0"
 khronos_api = "0.0.8"
 
 [dev-dependencies]
-clock_ticks = "0.0.5"
+clock_ticks = "0.1.0"
 
 [target.arm-linux-androideabi.dependencies.android_glue]
 version = "0.1"
