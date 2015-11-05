@@ -354,8 +354,8 @@ impl Window {
             Glx(::api::glx::ContextPrototype<'a>),
             Egl(::api::egl::ContextPrototype<'a>),
         }
-        let builder_clone_opengl_glx = opengl.clone().map_sharing(|_| unimplemented!());      // FIXME: 
-        let builder_clone_opengl_egl = opengl.clone().map_sharing(|_| unimplemented!());      // FIXME: 
+        let builder_clone_opengl_glx = opengl.clone().map_sharing(|_| unimplemented!());      // FIXME:
+        let builder_clone_opengl_egl = opengl.clone().map_sharing(|_| unimplemented!());      // FIXME:
         let context = match opengl.version {
             GlRequest::Latest | GlRequest::Specific(Api::OpenGl, _) | GlRequest::GlThenGles { .. } => {
                 // GLX should be preferred over EGL, otherwise crashes may occur
