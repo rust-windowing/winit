@@ -310,7 +310,7 @@ impl Window {
                 let obj = context.CGLContextObj();
 
                 let mut opacity = 0;
-                CGLSetParameter(obj, kCGLCPSurfaceOpacity, &mut opacity);
+                CGLSetParameter(obj as *mut _, kCGLCPSurfaceOpacity, &mut opacity);
             }
             
             app.activateIgnoringOtherApps_(YES);
@@ -558,7 +558,7 @@ impl Window {
                     let value = if opengl.vsync { 1 } else { 0 };
                     cxt.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
 
-                    CGLEnable(cxt.CGLContextObj(), kCGLCECrashOnRemovedFunctions);
+                    CGLEnable(cxt.CGLContextObj() as *mut _, kCGLCECrashOnRemovedFunctions);
 
                     Ok((cxt, pf))
                 } else {
