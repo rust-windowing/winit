@@ -258,8 +258,8 @@ impl Window {
         use self::wayland::internals::FFI;
 
         // not implemented
-        assert!(win_attribs.min_dimensions.is_none());
-        assert!(win_attribs.max_dimensions.is_none());
+        assert!(window.min_dimensions.is_none());
+        assert!(window.max_dimensions.is_none());
 
         let wayland_context = match *WAYLAND_CONTEXT {
             Some(ref c) => c,
