@@ -54,7 +54,7 @@ pub struct Window {
     events_receiver: Receiver<Event>,
 
     /// The current cursor state.
-    cursor_state: Arc<Mutex<CursorState>>,
+    cursor_state: CursorState,
 }
 
 unsafe impl Send for Window {}
@@ -258,14 +258,14 @@ impl Window {
     }
 
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        let mut current_state = self.cursor_state.lock().unwrap();
+        let mut current_state = self.cursor_state;
 
         let foreground_thread_id = unsafe { user32::GetWindowThreadProcessId(self.window.0, ptr::null_mut()) };
         let current_thread_id = unsafe { kernel32::GetCurrentThreadId() };
 
         unsafe { user32::AttachThreadInput(foreground_thread_id, current_thread_id, 1) };
 
-        let res = match (state, *current_state) {
+        let res = match (state, current_state) {
             (CursorState::Normal, CursorState::Normal) => Ok(()),
             (CursorState::Hide, CursorState::Hide) => Ok(()),
             (CursorState::Grab, CursorState::Grab) => Ok(()),
@@ -273,7 +273,7 @@ impl Window {
             (CursorState::Hide, CursorState::Normal) => {
                 unsafe {
                     user32::SetCursor(ptr::null_mut());
-                    *current_state = CursorState::Hide;
+                    current_state = CursorState::Hide;
                     Ok(())
                 }
             },
@@ -281,7 +281,7 @@ impl Window {
             (CursorState::Normal, CursorState::Hide) => {
                 unsafe {
                     user32::SetCursor(user32::LoadCursorW(ptr::null_mut(), winapi::IDC_ARROW));
-                    *current_state = CursorState::Normal;
+                    current_state = CursorState::Normal;
                     Ok(())
                 }
             },
@@ -298,7 +298,7 @@ impl Window {
                     if user32::ClipCursor(&rect) == 0 {
                         return Err(format!("ClipCursor failed"));
                     }
-                    *current_state = CursorState::Grab;
+                    current_state = CursorState::Grab;
                     Ok(())
                 }
             },
@@ -309,7 +309,7 @@ impl Window {
                     if user32::ClipCursor(ptr::null()) == 0 {
                         return Err(format!("ClipCursor failed"));
                     }
-                    *current_state = CursorState::Normal;
+                    current_state = CursorState::Normal;
                     Ok(())
                 }
             },

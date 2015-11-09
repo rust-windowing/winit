@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 
+use WindowAttributes;
 use CursorState;
 use Event;
 use super::event;
@@ -19,10 +20,26 @@ use winapi;
 /// a thread-local variable.
 thread_local!(pub static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::new(None));
 
+/// Contains information about states and the window for the callback.
+#[derive(Clone)]
+pub struct WindowState {
+    pub cursor_state: CursorState,
+    pub attributes: WindowAttributes
+}
+
 pub struct ThreadLocalData {
     pub win: winapi::HWND,
     pub sender: Sender<Event>,
-    pub cursor_state: Arc<Mutex<CursorState>>
+    pub window_state: Arc<Mutex<WindowState>>
+    //pub cursor_state: Arc<Mutex<CursorState>>
+}
+
+struct MinMaxInfo {
+    reserved: winapi::POINT, // Do not use/change
+    max_size: winapi::POINT,
+    max_position: winapi::POINT,
+    min_track: winapi::POINT,
+    max_track: winapi::POINT
 }
 
 /// Checks that the window is the good one, and if so send the event to it.
@@ -240,9 +257,9 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 let cstash = cstash.as_ref();
                 // there's a very bizarre borrow checker bug
                 // possibly related to rust-lang/rust/#23338
-                let _cursor_state = if let Some(cstash) = cstash {
-                    if let Ok(cursor_state) = cstash.cursor_state.lock() {
-                        match *cursor_state {
+                let _window_state = if let Some(cstash) = cstash {
+                    if let Ok(window_state) = cstash.window_state.lock() {
+                        match window_state.cursor_state {
                             CursorState::Normal => {
                                 user32::SetCursor(user32::LoadCursorW(
                                         ptr::null_mut(),
@@ -278,6 +295,40 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             }
 
             shell32::DragFinish(hdrop);
+            0
+        },
+
+        winapi::WM_GETMINMAXINFO => {
+            let mut mmi = lparam as *mut MinMaxInfo;
+            //(*mmi).max_position = winapi::POINT { x: -8, y: -8 }; // The upper left corner of the window if it were maximized on the primary monitor.
+            //(*mmi).max_size = winapi::POINT { x: 200, y: 200 }; // The dimensions of the primary monitor.
+
+            CONTEXT_STASH.with(|context_stash| {
+                let cstash = context_stash.borrow();
+                let cstash = cstash.as_ref();
+
+                let _window_state = if let Some(cstash) = cstash {
+                    if let Ok(window_state) = cstash.window_state.lock() {
+                        match window_state.attributes.min_dimensions {
+                            Some((width, height)) => {
+                                (*mmi).min_track = winapi::POINT { x: width as i32, y: height as i32 };
+                            },
+                            None => {
+                                (*mmi).min_track = winapi::POINT { x: 800, y: 600 };
+                            }
+                        }
+
+                        match window_state.attributes.max_dimensions {
+                            Some((width, height)) => {
+                                (*mmi).max_track = winapi::POINT { x: width as i32, y: height as i32 };
+                            },
+                            None => { }
+                        }
+                    }
+                } else {
+                    return
+                };
+            });
             0
         },
 
