@@ -1,5 +1,4 @@
 #![cfg(target_os = "ios")]
-use libc::c_void;
 
 use GlAttributes;
 use CreationError;
@@ -33,7 +32,7 @@ impl HeadlessContext {
     }
 
     /// See the docs in the crate root file.
-    pub fn get_proc_address(&self, _addr: &str) -> *const c_void {
+    pub fn get_proc_address(&self, _addr: &str) -> *const () {
         unimplemented!()
     }
 

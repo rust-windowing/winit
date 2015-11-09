@@ -29,7 +29,6 @@ extern crate lazy_static;
 #[macro_use]
 extern crate shared_library;
 
-extern crate gl_common;
 extern crate libc;
 
 #[cfg(target_os = "windows")]
@@ -112,7 +111,7 @@ pub trait GlContext {
     fn is_current(&self) -> bool;
 
     /// Returns the address of an OpenGL function.
-    fn get_proc_address(&self, addr: &str) -> *const libc::c_void;
+    fn get_proc_address(&self, addr: &str) -> *const ();
 
     /// Swaps the buffers in case of double or triple buffering.
     ///

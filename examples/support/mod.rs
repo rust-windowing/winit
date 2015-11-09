@@ -13,7 +13,7 @@ pub struct Context {
 }
 
 pub fn load(window: &glutin::Window) -> Context {
-    let gl = gl::Gl::load(window);
+    let gl = gl::Gl::load_with(|ptr| window.get_proc_address(ptr) as *const _);
 
     let version = unsafe {
         let data = CStr::from_ptr(gl.GetString(gl::VERSION) as *const _).to_bytes().to_vec();

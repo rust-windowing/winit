@@ -8,9 +8,6 @@ use PixelFormat;
 use PixelFormatRequirements;
 use Robustness;
 
-use gl_common;
-use libc;
-
 use platform;
 
 /// Object that allows you to build headless contexts.
@@ -103,8 +100,8 @@ impl HeadlessContext {
     ///
     /// Contrary to `wglGetProcAddress`, all available OpenGL functions return an address.
     #[inline]
-    pub fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
-        self.context.get_proc_address(addr) as *const libc::c_void
+    pub fn get_proc_address(&self, addr: &str) -> *const () {
+        self.context.get_proc_address(addr)
     }
 
     /// Returns the API that is currently provided by this window.
@@ -120,13 +117,6 @@ impl HeadlessContext {
     }
 }
 
-impl gl_common::GlFunctionsSource for HeadlessContext {
-    #[inline]
-    fn get_proc_addr(&self, addr: &str) -> *const libc::c_void {
-        self.get_proc_address(addr)
-    }
-}
-
 impl GlContext for HeadlessContext {
     #[inline]
     unsafe fn make_current(&self) -> Result<(), ContextError> {
@@ -139,7 +129,7 @@ impl GlContext for HeadlessContext {
     }
 
     #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+    fn get_proc_address(&self, addr: &str) -> *const () {
         self.context.get_proc_address(addr)
     }
 

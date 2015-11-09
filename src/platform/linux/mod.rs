@@ -7,7 +7,6 @@ use GlAttributes;
 use GlContext;
 use PixelFormat;
 use PixelFormatRequirements;
-use libc;
 
 use api::osmesa::{self, OsMesaContext};
 
@@ -45,7 +44,7 @@ impl GlContext for HeadlessContext {
     }
 
     #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+    fn get_proc_address(&self, addr: &str) -> *const () {
         self.0.get_proc_address(addr)
     }
 

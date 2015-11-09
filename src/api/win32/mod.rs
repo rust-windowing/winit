@@ -365,7 +365,7 @@ impl GlContext for Window {
     }
 
     #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+    fn get_proc_address(&self, addr: &str) -> *const () {
         match self.context {
             Context::Wgl(ref c) => c.get_proc_address(addr),
             Context::Egl(ref c) => c.get_proc_address(addr),

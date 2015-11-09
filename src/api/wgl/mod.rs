@@ -171,7 +171,7 @@ impl GlContext for Context {
         unsafe { gl::wgl::GetCurrentContext() == self.context.0 as *const libc::c_void }
     }
 
-    fn get_proc_address(&self, addr: &str) -> *const libc::c_void {
+    fn get_proc_address(&self, addr: &str) -> *const () {
         let addr = CString::new(addr.as_bytes()).unwrap();
         let addr = addr.as_ptr();
 
