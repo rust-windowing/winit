@@ -10,6 +10,7 @@ use WindowAttributes;
 use CursorState;
 use Event;
 use super::event;
+use super::WindowState;
 
 use user32;
 use shell32;
@@ -19,13 +20,6 @@ use winapi;
 /// its context (the HWND, the Sender for events, etc.) stashed in
 /// a thread-local variable.
 thread_local!(pub static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::new(None));
-
-/// Contains information about states and the window for the callback.
-#[derive(Clone)]
-pub struct WindowState {
-    pub cursor_state: CursorState,
-    pub attributes: WindowAttributes
-}
 
 pub struct ThreadLocalData {
     pub win: winapi::HWND,
@@ -257,7 +251,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 let cstash = cstash.as_ref();
                 // there's a very bizarre borrow checker bug
                 // possibly related to rust-lang/rust/#23338
-                let _window_state = if let Some(cstash) = cstash {
+                let _cursor_state = if let Some(cstash) = cstash {
                     if let Ok(window_state) = cstash.window_state.lock() {
                         match window_state.cursor_state {
                             CursorState::Normal => {

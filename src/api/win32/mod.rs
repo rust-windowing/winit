@@ -42,6 +42,13 @@ lazy_static! {
     static ref WAKEUP_MSG_ID: u32 = unsafe { user32::RegisterWindowMessageA("Glutin::EventID".as_ptr() as *const i8) };
 }
 
+/// Contains information about states and the window for the callback.
+#[derive(Clone)]
+pub struct WindowState {
+    pub cursor_state: CursorState,
+    pub attributes: WindowAttributes
+}
+
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
     /// Main handle for the window.
@@ -53,8 +60,8 @@ pub struct Window {
     /// Receiver for the events dispatched by the window callback.
     events_receiver: Receiver<Event>,
 
-    /// The current cursor state.
-    cursor_state: CursorState,
+    /// The current window state.
+    window_state: Arc<Mutex<WindowState>>,
 }
 
 unsafe impl Send for Window {}
@@ -258,7 +265,7 @@ impl Window {
     }
 
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        let mut current_state = self.cursor_state;
+        let mut current_state = self.window_state.lock().unwrap().cursor_state;
 
         let foreground_thread_id = unsafe { user32::GetWindowThreadProcessId(self.window.0, ptr::null_mut()) };
         let current_thread_id = unsafe { kernel32::GetCurrentThreadId() };
