@@ -304,6 +304,10 @@ impl Window {
     {
         let dimensions = window_attrs.dimensions.unwrap_or((800, 600));
 
+        // not implemented
+        assert!(win_attribs.min_dimensions.is_none());
+        assert!(win_attribs.max_dimensions.is_none());
+
         let screen_id = match window_attrs.monitor {
             Some(PlatformMonitorId::X(MonitorId(_, monitor))) => monitor as i32,
             _ => unsafe { (display.xlib.XDefaultScreen)(display.display) },
