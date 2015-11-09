@@ -27,23 +27,23 @@ clock_ticks = "0.1.0"
 version = "0.1"
 
 [target.i386-apple-ios.dependencies]
-objc = "0.1"
+objc = ">=0.1.0, <=0.1.7"
 
 [target.x86_64-apple-ios.dependencies]
-objc = "0.1"
+objc = ">=0.1.0, <=0.1.7"
 
 [target.aarch64-apple-ios.dependencies]
-objc = "0.1"
+objc = ">=0.1.0, <=0.1.7"
 
 [target.armv7s-apple-ios.dependencies]
-objc = "0.1"
+objc = ">=0.1.0, <=0.1.7"
 
 [target.armv7-apple-ios.dependencies]
-objc = "0.1"
+objc = ">=0.1.0, <=0.1.7"
 
 [target.x86_64-apple-darwin.dependencies]
-objc = "0.1"
-cgl = "0"
+objc = ">=0.1.0, <=0.1.7"
+cgl = "0.1"
 cocoa = "0.1.4"
 core-foundation = "0"
 core-graphics = "0"
