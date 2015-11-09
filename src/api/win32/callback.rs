@@ -25,7 +25,6 @@ pub struct ThreadLocalData {
     pub win: winapi::HWND,
     pub sender: Sender<Event>,
     pub window_state: Arc<Mutex<WindowState>>
-    //pub cursor_state: Arc<Mutex<CursorState>>
 }
 
 struct MinMaxInfo {
@@ -295,21 +294,18 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         winapi::WM_GETMINMAXINFO => {
             let mut mmi = lparam as *mut MinMaxInfo;
             //(*mmi).max_position = winapi::POINT { x: -8, y: -8 }; // The upper left corner of the window if it were maximized on the primary monitor.
-            //(*mmi).max_size = winapi::POINT { x: 200, y: 200 }; // The dimensions of the primary monitor.
+            //(*mmi).max_size = winapi::POINT { x: .., y: .. }; // The dimensions of the primary monitor.
 
             CONTEXT_STASH.with(|context_stash| {
-                let cstash = context_stash.borrow();
-                let cstash = cstash.as_ref();
+                match context_stash.borrow().as_ref() {
+                    Some(cstash) => {
+                        let window_state = cstash.window_state.lock().unwrap();
 
-                let _window_state = if let Some(cstash) = cstash {
-                    if let Ok(window_state) = cstash.window_state.lock() {
                         match window_state.attributes.min_dimensions {
                             Some((width, height)) => {
                                 (*mmi).min_track = winapi::POINT { x: width as i32, y: height as i32 };
                             },
-                            None => {
-                                (*mmi).min_track = winapi::POINT { x: 800, y: 600 };
-                            }
+                            None => { }
                         }
 
                         match window_state.attributes.max_dimensions {
@@ -318,10 +314,9 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                             },
                             None => { }
                         }
-                    }
-                } else {
-                    return
-                };
+                    },
+                    None => { }
+                }
             });
             0
         },

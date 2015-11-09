@@ -527,12 +527,12 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub dimensions: Option<(u32, u32)>,
 
-    /// The minimum dimensions a window can be, If this is `None`, the minimum will be set to 800x600.
+    /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
     ///
     /// The default is `None`.
     pub min_dimensions: Option<(u32, u32)>,
 
-    /// The maximum dimensions a window can be, If this is `None`, the maximum will be the dimensions of the primary monitor.
+    /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
     ///
     /// The default is `None`.
     pub max_dimensions: Option<(u32, u32)>,
