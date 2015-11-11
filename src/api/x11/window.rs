@@ -54,7 +54,7 @@ pub struct XWindow {
     pub context: Context,
     is_fullscreen: bool,
     screen_id: libc::c_int,
-    xf86_desk_mode: *mut ffi::XF86VidModeModeInfo,
+    xf86_desk_mode: ffi::XF86VidModeModeInfo,
     ic: ffi::XIC,
     im: ffi::XIM,
     colormap: ffi::Colormap,
@@ -87,7 +87,7 @@ impl Drop for XWindow {
             let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
 
             if self.is_fullscreen {
-                (self.display.xf86vmode.XF86VidModeSwitchToMode)(self.display.display, self.screen_id, self.xf86_desk_mode);
+                (self.display.xf86vmode.XF86VidModeSwitchToMode)(self.display.display, self.screen_id, &mut self.xf86_desk_mode);
                 (self.display.xf86vmode.XF86VidModeSetViewPort)(self.display.display, self.screen_id, 0, 0);
             }
 
@@ -317,15 +317,12 @@ impl Window {
                 return Err(OsError(format!("Could not query the video modes")));
             }
 
-            let xf86_desk_mode = *modes.offset(0);
-
-            // FIXME: `XF86VidModeModeInfo` is missing its `hskew` field. Therefore we point to
-            //        `vsyncstart` instead of `vdisplay` as a temporary hack.
+            let xf86_desk_mode: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(0));
 
             let mode_to_switch_to = if window_attrs.monitor.is_some() {
                 let matching_mode = (0 .. mode_num).map(|i| {
                     let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
-                }).find(|m| m.hdisplay == dimensions.0 as u16 && m.vsyncstart == dimensions.1 as u16);
+                }).find(|m| m.hdisplay == dimensions.0 as u16 && m.vdisplay == dimensions.1 as u16);
 
                 if let Some(matching_mode) = matching_mode {
                     Some(matching_mode)
@@ -333,7 +330,7 @@ impl Window {
                 } else {
                     let m = (0 .. mode_num).map(|i| {
                         let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
-                    }).find(|m| m.hdisplay >= dimensions.0 as u16 && m.vsyncstart == dimensions.1 as u16);
+                    }).find(|m| m.hdisplay >= dimensions.0 as u16 && m.vdisplay >= dimensions.1 as u16);
 
                     match m {
                         Some(m) => Some(m),
@@ -435,16 +432,6 @@ impl Window {
             window_attributes |= ffi::CWBackPixel;
         }
 
-        // switching to fullscreen
-        if let Some(mut mode_to_switch_to) = mode_to_switch_to {
-            window_attributes |= ffi::CWOverrideRedirect;
-            unsafe {
-                (display.xf86vmode.XF86VidModeSwitchToMode)(display.display, screen_id, &mut mode_to_switch_to);
-                (display.xf86vmode.XF86VidModeSetViewPort)(display.display, screen_id, 0, 0);
-                set_win_attr.override_redirect = 1;
-            }
-        }
-
         // finally creating the window
         let window = unsafe {
             let win = (display.xlib.XCreateWindow)(display.display, root, 0, 0, dimensions.0 as libc::c_uint,
@@ -527,6 +514,64 @@ impl Window {
 
         let is_fullscreen = window_attrs.monitor.is_some();
 
+        if is_fullscreen {
+            let state_atom = unsafe {
+                with_c_str("_NET_WM_STATE", |state|
+                    (display.xlib.XInternAtom)(display.display, state, 0)
+                )
+            };
+            let fullscreen_atom = unsafe {
+                with_c_str("_NET_WM_STATE_FULLSCREEN", |state_fullscreen|
+                    (display.xlib.XInternAtom)(display.display, state_fullscreen, 0)
+                )
+            };
+
+            let client_message_event = ffi::XClientMessageEvent {
+                type_: ffi::ClientMessage,
+                serial: 0,
+                send_event: 1,            // true because we are sending this through `XSendEvent`
+                display: display.display,
+                window: window,
+                message_type: state_atom, // the _NET_WM_STATE atom is sent to change the state of a window
+                format: 32,               // view `data` as `c_long`s
+                data: {
+                    let mut data = ffi::ClientMessageData::new();
+                    // This first `long` is the action; `1` means add/set following property.
+                    data.set_long(0, 1);
+                    // This second `long` is the property to set (fullscreen)
+                    data.set_long(1, fullscreen_atom as i64);
+                    data
+                }
+            };
+            let mut x_event = ffi::XEvent::from(client_message_event);
+
+            unsafe {
+                (display.xlib.XSendEvent)(
+                    display.display,
+                    root,
+                    0,
+                    ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask,
+                    &mut x_event as *mut _
+                );
+            }
+
+            if let Some(mut mode_to_switch_to) = mode_to_switch_to {
+                unsafe {
+                    (display.xf86vmode.XF86VidModeSwitchToMode)(
+                        display.display,
+                        screen_id,
+                        &mut mode_to_switch_to
+                    );
+                }
+            }
+            else {
+                println!("[glutin] Unexpected state: `mode` is None creating fullscreen window");
+            }
+            unsafe {
+                (display.xf86vmode.XF86VidModeSetViewPort)(display.display, screen_id, 0, 0);
+            }
+        }
+
         // finish creating the OpenGL context
         let context = match context {
             Prototype::Glx(ctxt) => {
@@ -564,6 +609,16 @@ impl Window {
             cursor_state: Mutex::new(CursorState::Normal),
             input_handler: Mutex::new(XInputEventHandler::new(display, window, ic, window_attrs))
         };
+
+        unsafe {
+            let ref x_window: &XWindow = window.x.borrow();
+            (display.xlib.XSetInputFocus)(
+                display.display,
+                x_window.window,
+                ffi::RevertToParent,
+                ffi::CurrentTime
+            );
+        }
 
         // returning
         Ok(window)
