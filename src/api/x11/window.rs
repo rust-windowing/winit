@@ -8,6 +8,7 @@ use std::cell::Cell;
 use std::sync::atomic::AtomicBool;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+use std::os::raw::c_long;
 
 use Api;
 use ContextError;
@@ -539,7 +540,7 @@ impl Window {
                     // This first `long` is the action; `1` means add/set following property.
                     data.set_long(0, 1);
                     // This second `long` is the property to set (fullscreen)
-                    data.set_long(1, fullscreen_atom as i64);
+                    data.set_long(1, fullscreen_atom as c_long);
                     data
                 }
             };
