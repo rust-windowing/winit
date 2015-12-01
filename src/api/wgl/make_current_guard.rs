@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
+use std::os::raw::c_void;
 use std::io;
 
-use libc;
 use winapi;
 use CreationError;
 
@@ -40,8 +40,8 @@ impl<'a, 'b> CurrentContextGuard<'a, 'b> {
 impl<'a, 'b> Drop for CurrentContextGuard<'a, 'b> {
     fn drop(&mut self) {
         unsafe {
-            gl::wgl::MakeCurrent(self.previous_hdc as *const libc::c_void,
-                                 self.previous_hglrc as *const libc::c_void);
+            gl::wgl::MakeCurrent(self.previous_hdc as *const c_void,
+                                 self.previous_hglrc as *const c_void);
         }
     }
 }
