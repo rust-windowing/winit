@@ -1,6 +1,6 @@
 [package]
 name = "glutin"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
 description = "Cross-plaform OpenGL context provider."
 keywords = ["windowing", "opengl"]
@@ -17,8 +17,8 @@ libc = "0.2"
 shared_library = "0.1.0"
 
 [build-dependencies]
-gl_generator = "0.2.0"
-khronos_api = "0.0.8"
+gl_generator = "0.4"
+khronos_api = "1.0"
 
 [dev-dependencies]
 clock_ticks = "0.1.0"
@@ -44,7 +44,7 @@ objc = "0.1.8"
 [target.x86_64-apple-darwin.dependencies]
 objc = "0.1.8"
 cgl = "0.1"
-cocoa = "0.1.4"
+cocoa = "0.2"
 core-foundation = "0"
 core-graphics = "0"
 

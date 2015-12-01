@@ -12,8 +12,8 @@ use PixelFormatRequirements;
 use Robustness;
 use Api;
 
-use libc;
 use std::ffi::{CStr, CString};
+use std::os::raw::{c_void, c_int};
 use std::{mem, ptr};
 
 pub mod ffi;
@@ -46,13 +46,13 @@ pub struct Context {
 #[cfg(target_os = "android")]
 #[inline]
 fn get_native_display(egl: &ffi::egl::Egl,
-                      native_display: NativeDisplay) -> *const libc::c_void {
+                      native_display: NativeDisplay) -> *const c_void {
     unsafe { egl.GetDisplay(ffi::egl::DEFAULT_DISPLAY as *mut _) }
 }
 
 #[cfg(not(target_os = "android"))]
 fn get_native_display(egl: &ffi::egl::Egl,
-                      native_display: NativeDisplay) -> *const libc::c_void {
+                      native_display: NativeDisplay) -> *const c_void {
     // the first step is to query the list of extensions without any display, if supported
     let dp_extensions = unsafe {
         let p = egl.QueryString(ffi::egl::NO_DISPLAY, ffi::egl::EXTENSIONS as i32);
@@ -374,9 +374,9 @@ impl<'a> ContextPrototype<'a> {
 
     pub fn finish_pbuffer(self, dimensions: (u32, u32)) -> Result<Context, CreationError> {
         let attrs = &[
-            ffi::egl::WIDTH as libc::c_int, dimensions.0 as libc::c_int,
-            ffi::egl::HEIGHT as libc::c_int, dimensions.1 as libc::c_int,
-            ffi::egl::NONE as libc::c_int,
+            ffi::egl::WIDTH as c_int, dimensions.0 as c_int,
+            ffi::egl::HEIGHT as c_int, dimensions.1 as c_int,
+            ffi::egl::NONE as c_int,
         ];
 
         let surface = unsafe {
@@ -584,7 +584,7 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
 
             Robustness::NoError => {
                 if extensions.iter().find(|s| s == &"EGL_KHR_create_context_no_error").is_some() {
-                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_NO_ERROR_KHR as libc::c_int);
+                    context_attributes.push(ffi::egl::CONTEXT_OPENGL_NO_ERROR_KHR as c_int);
                     context_attributes.push(1);
                 }
             },
@@ -592,9 +592,9 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
             Robustness::RobustNoResetNotification => {
                 if supports_robustness {
                     context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY
-                                            as libc::c_int);
-                    context_attributes.push(ffi::egl::NO_RESET_NOTIFICATION as libc::c_int);
-                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
+                                            as c_int);
+                    context_attributes.push(ffi::egl::NO_RESET_NOTIFICATION as c_int);
+                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as c_int;
                 } else {
                     return Err(CreationError::RobustnessNotSupported);
                 }
@@ -603,18 +603,18 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
             Robustness::TryRobustNoResetNotification => {
                 if supports_robustness {
                     context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY
-                                            as libc::c_int);
-                    context_attributes.push(ffi::egl::NO_RESET_NOTIFICATION as libc::c_int);
-                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
+                                            as c_int);
+                    context_attributes.push(ffi::egl::NO_RESET_NOTIFICATION as c_int);
+                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as c_int;
                 }
             },
 
             Robustness::RobustLoseContextOnReset => {
                 if supports_robustness {
                     context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY
-                                            as libc::c_int);
-                    context_attributes.push(ffi::egl::LOSE_CONTEXT_ON_RESET as libc::c_int);
-                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
+                                            as c_int);
+                    context_attributes.push(ffi::egl::LOSE_CONTEXT_ON_RESET as c_int);
+                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as c_int;
                 } else {
                     return Err(CreationError::RobustnessNotSupported);
                 }
@@ -623,9 +623,9 @@ unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDispl
             Robustness::TryRobustLoseContextOnReset => {
                 if supports_robustness {
                     context_attributes.push(ffi::egl::CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY
-                                            as libc::c_int);
-                    context_attributes.push(ffi::egl::LOSE_CONTEXT_ON_RESET as libc::c_int);
-                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as libc::c_int;
+                                            as c_int);
+                    context_attributes.push(ffi::egl::LOSE_CONTEXT_ON_RESET as c_int);
+                    flags = flags | ffi::egl::CONTEXT_OPENGL_ROBUST_ACCESS as c_int;
                 }
             },
         }
