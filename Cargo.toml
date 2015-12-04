@@ -82,42 +82,42 @@ dwmapi-sys = "0.1"
 
 [target.i686-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = { version = "0.2.1", features = ["egl", "dlopen"] }
-wayland-kbd = "0.2.0"
-wayland-window = "0.1.0"
+wayland-client = { version = "0.4.3", features = ["egl", "dlopen"] }
+wayland-kbd = "0.3.1"
+wayland-window = "0.2.0"
 x11-dl = "~2.2"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = { version = "0.2.1", features = ["egl", "dlopen"] }
-wayland-kbd = "0.2.0"
-wayland-window = "0.1.0"
+wayland-client = { version = "0.4.3", features = ["egl", "dlopen"] }
+wayland-kbd = "0.3.1"
+wayland-window = "0.2.0"
 x11-dl = "~2.2"
 
 [target.arm-unknown-linux-gnueabihf.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = { version = "0.2.1", features = ["egl", "dlopen"] }
-wayland-kbd = "0.2.0"
-wayland-window = "0.1.0"
+wayland-client = { version = "0.4.3", features = ["egl", "dlopen"] }
+wayland-kbd = "0.3.1"
+wayland-window = "0.2.0"
 x11-dl = "~2.2"
 
 [target.aarch64-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = { version = "0.2.1", features = ["egl", "dlopen"] }
-wayland-kbd = "0.2.0"
-wayland-window = "0.1.0"
+wayland-client = { version = "0.4.3", features = ["egl", "dlopen"] }
+wayland-kbd = "0.3.1"
+wayland-window = "0.2.0"
 x11-dl = "~2.2"
 
 [target.x86_64-unknown-dragonfly.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = { version = "0.2.1", features = ["egl", "dlopen"] }
-wayland-kbd = "0.2.0"
-wayland-window = "0.1.0"
+wayland-client = { version = "0.4.3", features = ["egl", "dlopen"] }
+wayland-kbd = "0.3.1"
+wayland-window = "0.2.0"
 x11-dl = "~2.2"
 
 [target.x86_64-unknown-freebsd.dependencies]
 osmesa-sys = "0.0.5"
-wayland-client = { version = "0.2.1", features = ["egl", "dlopen"] }
-wayland-kbd = "0.2.0"
-wayland-window = "0.1.0"
+wayland-client = { version = "0.4.3", features = ["egl", "dlopen"] }
+wayland-kbd = "0.3.1"
+wayland-window = "0.2.0"
 x11-dl = "~2.2"
