@@ -5,6 +5,7 @@ use std::mem;
 use std::thread;
 
 use super::callback;
+use super::WindowState;
 use super::Window;
 use super::MonitorId;
 use super::WindowWrapper;
@@ -214,8 +215,11 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pf_reqs: &PixelFormat
         user32::SetForegroundWindow(real_window.0);
     }
 
-    // Creating a mutex to track the current cursor state
-    let cursor_state = Arc::new(Mutex::new(CursorState::Normal));
+    // Creating a mutex to track the current window state
+    let window_state = Arc::new(Mutex::new(WindowState {
+        cursor_state: CursorState::Normal,
+        attributes: window.clone()
+    }));
 
     // filling the CONTEXT_STASH task-local storage so that we can start receiving events
     let events_receiver = {
@@ -225,7 +229,7 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pf_reqs: &PixelFormat
             let data = callback::ThreadLocalData {
                 win: real_window.0,
                 sender: tx.take().unwrap(),
-                cursor_state: cursor_state.clone()
+                window_state: window_state.clone()
             };
             (*context_stash.borrow_mut()) = Some(data);
         });
@@ -237,7 +241,7 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pf_reqs: &PixelFormat
         window: real_window,
         context: context,
         events_receiver: events_receiver,
-        cursor_state: cursor_state,
+        window_state: window_state,
     })
 }
 

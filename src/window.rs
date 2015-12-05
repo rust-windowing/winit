@@ -52,6 +52,24 @@ impl<'a> WindowBuilder<'a> {
         self.window.dimensions = Some((width, height));
         self
     }
+    
+    /// Sets a minimum dimension size for the window
+    ///
+    /// Width and height are in pixels.
+    #[inline]
+    pub fn with_min_dimensions(mut self, width: u32, height: u32) -> WindowBuilder<'a> {
+        self.window.min_dimensions = Some((width, height));
+        self
+    }
+
+    /// Sets a maximum dimension size for the window
+    ///
+    /// Width and height are in pixels.
+    #[inline]
+    pub fn with_max_dimensions(mut self, width: u32, height: u32) -> WindowBuilder<'a> {
+        self.window.max_dimensions = Some((width, height));
+        self
+    }
 
     /// Requests a specific title for the window.
     #[inline]

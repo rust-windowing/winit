@@ -6,9 +6,11 @@ use std::sync::{Arc, Mutex};
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 
+use WindowAttributes;
 use CursorState;
 use Event;
 use super::event;
+use super::WindowState;
 
 use user32;
 use shell32;
@@ -22,7 +24,15 @@ thread_local!(pub static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCe
 pub struct ThreadLocalData {
     pub win: winapi::HWND,
     pub sender: Sender<Event>,
-    pub cursor_state: Arc<Mutex<CursorState>>
+    pub window_state: Arc<Mutex<WindowState>>
+}
+
+struct MinMaxInfo {
+    reserved: winapi::POINT, // Do not use/change
+    max_size: winapi::POINT,
+    max_position: winapi::POINT,
+    min_track: winapi::POINT,
+    max_track: winapi::POINT
 }
 
 /// Checks that the window is the good one, and if so send the event to it.
@@ -241,8 +251,8 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 // there's a very bizarre borrow checker bug
                 // possibly related to rust-lang/rust/#23338
                 let _cursor_state = if let Some(cstash) = cstash {
-                    if let Ok(cursor_state) = cstash.cursor_state.lock() {
-                        match *cursor_state {
+                    if let Ok(window_state) = cstash.window_state.lock() {
+                        match window_state.cursor_state {
                             CursorState::Normal => {
                                 user32::SetCursor(user32::LoadCursorW(
                                         ptr::null_mut(),
@@ -278,6 +288,36 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             }
 
             shell32::DragFinish(hdrop);
+            0
+        },
+
+        winapi::WM_GETMINMAXINFO => {
+            let mut mmi = lparam as *mut MinMaxInfo;
+            //(*mmi).max_position = winapi::POINT { x: -8, y: -8 }; // The upper left corner of the window if it were maximized on the primary monitor.
+            //(*mmi).max_size = winapi::POINT { x: .., y: .. }; // The dimensions of the primary monitor.
+
+            CONTEXT_STASH.with(|context_stash| {
+                match context_stash.borrow().as_ref() {
+                    Some(cstash) => {
+                        let window_state = cstash.window_state.lock().unwrap();
+
+                        match window_state.attributes.min_dimensions {
+                            Some((width, height)) => {
+                                (*mmi).min_track = winapi::POINT { x: width as i32, y: height as i32 };
+                            },
+                            None => { }
+                        }
+
+                        match window_state.attributes.max_dimensions {
+                            Some((width, height)) => {
+                                (*mmi).max_track = winapi::POINT { x: width as i32, y: height as i32 };
+                            },
+                            None => { }
+                        }
+                    },
+                    None => { }
+                }
+            });
             0
         },
 

@@ -527,6 +527,16 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub dimensions: Option<(u32, u32)>,
 
+    /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
+    ///
+    /// The default is `None`.
+    pub min_dimensions: Option<(u32, u32)>,
+
+    /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
+    ///
+    /// The default is `None`.
+    pub max_dimensions: Option<(u32, u32)>,
+
     /// If `Some`, the window will be in fullscreen mode with the given monitor.
     ///
     /// The default is `None`.
@@ -563,6 +573,8 @@ impl Default for WindowAttributes {
     fn default() -> WindowAttributes {
         WindowAttributes {
             dimensions: None,
+            min_dimensions: None,
+            max_dimensions: None,
             monitor: None,
             title: "glutin window".to_owned(),
             visible: true,
