@@ -9,6 +9,8 @@ fn main() {
     let target = env::var("TARGET").unwrap();
     let dest = PathBuf::from(&env::var("OUT_DIR").unwrap());
 
+    println!("cargo:rerun-if-changed=build.rs");
+
     if target.contains("windows") {
         let mut file = File::create(&dest.join("wgl_bindings.rs")).unwrap();
         gl_generator::generate_bindings(gl_generator::StaticGenerator,
