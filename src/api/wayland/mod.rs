@@ -6,10 +6,11 @@ pub use self::window::{PollEventsIterator, WaitEventsIterator, Window, WindowPro
 extern crate wayland_kbd;
 extern crate wayland_window;
 
+mod context;
 mod monitor;
 mod window;
 
 #[inline]
 pub fn is_available() -> bool {
-    false
+    context::WAYLAND_CONTEXT.is_some()
 }
