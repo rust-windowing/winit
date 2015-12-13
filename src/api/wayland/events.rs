@@ -12,6 +12,8 @@ use wayland_client::wayland::seat::{WlSeat, WlSeatEvent, WlPointerEvent,
                                     WlPointerButtonState,
                                     WlPointerAxis, WlSeatCapability};
 
+use super::wayland_kbd::MappedKeyboard;
+
 use super::context::WaylandFocuses;
 
 pub fn translate_event(
@@ -27,6 +29,16 @@ pub fn translate_event(
                 if cap.contains(WlSeatCapability::Pointer) && focuses.pointer.is_none() {
                     if let Some(seat) = seat {
                         focuses.pointer = Some(seat.get_pointer());
+                    }
+                }
+                if cap.contains(WlSeatCapability::Keyboard) && focuses.keyboard.is_none() {
+                    if let Some(seat) = seat {
+                        match MappedKeyboard::new(seat) {
+                            Ok(mk) => {
+                                focuses.keyboard = Some(mk)
+                            },
+                            Err(_) => {}
+                        }
                     }
                 }
                 None

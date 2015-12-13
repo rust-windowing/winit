@@ -8,6 +8,7 @@ extern crate wayland_window;
 
 mod context;
 mod events;
+mod keyboard;
 mod monitor;
 mod window;
 

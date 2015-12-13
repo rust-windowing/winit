@@ -14,6 +14,7 @@ use wayland_client::wayland::shell::WlShell;
 use wayland_client::wayland::shm::WlShm;
 use wayland_client::wayland::subcompositor::WlSubcompositor;
 
+use super::wayland_kbd::MappedKeyboard;
 use super::wayland_window::DecoratedSurface;
 
 lazy_static! {
@@ -34,6 +35,7 @@ pub struct WaylandFocuses {
     pub pointer: Option<WlPointer>,
     pub pointer_on: Option<ProxyId>,
     pub pointer_at: Option<(f64, f64)>,
+    pub keyboard: Option<MappedKeyboard>,
     pub keyboard_on: Option<ProxyId>
 }
 
@@ -72,6 +74,7 @@ impl WaylandContext {
                 pointer: None,
                 pointer_on: None,
                 pointer_at: None,
+                keyboard: None,
                 keyboard_on: None
             })
         })
@@ -119,11 +122,19 @@ impl WaylandContext {
         self.inner.display.dispatch_pending().unwrap();
         let mut iterator = self.iterator.lock().unwrap();
         let mut focuses = self.focuses.lock().unwrap();
-        let known_ids = self.known_surfaces.lock().unwrap();
+        let known_surfaces = self.known_surfaces.lock().unwrap();
         let queues = self.queues.lock().unwrap();
+        // first, keyboard events
+        let kdb_evts = super::keyboard::translate_kbd_events(&mut *focuses, &known_surfaces);
+        for (evt, id) in kdb_evts {
+            if let Some(q) = queues.get(&id) {
+                q.lock().unwrap().push_back(evt);
+            }
+        }
+        // then, the rest
         for evt in &mut *iterator {
             if let Some((evt, id)) = super::events::translate_event(
-                evt, &mut *focuses, &known_ids,
+                evt, &mut *focuses, &known_surfaces,
                 self.inner.seat.as_ref().map(|s| &s.0))
             {
                 if let Some(q) = queues.get(&id) {
