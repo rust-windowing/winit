@@ -1,10 +1,20 @@
-use wayland_client::EventIterator;
+use Event as GlutinEvent;
+
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, Mutex};
+
+use libc::c_void;
+
+use wayland_client::{EventIterator, Proxy, ProxyId};
 use wayland_client::wayland::get_display;
-use wayland_client::wayland::compositor::WlCompositor;
+use wayland_client::wayland::compositor::{WlCompositor, WlSurface};
+use wayland_client::wayland::output::WlOutput;
 use wayland_client::wayland::seat::WlSeat;
 use wayland_client::wayland::shell::WlShell;
 use wayland_client::wayland::shm::WlShm;
 use wayland_client::wayland::subcompositor::WlSubcompositor;
+
+use super::wayland_window::DecoratedSurface;
 
 lazy_static! {
     pub static ref WAYLAND_CONTEXT: Option<WaylandContext> = {
@@ -22,7 +32,9 @@ wayland_env!(InnerEnv,
 
 pub struct WaylandContext {
     inner: InnerEnv,
-    iterator: EventIterator
+    iterator: Mutex<EventIterator>,
+    monitors: Vec<WlOutput>,
+    queues: Mutex<HashMap<ProxyId, Arc<Mutex<VecDeque<GlutinEvent>>>>>
 }
 
 impl WaylandContext {
@@ -32,11 +44,81 @@ impl WaylandContext {
             None => return None
         };
 
-        let (inner_env, iterator) = InnerEnv::init(display);
+        let (mut inner_env, iterator) = InnerEnv::init(display);
+
+        let monitors = inner_env.globals.iter()
+            .flat_map(|&(id, _, _)| inner_env.rebind_id::<WlOutput>(id))
+            .map(|(monitor, _)| monitor)
+            .collect();
+
+        inner_env.display.sync_roundtrip().unwrap();
 
         Some(WaylandContext {
             inner: inner_env,
-            iterator: iterator
+            iterator: Mutex::new(iterator),
+            monitors: monitors,
+            queues: Mutex::new(HashMap::new())
         })
+    }
+
+    pub fn new_surface(&self) -> Option<(WlSurface, Arc<Mutex<VecDeque<GlutinEvent>>>)> {
+        self.inner.compositor.as_ref().map(|c| {
+            let s = c.0.create_surface();
+            let id = s.id();
+            let queue = {
+                let mut q = VecDeque::new();
+                q.push_back(GlutinEvent::Refresh);
+                Arc::new(Mutex::new(q))
+            };
+            self.queues.lock().unwrap().insert(id, queue.clone());
+            (s, queue)
+        })
+    }
+
+    pub fn dropped_surface(&self, id: ProxyId) {
+        self.queues.lock().unwrap().remove(&id);
+    }
+
+    pub fn decorated_from(&self, surface: &WlSurface, width: i32, height: i32) -> Option<DecoratedSurface> {
+        let inner = &self.inner;
+        match (&inner.compositor, &inner.subcompositor, &inner.shm, &inner.shell) {
+            (&Some(ref compositor), &Some(ref subcompositor), &Some(ref shm), &Some(ref shell)) => {
+                DecoratedSurface::new(
+                    surface, width, height,
+                    &compositor.0, &subcompositor.0, &shm.0, &shell.0,
+                    self.inner.rebind::<WlSeat>().map(|(seat, _)| seat)
+                ).ok()
+            }
+            _ => None
+        }
+    }
+
+    pub fn display_ptr(&self) -> *const c_void {
+        self.inner.display.ptr() as *const _
+    }
+
+    pub fn dispatch_events(&self) {
+        self.inner.display.dispatch_pending().unwrap();
+        let mut iterator = self.iterator.lock().unwrap();
+        let queues = self.queues.lock().unwrap();
+        for evt in &mut *iterator {
+            if let Some((evt, id)) = super::events::translate_event(evt) {
+                if let Some(q) = queues.get(&id) {
+                    q.lock().unwrap().push_back(evt);
+                }
+            }
+        }
+    }
+
+    pub fn flush_events(&self) -> ::std::io::Result<i32> {
+        self.inner.display.flush()
+    }
+
+    pub fn read_events(&self) -> ::std::io::Result<Option<i32>> {
+        let guard = match self.inner.display.prepare_read() {
+            Some(g) => g,
+            None => return Ok(None)
+        };
+        return guard.read_events().map(|i| Some(i));
     }
 }

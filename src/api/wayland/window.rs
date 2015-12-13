@@ -1,9 +1,18 @@
-use {ContextError, CreationError, CursorState, Event, GlAttributes, GlContext,
-     MouseCursor, PixelFormat, PixelFormatRequirements, WindowAttributes};
-
-use api::egl::Context as EglContext;
+use std::collections::VecDeque;
+use std::ffi::CString;
+use std::sync::{Arc, Mutex};
 
 use libc;
+
+use {ContextError, CreationError, CursorState, Event, GlAttributes, GlContext,
+     MouseCursor, PixelFormat, PixelFormatRequirements, WindowAttributes};
+use api::dlopen;
+use api::egl;
+use api::egl::Context as EglContext;
+
+use wayland_client::egl as wegl;
+use super::wayland_window::{DecoratedSurface, add_borders, substract_borders};
+use super::context::{WaylandContext, WAYLAND_CONTEXT};
 
 #[derive(Clone)]
 pub struct WindowProxy;
@@ -16,7 +25,34 @@ impl WindowProxy {
 }
 
 pub struct Window {
+    wayland_context: &'static WaylandContext,
+    egl_surface: wegl::WlEglSurface,
+    decorated_surface: Mutex<DecoratedSurface>,
+    evt_queue: Arc<Mutex<VecDeque<Event>>>,
+    inner_size: Mutex<(i32, i32)>,
+    resize_callback: Option<fn(u32, u32)>,
     pub context: EglContext,
+}
+
+impl Window {
+    fn next_event(&self) -> Option<Event> {
+        let mut newsize = None;
+        for (_, w, h) in &mut *self.decorated_surface.lock().unwrap() {
+            newsize = Some((w, h));
+        }
+        if let Some((w, h)) = newsize {
+            let (w, h) = substract_borders(w, h);
+            *self.inner_size.lock().unwrap() = (w, h);
+            self.decorated_surface.lock().unwrap().resize(w, h);
+            self.egl_surface.resize(w, h, 0, 0);
+            if let Some(f) = self.resize_callback {
+                f(w as u32, h as u32);
+            }
+            Some(Event::Resized(w as u32, h as u32))
+        } else {
+            self.evt_queue.lock().unwrap().pop_front()
+        }
+    }
 }
 
 pub struct PollEventsIterator<'a> {
@@ -27,7 +63,13 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        unimplemented!()
+        match self.window.next_event() {
+            Some(evt) => return Some(evt),
+            None => {}
+        }
+        // the queue was empty, try a dispatch and see the result
+        self.window.wayland_context.dispatch_events();
+        return self.window.next_event();
     }
 }
 
@@ -39,7 +81,21 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        unimplemented!()
+        loop {
+            match self.window.next_event() {
+                Some(evt) => return Some(evt),
+                None => {}
+            }
+            // the queue was empty, try a dispatch & read and see the result
+            self.window.wayland_context.flush_events().expect("Connexion with the wayland compositor lost.");
+            match self.window.wayland_context.read_events() {
+                Ok(_) => {
+                    // events were read or dispatch is needed, in both cases, we dispatch
+                    self.window.wayland_context.dispatch_events()
+                }
+                Err(_) => panic!("Connexion with the wayland compositor lost.")
+            }
+        }
     }
 }
 
@@ -51,45 +107,97 @@ impl Window {
         assert!(window.min_dimensions.is_none());
         assert!(window.max_dimensions.is_none());
 
-        unimplemented!()
+        let wayland_context = match *WAYLAND_CONTEXT {
+            Some(ref c) => c,
+            None => return Err(CreationError::NotSupported),
+        };
+
+        if !wegl::is_available() {
+            return Err(CreationError::NotSupported)
+        }
+
+        let (w, h) = window.dimensions.unwrap_or((800, 600));
+
+        let (surface, evt_queue) = match wayland_context.new_surface() {
+            Some(t) => t,
+            None => return Err(CreationError::NotSupported)
+        };
+
+        let egl_surface = wegl::WlEglSurface::new(surface, w as i32, h as i32);
+
+        let context = {
+            let libegl = unsafe { dlopen::dlopen(b"libEGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
+            if libegl.is_null() {
+                return Err(CreationError::NotSupported);
+            }
+            let egl = ::api::egl::ffi::egl::Egl::load_with(|sym| {
+                let sym = CString::new(sym).unwrap();
+                unsafe { dlopen::dlsym(libegl, sym.as_ptr()) }
+            });
+            try!(EglContext::new(
+                egl,
+                pf_reqs, &opengl.clone().map_sharing(|_| unimplemented!()),        // TODO: 
+                egl::NativeDisplay::Wayland(Some(wayland_context.display_ptr() as *const _)))
+                .and_then(|p| p.finish(unsafe { egl_surface.egl_surfaceptr() } as *const _))
+            )
+        };
+
+        let decorated_surface = match wayland_context.decorated_from(&egl_surface, w as i32, h as i32) {
+            Some(s) => s,
+            None => return Err(CreationError::NotSupported)
+        };
+
+        Ok(Window {
+            wayland_context: wayland_context,
+            egl_surface: egl_surface,
+            decorated_surface: Mutex::new(decorated_surface),
+            evt_queue: evt_queue,
+            inner_size: Mutex::new((w as i32, h as i32)),
+            resize_callback: None,
+            context: context
+        })
     }
 
     pub fn set_title(&self, title: &str) {
-        unimplemented!()
+        self.decorated_surface.lock().unwrap().set_title(title.into())
     }
 
     #[inline]
     pub fn show(&self) {
-        unimplemented!()
+        // TODO
     }
 
     #[inline]
     pub fn hide(&self) {
-        unimplemented!()
+        // TODO
     }
 
     #[inline]
     pub fn get_position(&self) -> Option<(i32, i32)> {
-        unimplemented!()
+        // Not possible with wayland
+        None
     }
 
     #[inline]
     pub fn set_position(&self, _x: i32, _y: i32) {
-        unimplemented!()
+        // Not possible with wayland
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        unimplemented!()
+        let (w, h) = *self.inner_size.lock().unwrap();
+        Some((w as u32, h as u32))
     }
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
-        unimplemented!()
+        let (w, h) = *self.inner_size.lock().unwrap();
+        let (w, h) = add_borders(w, h);
+        Some((w as u32, h as u32))
     }
 
     #[inline]
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        unimplemented!()
+        self.decorated_surface.lock().unwrap().resize(x as i32, y as i32)
     }
 
     #[inline]
@@ -113,17 +221,18 @@ impl Window {
 
     #[inline]
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
-        unimplemented!()
+        self.resize_callback = callback;
     }
 
     #[inline]
     pub fn set_cursor(&self, cursor: MouseCursor) {
-        unimplemented!()
+        // TODO
     }
 
     #[inline]
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        unimplemented!()
+        // TODO
+        Ok(())
     }
 
     #[inline]
@@ -132,8 +241,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
-        unimplemented!()
+    pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
+        // TODO: not yet possible on wayland
+        Ok(())
     }
 
     #[inline]
@@ -176,5 +286,12 @@ impl GlContext for Window {
     #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
         self.context.get_pixel_format().clone()
+    }
+}
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        use wayland_client::Proxy;
+        self.wayland_context.dropped_surface((*self.egl_surface).id())
     }
 }
