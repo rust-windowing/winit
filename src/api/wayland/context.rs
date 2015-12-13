@@ -1,6 +1,6 @@
 use Event as GlutinEvent;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, HashSet};
 use std::sync::{Arc, Mutex};
 
 use libc::c_void;
@@ -9,7 +9,7 @@ use wayland_client::{EventIterator, Proxy, ProxyId};
 use wayland_client::wayland::get_display;
 use wayland_client::wayland::compositor::{WlCompositor, WlSurface};
 use wayland_client::wayland::output::WlOutput;
-use wayland_client::wayland::seat::WlSeat;
+use wayland_client::wayland::seat::{WlSeat, WlPointer};
 use wayland_client::wayland::shell::WlShell;
 use wayland_client::wayland::shm::WlShm;
 use wayland_client::wayland::subcompositor::WlSubcompositor;
@@ -30,11 +30,20 @@ wayland_env!(InnerEnv,
     subcompositor: WlSubcompositor
 );
 
+pub struct WaylandFocuses {
+    pub pointer: Option<WlPointer>,
+    pub pointer_on: Option<ProxyId>,
+    pub pointer_at: Option<(f64, f64)>,
+    pub keyboard_on: Option<ProxyId>
+}
+
 pub struct WaylandContext {
     inner: InnerEnv,
     iterator: Mutex<EventIterator>,
     monitors: Vec<WlOutput>,
-    queues: Mutex<HashMap<ProxyId, Arc<Mutex<VecDeque<GlutinEvent>>>>>
+    queues: Mutex<HashMap<ProxyId, Arc<Mutex<VecDeque<GlutinEvent>>>>>,
+    known_surfaces: Mutex<HashSet<ProxyId>>,
+    focuses: Mutex<WaylandFocuses>
 }
 
 impl WaylandContext {
@@ -57,7 +66,14 @@ impl WaylandContext {
             inner: inner_env,
             iterator: Mutex::new(iterator),
             monitors: monitors,
-            queues: Mutex::new(HashMap::new())
+            queues: Mutex::new(HashMap::new()),
+            known_surfaces: Mutex::new(HashSet::new()),
+            focuses: Mutex::new(WaylandFocuses {
+                pointer: None,
+                pointer_on: None,
+                pointer_at: None,
+                keyboard_on: None
+            })
         })
     }
 
@@ -71,12 +87,14 @@ impl WaylandContext {
                 Arc::new(Mutex::new(q))
             };
             self.queues.lock().unwrap().insert(id, queue.clone());
+            self.known_surfaces.lock().unwrap().insert(id);
             (s, queue)
         })
     }
 
     pub fn dropped_surface(&self, id: ProxyId) {
         self.queues.lock().unwrap().remove(&id);
+        self.known_surfaces.lock().unwrap().remove(&id);
     }
 
     pub fn decorated_from(&self, surface: &WlSurface, width: i32, height: i32) -> Option<DecoratedSurface> {
@@ -100,9 +118,14 @@ impl WaylandContext {
     pub fn dispatch_events(&self) {
         self.inner.display.dispatch_pending().unwrap();
         let mut iterator = self.iterator.lock().unwrap();
+        let mut focuses = self.focuses.lock().unwrap();
+        let known_ids = self.known_surfaces.lock().unwrap();
         let queues = self.queues.lock().unwrap();
         for evt in &mut *iterator {
-            if let Some((evt, id)) = super::events::translate_event(evt) {
+            if let Some((evt, id)) = super::events::translate_event(
+                evt, &mut *focuses, &known_ids,
+                self.inner.seat.as_ref().map(|s| &s.0))
+            {
                 if let Some(q) = queues.get(&id) {
                     q.lock().unwrap().push_back(evt);
                 }

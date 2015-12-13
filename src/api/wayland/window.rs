@@ -225,12 +225,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor(&self, _cursor: MouseCursor) {
         // TODO
     }
 
     #[inline]
-    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+    pub fn set_cursor_state(&self, _state: CursorState) -> Result<(), String> {
         // TODO
         Ok(())
     }
