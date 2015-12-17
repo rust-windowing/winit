@@ -33,7 +33,7 @@ lazy_static!(
         if false && wayland::is_available() {
             Backend::Wayland
         } else {
-            match XConnection::new() {
+            match XConnection::new(Some(x_error_callback)) {
                 Ok(x) => Backend::X(Arc::new(x)),
                 Err(e) => Backend::Error(e),
             }
@@ -115,7 +115,7 @@ impl MonitorId {
         match self {
             &MonitorId::X(ref m) => m.get_native_identifier(),
             &MonitorId::Wayland(ref m) => m.get_native_identifier(),
-            &MonitorId::None => unimplemented!()        // FIXME: 
+            &MonitorId::None => unimplemented!()        // FIXME:
         }
     }
 
@@ -124,7 +124,7 @@ impl MonitorId {
         match self {
             &MonitorId::X(ref m) => m.get_dimensions(),
             &MonitorId::Wayland(ref m) => m.get_dimensions(),
-            &MonitorId::None => (800, 600),     // FIXME: 
+            &MonitorId::None => (800, 600),     // FIXME:
         }
     }
 }
@@ -389,4 +389,19 @@ impl GlContext for Window {
             &Window::Wayland(ref w) => w.get_pixel_format()
         }
     }
+}
+
+unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x11::ffi::XErrorEvent)
+                                      -> libc::c_int
+{
+    use std::ffi::CStr;
+
+    if let Backend::X(ref x) = *BACKEND {
+        let mut buff: Vec<u8> = Vec::with_capacity(1024);
+        (x.xlib.XGetErrorText)(dpy, (*event).error_code as i32, buff.as_mut_ptr() as *mut i8, buff.capacity() as i32);
+        let error = CStr::from_ptr(buff.as_mut_ptr() as *const i8).to_string_lossy();
+        println!("[glutin] x error code={} major={} minor={}: {}!", (*event).error_code, (*event).request_code, (*event).minor_code, error);
+    }
+
+    0
 }

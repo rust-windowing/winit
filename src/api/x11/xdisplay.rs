@@ -23,24 +23,18 @@ pub struct XConnection {
 unsafe impl Send for XConnection {}
 unsafe impl Sync for XConnection {}
 
+pub type XErrorHandler = Option<unsafe extern fn(*mut ffi::Display, *mut ffi::XErrorEvent) -> libc::c_int>;
+
 impl XConnection {
-    pub fn new() -> Result<XConnection, XNotSupported> {
+    pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
         // opening the libraries
         let xlib = try!(ffi::Xlib::open());
         let xcursor = try!(ffi::Xcursor::open());
         let xf86vmode = try!(ffi::Xf86vmode::open());
         let xinput2 = try!(ffi::XInput2::open());
 
-        unsafe extern "C" fn x_error_callback(_: *mut ffi::Display, event: *mut ffi::XErrorEvent)
-                                              -> libc::c_int
-        {
-            println!("[glutin] x error code={} major={} minor={}!", (*event).error_code,
-                     (*event).request_code, (*event).minor_code);
-            0
-        }
-
         unsafe { (xlib.XInitThreads)() };
-        unsafe { (xlib.XSetErrorHandler)(Some(x_error_callback)) };
+        unsafe { (xlib.XSetErrorHandler)(error_handler) };
 
         // TODO: use something safer than raw "dlopen"
         let glx = {
