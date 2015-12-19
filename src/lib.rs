@@ -300,6 +300,16 @@ pub enum Robustness {
     TryRobustLoseContextOnReset,
 }
 
+/// The behavior of the driver when you change the current context.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ReleaseBehavior {
+    /// Doesn't do anything. Most notably doesn't flush.
+    None,
+
+    /// Flushes the context that was previously current as if `glFlush` was called.
+    Flush,
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum MouseCursor {
     /// The platform-dependent default cursor.
@@ -388,17 +398,53 @@ pub struct PixelFormat {
     pub srgb: bool,
 }
 
-/// VERY UNSTABLE! Describes how the backend should choose a pixel format.
+/// Describes how the backend should choose a pixel format.
 #[derive(Clone, Debug)]
-#[allow(missing_docs)]
 pub struct PixelFormatRequirements {
-    pub multisampling: Option<u16>,
-    pub depth_bits: Option<u8>,
-    pub stencil_bits: Option<u8>,
+    /// If true, only hardware-accelerated formats will be conisdered. If false, only software
+    /// renderers. `None` means "don't care". Default is `Some(true)`.
+    pub hardware_accelerated: Option<bool>,
+
+    /// Minimum number of bits for the color buffer, excluding alpha. `None` means "don't care".
+    /// The default is `Some(24)`.
     pub color_bits: Option<u8>,
+
+    /// If true, the color buffer must be in a floating point format. Default is `false`.
+    ///
+    /// Using floating points allows you to write values outside of the `[0.0, 1.0]` range.
+    pub float_color_buffer: bool,
+
+    /// Minimum number of bits for the alpha in the color buffer. `None` means "don't care".
+    /// The default is `Some(8)`.
     pub alpha_bits: Option<u8>,
+
+    /// Minimum number of bits for the depth buffer. `None` means "don't care".
+    /// The default value is `Some(24)`.
+    pub depth_bits: Option<u8>,
+
+    /// Minimum number of bits for the depth buffer. `None` means "don't care".
+    /// The default value is `Some(8)`.
+    pub stencil_bits: Option<u8>,
+
+    /// If true, only double-buffered formats will be considered. If false, only single-buffer
+    /// formats. `None` means "don't care". The default is `Some(true)`.
+    pub double_buffer: Option<bool>,
+
+    /// Contains the minimum number of samples per pixel in the color, depth and stencil buffers.
+    /// `None` means "don't care". Default is `None`.
+    /// A value of `Some(0)` indicates that multisampling must not be enabled.
+    pub multisampling: Option<u16>,
+
+    /// If true, only stereoscopic formats will be considered. If false, only non-stereoscopic
+    /// formats. The default is `false`.
     pub stereoscopy: bool,
-    pub srgb: Option<bool>,
+
+    /// If true, only sRGB-capable formats will be considered. If false, don't care.
+    /// The default is `false`.
+    pub srgb: bool,
+
+    /// The behavior when changing the current context. Default is `Flush`.
+    pub release_behavior: ReleaseBehavior,
 }
 
 impl PixelFormatRequirements {
@@ -406,6 +452,10 @@ impl PixelFormatRequirements {
     fn choose_pixel_format<T, I>(&self, iter: I) -> Result<(T, PixelFormat), CreationError>
                                  where I: IntoIterator<Item=(T, PixelFormat)>, T: Clone
     {
+        if self.release_behavior != ReleaseBehavior::Flush { return Err(CreationError::NoAvailablePixelFormat); }
+        if self.double_buffer == Some(false) { return Err(CreationError::NoAvailablePixelFormat); }
+        if self.float_color_buffer { return Err(CreationError::NoAvailablePixelFormat); }
+
         // filtering formats that don't match the requirements
         let iter = iter.into_iter().filter(|&(_, ref format)| {
             if format.color_bits < self.color_bits.unwrap_or(0) {
@@ -439,10 +489,8 @@ impl PixelFormatRequirements {
                 }
             }
 
-            if let Some(srgb) = self.srgb {
-                if srgb != format.srgb {
-                    return false;
-                }
+            if self.srgb && !format.srgb {
+                return false;
             }
 
             true
@@ -507,13 +555,17 @@ impl Default for PixelFormatRequirements {
     #[inline]
     fn default() -> PixelFormatRequirements {
         PixelFormatRequirements {
+            hardware_accelerated: Some(true),
+            color_bits: Some(24),
+            float_color_buffer: false,
+            alpha_bits: Some(8),
+            depth_bits: Some(24),
+            stencil_bits: Some(8),
+            double_buffer: Some(true),
             multisampling: None,
-            depth_bits: None,
-            stencil_bits: None,
-            color_bits: None,
-            alpha_bits: None,
             stereoscopy: false,
-            srgb: None,
+            srgb: false,
+            release_behavior: ReleaseBehavior::Flush,
         }
     }
 }
