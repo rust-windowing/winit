@@ -9,6 +9,7 @@ use GlRequest;
 use Api;
 use PixelFormat;
 use PixelFormatRequirements;
+use ReleaseBehavior;
 use Robustness;
 
 use libc;
@@ -341,75 +342,138 @@ fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx, ex
 unsafe fn enumerate_configs(glx: &ffi::glx::Glx, xlib: &ffi::Xlib, display: *mut ffi::Display)
                             -> Result<Vec<(ffi::glx::types::GLXFBConfig, PixelFormat)>, CreationError>
 {
-    let configs: Vec<ffi::glx::types::GLXFBConfig> = {
-        let mut num_configs = 0;
-        let vals = glx.GetFBConfigs(display as *mut _, 0, &mut num_configs);      // TODO: screen number
-        assert!(!vals.is_null());
-        let configs = slice::from_raw_parts(vals, num_configs as usize);
-        let ret = configs.to_vec();
-        (xlib.XFree)(vals as *mut _);
-        ret
+    let descriptor = {
+        let mut out: Vec<c_int> = Vec::with_capacity(37);
+
+        out.push(ffi::glx::X_RENDERABLE as c_int);
+        out.push(1);
+
+        out.push(ffi::glx::X_VISUAL_TYPE as c_int);
+        out.push(ffi::glx::TRUE_COLOR as c_int);
+
+        out.push(ffi::glx::DRAWABLE_TYPE as c_int);
+        out.push(ffi::glx::WINDOW_BIT as c_int);
+
+        out.push(ffi::glx::RENDER_TYPE as c_int);
+        if reqs.float_color_buffer {
+            if extensions.split(' ').find(|&i| i == "GLX_ARB_fbconfig_float").is_some() {
+                out.push(ffi::glx::RGBA_FLOAT_BIT_ARB as c_int);
+            } else {
+                return Err(());
+            }
+        } else {
+            out.push(ffi::glx::RGBA_BIT as c_int);
+        }
+
+        if let Some(hardware_accelerated) = reqs.hardware_accelerated {
+            out.push(ffi::glx::CONFIG_CAVEAT as c_int);
+            out.push(if hardware_accelerated {
+                ffi::glx::NONE as c_int
+            } else {
+                ffi::glx::SLOW_CONFIG as c_int
+            });
+        }
+
+        if let Some(color) = reqs.color_bits {
+            out.push(ffi::glx::RED_SIZE as c_int);
+            out.push((color / 3) as c_int);
+            out.push(ffi::glx::GREEN_SIZE as c_int);
+            out.push((color / 3 + if color % 3 != 0 { 1 } else { 0 }) as c_int);
+            out.push(ffi::glx::BLUE_SIZE as c_int);
+            out.push((color / 3 + if color % 3 == 2 { 1 } else { 0 }) as c_int);
+        }
+
+        if let Some(alpha) = reqs.alpha_bits {
+            out.push(ffi::glx::ALPHA_SIZE as c_int);
+            out.push(alpha as c_int);
+        }
+
+        if let Some(depth) = reqs.depth_bits {
+            out.push(ffi::glx::DEPTH_SIZE as c_int);
+            out.push(depth as c_int);
+        }
+
+        if let Some(stencil) = reqs.stencil_bits {
+            out.push(ffi::glx::STENCIL_SIZE as c_int);
+            out.push(stencil as c_int);
+        }
+
+        if let Some(double_buffer) = reqs.double_buffer {
+            out.push(ffi::glx::DOUBLEBUFFER as c_int);
+            out.push(if double_buffer { 1 } else { 0 });
+        }
+
+        if let Some(multisampling) = reqs.multisampling {
+            if extensions.split(' ').find(|&i| i == "GLX_ARB_multisample").is_some() {
+                out.push(ffi::glx::SAMPLE_BUFFERS_ARB as c_int);
+                out.push(if multisampling == 0 { 0 } else { 1 });
+                out.push(ffi::glx::SAMPLES_ARB as c_int);
+                out.push(multisampling as c_int);
+            } else {
+                return Err(());
+            }
+        }
+
+        out.push(ffi::glx::STEREO as c_int);
+        out.push(if reqs.stereoscopy { 1 } else { 0 });
+
+        if reqs.srgb {
+            if extensions.split(' ').find(|&i| i == "GLX_ARB_framebuffer_sRGB").is_some() {
+                out.push(ffi::glx::FRAMEBUFFER_SRGB_CAPABLE_ARB as c_int);
+                out.push(1);
+            } else {
+                return Err(());
+            }
+        }
+
+        match reqs.release_behavior {
+            ReleaseBehavior::Flush => (),
+            ReleaseBehavior::None => {
+                if extensions.split(' ').find(|&i| i == "GLX_ARB_context_flush_control").is_some() {
+                    out.push(ffi::glx::CONTEXT_RELEASE_BEHAVIOR_ARB as c_int);
+                    out.push(ffi::glx::CONTEXT_RELEASE_BEHAVIOR_NONE_ARB as c_int);
+                }
+            },
+        }
+
+        out.push(0);
+        out
     };
 
-    let get_attrib = |attrib: libc::c_int, fb_config: ffi::glx::types::GLXFBConfig| -> i32 {
+    // calling glXChooseFBConfig
+    let fb_config = {
+        let result = glx.ChooseFBConfig(display as *mut _, 0, descriptor.as_ptr(), &1);
+        if result.is_null() { return Err(()); }
+        let val = *result;
+        (xlib.XFree)(result as *mut _);
+        val
+    };
+
+    let get_attrib = |attrib: libc::c_int| -> i32 {
         let mut value = 0;
         glx.GetFBConfigAttrib(display as *mut _, fb_config, attrib, &mut value);
         // TODO: check return value
         value
     };
 
-    Ok(configs.into_iter().filter_map(|config| {
-        if get_attrib(ffi::glx::X_RENDERABLE as libc::c_int, config) == 0 {
-            return None;
-        }
+    let pf_desc = PixelFormat {
+        hardware_accelerated: get_attrib(ffi::glx::CONFIG_CAVEAT as libc::c_int, config) !=
+                                                            ffi::glx::SLOW_CONFIG as libc::c_int,
+        color_bits: get_attrib(ffi::glx::RED_SIZE as libc::c_int, config) as u8 +
+                    get_attrib(ffi::glx::GREEN_SIZE as libc::c_int, config) as u8 +
+                    get_attrib(ffi::glx::BLUE_SIZE as libc::c_int, config) as u8,
+        alpha_bits: get_attrib(ffi::glx::ALPHA_SIZE as libc::c_int, config) as u8,
+        depth_bits: get_attrib(ffi::glx::DEPTH_SIZE as libc::c_int, config) as u8,
+        stencil_bits: get_attrib(ffi::glx::STENCIL_SIZE as libc::c_int, config) as u8,
+        stereoscopy: get_attrib(ffi::glx::STEREO as libc::c_int, config) != 0,
+        double_buffer: get_attrib(ffi::glx::DOUBLEBUFFER as libc::c_int, config) != 0,
+        multisampling: if get_attrib(ffi::glx::SAMPLE_BUFFERS as libc::c_int, config) != 0 {
+            Some(get_attrib(ffi::glx::SAMPLES as libc::c_int, config) as u16)
+        } else {
+            None
+        },
+        srgb: get_attrib(ffi::glx_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB as libc::c_int, config) != 0,
+    };
 
-        if get_attrib(ffi::glx::X_VISUAL_TYPE as libc::c_int, config) !=
-                                                        ffi::glx::TRUE_COLOR as libc::c_int
-        {
-            return None;
-        }
-
-        if get_attrib(ffi::glx::DRAWABLE_TYPE as libc::c_int, config) &
-                                        ffi::glx::WINDOW_BIT as libc::c_int == 0
-        {
-            return None;
-        }
-
-        if get_attrib(ffi::glx::VISUAL_ID as libc::c_int, config) == 0 {
-            return None;
-        }
-
-        if get_attrib(ffi::glx::RENDER_TYPE as libc::c_int, config) &
-                                        ffi::glx::RGBA_BIT as libc::c_int == 0
-        {
-            return None;
-        }
-
-        // TODO: add a flag to PixelFormat for non-conformant configs
-        let caveat = get_attrib(ffi::glx::CONFIG_CAVEAT as libc::c_int, config);
-        /*if caveat == ffi::glx::NON_CONFORMANT_CONFIG as libc::c_int {
-            return None;
-        }*/
-
-        // TODO: make sure everything is supported
-        let pf = PixelFormat {
-            hardware_accelerated: caveat != ffi::glx::SLOW_CONFIG as libc::c_int,
-            color_bits: get_attrib(ffi::glx::RED_SIZE as libc::c_int, config) as u8 +
-                        get_attrib(ffi::glx::GREEN_SIZE as libc::c_int, config) as u8 +
-                        get_attrib(ffi::glx::BLUE_SIZE as libc::c_int, config) as u8,
-            alpha_bits: get_attrib(ffi::glx::ALPHA_SIZE as libc::c_int, config) as u8,
-            depth_bits: get_attrib(ffi::glx::DEPTH_SIZE as libc::c_int, config) as u8,
-            stencil_bits: get_attrib(ffi::glx::STENCIL_SIZE as libc::c_int, config) as u8,
-            stereoscopy: get_attrib(ffi::glx::STEREO as libc::c_int, config) != 0,
-            double_buffer: get_attrib(ffi::glx::DOUBLEBUFFER as libc::c_int, config) != 0,
-            multisampling: if get_attrib(ffi::glx::SAMPLE_BUFFERS as libc::c_int, config) != 0 {
-                Some(get_attrib(ffi::glx::SAMPLES as libc::c_int, config) as u16)
-            } else {
-                None
-            },
-            srgb: get_attrib(ffi::glx_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB as libc::c_int, config) != 0,
-        };
-
-        Some((config, pf))
-    }).collect())
+    Ok((fb_config, pf_desc))
 }
