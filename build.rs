@@ -80,9 +80,11 @@ fn main() {
                                             "GLX_ARB_create_context".to_string(),
                                             "GLX_ARB_create_context_profile".to_string(),
                                             "GLX_ARB_create_context_robustness".to_string(),
+                                            "GLX_ARB_context_flush_control".to_string(),
                                             "GLX_ARB_fbconfig_float".to_string(),
                                             "GLX_ARB_framebuffer_sRGB".to_string(),
                                             "GLX_EXT_framebuffer_sRGB".to_string(),
+                                            "GLX_ARB_multisample".to_string(),
                                             "GLX_EXT_swap_control".to_string(),
                                             "GLX_SGI_swap_control".to_string()
                                         ],
