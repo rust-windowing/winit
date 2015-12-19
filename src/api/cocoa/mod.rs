@@ -13,6 +13,7 @@ use GlProfile;
 use GlRequest;
 use PixelFormat;
 use PixelFormatRequirements;
+use ReleaseBehavior;
 use Robustness;
 use WindowAttributes;
 use native_monitor::NativeMonitorId;
@@ -493,6 +494,8 @@ impl Window {
         let alpha_depth = pf_reqs.alpha_bits.unwrap_or(8);
         let color_depth = pf_reqs.color_bits.unwrap_or(24) + alpha_depth;
 
+        // TODO: handle hardware_accelerated parameter of pf_reqs
+
         let mut attributes = vec![
             NSOpenGLPFADoubleBuffer as u32,
             NSOpenGLPFAClosestPolicy as u32,
@@ -503,10 +506,19 @@ impl Window {
             NSOpenGLPFAOpenGLProfile as u32, profile,
         ];
 
-        // A color depth higher than 64 implies we're using either 16-bit
-        // floats or 32-bit floats and OS X requires a flag to be set
-        // accordingly. 
-        if color_depth >= 64 {
+        if reqs.release_behavior != ReleaseBehavior::Flush {
+            return Err(CreationError::NoAvailablePixelFormat);
+        }
+
+        if reqs.stereoscopy {
+            unimplemented!();   // TODO: 
+        }
+
+        if reqs.double_buffer == Some(false) {
+            unimplemented!();   // TODO: 
+        }
+
+        if pf_reqs.float_color_buffer {
             attributes.push(NSOpenGLPFAColorFloat as u32);
         }
 
