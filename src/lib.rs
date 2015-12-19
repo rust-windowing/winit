@@ -399,6 +399,7 @@ pub struct PixelFormat {
 }
 
 /// Describes how the backend should choose a pixel format.
+// TODO: swap method? (swap, copy)
 #[derive(Clone, Debug)]
 pub struct PixelFormatRequirements {
     /// If true, only hardware-accelerated formats will be conisdered. If false, only software
