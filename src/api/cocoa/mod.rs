@@ -506,15 +506,15 @@ impl Window {
             NSOpenGLPFAOpenGLProfile as u32, profile,
         ];
 
-        if reqs.release_behavior != ReleaseBehavior::Flush {
+        if pf_reqs.release_behavior != ReleaseBehavior::Flush {
             return Err(CreationError::NoAvailablePixelFormat);
         }
 
-        if reqs.stereoscopy {
+        if pf_reqs.stereoscopy {
             unimplemented!();   // TODO: 
         }
 
-        if reqs.double_buffer == Some(false) {
+        if pf_reqs.double_buffer == Some(false) {
             unimplemented!();   // TODO: 
         }
 
