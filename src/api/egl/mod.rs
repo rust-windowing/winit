@@ -9,6 +9,7 @@ use GlContext;
 use GlRequest;
 use PixelFormat;
 use PixelFormatRequirements;
+use ReleaseBehavior;
 use Robustness;
 use Api;
 
@@ -247,8 +248,9 @@ impl Context {
             }
         };
 
-        let configs = unsafe { try!(enumerate_configs(&egl, display, &egl_version, api, version)) };
-        let (config_id, pixel_format) = try!(pf_reqs.choose_pixel_format(configs.into_iter()));
+        let (config_id, pixel_format) = unsafe {
+            try!(choose_fbconfig(&egl, display, &egl_version, api, version, pf_reqs))
+        };
 
         Ok(ContextPrototype {
             opengl: opengl,
@@ -451,108 +453,162 @@ impl<'a> ContextPrototype<'a> {
     }
 }
 
-unsafe fn enumerate_configs(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisplay,
-                            egl_version: &(ffi::egl::types::EGLint, ffi::egl::types::EGLint),
-                            api: Api, version: Option<(u8, u8)>)
-                            -> Result<Vec<(ffi::egl::types::EGLConfig, PixelFormat)>, CreationError>
+unsafe fn choose_fbconfig(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisplay,
+                          egl_version: &(ffi::egl::types::EGLint, ffi::egl::types::EGLint),
+                          api: Api, version: Option<(u8, u8)>, reqs: &PixelFormatRequirements)
+                          -> Result<(ffi::egl::types::EGLConfig, PixelFormat), CreationError>
 {
-    let mut num_configs = mem::uninitialized();
-    if egl.GetConfigs(display, ptr::null_mut(), 0, &mut num_configs) == 0 {
-        return Err(CreationError::OsError(format!("eglGetConfigs failed")));
-    }
+    let descriptor = {
+        let mut out: Vec<c_int> = Vec::with_capacity(37);
 
-    let mut configs_ids = Vec::with_capacity(num_configs as usize);
-    if egl.GetConfigs(display, configs_ids.as_mut_ptr(),
-                      configs_ids.capacity() as ffi::egl::types::EGLint,
-                      &mut num_configs) == 0
-    {
-        return Err(CreationError::OsError(format!("eglGetConfigs failed")));
-    }
-    configs_ids.set_len(num_configs as usize);
+        if egl_version >= &(1, 2) {
+            out.push(ffi::egl::COLOR_BUFFER_TYPE as c_int);
+            out.push(ffi::egl::RGB_BUFFER as c_int);
+        }
 
-    // analyzing each config
-    let mut result = Vec::with_capacity(num_configs as usize);
-    for config_id in configs_ids {
-        macro_rules! attrib {
-            ($egl:expr, $display:expr, $config:expr, $attr:expr) => (
-                {
-                    let mut value = mem::uninitialized();
-                    let res = $egl.GetConfigAttrib($display, $config,
-                                                   $attr as ffi::egl::types::EGLint, &mut value);
-                    if res == 0 {
-                        return Err(CreationError::OsError(format!("eglGetConfigAttrib failed")));
-                    }
-                    value
+        if egl_version >= &(1, 3) {
+            out.push(ffi::egl::SURFACE_TYPE as c_int);
+            out.push((ffi::egl::WINDOW_BIT | ffi::egl::PBUFFER_BIT) as c_int);
+        }
+
+        match (api, version) {
+            (Api::OpenGlEs, Some((3, _))) => {
+                if egl_version < &(1, 3) { return Err(CreationError::NoAvailablePixelFormat); }
+                out.push(ffi::egl::RENDERABLE_TYPE as c_int);
+                out.push(ffi::egl::OPENGL_ES3_BIT as c_int);
+                out.push(ffi::egl::CONFORMANT as c_int);
+                out.push(ffi::egl::OPENGL_ES3_BIT as c_int);
+            },
+            (Api::OpenGlEs, Some((2, _))) => {
+                if egl_version < &(1, 3) { return Err(CreationError::NoAvailablePixelFormat); }
+                out.push(ffi::egl::RENDERABLE_TYPE as c_int);
+                out.push(ffi::egl::OPENGL_ES2_BIT as c_int);
+                out.push(ffi::egl::CONFORMANT as c_int);
+                out.push(ffi::egl::OPENGL_ES2_BIT as c_int);
+            },
+            (Api::OpenGlEs, Some((1, _))) => {
+                if egl_version >= &(1, 3) {
+                    out.push(ffi::egl::RENDERABLE_TYPE as c_int);
+                    out.push(ffi::egl::OPENGL_ES_BIT as c_int);
+                    out.push(ffi::egl::CONFORMANT as c_int);
+                    out.push(ffi::egl::OPENGL_ES_BIT as c_int);
                 }
-            )
+            },
+            (Api::OpenGlEs, _) => unimplemented!(),
+            (Api::OpenGl, Some((1, _))) => {
+                if egl_version < &(1, 3) { return Err(CreationError::NoAvailablePixelFormat); }
+                out.push(ffi::egl::RENDERABLE_TYPE as c_int);
+                out.push(ffi::egl::OPENGL_BIT as c_int);
+                out.push(ffi::egl::CONFORMANT as c_int);
+                out.push(ffi::egl::OPENGL_BIT as c_int);
+            },
+            (_, _) => unimplemented!(),
         };
 
-        let renderable = attrib!(egl, display, config_id, ffi::egl::RENDERABLE_TYPE) as u32;
-        let conformant = attrib!(egl, display, config_id, ffi::egl::CONFORMANT) as u32;
-
-        if api == Api::OpenGlEs {
-            if let Some(version) = version {
-                if version.0 == 3 && (renderable & ffi::egl::OPENGL_ES3_BIT == 0 ||
-                                      conformant & ffi::egl::OPENGL_ES3_BIT == 0)
-                {
-                    continue;
-                }
-
-                if version.0 == 2 && (renderable & ffi::egl::OPENGL_ES2_BIT == 0 ||
-                                      conformant & ffi::egl::OPENGL_ES2_BIT == 0)
-                {
-                    continue;
-                }
-
-                if version.0 == 1 && (renderable & ffi::egl::OPENGL_ES_BIT == 0 ||
-                                      conformant & ffi::egl::OPENGL_ES_BIT == 0)
-                {
-                    continue;
-                }
-            }
-
-        } else if api == Api::OpenGl {
-            if renderable & ffi::egl::OPENGL_BIT == 0 ||
-               conformant & ffi::egl::OPENGL_BIT == 0
-            {
-                continue;
-            }
+        if let Some(hardware_accelerated) = reqs.hardware_accelerated {
+            out.push(ffi::egl::CONFIG_CAVEAT as c_int);
+            out.push(if hardware_accelerated {
+                ffi::egl::NONE as c_int
+            } else {
+                ffi::egl::SLOW_CONFIG as c_int
+            });
         }
 
-        if attrib!(egl, display, config_id, ffi::egl::SURFACE_TYPE) &
-                                        (ffi::egl::WINDOW_BIT | ffi::egl::PBUFFER_BIT) as i32 == 0
-        {
-            continue;
+        if let Some(color) = reqs.color_bits {
+            out.push(ffi::egl::RED_SIZE as c_int);
+            out.push((color / 3) as c_int);
+            out.push(ffi::egl::GREEN_SIZE as c_int);
+            out.push((color / 3 + if color % 3 != 0 { 1 } else { 0 }) as c_int);
+            out.push(ffi::egl::BLUE_SIZE as c_int);
+            out.push((color / 3 + if color % 3 == 2 { 1 } else { 0 }) as c_int);
         }
 
-        if attrib!(egl, display, config_id, ffi::egl::TRANSPARENT_TYPE) != ffi::egl::NONE as i32 {
-            continue;
+        if let Some(alpha) = reqs.alpha_bits {
+            out.push(ffi::egl::ALPHA_SIZE as c_int);
+            out.push(alpha as c_int);
         }
 
-        if attrib!(egl, display, config_id, ffi::egl::COLOR_BUFFER_TYPE) != ffi::egl::RGB_BUFFER as i32 {
-            continue;
+        if let Some(depth) = reqs.depth_bits {
+            out.push(ffi::egl::DEPTH_SIZE as c_int);
+            out.push(depth as c_int);
         }
 
-        result.push((config_id, PixelFormat {
-            hardware_accelerated: attrib!(egl, display, config_id, ffi::egl::CONFIG_CAVEAT)
-                                          != ffi::egl::SLOW_CONFIG as i32,
-            color_bits: attrib!(egl, display, config_id, ffi::egl::RED_SIZE) as u8 +
-                        attrib!(egl, display, config_id, ffi::egl::BLUE_SIZE) as u8 +
-                        attrib!(egl, display, config_id, ffi::egl::GREEN_SIZE) as u8,
-            alpha_bits: attrib!(egl, display, config_id, ffi::egl::ALPHA_SIZE) as u8,
-            depth_bits: attrib!(egl, display, config_id, ffi::egl::DEPTH_SIZE) as u8,
-            stencil_bits: attrib!(egl, display, config_id, ffi::egl::STENCIL_SIZE) as u8,
-            stereoscopy: false,
-            double_buffer: true,
-            multisampling: match attrib!(egl, display, config_id, ffi::egl::SAMPLES) {
-                0 | 1 => None,
-                a => Some(a as u16),
+        if let Some(stencil) = reqs.stencil_bits {
+            out.push(ffi::egl::STENCIL_SIZE as c_int);
+            out.push(stencil as c_int);
+        }
+
+        if let Some(true) = reqs.double_buffer {
+            return Err(CreationError::NoAvailablePixelFormat);
+        }
+
+        if let Some(multisampling) = reqs.multisampling {
+            out.push(ffi::egl::SAMPLES as c_int);
+            out.push(multisampling as c_int);
+        }
+
+        if reqs.stereoscopy {
+            return Err(CreationError::NoAvailablePixelFormat);
+        }
+
+        // FIXME: srgb is not taken into account
+
+        match reqs.release_behavior {
+            ReleaseBehavior::Flush => (),
+            ReleaseBehavior::None => {
+                // TODO: with EGL you need to manually set the behavior
+                unimplemented!()
             },
-            srgb: false,        // TODO: use EGL_KHR_gl_colorspace to know that
-        }));
+        }
+
+        out.push(0);
+        out
+    };
+
+    // calling `eglChooseConfig`
+    let mut config_id = mem::uninitialized();
+    let mut num_configs = mem::uninitialized();
+    if egl.ChooseConfig(display, descriptor.as_ptr(), &mut config_id, 1, &mut num_configs) == 0 {
+        return Err(CreationError::OsError(format!("eglChooseConfig failed")));
+    }
+    if num_configs == 0 {
+        return Err(CreationError::NoAvailablePixelFormat);
     }
 
-    Ok(result)
+    // analyzing each config
+    macro_rules! attrib {
+        ($egl:expr, $display:expr, $config:expr, $attr:expr) => (
+            {
+                let mut value = mem::uninitialized();
+                let res = $egl.GetConfigAttrib($display, $config,
+                                               $attr as ffi::egl::types::EGLint, &mut value);
+                if res == 0 {
+                    return Err(CreationError::OsError(format!("eglGetConfigAttrib failed")));
+                }
+                value
+            }
+        )
+    };
+
+    let desc = PixelFormat {
+        hardware_accelerated: attrib!(egl, display, config_id, ffi::egl::CONFIG_CAVEAT)
+                                      != ffi::egl::SLOW_CONFIG as i32,
+        color_bits: attrib!(egl, display, config_id, ffi::egl::RED_SIZE) as u8 +
+                    attrib!(egl, display, config_id, ffi::egl::BLUE_SIZE) as u8 +
+                    attrib!(egl, display, config_id, ffi::egl::GREEN_SIZE) as u8,
+        alpha_bits: attrib!(egl, display, config_id, ffi::egl::ALPHA_SIZE) as u8,
+        depth_bits: attrib!(egl, display, config_id, ffi::egl::DEPTH_SIZE) as u8,
+        stencil_bits: attrib!(egl, display, config_id, ffi::egl::STENCIL_SIZE) as u8,
+        stereoscopy: false,
+        double_buffer: true,
+        multisampling: match attrib!(egl, display, config_id, ffi::egl::SAMPLES) {
+            0 | 1 => None,
+            a => Some(a as u16),
+        },
+        srgb: false,        // TODO: use EGL_KHR_gl_colorspace to know that
+    };
+
+    Ok((config_id, desc))
 }
 
 unsafe fn create_context(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisplay,

@@ -186,7 +186,7 @@ impl<'a> WindowBuilder<'a> {
     /// Sets whether sRGB should be enabled on the window. `None` means "I don't care".
     #[inline]
     pub fn with_srgb(mut self, srgb_enabled: Option<bool>) -> WindowBuilder<'a> {
-        self.pf_reqs.srgb = srgb_enabled;
+        self.pf_reqs.srgb = srgb_enabled.unwrap_or(false);
         self
     }
 

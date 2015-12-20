@@ -8,6 +8,7 @@ use GlRequest;
 use GlProfile;
 use PixelFormat;
 use PixelFormatRequirements;
+use ReleaseBehavior;
 use Robustness;
 use Api;
 
@@ -107,20 +108,16 @@ impl Context {
 
         // calling SetPixelFormat
         let pixel_format = {
-            let formats = if extensions.split(' ').find(|&i| i == "WGL_ARB_pixel_format")
+            let (id, f) = if extensions.split(' ').find(|&i| i == "WGL_ARB_pixel_format")
                                                   .is_some()
             {
-                let f = enumerate_arb_pixel_formats(&extra_functions, &extensions, hdc);
-                if f.is_empty() {
-                    enumerate_native_pixel_formats(hdc)
-                } else {
-                    f
-                }
+                try!(choose_arb_pixel_format(&extra_functions, &extensions, hdc, pf_reqs)
+                                            .map_err(|_| CreationError::NoAvailablePixelFormat))
             } else {
-                enumerate_native_pixel_formats(hdc)
+                try!(choose_native_pixel_format(hdc, pf_reqs)
+                                            .map_err(|_| CreationError::NoAvailablePixelFormat))
             };
 
-            let (id, f) = try!(pf_reqs.choose_pixel_format(formats));
             try!(set_pixel_format(hdc, id));
             f
         };
@@ -349,117 +346,297 @@ unsafe fn create_context(extra: Option<(&gl::wgl_extra::Wgl, &PixelFormatRequire
     Ok(ContextWrapper(ctxt as winapi::HGLRC))
 }
 
-/// Enumerates the list of pixel formats without using WGL.
+/// Chooses a pixel formats without using WGL.
 ///
 /// Gives less precise results than `enumerate_arb_pixel_formats`.
-unsafe fn enumerate_native_pixel_formats(hdc: winapi::HDC) -> Vec<(c_int, PixelFormat)> {
-    let size_of_pxfmtdescr = mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as u32;
-    let num = gdi32::DescribePixelFormat(hdc, 1, size_of_pxfmtdescr, ptr::null_mut());
+unsafe fn choose_native_pixel_format(hdc: winapi::HDC, reqs: &PixelFormatRequirements)
+                                     -> Result<(c_int, PixelFormat), ()>
+{
+    // TODO: hardware acceleration is not handled
 
-    let mut result = Vec::new();
-
-    for index in (0 .. num) {
-        let mut output: winapi::PIXELFORMATDESCRIPTOR = mem::zeroed();
-        
-        if gdi32::DescribePixelFormat(hdc, index, size_of_pxfmtdescr, &mut output) == 0 {
-            continue;
-        }
-
-        if (output.dwFlags & winapi::PFD_DRAW_TO_WINDOW) == 0 {
-            continue;
-        }
-
-        if (output.dwFlags & winapi::PFD_SUPPORT_OPENGL) == 0 {
-            continue;
-        }
-
-        if output.iPixelType != winapi::PFD_TYPE_RGBA {
-            continue;
-        }
-
-        result.push((index, PixelFormat {
-            hardware_accelerated: (output.dwFlags & winapi::PFD_GENERIC_FORMAT) == 0,
-            color_bits: output.cRedBits + output.cGreenBits + output.cBlueBits,
-            alpha_bits: output.cAlphaBits,
-            depth_bits: output.cDepthBits,
-            stencil_bits: output.cStencilBits,
-            stereoscopy: (output.dwFlags & winapi::PFD_STEREO) != 0,
-            double_buffer: (output.dwFlags & winapi::PFD_DOUBLEBUFFER) != 0,
-            multisampling: None,
-            srgb: false,
-        }));
+    // handling non-supported stuff
+    if reqs.float_color_buffer {
+        return Err(());
     }
 
-    result
+    match reqs.multisampling {
+        Some(0) => (),
+        None => (),
+        Some(_) => return Err(())
+    };
+
+    if reqs.stereoscopy {
+        return Err(());
+    }
+
+    if reqs.srgb {
+        return Err(());
+    }
+
+    if reqs.release_behavior != ReleaseBehavior::Flush {
+        return Err(());
+    }
+
+    // building the descriptor to pass to ChoosePixelFormat
+    let descriptor = winapi::PIXELFORMATDESCRIPTOR {
+        nSize: mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as u16,
+        nVersion: 1,
+        dwFlags: {
+            let f1 = match reqs.double_buffer {
+                None => winapi::PFD_DOUBLEBUFFER_DONTCARE,
+                Some(true) => winapi::PFD_DOUBLEBUFFER,
+                Some(false) => 0,
+            };
+
+            let f2 = if reqs.stereoscopy {
+                winapi::PFD_STEREO
+            } else {
+                0
+            };
+
+            winapi::PFD_DRAW_TO_WINDOW | winapi::PFD_SUPPORT_OPENGL | f1 | f2
+        },
+        iPixelType: winapi::PFD_TYPE_RGBA,
+        cColorBits: reqs.color_bits.unwrap_or(0),
+        cRedBits: 0,
+        cRedShift: 0,
+        cGreenBits: 0,
+        cGreenShift: 0,
+        cBlueBits: 0,
+        cBlueShift: 0,
+        cAlphaBits: reqs.alpha_bits.unwrap_or(0),
+        cAlphaShift: 0,
+        cAccumBits: 0,
+        cAccumRedBits: 0,
+        cAccumGreenBits: 0,
+        cAccumBlueBits: 0,
+        cAccumAlphaBits: 0,
+        cDepthBits: reqs.depth_bits.unwrap_or(0),
+        cStencilBits: reqs.stencil_bits.unwrap_or(0),
+        cAuxBuffers: 0,
+        iLayerType: winapi::PFD_MAIN_PLANE,
+        bReserved: 0,
+        dwLayerMask: 0,
+        dwVisibleMask: 0,
+        dwDamageMask: 0,
+    };
+
+    // now querying
+    let pf_id = gdi32::ChoosePixelFormat(hdc, &descriptor);
+    if pf_id == 0 {
+        return Err(());
+    }
+
+    // querying back the capabilities of what windows told us
+    let mut output: winapi::PIXELFORMATDESCRIPTOR = mem::zeroed();
+    if gdi32::DescribePixelFormat(hdc, pf_id, mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as u32,
+                                  &mut output) == 0
+    {
+        return Err(());
+    }
+
+    // windows may return us a non-conforming pixel format if none are supported, so we have to
+    // check this
+    if (output.dwFlags & winapi::PFD_DRAW_TO_WINDOW) == 0 {
+        return Err(());
+    }
+    if (output.dwFlags & winapi::PFD_SUPPORT_OPENGL) == 0 {
+        return Err(());
+    }
+    if output.iPixelType != winapi::PFD_TYPE_RGBA {
+        return Err(());
+    }
+
+    let pf_desc = PixelFormat {
+        hardware_accelerated: (output.dwFlags & winapi::PFD_GENERIC_FORMAT) == 0,
+        color_bits: output.cRedBits + output.cGreenBits + output.cBlueBits,
+        alpha_bits: output.cAlphaBits,
+        depth_bits: output.cDepthBits,
+        stencil_bits: output.cStencilBits,
+        stereoscopy: (output.dwFlags & winapi::PFD_STEREO) != 0,
+        double_buffer: (output.dwFlags & winapi::PFD_DOUBLEBUFFER) != 0,
+        multisampling: None,
+        srgb: false,
+    };
+
+    if pf_desc.alpha_bits < reqs.alpha_bits.unwrap_or(0) {
+        return Err(());
+    }
+    if pf_desc.depth_bits < reqs.depth_bits.unwrap_or(0) {
+        return Err(());
+    }
+    if pf_desc.stencil_bits < reqs.stencil_bits.unwrap_or(0) {
+        return Err(());
+    }
+    if pf_desc.color_bits < reqs.color_bits.unwrap_or(0) {
+        return Err(());
+    }
+    if let Some(req) = reqs.hardware_accelerated {
+        if pf_desc.hardware_accelerated != req {
+            return Err(());
+        }
+    }
+    if let Some(req) = reqs.double_buffer {
+        if pf_desc.double_buffer != req {
+            return Err(());
+        }
+    }
+
+    Ok((pf_id, pf_desc))
 }
 
 /// Enumerates the list of pixel formats by using extra WGL functions.
 ///
 /// Gives more precise results than `enumerate_native_pixel_formats`.
-unsafe fn enumerate_arb_pixel_formats(extra: &gl::wgl_extra::Wgl, extensions: &str,
-                                      hdc: winapi::HDC) -> Vec<(c_int, PixelFormat)>
+unsafe fn choose_arb_pixel_format(extra: &gl::wgl_extra::Wgl, extensions: &str,
+                                  hdc: winapi::HDC, reqs: &PixelFormatRequirements)
+                                  -> Result<(c_int, PixelFormat), ()>
 {
-    let get_info = |index: u32, attrib: u32| {
+    let descriptor = {
+        let mut out: Vec<c_int> = Vec::with_capacity(37);
+
+        out.push(gl::wgl_extra::DRAW_TO_WINDOW_ARB as c_int);
+        out.push(1);
+
+        out.push(gl::wgl_extra::SUPPORT_OPENGL_ARB as c_int);
+        out.push(1);
+
+        out.push(gl::wgl_extra::PIXEL_TYPE_ARB as c_int);
+        if reqs.float_color_buffer {
+            if extensions.split(' ').find(|&i| i == "WGL_ARB_pixel_format_float").is_some() {
+                out.push(gl::wgl_extra::TYPE_RGBA_FLOAT_ARB as c_int);
+            } else {
+                return Err(());
+            }
+        } else {
+            out.push(gl::wgl_extra::TYPE_RGBA_ARB as c_int);
+        }
+
+        if let Some(hardware_accelerated) = reqs.hardware_accelerated {
+            out.push(gl::wgl_extra::ACCELERATION_ARB as c_int);
+            out.push(if hardware_accelerated {
+                gl::wgl_extra::FULL_ACCELERATION_ARB as c_int
+            } else {
+                gl::wgl_extra::NO_ACCELERATION_ARB as c_int
+            });
+        }
+
+        if let Some(color) = reqs.color_bits {
+            out.push(gl::wgl_extra::COLOR_BITS_ARB as c_int);
+            out.push(color as c_int);
+        }
+
+        if let Some(alpha) = reqs.alpha_bits {
+            out.push(gl::wgl_extra::ALPHA_BITS_ARB as c_int);
+            out.push(alpha as c_int);
+        }
+
+        if let Some(depth) = reqs.depth_bits {
+            out.push(gl::wgl_extra::DEPTH_BITS_ARB as c_int);
+            out.push(depth as c_int);
+        }
+
+        if let Some(stencil) = reqs.stencil_bits {
+            out.push(gl::wgl_extra::STENCIL_BITS_ARB as c_int);
+            out.push(stencil as c_int);
+        }
+
+        if let Some(double_buffer) = reqs.double_buffer {
+            out.push(gl::wgl_extra::DOUBLE_BUFFER_ARB as c_int);
+            out.push(if double_buffer { 1 } else { 0 });
+        }
+
+        if let Some(multisampling) = reqs.multisampling {
+            if extensions.split(' ').find(|&i| i == "WGL_ARB_multisample").is_some() {
+                out.push(gl::wgl_extra::SAMPLE_BUFFERS_ARB as c_int);
+                out.push(if multisampling == 0 { 0 } else { 1 });
+                out.push(gl::wgl_extra::SAMPLES_ARB as c_int);
+                out.push(multisampling as c_int);
+            } else {
+                return Err(());
+            }
+        }
+
+        out.push(gl::wgl_extra::STEREO_ARB as c_int);
+        out.push(if reqs.stereoscopy { 1 } else { 0 });
+
+        if reqs.srgb {
+            if extensions.split(' ').find(|&i| i == "WGL_ARB_framebuffer_sRGB").is_some() {
+                out.push(gl::wgl_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB as c_int);
+                out.push(1);
+            } else if extensions.split(' ').find(|&i| i == "WGL_EXT_framebuffer_sRGB").is_some() {
+                out.push(gl::wgl_extra::FRAMEBUFFER_SRGB_CAPABLE_EXT as c_int);
+                out.push(1);
+            } else {
+                return Err(());
+            }
+        }
+
+        match reqs.release_behavior {
+            ReleaseBehavior::Flush => (),
+            ReleaseBehavior::None => {
+                if extensions.split(' ').find(|&i| i == "WGL_ARB_context_flush_control").is_some() {
+                    out.push(gl::wgl_extra::CONTEXT_RELEASE_BEHAVIOR_ARB as c_int);
+                    out.push(gl::wgl_extra::CONTEXT_RELEASE_BEHAVIOR_NONE_ARB as c_int);
+                }
+            },
+        }
+
+        out.push(0);
+        out
+    };
+
+    let mut format_id = mem::uninitialized();
+    let mut num_formats = mem::uninitialized();
+    if extra.ChoosePixelFormatARB(hdc as *const _, descriptor.as_ptr(), ptr::null(), 1,
+                                  &mut format_id, &mut num_formats) == 0
+    {
+        return Err(());
+    }
+
+    if num_formats == 0 {
+        return Err(());
+    }
+
+    let get_info = |attrib: u32| {
         let mut value = mem::uninitialized();
-        extra.GetPixelFormatAttribivARB(hdc as *const _, index as c_int,
+        extra.GetPixelFormatAttribivARB(hdc as *const _, format_id as c_int,
                                         0, 1, [attrib as c_int].as_ptr(),
                                         &mut value);
         value as u32
     };
 
-    // getting the number of formats
-    // the `1` is ignored
-    let num = get_info(1, gl::wgl_extra::NUMBER_PIXEL_FORMATS_ARB);
-
-    let mut result = Vec::new();
-
-    for index in (0 .. num) {
-        if get_info(index, gl::wgl_extra::DRAW_TO_WINDOW_ARB) == 0 {
-            continue;
-        }
-        if get_info(index, gl::wgl_extra::SUPPORT_OPENGL_ARB) == 0 {
-            continue;
-        }
-
-        if get_info(index, gl::wgl_extra::ACCELERATION_ARB) == gl::wgl_extra::NO_ACCELERATION_ARB {
-            continue;
-        }
-
-        if get_info(index, gl::wgl_extra::PIXEL_TYPE_ARB) != gl::wgl_extra::TYPE_RGBA_ARB {
-            continue;
-        }
-
-        result.push((index as c_int, PixelFormat {
-            hardware_accelerated: true,
-            color_bits: get_info(index, gl::wgl_extra::RED_BITS_ARB) as u8 + 
-                        get_info(index, gl::wgl_extra::GREEN_BITS_ARB) as u8 +
-                        get_info(index, gl::wgl_extra::BLUE_BITS_ARB) as u8,
-            alpha_bits: get_info(index, gl::wgl_extra::ALPHA_BITS_ARB) as u8,
-            depth_bits: get_info(index, gl::wgl_extra::DEPTH_BITS_ARB) as u8,
-            stencil_bits: get_info(index, gl::wgl_extra::STENCIL_BITS_ARB) as u8,
-            stereoscopy: get_info(index, gl::wgl_extra::STEREO_ARB) != 0,
-            double_buffer: get_info(index, gl::wgl_extra::DOUBLE_BUFFER_ARB) != 0,
-            multisampling: {
-                if extensions.split(' ').find(|&i| i == "WGL_ARB_multisample").is_some() {
-                    match get_info(index, gl::wgl_extra::SAMPLES_ARB) {
-                        0 => None,
-                        a => Some(a as u16),
-                    }
-                } else {
-                    None
+    let pf_desc = PixelFormat {
+        hardware_accelerated: get_info(gl::wgl_extra::ACCELERATION_ARB) !=
+                                                                gl::wgl_extra::NO_ACCELERATION_ARB,
+        color_bits: get_info(gl::wgl_extra::RED_BITS_ARB) as u8 + 
+                    get_info(gl::wgl_extra::GREEN_BITS_ARB) as u8 +
+                    get_info(gl::wgl_extra::BLUE_BITS_ARB) as u8,
+        alpha_bits: get_info(gl::wgl_extra::ALPHA_BITS_ARB) as u8,
+        depth_bits: get_info(gl::wgl_extra::DEPTH_BITS_ARB) as u8,
+        stencil_bits: get_info(gl::wgl_extra::STENCIL_BITS_ARB) as u8,
+        stereoscopy: get_info(gl::wgl_extra::STEREO_ARB) != 0,
+        double_buffer: get_info(gl::wgl_extra::DOUBLE_BUFFER_ARB) != 0,
+        multisampling: {
+            if extensions.split(' ').find(|&i| i == "WGL_ARB_multisample").is_some() {
+                match get_info(gl::wgl_extra::SAMPLES_ARB) {
+                    0 => None,
+                    a => Some(a as u16),
                 }
-            },
-            srgb: if extensions.split(' ').find(|&i| i == "WGL_ARB_framebuffer_sRGB").is_some() {
-                get_info(index, gl::wgl_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB) != 0
-            } else if extensions.split(' ').find(|&i| i == "WGL_EXT_framebuffer_sRGB").is_some() {
-                get_info(index, gl::wgl_extra::FRAMEBUFFER_SRGB_CAPABLE_EXT) != 0
             } else {
-                false
-            },
-        }));
-    }
+                None
+            }
+        },
+        srgb: if extensions.split(' ').find(|&i| i == "WGL_ARB_framebuffer_sRGB").is_some() {
+            get_info(gl::wgl_extra::FRAMEBUFFER_SRGB_CAPABLE_ARB) != 0
+        } else if extensions.split(' ').find(|&i| i == "WGL_EXT_framebuffer_sRGB").is_some() {
+            get_info(gl::wgl_extra::FRAMEBUFFER_SRGB_CAPABLE_EXT) != 0
+        } else {
+            false
+        },
+    };
 
-    result
+    Ok((format_id, pf_desc))
 }
 
 /// Calls `SetPixelFormat` on a window.
@@ -550,8 +727,7 @@ unsafe fn load_extra_functions(window: winapi::HWND) -> Result<gl::wgl_extra::Wg
 
     // getting the pixel format that we will use and setting it
     {
-        let formats = enumerate_native_pixel_formats(dummy_window.1);
-        let id = try!(choose_dummy_pixel_format(formats.into_iter()));
+        let id = try!(choose_dummy_pixel_format(dummy_window.1));
         try!(set_pixel_format(dummy_window.1, id));
     }
 
@@ -568,22 +744,44 @@ unsafe fn load_extra_functions(window: winapi::HWND) -> Result<gl::wgl_extra::Wg
     }))
 }
 
-/// Given a list of pixel formats, this function chooses one that is likely to be provided by
+/// This function chooses a pixel format that is likely to be provided by
 /// the main video driver of the system.
-fn choose_dummy_pixel_format<I>(iter: I) -> Result<c_int, CreationError>
-                                where I: Iterator<Item=(c_int, PixelFormat)>
-{
-    let mut backup_id = None;
+fn choose_dummy_pixel_format(hdc: winapi::HDC) -> Result<c_int, CreationError> {
+    // building the descriptor to pass to ChoosePixelFormat
+    let descriptor = winapi::PIXELFORMATDESCRIPTOR {
+        nSize: mem::size_of::<winapi::PIXELFORMATDESCRIPTOR>() as u16,
+        nVersion: 1,
+        dwFlags: winapi::PFD_DRAW_TO_WINDOW | winapi::PFD_SUPPORT_OPENGL | winapi::PFD_DOUBLEBUFFER,
+        iPixelType: winapi::PFD_TYPE_RGBA,
+        cColorBits: 24,
+        cRedBits: 0,
+        cRedShift: 0,
+        cGreenBits: 0,
+        cGreenShift: 0,
+        cBlueBits: 0,
+        cBlueShift: 0,
+        cAlphaBits: 8,
+        cAlphaShift: 0,
+        cAccumBits: 0,
+        cAccumRedBits: 0,
+        cAccumGreenBits: 0,
+        cAccumBlueBits: 0,
+        cAccumAlphaBits: 0,
+        cDepthBits: 24,
+        cStencilBits: 8,
+        cAuxBuffers: 0,
+        iLayerType: winapi::PFD_MAIN_PLANE,
+        bReserved: 0,
+        dwLayerMask: 0,
+        dwVisibleMask: 0,
+        dwDamageMask: 0,
+    };
 
-    for (id, format) in iter {
-        if backup_id.is_none() {
-            backup_id = Some(id);
-        }
-
-        if format.hardware_accelerated {
-            return Ok(id);
-        }
+    // now querying
+    let pf_id = unsafe { gdi32::ChoosePixelFormat(hdc, &descriptor) };
+    if pf_id == 0 {
+        return Err(CreationError::OsError("No available pixel format".to_owned()));
     }
 
-    backup_id.ok_or(CreationError::OsError("No available pixel format".to_string()))
+    Ok(pf_id)
 }
