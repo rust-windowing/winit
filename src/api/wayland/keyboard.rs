@@ -1,26 +1,85 @@
-use super::wayland_kbd::{KbState, keysyms};
+use std::collections::HashSet;
 
+use Event as GlutinEvent;
+use ElementState;
 use VirtualKeyCode;
 
-pub fn keycode_to_vkey(state: &KbState, keycode: u32) -> Option<VirtualKeyCode> {
-    // first line is hard-coded because it must be case insensitive
-    // and is a linux constant anyway
-    match keycode {
-         1 => return Some(VirtualKeyCode::Escape),
-         2 => return Some(VirtualKeyCode::Key1),
-         3 => return Some(VirtualKeyCode::Key2),
-         4 => return Some(VirtualKeyCode::Key3),
-         5 => return Some(VirtualKeyCode::Key4),
-         6 => return Some(VirtualKeyCode::Key5),
-         7 => return Some(VirtualKeyCode::Key6),
-         8 => return Some(VirtualKeyCode::Key7),
-         9 => return Some(VirtualKeyCode::Key8),
-        10 => return Some(VirtualKeyCode::Key9),
-        11 => return Some(VirtualKeyCode::Key0),
-        _ => {}
+use wayland_client::ProxyId;
+use wayland_client::wayland::seat::{WlKeyboardEvent,WlKeyboardKeyState};
+
+use super::wayland_kbd::MappedKeyboardEvent;
+
+use super::context::WaylandFocuses;
+
+pub fn translate_kbd_events(
+    focuses: &mut WaylandFocuses,
+    known_surfaces: &HashSet<ProxyId>,
+) -> Vec<(GlutinEvent, ProxyId)> {
+    let mut out = Vec::new();
+    if let Some(mkbd) = focuses.keyboard.as_mut() {
+        for evt in mkbd {
+            match evt {
+                MappedKeyboardEvent::KeyEvent(kevt) => {
+                    if let Some(surface) = focuses.keyboard_on {
+                        let vkcode = match kevt.keycode {
+                             1 => Some(VirtualKeyCode::Escape),
+                             2 => Some(VirtualKeyCode::Key1),
+                             3 => Some(VirtualKeyCode::Key2),
+                             4 => Some(VirtualKeyCode::Key3),
+                             5 => Some(VirtualKeyCode::Key4),
+                             6 => Some(VirtualKeyCode::Key5),
+                             7 => Some(VirtualKeyCode::Key6),
+                             8 => Some(VirtualKeyCode::Key7),
+                             9 => Some(VirtualKeyCode::Key8),
+                            10 => Some(VirtualKeyCode::Key9),
+                            11 => Some(VirtualKeyCode::Key0),
+                            _ => kevt.as_symbol().and_then(keysym_to_vkey)
+                        };
+                        let text = kevt.as_utf8();
+                        out.push((
+                            GlutinEvent::KeyboardInput(
+                                match kevt.keystate {
+                                    WlKeyboardKeyState::Pressed => ElementState::Pressed,
+                                    WlKeyboardKeyState::Released =>ElementState::Released
+                                },
+                                (kevt.keycode & 0xff) as u8,
+                                vkcode
+                            ),
+                            surface
+                        ));
+                        if let Some(c) = text.and_then(|s| s.chars().next()) {
+                            out.push((
+                                GlutinEvent::ReceivedCharacter(c),
+                                surface
+                            ));
+                        }
+                    }
+                    
+                }
+                MappedKeyboardEvent::Other(oevt) => match oevt {
+                    WlKeyboardEvent::Enter(_, surface, _) => {
+                        if known_surfaces.contains(&surface) {
+                            focuses.keyboard_on = Some(surface);
+                            out.push((GlutinEvent::Focused(true), surface));
+                        }
+                    },
+                    WlKeyboardEvent::Leave(_, surface) => {
+                        if known_surfaces.contains(&surface) {
+                            focuses.keyboard_on = None;
+                            out.push((GlutinEvent::Focused(false), surface));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
-    // for other keys, we use the keysym
-    return match state.get_one_sym(keycode) {
+    out
+}
+
+pub fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
+    use super::wayland_kbd::keysyms;
+    match keysym {
         // letters
         keysyms::XKB_KEY_A | keysyms::XKB_KEY_a => Some(VirtualKeyCode::A),
         keysyms::XKB_KEY_B | keysyms::XKB_KEY_b => Some(VirtualKeyCode::B),

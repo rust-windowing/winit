@@ -56,6 +56,9 @@ extern crate core_foundation;
 extern crate core_graphics;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly"))]
 extern crate x11_dl;
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly"))]
+#[macro_use(wayland_env)]
+extern crate wayland_client;
 
 pub use events::*;
 pub use headless::{HeadlessRendererBuilder, HeadlessContext};
