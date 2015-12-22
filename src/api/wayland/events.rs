@@ -21,7 +21,8 @@ pub fn translate_event(
     focuses: &mut WaylandFocuses,
     known_surfaces: &HashSet<ProxyId>,
     seat: Option<&WlSeat>,
-) -> Option<(GlutinEvent, ProxyId)> {
+    ) -> Option<(GlutinEvent, ProxyId)>
+{
     let WaylandEvent::Wayland(wayland_evt) = evt;
     match wayland_evt {
         WPE::WlSeat(_, seat_evt) => match seat_evt {

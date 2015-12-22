@@ -298,9 +298,14 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_state(&self, _state: CursorState) -> Result<(), String> {
-        // TODO
-        Ok(())
+    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        use CursorState::{Grab, Normal, Hide};
+        // TODO : not yet possible on wayland to grab cursor
+        match state {
+            Grab => Err("Cursor cannot be grabbed on wayland yet.".to_string()),
+            Hide => Err("Cursor cannot be hidden on wayland yet.".to_string()),
+            Normal => Ok(())
+        }
     }
 
     #[inline]
@@ -311,7 +316,7 @@ impl Window {
     #[inline]
     pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
         // TODO: not yet possible on wayland
-        Ok(())
+        Err(())
     }
 
     #[inline]
