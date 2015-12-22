@@ -10,7 +10,7 @@ use wayland_client::wayland::get_display;
 use wayland_client::wayland::compositor::{WlCompositor, WlSurface};
 use wayland_client::wayland::output::WlOutput;
 use wayland_client::wayland::seat::{WlSeat, WlPointer};
-use wayland_client::wayland::shell::WlShell;
+use wayland_client::wayland::shell::{WlShell, WlShellSurface};
 use wayland_client::wayland::shm::WlShm;
 use wayland_client::wayland::subcompositor::WlSubcompositor;
 
@@ -42,7 +42,7 @@ pub struct WaylandFocuses {
 pub struct WaylandContext {
     inner: InnerEnv,
     iterator: Mutex<EventIterator>,
-    monitors: Vec<WlOutput>,
+    monitors: Vec<(WlOutput, u32, u32, String)>,
     queues: Mutex<HashMap<ProxyId, Arc<Mutex<VecDeque<GlutinEvent>>>>>,
     known_surfaces: Mutex<HashSet<ProxyId>>,
     focuses: Mutex<WaylandFocuses>
@@ -57,12 +57,18 @@ impl WaylandContext {
 
         let (mut inner_env, iterator) = InnerEnv::init(display);
 
-        let monitors = inner_env.globals.iter()
+        let mut outputs_events = EventIterator::new();
+
+        let mut monitors = inner_env.globals.iter()
             .flat_map(|&(id, _, _)| inner_env.rebind_id::<WlOutput>(id))
-            .map(|(monitor, _)| monitor)
-            .collect();
+            .map(|(mut monitor, _)| {
+                monitor.set_evt_iterator(&outputs_events);
+                (monitor, 0, 0, String::new())
+            }).collect();
 
         inner_env.display.sync_roundtrip().unwrap();
+
+        super::monitor::init_monitors(&mut monitors, outputs_events);
 
         Some(WaylandContext {
             inner: inner_env,
@@ -114,6 +120,31 @@ impl WaylandContext {
         }
     }
 
+    pub fn plain_from(&self, surface: &WlSurface, fullscreen: Option<ProxyId>) -> Option<WlShellSurface> {
+        use wayland_client::wayland::shell::WlShellSurfaceFullscreenMethod;
+
+        let inner = &self.inner;
+        if let Some((ref shell, _)) = inner.shell {
+            let shell_surface = shell.get_shell_surface(surface);
+            if let Some(monitor_id) = fullscreen {
+                for m in &self.monitors {
+                    if m.0.id() == monitor_id {
+                        shell_surface.set_fullscreen(
+                            WlShellSurfaceFullscreenMethod::Default,
+                            0,
+                            Some(&m.0)
+                        );
+                        return Some(shell_surface)
+                    }
+                }
+            }
+            shell_surface.set_toplevel();
+            Some(shell_surface)
+        } else {
+            None
+        }
+    }
+
     pub fn display_ptr(&self) -> *const c_void {
         self.inner.display.ptr() as *const _
     }
@@ -154,5 +185,27 @@ impl WaylandContext {
             None => return Ok(None)
         };
         return guard.read_events().map(|i| Some(i));
+    }
+
+    pub fn monitor_ids(&self) -> Vec<ProxyId> {
+        self.monitors.iter().map(|o| o.0.id()).collect()
+    }
+
+    pub fn monitor_name(&self, pid: ProxyId) -> Option<String> {
+        for o in &self.monitors {
+            if o.0.id() == pid {
+                return Some(o.3.clone())
+            }
+        }
+        None
+    }
+
+    pub fn monitor_dimensions(&self, pid: ProxyId) -> Option<(u32, u32)> {
+        for o in &self.monitors {
+            if o.0.id() == pid {
+                return Some((o.1, o.2))
+            }
+        }
+        None
     }
 }

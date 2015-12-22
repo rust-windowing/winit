@@ -9,8 +9,11 @@ use {ContextError, CreationError, CursorState, Event, GlAttributes, GlContext,
 use api::dlopen;
 use api::egl;
 use api::egl::Context as EglContext;
+use platform::MonitorId as PlatformMonitorId;
 
+use wayland_client::EventIterator;
 use wayland_client::egl as wegl;
+use wayland_client::wayland::shell::WlShellSurface;
 use super::wayland_window::{DecoratedSurface, add_borders, substract_borders};
 use super::context::{WaylandContext, WAYLAND_CONTEXT};
 
@@ -27,7 +30,7 @@ impl WindowProxy {
 pub struct Window {
     wayland_context: &'static WaylandContext,
     egl_surface: wegl::WlEglSurface,
-    decorated_surface: Mutex<DecoratedSurface>,
+    shell_window: Mutex<ShellWindow>,
     evt_queue: Arc<Mutex<VecDeque<Event>>>,
     inner_size: Mutex<(i32, i32)>,
     resize_callback: Option<fn(u32, u32)>,
@@ -36,21 +39,50 @@ pub struct Window {
 
 impl Window {
     fn next_event(&self) -> Option<Event> {
+        use wayland_client::Event as WEvent;
+        use wayland_client::wayland::WaylandProtocolEvent;
+        use wayland_client::wayland::shell::WlShellSurfaceEvent;
+
         let mut newsize = None;
-        for (_, w, h) in &mut *self.decorated_surface.lock().unwrap() {
-            newsize = Some((w, h));
+        let mut evt_queue_guard = self.evt_queue.lock().unwrap();
+
+        let mut shell_window_guard = self.shell_window.lock().unwrap();
+        match *shell_window_guard {
+            ShellWindow::Decorated(ref mut deco) => {
+                for (_, w, h) in deco {
+                    newsize = Some((w, h));
+                }
+            },
+            ShellWindow::Plain(ref plain, ref mut evtiter) => {
+                for evt in evtiter {
+                    if let WEvent::Wayland(WaylandProtocolEvent::WlShellSurface(_, ssevt)) = evt {
+                        match ssevt {
+                            WlShellSurfaceEvent::Ping(u) => {
+                                plain.pong(u);
+                            },
+                            WlShellSurfaceEvent::Configure(_, w, h) => {
+                                newsize = Some((w, h));
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+            }
         }
+
         if let Some((w, h)) = newsize {
             let (w, h) = substract_borders(w, h);
             *self.inner_size.lock().unwrap() = (w, h);
-            self.decorated_surface.lock().unwrap().resize(w, h);
+            if let ShellWindow::Decorated(ref mut deco) = *shell_window_guard {
+                deco.resize(w, h);
+            }
             self.egl_surface.resize(w, h, 0, 0);
             if let Some(f) = self.resize_callback {
                 f(w as u32, h as u32);
             }
             Some(Event::Resized(w as u32, h as u32))
         } else {
-            self.evt_queue.lock().unwrap().pop_front()
+            evt_queue_guard.pop_front()
         }
     }
 }
@@ -99,10 +131,16 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     }
 }
 
+enum ShellWindow {
+    Plain(WlShellSurface, EventIterator),
+    Decorated(DecoratedSurface)
+}
+
 impl Window {
     pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
                opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
     {
+        use wayland_client::Proxy;
         // not implemented
         assert!(window.min_dimensions.is_none());
         assert!(window.max_dimensions.is_none());
@@ -142,15 +180,36 @@ impl Window {
             )
         };
 
-        let decorated_surface = match wayland_context.decorated_from(&egl_surface, w as i32, h as i32) {
-            Some(s) => s,
-            None => return Err(CreationError::NotSupported)
+        let shell_window = if let Some(PlatformMonitorId::Wayland(ref monitor_id)) = window.monitor {
+            let pid = super::monitor::proxid_from_monitorid(monitor_id);
+            match wayland_context.plain_from(&egl_surface, Some(pid)) {
+                Some(mut s) => {
+                    let iter = EventIterator::new();
+                    s.set_evt_iterator(&iter);
+                    ShellWindow::Plain(s, iter)
+                },
+                None => return Err(CreationError::NotSupported)
+            }
+        } else if window.decorations {
+            match wayland_context.decorated_from(&egl_surface, w as i32, h as i32) {
+                Some(s) => ShellWindow::Decorated(s),
+                None => return Err(CreationError::NotSupported)
+            }
+        } else {
+            match wayland_context.plain_from(&egl_surface, None) {
+                Some(mut s) => {
+                    let iter = EventIterator::new();
+                    s.set_evt_iterator(&iter);
+                    ShellWindow::Plain(s, iter)
+                },
+                None => return Err(CreationError::NotSupported)
+            }
         };
 
         Ok(Window {
             wayland_context: wayland_context,
             egl_surface: egl_surface,
-            decorated_surface: Mutex::new(decorated_surface),
+            shell_window: Mutex::new(shell_window),
             evt_queue: evt_queue,
             inner_size: Mutex::new((w as i32, h as i32)),
             resize_callback: None,
@@ -159,7 +218,11 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
-        self.decorated_surface.lock().unwrap().set_title(title.into())
+        let guard = self.shell_window.lock().unwrap();
+        match *guard {
+            ShellWindow::Plain(ref plain, _) => { plain.set_title(title.into()); },
+            ShellWindow::Decorated(ref deco) => { deco.set_title(title.into()); }
+        }
     }
 
     #[inline]
@@ -197,7 +260,12 @@ impl Window {
 
     #[inline]
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        self.decorated_surface.lock().unwrap().resize(x as i32, y as i32)
+        let mut guard = self.shell_window.lock().unwrap();
+        match *guard {
+            ShellWindow::Decorated(ref mut deco) => { deco.resize(x as i32, y as i32); },
+            _ => {}
+        }
+        self.egl_surface.resize(x as i32, y as i32, 0, 0)
     }
 
     #[inline]
