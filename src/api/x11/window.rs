@@ -617,6 +617,10 @@ impl Window {
 
         unsafe {
             let ref x_window: &XWindow = window.x.borrow();
+
+            // XSetInputFocus generates an error if the window is not visible,
+            // therefore we call XSync before to make sure it's the case
+            (display.xlib.XSync)(display.display, 0);
             (display.xlib.XSetInputFocus)(
                 display.display,
                 x_window.window,
