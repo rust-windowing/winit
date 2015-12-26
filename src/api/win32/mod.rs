@@ -43,7 +43,7 @@ lazy_static! {
 }
 
 /// Cursor
-pub type Cursor = *const u16;
+pub type Cursor = *const winapi::wchar_t;
 
 /// Contains information about states and the window for the callback.
 #[derive(Clone)]
@@ -282,10 +282,8 @@ impl Window {
             _ => winapi::IDC_ARROW, // use arrow for the missing cases.
         };
 
-        unsafe {
-            let mut cur = self.window_state.lock().unwrap();
-            cur.cursor = mem::transmute(cursor_id);
-        }
+        let mut cur = self.window_state.lock().unwrap();
+        cur.cursor = cursor_id;
     }
 
 
