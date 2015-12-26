@@ -217,6 +217,7 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pf_reqs: &PixelFormat
 
     // Creating a mutex to track the current window state
     let window_state = Arc::new(Mutex::new(WindowState {
+        cursor: winapi::IDC_ARROW, // use arrow by default
         cursor_state: CursorState::Normal,
         attributes: window.clone()
     }));
