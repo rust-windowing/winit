@@ -42,9 +42,13 @@ lazy_static! {
     static ref WAKEUP_MSG_ID: u32 = unsafe { user32::RegisterWindowMessageA("Glutin::EventID".as_ptr() as *const i8) };
 }
 
+/// Cursor
+pub type Cursor = *const winapi::wchar_t;
+
 /// Contains information about states and the window for the callback.
 #[derive(Clone)]
 pub struct WindowState {
+    pub cursor: Cursor,
     pub cursor_state: CursorState,
     pub attributes: WindowAttributes
 }
@@ -112,7 +116,7 @@ impl Window {
         let opengl = opengl.clone().map_sharing(|sharing| {
             match sharing.context {
                 Context::Wgl(ref c) => RawContext::Wgl(c.get_hglrc()),
-                Context::Egl(_) => unimplemented!(),        // FIXME: 
+                Context::Egl(_) => unimplemented!(),        // FIXME:
             }
         });
 
@@ -261,41 +265,53 @@ impl Window {
 
     #[inline]
     pub fn set_cursor(&self, _cursor: MouseCursor) {
-        unimplemented!()
+        let cursor_id = match _cursor {
+            MouseCursor::Arrow | MouseCursor::Default => winapi::IDC_ARROW,
+            MouseCursor::Hand => winapi::IDC_HAND,
+            MouseCursor::Crosshair => winapi::IDC_CROSS,
+            MouseCursor::Text | MouseCursor::VerticalText => winapi::IDC_IBEAM,
+            MouseCursor::NotAllowed | MouseCursor::NoDrop => winapi::IDC_NO,
+            MouseCursor::EResize => winapi::IDC_SIZEWE,
+            MouseCursor::NResize => winapi::IDC_SIZENS,
+            MouseCursor::WResize => winapi::IDC_SIZEWE,
+            MouseCursor::SResize => winapi::IDC_SIZENS,
+            MouseCursor::EwResize | MouseCursor::ColResize => winapi::IDC_SIZEWE,
+            MouseCursor::NsResize | MouseCursor::RowResize => winapi::IDC_SIZENS,
+            MouseCursor::Wait | MouseCursor::Progress => winapi::IDC_WAIT,
+            MouseCursor::Help => winapi::IDC_HELP,
+            _ => winapi::IDC_ARROW, // use arrow for the missing cases.
+        };
+
+        let mut cur = self.window_state.lock().unwrap();
+        cur.cursor = cursor_id;
     }
 
+
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        let mut current_state = self.window_state.lock().unwrap().cursor_state;
+        let mut current_state = self.window_state.lock().unwrap();
 
         let foreground_thread_id = unsafe { user32::GetWindowThreadProcessId(self.window.0, ptr::null_mut()) };
         let current_thread_id = unsafe { kernel32::GetCurrentThreadId() };
 
         unsafe { user32::AttachThreadInput(foreground_thread_id, current_thread_id, 1) };
 
-        let res = match (state, current_state) {
+        let res = match (state, current_state.cursor_state) {
             (CursorState::Normal, CursorState::Normal) => Ok(()),
             (CursorState::Hide, CursorState::Hide) => Ok(()),
             (CursorState::Grab, CursorState::Grab) => Ok(()),
 
             (CursorState::Hide, CursorState::Normal) => {
-                unsafe {
-                    user32::SetCursor(ptr::null_mut());
-                    current_state = CursorState::Hide;
-                    Ok(())
-                }
+                current_state.cursor_state = CursorState::Hide;
+                Ok(())
             },
 
             (CursorState::Normal, CursorState::Hide) => {
-                unsafe {
-                    user32::SetCursor(user32::LoadCursorW(ptr::null_mut(), winapi::IDC_ARROW));
-                    current_state = CursorState::Normal;
-                    Ok(())
-                }
+                current_state.cursor_state = CursorState::Normal;
+                Ok(())
             },
 
-            (CursorState::Grab, CursorState::Normal) => {
+            (CursorState::Grab, CursorState::Normal) | (CursorState::Grab, CursorState::Hide) => {
                 unsafe {
-                    user32::SetCursor(ptr::null_mut());
                     let mut rect = mem::uninitialized();
                     if user32::GetClientRect(self.window.0, &mut rect) == 0 {
                         return Err(format!("GetWindowRect failed"));
@@ -305,18 +321,17 @@ impl Window {
                     if user32::ClipCursor(&rect) == 0 {
                         return Err(format!("ClipCursor failed"));
                     }
-                    current_state = CursorState::Grab;
+                    current_state.cursor_state = CursorState::Grab;
                     Ok(())
                 }
             },
 
             (CursorState::Normal, CursorState::Grab) => {
                 unsafe {
-                    user32::SetCursor(user32::LoadCursorW(ptr::null_mut(), winapi::IDC_ARROW));
                     if user32::ClipCursor(ptr::null()) == 0 {
                         return Err(format!("ClipCursor failed"));
                     }
-                    current_state = CursorState::Normal;
+                    current_state.cursor_state = CursorState::Normal;
                     Ok(())
                 }
             },

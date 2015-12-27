@@ -256,7 +256,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                             CursorState::Normal => {
                                 user32::SetCursor(user32::LoadCursorW(
                                         ptr::null_mut(),
-                                        winapi::IDC_ARROW));
+                                        window_state.cursor));
                             },
                             CursorState::Grab | CursorState::Hide => {
                                 user32::SetCursor(ptr::null_mut());

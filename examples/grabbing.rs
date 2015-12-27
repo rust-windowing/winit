@@ -18,8 +18,8 @@ fn main() {
 
     let context = support::load(&window);
     let mut grabbed = false;
-    
-    for event in window.poll_events() {
+
+    for event in window.wait_events() {
         match event {
             Event::KeyboardInput(ElementState::Pressed, _, _) => {
                 if grabbed {
@@ -33,6 +33,8 @@ fn main() {
                 }
             },
 
+            Event::Closed => break,
+
             a @ Event::MouseMoved(_) => {
                 println!("{:?}", a);
             },
@@ -44,4 +46,3 @@ fn main() {
         let _ = window.swap_buffers();
     }
 }
-
