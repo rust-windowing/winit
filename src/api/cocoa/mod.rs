@@ -34,7 +34,7 @@ use core_foundation::base::TCFType;
 use core_foundation::string::CFString;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 
-use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID, CGDisplayPixelsHigh};
+use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID, CGDisplayPixelsHigh, CGWarpMouseCursorPosition};
 
 use std::ffi::CStr;
 use std::collections::VecDeque;
@@ -371,7 +371,7 @@ impl Window {
                         let count: NSUInteger = msg_send![screens, count];
                         let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
                         let mut matching_screen: Option<id> = None;
-                        for i in (0..count) {
+                        for i in 0..count {
                             let screen = msg_send![screens, objectAtIndex:i as NSUInteger];
                             let device_description = NSScreen::deviceDescription(screen);
                             let value: id = msg_send![device_description, objectForKey:*key];
@@ -765,8 +765,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
-        unimplemented!();
+    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+        unsafe {
+            let (window_x, window_y) = self.get_position().unwrap_or((0, 0));
+            let (cursor_x, cursor_y) = (window_x + x, window_y + y);
+
+            // TODO: Check for errors.
+            let _ = CGWarpMouseCursorPosition(CGPoint { x: cursor_x as CGFloat, y: cursor_y as CGFloat });
+            Ok(())
+        }
     }
 }
 
