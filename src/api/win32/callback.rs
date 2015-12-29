@@ -212,6 +212,24 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
+        winapi::WM_XBUTTONDOWN => {
+            use events::Event::MouseInput;
+            use events::MouseButton::Other;
+            use events::ElementState::Pressed;
+            let xbutton = winapi::HIWORD(wparam as winapi::DWORD) as winapi::c_int; // waiting on PR for winapi to add GET_XBUTTON_WPARAM
+            send_event(window, MouseInput(Pressed, Other(xbutton as u8)));
+            0
+        },
+
+        winapi::WM_XBUTTONUP => {
+            use events::Event::MouseInput;
+            use events::MouseButton::Other;
+            use events::ElementState::Released;
+            let xbutton = winapi::HIWORD(wparam as winapi::DWORD) as winapi::c_int; 
+            send_event(window, MouseInput(Released, Other(xbutton as u8)));
+            0
+        },
+
         winapi::WM_INPUT => {
             let mut data: winapi::RAWINPUT = mem::uninitialized();
             let mut data_size = mem::size_of::<winapi::RAWINPUT>() as winapi::UINT;
