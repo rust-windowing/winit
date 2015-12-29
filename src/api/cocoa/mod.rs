@@ -766,14 +766,16 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+        let (window_x, window_y) = self.get_position().unwrap_or((0, 0));
+        let (cursor_x, cursor_y) = (window_x + x, window_y + y);
+        
         unsafe {
-            let (window_x, window_y) = self.get_position().unwrap_or((0, 0));
-            let (cursor_x, cursor_y) = (window_x + x, window_y + y);
-
             // TODO: Check for errors.
             let _ = CGWarpMouseCursorPosition(CGPoint { x: cursor_x as CGFloat, y: cursor_y as CGFloat });
-            Ok(())
+            let _ = CGAssociateMouseAndMouseCursorPosition(true);
         }
+
+        Ok(())
     }
 }
 
