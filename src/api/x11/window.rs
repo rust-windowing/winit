@@ -615,14 +615,20 @@ impl Window {
             input_handler: Mutex::new(XInputEventHandler::new(display, window, ic, window_attrs))
         };
 
-        unsafe {
-            let ref x_window: &XWindow = window.x.borrow();
-            (display.xlib.XSetInputFocus)(
-                display.display,
-                x_window.window,
-                ffi::RevertToParent,
-                ffi::CurrentTime
-            );
+        if window_attrs.visible {
+            unsafe {
+                let ref x_window: &XWindow = window.x.borrow();
+
+                // XSetInputFocus generates an error if the window is not visible,
+                // therefore we call XSync before to make sure it's the case
+                (display.xlib.XSync)(display.display, 0);
+                (display.xlib.XSetInputFocus)(
+                    display.display,
+                    x_window.window,
+                    ffi::RevertToParent,
+                    ffi::CurrentTime
+                );
+            }
         }
 
         // returning
