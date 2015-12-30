@@ -2,7 +2,7 @@
 
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 pub use self::window::{Window, XWindow, PollEventsIterator, WaitEventsIterator, Context, WindowProxy};
-pub use self::xdisplay::{XConnection, XNotSupported};
+pub use self::xdisplay::{XConnection, XNotSupported, XError};
 
 pub mod ffi;
 

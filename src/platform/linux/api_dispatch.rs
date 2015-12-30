@@ -19,6 +19,7 @@ use libc;
 use api::wayland;
 use api::x11;
 use api::x11::XConnection;
+use api::x11::XError;
 use api::x11::XNotSupported;
 
 enum Backend {
@@ -399,8 +400,16 @@ unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x
     if let Backend::X(ref x) = *BACKEND {
         let mut buff: Vec<u8> = Vec::with_capacity(1024);
         (x.xlib.XGetErrorText)(dpy, (*event).error_code as i32, buff.as_mut_ptr() as *mut i8, buff.capacity() as i32);
-        let error = CStr::from_ptr(buff.as_mut_ptr() as *const i8).to_string_lossy();
-        println!("[glutin] x error code={} major={} minor={}: {}!", (*event).error_code, (*event).request_code, (*event).minor_code, error);
+        let description = CStr::from_ptr(buff.as_mut_ptr() as *const i8).to_string_lossy();
+
+        let error = XError {
+            description: description.into_owned(),
+            error_code: (*event).error_code,
+            request_code: (*event).request_code,
+            minor_code: (*event).minor_code,
+        };
+
+        *x.latest_error.lock().unwrap() = Some(error);
     }
 
     0

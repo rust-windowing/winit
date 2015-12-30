@@ -2,6 +2,7 @@ use std::ptr;
 use std::fmt;
 use std::error::Error;
 use std::ffi::CString;
+use std::sync::Mutex;
 
 use libc;
 
@@ -18,6 +19,7 @@ pub struct XConnection {
     pub glx: Option<ffi::glx::Glx>,
     pub egl: Option<Egl>,
     pub display: *mut ffi::Display,
+    pub latest_error: Mutex<Option<XError>>,
 }
 
 unsafe impl Send for XConnection {}
@@ -87,7 +89,26 @@ impl XConnection {
             glx: glx,
             egl: egl,
             display: display,
+            latest_error: Mutex::new(None),
         })
+    }
+
+    /// Checks whether an error has been triggered by the previous function calls.
+    #[inline]
+    pub fn check_errors(&self) -> Result<(), XError> {
+        let error = self.latest_error.lock().unwrap().take();
+
+        if let Some(error) = error {
+            Err(error)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Ignores any previous error.
+    #[inline]
+    pub fn ignore_error(&self) {
+        *self.latest_error.lock().unwrap() = None;
     }
 }
 
@@ -95,6 +116,29 @@ impl Drop for XConnection {
     #[inline]
     fn drop(&mut self) {
         unsafe { (self.xlib.XCloseDisplay)(self.display) };
+    }
+}
+
+/// Error triggered by xlib.
+#[derive(Debug, Clone)]
+pub struct XError {
+    pub description: String,
+    pub error_code: u8,
+    pub request_code: u8,
+    pub minor_code: u8,
+}
+
+impl Error for XError {
+    #[inline]
+    fn description(&self) -> &str {
+        &self.description
+    }
+}
+
+impl fmt::Display for XError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(formatter, "X error: {} (code: {}, request code: {}, minor code: {})",
+               self.description, self.error_code, self.request_code, self.minor_code)
     }
 }
 
