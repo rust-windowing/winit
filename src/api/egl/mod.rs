@@ -466,10 +466,10 @@ unsafe fn choose_fbconfig(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisp
             out.push(ffi::egl::RGB_BUFFER as c_int);
         }
 
-        if egl_version >= &(1, 3) {
-            out.push(ffi::egl::SURFACE_TYPE as c_int);
-            out.push((ffi::egl::WINDOW_BIT | ffi::egl::PBUFFER_BIT) as c_int);
-        }
+        out.push(ffi::egl::SURFACE_TYPE as c_int);
+        // TODO: Some versions of Mesa report a BAD_ATTRIBUTE error
+        // if we ask for PBUFFER_BIT as well as WINDOW_BIT
+        out.push((ffi::egl::WINDOW_BIT) as c_int);
 
         match (api, version) {
             (Api::OpenGlEs, Some((3, _))) => {
@@ -495,7 +495,7 @@ unsafe fn choose_fbconfig(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisp
                 }
             },
             (Api::OpenGlEs, _) => unimplemented!(),
-            (Api::OpenGl, Some((1, _))) => {
+            (Api::OpenGl, _) => {
                 if egl_version < &(1, 3) { return Err(CreationError::NoAvailablePixelFormat); }
                 out.push(ffi::egl::RENDERABLE_TYPE as c_int);
                 out.push(ffi::egl::OPENGL_BIT as c_int);
@@ -561,7 +561,7 @@ unsafe fn choose_fbconfig(egl: &ffi::egl::Egl, display: ffi::egl::types::EGLDisp
             },
         }
 
-        out.push(0);
+        out.push(ffi::egl::NONE as c_int);
         out
     };
 
