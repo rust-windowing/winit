@@ -38,8 +38,8 @@ fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> 
 
 impl Context {
     pub fn new<'a>(glx: ffi::glx::Glx, xlib: &ffi::Xlib, pf_reqs: &PixelFormatRequirements,
-                   opengl: &'a GlAttributes<&'a Context>, display: *mut ffi::Display)
-                   -> Result<ContextPrototype<'a>, CreationError>
+                   opengl: &'a GlAttributes<&'a Context>, display: *mut ffi::Display,
+                   screen_id: libc::c_int) -> Result<ContextPrototype<'a>, CreationError>
     {
         // This is completely ridiculous, but VirtualBox's OpenGL driver needs some call handled by
         // *it* (i.e. not Mesa) to occur before anything else can happen. That is because
@@ -55,14 +55,14 @@ impl Context {
 
         // loading the list of extensions
         let extensions = unsafe {
-            let extensions = glx.QueryExtensionsString(display as *mut _, 0);     // FIXME: screen number
+            let extensions = glx.QueryExtensionsString(display as *mut _, screen_id);
             let extensions = CStr::from_ptr(extensions).to_bytes().to_vec();
             String::from_utf8(extensions).unwrap()
         };
 
         // finding the pixel format we want
         let (fb_config, pixel_format) = unsafe {
-            try!(choose_fbconfig(&glx, &extensions, xlib, display, pf_reqs)
+            try!(choose_fbconfig(&glx, &extensions, xlib, display, screen_id, pf_reqs)
                                           .map_err(|_| CreationError::NoAvailablePixelFormat))
         };
 
@@ -355,7 +355,8 @@ fn create_context(glx: &ffi::glx::Glx, extra_functions: &ffi::glx_extra::Glx, ex
 
 /// Enumerates all available FBConfigs
 unsafe fn choose_fbconfig(glx: &ffi::glx::Glx, extensions: &str, xlib: &ffi::Xlib,
-                          display: *mut ffi::Display, reqs: &PixelFormatRequirements)
+                          display: *mut ffi::Display, screen_id: libc::c_int,
+                          reqs: &PixelFormatRequirements)
                           -> Result<(ffi::glx::types::GLXFBConfig, PixelFormat), ()>
 {
     let descriptor = {
@@ -459,7 +460,7 @@ unsafe fn choose_fbconfig(glx: &ffi::glx::Glx, extensions: &str, xlib: &ffi::Xli
     // calling glXChooseFBConfig
     let fb_config = {
         let mut num_configs = 1;
-        let result = glx.ChooseFBConfig(display as *mut _, 0, descriptor.as_ptr(),
+        let result = glx.ChooseFBConfig(display as *mut _, screen_id, descriptor.as_ptr(),
                                         &mut num_configs);
         if result.is_null() { return Err(()); }
         if num_configs == 0 { return Err(()); }
