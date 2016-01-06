@@ -226,7 +226,7 @@ impl XInputEventHandler {
                 for axis_id in 0..axis_state.mask_len {
                     if ffi::XIMaskIsSet(&mask, axis_id) {
                         let axis_value = unsafe{*axis_state.values.offset(axis_count)};
-                        let delta = calc_scroll_deltas(event_data, axis_id, axis_value, &self.axis_list, 
+                        let delta = calc_scroll_deltas(event_data, axis_id, axis_value, &self.axis_list,
                                                        &mut self.current_state.axis_values);
                         scroll_delta.0 += delta.0;
                         scroll_delta.1 += delta.1;
@@ -314,7 +314,11 @@ fn read_input_axis_info(display: &Arc<XConnection>) -> Vec<Axis> {
             }
         }
     }
-    
+
+    unsafe {
+        (display.xinput2.XIFreeDeviceInfo)(devices);
+    }
+
     axis_list
 }
 
