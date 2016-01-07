@@ -57,3 +57,8 @@ impl GlContext for HeadlessContext {
 
 unsafe impl Send for HeadlessContext {}
 unsafe impl Sync for HeadlessContext {}
+
+#[derive(Default)]
+pub struct PlatformSpecificWindowBuilderAttributes;
+#[derive(Default)]
+pub struct PlatformSpecificHeadlessBuilderAttributes;

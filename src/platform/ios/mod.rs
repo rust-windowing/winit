@@ -8,12 +8,17 @@ use ContextError;
 
 pub use api::ios::*;
 
+#[derive(Default)]
+pub struct PlatformSpecificHeadlessBuilderAttributes;
+
 pub struct HeadlessContext(i32);
 
 impl HeadlessContext {
     /// See the docs in the crate root file.
-    pub fn new(_: (u32, u32), _: &PixelFormatRequirements, _: &GlAttributes<&HeadlessContext>)
-            -> Result<HeadlessContext, CreationError> {
+    pub fn new(_: (u32, u32), _: &PixelFormatRequirements, _: &GlAttributes<&HeadlessContext>,
+               _: &PlatformSpecificHeadlessBuilderAttributes)
+               -> Result<HeadlessContext, CreationError>
+    {
         unimplemented!()
     }
 

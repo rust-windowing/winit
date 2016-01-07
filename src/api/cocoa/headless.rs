@@ -13,6 +13,9 @@ use cocoa::appkit::*;
 use PixelFormat;
 use api::cocoa::helpers;
 
+#[derive(Default)]
+pub struct PlatformSpecificHeadlessBuilderAttributes;
+
 pub struct HeadlessContext {
     width: u32,
     height: u32,
@@ -21,7 +24,9 @@ pub struct HeadlessContext {
 
 impl HeadlessContext {
     pub fn new((width, height): (u32, u32), pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
+               opengl: &GlAttributes<&HeadlessContext>,
+               _: &PlatformSpecificHeadlessBuilderAttributes)
+               -> Result<HeadlessContext, CreationError>
     {
         let context = unsafe {
 
