@@ -8,8 +8,9 @@ mod gl {
 }
 use gl::types::*;
 
+#[cfg(not(target_os = "linux"))]
 #[test]
-fn main() {
+fn test_headless() {
     let width: i32 = 2;
     let height: i32 = 1;
     let window = glutin::HeadlessRendererBuilder::new(width as u32, height as u32).build().unwrap();
