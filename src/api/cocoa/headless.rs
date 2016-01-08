@@ -14,13 +14,6 @@ use cocoa::base::{id, nil};
 use cocoa::appkit::*;
 use PixelFormat;
 
-mod gl {
-    include!(concat!(env!("OUT_DIR"), "/gl_bindings.rs"));
-}
-
-static mut framebuffer: u32 = 0;
-static mut texture: u32 = 0;
-
 pub struct HeadlessContext {
     width: u32,
     height: u32,
@@ -33,9 +26,14 @@ impl HeadlessContext {
     {
         let context = unsafe {
             let attributes = [
-                NSOpenGLPFAAccelerated as u32,
-                NSOpenGLPFAAllowOfflineRenderers as u32,
                 NSOpenGLPFADoubleBuffer as u32,
+                NSOpenGLPFAClosestPolicy as u32,
+                NSOpenGLPFAColorSize as u32, 24,
+                NSOpenGLPFAAlphaSize as u32, 8,
+                NSOpenGLPFADepthSize as u32, 24,
+                NSOpenGLPFAStencilSize as u32, 8,
+
+                NSOpenGLPFAOpenGLProfile as u32, NSOpenGLProfileVersion3_2Core as u32,
                 0
             ];
 
@@ -56,9 +54,6 @@ impl HeadlessContext {
             context: context,
         };
 
-        // Load the function pointers as we need them to create the FBO
-        gl::load_with(|s| headless.get_proc_address(s) as *const c_void);
-
         Ok(headless)
     }
 }
@@ -66,28 +61,12 @@ impl HeadlessContext {
 impl GlContext for HeadlessContext {
     unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.context.makeCurrentContext();
-
-        gl::GenFramebuffersEXT(1, &mut framebuffer);
-        gl::BindFramebufferEXT(gl::FRAMEBUFFER_EXT, framebuffer);
-        gl::GenTextures(1, &mut texture);
-        gl::BindTexture(gl::TEXTURE_2D, texture);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-        gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA8 as i32, self.width as i32, self.height as i32,
-                       0, gl::RGBA, gl::UNSIGNED_BYTE, ptr::null());
-        gl::FramebufferTexture2DEXT(gl::FRAMEBUFFER_EXT, gl::COLOR_ATTACHMENT0_EXT,
-                                    gl::TEXTURE_2D, texture, 0);
-        let status = gl::CheckFramebufferStatusEXT(gl::FRAMEBUFFER_EXT);
-        if status != gl::FRAMEBUFFER_COMPLETE_EXT {
-            panic!("Error while creating the framebuffer");
-        }
-
         Ok(())
     }
 
     #[inline]
     fn is_current(&self) -> bool {
-        unimplemented!()
+        true
     }
 
     #[inline]
@@ -105,6 +84,7 @@ impl GlContext for HeadlessContext {
 
     #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
+        unsafe { self.context.flushBuffer(); }
         Ok(())
     }
 
@@ -121,13 +101,3 @@ impl GlContext for HeadlessContext {
 
 unsafe impl Send for HeadlessContext {}
 unsafe impl Sync for HeadlessContext {}
-
-impl Drop for HeadlessContext {
-    #[inline]
-    fn drop(&mut self) {
-        unsafe {
-            gl::DeleteTextures(1, &texture);
-            gl::DeleteFramebuffersEXT(1, &framebuffer);
-        }
-    }
-}

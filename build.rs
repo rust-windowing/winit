@@ -180,8 +180,8 @@ fn main() {
 
     let mut file = File::create(&dest.join("test_gl_bindings.rs")).unwrap();
     gl_generator::generate_bindings(gl_generator::StructGenerator,
-                                    gl_generator::registry::Ns::Gles2,
+                                    gl_generator::registry::Ns::Gl,
                                     gl_generator::Fallbacks::All,
                                     khronos_api::GL_XML, vec![],
-                                    "3.0", "core", &mut file).unwrap();
+                                    "3.3", "core", &mut file).unwrap();
 }
