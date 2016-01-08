@@ -11,8 +11,8 @@ use gl::types::*;
 #[cfg(not(target_os = "linux"))]
 #[test]
 fn test_headless() {
-    let width: i32 = 2;
-    let height: i32 = 1;
+    let width: i32 = 256;
+    let height: i32 = 256;
     let window = glutin::HeadlessRendererBuilder::new(width as u32, height as u32).build().unwrap();
 
     unsafe { window.make_current() };
