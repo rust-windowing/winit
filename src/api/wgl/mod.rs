@@ -383,7 +383,7 @@ unsafe fn choose_native_pixel_format(hdc: winapi::HDC, reqs: &PixelFormatRequire
         nVersion: 1,
         dwFlags: {
             let f1 = match reqs.double_buffer {
-                None => winapi::PFD_DOUBLEBUFFER_DONTCARE,
+                None => winapi::PFD_DOUBLEBUFFER, // Should be PFD_DOUBLEBUFFER_DONTCARE after you can choose
                 Some(true) => winapi::PFD_DOUBLEBUFFER,
                 Some(false) => 0,
             };
@@ -541,10 +541,10 @@ unsafe fn choose_arb_pixel_format(extra: &gl::wgl_extra::Wgl, extensions: &str,
             out.push(stencil as c_int);
         }
 
-        if let Some(double_buffer) = reqs.double_buffer {
-            out.push(gl::wgl_extra::DOUBLE_BUFFER_ARB as c_int);
-            out.push(if double_buffer { 1 } else { 0 });
-        }
+        // Prefer double buffering if unspecified (probably shouldn't once you can choose)
+        let double_buffer = reqs.double_buffer.unwrap_or(true);
+        out.push(gl::wgl_extra::DOUBLE_BUFFER_ARB as c_int);
+        out.push(if double_buffer { 1 } else { 0 });
 
         if let Some(multisampling) = reqs.multisampling {
             if extensions.split(' ').find(|&i| i == "WGL_ARB_multisample").is_some() {
