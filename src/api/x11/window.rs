@@ -9,6 +9,8 @@ use std::sync::atomic::AtomicBool;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::os::raw::c_long;
+use std::thread;
+use std::time::Duration;
 
 use Api;
 use ContextError;
@@ -642,15 +644,26 @@ impl Window {
                 let ref x_window: &XWindow = window.x.borrow();
 
                 // XSetInputFocus generates an error if the window is not visible,
-                // therefore we call XSync before to make sure it's the case
-                (display.xlib.XSync)(display.display, 0);
-                (display.xlib.XSetInputFocus)(
-                    display.display,
-                    x_window.window,
-                    ffi::RevertToParent,
-                    ffi::CurrentTime
-                );
-                display.check_errors().expect("Failed to call XSetInputFocus");
+                // therefore we wait until it's the case.
+                loop {
+                    let mut window_attributes = mem::uninitialized();
+                    (display.xlib.XGetWindowAttributes)(display.display, x_window.window, &mut window_attributes);
+                    display.check_errors().expect("Failed to call XGetWindowAttributes");
+
+                    if window_attributes.map_state == ffi::IsViewable {
+                        (display.xlib.XSetInputFocus)(
+                            display.display,
+                            x_window.window,
+                            ffi::RevertToParent,
+                            ffi::CurrentTime
+                        );
+                        display.check_errors().expect("Failed to call XSetInputFocus");
+                        break;
+                    }
+
+                    // Wait about a frame to avoid too-busy waiting
+                    thread::sleep(Duration::from_millis(16));
+                }
             }
         }
 
