@@ -690,7 +690,7 @@ impl Window {
 
     #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
-        unimplemented!()
+        *self.window as *mut libc::c_void
     }
 
     #[inline]
