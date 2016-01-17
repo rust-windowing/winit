@@ -472,10 +472,6 @@ impl Window {
             display.check_errors().expect("Failed to call XInternAtom");
             (display.xlib.XSetWMProtocols)(display.display, window, &mut wm_delete_window, 1);
             display.check_errors().expect("Failed to call XSetWMProtocols");
-            with_c_str(&*window_attrs.title, |title| {;
-                (display.xlib.XStoreName)(display.display, window, title);
-            });
-            display.check_errors().expect("Failed to call XStoreName");
             (display.xlib.XFlush)(display.display);
             display.check_errors().expect("Failed to call XFlush");
 
@@ -638,6 +634,8 @@ impl Window {
             cursor_state: Mutex::new(CursorState::Normal),
             input_handler: Mutex::new(XInputEventHandler::new(display, window, ic, window_attrs))
         };
+
+        window.set_title(&window_attrs.title);
 
         if window_attrs.visible {
             unsafe {
