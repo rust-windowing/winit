@@ -672,12 +672,27 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
-        with_c_str(title, |title| unsafe {
-            (self.x.display.xlib.XStoreName)(self.x.display.display, self.x.window, title);
+        let wm_name = unsafe {
+            (self.x.display.xlib.XInternAtom)(self.x.display.display, b"_NET_WM_NAME\0".as_ptr() as *const _, 0)
+        };
+        self.x.display.check_errors().expect("Failed to call XInternAtom");
+
+        let wm_utf8_string = unsafe {
+            (self.x.display.xlib.XInternAtom)(self.x.display.display, b"UTF8_STRING\0".as_ptr() as *const _, 0)
+        };
+        self.x.display.check_errors().expect("Failed to call XInternAtom");
+
+        with_c_str(title, |c_title| unsafe {
+            (self.x.display.xlib.XStoreName)(self.x.display.display, self.x.window, c_title);
+
+            let len = title.as_bytes().len();
+            (self.x.display.xlib.XChangeProperty)(self.x.display.display, self.x.window,
+                                            wm_name, wm_utf8_string, 8, ffi::PropModeReplace,
+                                            c_title as *const u8, len as libc::c_int);
             (self.x.display.xlib.XFlush)(self.x.display.display);
         });
+        self.x.display.check_errors().expect("Failed to set window title");
 
-        self.x.display.check_errors().expect("Failed to call XStoreName");
     }
 
     pub fn show(&self) {
