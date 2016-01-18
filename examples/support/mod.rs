@@ -4,6 +4,7 @@ use std::ptr;
 use glutin;
 
 mod gl {
+    pub use self::Gles2 as Gl;
     include!(concat!(env!("OUT_DIR"), "/test_gl_bindings.rs"));
 }
 

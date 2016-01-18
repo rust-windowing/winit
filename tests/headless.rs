@@ -4,6 +4,7 @@ use glutin::*;
 use std::ptr;
 
 mod gl {
+    pub use self::Gles2 as Gl;
     include!(concat!(env!("OUT_DIR"), "/test_gl_bindings.rs"));
 }
 use gl::types::*;
@@ -31,7 +32,7 @@ fn test_headless() {
         gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
         gl.TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as i32, width, height,
                      0, gl::RGBA, gl::UNSIGNED_BYTE, ptr::null());
-        gl.FramebufferTexture(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, texture, 0);
+        gl.FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, texture, 0);
         let status = gl.CheckFramebufferStatus(gl::FRAMEBUFFER);
         if status != gl::FRAMEBUFFER_COMPLETE {
           panic!("Error while creating the framebuffer");
