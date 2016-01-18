@@ -4,8 +4,6 @@ use CreationError::OsError;
 use GlAttributes;
 use GlContext;
 use PixelFormatRequirements;
-use std::os::raw::c_void;
-use std::ptr;
 
 use core_foundation::base::TCFType;
 use core_foundation::string::CFString;
@@ -13,6 +11,7 @@ use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFuncti
 use cocoa::base::{id, nil};
 use cocoa::appkit::*;
 use PixelFormat;
+use api::cocoa::helpers;
 
 pub struct HeadlessContext {
     width: u32,
@@ -21,21 +20,12 @@ pub struct HeadlessContext {
 }
 
 impl HeadlessContext {
-    pub fn new((width, height): (u32, u32), _pf_reqs: &PixelFormatRequirements,
-               _opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
+    pub fn new((width, height): (u32, u32), pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
     {
         let context = unsafe {
-            let attributes = [
-                NSOpenGLPFADoubleBuffer as u32,
-                NSOpenGLPFAClosestPolicy as u32,
-                NSOpenGLPFAColorSize as u32, 24,
-                NSOpenGLPFAAlphaSize as u32, 8,
-                NSOpenGLPFADepthSize as u32, 24,
-                NSOpenGLPFAStencilSize as u32, 8,
 
-                NSOpenGLPFAOpenGLProfile as u32, NSOpenGLProfileVersion3_2Core as u32,
-                0
-            ];
+            let attributes = try!(helpers::build_nsattributes(pf_reqs, opengl));
 
             let pixelformat = NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes);
             if pixelformat == nil {
@@ -66,7 +56,7 @@ impl GlContext for HeadlessContext {
 
     #[inline]
     fn is_current(&self) -> bool {
-        true
+        unimplemented!()
     }
 
     #[inline]

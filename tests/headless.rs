@@ -48,8 +48,6 @@ fn test_headless() {
         let mut values: Vec<u8> = vec![0;(width*height*4) as usize];
         gl.ReadPixels(0, 0, width, height, gl::RGBA, gl::UNSIGNED_BYTE, values.as_mut_ptr() as *mut GLvoid);
 
-        println!("{:?}", values);
-
         assert_eq!(values[0], 0);
         assert_eq!(values[1], 255);
         assert_eq!(values[2], 0);
