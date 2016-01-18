@@ -24,8 +24,8 @@ use objc::declare::ClassDecl;
 use cgl::{CGLEnable, kCGLCECrashOnRemovedFunctions, CGLSetParameter, kCGLCPSurfaceOpacity};
 
 use cocoa::base::{id, nil};
-use cocoa::foundation::{NSAutoreleasePool, NSDate, NSDefaultRunLoopMode, NSPoint, NSRect, NSSize, 
-                        NSString, NSUInteger}; 
+use cocoa::foundation::{NSAutoreleasePool, NSDate, NSDefaultRunLoopMode, NSPoint, NSRect, NSSize,
+                        NSString, NSUInteger};
 use cocoa::appkit;
 use cocoa::appkit::*;
 use cocoa::appkit::NSEventSubtype::*;
@@ -54,6 +54,7 @@ pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 mod monitor;
 mod event;
 mod headless;
+mod helpers;
 
 static mut shift_pressed: bool = false;
 static mut ctrl_pressed: bool = false;
@@ -137,7 +138,7 @@ impl WindowDelegate {
                 window_should_close as extern fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(windowDidResize:),
                 window_did_resize as extern fn(&Object, Sel, id));
-            
+
             decl.add_method(sel!(windowDidBecomeKey:),
                 window_did_become_key as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidResignKey:),
@@ -317,7 +318,7 @@ impl Window {
                 let mut opacity = 0;
                 CGLSetParameter(obj as *mut _, kCGLCPSurfaceOpacity, &mut opacity);
             }
-            
+
             app.activateIgnoringOtherApps_(YES);
             if win_attribs.visible {
                 window.makeKeyAndOrderFront_(nil);
@@ -359,7 +360,7 @@ impl Window {
     }
 
     fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
-        unsafe { 
+        unsafe {
             let screen = match attrs.monitor {
                 Some(ref monitor_id) => {
                     let native_id = match monitor_id.get_native_identifier() {
@@ -414,7 +415,7 @@ impl Window {
                 NSTitledWindowMask as NSUInteger |
                 NSFullSizeContentViewWindowMask as NSUInteger
             };
-            
+
             let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
                 frame,
                 masks,
@@ -456,79 +457,7 @@ impl Window {
     fn create_context(view: id, pf_reqs: &PixelFormatRequirements, opengl: &GlAttributes<&Window>)
                       -> Result<(IdRef, PixelFormat), CreationError>
     {
-        let profile = match (opengl.version, opengl.version.to_gl_version(), opengl.profile) {
-
-            // Note: we are not using ranges because of a rust bug that should be fixed here:
-            // https://github.com/rust-lang/rust/pull/27050
-
-            (GlRequest::Latest, _, Some(GlProfile::Compatibility)) => NSOpenGLProfileVersionLegacy as u32,
-            (GlRequest::Latest, _, _) => {
-                if NSAppKitVersionNumber.floor() >= NSAppKitVersionNumber10_9 {
-                    NSOpenGLProfileVersion4_1Core as u32
-                } else if NSAppKitVersionNumber.floor() >= NSAppKitVersionNumber10_7 {
-                    NSOpenGLProfileVersion3_2Core as u32
-                } else {
-                    NSOpenGLProfileVersionLegacy as u32
-                }
-            },
-
-            (_, Some((1, _)), _) => NSOpenGLProfileVersionLegacy as u32,
-            (_, Some((2, _)), _) => NSOpenGLProfileVersionLegacy as u32,
-            (_, Some((3, 0)), _) => NSOpenGLProfileVersionLegacy as u32,
-            (_, Some((3, 1)), _) => NSOpenGLProfileVersionLegacy as u32,
-            (_, Some((3, 2)), _) => NSOpenGLProfileVersion3_2Core as u32,
-            (_, Some((3, _)), Some(GlProfile::Compatibility)) => return Err(CreationError::OpenGlVersionNotSupported),
-            (_, Some((3, _)), _) => NSOpenGLProfileVersion4_1Core as u32,
-            (_, Some((4, _)), Some(GlProfile::Compatibility)) => return Err(CreationError::OpenGlVersionNotSupported),
-            (_, Some((4, _)), _) => NSOpenGLProfileVersion4_1Core as u32,
-            _ => return Err(CreationError::OpenGlVersionNotSupported),
-        };
-
-        // NOTE: OS X no longer has the concept of setting individual
-        // color component's bit size. Instead we can only specify the
-        // full color size and hope for the best. Another hiccup is that
-        // `NSOpenGLPFAColorSize` also includes `NSOpenGLPFAAlphaSize`,
-        // so we have to account for that as well.
-        let alpha_depth = pf_reqs.alpha_bits.unwrap_or(8);
-        let color_depth = pf_reqs.color_bits.unwrap_or(24) + alpha_depth;
-
-        // TODO: handle hardware_accelerated parameter of pf_reqs
-
-        let mut attributes = vec![
-            NSOpenGLPFADoubleBuffer as u32,
-            NSOpenGLPFAClosestPolicy as u32,
-            NSOpenGLPFAColorSize as u32, color_depth as u32,
-            NSOpenGLPFAAlphaSize as u32, alpha_depth as u32,
-            NSOpenGLPFADepthSize as u32, pf_reqs.depth_bits.unwrap_or(24) as u32,
-            NSOpenGLPFAStencilSize as u32, pf_reqs.stencil_bits.unwrap_or(8) as u32,
-            NSOpenGLPFAOpenGLProfile as u32, profile,
-        ];
-
-        if pf_reqs.release_behavior != ReleaseBehavior::Flush {
-            return Err(CreationError::NoAvailablePixelFormat);
-        }
-
-        if pf_reqs.stereoscopy {
-            unimplemented!();   // TODO: 
-        }
-
-        if pf_reqs.double_buffer == Some(false) {
-            unimplemented!();   // TODO: 
-        }
-
-        if pf_reqs.float_color_buffer {
-            attributes.push(NSOpenGLPFAColorFloat as u32);
-        }
-
-        pf_reqs.multisampling.map(|samples| {
-            attributes.push(NSOpenGLPFAMultisample as u32);
-            attributes.push(NSOpenGLPFASampleBuffers as u32); attributes.push(1);
-            attributes.push(NSOpenGLPFASamples as u32); attributes.push(samples as u32);
-        });
-
-        // attribute list must be null terminated.
-        attributes.push(0);
-
+        let attributes = try!(helpers::build_nsattributes(pf_reqs, opengl));
         unsafe {
             let pixelformat = IdRef::new(NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes));
 
@@ -604,7 +533,7 @@ impl Window {
     pub fn get_position(&self) -> Option<(i32, i32)> {
         unsafe {
             let content_rect = NSWindow::contentRectForFrameRect_(*self.window, NSWindow::frame(*self.window));
-            
+
             // TODO: consider extrapolating the calculations for the y axis to
             // a private method
             Some((content_rect.origin.x as i32, (CGDisplayPixelsHigh(CGMainDisplayID()) as f64 - (content_rect.origin.y + content_rect.size.height)) as i32))
@@ -616,7 +545,7 @@ impl Window {
             let frame = NSWindow::frame(*self.view);
 
             // NOTE: `setFrameOrigin` might not give desirable results when
-            // setting window, as it treats bottom left as origin. 
+            // setting window, as it treats bottom left as origin.
             // `setFrameTopLeftPoint` treats top left as origin (duh), but
             // does not equal the value returned by `get_window_position`
             // (there is a difference by 22 for me on yosemite)
@@ -699,7 +628,7 @@ impl Window {
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
-        let cursor_name = match cursor {                
+        let cursor_name = match cursor {
             MouseCursor::Arrow | MouseCursor::Default => "arrowCursor",
             MouseCursor::Hand => "pointingHandCursor",
             MouseCursor::Grabbing | MouseCursor::Grab => "closedHandCursor",
@@ -768,7 +697,7 @@ impl Window {
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         let (window_x, window_y) = self.get_position().unwrap_or((0, 0));
         let (cursor_x, cursor_y) = (window_x + x, window_y + y);
-        
+
         unsafe {
             // TODO: Check for errors.
             let _ = CGWarpMouseCursorPosition(CGPoint { x: cursor_x as CGFloat, y: cursor_y as CGFloat });
