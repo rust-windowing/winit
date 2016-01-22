@@ -57,7 +57,7 @@ pub struct XWindow {
     pub context: Context,
     is_fullscreen: bool,
     screen_id: libc::c_int,
-    xf86_desk_mode: ffi::XF86VidModeModeInfo,
+    xf86_desk_mode: Option<ffi::XF86VidModeModeInfo>,
     ic: ffi::XIC,
     im: ffi::XIM,
     colormap: ffi::Colormap,
@@ -90,7 +90,9 @@ impl Drop for XWindow {
             let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
 
             if self.is_fullscreen {
-                (self.display.xf86vmode.XF86VidModeSwitchToMode)(self.display.display, self.screen_id, &mut self.xf86_desk_mode);
+                if let Some(mut xf86_desk_mode) = self.xf86_desk_mode {
+                    (self.display.xf86vmode.XF86VidModeSwitchToMode)(self.display.display, self.screen_id, &mut xf86_desk_mode);
+                }
                 (self.display.xf86vmode.XF86VidModeSetViewPort)(self.display.display, self.screen_id, 0, 0);
             }
 
@@ -324,36 +326,31 @@ impl Window {
             let mut mode_num: libc::c_int = mem::uninitialized();
             let mut modes: *mut *mut ffi::XF86VidModeModeInfo = mem::uninitialized();
             if (display.xf86vmode.XF86VidModeGetAllModeLines)(display.display, screen_id, &mut mode_num, &mut modes) == 0 {
-                return Err(OsError(format!("Could not query the video modes")));
-            }
-
-            let xf86_desk_mode: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(0));
-
-            let mode_to_switch_to = if window_attrs.monitor.is_some() {
-                let matching_mode = (0 .. mode_num).map(|i| {
-                    let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
-                }).find(|m| m.hdisplay == dimensions.0 as u16 && m.vdisplay == dimensions.1 as u16);
-
-                if let Some(matching_mode) = matching_mode {
-                    Some(matching_mode)
-
-                } else {
-                    let m = (0 .. mode_num).map(|i| {
-                        let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
-                    }).find(|m| m.hdisplay >= dimensions.0 as u16 && m.vdisplay >= dimensions.1 as u16);
-
-                    match m {
-                        Some(m) => Some(m),
-                        None => return Err(OsError(format!("Could not find a suitable graphics mode")))
-                    }
-                }
+                (None, None)
             } else {
-                None
-            };
-
-            (display.xlib.XFree)(modes as *mut _);
-
-            (mode_to_switch_to, xf86_desk_mode)
+                let xf86_desk_mode: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(0));
+                let mode_to_switch_to = if window_attrs.monitor.is_some() {
+                    let matching_mode = (0 .. mode_num).map(|i| {
+                        let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
+                    }).find(|m| m.hdisplay == dimensions.0 as u16 && m.vdisplay == dimensions.1 as u16);
+                    if let Some(matching_mode) = matching_mode {
+                        Some(matching_mode)
+                    } else {
+                        let m = (0 .. mode_num).map(|i| {
+                            let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
+                        }).find(|m| m.hdisplay >= dimensions.0 as u16 && m.vdisplay >= dimensions.1 as u16);
+    
+                        match m {
+                            Some(m) => Some(m),
+                            None => return Err(OsError(format!("Could not find a suitable graphics mode")))
+                        }
+                    }
+                } else {
+                    None
+                };
+                (display.xlib.XFree)(modes as *mut _);
+                (mode_to_switch_to, Some(xf86_desk_mode))
+            }
         };
 
         // start the context building process
