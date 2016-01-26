@@ -399,8 +399,8 @@ unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x
 
     if let Backend::X(ref x) = *BACKEND {
         let mut buff: Vec<u8> = Vec::with_capacity(1024);
-        (x.xlib.XGetErrorText)(dpy, (*event).error_code as i32, buff.as_mut_ptr() as *mut i8, buff.capacity() as i32);
-        let description = CStr::from_ptr(buff.as_mut_ptr() as *const i8).to_string_lossy();
+        (x.xlib.XGetErrorText)(dpy, (*event).error_code as i32, buff.as_mut_ptr() as *mut libc::c_char, buff.capacity() as i32);
+        let description = CStr::from_ptr(buff.as_mut_ptr() as *const libc::c_char).to_string_lossy();
 
         let error = XError {
             description: description.into_owned(),
