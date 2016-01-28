@@ -415,10 +415,9 @@ unsafe fn choose_fbconfig(glx: &ffi::glx::Glx, extensions: &str, xlib: &ffi::Xli
             out.push(stencil as c_int);
         }
 
-        if let Some(double_buffer) = reqs.double_buffer {
-            out.push(ffi::glx::DOUBLEBUFFER as c_int);
-            out.push(if double_buffer { 1 } else { 0 });
-        }
+        let double_buffer = reqs.double_buffer.unwrap_or(true);
+        out.push(ffi::glx::DOUBLEBUFFER as c_int);
+        out.push(if double_buffer { 1 } else { 0 });
 
         if let Some(multisampling) = reqs.multisampling {
             if extensions.split(' ').find(|&i| i == "GLX_ARB_multisample").is_some() {
