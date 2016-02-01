@@ -2,7 +2,7 @@
 name = "glutin"
 version = "0.4.5"
 authors = ["tomaka <pierre.krieger1708@gmail.com>"]
-description = "Cross-plaform OpenGL context provider."
+description = "Cross-platform OpenGL context provider."
 keywords = ["windowing", "opengl"]
 license = "Apache-2.0"
 readme = "README.md"
