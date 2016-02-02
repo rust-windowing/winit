@@ -881,10 +881,13 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
         },
         NSScrollWheel => {
             use events::MouseScrollDelta::{LineDelta, PixelDelta};
+            let scale_factor = window.hidpi_factor();
             let delta = if nsevent.hasPreciseScrollingDeltas() == YES {
-                PixelDelta(nsevent.scrollingDeltaX() as f32, nsevent.scrollingDeltaY() as f32)
+                PixelDelta(scale_factor * nsevent.scrollingDeltaX() as f32,
+                           scale_factor * nsevent.scrollingDeltaY() as f32)
             } else {
-                LineDelta(nsevent.scrollingDeltaX() as f32, nsevent.scrollingDeltaY() as f32)
+                LineDelta(scale_factor * nsevent.scrollingDeltaX() as f32,
+                          scale_factor * nsevent.scrollingDeltaY() as f32)
             };
             Some(MouseWheel(delta))
         },
