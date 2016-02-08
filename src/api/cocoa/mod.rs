@@ -837,9 +837,7 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
             let received_c_str = nsevent.characters().UTF8String();
             let received_str = CStr::from_ptr(received_c_str);
             for received_char in from_utf8(received_str.to_bytes()).unwrap().chars() {
-                if received_char.is_ascii() {
-                    events.push_back(ReceivedCharacter(received_char));
-                }
+                events.push_back(ReceivedCharacter(received_char));
             }
 
             let vkey =  event::vkeycode_to_element(NSEvent::keyCode(nsevent));
