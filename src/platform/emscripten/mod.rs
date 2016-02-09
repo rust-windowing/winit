@@ -1,7 +1,12 @@
 #![cfg(target_os = "emscripten")]
 
+use Api;
 use ContextError;
+use CreationError;
+use GlAttributes;
 use GlContext;
+use PixelFormat;
+use PixelFormatRequirements;
 
 pub use api::emscripten::{Window, WindowProxy, MonitorId, get_available_monitors};
 pub use api::emscripten::{get_primary_monitor, WaitEventsIterator, PollEventsIterator};
@@ -11,8 +16,10 @@ pub struct HeadlessContext(Window);
 impl HeadlessContext {
     /// See the docs in the crate root file.
     #[inline]
-    pub fn new(builder: BuilderAttribs) -> Result<HeadlessContext, CreationError> {
-        Window::new(builder).map(|w| HeadlessContext(w))
+    pub fn new(_: (u32, u32), _: &PixelFormatRequirements, _: &GlAttributes<&HeadlessContext>)
+               -> Result<HeadlessContext, CreationError>
+    {
+        unimplemented!()
     }
 }
 

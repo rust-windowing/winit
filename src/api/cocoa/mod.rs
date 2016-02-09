@@ -837,9 +837,7 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
             let received_c_str = nsevent.characters().UTF8String();
             let received_str = CStr::from_ptr(received_c_str);
             for received_char in from_utf8(received_str.to_bytes()).unwrap().chars() {
-                if received_char.is_ascii() {
-                    events.push_back(ReceivedCharacter(received_char));
-                }
+                events.push_back(ReceivedCharacter(received_char));
             }
 
             let vkey =  event::vkeycode_to_element(NSEvent::keyCode(nsevent));
@@ -881,10 +879,13 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
         },
         NSScrollWheel => {
             use events::MouseScrollDelta::{LineDelta, PixelDelta};
+            let scale_factor = window.hidpi_factor();
             let delta = if nsevent.hasPreciseScrollingDeltas() == YES {
-                PixelDelta(nsevent.scrollingDeltaX() as f32, nsevent.scrollingDeltaY() as f32)
+                PixelDelta(scale_factor * nsevent.scrollingDeltaX() as f32,
+                           scale_factor * nsevent.scrollingDeltaY() as f32)
             } else {
-                LineDelta(nsevent.scrollingDeltaX() as f32, nsevent.scrollingDeltaY() as f32)
+                LineDelta(scale_factor * nsevent.scrollingDeltaX() as f32,
+                          scale_factor * nsevent.scrollingDeltaY() as f32)
             };
             Some(MouseWheel(delta))
         },
