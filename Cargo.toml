@@ -19,9 +19,6 @@ shared_library = "0.1.0"
 gl_generator = "0.4"
 khronos_api = "1.0"
 
-[dev-dependencies]
-clock_ticks = "0.1.0"
-
 [target.arm-linux-androideabi.dependencies.android_glue]
 version = "0.1"
 

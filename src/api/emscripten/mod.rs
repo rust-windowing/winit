@@ -2,11 +2,17 @@
 
 use std::ffi::CString;
 use libc;
-use {Event, BuilderAttribs, CreationError, MouseCursor};
 use Api;
-use PixelFormat;
+use Event;
+use CreationError;
 use ContextError;
+use CursorState;
+use GlAttributes;
 use GlContext;
+use MouseCursor;
+use PixelFormat;
+use PixelFormatRequirements;
+use WindowAttributes;
 
 use std::collections::VecDeque;
 
@@ -52,6 +58,7 @@ impl WindowProxy {
     }
 }
 
+#[derive(Clone)]
 pub struct MonitorId;
 
 #[inline]
@@ -73,13 +80,20 @@ impl MonitorId {
     }
 
     #[inline]
+    pub fn get_native_identifier(&self) -> ::native_monitor::NativeMonitorId {
+        ::native_monitor::NativeMonitorId::Unavailable
+    }
+
+    #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         unimplemented!()
     }
 }
 
 impl Window {
-    pub fn new(builder: BuilderAttribs) -> Result<Window, CreationError> {
+    pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
+               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+    {
         // getting the default values of attributes
         let mut attributes = unsafe {
             use std::mem;
@@ -198,13 +212,22 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor(&self, _cursor: MouseCursor) {
-        unimplemented!()
+    pub fn set_cursor(&self, cursor: MouseCursor) {
+    }
+
+    #[inline]
+    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        Ok(())
     }
 
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
         1.0
+    }
+
+    #[inline]
+    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+        Ok(())
     }
 }
 
@@ -222,11 +245,11 @@ impl GlContext for Window {
     }
 
     fn get_proc_address(&self, addr: &str) -> *const () {
-        let addr = CString::new(addr.as_bytes()).unwrap();
-        let addr = addr.as_ptr();
+        let addr = CString::new(addr).unwrap();
 
         unsafe {
-            ffi::emscripten_GetProcAddress(addr) as *const _
+            // FIXME: if `as_ptr()` is used, then wrong data is passed to emscripten
+            ffi::emscripten_GetProcAddress(addr.into_raw() as *const _) as *const _
         }
     }
 
