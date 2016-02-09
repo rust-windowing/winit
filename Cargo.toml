@@ -1,7 +1,7 @@
 [package]
 name = "glutin"
-version = "0.4.7"
-authors = ["tomaka <pierre.krieger1708@gmail.com>"]
+version = "0.4.8"
+authors = ["The glutin contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform OpenGL context provider."
 keywords = ["windowing", "opengl"]
 license = "Apache-2.0"
