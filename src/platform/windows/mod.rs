@@ -51,6 +51,10 @@ lazy_static! {
     };
 }
 
+#[derive(Default)]
+pub struct PlatformSpecificWindowBuilderAttributes;
+#[derive(Default)]
+pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 /// The Win32 implementation of the main `Window` object.
 pub struct Window(win32::Window);
@@ -59,7 +63,8 @@ impl Window {
     /// See the docs in the crate root file.
     #[inline]
     pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+               opengl: &GlAttributes<&Window>, _: &PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window, CreationError>
     {
         win32::Window::new(window, pf_reqs, &opengl.clone().map_sharing(|w| &w.0),
                            EGL.as_ref().map(|w| &w.0)).map(|w| Window(w))
@@ -92,7 +97,9 @@ pub enum HeadlessContext {
 
 impl HeadlessContext {
     pub fn new(dimensions: (u32, u32), pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
+               opengl: &GlAttributes<&HeadlessContext>,
+               _: &PlatformSpecificHeadlessBuilderAttributes)
+               -> Result<HeadlessContext, CreationError>
     {
         // if EGL is available, we try using EGL first
         // if EGL returns an error, we try the hidden window method

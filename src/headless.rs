@@ -20,6 +20,9 @@ pub struct HeadlessRendererBuilder<'a> {
 
     // Should be made public once it's stabilized.
     pf_reqs: PixelFormatRequirements,
+
+    /// Platform-specific configuration.
+    platform_specific: platform::PlatformSpecificHeadlessBuilderAttributes,
 }
 
 impl<'a> HeadlessRendererBuilder<'a> {
@@ -30,6 +33,7 @@ impl<'a> HeadlessRendererBuilder<'a> {
             dimensions: (width, height),
             pf_reqs: Default::default(),
             opengl: Default::default(),
+            platform_specific: Default::default(),
         }
     }
 
@@ -63,7 +67,8 @@ impl<'a> HeadlessRendererBuilder<'a> {
     ///  out of memory, etc.
     #[inline]
     pub fn build(self) -> Result<HeadlessContext, CreationError> {
-        platform::HeadlessContext::new(self.dimensions, &self.pf_reqs, &self.opengl)
+        platform::HeadlessContext::new(self.dimensions, &self.pf_reqs, &self.opengl,
+                                       &self.platform_specific)
                 .map(|w| HeadlessContext { context: w })
     }
 

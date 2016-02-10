@@ -31,6 +31,9 @@ pub struct WindowBuilder<'a> {
 
     // Should be made public once it's stabilized.
     pf_reqs: PixelFormatRequirements,
+
+    /// Platform-specific configuration.
+    platform_specific: platform::PlatformSpecificWindowBuilderAttributes,
 }
 
 impl<'a> WindowBuilder<'a> {
@@ -41,6 +44,7 @@ impl<'a> WindowBuilder<'a> {
             pf_reqs: Default::default(),
             window: Default::default(),
             opengl: Default::default(),
+            platform_specific: Default::default(),
         }
     }
 
@@ -227,7 +231,7 @@ impl<'a> WindowBuilder<'a> {
         }
 
         // building
-        platform::Window::new(&self.window, &self.pf_reqs, &self.opengl)
+        platform::Window::new(&self.window, &self.pf_reqs, &self.opengl, &self.platform_specific)
                             .map(|w| Window { window: w })
     }
 

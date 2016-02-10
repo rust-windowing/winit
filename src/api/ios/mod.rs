@@ -177,10 +177,14 @@ impl MonitorId {
     }
 }
 
+#[derive(Default)]
+pub struct PlatformSpecificWindowBuilderAttributes;
 
 impl Window {
 
-    pub fn new(builder: &WindowAttributes, _: &PixelFormatRequirements, _: &GlAttributes<&Window>) -> Result<Window, CreationError> {
+    pub fn new(builder: &WindowAttributes, _: &PixelFormatRequirements, _: &GlAttributes<&Window>,
+               _: &PlatformSpecificWindowBuilderAttributes) -> Result<Window, CreationError>
+    {
         unsafe {
             if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
                 let app: id = msg_send![Class::get("UIApplication").unwrap(), sharedApplication];

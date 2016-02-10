@@ -1,7 +1,5 @@
 #![cfg(target_os = "macos")]
 
-pub use self::headless::HeadlessContext;
-
 use {CreationError, Event, MouseCursor, CursorState};
 use CreationError::OsError;
 use libc;
@@ -50,6 +48,8 @@ use events::MouseButton;
 use events;
 
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
+pub use self::headless::HeadlessContext;
+pub use self::headless::PlatformSpecificHeadlessBuilderAttributes;
 
 mod monitor;
 mod event;
@@ -179,6 +179,9 @@ impl Drop for WindowDelegate {
     }
 }
 
+#[derive(Default)]
+pub struct PlatformSpecificWindowBuilderAttributes;
+
 pub struct Window {
     view: IdRef,
     window: IdRef,
@@ -264,7 +267,8 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
 impl Window {
     pub fn new(win_attribs: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+               opengl: &GlAttributes<&Window>, _: &PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window, CreationError>
     {
         if opengl.sharing.is_some() {
             unimplemented!()

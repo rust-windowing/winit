@@ -65,6 +65,11 @@ impl MonitorId {
     }
 }
 
+#[derive(Default)]
+pub struct PlatformSpecificWindowBuilderAttributes;
+#[derive(Default)]
+pub struct PlatformSpecificHeadlessBuilderAttributes;
+
 pub struct PollEventsIterator<'a> {
     window: &'a Window,
 }
@@ -116,7 +121,8 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
 impl Window {
     pub fn new(win_attribs: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+               opengl: &GlAttributes<&Window>, _: &PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window, CreationError>
     {
         use std::{mem, ptr};
 
@@ -302,7 +308,9 @@ pub struct HeadlessContext(EglContext);
 impl HeadlessContext {
     /// See the docs in the crate root file.
     pub fn new(dimensions: (u32, u32), pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&HeadlessContext>) -> Result<HeadlessContext, CreationError>
+               opengl: &GlAttributes<&HeadlessContext>,
+               _: &PlatformSpecificHeadlessBuilderAttributes)
+               -> Result<HeadlessContext, CreationError>
     {
         let opengl = opengl.clone().map_sharing(|c| &c.0);
         let context = try!(EglContext::new(egl::ffi::egl::Egl, pf_reqs, &opengl,

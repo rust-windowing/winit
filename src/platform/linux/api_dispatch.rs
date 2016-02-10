@@ -22,6 +22,9 @@ use api::x11::XConnection;
 use api::x11::XError;
 use api::x11::XNotSupported;
 
+#[derive(Default)]
+pub struct PlatformSpecificWindowBuilderAttributes;
+
 enum Backend {
     X(Arc<XConnection>),
     Wayland,
@@ -172,7 +175,8 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 impl Window {
     #[inline]
     pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+               opengl: &GlAttributes<&Window>, _: &PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window, CreationError>
     {
         match *BACKEND {
             Backend::Wayland => {
