@@ -1,6 +1,6 @@
 [package]
 name = "glutin"
-version = "0.4.8"
+version = "0.4.9"
 authors = ["The glutin contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform OpenGL context provider."
 keywords = ["windowing", "opengl"]
@@ -40,7 +40,7 @@ objc = "0.1.8"
 [target.x86_64-apple-darwin.dependencies]
 objc = "0.1.8"
 cgl = "0.1"
-cocoa = "0.2"
+cocoa = "0.2.4"
 core-foundation = "0"
 core-graphics = "0"
 
