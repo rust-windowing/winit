@@ -1,19 +1,10 @@
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::default::Default;
 
-use Api;
-use ContextError;
 use CreationError;
 use CursorState;
 use Event;
-use GlAttributes;
-use GlContext;
-use GlProfile;
-use GlRequest;
 use MouseCursor;
-use PixelFormat;
-use PixelFormatRequirements;
-use Robustness;
 use Window;
 use WindowAttributes;
 use native_monitor::NativeMonitorId;
@@ -22,28 +13,20 @@ use libc;
 use platform;
 
 /// Object that allows you to build windows.
-pub struct WindowBuilder<'a> {
+pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
-
-    /// The attributes to use to create the context.
-    pub opengl: GlAttributes<&'a platform::Window>,
-
-    // Should be made public once it's stabilized.
-    pf_reqs: PixelFormatRequirements,
 
     /// Platform-specific configuration.
     platform_specific: platform::PlatformSpecificWindowBuilderAttributes,
 }
 
-impl<'a> WindowBuilder<'a> {
+impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
-    pub fn new() -> WindowBuilder<'a> {
+    pub fn new() -> WindowBuilder {
         WindowBuilder {
-            pf_reqs: Default::default(),
             window: Default::default(),
-            opengl: Default::default(),
             platform_specific: Default::default(),
         }
     }
@@ -52,7 +35,7 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// Width and height are in pixels.
     #[inline]
-    pub fn with_dimensions(mut self, width: u32, height: u32) -> WindowBuilder<'a> {
+    pub fn with_dimensions(mut self, width: u32, height: u32) -> WindowBuilder {
         self.window.dimensions = Some((width, height));
         self
     }
@@ -61,7 +44,7 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// Width and height are in pixels.
     #[inline]
-    pub fn with_min_dimensions(mut self, width: u32, height: u32) -> WindowBuilder<'a> {
+    pub fn with_min_dimensions(mut self, width: u32, height: u32) -> WindowBuilder {
         self.window.min_dimensions = Some((width, height));
         self
     }
@@ -70,14 +53,14 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// Width and height are in pixels.
     #[inline]
-    pub fn with_max_dimensions(mut self, width: u32, height: u32) -> WindowBuilder<'a> {
+    pub fn with_max_dimensions(mut self, width: u32, height: u32) -> WindowBuilder {
         self.window.max_dimensions = Some((width, height));
         self
     }
 
     /// Requests a specific title for the window.
     #[inline]
-    pub fn with_title(mut self, title: String) -> WindowBuilder<'a> {
+    pub fn with_title(mut self, title: String) -> WindowBuilder {
         self.window.title = title;
         self
     }
@@ -86,131 +69,36 @@ impl<'a> WindowBuilder<'a> {
     ///
     /// If you don't specify dimensions for the window, it will match the monitor's.
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: MonitorId) -> WindowBuilder<'a> {
+    pub fn with_fullscreen(mut self, monitor: MonitorId) -> WindowBuilder {
         let MonitorId(monitor) = monitor;
         self.window.monitor = Some(monitor);
         self
     }
 
-    /// The created window will share all its OpenGL objects with the window in the parameter.
-    ///
-    /// There are some exceptions, like FBOs or VAOs. See the OpenGL documentation.
-    #[inline]
-    pub fn with_shared_lists(mut self, other: &'a Window) -> WindowBuilder<'a> {
-        self.opengl.sharing = Some(&other.window);
-        self
-    }
-
-    /// Sets how the backend should choose the OpenGL API and version.
-    #[inline]
-    pub fn with_gl(mut self, request: GlRequest) -> WindowBuilder<'a> {
-        self.opengl.version = request;
-        self
-    }
-
-    /// Sets the desired OpenGL context profile.
-    #[inline]
-    pub fn with_gl_profile(mut self, profile: GlProfile) -> WindowBuilder<'a> {
-        self.opengl.profile = Some(profile);
-        self
-    }
-
-    /// Sets the *debug* flag for the OpenGL context.
-    ///
-    /// The default value for this flag is `cfg!(debug_assertions)`, which means that it's enabled
-    /// when you run `cargo build` and disabled when you run `cargo build --release`.
-    #[inline]
-    pub fn with_gl_debug_flag(mut self, flag: bool) -> WindowBuilder<'a> {
-        self.opengl.debug = flag;
-        self
-    }
-
-    /// Sets the robustness of the OpenGL context. See the docs of `Robustness`.
-    #[inline]
-    pub fn with_gl_robustness(mut self, robustness: Robustness) -> WindowBuilder<'a> {
-        self.opengl.robustness = robustness;
-        self
-    }
-
-    /// Requests that the window has vsync enabled.
-    #[inline]
-    pub fn with_vsync(mut self) -> WindowBuilder<'a> {
-        self.opengl.vsync = true;
-        self
-    }
-
     /// Sets whether the window will be initially hidden or visible.
     #[inline]
-    pub fn with_visibility(mut self, visible: bool) -> WindowBuilder<'a> {
+    pub fn with_visibility(mut self, visible: bool) -> WindowBuilder {
         self.window.visible = visible;
-        self
-    }
-
-    /// Sets the multisampling level to request.
-    ///
-    /// # Panic
-    ///
-    /// Will panic if `samples` is not a power of two.
-    #[inline]
-    pub fn with_multisampling(mut self, samples: u16) -> WindowBuilder<'a> {
-        assert!(samples.is_power_of_two());
-        self.pf_reqs.multisampling = Some(samples);
-        self
-    }
-
-    /// Sets the number of bits in the depth buffer.
-    #[inline]
-    pub fn with_depth_buffer(mut self, bits: u8) -> WindowBuilder<'a> {
-        self.pf_reqs.depth_bits = Some(bits);
-        self
-    }
-
-    /// Sets the number of bits in the stencil buffer.
-    #[inline]
-    pub fn with_stencil_buffer(mut self, bits: u8) -> WindowBuilder<'a> {
-        self.pf_reqs.stencil_bits = Some(bits);
-        self
-    }
-
-    /// Sets the number of bits in the color buffer.
-    #[inline]
-    pub fn with_pixel_format(mut self, color_bits: u8, alpha_bits: u8) -> WindowBuilder<'a> {
-        self.pf_reqs.color_bits = Some(color_bits);
-        self.pf_reqs.alpha_bits = Some(alpha_bits);
-        self
-    }
-
-    /// Request the backend to be stereoscopic.
-    #[inline]
-    pub fn with_stereoscopy(mut self) -> WindowBuilder<'a> {
-        self.pf_reqs.stereoscopy = true;
-        self
-    }
-
-    /// Sets whether sRGB should be enabled on the window. `None` means "I don't care".
-    #[inline]
-    pub fn with_srgb(mut self, srgb_enabled: Option<bool>) -> WindowBuilder<'a> {
-        self.pf_reqs.srgb = srgb_enabled.unwrap_or(false);
         self
     }
 
     /// Sets whether the background of the window should be transparent.
     #[inline]
-    pub fn with_transparency(mut self, transparent: bool) -> WindowBuilder<'a> {
+    pub fn with_transparency(mut self, transparent: bool) -> WindowBuilder {
         self.window.transparent = transparent;
         self
     }
 
     /// Sets whether the window should have a border, a title bar, etc.
     #[inline]
-    pub fn with_decorations(mut self, decorations: bool) -> WindowBuilder<'a> {
+    pub fn with_decorations(mut self, decorations: bool) -> WindowBuilder {
         self.window.decorations = decorations;
         self
     }
 
     /// Enables multitouch
     #[inline]
-    pub fn with_multitouch(mut self) -> WindowBuilder<'a> {
+    pub fn with_multitouch(mut self) -> WindowBuilder {
         self.window.multitouch = true;
         self
     }
@@ -231,8 +119,7 @@ impl<'a> WindowBuilder<'a> {
         }
 
         // building
-        platform::Window::new(&self.window, &self.pf_reqs, &self.opengl, &self.platform_specific)
-                            .map(|w| Window { window: w })
+        platform::Window::new(&self.window, &self.platform_specific).map(|w| Window { window: w })
     }
 
     /// Builds the window.
@@ -401,39 +288,6 @@ impl Window {
         WaitEventsIterator(self.window.wait_events())
     }
 
-    /// Sets the context as the current context.
-    #[inline]
-    pub unsafe fn make_current(&self) -> Result<(), ContextError> {
-        self.window.make_current()
-    }
-
-    /// Returns true if this context is the current one in this thread.
-    #[inline]
-    pub fn is_current(&self) -> bool {
-        self.window.is_current()
-    }
-
-    /// Returns the address of an OpenGL function.
-    ///
-    /// Contrary to `wglGetProcAddress`, all available OpenGL functions return an address.
-    #[inline]
-    pub fn get_proc_address(&self, addr: &str) -> *const () {
-        self.window.get_proc_address(addr)
-    }
-
-    /// Swaps the buffers in case of double or triple buffering.
-    ///
-    /// You should call this function every time you have finished rendering, or the image
-    ///  may not be displayed on the screen.
-    ///
-    /// **Warning**: if you enabled vsync, this function will block until the next time the screen
-    /// is refreshed. However drivers can choose to override your vsync settings, which means that
-    /// you can't know in advance whether `swap_buffers` will block or not.
-    #[inline]
-    pub fn swap_buffers(&self) -> Result<(), ContextError> {
-        self.window.swap_buffers()
-    }
-
     /// DEPRECATED. Gets the native platform specific display for this window.
     /// This is typically only required when integrating with
     /// other libraries that need this information.
@@ -448,22 +302,6 @@ impl Window {
     #[inline]
     pub unsafe fn platform_window(&self) -> *mut libc::c_void {
         self.window.platform_window()
-    }
-
-    /// Returns the API that is currently provided by this window.
-    ///
-    /// - On Windows and OS/X, this always returns `OpenGl`.
-    /// - On Android, this always returns `OpenGlEs`.
-    /// - On Linux, it must be checked at runtime.
-    #[inline]
-    pub fn get_api(&self) -> Api {
-        self.window.get_api()
-    }
-
-    /// Returns the pixel format of this window.
-    #[inline]
-    pub fn get_pixel_format(&self) -> PixelFormat {
-        self.window.get_pixel_format()
     }
 
     /// Create a window proxy for this window, that can be freely
@@ -509,38 +347,6 @@ impl Window {
     #[inline]
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
         self.window.set_cursor_state(state)
-    }
-}
-
-impl GlContext for Window {
-    #[inline]
-    unsafe fn make_current(&self) -> Result<(), ContextError> {
-        self.make_current()
-    }
-
-    #[inline]
-    fn is_current(&self) -> bool {
-        self.is_current()
-    }
-
-    #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const () {
-        self.get_proc_address(addr)
-    }
-
-    #[inline]
-    fn swap_buffers(&self) -> Result<(), ContextError> {
-        self.swap_buffers()
-    }
-
-    #[inline]
-    fn get_api(&self) -> Api {
-        self.get_api()
-    }
-
-    #[inline]
-    fn get_pixel_format(&self) -> PixelFormat {
-        self.get_pixel_format()
     }
 }
 

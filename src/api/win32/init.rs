@@ -9,15 +9,10 @@ use super::WindowState;
 use super::Window;
 use super::MonitorId;
 use super::WindowWrapper;
-use super::Context;
 
-use Api;
 use CreationError;
 use CreationError::OsError;
 use CursorState;
-use GlAttributes;
-use GlRequest;
-use PixelFormatRequirements;
 use WindowAttributes;
 
 use std::ffi::{OsStr};
@@ -29,28 +24,8 @@ use kernel32;
 use dwmapi;
 use user32;
 
-use api::wgl::Context as WglContext;
-use api::egl;
-use api::egl::Context as EglContext;
-use api::egl::ffi::egl::Egl;
-
-#[derive(Clone)]
-pub enum RawContext {
-    Egl(egl::ffi::egl::types::EGLContext),
-    Wgl(winapi::HGLRC),
-}
-
-unsafe impl Send for RawContext {}
-unsafe impl Sync for RawContext {}
-
-pub fn new_window(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-                  opengl: &GlAttributes<RawContext>, egl: Option<&Egl>)
-                  -> Result<Window, CreationError>
-{
-    let egl = egl.map(|e| e.clone());
+pub fn new_window(window: &WindowAttributes) -> Result<Window, CreationError> {
     let window = window.clone();
-    let pf_reqs = pf_reqs.clone();
-    let opengl = opengl.clone();
 
     // initializing variables to be sent to the task
 
@@ -64,7 +39,7 @@ pub fn new_window(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
     thread::spawn(move || {
         unsafe {
             // creating and sending the `Window`
-            match init(title, &window, &pf_reqs, &opengl, egl) {
+            match init(title, &window) {
                 Ok(w) => tx.send(Ok(w)).ok(),
                 Err(e) => {
                     tx.send(Err(e)).ok();
@@ -90,17 +65,7 @@ pub fn new_window(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
     rx.recv().unwrap()
 }
 
-unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<RawContext>, egl: Option<Egl>)
-               -> Result<Window, CreationError>
-{
-    let opengl = opengl.clone().map_sharing(|sharelists| {
-        match sharelists {
-            RawContext::Wgl(c) => c,
-            _ => unimplemented!()
-        }
-    });
-
+unsafe fn init(title: Vec<u16>, window: &WindowAttributes) -> Result<Window, CreationError> {
     // registering the window class
     let class_name = register_window_class();
 
@@ -172,32 +137,6 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pf_reqs: &PixelFormat
         WindowWrapper(handle, hdc)
     };
 
-    // creating the OpenGL context
-    let context = match opengl.version {
-        GlRequest::Specific(Api::OpenGlEs, (_major, _minor)) => {
-            if let Some(egl) = egl {
-                if let Ok(c) = EglContext::new(egl, &pf_reqs, &opengl.clone().map_sharing(|_| unimplemented!()),
-                                               egl::NativeDisplay::Other(Some(ptr::null())))
-                                                             .and_then(|p| p.finish(real_window.0))
-                {
-                    Context::Egl(c)
-
-                } else {
-                    try!(WglContext::new(&pf_reqs, &opengl, real_window.0)
-                                        .map(Context::Wgl))
-                }
-
-            } else {
-                // falling back to WGL, which is always available
-                try!(WglContext::new(&pf_reqs, &opengl, real_window.0)
-                                    .map(Context::Wgl))
-            }
-        },
-        _ => {
-            try!(WglContext::new(&pf_reqs, &opengl, real_window.0).map(Context::Wgl))
-        }
-    };
-
     // making the window transparent
     if window.transparent {
         let bb = winapi::DWM_BLURBEHIND {
@@ -240,7 +179,6 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pf_reqs: &PixelFormat
     // building the struct
     Ok(Window {
         window: real_window,
-        context: context,
         events_receiver: events_receiver,
         window_state: window_state,
     })

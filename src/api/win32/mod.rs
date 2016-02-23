@@ -10,15 +10,9 @@ use std::sync::{
 };
 use std::sync::mpsc::Receiver;
 use libc;
-use ContextError;
 use {CreationError, Event, MouseCursor};
 use CursorState;
-use GlAttributes;
-use GlContext;
 
-use Api;
-use PixelFormat;
-use PixelFormatRequirements;
 use WindowAttributes;
 
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
@@ -26,12 +20,6 @@ pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 use winapi;
 use user32;
 use kernel32;
-
-use api::wgl::Context as WglContext;
-use api::egl::Context as EglContext;
-use api::egl::ffi::egl::Egl;
-
-use self::init::RawContext;
 
 mod callback;
 mod event;
@@ -58,9 +46,6 @@ pub struct Window {
     /// Main handle for the window.
     window: WindowWrapper,
 
-    /// OpenGL context.
-    context: Context,
-
     /// Receiver for the events dispatched by the window callback.
     events_receiver: Receiver<Event>,
 
@@ -70,11 +55,6 @@ pub struct Window {
 
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
-
-enum Context {
-    Egl(EglContext),
-    Wgl(WglContext),
-}
 
 /// A simple wrapper that destroys the window when it is destroyed.
 // FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
@@ -109,18 +89,8 @@ impl WindowProxy {
 
 impl Window {
     /// See the docs in the crate root file.
-    pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&Window>, egl: Option<&Egl>)
-               -> Result<Window, CreationError>
-    {
-        let opengl = opengl.clone().map_sharing(|sharing| {
-            match sharing.context {
-                Context::Wgl(ref c) => RawContext::Wgl(c.get_hglrc()),
-                Context::Egl(_) => unimplemented!(),        // FIXME:
-            }
-        });
-
-        init::new_window(window, pf_reqs, &opengl, egl)
+    pub fn new(window: &WindowAttributes) -> Result<Window, CreationError> {
+        init::new_window(window)
     }
 
     /// See the docs in the crate root file.
@@ -366,56 +336,6 @@ impl Window {
         }
 
         Ok(())
-    }
-}
-
-impl GlContext for Window {
-    #[inline]
-    unsafe fn make_current(&self) -> Result<(), ContextError> {
-        match self.context {
-            Context::Wgl(ref c) => c.make_current(),
-            Context::Egl(ref c) => c.make_current(),
-        }
-    }
-
-    #[inline]
-    fn is_current(&self) -> bool {
-        match self.context {
-            Context::Wgl(ref c) => c.is_current(),
-            Context::Egl(ref c) => c.is_current(),
-        }
-    }
-
-    #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const () {
-        match self.context {
-            Context::Wgl(ref c) => c.get_proc_address(addr),
-            Context::Egl(ref c) => c.get_proc_address(addr),
-        }
-    }
-
-    #[inline]
-    fn swap_buffers(&self) -> Result<(), ContextError> {
-        match self.context {
-            Context::Wgl(ref c) => c.swap_buffers(),
-            Context::Egl(ref c) => c.swap_buffers(),
-        }
-    }
-
-    #[inline]
-    fn get_api(&self) -> Api {
-        match self.context {
-            Context::Wgl(ref c) => c.get_api(),
-            Context::Egl(ref c) => c.get_api(),
-        }
-    }
-
-    #[inline]
-    fn get_pixel_format(&self) -> PixelFormat {
-        match self.context {
-            Context::Wgl(ref c) => c.get_pixel_format(),
-            Context::Egl(ref c) => c.get_pixel_format(),
-        }
     }
 }
 
