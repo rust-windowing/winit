@@ -26,5 +26,5 @@ pub trait WindowBuilderExt {
 
 }
 
-impl<'a> WindowBuilderExt for WindowBuilder<'a> {
+impl WindowBuilderExt for WindowBuilder {
 }

@@ -1,23 +1,18 @@
 [package]
-name = "glutin"
+name = "winit"
 version = "0.4.8"
-authors = ["The glutin contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
-description = "Cross-platform OpenGL context provider."
-keywords = ["windowing", "opengl"]
+authors = ["The winit contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
+description = "Cross-platform window creation library."
+keywords = ["windowing"]
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/tomaka/glutin"
-documentation = "https://tomaka.github.io/glutin/"
-build = "build.rs"
+repository = "https://github.com/tomaka/winit"
+documentation = "https://tomaka.github.io/winit/"
 
 [dependencies]
 lazy_static = "0.1.10"
 libc = "0.2"
 shared_library = "0.1.0"
-
-[build-dependencies]
-gl_generator = "0.4"
-khronos_api = "1.0"
 
 [target.arm-linux-androideabi.dependencies.android_glue]
 version = "0.1"
@@ -77,56 +72,48 @@ kernel32-sys = "0.2"
 dwmapi-sys = "0.1"
 
 [target.i686-unknown-linux-gnu.dependencies]
-osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
 x11-dl = "~2.3"
 
 [target.i586-unknown-linux-gnu.dependencies]
-osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
 x11-dl = "~2.3"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
 x11-dl = "~2.3"
 
 [target.arm-unknown-linux-gnueabihf.dependencies]
-osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
 x11-dl = "~2.3"
 
 [target.armv7-unknown-linux-gnueabihf.dependencies]
-osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
 x11-dl = "~2.3"
 
 [target.aarch64-unknown-linux-gnu.dependencies]
-osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
 x11-dl = "~2.3"
 
 [target.x86_64-unknown-dragonfly.dependencies]
-osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
 x11-dl = "~2.3"
 
 [target.x86_64-unknown-freebsd.dependencies]
-osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
