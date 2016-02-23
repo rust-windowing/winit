@@ -4,15 +4,6 @@ use {CreationError, Event, MouseCursor, CursorState};
 use CreationError::OsError;
 use libc;
 
-use ContextError;
-use GlAttributes;
-use GlContext;
-use GlProfile;
-use GlRequest;
-use PixelFormat;
-use PixelFormatRequirements;
-use ReleaseBehavior;
-use Robustness;
 use WindowAttributes;
 use native_monitor::NativeMonitorId;
 
@@ -48,13 +39,9 @@ use events::MouseButton;
 use events;
 
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
-pub use self::headless::HeadlessContext;
-pub use self::headless::PlatformSpecificHeadlessBuilderAttributes;
 
 mod monitor;
 mod event;
-mod headless;
-mod helpers;
 
 static mut shift_pressed: bool = false;
 static mut ctrl_pressed: bool = false;
@@ -62,7 +49,6 @@ static mut win_pressed: bool = false;
 static mut alt_pressed: bool = false;
 
 struct DelegateState {
-    context: IdRef,
     view: IdRef,
     window: IdRef,
     resize_handler: Option<fn(u32, u32)>,
@@ -95,7 +81,8 @@ impl WindowDelegate {
                 let state: *mut libc::c_void = *this.get_ivar("glutinState");
                 let state = &mut *(state as *mut DelegateState);
 
-                let _: () = msg_send![*state.context, update];
+                // need to notify context before (?) event
+                // let _: () = msg_send![*state.context, update];
 
                 if let Some(handler) = state.resize_handler {
                     let rect = NSView::frame(*state.view);
@@ -185,8 +172,6 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 pub struct Window {
     view: IdRef,
     window: IdRef,
-    context: IdRef,
-    pixel_format: PixelFormat,
     delegate: WindowDelegate,
 }
 
@@ -266,24 +251,13 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 }
 
 impl Window {
-    pub fn new(win_attribs: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&Window>, _: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window, CreationError>
+    pub fn new(win_attribs: &WindowAttributes,
+               _: &PlatformSpecificWindowBuilderAttributes)
+        -> Result<Window, CreationError>
     {
-        if opengl.sharing.is_some() {
-            unimplemented!()
-        }
-
         // not implemented
         assert!(win_attribs.min_dimensions.is_none());
         assert!(win_attribs.max_dimensions.is_none());
-
-        match opengl.robustness {
-            Robustness::RobustNoResetNotification | Robustness::RobustLoseContextOnReset => {
-                return Err(CreationError::RobustnessNotSupported);
-            },
-            _ => ()
-        }
 
         let app = match Window::create_app() {
             Some(app) => app,
@@ -300,27 +274,9 @@ impl Window {
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
 
-        // TODO: perhaps we should return error from create_context so we can
-        // determine the cause of failure and possibly recover?
-        let (context, pf) = match Window::create_context(*view, pf_reqs, opengl) {
-            Ok((context, pf)) => (context, pf),
-            Err(e) => { return Err(OsError(format!("Couldn't create OpenGL context: {}", e))); },
-        };
-
         unsafe {
             if win_attribs.transparent {
-                let clear_col = {
-                    let cls = Class::get("NSColor").unwrap();
-
-                    msg_send![cls, clearColor]
-                };
-                window.setOpaque_(NO);
-                window.setBackgroundColor_(clear_col);
-
-                let obj = context.CGLContextObj();
-
-                let mut opacity = 0;
-                CGLSetParameter(obj as *mut _, kCGLCPSurfaceOpacity, &mut opacity);
+                unimplemented!();
             }
 
             app.activateIgnoringOtherApps_(YES);
@@ -332,7 +288,6 @@ impl Window {
         }
 
         let ds = DelegateState {
-            context: context.clone(),
             view: view.clone(),
             window: window.clone(),
             resize_handler: None,
@@ -342,8 +297,6 @@ impl Window {
         let window = Window {
             view: view,
             window: window,
-            context: context,
-            pixel_format: pf,
             delegate: WindowDelegate::new(ds),
         };
 
@@ -455,65 +408,6 @@ impl Window {
                 window.setContentView_(*view);
                 view
             })
-        }
-    }
-
-    fn create_context(view: id, pf_reqs: &PixelFormatRequirements, opengl: &GlAttributes<&Window>)
-                      -> Result<(IdRef, PixelFormat), CreationError>
-    {
-        let attributes = try!(helpers::build_nsattributes(pf_reqs, opengl));
-        unsafe {
-            let pixelformat = IdRef::new(NSOpenGLPixelFormat::alloc(nil).initWithAttributes_(&attributes));
-
-            if let Some(pixelformat) = pixelformat.non_nil() {
-
-                // TODO: Add context sharing
-                let context = IdRef::new(NSOpenGLContext::alloc(nil).initWithFormat_shareContext_(*pixelformat, nil));
-
-                if let Some(cxt) = context.non_nil() {
-                    let pf = {
-                        let get_attr = |attrib: NSOpenGLPixelFormatAttribute| -> i32 {
-                            let mut value = 0;
-
-                            NSOpenGLPixelFormat::getValues_forAttribute_forVirtualScreen_(
-                                *pixelformat,
-                                &mut value,
-                                attrib,
-                                NSOpenGLContext::currentVirtualScreen(*cxt));
-
-                            value
-                        };
-
-                        PixelFormat {
-                            hardware_accelerated: get_attr(NSOpenGLPFAAccelerated) != 0,
-                            color_bits: (get_attr(NSOpenGLPFAColorSize) - get_attr(NSOpenGLPFAAlphaSize)) as u8,
-                            alpha_bits: get_attr(NSOpenGLPFAAlphaSize) as u8,
-                            depth_bits: get_attr(NSOpenGLPFADepthSize) as u8,
-                            stencil_bits: get_attr(NSOpenGLPFAStencilSize) as u8,
-                            stereoscopy: get_attr(NSOpenGLPFAStereo) != 0,
-                            double_buffer: get_attr(NSOpenGLPFADoubleBuffer) != 0,
-                            multisampling: if get_attr(NSOpenGLPFAMultisample) > 0 {
-                                Some(get_attr(NSOpenGLPFASamples) as u16)
-                            } else {
-                                None
-                            },
-                            srgb: true,
-                        }
-                    };
-
-                    cxt.setView_(view);
-                    let value = if opengl.vsync { 1 } else { 0 };
-                    cxt.setValues_forParameter_(&value, NSOpenGLContextParameter::NSOpenGLCPSwapInterval);
-
-                    CGLEnable(cxt.CGLContextObj() as *mut _, kCGLCECrashOnRemovedFunctions);
-
-                    Ok((cxt, pf))
-                } else {
-                    Err(CreationError::NotSupported)
-                }
-            } else {
-                Err(CreationError::NoAvailablePixelFormat)
-            }
         }
     }
 
@@ -709,56 +603,6 @@ impl Window {
         }
 
         Ok(())
-    }
-}
-
-impl GlContext for Window {
-    #[inline]
-    unsafe fn make_current(&self) -> Result<(), ContextError> {
-        let _: () = msg_send![*self.context, update];
-        self.context.makeCurrentContext();
-        Ok(())
-    }
-
-    #[inline]
-    fn is_current(&self) -> bool {
-        unsafe {
-            let current = NSOpenGLContext::currentContext(nil);
-            if current != nil {
-                let is_equal: BOOL = msg_send![current, isEqual:*self.context];
-                is_equal != NO
-            } else {
-                false
-            }
-        }
-    }
-
-    fn get_proc_address(&self, addr: &str) -> *const () {
-        let symbol_name: CFString = FromStr::from_str(addr).unwrap();
-        let framework_name: CFString = FromStr::from_str("com.apple.opengl").unwrap();
-        let framework = unsafe {
-            CFBundleGetBundleWithIdentifier(framework_name.as_concrete_TypeRef())
-        };
-        let symbol = unsafe {
-            CFBundleGetFunctionPointerForName(framework, symbol_name.as_concrete_TypeRef())
-        };
-        symbol as *const _
-    }
-
-    #[inline]
-    fn swap_buffers(&self) -> Result<(), ContextError> {
-        unsafe { self.context.flushBuffer(); }
-        Ok(())
-    }
-
-    #[inline]
-    fn get_api(&self) -> ::Api {
-        ::Api::OpenGl
-    }
-
-    #[inline]
-    fn get_pixel_format(&self) -> PixelFormat {
-        self.pixel_format.clone()
     }
 }
 
