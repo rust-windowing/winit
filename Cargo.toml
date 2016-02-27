@@ -81,60 +81,60 @@ osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.i586-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.arm-unknown-linux-gnueabihf.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.armv7-unknown-linux-gnueabihf.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.aarch64-unknown-linux-gnu.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.x86_64-unknown-dragonfly.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.x86_64-unknown-freebsd.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.x86_64-unknown-openbsd.dependencies]
 osmesa-sys = "0.0.5"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
