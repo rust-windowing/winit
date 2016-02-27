@@ -4,15 +4,10 @@ pub use api::x11::{WaitEventsIterator, PollEventsIterator};*/
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use ContextError;
 use CreationError;
 use CursorState;
 use Event;
-use GlAttributes;
-use GlContext;
 use MouseCursor;
-use PixelFormat;
-use PixelFormatRequirements;
 use WindowAttributes;
 use libc;
 
@@ -174,30 +169,22 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
 impl Window {
     #[inline]
-    pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&Window>, _: &PlatformSpecificWindowBuilderAttributes)
+    pub fn new(window: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
         match *BACKEND {
             Backend::Wayland => {
-                let opengl = opengl.clone().map_sharing(|w| match w {
-                    &Window::Wayland(ref w) => w,
-                    _ => panic!()       // TODO: return an error
-                });
-
-                wayland::Window::new(window, pf_reqs, &opengl).map(Window::Wayland)
+                wayland::Window::new(window).map(Window::Wayland)
             },
 
             Backend::X(ref connec) => {
-                let opengl = opengl.clone().map_sharing(|w| match w {
-                    &Window::X(ref w) => w,
-                    _ => panic!()       // TODO: return an error
-                });
-
-                x11::Window::new(connec, window, pf_reqs, &opengl).map(Window::X)
+                x11::Window::new(connec, window).map(Window::X)
             },
 
-            Backend::Error(ref error) => Err(CreationError::NoBackendAvailable(Box::new(error.clone())))
+            Backend::Error(ref error) => {
+                panic!()        // FIXME: supposed to return an error
+                //Err(CreationError::NoBackendAvailable(Box::new(error.clone())))
+            }
         }
     }
 
@@ -342,56 +329,6 @@ impl Window {
         match self {
             &Window::X(ref w) => w.platform_window(),
             &Window::Wayland(ref w) => w.platform_window()
-        }
-    }
-}
-
-impl GlContext for Window {
-    #[inline]
-    unsafe fn make_current(&self) -> Result<(), ContextError> {
-        match self {
-            &Window::X(ref w) => w.make_current(),
-            &Window::Wayland(ref w) => w.make_current()
-        }
-    }
-
-    #[inline]
-    fn is_current(&self) -> bool {
-        match self {
-            &Window::X(ref w) => w.is_current(),
-            &Window::Wayland(ref w) => w.is_current()
-        }
-    }
-
-    #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const () {
-        match self {
-            &Window::X(ref w) => w.get_proc_address(addr),
-            &Window::Wayland(ref w) => w.get_proc_address(addr)
-        }
-    }
-
-    #[inline]
-    fn swap_buffers(&self) -> Result<(), ContextError> {
-        match self {
-            &Window::X(ref w) => w.swap_buffers(),
-            &Window::Wayland(ref w) => w.swap_buffers()
-        }
-    }
-
-    #[inline]
-    fn get_api(&self) -> ::Api {
-        match self {
-            &Window::X(ref w) => w.get_api(),
-            &Window::Wayland(ref w) => w.get_api()
-        }
-    }
-
-    #[inline]
-    fn get_pixel_format(&self) -> PixelFormat {
-        match self {
-            &Window::X(ref w) => w.get_pixel_format(),
-            &Window::Wayland(ref w) => w.get_pixel_format()
         }
     }
 }

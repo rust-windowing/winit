@@ -4,11 +4,8 @@ use std::sync::{Arc, Mutex};
 
 use libc;
 
-use {ContextError, CreationError, CursorState, Event, GlAttributes, GlContext,
-     MouseCursor, PixelFormat, PixelFormatRequirements, WindowAttributes};
+use {CreationError, CursorState, Event, MouseCursor, WindowAttributes};
 use api::dlopen;
-use api::egl;
-use api::egl::Context as EglContext;
 use platform::MonitorId as PlatformMonitorId;
 
 use wayland_client::EventIterator;
@@ -34,7 +31,6 @@ pub struct Window {
     evt_queue: Arc<Mutex<VecDeque<Event>>>,
     inner_size: Mutex<(i32, i32)>,
     resize_callback: Option<fn(u32, u32)>,
-    pub context: EglContext,
 }
 
 impl Window {
@@ -137,8 +133,7 @@ enum ShellWindow {
 }
 
 impl Window {
-    pub fn new(window: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&Window>) -> Result<Window, CreationError>
+    pub fn new(window: &WindowAttributes) -> Result<Window, CreationError>
     {
         use wayland_client::Proxy;
         // not implemented
@@ -162,23 +157,6 @@ impl Window {
         };
 
         let egl_surface = wegl::WlEglSurface::new(surface, w as i32, h as i32);
-
-        let context = {
-            let libegl = unsafe { dlopen::dlopen(b"libEGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
-            if libegl.is_null() {
-                return Err(CreationError::NotSupported);
-            }
-            let egl = ::api::egl::ffi::egl::Egl::load_with(|sym| {
-                let sym = CString::new(sym).unwrap();
-                unsafe { dlopen::dlsym(libegl, sym.as_ptr()) }
-            });
-            try!(EglContext::new(
-                egl,
-                pf_reqs, &opengl.clone().map_sharing(|_| unimplemented!()),        // TODO: 
-                egl::NativeDisplay::Wayland(Some(wayland_context.display_ptr() as *const _)))
-                .and_then(|p| p.finish(unsafe { egl_surface.egl_surfaceptr() } as *const _))
-            )
-        };
 
         let shell_window = if let Some(PlatformMonitorId::Wayland(ref monitor_id)) = window.monitor {
             let pid = super::monitor::proxid_from_monitorid(monitor_id);
@@ -213,7 +191,6 @@ impl Window {
             evt_queue: evt_queue,
             inner_size: Mutex::new((w as i32, h as i32)),
             resize_callback: None,
-            context: context
         })
     }
 
@@ -327,38 +304,6 @@ impl Window {
     #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
         unimplemented!()
-    }
-}
-
-impl GlContext for Window {
-    #[inline]
-    unsafe fn make_current(&self) -> Result<(), ContextError> {
-        self.context.make_current()
-    }
-
-    #[inline]
-    fn is_current(&self) -> bool {
-        self.context.is_current()
-    }
-
-    #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const () {
-        self.context.get_proc_address(addr)
-    }
-
-    #[inline]
-    fn swap_buffers(&self) -> Result<(), ContextError> {
-        self.context.swap_buffers()
-    }
-
-    #[inline]
-    fn get_api(&self) -> ::Api {
-        self.context.get_api()
-    }
-
-    #[inline]
-    fn get_pixel_format(&self) -> PixelFormat {
-        self.context.get_pixel_format().clone()
     }
 }
 

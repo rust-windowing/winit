@@ -12,19 +12,8 @@ use std::os::raw::c_long;
 use std::thread;
 use std::time::Duration;
 
-use Api;
-use ContextError;
 use CursorState;
-use GlAttributes;
-use GlContext;
-use GlRequest;
-use PixelFormat;
-use PixelFormatRequirements;
 use WindowAttributes;
-
-use api::glx::Context as GlxContext;
-use api::egl;
-use api::egl::Context as EglContext;
 
 use platform::MonitorId as PlatformMonitorId;
 
@@ -54,20 +43,12 @@ unsafe impl Send for WindowProxyData {}
 pub struct XWindow {
     display: Arc<XConnection>,
     window: ffi::Window,
-    pub context: Context,
     is_fullscreen: bool,
     screen_id: libc::c_int,
     xf86_desk_mode: Option<ffi::XF86VidModeModeInfo>,
     ic: ffi::XIC,
     im: ffi::XIM,
-    colormap: ffi::Colormap,
     window_proxy_data: Arc<Mutex<Option<WindowProxyData>>>,
-}
-
-pub enum Context {
-    Glx(GlxContext),
-    Egl(EglContext),
-    None,
 }
 
 unsafe impl Send for XWindow {}
@@ -83,10 +64,6 @@ impl Drop for XWindow {
             // are no longer able to send messages to this window.
             *self.window_proxy_data.lock().unwrap() = None;
 
-            // we don't call MakeCurrent(0, 0) because we are not sure that the context
-            // is still the current one
-            self.context = Context::None;
-
             let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
 
             if self.is_fullscreen {
@@ -99,7 +76,6 @@ impl Drop for XWindow {
             (self.display.xlib.XDestroyIC)(self.ic);
             (self.display.xlib.XCloseIM)(self.im);
             (self.display.xlib.XDestroyWindow)(self.display.display, self.window);
-            (self.display.xlib.XFreeColormap)(self.display.display, self.colormap);
         }
     }
 }
@@ -306,8 +282,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(display: &Arc<XConnection>, window_attrs: &WindowAttributes,
-               pf_reqs: &PixelFormatRequirements, opengl: &GlAttributes<&Window>)
+    pub fn new(display: &Arc<XConnection>, window_attrs: &WindowAttributes)
                -> Result<Window, CreationError>
     {
         let dimensions = window_attrs.dimensions.unwrap_or((800, 600));
@@ -353,76 +328,14 @@ impl Window {
             }
         };
 
-        // start the context building process
-        enum Prototype<'a> {
-            Glx(::api::glx::ContextPrototype<'a>),
-            Egl(::api::egl::ContextPrototype<'a>),
-        }
-        let builder_clone_opengl_glx = opengl.clone().map_sharing(|_| unimplemented!());      // FIXME:
-        let builder_clone_opengl_egl = opengl.clone().map_sharing(|_| unimplemented!());      // FIXME:
-        let context = match opengl.version {
-            GlRequest::Latest | GlRequest::Specific(Api::OpenGl, _) | GlRequest::GlThenGles { .. } => {
-                // GLX should be preferred over EGL, otherwise crashes may occur
-                // on X11 – issue #314
-                if let Some(ref glx) = display.glx {
-                    Prototype::Glx(try!(GlxContext::new(glx.clone(), &display.xlib, pf_reqs, &builder_clone_opengl_glx, display.display, screen_id)))
-                } else if let Some(ref egl) = display.egl {
-                    Prototype::Egl(try!(EglContext::new(egl.clone(), pf_reqs, &builder_clone_opengl_egl, egl::NativeDisplay::X11(Some(display.display as *const _)))))
-                } else {
-                    return Err(CreationError::NotSupported);
-                }
-            },
-            GlRequest::Specific(Api::OpenGlEs, _) => {
-                if let Some(ref egl) = display.egl {
-                    Prototype::Egl(try!(EglContext::new(egl.clone(), pf_reqs, &builder_clone_opengl_egl, egl::NativeDisplay::X11(Some(display.display as *const _)))))
-                } else {
-                    return Err(CreationError::NotSupported);
-                }
-            },
-            GlRequest::Specific(_, _) => {
-                return Err(CreationError::NotSupported);
-            },
-        };
-
-        // getting the `visual_infos` (a struct that contains information about the visual to use)
-        let visual_infos = match context {
-            Prototype::Glx(ref p) => p.get_visual_infos().clone(),
-            Prototype::Egl(ref p) => {
-                unsafe {
-                    let mut template: ffi::XVisualInfo = mem::zeroed();
-                    template.visualid = p.get_native_visual_id() as ffi::VisualID;
-
-                    let mut num_visuals = 0;
-                    let vi = (display.xlib.XGetVisualInfo)(display.display, ffi::VisualIDMask,
-                                                           &mut template, &mut num_visuals);
-                    display.check_errors().expect("Failed to call XGetVisualInfo");
-                    assert!(!vi.is_null());
-                    assert!(num_visuals == 1);
-
-                    let vi_copy = ptr::read(vi as *const _);
-                    (display.xlib.XFree)(vi as *mut _);
-                    vi_copy
-                }
-            },
-        };
-
         // getting the root window
         let root = unsafe { (display.xlib.XDefaultRootWindow)(display.display) };
         display.check_errors().expect("Failed to get root window");
 
-        // creating the color map
-        let cmap = unsafe {
-            let cmap = (display.xlib.XCreateColormap)(display.display, root,
-                                                      visual_infos.visual as *mut _,
-                                                      ffi::AllocNone);
-            display.check_errors().expect("Failed to call XCreateColormap");
-            cmap
-        };
-
         // creating
         let mut set_win_attr = {
             let mut swa: ffi::XSetWindowAttributes = unsafe { mem::zeroed() };
-            swa.colormap = cmap;
+            swa.colormap = 0;
             swa.event_mask = ffi::ExposureMask | ffi::StructureNotifyMask |
                 ffi::VisibilityChangeMask | ffi::KeyPressMask | ffi::PointerMotionMask |
                 ffi::KeyReleaseMask | ffi::ButtonPressMask |
@@ -444,8 +357,8 @@ impl Window {
         // finally creating the window
         let window = unsafe {
             let win = (display.xlib.XCreateWindow)(display.display, root, 0, 0, dimensions.0 as libc::c_uint,
-                dimensions.1 as libc::c_uint, 0, visual_infos.depth, ffi::InputOutput as libc::c_uint,
-                visual_infos.visual as *mut _, window_attributes,
+                dimensions.1 as libc::c_uint, 0, ffi::CopyFromParent, ffi::InputOutput as libc::c_uint,
+                ffi::CopyFromParent as *mut _, window_attributes,
                 &mut set_win_attr);
             display.check_errors().expect("Failed to call XCreateWindow");
             win
@@ -591,19 +504,6 @@ impl Window {
             }
         }
 
-        // finish creating the OpenGL context
-        let context = match context {
-            Prototype::Glx(ctxt) => {
-                Context::Glx(try!(ctxt.finish(window)))
-            },
-            Prototype::Egl(ctxt) => {
-                Context::Egl(try!(ctxt.finish(window as *const libc::c_void)))
-            },
-        };
-
-        // creating the OpenGL can produce errors, but since everything is checked we ignore
-        display.ignore_error();
-
         // creating the window object
         let window_proxy_data = WindowProxyData {
             display: display.clone(),
@@ -617,11 +517,9 @@ impl Window {
                 window: window,
                 im: im,
                 ic: ic,
-                context: context,
                 screen_id: screen_id,
                 is_fullscreen: is_fullscreen,
                 xf86_desk_mode: xf86_desk_mode,
-                colormap: cmap,
                 window_proxy_data: window_proxy_data,
             }),
             is_closed: AtomicBool::new(false),
@@ -903,62 +801,6 @@ impl Window {
         unsafe {
             (self.x.display.xlib.XWarpPointer)(self.x.display.display, 0, self.x.window, 0, 0, 0, 0, x, y);
             self.x.display.check_errors().map_err(|_| ())
-        }
-    }
-}
-
-impl GlContext for Window {
-    #[inline]
-    unsafe fn make_current(&self) -> Result<(), ContextError> {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.make_current(),
-            Context::Egl(ref ctxt) => ctxt.make_current(),
-            Context::None => Ok(())
-        }
-    }
-
-    #[inline]
-    fn is_current(&self) -> bool {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.is_current(),
-            Context::Egl(ref ctxt) => ctxt.is_current(),
-            Context::None => panic!()
-        }
-    }
-
-    #[inline]
-    fn get_proc_address(&self, addr: &str) -> *const () {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.get_proc_address(addr),
-            Context::Egl(ref ctxt) => ctxt.get_proc_address(addr),
-            Context::None => ptr::null()
-        }
-    }
-
-    #[inline]
-    fn swap_buffers(&self) -> Result<(), ContextError> {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.swap_buffers(),
-            Context::Egl(ref ctxt) => ctxt.swap_buffers(),
-            Context::None => Ok(())
-        }
-    }
-
-    #[inline]
-    fn get_api(&self) -> Api {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.get_api(),
-            Context::Egl(ref ctxt) => ctxt.get_api(),
-            Context::None => panic!()
-        }
-    }
-
-    #[inline]
-    fn get_pixel_format(&self) -> PixelFormat {
-        match self.x.context {
-            Context::Glx(ref ctxt) => ctxt.get_pixel_format(),
-            Context::Egl(ref ctxt) => ctxt.get_pixel_format(),
-            Context::None => panic!()
         }
     }
 }

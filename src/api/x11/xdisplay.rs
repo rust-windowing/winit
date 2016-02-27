@@ -7,7 +7,6 @@ use std::sync::Mutex;
 use libc;
 
 use super::ffi;
-use api::egl::ffi::egl::Egl;
 use api::dlopen;
 
 /// A connection to an X server.
@@ -16,8 +15,6 @@ pub struct XConnection {
     pub xf86vmode: ffi::Xf86vmode,
     pub xcursor: ffi::Xcursor,
     pub xinput2: ffi::XInput2,
-    pub glx: Option<ffi::glx::Glx>,
-    pub egl: Option<Egl>,
     pub display: *mut ffi::Display,
     pub latest_error: Mutex<Option<XError>>,
 }
@@ -38,40 +35,6 @@ impl XConnection {
         unsafe { (xlib.XInitThreads)() };
         unsafe { (xlib.XSetErrorHandler)(error_handler) };
 
-        // TODO: use something safer than raw "dlopen"
-        let glx = {
-            let mut libglx = unsafe { dlopen::dlopen(b"libGL.so.1\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
-            if libglx.is_null() {
-                libglx = unsafe { dlopen::dlopen(b"libGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
-            }
-
-            if libglx.is_null() {
-                None
-            } else {
-                Some(ffi::glx::Glx::load_with(|sym| {
-                    let sym = CString::new(sym).unwrap();
-                    unsafe { dlopen::dlsym(libglx, sym.as_ptr()) }
-                }))
-            }
-        };
-
-        // TODO: use something safer than raw "dlopen"
-        let egl = {
-            let mut libegl = unsafe { dlopen::dlopen(b"libEGL.so.1\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
-            if libegl.is_null() {
-                libegl = unsafe { dlopen::dlopen(b"libEGL.so\0".as_ptr() as *const _, dlopen::RTLD_NOW) };
-            }
-
-            if libegl.is_null() {
-                None
-            } else {
-                Some(Egl::load_with(|sym| {
-                    let sym = CString::new(sym).unwrap();
-                    unsafe { dlopen::dlsym(libegl, sym.as_ptr()) }
-                }))
-            }
-        };
-
         // calling XOpenDisplay
         let display = unsafe {
             let display = (xlib.XOpenDisplay)(ptr::null());
@@ -86,8 +49,6 @@ impl XConnection {
             xf86vmode: xf86vmode,
             xcursor: xcursor,
             xinput2: xinput2,
-            glx: glx,
-            egl: egl,
             display: display,
             latest_error: Mutex::new(None),
         })
