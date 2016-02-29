@@ -204,7 +204,7 @@ impl WindowProxy {
                 NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
                     nil, NSApplicationDefined, NSPoint::new(0.0, 0.0), NSEventModifierFlags::empty(),
                     0.0, 0, nil, NSApplicationActivatedEventType, 0, 0);
-            NSApp().postEvent_atStart_(event, YES);
+            NSApp().postEvent_atStart_(event, NO);
             pool.drain();
         }
     }
