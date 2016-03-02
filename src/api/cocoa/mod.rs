@@ -224,12 +224,16 @@ impl<'a> Iterator for PollEventsIterator<'a> {
 
         let event: Option<Event>;
         unsafe {
+            let pool = NSAutoreleasePool::new(nil);
+
             let nsevent = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                 NSAnyEventMask.bits() | NSEventMaskPressure.bits(),
                 NSDate::distantPast(nil),
                 NSDefaultRunLoopMode,
                 YES);
             event = NSEventToEvent(self.window, nsevent);
+
+            let _: () = msg_send![pool, release];
         }
         event
     }
@@ -249,12 +253,16 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
         let event: Option<Event>;
         unsafe {
+            let pool = NSAutoreleasePool::new(nil);
+
             let nsevent = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                 NSAnyEventMask.bits() | NSEventMaskPressure.bits(),
                 NSDate::distantFuture(nil),
                 NSDefaultRunLoopMode,
                 YES);
             event = NSEventToEvent(self.window, nsevent);
+
+            let _: () = msg_send![pool, release];
         }
 
         if event.is_none() {
@@ -747,7 +755,11 @@ impl GlContext for Window {
 
     #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
-        unsafe { self.context.flushBuffer(); }
+        unsafe { 
+            let pool = NSAutoreleasePool::new(nil);
+            self.context.flushBuffer();
+            let _: () = msg_send![pool, release];
+        }
         Ok(())
     }
 
