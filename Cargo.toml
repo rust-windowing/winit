@@ -131,3 +131,10 @@ wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
 x11-dl = "~2.3"
+
+[target.x86_64-unknown-openbsd.dependencies]
+osmesa-sys = "0.0.5"
+wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
+wayland-kbd = "0.3.3"
+wayland-window = "0.2.2"
+x11-dl = "~2.3"
