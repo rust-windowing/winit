@@ -63,7 +63,7 @@ fn main() {
                                         "1.5", "core", &mut file).unwrap();
     }
 
-    if target.contains("linux") || target.contains("dragonfly") || target.contains("freebsd") {
+    if target.contains("linux") || target.contains("dragonfly") || target.contains("freebsd") || target.contains("openbsd") {
         let mut file = File::create(&dest.join("glx_bindings.rs")).unwrap();
         gl_generator::generate_bindings(gl_generator::StructGenerator,
                                         gl_generator::registry::Ns::Glx,
