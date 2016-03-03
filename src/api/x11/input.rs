@@ -201,7 +201,7 @@ impl XInputEventHandler {
                             } else {
                                 -1.0
                             };
-                            Some(MouseWheel(LineDelta(0.0, delta)))
+                            Some(MouseWheel(LineDelta(0.0, delta), TouchPhase::Moved))
                         } else {
                             // emulated button event from a touch/smooth-scroll
                             // event. Ignore these events and handle scrolling
@@ -235,7 +235,8 @@ impl XInputEventHandler {
                 }
 
                 if scroll_delta.0.abs() > 0.0 || scroll_delta.1.abs() > 0.0 {
-                    Some(MouseWheel(LineDelta(scroll_delta.0 as f32, scroll_delta.1 as f32)))
+                    Some(MouseWheel(LineDelta(scroll_delta.0 as f32, scroll_delta.1 as f32),
+                                    TouchPhase::Moved))
                 } else {
                     let new_cursor_pos = (event_data.event_x, event_data.event_y);
                     if new_cursor_pos != self.current_state.cursor_pos {
