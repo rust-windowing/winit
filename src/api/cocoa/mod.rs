@@ -42,10 +42,10 @@ use std::sync::Mutex;
 use std::ascii::AsciiExt;
 use std::ops::Deref;
 
-use events::Event::{Awakened, MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput, MouseWheel, Closed, Focused, TouchpadPressure};
 use events::ElementState::{Pressed, Released};
-use events::MouseButton;
-use events;
+use events::Event::{Awakened, MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput};
+use events::Event::{MouseWheel, Closed, Focused, TouchpadPressure};
+use events::{self, MouseButton, TouchPhase};
 
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 pub use self::headless::HeadlessContext;
@@ -891,7 +891,12 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
                 LineDelta(scale_factor * nsevent.scrollingDeltaX() as f32,
                           scale_factor * nsevent.scrollingDeltaY() as f32)
             };
-            Some(MouseWheel(delta))
+            let phase = match nsevent.phase() {
+                NSEventPhaseMayBegin | NSEventPhaseBegan => TouchPhase::Started,
+                NSEventPhaseEnded => TouchPhase::Ended,
+                _ => TouchPhase::Moved,
+            };
+            Some(MouseWheel(delta, phase))
         },
         NSEventTypePressure => {
             Some(TouchpadPressure(nsevent.pressure(), nsevent.stage()))
