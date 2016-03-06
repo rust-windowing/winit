@@ -310,11 +310,7 @@ impl Window {
                pf_reqs: &PixelFormatRequirements, opengl: &GlAttributes<&Window>)
                -> Result<Window, CreationError>
     {
-        let dimensions = window_attrs.dimensions.unwrap_or((800, 600));
-
-        // not implemented
-        assert!(window_attrs.min_dimensions.is_none());
-        assert!(window_attrs.max_dimensions.is_none());
+        let dimensions = window_attrs.max_dimensions.unwrap_or(window_attrs.dimensions.unwrap_or((800, 600)));
 
         let screen_id = match window_attrs.monitor {
             Some(PlatformMonitorId::X(MonitorId(_, monitor))) => monitor as i32,
@@ -339,7 +335,7 @@ impl Window {
                         let m = (0 .. mode_num).map(|i| {
                             let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
                         }).find(|m| m.hdisplay >= dimensions.0 as u16 && m.vdisplay >= dimensions.1 as u16);
-    
+
                         match m {
                             Some(m) => Some(m),
                             None => return Err(OsError(format!("Could not find a suitable graphics mode")))
@@ -589,6 +585,32 @@ impl Window {
                 (display.xf86vmode.XF86VidModeSetViewPort)(display.display, screen_id, 0, 0);
                 display.check_errors().expect("Failed to call XF86VidModeSetViewPort");
             }
+
+        } else {
+
+            // set size hints
+            let mut size_hints: ffi::XSizeHints = unsafe { mem::zeroed() };
+            size_hints.flags = ffi::PSize;
+            size_hints.width = dimensions.0 as i32;
+            size_hints.height = dimensions.1 as i32;
+
+            if let Some(dimensions) = window_attrs.min_dimensions {
+                size_hints.flags |= ffi::PMinSize;
+                size_hints.min_width = dimensions.0 as i32;
+                size_hints.min_height = dimensions.1 as i32;
+            }
+
+            if let Some(dimensions) = window_attrs.max_dimensions {
+                size_hints.flags |= ffi::PMaxSize;
+                size_hints.max_width = dimensions.0 as i32;
+                size_hints.max_height = dimensions.1 as i32;
+            }
+
+            unsafe {
+                (display.xlib.XSetNormalHints)(display.display, window, &mut size_hints);
+                display.check_errors().expect("Failed to call XSetNormalHints");
+            }
+
         }
 
         // finish creating the OpenGL context
