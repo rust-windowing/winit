@@ -404,7 +404,9 @@ impl Window {
 
             let masks = if screen.is_some() || attrs.transparent {
                 // Fullscreen or transparent window
-                NSBorderlessWindowMask as NSUInteger
+                NSBorderlessWindowMask as NSUInteger |
+                NSResizableWindowMask as NSUInteger |
+                NSTitledWindowMask as NSUInteger
             } else if attrs.decorations {
                 // Classic opaque window with titlebar
                 NSClosableWindowMask as NSUInteger |
