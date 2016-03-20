@@ -23,24 +23,24 @@ khronos_api = "1.0"
 version = "0.1"
 
 [target.i386-apple-ios.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 
 [target.x86_64-apple-ios.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 
 [target.aarch64-apple-ios.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 
 [target.armv7s-apple-ios.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 
 [target.armv7-apple-ios.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 
 [target.x86_64-apple-darwin.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 cgl = "0.1"
-cocoa = "0.2.4"
+cocoa = "0.3"
 core-foundation = "0"
 core-graphics = "0.3"
 
