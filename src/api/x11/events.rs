@@ -3,7 +3,6 @@ use super::ffi;
 use VirtualKeyCode;
 
 pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
-    println!("{:?}", scancode);
     Some(match scancode {
         ffi::XK_BackSpace => events::VirtualKeyCode::Back,
         ffi::XK_Tab => events::VirtualKeyCode::Tab,
