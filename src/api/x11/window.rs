@@ -3,7 +3,7 @@ use CreationError;
 use CreationError::OsError;
 use libc;
 use std::borrow::Borrow;
-use std::{mem, ptr};
+use std::{mem, ptr, cmp};
 use std::cell::Cell;
 use std::sync::atomic::AtomicBool;
 use std::collections::VecDeque;
@@ -310,7 +310,23 @@ impl Window {
                pf_reqs: &PixelFormatRequirements, opengl: &GlAttributes<&Window>)
                -> Result<Window, CreationError>
     {
-        let dimensions = window_attrs.max_dimensions.unwrap_or(window_attrs.dimensions.unwrap_or((800, 600)));
+        let dimensions = {
+
+            // x11 only applies constraints when the window is actively resized
+            // by the user, so we have to manually apply the initial constraints
+            let mut dimensions = window_attrs.dimensions.unwrap_or((800, 600));
+            if let Some(max) = window_attrs.max_dimensions {
+                dimensions.0 = cmp::min(dimensions.0, max.0);
+                dimensions.1 = cmp::min(dimensions.1, max.1);
+            }
+
+            if let Some(min) = window_attrs.min_dimensions {
+                dimensions.0 = cmp::max(dimensions.0, min.0);
+                dimensions.1 = cmp::max(dimensions.1, min.1);
+            }
+            dimensions
+
+        };
 
         let screen_id = match window_attrs.monitor {
             Some(PlatformMonitorId::X(MonitorId(_, monitor))) => monitor as i32,
