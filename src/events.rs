@@ -264,6 +264,8 @@ pub enum VirtualKeyCode {
     Multiply,
     Mute,
     MyComputer,
+    NavigateForward, // also called "Prior"
+    NavigateBackward, // also called "Next"
     NextTrack,
     NoConvert,
     NumpadComma,

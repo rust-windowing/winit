@@ -79,11 +79,12 @@ struct WindowDelegate {
 impl WindowDelegate {
     /// Get the delegate class, initiailizing it neccessary
     fn class() -> *const Class {
+        use std::os::raw::c_void;
         use std::sync::{Once, ONCE_INIT};
 
         extern fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
             unsafe {
-                let state: *mut libc::c_void = *this.get_ivar("glutinState");
+                let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = state as *mut DelegateState;
                 (*state).pending_events.lock().unwrap().push_back(Closed);
             }
@@ -92,7 +93,7 @@ impl WindowDelegate {
 
         extern fn window_did_resize(this: &Object, _: Sel, _: id) {
             unsafe {
-                let state: *mut libc::c_void = *this.get_ivar("glutinState");
+                let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = &mut *(state as *mut DelegateState);
 
                 let _: () = msg_send![*state.context, update];
@@ -111,7 +112,7 @@ impl WindowDelegate {
                 // TODO: center the cursor if the window had mouse grab when it
                 // lost focus
 
-                let state: *mut libc::c_void = *this.get_ivar("glutinState");
+                let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = state as *mut DelegateState;
                 (*state).pending_events.lock().unwrap().push_back(Focused(true));
             }
@@ -119,7 +120,7 @@ impl WindowDelegate {
 
         extern fn window_did_resign_key(this: &Object, _: Sel, _: id) {
             unsafe {
-                let state: *mut libc::c_void = *this.get_ivar("glutinState");
+                let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = state as *mut DelegateState;
                 (*state).pending_events.lock().unwrap().push_back(Focused(false));
             }
@@ -131,7 +132,7 @@ impl WindowDelegate {
         INIT.call_once(|| unsafe {
             // Create new NSWindowDelegate
             let superclass = Class::get("NSObject").unwrap();
-            let mut decl = ClassDecl::new(superclass, "GlutinWindowDelegate").unwrap();
+            let mut decl = ClassDecl::new("GlutinWindowDelegate", superclass).unwrap();
 
             // Add callback methods
             decl.add_method(sel!(windowShouldClose:),
@@ -145,7 +146,7 @@ impl WindowDelegate {
                 window_did_resign_key as extern fn(&Object, Sel, id));
 
             // Store internal state as user data
-            decl.add_ivar::<*mut libc::c_void>("glutinState");
+            decl.add_ivar::<*mut c_void>("glutinState");
 
             delegate_class = decl.register();
         });
@@ -162,7 +163,7 @@ impl WindowDelegate {
         unsafe {
             let delegate = IdRef::new(msg_send![WindowDelegate::class(), new]);
 
-            (&mut **delegate).set_ivar("glutinState", state_ptr as *mut libc::c_void);
+            (&mut **delegate).set_ivar("glutinState", state_ptr as *mut ::std::os::raw::c_void);
             let _: () = msg_send![*state.window, setDelegate:*delegate];
 
             WindowDelegate { state: state, _this: delegate }
@@ -224,12 +225,16 @@ impl<'a> Iterator for PollEventsIterator<'a> {
 
         let event: Option<Event>;
         unsafe {
+            let pool = NSAutoreleasePool::new(nil);
+
             let nsevent = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                 NSAnyEventMask.bits() | NSEventMaskPressure.bits(),
                 NSDate::distantPast(nil),
                 NSDefaultRunLoopMode,
                 YES);
             event = NSEventToEvent(self.window, nsevent);
+
+            let _: () = msg_send![pool, release];
         }
         event
     }
@@ -249,12 +254,16 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
         let event: Option<Event>;
         unsafe {
+            let pool = NSAutoreleasePool::new(nil);
+
             let nsevent = NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
                 NSAnyEventMask.bits() | NSEventMaskPressure.bits(),
                 NSDate::distantFuture(nil),
                 NSDefaultRunLoopMode,
                 YES);
             event = NSEventToEvent(self.window, nsevent);
+
+            let _: () = msg_send![pool, release];
         }
 
         if event.is_none() {
@@ -404,7 +413,9 @@ impl Window {
 
             let masks = if screen.is_some() || attrs.transparent {
                 // Fullscreen or transparent window
-                NSBorderlessWindowMask as NSUInteger
+                NSBorderlessWindowMask as NSUInteger |
+                NSResizableWindowMask as NSUInteger |
+                NSTitledWindowMask as NSUInteger
             } else if attrs.decorations {
                 // Classic opaque window with titlebar
                 NSClosableWindowMask as NSUInteger |
@@ -663,8 +674,8 @@ impl Window {
         let sel = Sel::register(cursor_name);
         let cls = Class::get("NSCursor").unwrap();
         unsafe {
-            use objc::MessageArguments;
-            let cursor: id = ().send(cls as *const _ as id, sel);
+            use objc::Message;
+            let cursor: id = cls.send_message(sel, ()).unwrap();
             let _: () = msg_send![cursor, set];
         }
     }
@@ -747,7 +758,11 @@ impl GlContext for Window {
 
     #[inline]
     fn swap_buffers(&self) -> Result<(), ContextError> {
-        unsafe { self.context.flushBuffer(); }
+        unsafe { 
+            let pool = NSAutoreleasePool::new(nil);
+            self.context.flushBuffer();
+            let _: () = msg_send![pool, release];
+        }
         Ok(())
     }
 

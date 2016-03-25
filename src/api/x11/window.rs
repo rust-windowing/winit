@@ -867,29 +867,61 @@ impl Window {
             self.x.display.check_errors().expect("Failed to call XcursorLibraryLoadCursor");
             (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, xcursor);
             (self.x.display.xlib.XFlush)(self.x.display.display);
+            (self.x.display.xlib.XFreeCursor)(self.x.display.display, xcursor);
             self.x.display.check_errors().expect("Failed to call XDefineCursor");
         }
     }
 
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        use CursorState::{ Grab, Normal };
+        use CursorState::{ Grab, Normal, Hide };
 
         let mut cursor_state = self.cursor_state.lock().unwrap();
-
         match (state, *cursor_state) {
-            (Normal, Grab) => {
+            (Normal, Normal) | (Hide, Hide) | (Grab, Grab) => return Ok(()),
+            _ => {},
+        }
+
+        match *cursor_state {
+            Grab => {
                 unsafe {
                     (self.x.display.xlib.XUngrabPointer)(self.x.display.display, ffi::CurrentTime);
                     self.x.display.check_errors().expect("Failed to call XUngrabPointer");
-                    *cursor_state = Normal;
-                    Ok(())
                 }
             },
-
-            (Grab, Normal) => {
+            Normal => {},
+            Hide => {
                 unsafe {
-                    *cursor_state = Grab;
+                    let xcursor = (self.x.display.xlib.XCreateFontCursor)(self.x.display.display, 68/*XC_left_ptr*/);
+                    self.x.display.check_errors().expect("Failed to call XCreateFontCursor");
+                    (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, xcursor);
+                    self.x.display.check_errors().expect("Failed to call XDefineCursor");
+                    (self.x.display.xlib.XFlush)(self.x.display.display);
+                    (self.x.display.xlib.XFreeCursor)(self.x.display.display, xcursor);
+                }
+            },
+        }
 
+        *cursor_state = state;
+        match state {
+            Normal => Ok(()),
+            Hide => {
+                let data = &[0, 0, 0, 0, 0, 0, 0, 0];
+                unsafe {
+                    let mut black = ffi::XColor {
+                        red: 0, green: 0, blue: 0,
+                        pad: 0, pixel: 0, flags: 0,
+                    };
+                    let bitmap = (self.x.display.xlib.XCreateBitmapFromData)(self.x.display.display, self.x.window, data.as_ptr(), 8, 8);
+                    let cursor = (self.x.display.xlib.XCreatePixmapCursor)(self.x.display.display, bitmap, bitmap, &mut black, &mut black, 0, 0);
+                    (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, cursor);
+                    self.x.display.check_errors().expect("Failed to call XDefineCursor");
+                    (self.x.display.xlib.XFreeCursor)(self.x.display.display, cursor);
+                    (self.x.display.xlib.XFreePixmap)(self.x.display.display, bitmap);
+                }
+                Ok(())
+            },
+            Grab => {
+                unsafe {
                     match (self.x.display.xlib.XGrabPointer)(
                         self.x.display.display, self.x.window, ffi::False,
                         (ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
@@ -908,11 +940,6 @@ impl Window {
                     }
                 }
             },
-
-            // Nothing needs to change
-            (Grab, Grab) | (Normal, Normal) => Ok(()),
-
-            _ => unimplemented!(),
         }
     }
 

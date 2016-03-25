@@ -997,6 +997,8 @@ pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
         //ffi::XK_hebrew_taw => events::VirtualKeyCode::Hebrew_taw,
         //ffi::XK_hebrew_taf => events::VirtualKeyCode::Hebrew_taf,
         //ffi::XK_Hebrew_switch => events::VirtualKeyCode::Hebrew_switch,
+        ffi::XF86XK_Back => VirtualKeyCode::NavigateBackward,
+        ffi::XF86XK_Forward => VirtualKeyCode::NavigateForward,
         _ => return None
     })
 }
