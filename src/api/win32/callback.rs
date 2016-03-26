@@ -134,12 +134,13 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         winapi::WM_MOUSEWHEEL => {
             use events::Event::MouseWheel;
             use events::MouseScrollDelta::LineDelta;
+            use events::TouchPhase;
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
             let value = value as f32 / winapi::WHEEL_DELTA as f32;
 
-            send_event(window, MouseWheel(LineDelta(0.0, value)));
+            send_event(window, MouseWheel(LineDelta(0.0, value), TouchPhase::Moved));
 
             0
         },

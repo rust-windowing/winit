@@ -31,10 +31,17 @@ pub enum Event {
     MouseMoved((i32, i32)),
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel(MouseScrollDelta),
+    MouseWheel(MouseScrollDelta, TouchPhase),
 
     /// An event from the mouse has been received.
     MouseInput(ElementState, MouseButton),
+
+    /// Touchpad pressure event.
+    ///
+    /// At the moment, only supported on Apple forcetouch-capable macbooks.
+    /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
+    /// is being pressed) and stage (integer representing the click level).
+    TouchpadPressure(f32, i64),
 
     /// The event loop was woken up by another thread.
     Awakened,
@@ -257,6 +264,8 @@ pub enum VirtualKeyCode {
     Multiply,
     Mute,
     MyComputer,
+    NavigateForward, // also called "Prior"
+    NavigateBackward, // also called "Next"
     NextTrack,
     NoConvert,
     NumpadComma,
