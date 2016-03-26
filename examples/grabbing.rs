@@ -2,21 +2,17 @@
 #[macro_use]
 extern crate android_glue;
 
-extern crate glutin;
+extern crate winit;
 
-use glutin::{Event, ElementState};
-
-mod support;
+use winit::{Event, ElementState};
 
 #[cfg(target_os = "android")]
 android_start!(main);
 
 fn main() {
-    let window = glutin::WindowBuilder::new().build().unwrap();
-    window.set_title("glutin - Cursor grabbing test");
-    let _ = unsafe { window.make_current() };
+    let window = winit::WindowBuilder::new().build().unwrap();
+    window.set_title("winit - Cursor grabbing test");
 
-    let context = support::load(&window);
     let mut grabbed = false;
 
     for event in window.wait_events() {
@@ -24,11 +20,11 @@ fn main() {
             Event::KeyboardInput(ElementState::Pressed, _, _) => {
                 if grabbed {
                     grabbed = false;
-                    window.set_cursor_state(glutin::CursorState::Normal)
+                    window.set_cursor_state(winit::CursorState::Normal)
                           .ok().expect("could not ungrab mouse cursor");
                 } else {
                     grabbed = true;
-                    window.set_cursor_state(glutin::CursorState::Grab)
+                    window.set_cursor_state(winit::CursorState::Grab)
                           .ok().expect("could not grab mouse cursor");
                 }
             },
@@ -41,8 +37,5 @@ fn main() {
 
             _ => (),
         }
-
-        context.draw_frame((0.0, 1.0, 0.0, 1.0));
-        let _ = window.swap_buffers();
     }
 }
