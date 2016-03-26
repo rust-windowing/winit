@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.4.8"
+version = "0.4.9"
 authors = ["The winit contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
@@ -18,26 +18,26 @@ shared_library = "0.1.0"
 version = "0.1"
 
 [target.i386-apple-ios.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 
 [target.x86_64-apple-ios.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 
 [target.aarch64-apple-ios.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 
 [target.armv7s-apple-ios.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 
 [target.armv7-apple-ios.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 
 [target.x86_64-apple-darwin.dependencies]
-objc = "0.1.8"
+objc = "0.2"
 cgl = "0.1"
-cocoa = "0.2"
+cocoa = "0.3"
 core-foundation = "0"
-core-graphics = "0"
+core-graphics = "0.3"
 
 [target.i686-pc-windows-gnu.dependencies]
 winapi = "0.2"
@@ -75,46 +75,53 @@ dwmapi-sys = "0.1"
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.i586-unknown-linux-gnu.dependencies]
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.arm-unknown-linux-gnueabihf.dependencies]
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.armv7-unknown-linux-gnueabihf.dependencies]
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.aarch64-unknown-linux-gnu.dependencies]
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.x86_64-unknown-dragonfly.dependencies]
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
 
 [target.x86_64-unknown-freebsd.dependencies]
 wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
-x11-dl = "~2.3"
+x11-dl = "~2.4"
+
+[target.x86_64-unknown-openbsd.dependencies]
+osmesa-sys = "0.0.5"
+wayland-client = { version = "0.5.4", features = ["egl", "dlopen"] }
+wayland-kbd = "0.3.3"
+wayland-window = "0.2.2"
+x11-dl = "~2.4"
