@@ -2,30 +2,28 @@
 #[macro_use]
 extern crate android_glue;
 
-extern crate glutin;
+extern crate winit;
 
 use std::thread;
-
-mod support;
 
 #[cfg(target_os = "android")]
 android_start!(main);
 
 fn main() {
-    let window1 = glutin::WindowBuilder::new().build().unwrap();
-    let window2 = glutin::WindowBuilder::new().build().unwrap();
-    let window3 = glutin::WindowBuilder::new().build().unwrap();
+    let window1 = winit::WindowBuilder::new().build().unwrap();
+    let window2 = winit::WindowBuilder::new().build().unwrap();
+    let window3 = winit::WindowBuilder::new().build().unwrap();
 
     let t1 = thread::spawn(move || {
-        run(window1, (0.0, 1.0, 0.0, 1.0));
+        run(window1);
     });
 
     let t2 = thread::spawn(move || {
-        run(window2, (0.0, 0.0, 1.0, 1.0));
+        run(window2);
     });
 
     let t3 = thread::spawn(move || {
-        run(window3, (1.0, 0.0, 0.0, 1.0));
+        run(window3);
     });
 
     let _ = t1.join();
@@ -33,17 +31,10 @@ fn main() {
     let _ = t3.join();
 }
 
-fn run(window: glutin::Window, color: (f32, f32, f32, f32)) {
-    let _ = unsafe { window.make_current() };
-
-    let context = support::load(&window);
-
+fn run(window: winit::Window) {
     for event in window.wait_events() {
-        context.draw_frame(color);
-        let _ = window.swap_buffers();
-
         match event {
-            glutin::Event::Closed => break,
+            winit::Event::Closed => break,
             _ => ()
         }
     }
