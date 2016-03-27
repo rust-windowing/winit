@@ -848,8 +848,8 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
             let view_rect = NSView::frame(*window.view);
             let scale_factor = window.hidpi_factor();
 
-            Some(MouseMoved(((scale_factor * view_point.x as f32) as i32,
-                            (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32)))
+            Some(MouseMoved((scale_factor * view_point.x as f32) as i32,
+                            (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32))
         },
         NSKeyDown => {
             let mut events = VecDeque::new();
