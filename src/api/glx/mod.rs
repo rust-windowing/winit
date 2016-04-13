@@ -360,7 +360,6 @@ unsafe fn choose_fbconfig(glx: &ffi::glx::Glx, extensions: &str, xlib: &ffi::Xli
                           -> Result<(ffi::glx::types::GLXFBConfig, PixelFormat), ()>
 {
     let descriptor = {
-        let mut glx_non_conformant = false;
         let mut out: Vec<c_int> = Vec::with_capacity(37);
 
         out.push(ffi::glx::X_RENDERABLE as c_int);
@@ -417,7 +416,6 @@ unsafe fn choose_fbconfig(glx: &ffi::glx::Glx, extensions: &str, xlib: &ffi::Xli
                 out.push(if multisampling == 0 { 0 } else { 1 });
                 out.push(ffi::glx_extra::SAMPLES_ARB as c_int);
                 out.push(multisampling as c_int);
-                glx_non_conformant = true;
             } else {
                 return Err(());
             }
@@ -448,19 +446,8 @@ unsafe fn choose_fbconfig(glx: &ffi::glx::Glx, extensions: &str, xlib: &ffi::Xli
             },
         }
 
-        if let Some(hardware_accelerated) = reqs.hardware_accelerated {
-            let caveat = if hardware_accelerated {
-                ffi::glx::NONE as c_int
-            } else {
-                ffi::glx::SLOW_CONFIG as c_int
-            };
-            out.push(ffi::glx::CONFIG_CAVEAT as c_int);
-            out.push(if glx_non_conformant {
-                caveat | ffi::glx::NON_CONFORMANT_CONFIG as c_int
-            } else {
-                caveat
-            });
-        }
+        out.push(ffi::glx::CONFIG_CAVEAT as c_int);
+        out.push(ffi::glx::DONT_CARE as c_int);
 
         out.push(0);
         out
