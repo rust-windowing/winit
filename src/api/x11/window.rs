@@ -841,50 +841,76 @@ impl Window {
     pub fn set_cursor(&self, cursor: MouseCursor) {
         unsafe {
             use std::ffi::CString;
-            let cursor_name = match cursor {
-                MouseCursor::Alias => "link",
-                MouseCursor::Arrow => "arrow",
-                MouseCursor::Cell => "plus",
-                MouseCursor::Copy => "copy",
-                MouseCursor::Crosshair => "crosshair",
-                MouseCursor::Default => "left_ptr",
-                MouseCursor::Grabbing => "grabbing",
-                MouseCursor::Hand | MouseCursor::Grab => "hand",
-                MouseCursor::Help => "question_arrow",
-                MouseCursor::Move => "move",
-                MouseCursor::NoDrop => "circle",
-                MouseCursor::NotAllowed => "crossed_circle",
-                MouseCursor::Progress => "left_ptr_watch",
+            let load = |name :&str| {
+                let c_string = CString::new(name.as_bytes().to_vec()).unwrap();
+                return (self.x.display.xcursor.XcursorLibraryLoadCursor)(self.x.display.display, c_string.as_ptr());
+            };
+            let loadn = |names :&[&str]| {
+                for name in names.iter() {
+                    let xcursor = load(*name);
+                    if xcursor != 0 {
+                        return xcursor;
+                    }
+                }
+                return 0;
+            };
+            // Try multiple names in some cases where the name
+            // differs on the desktop environments or themes.
+            //
+            // Try the better looking (or more suiting) names first.
+            let mut xcursor = match cursor {
+                MouseCursor::Alias => load("link"),
+                MouseCursor::Arrow => load("arrow"),
+                MouseCursor::Cell => load("plus"),
+                MouseCursor::Copy => load("copy"),
+                MouseCursor::Crosshair => load("crosshair"),
+                MouseCursor::Default => load("left_ptr"),
+                MouseCursor::Hand => load("hand1"),
+                MouseCursor::Help => load("question_arrow"),
+                MouseCursor::Move => load("move"),
+                MouseCursor::Grab => loadn(&["openhand", "grab"]),
+                MouseCursor::Grabbing => loadn(&["closedhand", "grabbing"]),
+                MouseCursor::Progress => load("left_ptr_watch"),
+                MouseCursor::AllScroll => load("all-scroll"),
+                MouseCursor::ContextMenu => load("context-menu"),
+
+                MouseCursor::NoDrop => loadn(&["no-drop", "circle"]),
+                MouseCursor::NotAllowed => load("crossed_circle"),
+
 
                 /// Resize cursors
-                MouseCursor::EResize => "right_side",
-                MouseCursor::NResize => "top_side",
-                MouseCursor::NeResize => "top_right_corner",
-                MouseCursor::NwResize => "top_left_corner",
-                MouseCursor::SResize => "bottom_side",
-                MouseCursor::SeResize => "bottom_right_corner",
-                MouseCursor::SwResize => "bottom_left_corner",
-                MouseCursor::WResize => "left_side",
-                MouseCursor::EwResize | MouseCursor::ColResize => "h_double_arrow",
-                MouseCursor::NsResize | MouseCursor::RowResize => "v_double_arrow",
-                MouseCursor::NwseResize => "bd_double_arrow",
-                MouseCursor::NeswResize => "fd_double_arrow",
+                MouseCursor::EResize => load("right_side"),
+                MouseCursor::NResize => load("top_side"),
+                MouseCursor::NeResize => load("top_right_corner"),
+                MouseCursor::NwResize => load("top_left_corner"),
+                MouseCursor::SResize => load("bottom_side"),
+                MouseCursor::SeResize => load("bottom_right_corner"),
+                MouseCursor::SwResize => load("bottom_left_corner"),
+                MouseCursor::WResize => load("left_side"),
+                MouseCursor::EwResize => load("h_double_arrow"),
+                MouseCursor::NsResize => load("v_double_arrow"),
+                MouseCursor::NwseResize => loadn(&["bd_double_arrow", "size_bdiag"]),
+                MouseCursor::NeswResize => loadn(&["fd_double_arrow", "size_fdiag"]),
+                MouseCursor::ColResize => loadn(&["split_h", "h_double_arrow"]),
+                MouseCursor::RowResize => loadn(&["split_v", "v_double_arrow"]),
 
-                MouseCursor::Text | MouseCursor::VerticalText => "xterm",
-                MouseCursor::Wait => "watch",
+                MouseCursor::Text => loadn(&["text", "xterm"]),
+                MouseCursor::VerticalText => load("vertical-text"),
 
-                /// TODO: Find matching X11 cursors
-                MouseCursor::ContextMenu | MouseCursor::NoneCursor |
-                MouseCursor::AllScroll | MouseCursor::ZoomIn |
-                MouseCursor::ZoomOut => "left_ptr",
+                MouseCursor::Wait => load("watch"),
+
+                MouseCursor::ZoomIn => load("zoom-in"),
+                MouseCursor::ZoomOut => load("zoom-out"),
+
+                // TODO: Hide cursor
+                MouseCursor::NoneCursor => 0,
             };
-            let c_string = CString::new(cursor_name.as_bytes().to_vec()).unwrap();
-            let xcursor = (self.x.display.xcursor.XcursorLibraryLoadCursor)(self.x.display.display, c_string.as_ptr());
-            self.x.display.check_errors().expect("Failed to call XcursorLibraryLoadCursor");
+
             (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, xcursor);
-            (self.x.display.xlib.XFlush)(self.x.display.display);
-            (self.x.display.xlib.XFreeCursor)(self.x.display.display, xcursor);
-            self.x.display.check_errors().expect("Failed to call XDefineCursor");
+            if xcursor != 0 {
+                (self.x.display.xlib.XFreeCursor)(self.x.display.display, xcursor);
+            }
+            self.x.display.check_errors().expect("Failed to set or free the cursor");
         }
     }
 
