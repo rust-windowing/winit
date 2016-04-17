@@ -11,7 +11,6 @@ use std::sync::{Arc, Mutex};
 use std::os::raw::c_long;
 use std::thread;
 use std::time::Duration;
-use x11_dl::xlib;
 
 use Api;
 use ContextError;
@@ -841,20 +840,14 @@ impl Window {
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
         unsafe {
-            use std::ffi::CString;
-            let load = |name :&str| {
-                let c_string = CString::new(name.as_bytes().to_vec()).unwrap();
-                return (self.x.display.xcursor.XcursorLibraryLoadCursor)(self.x.display.display, c_string.as_ptr());
+            let load = |name: &str| {
+                self.load_cursor(name)
             };
-            let loadn = |names :&[&str]| {
-                for name in names.iter() {
-                    let xcursor = load(*name);
-                    if xcursor != 0 {
-                        return xcursor;
-                    }
-                }
-                return 0;
+
+            let loadn = |names: &[&str]| {
+                self.load_first_existing_cursor(names)
             };
+
             // Try multiple names in some cases where the name
             // differs on the desktop environments or themes.
             //
@@ -914,14 +907,31 @@ impl Window {
         }
     }
 
+    fn load_cursor(&self, name: &str) -> ffi::Cursor {
+        use std::ffi::CString;
+        unsafe {
+            let c_string = CString::new(name.as_bytes()).unwrap();
+            (self.x.display.xcursor.XcursorLibraryLoadCursor)(self.x.display.display, c_string.as_ptr())
+        }
+    }
+
+    fn load_first_existing_cursor(&self, names :&[&str]) -> ffi::Cursor {
+        for name in names.iter() {
+            let xcursor = self.load_cursor(name);
+            if xcursor != 0 {
+                return xcursor;
+            }
+        }
+        0
+    }
+
     // TODO: This could maybe be cached. I don't think it's worth
     // the complexity, since cursor changes are not so common,
     // and this is just allocating a 1x1 pixmap...
-    fn create_empty_cursor(&self) -> xlib::Cursor {
+    fn create_empty_cursor(&self) -> ffi::Cursor {
         use std::mem;
 
         let data = 0;
-
         unsafe {
             let pixmap = (self.x.display.xlib.XCreateBitmapFromData)(self.x.display.display, self.x.window, &data, 1, 1);
             if pixmap == 0 {
@@ -931,7 +941,7 @@ impl Window {
 
             // We don't care about this color, since it only fills bytes
             // in the pixmap which are not 0 in the mask.
-            let dummy_color: xlib::XColor = mem::uninitialized();
+            let dummy_color: ffi::XColor = mem::uninitialized();
             let cursor = (self.x.display.xlib.XCreatePixmapCursor)(self.x.display.display,
                                                                    pixmap,
                                                                    pixmap,
@@ -960,13 +970,10 @@ impl Window {
             },
             Normal => {},
             Hide => {
+                // NB: Calling XDefineCursor with None (aka 0)
+                // as a value resets the cursor to the default.
                 unsafe {
-                    let xcursor = (self.x.display.xlib.XCreateFontCursor)(self.x.display.display, 68/*XC_left_ptr*/);
-                    self.x.display.check_errors().expect("Failed to call XCreateFontCursor");
-                    (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, xcursor);
-                    self.x.display.check_errors().expect("Failed to call XDefineCursor");
-                    (self.x.display.xlib.XFlush)(self.x.display.display);
-                    (self.x.display.xlib.XFreeCursor)(self.x.display.display, xcursor);
+                    (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, 0);
                 }
             },
         }
@@ -975,18 +982,13 @@ impl Window {
         match state {
             Normal => Ok(()),
             Hide => {
-                let data = &[0, 0, 0, 0, 0, 0, 0, 0];
                 unsafe {
-                    let mut black = ffi::XColor {
-                        red: 0, green: 0, blue: 0,
-                        pad: 0, pixel: 0, flags: 0,
-                    };
-                    let bitmap = (self.x.display.xlib.XCreateBitmapFromData)(self.x.display.display, self.x.window, data.as_ptr(), 8, 8);
-                    let cursor = (self.x.display.xlib.XCreatePixmapCursor)(self.x.display.display, bitmap, bitmap, &mut black, &mut black, 0, 0);
+                    let cursor = self.create_empty_cursor();
                     (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, cursor);
-                    self.x.display.check_errors().expect("Failed to call XDefineCursor");
-                    (self.x.display.xlib.XFreeCursor)(self.x.display.display, cursor);
-                    (self.x.display.xlib.XFreePixmap)(self.x.display.display, bitmap);
+                    if cursor != 0 {
+                        (self.x.display.xlib.XFreeCursor)(self.x.display.display, cursor);
+                    }
+                    self.x.display.check_errors().expect("Failed to call XDefineCursor or free the empty cursor");
                 }
                 Ok(())
             },
