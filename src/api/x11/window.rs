@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::os::raw::c_long;
 use std::thread;
 use std::time::Duration;
+use x11_dl::xlib;
 
 use Api;
 use ContextError;
@@ -902,8 +903,7 @@ impl Window {
                 MouseCursor::ZoomIn => load("zoom-in"),
                 MouseCursor::ZoomOut => load("zoom-out"),
 
-                // TODO: Hide cursor
-                MouseCursor::NoneCursor => 0,
+                MouseCursor::NoneCursor => self.create_empty_cursor(),
             };
 
             (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, xcursor);
@@ -911,6 +911,34 @@ impl Window {
                 (self.x.display.xlib.XFreeCursor)(self.x.display.display, xcursor);
             }
             self.x.display.check_errors().expect("Failed to set or free the cursor");
+        }
+    }
+
+    // TODO: This could maybe be cached. I don't think it's worth
+    // the complexity, since cursor changes are not so common,
+    // and this is just allocating a 1x1 pixmap...
+    fn create_empty_cursor(&self) -> xlib::Cursor {
+        use std::mem;
+
+        let data = 0;
+
+        unsafe {
+            let pixmap = (self.x.display.xlib.XCreateBitmapFromData)(self.x.display.display, self.x.window, &data, 1, 1);
+            if pixmap == 0 {
+                // Failed to allocate
+                return 0;
+            }
+
+            // We don't care about this color, since it only fills bytes
+            // in the pixmap which are not 0 in the mask.
+            let dummy_color: xlib::XColor = mem::uninitialized();
+            let cursor = (self.x.display.xlib.XCreatePixmapCursor)(self.x.display.display,
+                                                                   pixmap,
+                                                                   pixmap,
+                                                                   &dummy_color as *const _ as *mut _,
+                                                                   &dummy_color as *const _ as *mut _, 0, 0);
+            (self.x.display.xlib.XFreePixmap)(self.x.display.display, pixmap);
+            cursor
         }
     }
 
