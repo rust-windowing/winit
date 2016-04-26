@@ -130,7 +130,7 @@ impl Window {
         android_glue::set_multitouch(win_attribs.multitouch);
 
         Ok(Window {
-            native_window: native_window,
+            native_window: native_window as *const _,
             event_rx: rx,
         })
     }
