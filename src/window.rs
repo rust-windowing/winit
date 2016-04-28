@@ -16,25 +16,11 @@ use PixelFormatRequirements;
 use Robustness;
 use Window;
 use WindowAttributes;
+use WindowBuilder;
 use native_monitor::NativeMonitorId;
 
 use libc;
 use platform;
-
-/// Object that allows you to build windows.
-pub struct WindowBuilder<'a> {
-    /// The attributes to use to create the window.
-    pub window: WindowAttributes,
-
-    /// The attributes to use to create the context.
-    pub opengl: GlAttributes<&'a platform::Window>,
-
-    // Should be made public once it's stabilized.
-    pf_reqs: PixelFormatRequirements,
-
-    /// Platform-specific configuration.
-    platform_specific: platform::PlatformSpecificWindowBuilderAttributes,
-}
 
 impl<'a> WindowBuilder<'a> {
     /// Initializes a new `WindowBuilder` with default values.
