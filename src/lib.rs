@@ -62,7 +62,7 @@ extern crate wayland_client;
 
 pub use events::*;
 pub use headless::{HeadlessRendererBuilder, HeadlessContext};
-pub use window::{WindowBuilder, WindowProxy, PollEventsIterator, WaitEventsIterator};
+pub use window::{WindowProxy, PollEventsIterator, WaitEventsIterator};
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
 pub use native_monitor::NativeMonitorId;
 
@@ -103,6 +103,21 @@ pub mod os;
 /// ```
 pub struct Window {
     window: platform::Window,
+}
+
+/// Object that allows you to build windows.
+pub struct WindowBuilder<'a> {
+    /// The attributes to use to create the window.
+    pub window: WindowAttributes,
+
+    /// The attributes to use to create the context.
+    pub opengl: GlAttributes<&'a platform::Window>,
+
+    // Should be made public once it's stabilized.
+    pf_reqs: PixelFormatRequirements,
+
+    /// Platform-specific configuration.
+    platform_specific: platform::PlatformSpecificWindowBuilderAttributes,
 }
 
 /// Trait that describes objects that have access to an OpenGL context.

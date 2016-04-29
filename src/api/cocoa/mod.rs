@@ -15,6 +15,7 @@ use ReleaseBehavior;
 use Robustness;
 use WindowAttributes;
 use native_monitor::NativeMonitorId;
+use os::macos::ActivationPolicy;
 
 use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
 use objc::declare::ClassDecl;
@@ -181,7 +182,9 @@ impl Drop for WindowDelegate {
 }
 
 #[derive(Default)]
-pub struct PlatformSpecificWindowBuilderAttributes;
+pub struct PlatformSpecificWindowBuilderAttributes {
+    pub activation_policy: ActivationPolicy,
+}
 
 pub struct Window {
     view: IdRef,
@@ -276,7 +279,8 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
 impl Window {
     pub fn new(win_attribs: &WindowAttributes, pf_reqs: &PixelFormatRequirements,
-               opengl: &GlAttributes<&Window>, _: &PlatformSpecificWindowBuilderAttributes)
+               opengl: &GlAttributes<&Window>,
+               pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
         if opengl.sharing.is_some() {
@@ -294,7 +298,7 @@ impl Window {
             _ => ()
         }
 
-        let app = match Window::create_app() {
+        let app = match Window::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
@@ -359,13 +363,13 @@ impl Window {
         Ok(window)
     }
 
-    fn create_app() -> Option<id> {
+    fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
         unsafe {
             let app = NSApp();
             if app == nil {
                 None
             } else {
-                app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
+                app.setActivationPolicy_(activation_policy.into());
                 app.finishLaunching();
                 Some(app)
             }
