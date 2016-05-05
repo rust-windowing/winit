@@ -4,6 +4,7 @@
 #![allow(non_upper_case_globals)]
 
 use libc;
+use std::os::raw;
 
 #[link(name = "android")]
 #[link(name = "EGL")]
@@ -13,12 +14,12 @@ extern {}
 /**
  * asset_manager.h
  */
-pub type AAssetManager = ();
+pub type AAssetManager = raw::c_void;
 
 /**
  * native_window.h
  */
-pub type ANativeWindow = ();
+pub type ANativeWindow = raw::c_void;
 
 extern {
     pub fn ANativeWindow_getHeight(window: *const ANativeWindow) -> libc::int32_t;
