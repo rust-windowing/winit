@@ -24,7 +24,8 @@ thread_local!(pub static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCe
 pub struct ThreadLocalData {
     pub win: winapi::HWND,
     pub sender: Sender<Event>,
-    pub window_state: Arc<Mutex<WindowState>>
+    pub window_state: Arc<Mutex<WindowState>>,
+    pub mouse_in_window: bool
 }
 
 struct MinMaxInfo {
@@ -122,11 +123,36 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
         winapi::WM_MOUSEMOVE => {
             use events::Event::MouseMoved;
+            CONTEXT_STASH.with(|context_stash| {
+                let mut context_stash = context_stash.borrow_mut();
+                if let Some(context_stash) = context_stash.as_mut() {
+                    context_stash.mouse_in_window = true;
+                }
+            });
 
             let x = winapi::GET_X_LPARAM(lparam) as i32;
             let y = winapi::GET_Y_LPARAM(lparam) as i32;
 
+            let mut mouse_track = winapi::TRACKMOUSEEVENT {
+                cbSize: mem::size_of::<winapi::TRACKMOUSEEVENT>() as winapi::DWORD,
+                dwFlags: winapi::TME_HOVER | winapi::TME_LEAVE,
+                hwndTrack: window,
+                dwHoverTime: winapi::HOVER_DEFAULT
+            };
+            user32::TrackMouseEvent(&mut mouse_track);
+
             send_event(window, MouseMoved((x, y)));
+
+            0
+        },
+
+        winapi::WM_MOUSELEAVE => {
+            CONTEXT_STASH.with(|context_stash| {
+                let mut context_stash = context_stash.borrow_mut();
+                if let Some(context_stash) = context_stash.as_mut() {
+                    context_stash.mouse_in_window = false;
+                }
+            });
 
             0
         },
@@ -264,31 +290,36 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         winapi::WM_SETCURSOR => {
-            CONTEXT_STASH.with(|context_stash| {
+            let call_def_window_proc = CONTEXT_STASH.with(|context_stash| {
                 let cstash = context_stash.borrow();
-                let cstash = cstash.as_ref();
-                // there's a very bizarre borrow checker bug
-                // possibly related to rust-lang/rust/#23338
-                let _cursor_state = if let Some(cstash) = cstash {
+                let mut call_def_window_proc = false;
+                if let Some(cstash) = cstash.as_ref() {
                     if let Ok(window_state) = cstash.window_state.lock() {
-                        match window_state.cursor_state {
-                            CursorState::Normal => {
-                                user32::SetCursor(user32::LoadCursorW(
-                                        ptr::null_mut(),
-                                        window_state.cursor));
-                            },
-                            CursorState::Grab | CursorState::Hide => {
-                                user32::SetCursor(ptr::null_mut());
+                        if cstash.mouse_in_window {
+                            match window_state.cursor_state {
+                                CursorState::Normal => {
+                                    user32::SetCursor(user32::LoadCursorW(
+                                            ptr::null_mut(),
+                                            window_state.cursor));
+                                },
+                                CursorState::Grab | CursorState::Hide => {
+                                    user32::SetCursor(ptr::null_mut());
+                                }
                             }
+                        } else {
+                            call_def_window_proc = true;
                         }
                     }
-                } else {
-                    return
-                };
+                }
 
-//                let &ThreadLocalData { ref cursor_state, .. } = stored;
+                call_def_window_proc
             });
-            0
+
+            if call_def_window_proc {
+                user32::DefWindowProcW(window, msg, wparam, lparam)
+            } else {    
+                0
+            }
         },
 
         winapi::WM_DROPFILES => {
