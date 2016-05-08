@@ -63,8 +63,8 @@ impl<'a> WindowBuilder<'a> {
 
     /// Requests a specific title for the window.
     #[inline]
-    pub fn with_title(mut self, title: String) -> WindowBuilder<'a> {
-        self.window.title = title;
+    pub fn with_title<T: Into<String>>(mut self, title: T) -> WindowBuilder<'a> {
+        self.window.title = title.into();
         self
     }
 
