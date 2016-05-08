@@ -1,15 +1,13 @@
 use std::collections::VecDeque;
-use std::ffi::CString;
 use std::sync::{Arc, Mutex};
 
 use libc;
 
 use {CreationError, CursorState, Event, MouseCursor, WindowAttributes};
-use api::dlopen;
 use platform::MonitorId as PlatformMonitorId;
 
 use wayland_client::EventIterator;
-use wayland_client::egl as wegl;
+use wayland_client::wayland::compositor::WlSurface;
 use wayland_client::wayland::shell::WlShellSurface;
 use super::wayland_window::{DecoratedSurface, add_borders, substract_borders};
 use super::context::{WaylandContext, WAYLAND_CONTEXT};
@@ -26,7 +24,7 @@ impl WindowProxy {
 
 pub struct Window {
     wayland_context: &'static WaylandContext,
-    egl_surface: wegl::WlEglSurface,
+    surface: WlSurface,
     shell_window: Mutex<ShellWindow>,
     evt_queue: Arc<Mutex<VecDeque<Event>>>,
     inner_size: Mutex<(i32, i32)>,
@@ -72,7 +70,6 @@ impl Window {
             if let ShellWindow::Decorated(ref mut deco) = *shell_window_guard {
                 deco.resize(w, h);
             }
-            self.egl_surface.resize(w, h, 0, 0);
             if let Some(f) = self.resize_callback {
                 f(w as u32, h as u32);
             }
@@ -145,10 +142,6 @@ impl Window {
             None => return Err(CreationError::NotSupported),
         };
 
-        if !wegl::is_available() {
-            return Err(CreationError::NotSupported)
-        }
-
         let (w, h) = window.dimensions.unwrap_or((800, 600));
 
         let (surface, evt_queue) = match wayland_context.new_surface() {
@@ -156,11 +149,9 @@ impl Window {
             None => return Err(CreationError::NotSupported)
         };
 
-        let egl_surface = wegl::WlEglSurface::new(surface, w as i32, h as i32);
-
         let shell_window = if let Some(PlatformMonitorId::Wayland(ref monitor_id)) = window.monitor {
             let pid = super::monitor::proxid_from_monitorid(monitor_id);
-            match wayland_context.plain_from(&egl_surface, Some(pid)) {
+            match wayland_context.plain_from(&surface, Some(pid)) {
                 Some(mut s) => {
                     let iter = EventIterator::new();
                     s.set_evt_iterator(&iter);
@@ -169,12 +160,12 @@ impl Window {
                 None => return Err(CreationError::NotSupported)
             }
         } else if window.decorations {
-            match wayland_context.decorated_from(&egl_surface, w as i32, h as i32) {
+            match wayland_context.decorated_from(&surface, w as i32, h as i32) {
                 Some(s) => ShellWindow::Decorated(s),
                 None => return Err(CreationError::NotSupported)
             }
         } else {
-            match wayland_context.plain_from(&egl_surface, None) {
+            match wayland_context.plain_from(&surface, None) {
                 Some(mut s) => {
                     let iter = EventIterator::new();
                     s.set_evt_iterator(&iter);
@@ -186,7 +177,7 @@ impl Window {
 
         Ok(Window {
             wayland_context: wayland_context,
-            egl_surface: egl_surface,
+            surface: surface,
             shell_window: Mutex::new(shell_window),
             evt_queue: evt_queue,
             inner_size: Mutex::new((w as i32, h as i32)),
@@ -242,7 +233,6 @@ impl Window {
             ShellWindow::Decorated(ref mut deco) => { deco.resize(x as i32, y as i32); },
             _ => {}
         }
-        self.egl_surface.resize(x as i32, y as i32, 0, 0)
     }
 
     #[inline]
@@ -297,19 +287,33 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_wayland_display(&self) -> *mut libc::c_void {
+        WAYLAND_CONTEXT.as_ref().unwrap() // context exists if window was created
+                       .display_ptr() as *mut libc::c_void
+    }
+
+    #[inline]
+    pub fn get_wayland_surface(&self) -> *mut libc::c_void {
+        use wayland_client::Proxy;
+        self.surface.ptr() as *mut libc::c_void
+    }
+
+    #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
-        unimplemented!()
+        WAYLAND_CONTEXT.as_ref().unwrap() // context exists if window was created
+                       .display_ptr() as *mut libc::c_void
     }
 
     #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
-        unimplemented!()
+        use wayland_client::Proxy;
+        self.surface.ptr() as *mut libc::c_void
     }
 }
 
 impl Drop for Window {
     fn drop(&mut self) {
         use wayland_client::Proxy;
-        self.wayland_context.dropped_surface((*self.egl_surface).id())
+        self.wayland_context.dropped_surface(self.surface.id());
     }
 }
