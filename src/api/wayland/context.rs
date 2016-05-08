@@ -57,7 +57,7 @@ impl WaylandContext {
 
         let (mut inner_env, iterator) = InnerEnv::init(display);
 
-        let mut outputs_events = EventIterator::new();
+        let outputs_events = EventIterator::new();
 
         let mut monitors = inner_env.globals.iter()
             .flat_map(|&(id, _, _)| inner_env.rebind_id::<WlOutput>(id))
