@@ -20,6 +20,20 @@ pub trait WindowExt {
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     fn get_xlib_display(&self) -> Option<*mut libc::c_void>;
+
+    /// Returns a pointer to the `wl_surface` object of wayland that is used by this window.
+    ///
+    /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
+    ///
+    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    fn get_wayland_surface(&self) -> Option<*mut libc::c_void>;
+
+    /// Returns a pointer to the `wl_display` object of wayland that is used by this window.
+    ///
+    /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
+    ///
+    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    fn get_wayland_display(&self) -> Option<*mut libc::c_void>;
 }
 
 impl WindowExt for Window {
@@ -35,6 +49,22 @@ impl WindowExt for Window {
     fn get_xlib_display(&self) -> Option<*mut libc::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_display()),
+            _ => None
+        }
+    }
+
+    #[inline]
+    fn get_wayland_surface(&self) -> Option<*mut libc::c_void> {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => Some(w.get_wayland_surface()),
+            _ => None
+        }
+    }
+
+    #[inline]
+    fn get_wayland_display(&self) -> Option<*mut libc::c_void> {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => Some(w.get_wayland_display()),
             _ => None
         }
     }

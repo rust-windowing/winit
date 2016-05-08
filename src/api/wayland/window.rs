@@ -287,6 +287,18 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_wayland_display(&self) -> *mut libc::c_void {
+        WAYLAND_CONTEXT.as_ref().unwrap() // context exists if window was created
+                       .display_ptr() as *mut libc::c_void
+    }
+
+    #[inline]
+    pub fn get_wayland_surface(&self) -> *mut libc::c_void {
+        use wayland_client::Proxy;
+        self.surface.ptr() as *mut libc::c_void
+    }
+
+    #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
         WAYLAND_CONTEXT.as_ref().unwrap() // context exists if window was created
                        .display_ptr() as *mut libc::c_void
