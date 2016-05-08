@@ -6,7 +6,6 @@ use std::sync::{Arc, Mutex};
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 
-use WindowAttributes;
 use CursorState;
 use Event;
 use super::event;
@@ -28,6 +27,10 @@ pub struct ThreadLocalData {
     pub mouse_in_window: bool
 }
 
+/// Equivalent to the windows api [MINMAXINFO](https://msdn.microsoft.com/en-us/library/windows/desktop/ms632605%28v=vs.85%29.aspx)
+/// struct. Used because winapi-rs doesn't have this declared.
+#[repr(C)]
+#[allow(dead_code)]
 struct MinMaxInfo {
     reserved: winapi::POINT, // Do not use/change
     max_size: winapi::POINT,
@@ -342,7 +345,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         winapi::WM_GETMINMAXINFO => {
-            let mut mmi = lparam as *mut MinMaxInfo;
+            let mmi = lparam as *mut MinMaxInfo;
             //(*mmi).max_position = winapi::POINT { x: -8, y: -8 }; // The upper left corner of the window if it were maximized on the primary monitor.
             //(*mmi).max_size = winapi::POINT { x: .., y: .. }; // The dimensions of the primary monitor.
 
