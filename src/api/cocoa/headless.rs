@@ -13,7 +13,7 @@ use cocoa::appkit::*;
 use PixelFormat;
 use api::cocoa::helpers;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 pub struct HeadlessContext {

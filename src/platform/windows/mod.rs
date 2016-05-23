@@ -51,9 +51,9 @@ lazy_static! {
     };
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes;
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 /// The Win32 implementation of the main `Window` object.
