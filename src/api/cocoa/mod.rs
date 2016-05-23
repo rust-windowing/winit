@@ -181,7 +181,7 @@ impl Drop for WindowDelegate {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
 }

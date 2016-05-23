@@ -15,7 +15,7 @@ pub use self::api_dispatch::{WaitEventsIterator, PollEventsIterator};
 pub use self::api_dispatch::PlatformSpecificWindowBuilderAttributes;
 mod api_dispatch;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 pub struct HeadlessContext(OsMesaContext);

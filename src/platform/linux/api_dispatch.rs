@@ -22,7 +22,7 @@ use api::x11::XConnection;
 use api::x11::XError;
 use api::x11::XNotSupported;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes;
 
 enum Backend {

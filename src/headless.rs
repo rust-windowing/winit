@@ -11,6 +11,7 @@ use Robustness;
 use platform;
 
 /// Object that allows you to build headless contexts.
+#[derive(Clone)]
 pub struct HeadlessRendererBuilder<'a> {
     /// The dimensions to use.
     pub dimensions: (u32, u32),

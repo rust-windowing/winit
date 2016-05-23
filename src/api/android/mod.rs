@@ -65,9 +65,9 @@ impl MonitorId {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes;
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 pub struct PollEventsIterator<'a> {

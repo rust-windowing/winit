@@ -8,7 +8,7 @@ use ContextError;
 
 pub use api::ios::*;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 pub struct HeadlessContext(i32);

@@ -106,6 +106,7 @@ pub struct Window {
 }
 
 /// Object that allows you to build windows.
+#[derive(Clone)]
 pub struct WindowBuilder<'a> {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
