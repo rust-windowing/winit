@@ -231,7 +231,7 @@ impl Window {
 
     #[inline]
     pub fn get_pixel_format(&self) -> PixelFormat {
-        unimplemented!();
+        self.context.get_pixel_format()
     }
 
     #[inline]
@@ -289,7 +289,7 @@ impl GlContext for Window {
 
     #[inline]
     fn get_pixel_format(&self) -> PixelFormat {
-        self.context.get_pixel_format()
+        self.get_pixel_format()
     }
 }
 
