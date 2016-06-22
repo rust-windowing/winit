@@ -17,8 +17,6 @@ use api::cocoa::helpers;
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 pub struct HeadlessContext {
-    width: u32,
-    height: u32,
     context: id,
 }
 
@@ -44,8 +42,6 @@ impl HeadlessContext {
         };
 
         let headless = HeadlessContext {
-            width: width,
-            height: height,
             context: context,
         };
 
