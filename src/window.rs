@@ -6,16 +6,13 @@ use ContextError;
 use CreationError;
 use CursorState;
 use Event;
-use GlAttributes;
 use GlContext;
 use GlProfile;
 use GlRequest;
 use MouseCursor;
 use PixelFormat;
-use PixelFormatRequirements;
 use Robustness;
 use Window;
-use WindowAttributes;
 use WindowBuilder;
 use native_monitor::NativeMonitorId;
 
