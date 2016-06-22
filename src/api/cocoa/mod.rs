@@ -7,11 +7,8 @@ use libc;
 use ContextError;
 use GlAttributes;
 use GlContext;
-use GlProfile;
-use GlRequest;
 use PixelFormat;
 use PixelFormatRequirements;
-use ReleaseBehavior;
 use Robustness;
 use WindowAttributes;
 use native_monitor::NativeMonitorId;
@@ -40,7 +37,6 @@ use std::collections::VecDeque;
 use std::str::FromStr;
 use std::str::from_utf8;
 use std::sync::Mutex;
-use std::ascii::AsciiExt;
 use std::ops::Deref;
 
 use events::ElementState;
@@ -823,7 +819,7 @@ impl Clone for IdRef {
     }
 }
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, non_upper_case_globals)]
 unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
     if nsevent == nil { return None; }
 

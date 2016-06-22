@@ -5,7 +5,6 @@ use GlProfile;
 use GlRequest;
 use PixelFormatRequirements;
 use ReleaseBehavior;
-use cocoa::foundation::NSAutoreleasePool;
 use cocoa::appkit::*;
 
 pub fn build_nsattributes<T>(pf_reqs: &PixelFormatRequirements, opengl: &GlAttributes<&T>)
