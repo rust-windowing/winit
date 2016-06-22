@@ -43,9 +43,7 @@ use std::sync::Mutex;
 use std::ascii::AsciiExt;
 use std::ops::Deref;
 
-use events::ElementState::{Pressed, Released};
-use events::Event::{Awakened, MouseInput, MouseMoved, ReceivedCharacter, KeyboardInput};
-use events::Event::{MouseWheel, Closed, Focused, TouchpadPressure};
+use events::ElementState;
 use events::{self, MouseButton, TouchPhase};
 
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
@@ -87,7 +85,7 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = state as *mut DelegateState;
-                (*state).pending_events.lock().unwrap().push_back(Closed);
+                (*state).pending_events.lock().unwrap().push_back(Event::Closed);
             }
             YES
         }
@@ -115,7 +113,7 @@ impl WindowDelegate {
 
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = state as *mut DelegateState;
-                (*state).pending_events.lock().unwrap().push_back(Focused(true));
+                (*state).pending_events.lock().unwrap().push_back(Event::Focused(true));
             }
         }
 
@@ -123,7 +121,7 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = state as *mut DelegateState;
-                (*state).pending_events.lock().unwrap().push_back(Focused(false));
+                (*state).pending_events.lock().unwrap().push_back(Event::Focused(false));
             }
         }
 
@@ -270,7 +268,7 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
         }
 
         if event.is_none() {
-            return Some(Awakened);
+            return Some(Event::Awakened);
         } else {
             return event;
         }
@@ -623,9 +621,9 @@ impl Window {
 
     unsafe fn modifier_event(event: id, keymask: NSEventModifierFlags, key: events::VirtualKeyCode, key_pressed: bool) -> Option<Event> {
         if !key_pressed && NSEvent::modifierFlags(event).contains(keymask) {
-            return Some(KeyboardInput(Pressed, NSEvent::keyCode(event) as u8, Some(key)));
+            return Some(Event::KeyboardInput(ElementState::Pressed, NSEvent::keyCode(event) as u8, Some(key)));
         } else if key_pressed && !NSEvent::modifierFlags(event).contains(keymask) {
-            return Some(KeyboardInput(Released, NSEvent::keyCode(event) as u8, Some(key)));
+            return Some(Event::KeyboardInput(ElementState::Released, NSEvent::keyCode(event) as u8, Some(key)));
         }
 
         return None;
@@ -833,10 +831,10 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
     NSApp().sendEvent_(if let NSKeyDown = event_type { nil } else { nsevent });
 
     match event_type {
-        NSLeftMouseDown         => { Some(MouseInput(Pressed, MouseButton::Left)) },
-        NSLeftMouseUp           => { Some(MouseInput(Released, MouseButton::Left)) },
-        NSRightMouseDown        => { Some(MouseInput(Pressed, MouseButton::Right)) },
-        NSRightMouseUp          => { Some(MouseInput(Released, MouseButton::Right)) },
+        NSLeftMouseDown         => { Some(Event::MouseInput(ElementState::Pressed, MouseButton::Left)) },
+        NSLeftMouseUp           => { Some(Event::MouseInput(ElementState::Released, MouseButton::Left)) },
+        NSRightMouseDown        => { Some(Event::MouseInput(ElementState::Pressed, MouseButton::Right)) },
+        NSRightMouseUp          => { Some(Event::MouseInput(ElementState::Released, MouseButton::Right)) },
         NSMouseMoved            |
         NSLeftMouseDragged      |
         NSOtherMouseDragged     |
@@ -852,19 +850,19 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
             let view_rect = NSView::frame(*window.view);
             let scale_factor = window.hidpi_factor();
 
-            Some(MouseMoved((scale_factor * view_point.x as f32) as i32,
-                            (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32))
+            Some(Event::MouseMoved((scale_factor * view_point.x as f32) as i32,
+                                   (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32))
         },
         NSKeyDown => {
             let mut events = VecDeque::new();
             let received_c_str = nsevent.characters().UTF8String();
             let received_str = CStr::from_ptr(received_c_str);
             for received_char in from_utf8(received_str.to_bytes()).unwrap().chars() {
-                events.push_back(ReceivedCharacter(received_char));
+                events.push_back(Event::ReceivedCharacter(received_char));
             }
 
             let vkey =  event::vkeycode_to_element(NSEvent::keyCode(nsevent));
-            events.push_back(KeyboardInput(Pressed, NSEvent::keyCode(nsevent) as u8, vkey));
+            events.push_back(Event::KeyboardInput(ElementState::Pressed, NSEvent::keyCode(nsevent) as u8, vkey));
             let event = events.pop_front();
             window.delegate.state.pending_events.lock().unwrap().extend(events.into_iter());
             event
@@ -872,7 +870,7 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
         NSKeyUp => {
             let vkey =  event::vkeycode_to_element(NSEvent::keyCode(nsevent));
 
-            Some(KeyboardInput(Released, NSEvent::keyCode(nsevent) as u8, vkey))
+            Some(Event::KeyboardInput(ElementState::Released, NSEvent::keyCode(nsevent) as u8, vkey))
         },
         NSFlagsChanged => {
             let mut events = VecDeque::new();
@@ -915,10 +913,10 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
                 NSEventPhaseEnded => TouchPhase::Ended,
                 _ => TouchPhase::Moved,
             };
-            Some(MouseWheel(delta, phase))
+            Some(Event::MouseWheel(delta, phase))
         },
         NSEventTypePressure => {
-            Some(TouchpadPressure(nsevent.pressure(), nsevent.stage()))
+            Some(Event::TouchpadPressure(nsevent.pressure(), nsevent.stage()))
         },
         _  => { None },
     }
