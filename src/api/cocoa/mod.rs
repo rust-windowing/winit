@@ -435,6 +435,7 @@ impl Window {
             ));
             window.non_nil().map(|window| {
                 let title = IdRef::new(NSString::alloc(nil).init_str(&attrs.title));
+                window.setReleasedWhenClosed_(NO);
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
 
