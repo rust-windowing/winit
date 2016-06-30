@@ -995,7 +995,7 @@ impl Window {
             Grab => {
                 unsafe {
                     match (self.x.display.xlib.XGrabPointer)(
-                        self.x.display.display, self.x.window, ffi::False,
+                        self.x.display.display, self.x.window, ffi::True,
                         (ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
                         ffi::LeaveWindowMask | ffi::PointerMotionMask | ffi::PointerMotionHintMask |
                         ffi::Button1MotionMask | ffi::Button2MotionMask | ffi::Button3MotionMask |
