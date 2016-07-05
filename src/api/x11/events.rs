@@ -14,7 +14,7 @@ pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
         //ffi::XK_Sys_Req => events::VirtualKeyCode::Sys_req,
         ffi::XK_Escape => events::VirtualKeyCode::Escape,
         ffi::XK_Delete => events::VirtualKeyCode::Delete,
-        //ffi::XK_Multi_key => events::VirtualKeyCode::Multi_key,
+        ffi::XK_Multi_key => events::VirtualKeyCode::Compose,
         //ffi::XK_Kanji => events::VirtualKeyCode::Kanji,
         //ffi::XK_Muhenkan => events::VirtualKeyCode::Muhenkan,
         //ffi::XK_Henkan_Mode => events::VirtualKeyCode::Henkan_mode,
