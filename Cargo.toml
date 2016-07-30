@@ -17,29 +17,17 @@ shared_library = "0.1.0"
 [target.arm-linux-androideabi.dependencies.android_glue]
 version = "0.2"
 
-[target.i386-apple-ios.dependencies]
+[target.'cfg(target_os="ios")'.dependencies]
 objc = "0.2"
 
-[target.x86_64-apple-ios.dependencies]
-objc = "0.2"
-
-[target.aarch64-apple-ios.dependencies]
-objc = "0.2"
-
-[target.armv7s-apple-ios.dependencies]
-objc = "0.2"
-
-[target.armv7-apple-ios.dependencies]
-objc = "0.2"
-
-[target.x86_64-apple-darwin.dependencies]
+[target.'cfg(target_os="macos")'.dependencies]
 objc = "0.2"
 cgl = "0.1"
 cocoa = "0.3"
 core-foundation = "0"
 core-graphics = "0.3"
 
-[target.i686-pc-windows-gnu.dependencies]
+[target.'cfg(windows)'.dependencies]
 winapi = "0.2"
 shell32-sys = "0.1"
 gdi32-sys = "0.1"
@@ -47,80 +35,7 @@ user32-sys = "~0.1.2"
 kernel32-sys = "0.2"
 dwmapi-sys = "0.1"
 
-[target.i686-pc-windows-msvc.dependencies]
-winapi = "0.2"
-shell32-sys = "0.1"
-gdi32-sys = "0.1"
-user32-sys = "~0.1.2"
-kernel32-sys = "0.2"
-dwmapi-sys = "0.1"
-
-[target.x86_64-pc-windows-gnu.dependencies]
-winapi = "0.2"
-shell32-sys = "0.1"
-gdi32-sys = "0.1"
-user32-sys = "~0.1.2"
-kernel32-sys = "0.2"
-dwmapi-sys = "0.1"
-
-[target.x86_64-pc-windows-msvc.dependencies]
-winapi = "0.2"
-shell32-sys = "0.1"
-gdi32-sys = "0.1"
-user32-sys = "~0.1.2"
-kernel32-sys = "0.2"
-dwmapi-sys = "0.1"
-
-[target.i686-unknown-linux-gnu.dependencies]
-wayland-client = { version = "0.5.4", features = ["dlopen"] }
-wayland-kbd = "0.3.3"
-wayland-window = "0.2.2"
-x11-dl = "~2.4"
-
-[target.i586-unknown-linux-gnu.dependencies]
-wayland-client = { version = "0.5.4", features = ["dlopen"] }
-wayland-kbd = "0.3.3"
-wayland-window = "0.2.2"
-x11-dl = "~2.4"
-
-[target.x86_64-unknown-linux-gnu.dependencies]
-wayland-client = { version = "0.5.4", features = ["dlopen"] }
-wayland-kbd = "0.3.3"
-wayland-window = "0.2.2"
-x11-dl = "~2.4"
-
-[target.arm-unknown-linux-gnueabihf.dependencies]
-wayland-client = { version = "0.5.4", features = ["dlopen"] }
-wayland-kbd = "0.3.3"
-wayland-window = "0.2.2"
-x11-dl = "~2.4"
-
-[target.armv7-unknown-linux-gnueabihf.dependencies]
-wayland-client = { version = "0.5.4", features = ["dlopen"] }
-wayland-kbd = "0.3.3"
-wayland-window = "0.2.2"
-x11-dl = "~2.4"
-
-[target.aarch64-unknown-linux-gnu.dependencies]
-wayland-client = { version = "0.5.4", features = ["dlopen"] }
-wayland-kbd = "0.3.3"
-wayland-window = "0.2.2"
-x11-dl = "~2.4"
-
-[target.x86_64-unknown-dragonfly.dependencies]
-wayland-client = { version = "0.5.4", features = ["dlopen"] }
-wayland-kbd = "0.3.3"
-wayland-window = "0.2.2"
-x11-dl = "~2.4"
-
-[target.x86_64-unknown-freebsd.dependencies]
-wayland-client = { version = "0.5.4", features = ["dlopen"] }
-wayland-kbd = "0.3.3"
-wayland-window = "0.2.2"
-x11-dl = "~2.4"
-
-[target.x86_64-unknown-openbsd.dependencies]
-osmesa-sys = "0.0.5"
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
 wayland-client = { version = "0.5.4", features = ["dlopen"] }
 wayland-kbd = "0.3.3"
 wayland-window = "0.2.2"
