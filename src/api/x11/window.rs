@@ -694,6 +694,12 @@ impl Window {
         self.x.window as *mut libc::c_void
     }
 
+    pub fn get_xcb_connection(&self) -> *mut libc::c_void {
+        unsafe {
+            (self.x.display.xlib_xcb.XGetXCBConnection)(self.get_xlib_display() as *mut _) as *mut _
+        }
+    }
+
     #[inline]
     pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }

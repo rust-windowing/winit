@@ -20,6 +20,14 @@ pub trait WindowExt {
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     fn get_xlib_display(&self) -> Option<*mut libc::c_void>;
+    
+    ///
+    /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
+    ///
+    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
+    ///
+    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    fn get_xcb_connection(&self) -> Option<*mut libc::c_void>;
 
     /// Returns a pointer to the `wl_surface` object of wayland that is used by this window.
     ///
@@ -49,6 +57,13 @@ impl WindowExt for Window {
     fn get_xlib_display(&self) -> Option<*mut libc::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_display()),
+            _ => None
+        }
+    }
+
+    fn get_xcb_connection(&self) -> Option<*mut libc::c_void> {
+        match self.window {
+            LinuxWindow::X(ref w) => Some(w.get_xcb_connection()),
             _ => None
         }
     }
