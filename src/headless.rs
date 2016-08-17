@@ -2,6 +2,7 @@ use Api;
 use ContextError;
 use CreationError;
 use GlAttributes;
+use GlProfile;
 use GlRequest;
 use GlContext;
 use PixelFormat;
@@ -42,6 +43,13 @@ impl<'a> HeadlessRendererBuilder<'a> {
     #[inline]
     pub fn with_gl(mut self, request: GlRequest) -> HeadlessRendererBuilder<'a> {
         self.opengl.version = request;
+        self
+    }
+
+    /// Sets the desired OpenGL context profile.
+    #[inline]
+    pub fn with_gl_profile(mut self, profile: GlProfile) -> HeadlessRendererBuilder<'a> {
+        self.opengl.profile = Some(profile);
         self
     }
 
@@ -95,7 +103,7 @@ impl HeadlessContext {
     pub unsafe fn make_current(&self) -> Result<(), ContextError> {
         self.context.make_current()
     }
-    
+
     /// Returns true if this context is the current one in this thread.
     #[inline]
     pub fn is_current(&self) -> bool {
