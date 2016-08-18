@@ -329,7 +329,7 @@ pub enum ReleaseBehavior {
     Flush,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum MouseCursor {
     /// The platform-dependent default cursor.
     Default,
@@ -386,7 +386,7 @@ pub enum MouseCursor {
 }
 
 /// Describes how glutin handles the cursor.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum CursorState {
     /// Normal cursor behavior.
     Normal,
