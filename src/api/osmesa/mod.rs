@@ -7,6 +7,8 @@ use ContextError;
 use CreationError;
 use GlAttributes;
 use GlContext;
+use GlProfile;
+use GlRequest;
 use PixelFormat;
 use PixelFormatRequirements;
 use Robustness;
@@ -34,7 +36,7 @@ impl From<CreationError> for OsMesaCreationError {
 }
 
 impl OsMesaContext {
-    pub fn new(dimensions: (u32, u32), pf_reqs: &PixelFormatRequirements,
+    pub fn new(dimensions: (u32, u32), _pf_reqs: &PixelFormatRequirements,
                opengl: &GlAttributes<&OsMesaContext>) -> Result<OsMesaContext, OsMesaCreationError>
     {
         if let Err(_) = osmesa_sys::OsMesa::try_loading() {
@@ -51,7 +53,44 @@ impl OsMesaContext {
         }
 
         // TODO: use `pf_reqs` for the format
-        // TODO: check OpenGL version and return `OpenGlVersionNotSupported` if necessary
+
+        let mut attribs = Vec::new();
+
+        if let Some(profile) = opengl.profile {
+            attribs.push(osmesa_sys::OSMESA_PROFILE);
+
+            match profile {
+                GlProfile::Compatibility => {
+                    attribs.push(osmesa_sys::OSMESA_COMPAT_PROFILE);
+                }
+                GlProfile::Core => {
+                    attribs.push(osmesa_sys::OSMESA_CORE_PROFILE);
+                }
+            }
+        }
+
+        match opengl.version {
+            GlRequest::Latest => {},
+            GlRequest::Specific(Api::OpenGl, (major, minor)) => {
+                attribs.push(osmesa_sys::OSMESA_CONTEXT_MAJOR_VERSION);
+                attribs.push(major as libc::c_int);
+                attribs.push(osmesa_sys::OSMESA_CONTEXT_MINOR_VERSION);
+                attribs.push(minor as libc::c_int);
+            },
+            GlRequest::Specific(Api::OpenGlEs, _) => {
+                return Err(OsMesaCreationError::NotSupported);
+            },
+            GlRequest::Specific(_, _) => return Err(OsMesaCreationError::NotSupported),
+            GlRequest::GlThenGles { opengl_version: (major, minor), .. } => {
+                attribs.push(osmesa_sys::OSMESA_CONTEXT_MAJOR_VERSION);
+                attribs.push(major as libc::c_int);
+                attribs.push(osmesa_sys::OSMESA_CONTEXT_MINOR_VERSION);
+                attribs.push(minor as libc::c_int);
+            },
+        }
+
+        // attribs array must be NULL terminated.
+        attribs.push(0);
 
         Ok(OsMesaContext {
             width: dimensions.0,
@@ -59,9 +98,9 @@ impl OsMesaContext {
             buffer: ::std::iter::repeat(unsafe { mem::uninitialized() })
                 .take((dimensions.0 * dimensions.1) as usize).collect(),
             context: unsafe {
-                let ctxt = osmesa_sys::OSMesaCreateContext(0x1908, ptr::null_mut());
+                let ctxt = osmesa_sys::OSMesaCreateContextAttribs(attribs.as_ptr(), ptr::null_mut());
                 if ctxt.is_null() {
-                    return Err(CreationError::OsError("OSMesaCreateContext failed".to_string()).into());
+                    return Err(CreationError::OsError("OSMesaCreateContextAttribs failed".to_string()).into());
                 }
                 ctxt
             }
