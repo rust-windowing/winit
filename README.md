@@ -15,7 +15,7 @@ Alternative to GLFW in pure Rust.
 glutin = "*"
 ```
 
-## [Documentation](https://docs.io/glutin)
+## [Documentation](https://docs.rs/glutin)
 
 ## Try it!
 
