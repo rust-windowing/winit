@@ -4,6 +4,8 @@ rust:
   - nightly
   - stable
 
+cache: cargo
+
 addons:
   apt:
     packages:
