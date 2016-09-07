@@ -169,7 +169,8 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes) -> Result<Window, Cre
             let data = callback::ThreadLocalData {
                 win: real_window.0,
                 sender: tx.take().unwrap(),
-                window_state: window_state.clone()
+                window_state: window_state.clone(),
+                mouse_in_window: false
             };
             (*context_stash.borrow_mut()) = Some(data);
         });

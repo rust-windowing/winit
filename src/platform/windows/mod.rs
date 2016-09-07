@@ -7,9 +7,7 @@ pub use api::win32::{WindowProxy, PollEventsIterator, WaitEventsIterator};
 use CreationError;
 use WindowAttributes;
 
-use std::ffi::CString;
 use std::ops::{Deref, DerefMut};
-use kernel32;
 
 #[derive(Default)]
 pub struct PlatformSpecificWindowBuilderAttributes;

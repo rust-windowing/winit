@@ -65,10 +65,6 @@ pub use window::{WindowBuilder, WindowProxy, PollEventsIterator, WaitEventsItera
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
 pub use native_monitor::NativeMonitorId;
 
-use std::io;
-#[cfg(not(target_os = "macos"))]
-use std::cmp::Ordering;
-
 mod api;
 mod platform;
 mod events;
