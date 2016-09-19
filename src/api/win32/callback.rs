@@ -136,15 +136,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             let x = winapi::GET_X_LPARAM(lparam) as i32;
             let y = winapi::GET_Y_LPARAM(lparam) as i32;
 
-            let mut mouse_track = winapi::TRACKMOUSEEVENT {
-                cbSize: mem::size_of::<winapi::TRACKMOUSEEVENT>() as winapi::DWORD,
-                dwFlags: winapi::TME_HOVER | winapi::TME_LEAVE,
-                hwndTrack: window,
-                dwHoverTime: winapi::HOVER_DEFAULT
-            };
-            user32::TrackMouseEvent(&mut mouse_track);
-
-            send_event(window, MouseMoved((x, y)));
+            send_event(window, MouseMoved(x, y));
 
             0
         },

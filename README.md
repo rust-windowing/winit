@@ -3,6 +3,8 @@
 
 [![](http://meritbadge.herokuapp.com/glutin)](https://crates.io/crates/glutin)
 
+[![Docs.rs](https://docs.rs/glutin/badge.svg)](https://docs.rs/glutin)
+
 Alternative to GLFW in pure Rust.
 
 [![Build Status](https://travis-ci.org/tomaka/glutin.png?branch=master)](https://travis-ci.org/tomaka/glutin)
@@ -13,7 +15,7 @@ Alternative to GLFW in pure Rust.
 glutin = "*"
 ```
 
-## [Documentation](http://tomaka.github.io/glutin/)
+## [Documentation](https://docs.rs/glutin)
 
 ## Try it!
 

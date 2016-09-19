@@ -31,7 +31,7 @@ fn main() {
 
             Event::Closed => break,
 
-            a @ Event::MouseMoved(_) => {
+            a @ Event::MouseMoved(_, _) => {
                 println!("{:?}", a);
             },
 

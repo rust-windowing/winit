@@ -28,7 +28,7 @@ pub enum Event {
     /// The cursor has moved on the window.
     ///
     /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
-    MouseMoved((i32, i32)),
+    MouseMoved(i32, i32),
 
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel(MouseScrollDelta, TouchPhase),
@@ -219,6 +219,9 @@ pub enum VirtualKeyCode {
     Return,
     /// The space bar.
     Space,
+
+    /// The "Compose" key on Linux.
+    Compose,
 
     Numlock,
     Numpad0,

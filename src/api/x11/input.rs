@@ -241,7 +241,7 @@ impl XInputEventHandler {
                     let new_cursor_pos = (event_data.event_x, event_data.event_y);
                     if new_cursor_pos != self.current_state.cursor_pos {
                         self.current_state.cursor_pos = new_cursor_pos;
-                        Some(MouseMoved((new_cursor_pos.0 as i32, new_cursor_pos.1 as i32)))
+                        Some(MouseMoved(new_cursor_pos.0 as i32, new_cursor_pos.1 as i32))
                     } else {
                         None
                     }
