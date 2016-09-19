@@ -61,7 +61,7 @@ extern crate x11_dl;
 extern crate wayland_client;
 
 pub use events::*;
-pub use window::{WindowBuilder, WindowProxy, PollEventsIterator, WaitEventsIterator};
+pub use window::{WindowProxy, PollEventsIterator, WaitEventsIterator};
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
 pub use native_monitor::NativeMonitorId;
 
@@ -99,6 +99,16 @@ pub struct Window {
     window: platform::Window,
 }
 
+/// Object that allows you to build windows.
+#[derive(Clone)]
+pub struct WindowBuilder {
+    /// The attributes to use to create the window.
+    pub window: WindowAttributes,
+
+    /// Platform-specific configuration.
+    platform_specific: platform::PlatformSpecificWindowBuilderAttributes,
+}
+
 /// Error that can happen while creating a window or a headless renderer.
 #[derive(Debug)]
 pub enum CreationError {
@@ -128,7 +138,7 @@ impl std::error::Error for CreationError {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum MouseCursor {
     /// The platform-dependent default cursor.
     Default,
@@ -185,7 +195,7 @@ pub enum MouseCursor {
 }
 
 /// Describes how glutin handles the cursor.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum CursorState {
     /// Normal cursor behavior.
     Normal,

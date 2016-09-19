@@ -1,25 +1,15 @@
 use std::collections::vec_deque::IntoIter as VecDequeIter;
-use std::default::Default;
 
 use CreationError;
 use CursorState;
 use Event;
 use MouseCursor;
 use Window;
-use WindowAttributes;
+use WindowBuilder;
 use native_monitor::NativeMonitorId;
 
 use libc;
 use platform;
-
-/// Object that allows you to build windows.
-pub struct WindowBuilder {
-    /// The attributes to use to create the window.
-    pub window: WindowAttributes,
-
-    /// Platform-specific configuration.
-    platform_specific: platform::PlatformSpecificWindowBuilderAttributes,
-}
 
 impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
@@ -60,8 +50,8 @@ impl WindowBuilder {
 
     /// Requests a specific title for the window.
     #[inline]
-    pub fn with_title(mut self, title: String) -> WindowBuilder {
-        self.window.title = title;
+    pub fn with_title<T: Into<String>>(mut self, title: T) -> WindowBuilder {
+        self.window.title = title.into();
         self
     }
 

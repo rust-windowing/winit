@@ -177,7 +177,7 @@ impl MonitorId {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes;
 
 impl Window {

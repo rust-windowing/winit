@@ -30,7 +30,7 @@ fn main() {
     };
 
     let window = winit::WindowBuilder::new()
-        .with_title("Hello world!".to_string())
+        .with_title("Hello world!")
         .with_fullscreen(monitor)
         .build()
         .unwrap();

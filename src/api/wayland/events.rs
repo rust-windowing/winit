@@ -52,7 +52,7 @@ pub fn translate_event(
                 if known_surfaces.contains(&surface) {
                     focuses.pointer_on = Some(surface);
                     focuses.pointer_at = Some((x, y));
-                    Some((GlutinEvent::MouseMoved((x as i32, y as i32)), surface))
+                    Some((GlutinEvent::MouseMoved(x as i32, y as i32), surface))
                 } else {
                     None
                 }
@@ -65,7 +65,7 @@ pub fn translate_event(
             WlPointerEvent::Motion(_, x, y) => {
                 if let Some(surface) = focuses.pointer_on {
                     focuses.pointer_at = Some((x, y));
-                    Some((GlutinEvent::MouseMoved((x as i32, y as i32)), surface))
+                    Some((GlutinEvent::MouseMoved(x as i32, y as i32), surface))
                 } else {
                     None
                 }
