@@ -9,15 +9,13 @@ use {Window, WindowBuilder};
 pub trait WindowExt {
     /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
     ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the `Window` is destroyed.
     fn get_nswindow(&self) -> *mut c_void;
-}
 
-impl WindowExt for Window {
-    #[inline]
-    fn get_nswindow(&self) -> *mut c_void {
-        self.window.platform_window() as *mut c_void
-    }
+    /// Returns a pointer to the cocoa `NSView` that is used by this window.
+    ///
+    /// The pointer will become invalid when the `Window` is destroyed.
+    fn get_nsview(&self) -> *mut c_void;
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
