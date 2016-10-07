@@ -75,7 +75,7 @@ pub enum MonitorId {
 #[inline]
 pub fn get_available_monitors() -> VecDeque<MonitorId> {
     match *BACKEND {
-        Backend::Wayland(ref ctxt) => ctxt.get_available_monitors()
+        Backend::Wayland(ref ctxt) => wayland::get_available_monitors(ctxt)
                                 .into_iter()
                                 .map(MonitorId::Wayland)
                                 .collect(),
@@ -90,7 +90,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorId> {
 #[inline]
 pub fn get_primary_monitor() -> MonitorId {
     match *BACKEND {
-        Backend::Wayland(ref ctxt) => MonitorId::Wayland(ctxt.get_primary_monitor()),
+        Backend::Wayland(ref ctxt) => MonitorId::Wayland(wayland::get_primary_monitor(ctxt)),
         Backend::X(ref connec) => MonitorId::X(x11::get_primary_monitor(connec)),
         Backend::Error(_) => MonitorId::None,
     }
