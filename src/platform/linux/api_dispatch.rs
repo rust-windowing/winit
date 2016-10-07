@@ -1,6 +1,3 @@
-/*pub use api::x11::{Window, WindowProxy, MonitorId, get_available_monitors, get_primary_monitor};
-pub use api::x11::{WaitEventsIterator, PollEventsIterator};*/
-
 use std::collections::VecDeque;
 use std::sync::Arc;
 
@@ -22,15 +19,15 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 
 enum Backend {
     X(Arc<XConnection>),
-    Wayland,
+    Wayland(Arc<wayland::WaylandContext>),
     Error(XNotSupported),
 }
 
 lazy_static!(
     static ref BACKEND: Backend = {
         // Wayland backend is not production-ready yet so we disable it
-        if wayland::is_available() {
-            Backend::Wayland
+        if let Some(ctxt) = wayland::WaylandContext::init() {
+            Backend::Wayland(Arc::new(ctxt))
         } else {
             match XConnection::new(Some(x_error_callback)) {
                 Ok(x) => Backend::X(Arc::new(x)),
@@ -78,7 +75,7 @@ pub enum MonitorId {
 #[inline]
 pub fn get_available_monitors() -> VecDeque<MonitorId> {
     match *BACKEND {
-        Backend::Wayland => wayland::get_available_monitors()
+        Backend::Wayland(ref ctxt) => ctxt.get_available_monitors()
                                 .into_iter()
                                 .map(MonitorId::Wayland)
                                 .collect(),
@@ -93,7 +90,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorId> {
 #[inline]
 pub fn get_primary_monitor() -> MonitorId {
     match *BACKEND {
-        Backend::Wayland => MonitorId::Wayland(wayland::get_primary_monitor()),
+        Backend::Wayland(ref ctxt) => MonitorId::Wayland(ctxt.get_primary_monitor()),
         Backend::X(ref connec) => MonitorId::X(x11::get_primary_monitor(connec)),
         Backend::Error(_) => MonitorId::None,
     }
@@ -173,8 +170,8 @@ impl Window {
                -> Result<Window, CreationError>
     {
         match *BACKEND {
-            Backend::Wayland => {
-                wayland::Window::new(window).map(Window::Wayland)
+            Backend::Wayland(ref ctxt) => {
+                wayland::Window::new(ctxt.clone(), window).map(Window::Wayland)
             },
 
             Backend::X(ref connec) => {
@@ -318,17 +315,19 @@ impl Window {
 
     #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
+        use wayland_client::Proxy;
         match self {
             &Window::X(ref w) => w.platform_display(),
-            &Window::Wayland(ref w) => w.platform_display()
+            &Window::Wayland(ref w) => w.get_display().ptr() as *mut _
         }
     }
 
     #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
+        use wayland_client::Proxy;
         match self {
             &Window::X(ref w) => w.platform_window(),
-            &Window::Wayland(ref w) => w.platform_window()
+            &Window::Wayland(ref w) => w.get_surface().ptr() as *mut _
         }
     }
 }

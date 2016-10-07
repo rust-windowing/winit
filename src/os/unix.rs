@@ -5,6 +5,9 @@ use Window;
 use platform::Window as LinuxWindow;
 use WindowBuilder;
 
+use wayland_client::protocol::wl_display::WlDisplay;
+use wayland_client::protocol::wl_surface::WlSurface;
+
 /// Additional methods on `Window` that are specific to Unix.
 pub trait WindowExt {
     /// Returns a pointer to the `Window` object of xlib that is used by this window.
@@ -29,19 +32,15 @@ pub trait WindowExt {
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     fn get_xcb_connection(&self) -> Option<*mut libc::c_void>;
 
-    /// Returns a pointer to the `wl_surface` object of wayland that is used by this window.
+    /// Returns a reference to the `WlSurface` object of wayland that is used by this window.
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
-    ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_wayland_surface(&self) -> Option<*mut libc::c_void>;
+    fn get_wayland_surface(&self) -> Option<&WlSurface>;
 
-    /// Returns a pointer to the `wl_display` object of wayland that is used by this window.
+    /// Returns a pointer to the `WlDisplay` object of wayland that is used by this window.
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
-    ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_wayland_display(&self) -> Option<*mut libc::c_void>;
+    fn get_wayland_display(&self) -> Option<&WlDisplay>;
 }
 
 impl WindowExt for Window {
@@ -69,17 +68,17 @@ impl WindowExt for Window {
     }
 
     #[inline]
-    fn get_wayland_surface(&self) -> Option<*mut libc::c_void> {
+    fn get_wayland_surface(&self) -> Option<&WlSurface> {
         match self.window {
-            LinuxWindow::Wayland(ref w) => Some(w.get_wayland_surface()),
+            LinuxWindow::Wayland(ref w) => Some(w.get_surface()),
             _ => None
         }
     }
 
     #[inline]
-    fn get_wayland_display(&self) -> Option<*mut libc::c_void> {
+    fn get_wayland_display(&self) -> Option<&WlDisplay> {
         match self.window {
-            LinuxWindow::Wayland(ref w) => Some(w.get_wayland_display()),
+            LinuxWindow::Wayland(ref w) => Some(w.get_display()),
             _ => None
         }
     }
