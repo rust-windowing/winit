@@ -30,7 +30,9 @@ use std::str::FromStr;
 use std::str::from_utf8;
 use std::sync::Mutex;
 use std::ops::Deref;
+use std::os::raw::c_void;
 
+use os::macos::WindowExt;
 use events::ElementState;
 use events::{self, MouseButton, TouchPhase};
 
@@ -176,6 +178,18 @@ pub struct Window {
 
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
+
+impl WindowExt for Window {
+    #[inline]
+    fn get_nswindow(&self) -> *mut c_void {
+        *self.window as *mut c_void
+    }
+
+    #[inline]
+    fn get_nsview(&self) -> *mut c_void {
+        *self.view as *mut c_void
+    }
+}
 
 #[derive(Clone)]
 pub struct WindowProxy;
