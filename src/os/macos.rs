@@ -18,6 +18,18 @@ pub trait WindowExt {
     fn get_nsview(&self) -> *mut c_void;
 }
 
+impl WindowExt for Window {
+    #[inline]
+    fn get_nswindow(&self) -> *mut c_void {
+        self.window.get_nswindow()
+    }
+
+    #[inline]
+    fn get_nsview(&self) -> *mut c_void {
+        self.window.get_nsview()
+    }
+}
+
 /// Corresponds to `NSApplicationActivationPolicy`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ActivationPolicy {
