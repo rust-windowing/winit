@@ -1,9 +1,13 @@
+use Event;
+
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use wayland_client::{EnvHandler, default_connect, EventQueue, EventQueueHandle, Init, Proxy};
 use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subcompositor,
-                               wl_display, wl_registry, wl_output};
+                               wl_display, wl_registry, wl_output, wl_surface};
+
+use super::wayland_window;
 
 /*
  * Registry and globals handling
@@ -21,7 +25,8 @@ struct WaylandEnv {
     registry: wl_registry::WlRegistry,
     inner: EnvHandler<InnerEnv>,
     monitors: Vec<OutputInfo>,
-    my_id: usize
+    my_id: usize,
+    windows: Vec<(Arc<wl_surface::WlSurface>,Arc<Mutex<VecDeque<Event>>>)>
 }
 
 struct OutputInfo {
@@ -50,8 +55,20 @@ impl WaylandEnv {
             registry: registry,
             inner: EnvHandler::new(),
             monitors: Vec::new(),
-            my_id: 0
+            my_id: 0,
+            windows: Vec::new()
         }
+    }
+
+    fn get_seat(&self) -> Option<wl_seat::WlSeat> {
+        for &(name, ref interface, version) in self.inner.globals() {
+            if interface == "wl_seat" {
+                // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
+                let seat = self.registry.bind::<wl_seat::WlSeat>(5, name).expect("Seat cannot be destroyed");
+                return Some(seat)
+            }
+        }
+        None
     }
 }
 
@@ -156,9 +173,11 @@ impl WaylandContext {
             Err(e) => return None
         };
 
-        // this expect cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
+        // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
         let registry = display.get_registry().expect("Display cannot be already destroyed.");
         let env_id = event_queue.add_handler_with_init(WaylandEnv::new(registry));
+        // two syncs fully initialize
+        event_queue.sync_roundtrip().expect("Wayland connection unexpectedly lost");
         event_queue.sync_roundtrip().expect("Wayland connection unexpectedly lost");
 
         Some(WaylandContext {
@@ -166,6 +185,59 @@ impl WaylandContext {
             display: display,
             env_id: env_id
         })
+    }
+
+    pub fn dispatch_pending(&self) {
+        let mut guard = self.evq.lock().unwrap();
+        guard.dispatch_pending().expect("Wayland connection unexpectedly lost");
+    }
+
+    pub fn dispatch(&self) {
+        let mut guard = self.evq.lock().unwrap();
+        guard.dispatch().expect("Wayland connection unexpectedly lost");
+    }
+
+    pub fn flush(&self) {
+        self.display.flush();
+    }
+
+    pub fn with_output<F>(&self, id: MonitorId, f: F) where F: FnOnce(&wl_output::WlOutput) {
+        let mut guard = self.evq.lock().unwrap();
+        let state = guard.state();
+        let env = state.get_handler::<WaylandEnv>(self.env_id);
+        for m in env.monitors.iter().filter(|m| m.id == id.id) {
+            f(&m.output);
+            break
+        }
+    }
+
+    pub fn create_window<H: wayland_window::Handler>(&self)
+        -> (Arc<wl_surface::WlSurface>, Arc<Mutex<VecDeque<Event>>>, wayland_window::DecoratedSurface<H>)
+    {
+        let mut guard = self.evq.lock().unwrap();
+        let mut state = guard.state();
+        let env = state.get_mut_handler::<WaylandEnv>(self.env_id);
+        // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
+        let surface = Arc::new(env.inner.compositor.create_surface().expect("Compositor cannot be dead"));
+        let eventiter = Arc::new(Mutex::new(VecDeque::new()));
+        env.windows.push((surface.clone(), eventiter.clone()));
+        let decorated = wayland_window::DecoratedSurface::new(
+            &*surface, 800, 600,
+            &env.inner.compositor,
+            &env.inner.subcompositor,
+            &env.inner.shm,
+            &env.inner.shell,
+            env.get_seat(),
+            false
+        ).expect("Failed to create a tmpfile buffer.");
+        (surface, eventiter, decorated)
+    }
+
+    pub fn prune_dead_windows(&self) {
+        let mut guard = self.evq.lock().unwrap();
+        let mut state = guard.state();
+        let env = state.get_mut_handler::<WaylandEnv>(self.env_id);
+        env.windows.retain(|w| w.0.is_alive());
     }
 }
 
