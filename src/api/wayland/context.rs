@@ -23,6 +23,11 @@ wayland_env!(InnerEnv,
     subcompositor: wl_subcompositor::WlSubcompositor
 );
 
+enum KbdType {
+    Mapped(MappedKeyboard<KbdHandler>),
+    Plain(Option<Arc<Mutex<VecDeque<Event>>>>)
+}
+
 struct WaylandEnv {
     registry: wl_registry::WlRegistry,
     inner: EnvHandler<InnerEnv>,
@@ -34,7 +39,7 @@ struct WaylandEnv {
     mouse_focus: Option<Arc<Mutex<VecDeque<Event>>>>,
     mouse_location: (i32, i32),
     kbd: Option<wl_keyboard::WlKeyboard>,
-    kbd_handler: MappedKeyboard<KbdHandler>
+    kbd_handler: KbdType
 }
 
 struct OutputInfo {
@@ -59,6 +64,10 @@ impl OutputInfo {
 
 impl WaylandEnv {
     fn new(registry: wl_registry::WlRegistry) -> WaylandEnv {
+        let kbd_handler = match MappedKeyboard::new(KbdHandler::new()) {
+            Ok(h) => KbdType::Mapped(h),
+            Err(_) => KbdType::Plain(None)
+        };
         WaylandEnv {
             registry: registry,
             inner: EnvHandler::new(),
@@ -70,7 +79,7 @@ impl WaylandEnv {
             mouse_focus: None,
             mouse_location: (0,0),
             kbd: None,
-            kbd_handler: MappedKeyboard::new(KbdHandler::new()).ok().expect("Missing libxkbcommon!") // TODO
+            kbd_handler: kbd_handler
         }
     }
 
@@ -497,7 +506,10 @@ impl wl_keyboard::Handler for WaylandEnv {
               fd: ::std::os::unix::io::RawFd,
               size: u32)
     {
-        self.kbd_handler.keymap(evqh, proxy, format, fd, size)
+        match self.kbd_handler {
+            KbdType::Mapped(ref mut h) => h.keymap(evqh, proxy, format, fd, size),
+            _ => ()
+        }
     }
 
     fn enter(&mut self,
@@ -507,15 +519,25 @@ impl wl_keyboard::Handler for WaylandEnv {
              surface: &wl_surface::WlSurface,
              keys: Vec<u8>)
     {
+        let mut opt_eviter = None;
         for &(ref window, ref eviter) in &self.windows {
             if window.equals(surface) {
-                self.kbd_handler.handler().target = Some(eviter.clone());
-                let mut guard = eviter.lock().unwrap();
-                guard.push_back(Event::Focused(true));
-                break
+                opt_eviter = Some(eviter.clone());
+                break;
             }
         }
-        self.kbd_handler.enter(evqh, proxy, serial, surface, keys)
+        if let Some(ref eviter) = opt_eviter {
+            // send focused event
+            let mut guard = eviter.lock().unwrap();
+            guard.push_back(Event::Focused(true));
+        }
+        match self.kbd_handler {
+            KbdType::Mapped(ref mut h) => {
+                h.handler().target = opt_eviter;
+                h.enter(evqh, proxy, serial, surface, keys);
+            },
+            KbdType::Plain(ref mut opt) => { *opt = opt_eviter; }
+        }
     }
 
     fn leave(&mut self,
@@ -524,11 +546,18 @@ impl wl_keyboard::Handler for WaylandEnv {
              serial: u32,
              surface: &wl_surface::WlSurface)
     {
-        if let Some(eviter) = self.kbd_handler.handler().target.take() {
+        let opt_eviter = match self.kbd_handler {
+            KbdType::Mapped(ref mut h) => {
+                let eviter = h.handler().target.take();
+                h.leave(evqh, proxy, serial, surface);
+                eviter
+            },
+            KbdType::Plain(ref mut opt) => opt.take()
+        };
+        if let Some(eviter) = opt_eviter {
             let mut guard = eviter.lock().unwrap();
             guard.push_back(Event::Focused(false));
         }
-        self.kbd_handler.leave(evqh, proxy, serial, surface)
     }
 
     fn key(&mut self,
@@ -539,7 +568,22 @@ impl wl_keyboard::Handler for WaylandEnv {
            key: u32,
            state: wl_keyboard::KeyState)
     {
-        self.kbd_handler.key(evqh, proxy, serial, time, key, state)
+        match self.kbd_handler {
+            KbdType::Mapped(ref mut h) => h.key(evqh, proxy, serial, time, key, state),
+            KbdType::Plain(Some(ref eviter)) => {
+                let state = match state {
+                    wl_keyboard::KeyState::Pressed => ElementState::Pressed,
+                    wl_keyboard::KeyState::Released => ElementState::Released,
+                };
+                let mut guard = eviter.lock().unwrap();
+                guard.push_back(Event::KeyboardInput(
+                    state,
+                    key as u8,
+                    None
+                ));
+            },
+            KbdType::Plain(None) => ()
+        }
     }
 
     fn modifiers(&mut self,
@@ -551,7 +595,11 @@ impl wl_keyboard::Handler for WaylandEnv {
                  mods_locked: u32,
                  group: u32)
     {
-        self.kbd_handler.modifiers(evqh, proxy, serial, mods_depressed, mods_latched, mods_locked, group)
+        match self.kbd_handler {
+            KbdType::Mapped(ref mut h) => h.modifiers(evqh, proxy, serial, mods_depressed,
+                                                      mods_latched, mods_locked, group),
+            _ => ()
+        }
     }
 
     fn repeat_info(&mut self,
@@ -560,7 +608,10 @@ impl wl_keyboard::Handler for WaylandEnv {
                    rate: i32,
                    delay: i32)
     {
-        self.kbd_handler.repeat_info(evqh, proxy, rate, delay)
+        match self.kbd_handler {
+            KbdType::Mapped(ref mut h) => h.repeat_info(evqh, proxy, rate, delay),
+            _ => ()
+        }
     }
 }
 
