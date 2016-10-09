@@ -160,7 +160,10 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
-        // TODO
+        let mut guard = self.evq.lock().unwrap();
+        let mut state = guard.state();
+        let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
+        decorated.set_title(title.into())
     }
 
     #[inline]
@@ -185,19 +188,23 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        // TODO
-        None
+        Some(self.size.lock().unwrap().clone())
     }
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
-        // TODO
-        None
+        let (w, h) = self.size.lock().unwrap().clone();
+        let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
+        Some((w as u32, h as u32))
     }
 
     #[inline]
+    // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        // TODO
+        let mut guard = self.evq.lock().unwrap();
+        let mut state = guard.state();
+        let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
+        decorated.resize(x as i32, y as i32);
     }
 
     #[inline]
