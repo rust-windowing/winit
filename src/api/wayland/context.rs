@@ -510,6 +510,8 @@ impl wl_keyboard::Handler for WaylandEnv {
         for &(ref window, ref eviter) in &self.windows {
             if window.equals(surface) {
                 self.kbd_handler.handler().target = Some(eviter.clone());
+                let mut guard = eviter.lock().unwrap();
+                guard.push_back(Event::Focused(true));
                 break
             }
         }
@@ -522,7 +524,10 @@ impl wl_keyboard::Handler for WaylandEnv {
              serial: u32,
              surface: &wl_surface::WlSurface)
     {
-        self.kbd_handler.handler().target = None;
+        if let Some(eviter) = self.kbd_handler.handler().target.take() {
+            let mut guard = eviter.lock().unwrap();
+            guard.push_back(Event::Focused(false));
+        }
         self.kbd_handler.leave(evqh, proxy, serial, surface)
     }
 
