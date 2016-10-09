@@ -8,4 +8,5 @@ extern crate wayland_kbd;
 extern crate wayland_window;
 
 mod context;
+mod keyboard;
 mod window;

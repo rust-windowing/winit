@@ -40,6 +40,6 @@ dwmapi-sys = "0.1"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
 wayland-client = { version = "0.7.3", features = ["dlopen"] }
-wayland-kbd = "0.6"
+wayland-kbd = "0.6.2"
 wayland-window = "0.4.2"
 x11-dl = "2.8"

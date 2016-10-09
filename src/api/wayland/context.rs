@@ -1,13 +1,16 @@
-use Event;
+use {Event, ElementState, MouseButton};
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use wayland_client::{EnvHandler, default_connect, EventQueue, EventQueueHandle, Init, Proxy};
 use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subcompositor,
-                               wl_display, wl_registry, wl_output, wl_surface};
+                               wl_display, wl_registry, wl_output, wl_surface, wl_pointer,
+                               wl_keyboard};
 
 use super::wayland_window;
+use super::wayland_kbd::MappedKeyboard;
+use super::keyboard::KbdHandler;
 
 /*
  * Registry and globals handling
@@ -15,7 +18,6 @@ use super::wayland_window;
 
 wayland_env!(InnerEnv,
     compositor: wl_compositor::WlCompositor,
-    seat: wl_seat::WlSeat,
     shell: wl_shell::WlShell,
     shm: wl_shm::WlShm,
     subcompositor: wl_subcompositor::WlSubcompositor
@@ -26,7 +28,13 @@ struct WaylandEnv {
     inner: EnvHandler<InnerEnv>,
     monitors: Vec<OutputInfo>,
     my_id: usize,
-    windows: Vec<(Arc<wl_surface::WlSurface>,Arc<Mutex<VecDeque<Event>>>)>
+    windows: Vec<(Arc<wl_surface::WlSurface>,Arc<Mutex<VecDeque<Event>>>)>,
+    seat: Option<wl_seat::WlSeat>,
+    mouse: Option<wl_pointer::WlPointer>,
+    mouse_focus: Option<Arc<Mutex<VecDeque<Event>>>>,
+    mouse_location: (i32, i32),
+    kbd: Option<wl_keyboard::WlKeyboard>,
+    kbd_handler: MappedKeyboard<KbdHandler>
 }
 
 struct OutputInfo {
@@ -56,7 +64,13 @@ impl WaylandEnv {
             inner: EnvHandler::new(),
             monitors: Vec::new(),
             my_id: 0,
-            windows: Vec::new()
+            windows: Vec::new(),
+            seat: None,
+            mouse: None,
+            mouse_focus: None,
+            mouse_location: (0,0),
+            kbd: None,
+            kbd_handler: MappedKeyboard::new(KbdHandler::new()).ok().expect("Missing libxkbcommon!") // TODO
         }
     }
 
@@ -94,6 +108,14 @@ impl wl_registry::Handler for WaylandEnv {
                              .expect("Registry cannot be dead");
             evqh.register::<_, WaylandEnv>(&output, self.my_id);
             self.monitors.push(OutputInfo::new(output, name));
+        } else if interface == "wl_seat" && self.seat.is_none() {
+            // Only grab the first seat
+            // TODO: Handle multi-seat-setup?
+            assert!(version >= 5, "Version 5 of seat interface is needed by glutin.");
+            let seat = self.registry.bind::<wl_seat::WlSeat>(5, name)
+                           .expect("Registry cannot be dead");
+            evqh.register::<_, WaylandEnv>(&seat, self.my_id);
+            self.seat = Some(seat);
         }
         self.inner.global(evqh, registry, name, interface, version);
     }
@@ -241,6 +263,10 @@ impl WaylandContext {
     }
 }
 
+/*
+ * Monitors API
+ */
+
 pub fn get_primary_monitor(ctxt: &Arc<WaylandContext>) -> MonitorId {
     let mut guard = ctxt.evq.lock().unwrap();
     let state = guard.state();
@@ -298,3 +324,239 @@ impl MonitorId {
         (0,0)
     }
 }
+
+/*
+ * Input Handling
+ */
+
+impl wl_seat::Handler for WaylandEnv {
+    fn capabilities(&mut self,
+                    evqh: &mut EventQueueHandle,
+                    seat: &wl_seat::WlSeat,
+                    capabilities: wl_seat::Capability)
+    {
+        // create pointer if applicable
+        if capabilities.contains(wl_seat::Pointer) && self.mouse.is_none() {
+            let pointer = seat.get_pointer().expect("Seat is not dead");
+            evqh.register::<_, WaylandEnv>(&pointer, self.my_id);
+            self.mouse = Some(pointer);
+        }
+        // destroy pointer if applicable
+        if !capabilities.contains(wl_seat::Pointer) {
+            if let Some(pointer) = self.mouse.take() {
+                pointer.release();
+            }
+        }
+        // create keyboard if applicable
+        if capabilities.contains(wl_seat::Keyboard) && self.kbd.is_none() {
+            let kbd = seat.get_keyboard().expect("Seat is not dead");
+            evqh.register::<_, WaylandEnv>(&kbd, self.my_id);
+            self.kbd = Some(kbd);
+        }
+        // destroy keyboard if applicable
+        if !capabilities.contains(wl_seat::Keyboard) {
+            if let Some(kbd) = self.kbd.take() {
+                kbd.release();
+            }
+        }
+    }
+}
+
+declare_handler!(WaylandEnv, wl_seat::Handler, wl_seat::WlSeat);
+
+/*
+ * Pointer Handling
+ */
+
+impl wl_pointer::Handler for WaylandEnv {
+    fn enter(&mut self,
+             _evqh: &mut EventQueueHandle,
+             _proxy: &wl_pointer::WlPointer,
+             _serial: u32,
+             surface: &wl_surface::WlSurface,
+             surface_x: f64,
+             surface_y: f64)
+    {
+        self.mouse_location = (surface_x as i32, surface_y as i32);
+        for &(ref window, ref eviter) in &self.windows {
+            if window.equals(surface) {
+                self.mouse_focus = Some(eviter.clone());
+                let (w, h) = self.mouse_location;
+                eviter.lock().unwrap().push_back(
+                    Event::MouseMoved(w, h)
+                );
+                break;
+            }
+        }
+    }
+
+    fn leave(&mut self,
+             _evqh: &mut EventQueueHandle,
+             _proxy: &wl_pointer::WlPointer,
+             _serial: u32,
+             _surface: &wl_surface::WlSurface)
+    {
+        self.mouse_focus = None
+    }
+
+    fn motion(&mut self,
+              _evqh: &mut EventQueueHandle,
+              _proxy: &wl_pointer::WlPointer,
+              _time: u32,
+              surface_x: f64,
+              surface_y: f64)
+    {
+        self.mouse_location = (surface_x as i32, surface_y as i32);
+        if let Some(ref eviter) = self.mouse_focus {
+            let (w,h) = self.mouse_location;
+            eviter.lock().unwrap().push_back(
+                Event::MouseMoved(w, h)
+            );
+        }
+    }
+
+    fn button(&mut self,
+              _evqh: &mut EventQueueHandle,
+              _proxy: &wl_pointer::WlPointer,
+              _serial: u32,
+              _time: u32,
+              button: u32,
+              state: wl_pointer::ButtonState)
+    {
+        if let Some(ref eviter) = self.mouse_focus {
+            let state = match state {
+                wl_pointer::ButtonState::Pressed => ElementState::Pressed,
+                wl_pointer::ButtonState::Released => ElementState::Released
+            };
+            let button = match button {
+                0x110 => MouseButton::Left,
+                0x111 => MouseButton::Right,
+                0x112 => MouseButton::Middle,
+                // TODO figure out the translation ?
+                _ => return
+            };
+            eviter.lock().unwrap().push_back(
+                Event::MouseInput(state, button)
+            );
+        }
+    }
+
+    // TODO: proper scroll handling
+
+    fn axis(&mut self,
+            _evqh: &mut EventQueueHandle,
+            _proxy: &wl_pointer::WlPointer,
+            _time: u32,
+            axis: wl_pointer::Axis,
+            value: f64)
+    {
+    }
+
+    fn frame(&mut self,
+             _evqh: &mut EventQueueHandle,
+             _proxy: &wl_pointer::WlPointer)
+    {
+    }
+
+    fn axis_source(&mut self,
+                   _evqh: &mut EventQueueHandle,
+                   _proxy: &wl_pointer::WlPointer,
+                   axis_source: wl_pointer::AxisSource)
+    {
+    }
+
+    fn axis_stop(&mut self,
+                 _evqh: &mut EventQueueHandle,
+                 _proxy: &wl_pointer::WlPointer,
+                 _time: u32,
+                 axis: wl_pointer::Axis)
+    {
+    }
+
+    fn axis_discrete(&mut self,
+                     _evqh: &mut EventQueueHandle,
+                     _proxy: &wl_pointer::WlPointer,
+                     axis: wl_pointer::Axis,
+                     discrete: i32)
+    {
+    }
+}
+
+declare_handler!(WaylandEnv, wl_pointer::Handler, wl_pointer::WlPointer);
+
+/*
+ * Keyboard Handling
+ */
+
+impl wl_keyboard::Handler for WaylandEnv {
+    // mostly pass-through
+    fn keymap(&mut self,
+              evqh: &mut EventQueueHandle,
+              proxy: &wl_keyboard::WlKeyboard,
+              format: wl_keyboard::KeymapFormat,
+              fd: ::std::os::unix::io::RawFd,
+              size: u32)
+    {
+        self.kbd_handler.keymap(evqh, proxy, format, fd, size)
+    }
+
+    fn enter(&mut self,
+             evqh: &mut EventQueueHandle,
+             proxy: &wl_keyboard::WlKeyboard,
+             serial: u32,
+             surface: &wl_surface::WlSurface,
+             keys: Vec<u8>)
+    {
+        for &(ref window, ref eviter) in &self.windows {
+            if window.equals(surface) {
+                self.kbd_handler.handler().target = Some(eviter.clone());
+                break
+            }
+        }
+        self.kbd_handler.enter(evqh, proxy, serial, surface, keys)
+    }
+
+    fn leave(&mut self,
+             evqh: &mut EventQueueHandle,
+             proxy: &wl_keyboard::WlKeyboard,
+             serial: u32,
+             surface: &wl_surface::WlSurface)
+    {
+        self.kbd_handler.handler().target = None;
+        self.kbd_handler.leave(evqh, proxy, serial, surface)
+    }
+
+    fn key(&mut self,
+           evqh: &mut EventQueueHandle,
+           proxy: &wl_keyboard::WlKeyboard,
+           serial: u32,
+           time: u32,
+           key: u32,
+           state: wl_keyboard::KeyState)
+    {
+        self.kbd_handler.key(evqh, proxy, serial, time, key, state)
+    }
+
+    fn modifiers(&mut self,
+                 evqh: &mut EventQueueHandle,
+                 proxy: &wl_keyboard::WlKeyboard,
+                 serial: u32,
+                 mods_depressed: u32,
+                 mods_latched: u32,
+                 mods_locked: u32,
+                 group: u32)
+    {
+        self.kbd_handler.modifiers(evqh, proxy, serial, mods_depressed, mods_latched, mods_locked, group)
+    }
+
+    fn repeat_info(&mut self,
+                   evqh: &mut EventQueueHandle,
+                   proxy: &wl_keyboard::WlKeyboard,
+                   rate: i32,
+                   delay: i32)
+    {
+        self.kbd_handler.repeat_info(evqh, proxy, rate, delay)
+    }
+}
+
+declare_handler!(WaylandEnv, wl_keyboard::Handler, wl_keyboard::WlKeyboard);
