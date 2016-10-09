@@ -148,13 +148,13 @@ impl Window {
             {
                 self.ctxt.flush();
                 self.ctxt.dispatch();
-                let mut guard = self.evq.lock().unwrap().dispatch();
+                let mut guard = self.evq.lock().unwrap().dispatch_pending();
                 // some events were dispatched, need to process a potential resising
                 self.process_resize();
             }
             // try again
             let mut guard = self.eviter.lock().unwrap();
-            evt = guard.pop_front()
+            evt = guard.pop_front();
         }
         evt
     }
