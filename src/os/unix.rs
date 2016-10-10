@@ -32,15 +32,37 @@ pub trait WindowExt {
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     fn get_xcb_connection(&self) -> Option<*mut libc::c_void>;
 
-    /// Returns a reference to the `WlSurface` object of wayland that is used by this window.
+    /// Returns a pointer to the `wl_surface` object of wayland that is used by this window.
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
-    fn get_wayland_surface(&self) -> Option<&WlSurface>;
+    ///
+    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    fn get_wayland_surface(&self) -> Option<*mut libc::c_void>;
+
+    /// Returns a pointer to the `wl_display` object of wayland that is used by this window.
+    ///
+    /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
+    ///
+    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    fn get_wayland_display(&self) -> Option<*mut libc::c_void>;
+
+    /// Returns a reference to the `WlSurface` object of wayland that is used by this window.
+    ///
+    /// For use with the `wayland-client` crate.
+    ///
+    /// **This function is not part of winit's public API.**
+    ///
+    /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
+    fn get_wayland_client_surface(&self) -> Option<&WlSurface>;
 
     /// Returns a pointer to the `WlDisplay` object of wayland that is used by this window.
     ///
+    /// For use with the `wayland-client` crate.
+    ///
+    /// **This function is not part of winit's public API.**
+    ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
-    fn get_wayland_display(&self) -> Option<&WlDisplay>;
+    fn get_wayland_client_display(&self) -> Option<&WlDisplay>;
 }
 
 impl WindowExt for Window {
@@ -68,7 +90,20 @@ impl WindowExt for Window {
     }
 
     #[inline]
-    fn get_wayland_surface(&self) -> Option<&WlSurface> {
+    fn get_wayland_surface(&self) -> Option<*mut libc::c_void> {
+        use wayland_client::Proxy;
+        self.get_wayland_client_surface().map(|p| p.ptr() as *mut _)
+    }
+
+
+    #[inline]
+    fn get_wayland_display(&self) -> Option<*mut libc::c_void> {
+        use wayland_client::Proxy;
+        self.get_wayland_client_display().map(|p| p.ptr() as *mut _)
+    }
+
+    #[inline]
+    fn get_wayland_client_surface(&self) -> Option<&WlSurface> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.get_surface()),
             _ => None
@@ -76,7 +111,7 @@ impl WindowExt for Window {
     }
 
     #[inline]
-    fn get_wayland_display(&self) -> Option<&WlDisplay> {
+    fn get_wayland_client_display(&self) -> Option<&WlDisplay> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.get_display()),
             _ => None
