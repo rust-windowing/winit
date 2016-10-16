@@ -12,12 +12,17 @@ use super::wayland_window;
 use super::wayland_window::DecoratedSurface;
 
 #[derive(Clone)]
-pub struct WindowProxy;
+pub struct WindowProxy {
+    ctxt: Arc<WaylandContext>,
+    eviter: Arc<Mutex<VecDeque<Event>>>,
+}
 
 impl WindowProxy {
     #[inline]
     pub fn wakeup_event_loop(&self) {
-        unimplemented!()
+        // Send a sync event, so that any waiting "dispatch" will return
+        self.ctxt.display.sync();
+        self.eviter.lock().unwrap().push_back(Event::Awakened);
     }
 }
 
@@ -209,7 +214,10 @@ impl Window {
 
     #[inline]
     pub fn create_window_proxy(&self) -> WindowProxy {
-        WindowProxy
+        WindowProxy {
+            ctxt: self.ctxt.clone(),
+            eviter: self.eviter.clone()
+        }
     }
 
     #[inline]
