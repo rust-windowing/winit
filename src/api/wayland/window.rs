@@ -134,11 +134,20 @@ impl Window {
         };
         if evt.is_some() { return evt }
 
+        // There is no event in the queue, we need to fetch more
+
+        // flush the display
+        self.ctxt.flush();
+
+        // read some events if some are waiting & queue is empty
+        if let Some(guard) = self.evq.lock().unwrap().prepare_read() {
+            guard.read_events();
+        }
+
         // try a pending dispatch
-        // TODO: insert a non-blocking read from socket, overwise no new events will ever come
         {
             self.ctxt.dispatch_pending();
-            let mut guard = self.evq.lock().unwrap().dispatch_pending();
+            self.evq.lock().unwrap().dispatch_pending();
             // some events were dispatched, need to process a potential resising
             self.process_resize();
         }
@@ -153,7 +162,7 @@ impl Window {
             {
                 self.ctxt.flush();
                 self.ctxt.dispatch();
-                let mut guard = self.evq.lock().unwrap().dispatch_pending();
+                self.evq.lock().unwrap().dispatch_pending();
                 // some events were dispatched, need to process a potential resising
                 self.process_resize();
             }
