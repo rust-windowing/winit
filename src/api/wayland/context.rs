@@ -1,4 +1,4 @@
-use {Event, ElementState, MouseButton};
+use {Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase};
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -38,6 +38,9 @@ struct WaylandEnv {
     mouse: Option<wl_pointer::WlPointer>,
     mouse_focus: Option<Arc<Mutex<VecDeque<Event>>>>,
     mouse_location: (i32, i32),
+    axis_buffer: Option<(f32, f32)>,
+    axis_discrete_buffer: Option<(i32, i32)>,
+    axis_state: TouchPhase,
     kbd: Option<wl_keyboard::WlKeyboard>,
     kbd_handler: KbdType
 }
@@ -78,6 +81,9 @@ impl WaylandEnv {
             mouse: None,
             mouse_focus: None,
             mouse_location: (0,0),
+            axis_buffer: None,
+            axis_discrete_buffer: None,
+            axis_state: TouchPhase::Started,
             kbd: None,
             kbd_handler: kbd_handler
         }
@@ -450,8 +456,6 @@ impl wl_pointer::Handler for WaylandEnv {
         }
     }
 
-    // TODO: proper scroll handling
-
     fn axis(&mut self,
             _evqh: &mut EventQueueHandle,
             _proxy: &wl_pointer::WlPointer,
@@ -459,12 +463,41 @@ impl wl_pointer::Handler for WaylandEnv {
             axis: wl_pointer::Axis,
             value: f64)
     {
+        let (mut x, mut y) = self.axis_buffer.unwrap_or((0.0, 0.0));
+        match axis {
+            wl_pointer::Axis::VerticalScroll => y += value as f32,
+            wl_pointer::Axis::HorizontalScroll => x += value as f32
+        }
+        self.axis_buffer = Some((x,y));
+        self.axis_state = match self.axis_state {
+            TouchPhase::Started | TouchPhase::Moved => TouchPhase::Moved,
+            _ => TouchPhase::Started
+        }
     }
 
     fn frame(&mut self,
              _evqh: &mut EventQueueHandle,
              _proxy: &wl_pointer::WlPointer)
     {
+        let axis_buffer = self.axis_buffer.take();
+        let axis_discrete_buffer = self.axis_discrete_buffer.take();
+        if let Some(ref eviter) = self.mouse_focus {
+            if let Some((x, y)) = axis_discrete_buffer {
+                eviter.lock().unwrap().push_back(
+                    Event::MouseWheel(
+                        MouseScrollDelta::LineDelta(x as f32, y as f32),
+                        self.axis_state
+                    )
+                );
+            } else if let Some((x, y)) = axis_buffer {
+                eviter.lock().unwrap().push_back(
+                    Event::MouseWheel(
+                        MouseScrollDelta::PixelDelta(x as f32, y as f32),
+                        self.axis_state
+                    )
+                );
+            }
+        }
     }
 
     fn axis_source(&mut self,
@@ -480,6 +513,7 @@ impl wl_pointer::Handler for WaylandEnv {
                  _time: u32,
                  axis: wl_pointer::Axis)
     {
+        self.axis_state = TouchPhase::Ended;
     }
 
     fn axis_discrete(&mut self,
@@ -488,6 +522,16 @@ impl wl_pointer::Handler for WaylandEnv {
                      axis: wl_pointer::Axis,
                      discrete: i32)
     {
+        let (mut x, mut y) = self.axis_discrete_buffer.unwrap_or((0,0));
+        match axis {
+            wl_pointer::Axis::VerticalScroll => y += discrete,
+            wl_pointer::Axis::HorizontalScroll => x += discrete
+        }
+        self.axis_discrete_buffer = Some((x,y));
+                self.axis_state = match self.axis_state {
+            TouchPhase::Started | TouchPhase::Moved => TouchPhase::Moved,
+            _ => TouchPhase::Started
+        }
     }
 }
 
