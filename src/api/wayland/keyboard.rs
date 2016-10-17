@@ -1,83 +1,70 @@
-use std::collections::HashSet;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 
-use Event as GlutinEvent;
-use ElementState;
-use VirtualKeyCode;
+use {VirtualKeyCode, ElementState, Event};
 
-use wayland_client::ProxyId;
-use wayland_client::wayland::seat::{WlKeyboardEvent,WlKeyboardKeyState};
+use super::wayland_kbd;
+use wayland_client::EventQueueHandle;
+use wayland_client::protocol::wl_keyboard;
 
-use super::wayland_kbd::MappedKeyboardEvent;
+pub struct KbdHandler {
+    pub target: Option<Arc<Mutex<VecDeque<Event>>>>
+}
 
-use super::context::WaylandFocuses;
+impl KbdHandler {
+    pub fn new() -> KbdHandler {
+        KbdHandler { target: None }
+    }
+}
 
-pub fn translate_kbd_events(
-    focuses: &mut WaylandFocuses,
-    known_surfaces: &HashSet<ProxyId>,
-) -> Vec<(GlutinEvent, ProxyId)> {
-    let mut out = Vec::new();
-    if let Some(mkbd) = focuses.keyboard.as_mut() {
-        for evt in mkbd {
-            match evt {
-                MappedKeyboardEvent::KeyEvent(kevt) => {
-                    if let Some(surface) = focuses.keyboard_on {
-                        let vkcode = match kevt.keycode {
-                             1 => Some(VirtualKeyCode::Escape),
-                             2 => Some(VirtualKeyCode::Key1),
-                             3 => Some(VirtualKeyCode::Key2),
-                             4 => Some(VirtualKeyCode::Key3),
-                             5 => Some(VirtualKeyCode::Key4),
-                             6 => Some(VirtualKeyCode::Key5),
-                             7 => Some(VirtualKeyCode::Key6),
-                             8 => Some(VirtualKeyCode::Key7),
-                             9 => Some(VirtualKeyCode::Key8),
-                            10 => Some(VirtualKeyCode::Key9),
-                            11 => Some(VirtualKeyCode::Key0),
-                            _ => kevt.as_symbol().and_then(keysym_to_vkey)
-                        };
-                        let text = kevt.as_utf8();
-                        out.push((
-                            GlutinEvent::KeyboardInput(
-                                match kevt.keystate {
-                                    WlKeyboardKeyState::Pressed => ElementState::Pressed,
-                                    WlKeyboardKeyState::Released =>ElementState::Released
-                                },
-                                (kevt.keycode & 0xff) as u8,
-                                vkcode
-                            ),
-                            surface
-                        ));
-                        if let Some(c) = text.and_then(|s| s.chars().next()) {
-                            out.push((
-                                GlutinEvent::ReceivedCharacter(c),
-                                surface
-                            ));
-                        }
-                    }
-                    
-                }
-                MappedKeyboardEvent::Other(oevt) => match oevt {
-                    WlKeyboardEvent::Enter(_, surface, _) => {
-                        if known_surfaces.contains(&surface) {
-                            focuses.keyboard_on = Some(surface);
-                            out.push((GlutinEvent::Focused(true), surface));
-                        }
-                    },
-                    WlKeyboardEvent::Leave(_, surface) => {
-                        if known_surfaces.contains(&surface) {
-                            focuses.keyboard_on = None;
-                            out.push((GlutinEvent::Focused(false), surface));
-                        }
-                    }
-                    _ => {}
+impl wayland_kbd::Handler for KbdHandler {
+    fn key(&mut self,
+           _evqh: &mut EventQueueHandle,
+           _proxy: &wl_keyboard::WlKeyboard,
+           _serial: u32,
+           _time: u32,
+           rawkey: u32,
+           keysym: u32,
+           state: wl_keyboard::KeyState,
+           utf8: Option<String>)
+    {
+        if let Some(ref eviter) = self.target {
+            let state = match state {
+                wl_keyboard::KeyState::Pressed => ElementState::Pressed,
+                wl_keyboard::KeyState::Released => ElementState::Released,
+            };
+            let vkcode = key_to_vkey(rawkey, keysym);
+            let mut guard = eviter.lock().unwrap();
+            guard.push_back(Event::KeyboardInput(state, rawkey as u8, vkcode));
+            // send char event only on key press, not release
+            if let ElementState::Released = state { return }
+            if let Some(txt) = utf8 {
+                for chr in txt.chars() {
+                    guard.push_back(Event::ReceivedCharacter(chr));
                 }
             }
         }
     }
-    out
 }
 
-pub fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
+fn key_to_vkey(rawkey: u32, keysym: u32) -> Option<VirtualKeyCode> {
+    match rawkey {
+         1 => Some(VirtualKeyCode::Escape),
+         2 => Some(VirtualKeyCode::Key1),
+         3 => Some(VirtualKeyCode::Key2),
+         4 => Some(VirtualKeyCode::Key3),
+         5 => Some(VirtualKeyCode::Key4),
+         6 => Some(VirtualKeyCode::Key5),
+         7 => Some(VirtualKeyCode::Key6),
+         8 => Some(VirtualKeyCode::Key7),
+         9 => Some(VirtualKeyCode::Key8),
+        10 => Some(VirtualKeyCode::Key9),
+        11 => Some(VirtualKeyCode::Key0),
+        _  => keysym_to_vkey(keysym)
+    }
+}
+
+fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
     use super::wayland_kbd::keysyms;
     match keysym {
         // letters

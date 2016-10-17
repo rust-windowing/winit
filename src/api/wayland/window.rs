@@ -1,83 +1,39 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use libc;
+use wayland_client::{EventQueue, EventQueueHandle, Init};
+use wayland_client::protocol::{wl_display,wl_surface,wl_shell_surface};
 
-use {CreationError, CursorState, Event, MouseCursor, WindowAttributes};
+use {CreationError, MouseCursor, CursorState, Event, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
 
-use wayland_client::EventIterator;
-use wayland_client::wayland::compositor::WlSurface;
-use wayland_client::wayland::shell::WlShellSurface;
-use super::wayland_window::{DecoratedSurface, add_borders, substract_borders};
-use super::context::{WaylandContext, WAYLAND_CONTEXT};
+use super::WaylandContext;
+use super::wayland_window;
+use super::wayland_window::DecoratedSurface;
 
 #[derive(Clone)]
-pub struct WindowProxy;
+pub struct WindowProxy {
+    ctxt: Arc<WaylandContext>,
+    eviter: Arc<Mutex<VecDeque<Event>>>,
+}
 
 impl WindowProxy {
     #[inline]
     pub fn wakeup_event_loop(&self) {
-        unimplemented!()
+        // Send a sync event, so that any waiting "dispatch" will return
+        self.ctxt.display.sync();
+        self.eviter.lock().unwrap().push_back(Event::Awakened);
     }
 }
 
 pub struct Window {
-    wayland_context: &'static WaylandContext,
-    surface: WlSurface,
-    shell_window: Mutex<ShellWindow>,
-    evt_queue: Arc<Mutex<VecDeque<Event>>>,
-    inner_size: Mutex<(i32, i32)>,
-    resize_callback: Option<fn(u32, u32)>,
-}
-
-impl Window {
-    fn next_event(&self) -> Option<Event> {
-        use wayland_client::Event as WEvent;
-        use wayland_client::wayland::WaylandProtocolEvent;
-        use wayland_client::wayland::shell::WlShellSurfaceEvent;
-
-        let mut newsize = None;
-        let mut evt_queue_guard = self.evt_queue.lock().unwrap();
-
-        let mut shell_window_guard = self.shell_window.lock().unwrap();
-        match *shell_window_guard {
-            ShellWindow::Decorated(ref mut deco) => {
-                for (_, w, h) in deco {
-                    newsize = Some((w, h));
-                }
-            },
-            ShellWindow::Plain(ref plain, ref mut evtiter) => {
-                for evt in evtiter {
-                    if let WEvent::Wayland(WaylandProtocolEvent::WlShellSurface(_, ssevt)) = evt {
-                        match ssevt {
-                            WlShellSurfaceEvent::Ping(u) => {
-                                plain.pong(u);
-                            },
-                            WlShellSurfaceEvent::Configure(_, w, h) => {
-                                newsize = Some((w, h));
-                            },
-                            _ => {}
-                        }
-                    }
-                }
-            }
-        }
-
-        if let Some((w, h)) = newsize {
-            let (w, h) = substract_borders(w, h);
-            *self.inner_size.lock().unwrap() = (w, h);
-            if let ShellWindow::Decorated(ref mut deco) = *shell_window_guard {
-                deco.resize(w, h);
-            }
-            if let Some(f) = self.resize_callback {
-                f(w as u32, h as u32);
-            }
-            Some(Event::Resized(w as u32, h as u32))
-        } else {
-            evt_queue_guard.pop_front()
-        }
-    }
+    ctxt: Arc<WaylandContext>,
+    evq: Mutex<EventQueue>,
+    eviter: Arc<Mutex<VecDeque<Event>>>,
+    surface: Arc<wl_surface::WlSurface>,
+    size: Mutex<(u32, u32)>,
+    handler_id: usize,
+    decorated_id: usize
 }
 
 pub struct PollEventsIterator<'a> {
@@ -88,13 +44,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        match self.window.next_event() {
-            Some(evt) => return Some(evt),
-            None => {}
-        }
-        // the queue was empty, try a dispatch and see the result
-        self.window.wayland_context.dispatch_events();
-        return self.window.next_event();
+        self.window.next_event(false)
     }
 }
 
@@ -106,91 +56,128 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        loop {
-            match self.window.next_event() {
-                Some(evt) => return Some(evt),
-                None => {}
-            }
-            // the queue was empty, try a dispatch & read and see the result
-            self.window.wayland_context.flush_events().expect("Connexion with the wayland compositor lost.");
-            match self.window.wayland_context.read_events() {
-                Ok(_) => {
-                    // events were read or dispatch is needed, in both cases, we dispatch
-                    self.window.wayland_context.dispatch_events()
-                }
-                Err(_) => panic!("Connexion with the wayland compositor lost.")
-            }
-        }
+        self.window.next_event(true)
     }
-}
-
-enum ShellWindow {
-    Plain(WlShellSurface, EventIterator),
-    Decorated(DecoratedSurface)
 }
 
 impl Window {
-    pub fn new(window: &WindowAttributes) -> Result<Window, CreationError>
+    pub fn new(ctxt: Arc<WaylandContext>, attributes: &WindowAttributes)  -> Result<Window, CreationError>
     {
-        use wayland_client::Proxy;
-        // not implemented
-        assert!(window.min_dimensions.is_none());
-        assert!(window.max_dimensions.is_none());
+        let (width, height) = attributes.dimensions.unwrap_or((800,600));
 
-        let wayland_context = match *WAYLAND_CONTEXT {
-            Some(ref c) => c,
-            None => return Err(CreationError::NotSupported),
-        };
+        let mut evq = ctxt.display.create_event_queue();
 
-        let (w, h) = window.dimensions.unwrap_or((800, 600));
+        let (surface, eviter, decorated) = ctxt.create_window::<DecoratedHandler>();
 
-        let (surface, evt_queue) = match wayland_context.new_surface() {
-            Some(t) => t,
-            None => return Err(CreationError::NotSupported)
-        };
+        // init DecoratedSurface
+        let decorated_id = evq.add_handler_with_init(decorated);
+        {
+            let mut state = evq.state();
+            let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
+            *(decorated.handler()) = Some(DecoratedHandler::new());
 
-        let shell_window = if let Some(PlatformMonitorId::Wayland(ref monitor_id)) = window.monitor {
-            let pid = super::monitor::proxid_from_monitorid(monitor_id);
-            match wayland_context.plain_from(&surface, Some(pid)) {
-                Some(mut s) => {
-                    let iter = EventIterator::new();
-                    s.set_evt_iterator(&iter);
-                    ShellWindow::Plain(s, iter)
-                },
-                None => return Err(CreationError::NotSupported)
+            if let Some(PlatformMonitorId::Wayland(ref monitor_id)) = attributes.monitor {
+                ctxt.with_output(monitor_id.clone(), |output| {
+                    decorated.set_fullscreen(
+                        wl_shell_surface::FullscreenMethod::Default,
+                        0,
+                        Some(output)
+                    )
+                });
+            } else if attributes.decorations {
+                decorated.set_decorate(true);
             }
-        } else if window.decorations {
-            match wayland_context.decorated_from(&surface, w as i32, h as i32) {
-                Some(s) => ShellWindow::Decorated(s),
-                None => return Err(CreationError::NotSupported)
-            }
-        } else {
-            match wayland_context.plain_from(&surface, None) {
-                Some(mut s) => {
-                    let iter = EventIterator::new();
-                    s.set_evt_iterator(&iter);
-                    ShellWindow::Plain(s, iter)
-                },
-                None => return Err(CreationError::NotSupported)
-            }
-        };
+        }
+
+        // init general handler
+        let handler = WindowHandler::new();
+        let handler_id = evq.add_handler_with_init(handler);
 
         Ok(Window {
-            wayland_context: wayland_context,
+            ctxt: ctxt,
+            evq: Mutex::new(evq),
+            eviter: eviter,
             surface: surface,
-            shell_window: Mutex::new(shell_window),
-            evt_queue: evt_queue,
-            inner_size: Mutex::new((w as i32, h as i32)),
-            resize_callback: None,
+            size: Mutex::new((width, height)),
+            handler_id: handler_id,
+            decorated_id: decorated_id
         })
     }
 
-    pub fn set_title(&self, title: &str) {
-        let guard = self.shell_window.lock().unwrap();
-        match *guard {
-            ShellWindow::Plain(ref plain, _) => { plain.set_title(title.into()); },
-            ShellWindow::Decorated(ref deco) => { deco.set_title(title.into()); }
+    fn process_resize(&self) {
+        use std::cmp::max;
+        let mut evq_guard = self.evq.lock().unwrap();
+        let mut state = evq_guard.state();
+        let newsize = {
+            let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
+            let newsize = decorated.handler().as_mut().and_then(|h| h.take_newsize());
+            if let Some((w, h)) = newsize {
+                decorated.resize(w as i32, h as i32);
+                *self.size.lock().unwrap() = (w, h);
+            }
+            newsize
+        };
+        // callback_resize if any
+        if let Some((w, h)) = newsize {
+            let mut handler = state.get_mut_handler::<WindowHandler>(self.handler_id);
+            if let Some(ref callback) = handler.resize_callback {
+                callback(w, h);
+            }
+            self.eviter.lock().unwrap().push_back(Event::Resized(w,h));
         }
+    }
+
+    fn next_event(&self, block: bool) -> Option<Event> {
+        let mut evt = {
+            let mut guard = self.eviter.lock().unwrap();
+            guard.pop_front()
+        };
+        if evt.is_some() { return evt }
+
+        // There is no event in the queue, we need to fetch more
+
+        // flush the display
+        self.ctxt.flush();
+
+        // read some events if some are waiting & queue is empty
+        if let Some(guard) = self.evq.lock().unwrap().prepare_read() {
+            guard.read_events();
+        }
+
+        // try a pending dispatch
+        {
+            self.ctxt.dispatch_pending();
+            self.evq.lock().unwrap().dispatch_pending();
+            // some events were dispatched, need to process a potential resising
+            self.process_resize();
+        }
+
+        let mut evt = {
+            let mut guard = self.eviter.lock().unwrap();
+            guard.pop_front()
+        };
+
+        while block && evt.is_none() {
+            // no event waiting, need to repopulate!
+            {
+                self.ctxt.flush();
+                self.ctxt.dispatch();
+                self.evq.lock().unwrap().dispatch_pending();
+                // some events were dispatched, need to process a potential resising
+                self.process_resize();
+            }
+            // try again
+            let mut guard = self.eviter.lock().unwrap();
+            evt = guard.pop_front();
+        }
+        evt
+    }
+
+    pub fn set_title(&self, title: &str) {
+        let mut guard = self.evq.lock().unwrap();
+        let mut state = guard.state();
+        let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
+        decorated.set_title(title.into())
     }
 
     #[inline]
@@ -215,29 +202,31 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        let (w, h) = *self.inner_size.lock().unwrap();
-        Some((w as u32, h as u32))
+        Some(self.size.lock().unwrap().clone())
     }
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
-        let (w, h) = *self.inner_size.lock().unwrap();
-        let (w, h) = add_borders(w, h);
+        let (w, h) = self.size.lock().unwrap().clone();
+        let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
         Some((w as u32, h as u32))
     }
 
     #[inline]
+    // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        let mut guard = self.shell_window.lock().unwrap();
-        match *guard {
-            ShellWindow::Decorated(ref mut deco) => { deco.resize(x as i32, y as i32); },
-            _ => {}
-        }
+        let mut guard = self.evq.lock().unwrap();
+        let mut state = guard.state();
+        let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
+        decorated.resize(x as i32, y as i32);
     }
 
     #[inline]
     pub fn create_window_proxy(&self) -> WindowProxy {
-        WindowProxy
+        WindowProxy {
+            ctxt: self.ctxt.clone(),
+            eviter: self.eviter.clone()
+        }
     }
 
     #[inline]
@@ -256,7 +245,10 @@ impl Window {
 
     #[inline]
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
-        self.resize_callback = callback;
+        let mut guard = self.evq.lock().unwrap();
+        let mut state = guard.state();
+        let mut handler = state.get_mut_handler::<WindowHandler>(self.handler_id);
+        handler.resize_callback = callback;
     }
 
     #[inline]
@@ -277,6 +269,7 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
+        // TODO
         1.0
     }
 
@@ -285,35 +278,61 @@ impl Window {
         // TODO: not yet possible on wayland
         Err(())
     }
-
-    #[inline]
-    pub fn get_wayland_display(&self) -> *mut libc::c_void {
-        WAYLAND_CONTEXT.as_ref().unwrap() // context exists if window was created
-                       .display_ptr() as *mut libc::c_void
+    
+    pub fn get_display(&self) -> &wl_display::WlDisplay {
+        &self.ctxt.display
     }
-
-    #[inline]
-    pub fn get_wayland_surface(&self) -> *mut libc::c_void {
-        use wayland_client::Proxy;
-        self.surface.ptr() as *mut libc::c_void
-    }
-
-    #[inline]
-    pub fn platform_display(&self) -> *mut libc::c_void {
-        WAYLAND_CONTEXT.as_ref().unwrap() // context exists if window was created
-                       .display_ptr() as *mut libc::c_void
-    }
-
-    #[inline]
-    pub fn platform_window(&self) -> *mut libc::c_void {
-        use wayland_client::Proxy;
-        self.surface.ptr() as *mut libc::c_void
+    
+    pub fn get_surface(&self) -> &wl_surface::WlSurface {
+        &self.surface
     }
 }
 
 impl Drop for Window {
     fn drop(&mut self) {
-        use wayland_client::Proxy;
-        self.wayland_context.dropped_surface(self.surface.id());
+        self.surface.destroy();
+        self.ctxt.prune_dead_windows();
+    }
+}
+
+struct DecoratedHandler {
+    newsize: Option<(u32, u32)>
+}
+
+impl DecoratedHandler {
+    fn new() -> DecoratedHandler { DecoratedHandler { newsize: None }}
+    fn take_newsize(&mut self) -> Option<(u32, u32)> {
+        self.newsize.take()
+    }
+}
+
+impl wayland_window::Handler for DecoratedHandler {
+    fn configure(&mut self,
+                 _: &mut EventQueueHandle,
+                 _: wl_shell_surface::Resize,
+                 width: i32, height: i32)
+    {
+        use std::cmp::max;
+        self.newsize = Some((max(width,1) as u32, max(height,1) as u32));
+    }
+}
+
+struct WindowHandler {
+    my_id: usize,
+    resize_callback: Option<fn(u32,u32)>,
+}
+
+impl WindowHandler {
+    fn new() -> WindowHandler {
+        WindowHandler {
+            my_id: 0,
+            resize_callback: None
+        }
+    }
+}
+
+impl Init for WindowHandler {
+    fn init(&mut self, evqh: &mut EventQueueHandle, index: usize) {
+        self.my_id = index;
     }
 }
