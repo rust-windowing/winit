@@ -718,6 +718,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_xlib_screen_id(&self) -> *mut libc::c_void {
+        self.x.screen_id as *mut libc::c_void
+    }
+
+    #[inline]
+    pub fn get_xlib_xconnection(&self) -> Arc<XConnection> {
+        self.x.display.clone()
+    }
+
+    #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
         self.x.display.display as *mut libc::c_void
     }
