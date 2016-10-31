@@ -16,8 +16,8 @@ winit = "0.5"
 
 ## Usage
 
-Winit is an OpenGL window creation and management library. It can create windows and lets you
-handle events (for example: the window being resized, a key being pressed, a mouse mouvement, etc.)
+Winit is a window creation and management library. It can create windows and lets you handle
+events (for example: the window being resized, a key being pressed, a mouse mouvement, etc.)
 produced by window.
 
 Winit is designed to be a low-level brick in a hierarchy of libraries. Consequently, in order to
