@@ -4,12 +4,12 @@ use std::mem;
 use std::ptr;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
+use std::os::raw::c_int;
 use std::sync::{
     Arc,
     Mutex
 };
 use std::sync::mpsc::Receiver;
-use libc;
 use {CreationError, Event, MouseCursor};
 use CursorState;
 
@@ -143,11 +143,9 @@ impl Window {
 
     /// See the docs in the crate root file.
     pub fn set_position(&self, x: i32, y: i32) {
-        use libc;
-
         unsafe {
-            user32::SetWindowPos(self.window.0, ptr::null_mut(), x as libc::c_int, y as libc::c_int,
-                0, 0, winapi::SWP_NOZORDER | winapi::SWP_NOSIZE);
+            user32::SetWindowPos(self.window.0, ptr::null_mut(), x as c_int, y as c_int,
+                                 0, 0, winapi::SWP_NOZORDER | winapi::SWP_NOSIZE);
             user32::UpdateWindow(self.window.0);
         }
     }
@@ -184,8 +182,6 @@ impl Window {
 
     /// See the docs in the crate root file.
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        use libc;
-
         unsafe {
             // Calculate the outer size based upon the specified inner size
             let mut rect = winapi::RECT { top: 0, left: 0, bottom: y as winapi::LONG, right: x as winapi::LONG };
@@ -193,8 +189,8 @@ impl Window {
             let b_menu = !user32::GetMenu(self.window.0).is_null() as winapi::BOOL;
             let dw_style_ex = user32::GetWindowLongA(self.window.0, winapi::GWL_EXSTYLE) as winapi::DWORD;
             user32::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
-            let outer_x = (rect.right - rect.left).abs() as libc::c_int;
-            let outer_y = (rect.top - rect.bottom).abs() as libc::c_int;
+            let outer_x = (rect.right - rect.left).abs() as c_int;
+            let outer_y = (rect.top - rect.bottom).abs() as c_int;
 
             user32::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
                 winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION | winapi::SWP_NOMOVE);
@@ -224,7 +220,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn platform_display(&self) -> *mut libc::c_void {
+    pub fn platform_display(&self) -> *mut ::libc::c_void {
         // What should this return on win32?
         // It could be GetDC(NULL), but that requires a ReleaseDC()
         // to avoid leaking the DC.
@@ -232,8 +228,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn platform_window(&self) -> *mut libc::c_void {
-        self.window.0 as *mut libc::c_void
+    pub fn platform_window(&self) -> *mut ::libc::c_void {
+        self.window.0 as *mut ::libc::c_void
     }
 
     #[inline]
