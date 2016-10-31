@@ -62,9 +62,8 @@ unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
 /// A simple wrapper that destroys the window when it is destroyed.
-// FIXME: remove `pub` (https://github.com/rust-lang/rust/issues/23585)
 #[doc(hidden)]
-pub struct WindowWrapper(pub winapi::HWND, pub winapi::HDC);
+pub struct WindowWrapper(winapi::HWND, winapi::HDC);
 
 impl Drop for WindowWrapper {
     #[inline]
