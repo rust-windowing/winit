@@ -342,6 +342,15 @@ impl Window {
     }
 }
 
+impl Drop for Window {
+    #[inline]
+    fn drop(&mut self) {
+        unsafe {
+            user32::PostMessageW(self.window.0, winapi::WM_DESTROY, 0, 0);
+        }
+    }
+}
+
 pub struct PollEventsIterator<'a> {
     window: &'a Window,
 }
@@ -365,16 +374,5 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     #[inline]
     fn next(&mut self) -> Option<Event> {
         self.window.events_receiver.recv().ok()
-    }
-}
-
-impl Drop for Window {
-    #[inline]
-    fn drop(&mut self) {
-        unsafe {
-            // we don't call MakeCurrent(0, 0) because we are not sure that the context
-            // is still the current one
-            user32::PostMessageW(self.window.0, winapi::WM_DESTROY, 0, 0);
-        }
     }
 }
