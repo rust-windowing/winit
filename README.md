@@ -1,76 +1,40 @@
-# glutin -  OpenGL, UTilities and INput
-[![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/tomaka/glutin?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# winit - Cross-platform window creation and management in Rust
 
-[![](http://meritbadge.herokuapp.com/glutin)](https://crates.io/crates/glutin)
+[![](http://meritbadge.herokuapp.com/winit)](https://crates.io/crates/winit)
 
-[![Docs.rs](https://docs.rs/glutin/badge.svg)](https://docs.rs/glutin)
+[![Docs.rs](https://docs.rs/winit/badge.svg)](https://docs.rs/winit)
 
-Alternative to GLFW in pure Rust.
-
-[![Build Status](https://travis-ci.org/tomaka/glutin.png?branch=master)](https://travis-ci.org/tomaka/glutin)
-[![Build status](https://ci.appveyor.com/api/projects/status/cv5xewg3uchb3854/branch/master?svg=true)](https://ci.appveyor.com/project/tomaka/glutin/branch/master)
+[![Build Status](https://travis-ci.org/tomaka/winit.png?branch=master)](https://travis-ci.org/tomaka/winit)
+[![Build status](https://ci.appveyor.com/api/projects/status/5h87hj0g4q2xe3j9/branch/master?svg=true)](https://ci.appveyor.com/project/tomaka/winit/branch/master)
 
 ```toml
 [dependencies]
-glutin = "*"
+winit = "0.5"
 ```
 
-## [Documentation](https://docs.rs/glutin)
-
-## Try it!
-
-```bash
-git clone https://github.com/tomaka/glutin
-cd glutin
-cargo run --example window
-```
+## [Documentation](https://docs.rs/winit)
 
 ## Usage
 
-Glutin is an OpenGL context creation library and doesn't directly provide OpenGL bindings for you.
+Winit is a window creation and management library. It can create windows and lets you handle
+events (for example: the window being resized, a key being pressed, a mouse mouvement, etc.)
+produced by window.
 
-```toml
-[dependencies]
-gl = "*"
-libc = "*"
-```
+Winit is designed to be a low-level brick in a hierarchy of libraries. Consequently, in order to
+show something on the window you need to use the platform-specific getters provided by winit, or
+another library.
 
 ```rust
-extern crate gl;
-extern crate glutin;
-extern crate libc;
+extern crate winit;
 
 fn main() {
-    let window = glutin::Window::new().unwrap();
-
-    unsafe { window.make_current() };
-
-    unsafe {
-        gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
-
-        gl::ClearColor(0.0, 1.0, 0.0, 1.0);
-    }
+    let window = winit::Window::new().unwrap();
 
     for event in window.wait_events() {
-        unsafe { gl::Clear(gl::COLOR_BUFFER_BIT) };
-        window.swap_buffers();
-
         match event {
-            glutin::Event::Closed => break,
+            winit::Event::Closed => break,
             _ => ()
         }
     }
 }
 ```
-
-Note that glutin aims at being a low-level brick in your rendering infrastructure. You are encouraged to write another layer of abstraction between glutin and your application.
-
-## Platform-specific notes
-
-### Android
-
- - To compile the examples for android, initialize the submodules, go to `deps/apk-builder/apk-builder` and run `cargo build`, then go back to `glutin` and call `ANDROID_HOME=/path/to/sdk NDK_HOME=/path/to/ndk NDK_STANDALONE=/path/to/standalone cargo test --no-run --target=arm-linux-androideabi`
-
-### X11
-
- - The plan is that glutin tries to dynamically link-to and use wayland if possible. If it doesn't work, it will try xlib instead. If it doesn't work, it will try libcaca. This is work-in-progress.
