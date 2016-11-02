@@ -87,6 +87,8 @@ impl Window {
             } else if attributes.decorations {
                 decorated.set_decorate(true);
             }
+            // Finally, set the decorations size
+            decorated.resize(width as i32, height as i32);
         }
 
         // init general handler
