@@ -281,6 +281,7 @@ impl Window {
     /// DEPRECATED. Gets the native platform specific display for this window.
     /// This is typically only required when integrating with
     /// other libraries that need this information.
+    #[deprecated]
     #[inline]
     pub unsafe fn platform_display(&self) -> *mut libc::c_void {
         self.window.platform_display()
@@ -289,6 +290,7 @@ impl Window {
     /// DEPRECATED. Gets the native platform specific window handle. This is
     /// typically only required when integrating with other libraries
     /// that need this information.
+    #[deprecated]
     #[inline]
     pub unsafe fn platform_window(&self) -> *mut libc::c_void {
         self.window.platform_window()
@@ -357,6 +359,7 @@ impl WindowProxy {
         self.proxy.wakeup_event_loop();
     }
 }
+
 /// An iterator for the `poll_events` function.
 pub struct PollEventsIterator<'a>(platform::PollEventsIterator<'a>);
 
