@@ -125,11 +125,14 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         }
 
         winapi::WM_MOUSEMOVE => {
-            use events::Event::MouseMoved;
+            use events::Event::{MouseEntered, MouseMoved};
             CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
                 if let Some(context_stash) = context_stash.as_mut() {
-                    context_stash.mouse_in_window = true;
+                    if !context_stash.mouse_in_window {
+                        send_event(window, MouseEntered);
+                        context_stash.mouse_in_window = true;
+                    }
                 }
             });
 
@@ -142,10 +145,14 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         winapi::WM_MOUSELEAVE => {
+            use events::Event::MouseLeft;
             CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
                 if let Some(context_stash) = context_stash.as_mut() {
-                    context_stash.mouse_in_window = false;
+                    if context_stash.mouse_in_window {
+                        send_event(window, MouseLeft);
+                        context_stash.mouse_in_window = false;
+                    }
                 }
             });
 

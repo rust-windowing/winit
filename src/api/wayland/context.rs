@@ -397,9 +397,9 @@ impl wl_pointer::Handler for WaylandEnv {
             if window.equals(surface) {
                 self.mouse_focus = Some(eviter.clone());
                 let (w, h) = self.mouse_location;
-                eviter.lock().unwrap().push_back(
-                    Event::MouseMoved(w, h)
-                );
+                let mut event_queue = eviter.lock().unwrap();
+                event_queue.push_back(Event::MouseEntered);
+                event_queue.push_back(Event::MouseMoved(w, h));
                 break;
             }
         }
@@ -409,9 +409,16 @@ impl wl_pointer::Handler for WaylandEnv {
              _evqh: &mut EventQueueHandle,
              _proxy: &wl_pointer::WlPointer,
              _serial: u32,
-             _surface: &wl_surface::WlSurface)
+             surface: &wl_surface::WlSurface)
     {
-        self.mouse_focus = None
+        self.mouse_focus = None;
+        for &(ref window, ref eviter) in &self.windows {
+            if window.equals(surface) {
+                let mut event_queue = eviter.lock().unwrap();
+                event_queue.push_back(Event::MouseLeft);
+                break;
+            }
+        }
     }
 
     fn motion(&mut self,
