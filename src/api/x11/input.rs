@@ -170,7 +170,7 @@ impl XInputEventHandler {
     }
 
     pub fn translate_event(&mut self, cookie: &ffi::XGenericEventCookie) -> Option<Event> {
-        use events::Event::{Focused, MouseInput, MouseMoved, MouseWheel};
+        use events::Event::{Focused, MouseEntered, MouseInput, MouseLeft, MouseMoved, MouseWheel};
         use events::ElementState::{Pressed, Released};
         use events::MouseButton::{Left, Right, Middle};
         use events::MouseScrollDelta::LineDelta;
@@ -254,9 +254,9 @@ impl XInputEventHandler {
                 // our window however, so clear the previous axis state whenever
                 // the cursor re-enters the window
                 self.current_state.axis_values.clear();
-                None
+                Some(MouseEntered)
             },
-            ffi::XI_Leave => None,
+            ffi::XI_Leave => Some(MouseLeft),
             ffi::XI_FocusIn => Some(Focused(true)),
             ffi::XI_FocusOut => Some(Focused(false)),
             ffi::XI_TouchBegin | ffi::XI_TouchUpdate | ffi::XI_TouchEnd => {
