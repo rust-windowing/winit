@@ -25,7 +25,6 @@ enum Backend {
 
 lazy_static!(
     static ref BACKEND: Backend = {
-        // Wayland backend is not production-ready yet so we disable it
         if let Some(ctxt) = wayland::WaylandContext::init() {
             Backend::Wayland(Arc::new(ctxt))
         } else {
