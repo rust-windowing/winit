@@ -126,15 +126,29 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
         winapi::WM_MOUSEMOVE => {
             use events::Event::{MouseEntered, MouseMoved};
-            CONTEXT_STASH.with(|context_stash| {
+            let mouse_outside_window = CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
                 if let Some(context_stash) = context_stash.as_mut() {
                     if !context_stash.mouse_in_window {
-                        send_event(window, MouseEntered);
                         context_stash.mouse_in_window = true;
+                        return true;
                     }
                 }
+
+                false
             });
+
+            if mouse_outside_window {
+                send_event(window, MouseEntered);
+                
+                // Calling TrackMouseEvent in order to receive mouse leave events.
+                user32::TrackMouseEvent(&mut winapi::TRACKMOUSEEVENT {
+                    cbSize: mem::size_of::<winapi::TRACKMOUSEEVENT>() as winapi::DWORD,
+                    dwFlags: winapi::TME_LEAVE,
+                    hwndTrack: window,
+                    dwHoverTime: winapi::HOVER_DEFAULT,
+                });
+            }
 
             let x = winapi::GET_X_LPARAM(lparam) as i32;
             let y = winapi::GET_Y_LPARAM(lparam) as i32;
@@ -146,15 +160,21 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
         winapi::WM_MOUSELEAVE => {
             use events::Event::MouseLeft;
-            CONTEXT_STASH.with(|context_stash| {
+            let mouse_in_window = CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
                 if let Some(context_stash) = context_stash.as_mut() {
                     if context_stash.mouse_in_window {
-                        send_event(window, MouseLeft);
                         context_stash.mouse_in_window = false;
+                        return true;
                     }
                 }
+
+                false
             });
+
+            if mouse_in_window {
+                send_event(window, MouseLeft);
+            }
 
             0
         },
