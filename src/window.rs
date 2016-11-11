@@ -18,7 +18,6 @@ impl WindowBuilder {
         WindowBuilder {
             window: Default::default(),
             platform_specific: Default::default(),
-            window_resize_callback: None,
         }
     }
 
@@ -99,7 +98,7 @@ impl WindowBuilder {
     /// during window resizing.
     #[inline]
     pub fn with_window_resize_callback(mut self, cb: fn(u32, u32)) -> WindowBuilder {
-        self.window_resize_callback = Some(cb);
+        self.window.resize_callback = Some(cb);
         self
     }
 
@@ -122,7 +121,7 @@ impl WindowBuilder {
         let mut w = try!(platform::Window::new(&self.window, &self.platform_specific));
 
         // a window resize callback was given
-        if let Some(callback) = self.window_resize_callback {
+        if let Some(callback) = self.window.resize_callback {
             w.set_window_resize_callback(Some(callback));
         }
 
