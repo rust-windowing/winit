@@ -107,6 +107,10 @@ pub struct WindowBuilder {
 
     /// Platform-specific configuration.
     platform_specific: platform::PlatformSpecificWindowBuilderAttributes,
+
+    /// A function called upon resizing, necessary to receive resize events on Mac and possibly
+    /// other systems.
+    window_resize_callback: Option<fn(u32, u32)>,
 }
 
 /// Error that can happen while creating a window or a headless renderer.
