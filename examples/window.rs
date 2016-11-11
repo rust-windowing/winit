@@ -12,9 +12,11 @@ fn resize_callback(width: u32, height: u32) {
 }
 
 fn main() {
-    let mut window = winit::WindowBuilder::new().build().unwrap();
-    window.set_title("A fantastic window!");
-    window.set_window_resize_callback(Some(resize_callback as fn(u32, u32)));
+    let window = winit::WindowBuilder::new()
+        .with_title("A fantastic window!")
+        .with_window_resize_callback(resize_callback)
+        .build()
+        .unwrap();
 
     for event in window.wait_events() {
         println!("{:?}", event);
