@@ -13,8 +13,8 @@ use objc::declare::ClassDecl;
 
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSAutoreleasePool, NSDate, NSDefaultRunLoopMode, NSPoint, NSRect, NSSize,
-                        NSString, NSUInteger, NSArray};
-use cocoa::appkit::{self, NSApplication, NSEvent, NSView, NSWindow, NSLayoutConstraint, NSLayoutDimension};
+                        NSString, NSUInteger};
+use cocoa::appkit::{self, NSApplication, NSEvent, NSView, NSWindow};
 
 use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID, CGDisplayPixelsHigh, CGWarpMouseCursorPosition};
 
@@ -297,22 +297,12 @@ impl Window {
                 window.makeKeyWindow();
             }
 
-            let mut constraints = vec![];
             if let Some((width, height)) = win_attribs.min_dimensions {
-                constraints.extend_from_slice(&[
-                    view.widthAnchor().constraintGreaterThanOrEqualToConstant(width.into()),
-                    view.heightAnchor().constraintGreaterThanOrEqualToConstant(height.into()),
-                ]);
+                nswindow_set_min_dimensions(window.0, width.into(), height.into());
             }
+
             if let Some((width, height)) = win_attribs.max_dimensions {
-                constraints.extend_from_slice(&[
-                    view.widthAnchor().constraintLessThanOrEqualToConstant(width.into()),
-                    view.heightAnchor().constraintLessThanOrEqualToConstant(height.into()),
-                ]);
-            }
-            if !constraints.is_empty() {
-                let constraints_nsarray = NSArray::arrayWithObjects(nil, &constraints);
-                NSLayoutConstraint::activateConstraints(nil, constraints_nsarray);
+                nswindow_set_max_dimensions(window.0, width.into(), height.into());
             }
         }
 
@@ -638,6 +628,55 @@ impl Window {
         }
 
         Ok(())
+    }
+}
+
+unsafe fn nswindow_set_min_dimensions<V: NSWindow + Copy>(
+    window: V, min_width: f64, min_height: f64)
+{
+    window.setMinSize_(NSSize {
+        width: min_width,
+        height: min_height,
+    });
+    // If necessary, resize the window to match constraint
+    let mut current_rect = NSWindow::frame(window);
+    if current_rect.size.width < min_width {
+        current_rect.size.width = min_width;
+        window.setFrame_display_(current_rect, 0)
+    }
+    if current_rect.size.height < min_height {
+        // The origin point of a rectangle is at its bottom left in Cocoa. To
+        // ensure the window's top-left point remains the same:
+        current_rect.origin.y +=
+            current_rect.size.height - min_height;
+
+        current_rect.size.height = min_height;
+        window.setFrame_display_(current_rect, 0)
+    }
+}
+
+unsafe fn nswindow_set_max_dimensions<V: NSWindow + Copy>(
+    window: V, max_width: f64, max_height: f64)
+{
+    window.setMaxSize_(NSSize {
+        width: max_width,
+        height: max_height,
+    });
+    // If necessary, resize the window to match constraint
+    let mut current_rect = NSWindow::frame(window);
+    if current_rect.size.width > max_width {
+        current_rect.size.width = max_width;
+        window.setFrame_display_(current_rect, 0)
+    }
+    if current_rect.size.height > max_height {
+        // The origin point of a rectangle is at its bottom left in
+        // Cocoa. To ensure the window's top-left point remains the
+        // same:
+        current_rect.origin.y +=
+            current_rect.size.height - max_height;
+
+        current_rect.size.height = max_height;
+        window.setFrame_display_(current_rect, 0)
     }
 }
 
