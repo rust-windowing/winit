@@ -1,13 +1,6 @@
-#[cfg(target_os = "android")]
-#[macro_use]
-extern crate android_glue;
-
 extern crate winit;
 
 use std::io::{self, Write};
-
-#[cfg(target_os = "android")]
-android_start!(main);
 
 fn main() {
     // enumerating monitors

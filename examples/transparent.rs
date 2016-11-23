@@ -1,11 +1,4 @@
-#[cfg(target_os = "android")]
-#[macro_use]
-extern crate android_glue;
-
 extern crate winit;
-
-#[cfg(target_os = "android")]
-android_start!(main);
 
 fn resize_callback(width: u32, height: u32) {
     println!("Window resized to {}x{}", width, height);
