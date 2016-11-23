@@ -13,8 +13,8 @@ use objc::declare::ClassDecl;
 
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSAutoreleasePool, NSDate, NSDefaultRunLoopMode, NSPoint, NSRect, NSSize,
-                        NSString, NSUInteger};
-use cocoa::appkit::{self, NSApplication, NSEvent, NSView, NSWindow};
+                        NSString, NSUInteger, NSArray};
+use cocoa::appkit::{self, NSApplication, NSEvent, NSView, NSWindow, NSLayoutConstraint, NSLayoutDimension};
 
 use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID, CGDisplayPixelsHigh, CGWarpMouseCursorPosition};
 
@@ -269,10 +269,6 @@ impl Window {
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
-        // not implemented
-        assert!(win_attribs.min_dimensions.is_none());
-        assert!(win_attribs.max_dimensions.is_none());
-
         // let app = match Window::create_app() {
         let app = match Window::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
@@ -299,6 +295,24 @@ impl Window {
                 window.makeKeyAndOrderFront_(nil);
             } else {
                 window.makeKeyWindow();
+            }
+
+            let mut constraints = vec![];
+            if let Some((width, height)) = win_attribs.min_dimensions {
+                constraints.extend_from_slice(&[
+                    view.widthAnchor().constraintGreaterThanOrEqualToConstant(width.into()),
+                    view.heightAnchor().constraintGreaterThanOrEqualToConstant(height.into()),
+                ]);
+            }
+            if let Some((width, height)) = win_attribs.max_dimensions {
+                constraints.extend_from_slice(&[
+                    view.widthAnchor().constraintLessThanOrEqualToConstant(width.into()),
+                    view.heightAnchor().constraintLessThanOrEqualToConstant(height.into()),
+                ]);
+            }
+            if !constraints.is_empty() {
+                let constraints_nsarray = NSArray::arrayWithObjects(nil, &constraints);
+                NSLayoutConstraint::activateConstraints(nil, constraints_nsarray);
             }
         }
 
