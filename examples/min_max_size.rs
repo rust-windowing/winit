@@ -1,11 +1,4 @@
-#[cfg(target_os = "android")]
-#[macro_use]
-extern crate android_glue;
-
 extern crate winit;
-
-#[cfg(target_os = "android")]
-android_start!(main);
 
 fn main() {
     let window = winit::WindowBuilder::new()
