@@ -3,6 +3,7 @@
 use libc;
 use Window;
 use WindowBuilder;
+use window;
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExt {
@@ -23,8 +24,14 @@ impl WindowExt for Window {
 
 /// Additional methods on `WindowBuilder` that are specific to Windows.
 pub trait WindowBuilderExt {
-
+    fn with_parent_window(self, parent: window::WindowProxy) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
+    /// Sets a parent to the window to be created
+    #[inline]
+    fn with_parent_window(mut self, parent: window::WindowProxy) -> WindowBuilder {
+        self.platform_specific.parent = Some(parent);
+        self
+    }
 }

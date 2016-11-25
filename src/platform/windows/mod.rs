@@ -15,8 +15,12 @@ use CursorState;
 
 use WindowAttributes;
 
+use window;
+
 #[derive(Clone, Default)]
-pub struct PlatformSpecificWindowBuilderAttributes;
+pub struct PlatformSpecificWindowBuilderAttributes {
+    pub parent: Option<window::WindowProxy>,
+}
 #[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
@@ -76,7 +80,7 @@ impl Drop for WindowWrapper {
 
 #[derive(Clone)]
 pub struct WindowProxy {
-    hwnd: winapi::HWND,
+    pub hwnd: winapi::HWND,
 }
 
 unsafe impl Send for WindowProxy {}
@@ -93,10 +97,10 @@ impl WindowProxy {
 
 impl Window {
     /// See the docs in the crate root file.
-    pub fn new(window: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes)
+    pub fn new(window: &WindowAttributes, pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
-        init::new_window(window)
+        init::new_window(window, pl_attribs)
     }
 
     /// See the docs in the crate root file.

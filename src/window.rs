@@ -361,7 +361,7 @@ impl Window {
 /// threads.
 #[derive(Clone)]
 pub struct WindowProxy {
-    proxy: platform::WindowProxy,
+    pub proxy: platform::WindowProxy,
 }
 
 impl WindowProxy {

@@ -9,6 +9,7 @@ use super::WindowState;
 use super::Window;
 use super::MonitorId;
 use super::WindowWrapper;
+use super::PlatformSpecificWindowBuilderAttributes;
 
 use CreationError;
 use CreationError::OsError;
@@ -24,9 +25,9 @@ use kernel32;
 use dwmapi;
 use user32;
 
-pub fn new_window(window: &WindowAttributes) -> Result<Window, CreationError> {
+pub fn new_window(window: &WindowAttributes, pl_attribs: &PlatformSpecificWindowBuilderAttributes) -> Result<Window, CreationError> {
     let window = window.clone();
-
+    let attribs = pl_attribs.clone();
     // initializing variables to be sent to the task
 
     let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
@@ -39,7 +40,7 @@ pub fn new_window(window: &WindowAttributes) -> Result<Window, CreationError> {
     thread::spawn(move || {
         unsafe {
             // creating and sending the `Window`
-            match init(title, &window) {
+            match init(title, &window, attribs) {
                 Ok(w) => tx.send(Ok(w)).ok(),
                 Err(e) => {
                     tx.send(Err(e)).ok();
@@ -65,7 +66,7 @@ pub fn new_window(window: &WindowAttributes) -> Result<Window, CreationError> {
     rx.recv().unwrap()
 }
 
-unsafe fn init(title: Vec<u16>, window: &WindowAttributes) -> Result<Window, CreationError> {
+unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes) -> Result<Window, CreationError> {
     // registering the window class
     let class_name = register_window_class();
 
@@ -84,8 +85,16 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes) -> Result<Window, Cre
     }
 
     // computing the style and extended style of the window
-    let (ex_style, style) = if window.monitor.is_some() || window.decorations == false {
-        (winapi::WS_EX_APPWINDOW, winapi::WS_POPUP | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN)
+    let (ex_style, style) = if window.monitor.is_some() || !window.decorations {
+        (winapi::WS_EX_APPWINDOW,
+            //winapi::WS_POPUP is incompatible with winapi::WS_CHILD
+            if pl_attribs.parent.is_some() {
+                winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN
+            }
+            else {
+                winapi::WS_POPUP | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN
+            }
+        )
     } else {
         (winapi::WS_EX_APPWINDOW | winapi::WS_EX_WINDOWEDGE,
             winapi::WS_OVERLAPPEDWINDOW | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN)
@@ -108,11 +117,15 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes) -> Result<Window, Cre
             (None, None)
         };
 
-        let style = if !window.visible {
+        let mut style = if !window.visible {
             style
         } else {
             style | winapi::WS_VISIBLE
         };
+
+        if pl_attribs.parent.is_some() {
+            style |= winapi::WS_CHILD;
+        }
 
         let handle = user32::CreateWindowExW(ex_style | winapi::WS_EX_ACCEPTFILES,
             class_name.as_ptr(),
@@ -120,7 +133,8 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes) -> Result<Window, Cre
             style | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN,
             x.unwrap_or(winapi::CW_USEDEFAULT), y.unwrap_or(winapi::CW_USEDEFAULT),
             width.unwrap_or(winapi::CW_USEDEFAULT), height.unwrap_or(winapi::CW_USEDEFAULT),
-            ptr::null_mut(), ptr::null_mut(), kernel32::GetModuleHandleW(ptr::null()),
+            pl_attribs.parent.map_or(ptr::null_mut(), |v| v.proxy.hwnd),
+            ptr::null_mut(), kernel32::GetModuleHandleW(ptr::null()),
             ptr::null_mut());
 
         if handle.is_null() {
