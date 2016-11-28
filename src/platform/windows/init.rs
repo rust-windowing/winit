@@ -133,7 +133,7 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pl_attribs: PlatformS
             style | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN,
             x.unwrap_or(winapi::CW_USEDEFAULT), y.unwrap_or(winapi::CW_USEDEFAULT),
             width.unwrap_or(winapi::CW_USEDEFAULT), height.unwrap_or(winapi::CW_USEDEFAULT),
-            pl_attribs.parent.map_or(ptr::null_mut(), |v| v.proxy.hwnd),
+            pl_attribs.parent.map_or(ptr::null_mut(), |v| v.get_proxy_data().hwnd),
             ptr::null_mut(), kernel32::GetModuleHandleW(ptr::null()),
             ptr::null_mut());
 

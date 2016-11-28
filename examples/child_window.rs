@@ -1,3 +1,5 @@
+#![cfg(target_os = "windows")]
+
 extern crate winit;
 use std::thread;
 use winit::os::windows::WindowBuilderExt;
@@ -5,7 +7,10 @@ use winit::os::windows::WindowBuilderExt;
 fn resize_callback(width: u32, height: u32) {
     println!("Window resized to {}x{}", width, height);
 }
-
+/**
+* Creates a main window and a child within it and handle their events separetely.
+* Currently windows only
+*/
 fn main() {
     let window = winit::WindowBuilder::new()
         .with_title("A fantastic window!")
@@ -19,6 +24,7 @@ fn main() {
             .with_title("child window!")
             .with_window_resize_callback(resize_callback)
             .with_decorations(false)
+            .with_dimensions(100, 100)
             .with_parent_window(proxy)
             .build()
             .unwrap();

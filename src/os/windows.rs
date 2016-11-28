@@ -4,6 +4,8 @@ use libc;
 use Window;
 use WindowBuilder;
 use window;
+use winapi;
+use platform;
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExt {
@@ -33,5 +35,13 @@ impl WindowBuilderExt for WindowBuilder {
     fn with_parent_window(mut self, parent: window::WindowProxy) -> WindowBuilder {
         self.platform_specific.parent = Some(parent);
         self
+    }
+}
+
+impl WindowBuilderExt {
+    /// Creates a new WindowProxy from a winapi::HWND
+    #[inline]
+    pub fn create_window_proxy_from_handle(handle: winapi::HWND) -> window::WindowProxy {
+        window::WindowProxy::create_proxy(platform::WindowProxy{hwnd: handle})
     }
 }
