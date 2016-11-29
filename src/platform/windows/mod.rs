@@ -82,7 +82,7 @@ impl Drop for WindowWrapper {
 
 #[derive(Clone)]
 pub struct WindowProxy {
-    pub hwnd: winapi::HWND,
+    hwnd: winapi::HWND,
 }
 
 unsafe impl Send for WindowProxy {}
