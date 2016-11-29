@@ -372,19 +372,8 @@ impl WindowProxy {
     pub fn wakeup_event_loop(&self) {
         self.proxy.wakeup_event_loop();
     }
-
-    /// Returns the platform specific proxy data
-    #[inline]
-    pub fn get_proxy_data(&self) -> &platform::WindowProxy {
-        &self.proxy
-    }
-
-    /// Create a WindowProxy by directly setting its platform specific data
-    #[inline]
-    pub fn create_proxy(data: platform::WindowProxy) -> WindowProxy {
-        WindowProxy {proxy: data}
-    }
 }
+
 /// An iterator for the `poll_events` function.
 pub struct PollEventsIterator<'a>(platform::PollEventsIterator<'a>);
 

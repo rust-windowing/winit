@@ -15,12 +15,14 @@ use CursorState;
 
 use WindowAttributes;
 
-use window;
-
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub parent: Option<window::WindowProxy>,
+    pub parent: Option<winapi::HWND>,
 }
+
+unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
+unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
+
 #[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
