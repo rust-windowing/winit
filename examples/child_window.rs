@@ -1,9 +1,9 @@
 fn main() {
-    child_window_exemple::child_window();
+    child_window_example::child_window();
 }
 
 #[cfg(windows)]
-mod child_window_exemple {
+mod child_window_example {
 
     extern crate winit;
     extern crate winapi;
@@ -59,6 +59,6 @@ mod child_window_exemple {
 }
 
 #[cfg(not(windows))]
-mod child_window_exemple {
+mod child_window_example {
     pub fn child_window() {}
 }
