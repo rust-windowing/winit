@@ -373,6 +373,7 @@ impl WindowProxy {
         self.proxy.wakeup_event_loop();
     }
 }
+
 /// An iterator for the `poll_events` function.
 pub struct PollEventsIterator<'a>(platform::PollEventsIterator<'a>);
 

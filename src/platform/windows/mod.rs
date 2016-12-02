@@ -16,7 +16,13 @@ use CursorState;
 use WindowAttributes;
 
 #[derive(Clone, Default)]
-pub struct PlatformSpecificWindowBuilderAttributes;
+pub struct PlatformSpecificWindowBuilderAttributes {
+    pub parent: Option<winapi::HWND>,
+}
+
+unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
+unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
+
 #[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
@@ -93,10 +99,10 @@ impl WindowProxy {
 
 impl Window {
     /// See the docs in the crate root file.
-    pub fn new(window: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes)
+    pub fn new(window: &WindowAttributes, pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
-        init::new_window(window)
+        init::new_window(window, pl_attribs)
     }
 
     /// See the docs in the crate root file.
