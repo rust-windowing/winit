@@ -14,7 +14,7 @@ use objc::declare::ClassDecl;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSAutoreleasePool, NSDate, NSDefaultRunLoopMode, NSPoint, NSRect, NSSize,
                         NSString, NSUInteger};
-use cocoa::appkit::{self, NSApplication, NSEvent, NSView, NSWindow};
+use cocoa::appkit::{self, NSApplication, NSColor, NSEvent, NSView, NSWindow};
 
 use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID, CGDisplayPixelsHigh, CGWarpMouseCursorPosition};
 
@@ -287,7 +287,8 @@ impl Window {
 
         unsafe {
             if win_attribs.transparent {
-                unimplemented!();
+                (*window as id).setOpaque_(NO);
+                (*window as id).setBackgroundColor_(NSColor::clearColor(nil));
             }
 
             app.activateIgnoringOtherApps_(YES);
