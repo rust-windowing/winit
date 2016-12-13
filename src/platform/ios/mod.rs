@@ -31,7 +31,7 @@
 //!
 //! Compile project and then drag resulting .a into Xcode project. Add glutin.h to xcode.
 //!
-//! ```c
+//! ```ignore
 //! void start_glutin_app();
 //! ```
 //!
@@ -59,7 +59,6 @@
 //! Also note that app will not receive Closed event if suspended, it will be SIGKILL'ed
 
 #![cfg(target_os = "ios")]
-#![deny(warnings)]
 
 use std::collections::VecDeque;
 use std::ptr;
@@ -300,8 +299,8 @@ impl Window {
             }
         }
 
-        let app_delegate_class = Class::get("AppDelegate").unwrap();
-        let mut decl = ClassDecl::new("UIResponder", app_delegate_class).unwrap();
+        let ui_responder = Class::get("UIResponder").unwrap();
+        let mut decl = ClassDecl::new("AppDelegate", ui_responder).unwrap();
 
         unsafe {
             decl.add_method(sel!(application:didFinishLaunchingWithOptions:),
@@ -346,8 +345,8 @@ impl Window {
     }
 
     fn create_view_class() {
-        let main_vc_class = Class::get("MainViewController").unwrap();
-        let decl = ClassDecl::new("UIViewController", main_vc_class).unwrap();
+        let ui_view_controller = Class::get("UIViewController").unwrap();
+        let decl = ClassDecl::new("MainViewController", ui_view_controller).unwrap();
 
         decl.register();
     }

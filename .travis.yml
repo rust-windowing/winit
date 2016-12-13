@@ -11,9 +11,16 @@ addons:
     packages:
     - libxxf86vm-dev
 
+install:
+  - |
+      if [ $TRAVIS_OS_NAME = osx ]; then
+        sh ~/rust-installer/rustup.sh -y --disable-sudo --prefix=/Users/travis/rust \
+          --add-target=x86_64-apple-ios
+      fi
+
 script:
   - cargo build --verbose
-  - [ $TRAVIS_OS_NAME = osx ] && cargo build --target x86_64-apple-ios
+  - if [ $TRAVIS_OS_NAME = osx ]; then cargo build --target x86_64-apple-ios --verbose; fi
   - cargo test --verbose
 
 os:
