@@ -27,12 +27,6 @@ pub type NSUInteger = u32;
 #[cfg(target_pointer_width = "64")]
 pub type NSUInteger = u64;
 
-#[allow(non_upper_case_globals)]
-pub const UIViewAutoresizingFlexibleWidth: NSUInteger = 1 << 1;
-#[allow(non_upper_case_globals)]
-pub const UIViewAutoresizingFlexibleHeight: NSUInteger = 1 << 4;
-
-
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct CGPoint {
@@ -54,20 +48,11 @@ pub struct CGSize {
     pub height: CGFloat
 }
 
-pub mod gles {
-    include!(concat!(env!("OUT_DIR"), "/gles2_bindings.rs"));
-}
-
 #[link(name = "UIKit", kind = "framework")]
 #[link(name = "CoreFoundation", kind = "framework")]
 #[link(name = "GlKit", kind = "framework")]
 extern {
     pub static kCFRunLoopDefaultMode: CFStringRef;
-
-    pub static kEAGLColorFormatRGB565: id;
-    // pub static kEAGLColorFormatRGBA8: id;
-    pub static kEAGLDrawablePropertyColorFormat: id;
-    pub static kEAGLDrawablePropertyRetainedBacking: id;
 
     // int UIApplicationMain ( int argc, char *argv[], NSString *principalClassName, NSString *delegateClassName );
     pub fn UIApplicationMain(argc: libc::c_int, argv: *const libc::c_char, principalClassName: id, delegateClassName: id) -> libc::c_int;
@@ -79,14 +64,6 @@ extern {
 extern {
     pub fn setjmp(env: *mut libc::c_void) -> libc::c_int;
     pub fn longjmp(env: *mut libc::c_void, val: libc::c_int);
-}
-
-pub const RTLD_LAZY: libc::c_int = 0x001;
-pub const RTLD_GLOBAL: libc::c_int = 0x100;
-
-extern {
-    pub fn dlopen(filename: *const libc::c_char, flag: libc::c_int) -> *mut libc::c_void;
-    pub fn dlsym(handle: *mut libc::c_void, symbol: *const libc::c_char) -> *mut libc::c_void;
 }
 
 pub trait NSString {

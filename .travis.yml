@@ -13,13 +13,14 @@ addons:
 
 script:
   - cargo build --verbose
+  - [ $TRAVIS_OS_NAME = osx ] && cargo build --target x86_64-apple-ios
   - cargo test --verbose
 
 os:
   - linux
   - osx
 
-after_success: 
+after_success:
   - |
       [ $TRAVIS_BRANCH = master ] &&
       [ $TRAVIS_PULL_REQUEST = false ] &&
