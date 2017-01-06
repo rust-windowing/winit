@@ -14,6 +14,7 @@ use std::time::Duration;
 
 use CursorState;
 use WindowAttributes;
+use platform::PlatformSpecificWindowBuilderAttributes;
 
 use platform::MonitorId as PlatformMonitorId;
 
@@ -282,7 +283,8 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(display: &Arc<XConnection>, window_attrs: &WindowAttributes)
+    pub fn new(display: &Arc<XConnection>, window_attrs: &WindowAttributes,
+               pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
         let dimensions = {
@@ -303,9 +305,12 @@ impl Window {
 
         };
 
-        let screen_id = match window_attrs.monitor {
-            Some(PlatformMonitorId::X(MonitorId(_, monitor))) => monitor as i32,
-            _ => unsafe { (display.xlib.XDefaultScreen)(display.display) },
+        let screen_id = match pl_attribs.screen_id {
+            Some(id) => id,
+            None => match window_attrs.monitor {
+                Some(PlatformMonitorId::X(MonitorId(_, monitor))) => monitor as i32,
+                _ => unsafe { (display.xlib.XDefaultScreen)(display.display) },
+            }
         };
 
         // finding the mode to switch to if necessary
@@ -347,7 +352,12 @@ impl Window {
         // creating
         let mut set_win_attr = {
             let mut swa: ffi::XSetWindowAttributes = unsafe { mem::zeroed() };
-            swa.colormap = 0;
+            swa.colormap = if let Some(vi) = pl_attribs.visual_infos {
+                unsafe {
+                    let visual = vi.visual;
+                    (display.xlib.XCreateColormap)(display.display, root, visual, ffi::AllocNone)
+                }
+            } else { 0 };
             swa.event_mask = ffi::ExposureMask | ffi::StructureNotifyMask |
                 ffi::VisibilityChangeMask | ffi::KeyPressMask | ffi::PointerMotionMask |
                 ffi::KeyReleaseMask | ffi::ButtonPressMask |
@@ -369,8 +379,17 @@ impl Window {
         // finally creating the window
         let window = unsafe {
             let win = (display.xlib.XCreateWindow)(display.display, root, 0, 0, dimensions.0 as libc::c_uint,
-                dimensions.1 as libc::c_uint, 0, ffi::CopyFromParent, ffi::InputOutput as libc::c_uint,
-                ffi::CopyFromParent as *mut _, window_attributes,
+                dimensions.1 as libc::c_uint, 0,
+                match pl_attribs.visual_infos {
+                    Some(vi) => vi.depth,
+                    None => ffi::CopyFromParent
+                },
+                ffi::InputOutput as libc::c_uint,
+                match pl_attribs.visual_infos {
+                    Some(vi) => vi.visual,
+                    None => ffi::CopyFromParent as *mut _
+                },
+                window_attributes,
                 &mut set_win_attr);
             display.check_errors().expect("Failed to call XCreateWindow");
             win

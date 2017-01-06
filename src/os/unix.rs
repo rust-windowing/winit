@@ -1,11 +1,13 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
 use std::sync::Arc;
+use std::ptr;
 use libc;
 use Window;
 use platform::Window as LinuxWindow;
 use WindowBuilder;
 use api::x11::XConnection;
+use api::x11::ffi::XVisualInfo;
 
 use wayland_client::protocol::wl_display::WlDisplay;
 use wayland_client::protocol::wl_surface::WlSurface;
@@ -142,8 +144,22 @@ impl WindowExt for Window {
 
 /// Additional methods on `WindowBuilder` that are specific to Unix.
 pub trait WindowBuilderExt {
-
+    fn with_visual(self, visual_infos: *const XVisualInfo) -> WindowBuilder;
+    fn with_screen(self, screen_id: i32) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
+    #[inline]
+    fn with_visual(mut self, visual_infos: *const XVisualInfo) -> WindowBuilder {
+        self.platform_specific.visual_infos = Some(
+            unsafe { ptr::read(visual_infos) }
+            );
+        self
+    }
+
+    #[inline]
+    fn with_screen(mut self, screen_id: i32) -> WindowBuilder {
+        self.platform_specific.screen_id = Some(screen_id);
+        self
+    }
 }
