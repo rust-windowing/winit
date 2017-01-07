@@ -21,14 +21,14 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub screen_id: Option<i32>,
 }
 
-enum Backend {
+pub enum Backend {
     X(Arc<XConnection>),
     Wayland(Arc<wayland::WaylandContext>),
     Error(XNotSupported),
-}
+} 
 
 lazy_static!(
-    static ref BACKEND: Backend = {
+    pub static ref BACKEND: Backend = {
         if let Some(ctxt) = wayland::WaylandContext::init() {
             Backend::Wayland(Arc::new(ctxt))
         } else {
@@ -39,6 +39,7 @@ lazy_static!(
         }
     };
 );
+
 
 pub enum Window {
     #[doc(hidden)]
