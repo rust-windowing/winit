@@ -1,16 +1,27 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
 use std::sync::Arc;
+use std::ptr;
 use libc;
 use Window;
 use platform::Window as LinuxWindow;
+use platform::{UnixBackend, UNIX_BACKEND};
 use WindowBuilder;
 use api::x11::XConnection;
+use api::x11::ffi::XVisualInfo;
 
 use wayland_client::protocol::wl_display::WlDisplay;
 use wayland_client::protocol::wl_surface::WlSurface;
 
 pub use api::x11;
+
+// TODO: do not expose XConnection
+pub fn get_x11_xconnection() -> Option<Arc<XConnection>> {
+    match *UNIX_BACKEND {
+        UnixBackend::X(ref connec) => Some(connec.clone()),
+        _ => None,
+    }
+}
 
 /// Additional methods on `Window` that are specific to Unix.
 pub trait WindowExt {
@@ -142,8 +153,22 @@ impl WindowExt for Window {
 
 /// Additional methods on `WindowBuilder` that are specific to Unix.
 pub trait WindowBuilderExt {
-
+    fn with_x11_visual<T>(self, visual_infos: *const T) -> WindowBuilder;
+    fn with_x11_screen(self, screen_id: i32) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
+    #[inline]
+    fn with_x11_visual<T>(mut self, visual_infos: *const T) -> WindowBuilder {
+        self.platform_specific.visual_infos = Some(
+            unsafe { ptr::read(visual_infos as *const XVisualInfo) }
+        );
+        self
+    }
+
+    #[inline]
+    fn with_x11_screen(mut self, screen_id: i32) -> WindowBuilder {
+        self.platform_specific.screen_id = Some(screen_id);
+        self
+    }
 }

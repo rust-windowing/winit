@@ -13,18 +13,22 @@ use api::x11;
 use api::x11::XConnection;
 use api::x11::XError;
 use api::x11::XNotSupported;
+use api::x11::ffi::XVisualInfo;
 
 #[derive(Clone, Default)]
-pub struct PlatformSpecificWindowBuilderAttributes;
+pub struct PlatformSpecificWindowBuilderAttributes {
+    pub visual_infos: Option<XVisualInfo>,
+    pub screen_id: Option<i32>,
+}
 
-enum Backend {
+pub enum Backend {
     X(Arc<XConnection>),
     Wayland(Arc<wayland::WaylandContext>),
     Error(XNotSupported),
-}
+} 
 
 lazy_static!(
-    static ref BACKEND: Backend = {
+    pub static ref BACKEND: Backend = {
         if let Some(ctxt) = wayland::WaylandContext::init() {
             Backend::Wayland(Arc::new(ctxt))
         } else {
@@ -35,6 +39,7 @@ lazy_static!(
         }
     };
 );
+
 
 pub enum Window {
     #[doc(hidden)]
@@ -165,7 +170,7 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 
 impl Window {
     #[inline]
-    pub fn new(window: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes)
+    pub fn new(window: &WindowAttributes, pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
         match *BACKEND {
@@ -174,7 +179,7 @@ impl Window {
             },
 
             Backend::X(ref connec) => {
-                x11::Window::new(connec, window).map(Window::X)
+                x11::Window::new(connec, window, pl_attribs).map(Window::X)
             },
 
             Backend::Error(ref error) => {
