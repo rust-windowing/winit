@@ -15,6 +15,7 @@ use wayland_client::protocol::wl_surface::WlSurface;
 
 pub use api::x11;
 
+// TODO: do not expose XConnection
 pub fn get_x11_xconnection() -> Option<Arc<XConnection>> {
     match *UNIX_BACKEND {
         UnixBackend::X(ref connec) => Some(connec.clone()),
