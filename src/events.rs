@@ -35,7 +35,7 @@ pub enum WindowEvent {
     Focused(bool),
 
     /// An event from the keyboard has been received.
-    KeyboardInput(ElementState, ScanCode, Option<VirtualKeyCode>),
+    KeyboardInput(ElementState, ScanCode, Option<VirtualKeyCode>, ModifiersState),
 
     /// The cursor has moved on the window.
     ///
@@ -319,4 +319,21 @@ pub enum VirtualKeyCode {
     WebSearch,
     WebStop,
     Yen,
+}
+
+/// Represents the current state of the keyboard modifiers
+///
+/// Each field of this struct represents a modifier and is `true` if this modifier is active.
+#[derive(Default, Debug, Clone, Copy)]
+pub struct ModifiersState {
+    /// The "shift" key
+    pub shift: bool,
+    /// The "control" key
+    pub ctrl: bool,
+    /// The "alt" key
+    pub alt: bool,
+    /// The "logo" key
+    ///
+    /// This is the "windows" key on PC and "command" key on Mac.
+    pub logo: bool
 }

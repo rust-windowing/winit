@@ -16,7 +16,7 @@ fn main() {
         match event {
             winit::Event::WindowEvent { event, .. } => {
                 match event {
-                    WindowEvent::KeyboardInput(ElementState::Pressed, _, _) => {
+                    WindowEvent::KeyboardInput(ElementState::Pressed, _, _, _) => {
                         if grabbed {
                             grabbed = false;
                             window.set_cursor_state(winit::CursorState::Normal)

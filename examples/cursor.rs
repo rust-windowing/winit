@@ -13,7 +13,7 @@ fn main() {
 
     events_loop.run_forever(|event| {
         match event {
-            Event::WindowEvent { event: WindowEvent::KeyboardInput(ElementState::Pressed, _, _), .. } => {
+            Event::WindowEvent { event: WindowEvent::KeyboardInput(ElementState::Pressed, _, _, _), .. } => {
                 println!("Setting cursor to \"{:?}\"", cursors[cursor_idx]);
                 window.set_cursor(cursors[cursor_idx]);
                 if cursor_idx < cursors.len() - 1 {

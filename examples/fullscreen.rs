@@ -37,7 +37,7 @@ fn main() {
             winit::Event::WindowEvent { event, .. } => {
                 match event {
                     winit::WindowEvent::Closed => events_loop.interrupt(),
-                    winit::WindowEvent::KeyboardInput(_, _, Some(winit::VirtualKeyCode::Escape)) => events_loop.interrupt(),
+                    winit::WindowEvent::KeyboardInput(_, _, Some(winit::VirtualKeyCode::Escape), _) => events_loop.interrupt(),
                     _ => ()
                 }
             },

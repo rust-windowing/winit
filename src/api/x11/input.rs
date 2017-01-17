@@ -8,6 +8,7 @@ use std::slice::from_raw_parts;
 use WindowAttributes;
 
 use events::WindowEvent as Event;
+use events::ModifiersState;
 
 use super::{events, ffi};
 use super::XConnection;
@@ -165,7 +166,7 @@ impl XInputEventHandler {
 
         let vkey = events::keycode_to_element(keysym as libc::c_uint);
 
-        translated_events.push(KeyboardInput(state, event.keycode as u8, vkey));
+        translated_events.push(KeyboardInput(state, event.keycode as u8, vkey, ModifiersState::default()));
         translated_events
     }
 

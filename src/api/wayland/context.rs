@@ -1,5 +1,7 @@
 use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase};
 
+use events::ModifiersState;
+
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -627,10 +629,12 @@ impl wl_keyboard::Handler for WaylandEnv {
                     wl_keyboard::KeyState::Released => ElementState::Released,
                 };
                 let mut guard = eviter.lock().unwrap();
+		// TODO implement ModifiersState
                 guard.push_back(Event::KeyboardInput(
                     state,
                     key as u8,
-                    None
+                    None,
+                    ModifiersState::default()
                 ));
             },
             KbdType::Plain(None) => ()

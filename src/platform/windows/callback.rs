@@ -8,6 +8,7 @@ use std::os::windows::ffi::OsStringExt;
 
 use CursorState;
 use WindowEvent as Event;
+use events::ModifersState;
 use super::event;
 use super::WindowState;
 
@@ -200,7 +201,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 user32::DefWindowProcW(window, msg, wparam, lparam)
             } else {
                 let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
-                send_event(window, KeyboardInput(Pressed, scancode, vkey));
+                send_event(window, KeyboardInput(Pressed, scancode, vkey, ModifersState::default()));
                 0
             }
         },
@@ -209,7 +210,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::WindowEvent::KeyboardInput;
             use events::ElementState::Released;
             let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
-            send_event(window, KeyboardInput(Released, scancode, vkey));
+            send_event(window, KeyboardInput(Released, scancode, vkey, ModifersState::default()));
             0
         },
 
