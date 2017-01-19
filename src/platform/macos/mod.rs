@@ -737,6 +737,8 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
         appkit::NSLeftMouseUp           => { Some(Event::MouseInput(ElementState::Released, MouseButton::Left)) },
         appkit::NSRightMouseDown        => { Some(Event::MouseInput(ElementState::Pressed, MouseButton::Right)) },
         appkit::NSRightMouseUp          => { Some(Event::MouseInput(ElementState::Released, MouseButton::Right)) },
+        appkit::NSOtherMouseDown        => { Some(Event::MouseInput(ElementState::Pressed, MouseButton::Middle)) },
+        appkit::NSOtherMouseUp          => { Some(Event::MouseInput(ElementState::Released, MouseButton::Middle)) },
         appkit::NSMouseEntered          => { Some(Event::MouseEntered) },
         appkit::NSMouseExited           => { Some(Event::MouseLeft) },
         appkit::NSMouseMoved            |
