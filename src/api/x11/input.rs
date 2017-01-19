@@ -128,38 +128,40 @@ impl XInputEventHandler {
 
         let mut translated_events = Vec::new();
 
+        let mut kp_keysym = 0;
+        
         let state;
         if event.type_ == ffi::KeyPress {
             let raw_ev: *mut ffi::XKeyEvent = event;
             unsafe { (self.display.xlib.XFilterEvent)(mem::transmute(raw_ev), self.window) };
+
+            // Xutf8LookupString is undefined for Released events
+            let written = unsafe {
+                use std::str;
+
+                let mut buffer: [u8; 16] = [mem::uninitialized(); 16];
+                let raw_ev: *mut ffi::XKeyEvent = event;
+                let count = (self.display.xlib.Xutf8LookupString)(self.ic, mem::transmute(raw_ev),
+                            mem::transmute(buffer.as_mut_ptr()),
+                            buffer.len() as libc::c_int, &mut kp_keysym, ptr::null_mut());
+
+                str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
+            };
+
+            for chr in written.chars() {
+                translated_events.push(ReceivedCharacter(chr));
+            }
+            
             state = Pressed;
         } else {
             state = Released;
         }
-
-        let mut kp_keysym = 0;
-
-        let written = unsafe {
-            use std::str;
-
-            let mut buffer: [u8; 16] = [mem::uninitialized(); 16];
-            let raw_ev: *mut ffi::XKeyEvent = event;
-            let count = (self.display.xlib.Xutf8LookupString)(self.ic, mem::transmute(raw_ev),
-            mem::transmute(buffer.as_mut_ptr()),
-            buffer.len() as libc::c_int, &mut kp_keysym, ptr::null_mut());
-
-            str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
-        };
-
-        for chr in written.chars() {
-            translated_events.push(ReceivedCharacter(chr));
-        }
-
+        
         let mut keysym = unsafe {
             (self.display.xlib.XKeycodeToKeysym)(self.display.display, event.keycode as ffi::KeyCode, 0)
         };
 
-        if (ffi::XK_KP_Space as libc::c_ulong <= keysym) && (keysym <= ffi::XK_KP_9 as libc::c_ulong) {
+        if (event.type_ == ffi::KeyPress) && (ffi::XK_KP_Space as libc::c_ulong <= keysym) && (keysym <= ffi::XK_KP_9 as libc::c_ulong) {
             keysym = kp_keysym
         };
 
