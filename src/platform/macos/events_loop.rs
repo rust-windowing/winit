@@ -1,6 +1,6 @@
 use cocoa::{self, appkit, foundation};
 use cocoa::appkit::{NSApplication, NSEvent, NSView, NSWindow};
-use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, Modifiers};
+use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, ModifiersState};
 use super::window::Window;
 use std;
 
@@ -271,7 +271,7 @@ impl EventsLoop {
                 let vkey =  to_virtual_key_code(NSEvent::keyCode(ns_event));
                 let state = ElementState::Pressed;
                 let code = NSEvent::keyCode(ns_event) as u8;
-                let window_event = WindowEvent::KeyboardInput(state, code, vkey, ModifiersState::default());
+                let window_event = WindowEvent::KeyboardInput(state, code, vkey, event_mods(ns_event));
                 events.push_back(into_event(window_event));
                 let event = events.pop_front();
                 self.pending_events.lock().unwrap().extend(events.into_iter());
@@ -283,7 +283,7 @@ impl EventsLoop {
 
                 let state = ElementState::Released;
                 let code = NSEvent::keyCode(ns_event) as u8;
-                let window_event = WindowEvent::KeyboardInput(state, code, vkey, ModifiersState::default());
+                let window_event = WindowEvent::KeyboardInput(state, code, vkey, event_mods(ns_event));
                 Some(into_event(window_event))
             },
 
@@ -298,13 +298,13 @@ impl EventsLoop {
                     if !key_pressed && NSEvent::modifierFlags(event).contains(keymask) {
                         let state = ElementState::Pressed;
                         let code = NSEvent::keyCode(event) as u8;
-                        let window_event = WindowEvent::KeyboardInput(state, code, Some(key), ModifiersState::default());
+                        let window_event = WindowEvent::KeyboardInput(state, code, Some(key), event_mods(event));
                         Some(window_event)
 
                     } else if key_pressed && !NSEvent::modifierFlags(event).contains(keymask) {
                         let state = ElementState::Released;
                         let code = NSEvent::keyCode(event) as u8;
-                        let window_event = WindowEvent::KeyboardInput(state, code, Some(key), ModifiersState::default());
+                        let window_event = WindowEvent::KeyboardInput(state, code, Some(key), event_mods(event));
                         Some(window_event)
 
                     } else {
@@ -574,4 +574,16 @@ fn to_virtual_key_code(code: u16) -> Option<events::VirtualKeyCode> {
 
         _ => return None,
     })
+}
+
+fn event_mods(event: cocoa::base::id) -> ModifiersState {
+    let flags = unsafe {
+        NSEvent::modifierFlags(event)
+    };
+    ModifiersState {
+        shift: flags.contains(appkit::NSShiftKeyMask),
+        ctrl: flags.contains(appkit::NSControlKeyMask),
+        alt: flags.contains(appkit::NSAlternateKeyMask),
+        logo: flags.contains(appkit::NSCommandKeyMask),
+    }
 }
