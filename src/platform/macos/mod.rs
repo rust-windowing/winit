@@ -34,10 +34,10 @@ pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 mod monitor;
 mod event;
 
-static mut shift_pressed: bool = false;
-static mut ctrl_pressed: bool = false;
-static mut win_pressed: bool = false;
-static mut alt_pressed: bool = false;
+static mut SHIFT_PRESSED: bool = false;
+static mut CTRL_PRESSED: bool = false;
+static mut WIN_PRESSED: bool = false;
+static mut ALT_PRESSED: bool = false;
 
 struct DelegateState {
     view: IdRef,
@@ -104,7 +104,7 @@ impl WindowDelegate {
             }
         }
 
-        static mut delegate_class: *const Class = 0 as *const Class;
+        static mut DELEGATE_CLASS: *const Class = 0 as *const Class;
         static INIT: Once = ONCE_INIT;
 
         INIT.call_once(|| unsafe {
@@ -126,11 +126,11 @@ impl WindowDelegate {
             // Store internal state as user data
             decl.add_ivar::<*mut c_void>("glutinState");
 
-            delegate_class = decl.register();
+            DELEGATE_CLASS = decl.register();
         });
 
         unsafe {
-            delegate_class
+            DELEGATE_CLASS
         }
     }
 
@@ -780,24 +780,24 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
         },
         appkit::NSFlagsChanged => {
             let mut events = VecDeque::new();
-            let shift_modifier = Window::modifier_event(nsevent, appkit::NSShiftKeyMask, events::VirtualKeyCode::LShift, shift_pressed);
+            let shift_modifier = Window::modifier_event(nsevent, appkit::NSShiftKeyMask, events::VirtualKeyCode::LShift, SHIFT_PRESSED);
             if shift_modifier.is_some() {
-                shift_pressed = !shift_pressed;
+                SHIFT_PRESSED = !SHIFT_PRESSED;
                 events.push_back(shift_modifier.unwrap());
             }
-            let ctrl_modifier = Window::modifier_event(nsevent, appkit::NSControlKeyMask, events::VirtualKeyCode::LControl, ctrl_pressed);
+            let ctrl_modifier = Window::modifier_event(nsevent, appkit::NSControlKeyMask, events::VirtualKeyCode::LControl, CTRL_PRESSED);
             if ctrl_modifier.is_some() {
-                ctrl_pressed = !ctrl_pressed;
+                CTRL_PRESSED = !CTRL_PRESSED;
                 events.push_back(ctrl_modifier.unwrap());
             }
-            let win_modifier = Window::modifier_event(nsevent, appkit::NSCommandKeyMask, events::VirtualKeyCode::LWin, win_pressed);
+            let win_modifier = Window::modifier_event(nsevent, appkit::NSCommandKeyMask, events::VirtualKeyCode::LWin, WIN_PRESSED);
             if win_modifier.is_some() {
-                win_pressed = !win_pressed;
+                WIN_PRESSED = !WIN_PRESSED;
                 events.push_back(win_modifier.unwrap());
             }
-            let alt_modifier = Window::modifier_event(nsevent, appkit::NSAlternateKeyMask, events::VirtualKeyCode::LAlt, alt_pressed);
+            let alt_modifier = Window::modifier_event(nsevent, appkit::NSAlternateKeyMask, events::VirtualKeyCode::LAlt, ALT_PRESSED);
             if alt_modifier.is_some() {
-                alt_pressed = !alt_pressed;
+                ALT_PRESSED = !ALT_PRESSED;
                 events.push_back(alt_modifier.unwrap());
             }
             let event = events.pop_front();
