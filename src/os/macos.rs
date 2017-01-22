@@ -62,7 +62,7 @@ impl From<ActivationPolicy> for NSApplicationActivationPolicy {
 
 /// Additional methods on `WindowBuilder` that are specific to MacOS.
 pub trait WindowBuilderExt {
-    fn with_activation_policy(mut self, activation_policy: ActivationPolicy) -> WindowBuilder;
+    fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
