@@ -43,6 +43,7 @@ struct DelegateState {
     view: IdRef,
     window: IdRef,
     resize_handler: Option<fn(u32, u32)>,
+    pending_resize: Mutex<Option<(u32, u32)>>,
 
     /// Events that have been retreived with XLib but not dispatched with iterators yet
     pending_events: Mutex<VecDeque<Event>>,
@@ -83,7 +84,7 @@ impl WindowDelegate {
                 if let Some(handler) = state.resize_handler {
                     (handler)(width, height);
                 }
-                (*state).pending_events.lock().unwrap().push_back(Event::Resized(width, height));
+                *state.pending_resize.lock().unwrap() = Some((width, height));
             }
         }
 
@@ -211,6 +212,10 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
+        if let Some((width, height)) = self.window.delegate.state.pending_resize.lock().unwrap().take() {
+            return Some(Event::Resized(width, height));
+        }
+
         if let Some(ev) = self.window.delegate.state.pending_events.lock().unwrap().pop_front() {
             return Some(ev);
         }
@@ -240,6 +245,10 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
+        if let Some((width, height)) = self.window.delegate.state.pending_resize.lock().unwrap().take() {
+            return Some(Event::Resized(width, height));
+        }
+
         if let Some(ev) = self.window.delegate.state.pending_events.lock().unwrap().pop_front() {
             return Some(ev);
         }
@@ -313,6 +322,7 @@ impl Window {
             view: view.clone(),
             window: window.clone(),
             resize_handler: None,
+            pending_resize: Mutex::new(None),
             pending_events: Mutex::new(VecDeque::new()),
         };
 
