@@ -75,13 +75,15 @@ impl WindowDelegate {
 
                 // need to notify context before (?) event
                 // let _: () = msg_send![*state.context, update];
+                let rect = NSView::frame(*state.view);
+                let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
+                let width = (scale_factor * rect.size.width as f32) as u32;
+                let height = (scale_factor * rect.size.height as f32) as u32;
 
                 if let Some(handler) = state.resize_handler {
-                    let rect = NSView::frame(*state.view);
-                    let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
-                    (handler)((scale_factor * rect.size.width as f32) as u32,
-                              (scale_factor * rect.size.height as f32) as u32);
+                    (handler)(width, height);
                 }
+                (*state).pending_events.lock().unwrap().push_back(Event::Resized(width, height));
             }
         }
 
