@@ -792,7 +792,7 @@ impl Window {
                 MouseCursor::Copy => load("copy"),
                 MouseCursor::Crosshair => load("crosshair"),
                 MouseCursor::Default => load("left_ptr"),
-                MouseCursor::Hand => load("hand1"),
+                MouseCursor::Hand => loadn(&["hand2", "hand1"]),
                 MouseCursor::Help => load("question_arrow"),
                 MouseCursor::Move => load("move"),
                 MouseCursor::Grab => loadn(&["openhand", "grab"]),
