@@ -43,6 +43,7 @@ struct DelegateState {
     view: IdRef,
     window: IdRef,
     resize_handler: Option<fn(u32, u32)>,
+    pending_resize: Mutex<Option<(u32, u32)>>,
 
     /// Events that have been retreived with XLib but not dispatched with iterators yet
     pending_events: Mutex<VecDeque<Event>>,
@@ -75,13 +76,15 @@ impl WindowDelegate {
 
                 // need to notify context before (?) event
                 // let _: () = msg_send![*state.context, update];
+                let rect = NSView::frame(*state.view);
+                let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
+                let width = (scale_factor * rect.size.width as f32) as u32;
+                let height = (scale_factor * rect.size.height as f32) as u32;
 
                 if let Some(handler) = state.resize_handler {
-                    let rect = NSView::frame(*state.view);
-                    let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
-                    (handler)((scale_factor * rect.size.width as f32) as u32,
-                              (scale_factor * rect.size.height as f32) as u32);
+                    (handler)(width, height);
                 }
+                *state.pending_resize.lock().unwrap() = Some((width, height));
             }
         }
 
@@ -209,6 +212,10 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
+        if let Some((width, height)) = self.window.delegate.state.pending_resize.lock().unwrap().take() {
+            return Some(Event::Resized(width, height));
+        }
+
         if let Some(ev) = self.window.delegate.state.pending_events.lock().unwrap().pop_front() {
             return Some(ev);
         }
@@ -238,6 +245,10 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
+        if let Some((width, height)) = self.window.delegate.state.pending_resize.lock().unwrap().take() {
+            return Some(Event::Resized(width, height));
+        }
+
         if let Some(ev) = self.window.delegate.state.pending_events.lock().unwrap().pop_front() {
             return Some(ev);
         }
@@ -311,6 +322,7 @@ impl Window {
             view: view.clone(),
             window: window.clone(),
             resize_handler: None,
+            pending_resize: Mutex::new(None),
             pending_events: Mutex::new(VecDeque::new()),
         };
 
