@@ -119,7 +119,7 @@ impl WindowBuilder {
 impl Window {
     /// Creates a new OpenGL context, and a Window for platforms where this is appropriate.
     ///
-    /// This function is equivalent to `WindowBuilder::new().build()`.
+    /// This function is equivalent to `WindowBuilder::new().build(events_loop)`.
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
