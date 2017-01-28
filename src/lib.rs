@@ -127,6 +127,11 @@ impl EventsLoop {
     {
         self.events_loop.run_forever(callback)
     }
+
+    #[inline]
+    pub fn interrupt(&self) {
+        self.events_loop.interrupt()
+    }
 }
 
 /// Object that allows you to build windows.

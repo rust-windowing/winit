@@ -9,13 +9,19 @@ macro_rules! gen_api_transition {
     () => {
         pub struct EventsLoop {
             windows: ::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>,
+            interrupted: ::std::sync::atomic::AtomicBool,
         }
 
         impl EventsLoop {
             pub fn new() -> EventsLoop {
                 EventsLoop {
                     windows: ::std::sync::Mutex::new(vec![]),
+                    interrupted: ::std::sync::atomic::AtomicBool::new(false),
                 }
+            }
+
+            pub fn interrupt(&self) {
+                self.interrupted.store(true, ::std::sync::atomic::Ordering::Relaxed);
             }
 
             pub fn poll_events<F>(&self, mut callback: F)
@@ -35,10 +41,15 @@ macro_rules! gen_api_transition {
             pub fn run_forever<F>(&self, mut callback: F)
                 where F: FnMut(::Event)
             {
+                self.interrupted.store(false, ::std::sync::atomic::Ordering::Relaxed);
+
                 // Yeah that's a very bad implementation.
                 loop {
                     self.poll_events(|e| callback(e));
                     ::std::thread::sleep_ms(5);
+                    if self.interrupted.load(::std::sync::atomic::Ordering::Relaxed) {
+                        break;
+                    }
                 }
             }
         }
