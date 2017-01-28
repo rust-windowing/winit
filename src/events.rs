@@ -3,7 +3,7 @@ use std::path::PathBuf;
 #[derive(Clone, Debug)]
 pub enum Event {
     WindowEvent {
-        // window_id: ,
+        window_id: usize,
         event: WindowEvent,
     }
 }

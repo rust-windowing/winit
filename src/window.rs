@@ -318,6 +318,11 @@ impl Window {
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
         self.window.set_cursor_state(state)
     }
+
+    #[inline]
+    pub fn id(&self) -> usize {
+        self.window.id()
+    }
 }
 
 /// Represents a thread safe subset of operations that can be called

@@ -21,13 +21,25 @@ macro_rules! gen_api_transition {
             pub fn poll_events<F>(&self, mut callback: F)
                 where F: FnMut(::Event)
             {
-                unimplemented!()
+                let mut windows = self.windows.lock().unwrap();
+                for window in windows.iter() {
+                    for event in window.poll_events() {
+                        callback(::Event::WindowEvent {
+                            window_id: &**window as *const Window as usize,
+                            event: event,
+                        })
+                    }
+                }
             }
 
             pub fn run_forever<F>(&self, mut callback: F)
                 where F: FnMut(::Event)
             {
-                unimplemented!()
+                // Yeah that's a very bad implementation.
+                loop {
+                    self.poll_events(|e| callback(e));
+                    ::std::thread::sleep_ms(5);
+                }
             }
         }
 
