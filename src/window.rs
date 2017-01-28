@@ -297,6 +297,7 @@ impl Window {
     /// DEPRECATED. Gets the native platform specific display for this window.
     /// This is typically only required when integrating with
     /// other libraries that need this information.
+    #[deprecated]
     #[inline]
     pub unsafe fn platform_display(&self) -> *mut libc::c_void {
         self.window.platform_display()
@@ -305,6 +306,7 @@ impl Window {
     /// DEPRECATED. Gets the native platform specific window handle. This is
     /// typically only required when integrating with other libraries
     /// that need this information.
+    #[deprecated]
     #[inline]
     pub unsafe fn platform_window(&self) -> *mut libc::c_void {
         self.window.platform_window()

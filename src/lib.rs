@@ -1,5 +1,4 @@
-//! The purpose of this library is to provide an OpenGL context on as many
-//!  platforms as possible.
+//! Winit allows you to build a window on as many platforms as possible. 
 //!
 //! # Building a window
 //!
@@ -8,20 +7,25 @@
 //!  - Calling `Window::new()`.
 //!  - Calling `let builder = WindowBuilder::new()` then `builder.build()`.
 //!
-//! The first way is the simpliest way and will give you default values.
+//! The first way is the simpliest way and will give you default values for everything.
 //!
-//! The second way allows you to customize the way your window and GL context
-//!  will look and behave.
+//! The second way allows you to customize the way your window will look and behave by modifying
+//! the fields of the `WindowBuilder` object before you create the window.
 //!
-//! # Features
+//! # Events handling
 //!
-//! This crate has two Cargo features: `window` and `headless`.
+//! Once a window has been created, you can handle the events that it generates. There are two ways
+//! to do so: with `poll_events` or with `wait_events`. The former returns an iterator that ends
+//! when no event is available, and the latter returns an iterator that blocks and waits for events
+//! if none is available. Depending on which kind of program you're writing, you usually choose
+//! one or the other.
 //!
-//!  - `window` allows you to create regular windows and enables the `WindowBuilder` object.
-//!  - `headless` allows you to do headless rendering, and enables
-//!     the `HeadlessRendererBuilder` object.
+//! # Drawing on the window
 //!
-//! By default only `window` is enabled.
+//! Winit doesn't provide any function that allows drawing on a window. However it allows you to
+//! retreive the raw handle of the window (see the `os` module for that), which in turn allows you
+//! to create an OpenGL/Vulkan/DirectX/Metal/etc. context that will draw on the window.
+//!
 
 #[macro_use]
 extern crate lazy_static;
@@ -72,27 +76,21 @@ mod window;
 
 pub mod os;
 
-/// Represents an OpenGL context and the Window or environment around it.
+/// Represents a window.
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// use winit::Window;
 /// let window = Window::new().unwrap();
 ///
-/// unsafe { window.make_current() };
-///
 /// loop {
-///     for event in window.poll_events() {
-///         match(event) {
+///     for event in window.wait_events() {
+///         match event {
 ///             // process events here
 ///             _ => ()
 ///         }
 ///     }
-///
-///     // draw everything here
-///
-///     window.swap_buffers();
-///     std::old_io::timer::sleep(17);
 /// }
 /// ```
 pub struct Window {
@@ -105,7 +103,7 @@ pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
 
-    /// Platform-specific configuration.
+    // Platform-specific configuration. Private.
     platform_specific: platform::PlatformSpecificWindowBuilderAttributes,
 }
 
