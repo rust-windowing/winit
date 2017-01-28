@@ -361,10 +361,6 @@ pub struct WindowAttributes {
     /// [iOS only] Enable multitouch, see [UIView#multipleTouchEnabled]
     /// (https://developer.apple.com/library/ios/documentation/UIKit/Reference/UIView_Class/#//apple_ref/occ/instp/UIView/multipleTouchEnabled)
     pub multitouch: bool,
-
-    /// A function called upon resizing, necessary to receive resize events on Mac and possibly
-    /// other systems.
-    pub resize_callback: Option<fn(u32, u32)>,
 }
 
 impl Default for WindowAttributes {
@@ -380,7 +376,6 @@ impl Default for WindowAttributes {
             transparent: false,
             decorations: true,
             multitouch: false,
-            resize_callback: None,
         }
     }
 }
