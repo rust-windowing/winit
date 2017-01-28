@@ -6,7 +6,7 @@ use libc;
 use std::ffi::{CString};
 use std::sync::mpsc::{Receiver, channel};
 use std::os::raw::c_void;
-use {CreationError, Event, MouseCursor};
+use {CreationError, WindowEvent as Event, MouseCursor};
 use CreationError::OsError;
 use events::ElementState::{Pressed, Released};
 use events::{Touch, TouchPhase};
@@ -16,6 +16,8 @@ use std::collections::VecDeque;
 use CursorState;
 use WindowAttributes;
 use native_monitor::NativeMonitorId;
+
+gen_api_transition!();
 
 pub struct Window {
     native_window: *const c_void,

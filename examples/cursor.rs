@@ -1,6 +1,6 @@
 extern crate winit;
 
-use winit::{Event, ElementState, MouseCursor};
+use winit::{WindowEvent as Event, ElementState, MouseCursor};
 
 fn main() {
     let window = winit::WindowBuilder::new().build().unwrap();

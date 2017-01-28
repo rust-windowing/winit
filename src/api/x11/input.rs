@@ -7,7 +7,7 @@ use std::slice::from_raw_parts;
 
 use WindowAttributes;
 
-use events::Event;
+use events::WindowEvent as Event;
 
 use super::{events, ffi};
 use super::XConnection;
@@ -123,7 +123,7 @@ impl XInputEventHandler {
     }
 
     pub fn translate_key_event(&self, event: &mut ffi::XKeyEvent) -> Vec<Event> {
-        use events::Event::{KeyboardInput, ReceivedCharacter};
+        use events::WindowEvent::{KeyboardInput, ReceivedCharacter};
         use events::ElementState::{Pressed, Released};
 
         let mut translated_events = Vec::new();
@@ -170,7 +170,7 @@ impl XInputEventHandler {
     }
 
     pub fn translate_event(&mut self, cookie: &ffi::XGenericEventCookie) -> Option<Event> {
-        use events::Event::{Focused, MouseEntered, MouseInput, MouseLeft, MouseMoved, MouseWheel};
+        use events::WindowEvent::{Focused, MouseEntered, MouseInput, MouseLeft, MouseMoved, MouseWheel};
         use events::ElementState::{Pressed, Released};
         use events::MouseButton::{Left, Right, Middle};
         use events::MouseScrollDelta::LineDelta;

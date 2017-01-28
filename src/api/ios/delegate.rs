@@ -1,7 +1,7 @@
 use libc;
 use std::mem;
 use super::DelegateState;
-use Event;
+use WindowEvent as Event;
 use events::{ Touch, TouchPhase };
 
 use objc::runtime::{ Class, Object, Sel, BOOL, YES };

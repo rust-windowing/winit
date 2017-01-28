@@ -2,7 +2,8 @@ use std::collections::vec_deque::IntoIter as VecDequeIter;
 
 use CreationError;
 use CursorState;
-use Event;
+use WindowEvent as Event;
+use EventsLoop;
 use MouseCursor;
 use Window;
 use WindowBuilder;
@@ -93,20 +94,11 @@ impl WindowBuilder {
         self
     }
 
-    /// Provides a resize callback that is called by Mac (and potentially other
-    /// operating systems) during resize operations. This can be used to repaint
-    /// during window resizing.
-    #[inline]
-    pub fn with_window_resize_callback(mut self, cb: fn(u32, u32)) -> WindowBuilder {
-        self.window.resize_callback = Some(cb);
-        self
-    }
-
     /// Builds the window.
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     /// out of memory, etc.
-    pub fn build(mut self) -> Result<Window, CreationError> {
+    pub fn build(mut self, events_loop: &EventsLoop) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
         if self.window.dimensions.is_none() && self.window.monitor.is_some() {
             self.window.dimensions = Some(self.window.monitor.as_ref().unwrap().get_dimensions())
@@ -118,31 +110,9 @@ impl WindowBuilder {
         }
 
         // building
-        let mut w = try!(platform::Window::new(&self.window, &self.platform_specific));
-
-        // a window resize callback was given
-        if let Some(callback) = self.window.resize_callback {
-            w.set_window_resize_callback(Some(callback));
-        }
+        let w = try!(platform::Window2::new(events_loop.events_loop.clone(), &self.window, &self.platform_specific));
 
         Ok(Window { window: w })
-    }
-
-    /// Builds the window.
-    ///
-    /// The context is build in a *strict* way. That means that if the backend couldn't give
-    /// you what you requested, an `Err` will be returned.
-    #[inline]
-    pub fn build_strict(self) -> Result<Window, CreationError> {
-        self.build()
-    }
-}
-
-
-impl Default for Window {
-    #[inline]
-    fn default() -> Window {
-        Window::new().unwrap()
     }
 }
 
@@ -154,9 +124,9 @@ impl Window {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     #[inline]
-    pub fn new() -> Result<Window, CreationError> {
+    pub fn new(events_loop: &EventsLoop) -> Result<Window, CreationError> {
         let builder = WindowBuilder::new();
-        builder.build()
+        builder.build(events_loop)
     }
 
     /// Modifies the title of the window.
@@ -319,14 +289,6 @@ impl Window {
         WindowProxy {
             proxy: self.window.create_window_proxy()
         }
-    }
-
-    /// Sets a resize callback that is called by Mac (and potentially other
-    /// operating systems) during resize operations. This can be used to repaint
-    /// during window resizing.
-    #[inline]
-    pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
-        self.window.set_window_resize_callback(callback);
     }
 
     /// Modifies the mouse cursor of the window.

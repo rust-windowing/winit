@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use CreationError;
 use CursorState;
-use Event;
+use WindowEvent as Event;
 use MouseCursor;
 use WindowAttributes;
 use libc;
@@ -16,6 +16,8 @@ use api::x11::XConnection;
 use api::x11::XError;
 use api::x11::XNotSupported;
 use api::x11::ffi::XVisualInfo;
+
+gen_api_transition!();
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {

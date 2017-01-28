@@ -64,10 +64,15 @@ extern crate x11_dl;
 #[macro_use(wayland_env,declare_handler)]
 extern crate wayland_client;
 
+use std::sync::Arc;
+
 pub use events::*;
 pub use window::{WindowProxy, PollEventsIterator, WaitEventsIterator};
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
 pub use native_monitor::NativeMonitorId;
+
+#[macro_use]
+mod api_transition;
 
 mod api;
 mod platform;
@@ -94,7 +99,34 @@ pub mod os;
 /// }
 /// ```
 pub struct Window {
-    window: platform::Window,
+    window: platform::Window2,
+}
+
+pub struct EventsLoop {
+    events_loop: Arc<platform::EventsLoop>,
+}
+
+impl EventsLoop {
+    /// Builds a new events loop.
+    pub fn new() -> EventsLoop {
+        EventsLoop {
+            events_loop: Arc::new(platform::EventsLoop::new()),
+        }
+    }
+
+    #[inline]
+    pub fn poll_events<F>(&self, callback: F)
+        where F: FnMut(Event)
+    {
+        self.events_loop.poll_events(callback)
+    }
+
+    #[inline]
+    pub fn run_forever<F>(&self, callback: F)
+        where F: FnMut(Event)
+    {
+        self.events_loop.run_forever(callback)
+    }
 }
 
 /// Object that allows you to build windows.

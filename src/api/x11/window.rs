@@ -1,4 +1,4 @@
-use {Event, MouseCursor};
+use {WindowEvent as Event, MouseCursor};
 use CreationError;
 use CreationError::OsError;
 use libc;
@@ -178,7 +178,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 },
 
                 ffi::ClientMessage => {
-                    use events::Event::{Closed, Awakened};
+                    use events::WindowEvent::{Closed, Awakened};
                     use std::sync::atomic::Ordering::Relaxed;
 
                     let client_msg: &ffi::XClientMessageEvent = unsafe { mem::transmute(&xev) };
@@ -192,7 +192,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 },
 
                 ffi::ConfigureNotify => {
-                    use events::Event::Resized;
+                    use events::WindowEvent::Resized;
                     let cfg_event: &ffi::XConfigureEvent = unsafe { mem::transmute(&xev) };
                     let (current_width, current_height) = self.window.current_size.get();
                     if current_width != cfg_event.width || current_height != cfg_event.height {
@@ -202,7 +202,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                 },
 
                 ffi::Expose => {
-                    use events::Event::Refresh;
+                    use events::WindowEvent::Refresh;
                     return Some(Refresh);
                 },
 

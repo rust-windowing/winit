@@ -8,6 +8,8 @@ use ContextError;
 
 pub use api::ios::*;
 
+gen_api_transition!();
+
 #[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 

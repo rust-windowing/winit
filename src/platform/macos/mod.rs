@@ -1,6 +1,6 @@
 #![cfg(target_os = "macos")]
 
-use {CreationError, Event, MouseCursor, CursorState};
+use {CreationError, WindowEvent as Event, MouseCursor, CursorState};
 use CreationError::OsError;
 use libc;
 
@@ -28,6 +28,8 @@ use std::os::raw::c_void;
 use os::macos::WindowExt;
 use events::ElementState;
 use events::{self, MouseButton, TouchPhase};
+
+gen_api_transition!();
 
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 
