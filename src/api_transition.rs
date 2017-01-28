@@ -55,7 +55,7 @@ macro_rules! gen_api_transition {
         }
 
         pub struct Window2 {
-            window: ::std::sync::Arc<Window>,
+            pub window: ::std::sync::Arc<Window>,
             events_loop: ::std::sync::Weak<EventsLoop>,
         }
 
