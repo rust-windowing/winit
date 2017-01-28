@@ -56,6 +56,7 @@ macro_rules! gen_api_transition {
 
         pub struct Window2 {
             window: ::std::sync::Arc<Window>,
+            events_loop: ::std::sync::Weak<EventsLoop>,
         }
 
         impl ::std::ops::Deref for Window2 {
@@ -75,12 +76,22 @@ macro_rules! gen_api_transition {
                 events_loop.windows.lock().unwrap().push(win.clone());
                 Ok(Window2 {
                     window: win,
+                    events_loop: ::std::sync::Arc::downgrade(&events_loop),
                 })
             }
 
             #[inline]
             pub fn id(&self) -> usize {
                 &*self.window as *const Window as usize
+            }
+        }
+
+        impl Drop for Window2 {
+            fn drop(&mut self) {
+                if let Some(ev) = self.events_loop.upgrade() {
+                    let mut windows = ev.windows.lock().unwrap();
+                    windows.retain(|w| &**w as *const Window != &*self.window as *const _);
+                }
             }
         }
     };
