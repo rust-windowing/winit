@@ -136,7 +136,25 @@ impl EventsLoop {
 
     pub fn interrupt(&self) {
         self.interrupted.store(true, std::sync::atomic::Ordering::Relaxed);
-        // TODO: We should also signal to "awaken" the cocoa event loop here.
+
+        // Awaken the event loop by triggering `NSApplicationActivatedEventType`.
+        unsafe {
+            let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
+            let event =
+                NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+                    cocoa::base::nil,
+                    appkit::NSApplicationDefined,
+                    foundation::NSPoint::new(0.0, 0.0),
+                    appkit::NSEventModifierFlags::empty(),
+                    0.0,
+                    0,
+                    cocoa::base::nil,
+                    appkit::NSEventSubtype::NSApplicationActivatedEventType,
+                    0,
+                    0);
+            appkit::NSApp().postEvent_atStart_(event, cocoa::base::NO);
+            foundation::NSAutoreleasePool::drain(pool);
+        }
     }
 
     // Here we store user's `callback` behind the `EventsLoop`'s mutex so that it may be safely
