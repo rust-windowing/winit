@@ -115,18 +115,10 @@ impl EventsLoop {
                     foundation::NSDefaultRunLoopMode,
                     cocoa::base::YES);
 
-                // FIXME: we should check explicitly for `Awakened` events in `ns_event_to_event`
-                // and not just assume that an `Awakened` event occurred every time `None` is
-                // returned. Also, `Awakened` should be a variant of `Event`, not `WindowEvent`, so
-                // for now we do this hack with a fake ID.
-                let event = self.ns_event_to_event(ns_event)
-                    .unwrap_or(Event::WindowEvent {
-                        window_id: ::WindowId(super::WindowId(0)),
-                        event: WindowEvent::Awakened,
-                    });
-
-                if let Ok(mut callback) = self.callback.lock() {
-                    callback.as_mut().unwrap()(event);
+                if let Some(event) = self.ns_event_to_event(ns_event) {
+                    if let Ok(mut callback) = self.callback.lock() {
+                        callback.as_mut().unwrap()(event);
+                    }
                 }
 
                 let _: () = msg_send![pool, release];
@@ -338,12 +330,21 @@ impl EventsLoop {
                 let window_event = WindowEvent::MouseWheel(delta, phase);
                 Some(into_event(window_event))
             },
+
             appkit::NSEventTypePressure => {
                 let pressure = ns_event.pressure();
                 let stage = ns_event.stage();
                 let window_event = WindowEvent::TouchpadPressure(pressure, stage);
                 Some(into_event(window_event))
             },
+
+            appkit::NSApplicationDefined => match ns_event.subtype() {
+                appkit::NSEventSubtype::NSApplicationActivatedEventType => {
+                    Some(into_event(WindowEvent::Awakened))
+                },
+                _ => None,
+            },
+
             _  => None,
         }
     }
