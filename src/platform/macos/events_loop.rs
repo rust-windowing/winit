@@ -47,6 +47,10 @@ impl EventsLoop {
         where F: FnMut(Event),
     {
         unsafe {
+            if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
+                panic!("Events can only be polled from the main thread on macOS");
+            }
+
             self.store_callback(callback);
         }
 
@@ -94,6 +98,10 @@ impl EventsLoop {
         self.interrupted.store(false, std::sync::atomic::Ordering::Relaxed);
 
         unsafe {
+            if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
+                panic!("Events can only be polled from the main thread on macOS");
+            }
+
             self.store_callback(callback);
         }
 
