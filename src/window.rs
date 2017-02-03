@@ -246,24 +246,6 @@ impl Window {
         self.window.set_inner_size(x, y)
     }
 
-    /// Returns an iterator that poll for the next event in the window's events queue.
-    /// Returns `None` if there is no event in the queue.
-    ///
-    /// Contrary to `wait_events`, this function never blocks.
-    #[inline]
-    pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator(self.window.poll_events())
-    }
-
-    /// Returns an iterator that returns events one by one, blocking if necessary until one is
-    /// available.
-    ///
-    /// The iterator never returns `None`.
-    #[inline]
-    pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator(self.window.wait_events())
-    }
-
     /// DEPRECATED. Gets the native platform specific display for this window.
     /// This is typically only required when integrating with
     /// other libraries that need this information.
@@ -280,15 +262,6 @@ impl Window {
     #[inline]
     pub unsafe fn platform_window(&self) -> *mut libc::c_void {
         self.window.platform_window()
-    }
-
-    /// Create a window proxy for this window, that can be freely
-    /// passed to different threads.
-    #[inline]
-    pub fn create_window_proxy(&self) -> WindowProxy {
-        WindowProxy {
-            proxy: self.window.create_window_proxy()
-        }
     }
 
     /// Modifies the mouse cursor of the window.
@@ -322,58 +295,6 @@ impl Window {
     #[inline]
     pub fn id(&self) -> usize {
         self.window.id()
-    }
-}
-
-/// Represents a thread safe subset of operations that can be called
-/// on a window. This structure can be safely cloned and sent between
-/// threads.
-#[derive(Clone)]
-pub struct WindowProxy {
-    proxy: platform::WindowProxy,
-}
-
-impl WindowProxy {
-    /// Triggers a blocked event loop to wake up. This is
-    /// typically called when another thread wants to wake
-    /// up the blocked rendering thread to cause a refresh.
-    #[inline]
-    pub fn wakeup_event_loop(&self) {
-        self.proxy.wakeup_event_loop();
-    }
-}
-
-/// An iterator for the `poll_events` function.
-pub struct PollEventsIterator<'a>(platform::PollEventsIterator<'a>);
-
-impl<'a> Iterator for PollEventsIterator<'a> {
-    type Item = Event;
-
-    #[inline]
-    fn next(&mut self) -> Option<Event> {
-        self.0.next()
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.size_hint()
-    }
-}
-
-/// An iterator for the `wait_events` function.
-pub struct WaitEventsIterator<'a>(platform::WaitEventsIterator<'a>);
-
-impl<'a> Iterator for WaitEventsIterator<'a> {
-    type Item = Event;
-
-    #[inline]
-    fn next(&mut self) -> Option<Event> {
-        self.0.next()
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.size_hint()
     }
 }
 

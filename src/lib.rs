@@ -122,7 +122,6 @@ extern crate wayland_client;
 use std::sync::Arc;
 
 pub use events::*;
-pub use window::{WindowProxy, PollEventsIterator, WaitEventsIterator};
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
 pub use native_monitor::NativeMonitorId;
 
