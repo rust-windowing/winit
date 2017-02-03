@@ -31,7 +31,7 @@ macro_rules! gen_api_transition {
                 for window in windows.iter() {
                     for event in window.poll_events() {
                         callback(::Event::WindowEvent {
-                            window_id: &**window as *const Window as usize,
+                            window_id: ::WindowId(WindowId(&**window as *const Window as usize)),
                             event: event,
                         })
                     }
@@ -53,6 +53,9 @@ macro_rules! gen_api_transition {
                 }
             }
         }
+
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct WindowId(usize);
 
         pub struct Window2 {
             pub window: ::std::sync::Arc<Window>,
@@ -81,8 +84,8 @@ macro_rules! gen_api_transition {
             }
 
             #[inline]
-            pub fn id(&self) -> usize {
-                &*self.window as *const Window as usize
+            pub fn id(&self) -> WindowId {
+                WindowId(&*self.window as *const Window as usize)
             }
         }
 

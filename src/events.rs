@@ -1,9 +1,10 @@
 use std::path::PathBuf;
+use WindowId;
 
 #[derive(Clone, Debug)]
 pub enum Event {
     WindowEvent {
-        window_id: usize,
+        window_id: WindowId,
         event: WindowEvent,
     }
 }

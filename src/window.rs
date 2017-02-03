@@ -7,6 +7,7 @@ use EventsLoop;
 use MouseCursor;
 use Window;
 use WindowBuilder;
+use WindowId;
 use native_monitor::NativeMonitorId;
 
 use libc;
@@ -293,8 +294,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn id(&self) -> usize {
-        self.window.id()
+    pub fn id(&self) -> WindowId {
+        WindowId(self.window.id())
     }
 }
 

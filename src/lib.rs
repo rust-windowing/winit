@@ -161,6 +161,15 @@ pub struct Window {
     window: platform::Window2,
 }
 
+/// Identifier of a window. Unique for each window.
+///
+/// Can be obtained with `window.id()`.
+///
+/// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
+/// can then compare to the ids of your windows.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct WindowId(platform::WindowId);
+
 /// Provides a way to retreive events from the windows that were registered to it.
 // TODO: document usage in multiple threads
 pub struct EventsLoop {
