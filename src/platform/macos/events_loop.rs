@@ -58,9 +58,7 @@ impl EventsLoop {
         loop {
             // First, yield all pending events.
             while let Some(event) = self.pending_events.lock().unwrap().pop_front() {
-                if let Ok(mut callback) = self.callback.lock() {
-                    callback.as_mut().unwrap()(event);
-                }
+                self.emit_event(event);
             }
 
             unsafe {
@@ -79,9 +77,7 @@ impl EventsLoop {
 
                 match event {
                     // Call the user's callback.
-                    Some(event) => if let Ok(mut callback) = self.callback.lock() {
-                        callback.as_mut().unwrap()(event);
-                    },
+                    Some(event) => self.emit_event(event),
                     None => break,
                 }
             }
@@ -108,9 +104,7 @@ impl EventsLoop {
         loop {
             // First, yield all pending events.
             while let Some(event) = self.pending_events.lock().unwrap().pop_front() {
-                if let Ok(mut callback) = self.callback.lock() {
-                    callback.as_mut().unwrap()(event);
-                }
+                self.emit_event(event);
             }
 
             unsafe {
@@ -124,9 +118,7 @@ impl EventsLoop {
                     cocoa::base::YES);
 
                 if let Some(event) = self.ns_event_to_event(ns_event) {
-                    if let Ok(mut callback) = self.callback.lock() {
-                        callback.as_mut().unwrap()(event);
-                    }
+                    self.emit_event(event);
                 }
 
                 let _: () = msg_send![pool, release];
@@ -181,6 +173,13 @@ impl EventsLoop {
         let boxed: Box<F> = Box::new(callback);
         let boxed: Box<FnMut(Event)> = std::mem::transmute(boxed as Box<FnMut(Event)>);
         *self.callback.lock().unwrap() = Some(boxed);
+    }
+
+    // Emits the given event via the user-given callback.
+    fn emit_event(&self, event: Event) {
+        if let Ok(mut callback) = self.callback.lock() {
+            callback.as_mut().unwrap()(event);
+        }
     }
 
     // Convert some given `NSEvent` into a winit `Event`.
