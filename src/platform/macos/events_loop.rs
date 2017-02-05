@@ -50,7 +50,7 @@ impl UserCallback {
     // In order to make sure that the pointer is always valid, we must manually guarantee that it
     // is dropped before the callback itself is dropped. Thus, this should *only* be called at the
     // beginning of a call to `poll_events` and `run_forever`, both of which *must* drop the
-    // callback at the end of their scope using `drop_callback`.
+    // callback at the end of their scope using the `drop` method.
     fn store<F>(&self, callback: &mut F)
         where F: FnMut(Event)
     {
@@ -62,7 +62,7 @@ impl UserCallback {
     // Emits the given event via the user-given callback.
     //
     // This is *only* called within the `poll_events` and `run_forever` methods so we know that it
-    // is safe to `unwrap` the last callback without causing a panic as there must be at least one
+    // is safe to `unwrap` the callback without causing a panic as there must be at least one
     // callback stored.
     //
     // This is unsafe as it requires dereferencing the pointer to the user-given callback. We
