@@ -11,10 +11,15 @@ pub struct EventsLoop {
     modifiers: std::sync::Mutex<Modifiers>,
     interrupted: std::sync::atomic::AtomicBool,
 
-    /// The user's event callback given via either the `poll_events` or `run_forever` method. This
-    /// will only be `Some` for the duration of whichever of these methods has been called and will
-    /// always be `None` otherwise.
-    pub callback: std::sync::Mutex<Option<Box<FnMut(Event)>>>
+    // The user event callback given via either of the `poll_events` or `run_forever` methods.
+    //
+    // We store the user's callback here so that it may be accessed by each of the window delegate
+    // callbacks (e.g. resize, close, etc) for the duration of a call to either of the
+    // `poll_events` or `run_forever` methods.
+    //
+    // This is *only* `Some` for the duration of a call to either of these methods and will be
+    // `None` otherwise.
+    pub user_callback: UserCallback,
 }
 
 struct Modifiers {
@@ -22,6 +27,60 @@ struct Modifiers {
     ctrl_pressed: bool,
     win_pressed: bool,
     alt_pressed: bool,
+}
+
+// Wrapping the user callback in a type allows us to:
+//
+// - ensure the callback pointer is never accidentally cloned
+// - ensure that only the `EventsLoop` can `store` and `drop` the callback pointer
+// - `unsafe impl Send` and `Sync` so that `Send` and `Sync` can be implemented for `EventsLoop`.
+pub struct UserCallback {
+    mutex: std::sync::Mutex<Option<*mut FnMut(Event)>>,
+}
+
+
+unsafe impl Send for UserCallback {}
+unsafe impl Sync for UserCallback {}
+
+impl UserCallback {
+
+    // Here we store user's `callback` behind the mutex so that they may be safely shared between
+    // each of the window delegates.
+    //
+    // In order to make sure that the pointer is always valid, we must manually guarantee that it
+    // is dropped before the callback itself is dropped. Thus, this should *only* be called at the
+    // beginning of a call to `poll_events` and `run_forever`, both of which *must* drop the
+    // callback at the end of their scope using `drop_callback`.
+    fn store<F>(&self, callback: &mut F)
+        where F: FnMut(Event)
+    {
+        let trait_object = callback as &mut FnMut(Event);
+        let trait_object_ptr = trait_object as *const FnMut(Event) as *mut FnMut(Event);
+        *self.mutex.lock().unwrap() = Some(trait_object_ptr);
+    }
+
+    // Emits the given event via the user-given callback.
+    //
+    // This is *only* called within the `poll_events` and `run_forever` methods so we know that it
+    // is safe to `unwrap` the last callback without causing a panic as there must be at least one
+    // callback stored.
+    //
+    // This is unsafe as it requires dereferencing the pointer to the user-given callback. We
+    // guarantee this is safe by ensuring the `UserCallback` never lives longer than the user-given
+    // callback.
+    pub unsafe fn call_with_event(&self, event: Event) {
+        let callback: *mut FnMut(Event) = self.mutex.lock().unwrap().take().unwrap();
+        (*callback)(event);
+        *self.mutex.lock().unwrap() = Some(callback);
+    }
+
+    // Used to drop the user callback pointer at the end of the `poll_events` and `run_forever`
+    // methods. This is done to enforce our guarantee that the top callback will never live longer
+    // than the call to either `poll_events` or `run_forever` to which it was given.
+    fn drop(&self) {
+        self.mutex.lock().unwrap().take();
+    }
+
 }
 
 
@@ -39,29 +98,29 @@ impl EventsLoop {
             pending_events: std::sync::Mutex::new(std::collections::VecDeque::new()),
             modifiers: std::sync::Mutex::new(modifiers),
             interrupted: std::sync::atomic::AtomicBool::new(false),
-            callback: std::sync::Mutex::new(None),
+            user_callback: UserCallback { mutex: std::sync::Mutex::new(None) },
         }
     }
 
-    pub fn poll_events<F>(&self, callback: F)
+    pub fn poll_events<F>(&self, mut callback: F)
         where F: FnMut(Event),
     {
         unsafe {
             if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
                 panic!("Events can only be polled from the main thread on macOS");
             }
-
-            self.store_callback(callback);
         }
+
+        self.user_callback.store(&mut callback);
 
         // Loop as long as we have pending events to return.
         loop {
-            // First, yield all pending events.
-            while let Some(event) = self.pending_events.lock().unwrap().pop_front() {
-                self.emit_event(event);
-            }
-
             unsafe {
+                // First, yield all pending events.
+                while let Some(event) = self.pending_events.lock().unwrap().pop_front() {
+                    self.user_callback.call_with_event(event);
+                }
+
                 let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
 
                 // Poll for the next event, returning `nil` if there are none.
@@ -77,18 +136,16 @@ impl EventsLoop {
 
                 match event {
                     // Call the user's callback.
-                    Some(event) => self.emit_event(event),
+                    Some(event) => self.user_callback.call_with_event(event),
                     None => break,
                 }
             }
         }
 
-        // Drop the callback to enforce our guarantee that it will never live longer than the
-        // duration of this method.
-        self.callback.lock().unwrap().take();
+        self.user_callback.drop();
     }
 
-    pub fn run_forever<F>(&self, callback: F)
+    pub fn run_forever<F>(&self, mut callback: F)
         where F: FnMut(Event)
     {
         self.interrupted.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -97,17 +154,17 @@ impl EventsLoop {
             if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
                 panic!("Events can only be polled from the main thread on macOS");
             }
-
-            self.store_callback(callback);
         }
 
-        loop {
-            // First, yield all pending events.
-            while let Some(event) = self.pending_events.lock().unwrap().pop_front() {
-                self.emit_event(event);
-            }
+        self.user_callback.store(&mut callback);
 
+        loop {
             unsafe {
+                // First, yield all pending events.
+                while let Some(event) = self.pending_events.lock().unwrap().pop_front() {
+                    self.user_callback.call_with_event(event);
+                }
+
                 let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
 
                 // Wait for the next event. Note that this function blocks during resize.
@@ -117,21 +174,24 @@ impl EventsLoop {
                     foundation::NSDefaultRunLoopMode,
                     cocoa::base::YES);
 
-                if let Some(event) = self.ns_event_to_event(ns_event) {
-                    self.emit_event(event);
-                }
+                let maybe_event = self.ns_event_to_event(ns_event);
 
+                // Release the pool before calling the top callback in case the user calls either
+                // `run_forever` or `poll_events` within the callback.
                 let _: () = msg_send![pool, release];
+
+                if let Some(event) = maybe_event {
+                    self.user_callback.call_with_event(event);
+                }
             }
 
             if self.interrupted.load(std::sync::atomic::Ordering::Relaxed) {
+                self.interrupted.store(false, std::sync::atomic::Ordering::Relaxed);
                 break;
             }
         }
 
-        // Drop the callback to enforce our guarantee that it will never live longer than the
-        // duration of this method.
-        self.callback.lock().unwrap().take();
+        self.user_callback.drop();
     }
 
     pub fn interrupt(&self) {
@@ -154,31 +214,6 @@ impl EventsLoop {
                     0);
             appkit::NSApp().postEvent_atStart_(event, cocoa::base::NO);
             foundation::NSAutoreleasePool::drain(pool);
-        }
-    }
-
-    // Here we store user's `callback` behind the `EventsLoop`'s mutex so that it may be safely
-    // shared between each of the window delegates.
-    //
-    // In order to store the `callback` within the `Eventsloop` as a trait object, we must
-    // `Box` the callback. Normally this would require that `F: 'static`, however we know that
-    // the callback cannot live longer than the lifetime of this method. Thus, we use `unsafe`
-    // to work around this requirement and enforce this guarantee ourselves.
-    //
-    // This should *only* be called at the beginning of `poll_events` and `run_forever`, both of
-    // which *must* drop the callback at the end of their scope.
-    unsafe fn store_callback<F>(&self, callback: F)
-        where F: FnMut(Event)
-    {
-        let boxed: Box<F> = Box::new(callback);
-        let boxed: Box<FnMut(Event)> = std::mem::transmute(boxed as Box<FnMut(Event)>);
-        *self.callback.lock().unwrap() = Some(boxed);
-    }
-
-    // Emits the given event via the user-given callback.
-    fn emit_event(&self, event: Event) {
-        if let Ok(mut callback) = self.callback.lock() {
-            callback.as_mut().unwrap()(event);
         }
     }
 
