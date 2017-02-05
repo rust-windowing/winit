@@ -1,4 +1,4 @@
-use {CreationError, WindowEvent as Event, MouseCursor, CursorState};
+use {CreationError, Event, WindowEvent, WindowId, MouseCursor, CursorState};
 use CreationError::OsError;
 use libc;
 
@@ -49,10 +49,10 @@ impl WindowDelegate {
         // are called as the delegate methods should only be called during a call to
         // `nextEventMatchingMask` (called via EventsLoop::poll_events and
         // EventsLoop::run_forever).
-        unsafe fn emit_event(state: &mut DelegateState, window_event: Event) {
+        unsafe fn emit_event(state: &mut DelegateState, window_event: WindowEvent) {
             let window_id = get_window_id(*state.window);
-            let event = ::Event::WindowEvent {
-                window_id: ::WindowId(window_id),
+            let event = Event::WindowEvent {
+                window_id: WindowId(window_id),
                 event: window_event,
             };
 
@@ -65,7 +65,7 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-                emit_event(state, Event::Closed);
+                emit_event(state, WindowEvent::Closed);
             }
             YES
         }
@@ -78,7 +78,7 @@ impl WindowDelegate {
                 let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
                 let width = (scale_factor * rect.size.width as f32) as u32;
                 let height = (scale_factor * rect.size.height as f32) as u32;
-                emit_event(state, Event::Resized(width, height));
+                emit_event(state, WindowEvent::Resized(width, height));
             }
         }
 
@@ -88,7 +88,7 @@ impl WindowDelegate {
                 // lost focus
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-                emit_event(state, Event::Focused(true));
+                emit_event(state, WindowEvent::Focused(true));
             }
         }
 
@@ -96,7 +96,7 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-                emit_event(state, Event::Focused(false));
+                emit_event(state, WindowEvent::Focused(false));
             }
         }
 
