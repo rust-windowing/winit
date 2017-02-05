@@ -197,8 +197,10 @@ impl Window {
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
-        if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
-            panic!("Windows can only be created on the main thread on macOS");
+        unsafe {
+            if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
+                panic!("Windows can only be created on the main thread on macOS");
+            }
         }
 
         let app = match Window::create_app(pl_attribs.activation_policy) {
