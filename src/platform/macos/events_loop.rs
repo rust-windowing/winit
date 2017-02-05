@@ -226,9 +226,9 @@ impl EventsLoop {
         // FIXME: Despite not being documented anywhere, an `NSEvent` is produced when a user opens
         // Spotlight while the NSApplication is in focus. This `NSEvent` produces a `NSEventType`
         // with value `21`. This causes a SEGFAULT as soon as we try to match on the `NSEventType`
-        // enum as there is variant associated with the value. Thus, we return early if this sneaky
-        // event occurs. If someone does find some documentation on this, please fix this by adding
-        // an appropriate variant to the `NSEventType` enum in the cocoa-rs crate.
+        // enum as there is no variant associated with the value. Thus, we return early if this
+        // sneaky event occurs. If someone does find some documentation on this, please fix this by
+        // adding an appropriate variant to the `NSEventType` enum in the cocoa-rs crate.
         if ns_event.eventType() as u64 == 21 {
             return None;
         }
