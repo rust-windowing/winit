@@ -224,16 +224,13 @@ impl EventsLoop {
         }
 
         let event_type = ns_event.eventType();
-        let window_id = super::window::get_window_id(ns_event.window());
+        let ns_window = ns_event.window();
+        let window_id = super::window::get_window_id(ns_window);
         let windows = self.windows.lock().unwrap();
         let maybe_window = windows.iter().find(|window| window_id == window.id());
 
-        let window = match maybe_window {
-            Some(window) => window,
-            None => return None,
-        };
-
-        // FIXME: Document this. Why do we do this?
+        // FIXME: Document this. Why do we do this? Seems like it passes on events to window/app.
+        // If we don't do this, window does not become main for some reason.
         match event_type {
             appkit::NSKeyDown => (),
             _ => appkit::NSApp().sendEvent_(ns_event),
@@ -243,6 +240,12 @@ impl EventsLoop {
             window_id: ::WindowId(window_id),
             event: window_event,
         };
+
+        // Returns `Some` window if one of our windows is the key window.
+        let maybe_key_window = || windows.iter().find(|window| {
+            let is_key_window: cocoa::base::BOOL = msg_send![*window.window, isKeyWindow];
+            is_key_window == cocoa::base::YES
+        });
 
         match event_type {
 
@@ -347,14 +350,23 @@ impl EventsLoop {
             appkit::NSRightMouseUp => { Some(into_event(WindowEvent::MouseInput(ElementState::Released, MouseButton::Right))) },
             appkit::NSOtherMouseDown => { Some(into_event(WindowEvent::MouseInput(ElementState::Pressed, MouseButton::Middle))) },
             appkit::NSOtherMouseUp => { Some(into_event(WindowEvent::MouseInput(ElementState::Released, MouseButton::Middle))) },
+
             appkit::NSMouseEntered => { Some(into_event(WindowEvent::MouseEntered)) },
             appkit::NSMouseExited => { Some(into_event(WindowEvent::MouseLeft)) },
+
             appkit::NSMouseMoved |
             appkit::NSLeftMouseDragged |
             appkit::NSOtherMouseDragged |
             appkit::NSRightMouseDragged => {
+                // If the mouse movement was on one of our windows, use it.
+                // Otherwise, if one of our windows is the key window (receiving input), use it.
+                // Otherwise, return `None`.
+                let window = match maybe_window.or_else(maybe_key_window) {
+                    Some(window) => window,
+                    None => return None,
+                };
+
                 let window_point = ns_event.locationInWindow();
-                let ns_window: cocoa::base::id = msg_send![ns_event, window];
                 let view_point = if ns_window == cocoa::base::nil {
                     let ns_size = foundation::NSSize::new(0.0, 0.0);
                     let ns_rect = foundation::NSRect::new(window_point, ns_size);
@@ -369,10 +381,17 @@ impl EventsLoop {
                 let x = (scale_factor * view_point.x as f32) as i32;
                 let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32;
                 let window_event = WindowEvent::MouseMoved(x, y);
-                Some(into_event(window_event))
+                let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
+                Some(event)
             },
 
             appkit::NSScrollWheel => {
+                // If none of the windows received the scroll, return `None`.
+                let window = match maybe_window {
+                    Some(window) => window,
+                    None => return None,
+                };
+
                 use events::MouseScrollDelta::{LineDelta, PixelDelta};
                 let scale_factor = window.hidpi_factor();
                 let delta = if ns_event.hasPreciseScrollingDeltas() == cocoa::base::YES {
