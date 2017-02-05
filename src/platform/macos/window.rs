@@ -63,7 +63,7 @@ impl WindowDelegate {
 
         extern fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
             unsafe {
-                let state: *mut c_void = *this.get_ivar("glutinState");
+                let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 emit_event(state, Event::Closed);
             }
@@ -72,7 +72,7 @@ impl WindowDelegate {
 
         extern fn window_did_resize(this: &Object, _: Sel, _: id) {
             unsafe {
-                let state: *mut c_void = *this.get_ivar("glutinState");
+                let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 let rect = NSView::frame(*state.view);
                 let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
@@ -86,7 +86,7 @@ impl WindowDelegate {
             unsafe {
                 // TODO: center the cursor if the window had mouse grab when it
                 // lost focus
-                let state: *mut c_void = *this.get_ivar("glutinState");
+                let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 emit_event(state, Event::Focused(true));
             }
@@ -94,7 +94,7 @@ impl WindowDelegate {
 
         extern fn window_did_resign_key(this: &Object, _: Sel, _: id) {
             unsafe {
-                let state: *mut c_void = *this.get_ivar("glutinState");
+                let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 emit_event(state, Event::Focused(false));
             }
@@ -106,7 +106,7 @@ impl WindowDelegate {
         INIT.call_once(|| unsafe {
             // Create new NSWindowDelegate
             let superclass = Class::get("NSObject").unwrap();
-            let mut decl = ClassDecl::new("GlutinWindowDelegate", superclass).unwrap();
+            let mut decl = ClassDecl::new("WinitWindowDelegate", superclass).unwrap();
 
             // Add callback methods
             decl.add_method(sel!(windowShouldClose:),
@@ -120,7 +120,7 @@ impl WindowDelegate {
                 window_did_resign_key as extern fn(&Object, Sel, id));
 
             // Store internal state as user data
-            decl.add_ivar::<*mut c_void>("glutinState");
+            decl.add_ivar::<*mut c_void>("winitState");
 
             DELEGATE_CLASS = decl.register();
         });
@@ -137,7 +137,7 @@ impl WindowDelegate {
         unsafe {
             let delegate = IdRef::new(msg_send![WindowDelegate::class(), new]);
 
-            (&mut **delegate).set_ivar("glutinState", state_ptr as *mut ::std::os::raw::c_void);
+            (&mut **delegate).set_ivar("winitState", state_ptr as *mut ::std::os::raw::c_void);
             let _: () = msg_send![*state.window, setDelegate:*delegate];
 
             WindowDelegate { state: state, _this: delegate }
