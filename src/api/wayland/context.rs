@@ -1,4 +1,4 @@
-use {Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase};
+use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase};
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};

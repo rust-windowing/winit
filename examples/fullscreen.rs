@@ -22,19 +22,25 @@ fn main() {
         monitor
     };
 
-    let window = winit::WindowBuilder::new()
+    let events_loop = winit::EventsLoop::new();
+
+    let _window = winit::WindowBuilder::new()
         .with_title("Hello world!")
         .with_fullscreen(monitor)
-        .build()
+        .build(&events_loop)
         .unwrap();
 
-    for event in window.wait_events() {
+    events_loop.run_forever(|event| {
         println!("{:?}", event);
 
         match event {
-            winit::Event::Closed => break,
-            winit::Event::KeyboardInput(_, _, Some(winit::VirtualKeyCode::Escape)) => break,
-            _ => ()
+            winit::Event::WindowEvent { event, .. } => {
+                match event {
+                    winit::WindowEvent::Closed => events_loop.interrupt(),
+                    winit::WindowEvent::KeyboardInput(_, _, Some(winit::VirtualKeyCode::Escape)) => events_loop.interrupt(),
+                    _ => ()
+                }
+            },
         }
-    }
+    });
 }

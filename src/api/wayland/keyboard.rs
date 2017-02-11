@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use {VirtualKeyCode, ElementState, Event};
+use {VirtualKeyCode, ElementState, WindowEvent as Event};
 
 use super::wayland_kbd;
 use wayland_client::EventQueueHandle;

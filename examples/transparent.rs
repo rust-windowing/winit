@@ -1,22 +1,20 @@
 extern crate winit;
 
-fn resize_callback(width: u32, height: u32) {
-    println!("Window resized to {}x{}", width, height);
-}
-
 fn main() {
-    let mut window = winit::WindowBuilder::new().with_decorations(false)
-                                                 .with_transparency(true)
-                                                 .build().unwrap();
-    window.set_title("A fantastic window!");
-    window.set_window_resize_callback(Some(resize_callback as fn(u32, u32)));
+    let events_loop = winit::EventsLoop::new();
 
-    for event in window.wait_events() {
+    let window = winit::WindowBuilder::new().with_decorations(false)
+                                                 .with_transparency(true)
+                                                 .build(&events_loop).unwrap();
+
+    window.set_title("A fantastic window!");
+
+    events_loop.run_forever(|event| {
         println!("{:?}", event);
 
         match event {
-            winit::Event::Closed => break,
+            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => events_loop.interrupt(),
             _ => ()
         }
-    }
+    });
 }

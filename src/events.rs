@@ -1,7 +1,19 @@
 use std::path::PathBuf;
+use WindowId;
 
 #[derive(Clone, Debug)]
 pub enum Event {
+    WindowEvent {
+        window_id: WindowId,
+        event: WindowEvent,
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum WindowEvent {
+    // TODO: remove ; can break the lib internally so be careful
+    Awakened,
+
     /// The size of the window has changed.
     Resized(u32, u32),
 
@@ -49,9 +61,6 @@ pub enum Event {
     /// is being pressed) and stage (integer representing the click level).
     TouchpadPressure(f32, i64),
 
-    /// The event loop was woken up by another thread.
-    Awakened,
-
     /// The window needs to be redrawn.
     Refresh,
 
@@ -59,7 +68,6 @@ pub enum Event {
     ///
     /// The parameter is true if app was suspended, and false if it has been resumed.
     Suspended(bool),
-
 
     /// Touch event has been received
     Touch(Touch)

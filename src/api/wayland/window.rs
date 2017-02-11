@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use wayland_client::{EventQueue, EventQueueHandle, Init};
 use wayland_client::protocol::{wl_display,wl_surface,wl_shell_surface};
 
-use {CreationError, MouseCursor, CursorState, Event, WindowAttributes};
+use {CreationError, MouseCursor, CursorState, WindowEvent as Event, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
 
 use super::WaylandContext;

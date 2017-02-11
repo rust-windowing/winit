@@ -71,7 +71,8 @@ use objc::runtime::{Class, Object, Sel, BOOL, YES };
 use objc::declare::{ ClassDecl };
 
 use native_monitor::NativeMonitorId;
-use { CreationError, CursorState, MouseCursor, Event, WindowAttributes };
+use { CreationError, CursorState, MouseCursor, WindowAttributes };
+use WindowEvent as Event;
 use events::{ Touch, TouchPhase };
 
 mod ffi;
@@ -162,6 +163,8 @@ impl MonitorId {
         unimplemented!()
     }
 }
+
+gen_api_transition!();
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes;
