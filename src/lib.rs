@@ -174,7 +174,7 @@ pub struct WindowId(platform::WindowId);
 // TODO: document usage in multiple threads
 pub struct EventsLoop {
     events_loop: Arc<platform::EventsLoop>,
-    is_yielding_events: std::sync::atomic::AtomicBool,
+    is_in_user_callback: std::sync::atomic::AtomicBool,
 }
 
 impl EventsLoop {
@@ -182,7 +182,7 @@ impl EventsLoop {
     pub fn new() -> EventsLoop {
         EventsLoop {
             events_loop: Arc::new(platform::EventsLoop::new()),
-            is_yielding_events: std::sync::atomic::AtomicBool::new(false),
+            is_in_user_callback: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -192,13 +192,13 @@ impl EventsLoop {
     pub fn poll_events<F>(&self, callback: F)
         where F: FnMut(Event)
     {
-        if self.is_yielding_events.load(std::sync::atomic::Ordering::Relaxed) {
+        if self.is_in_user_callback.load(std::sync::atomic::Ordering::Relaxed) {
             panic!("overlapping calls to `poll_events` and `run_forever` are not supported");
         }
 
-        self.is_yielding_events.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.is_in_user_callback.store(true, std::sync::atomic::Ordering::Relaxed);
         self.events_loop.poll_events(callback);
-        self.is_yielding_events.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.is_in_user_callback.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Runs forever until `interrupt()` is called. Whenever an event happens, calls the callback.
@@ -206,13 +206,13 @@ impl EventsLoop {
     pub fn run_forever<F>(&self, callback: F)
         where F: FnMut(Event)
     {
-        if self.is_yielding_events.load(std::sync::atomic::Ordering::Relaxed) {
+        if self.is_in_user_callback.load(std::sync::atomic::Ordering::Relaxed) {
             panic!("overlapping calls to `poll_events` and `run_forever` are not supported");
         }
 
-        self.is_yielding_events.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.is_in_user_callback.store(true, std::sync::atomic::Ordering::Relaxed);
         self.events_loop.run_forever(callback);
-        self.is_yielding_events.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.is_in_user_callback.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// If we called `run_forever()`, stops the process of waiting for events.
