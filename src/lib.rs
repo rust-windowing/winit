@@ -192,13 +192,13 @@ impl EventsLoop {
     pub fn poll_events<F>(&self, callback: F)
         where F: FnMut(Event)
     {
-        if is_yielding_events.load(std::sync::atomic::Ordering::Relaxed) {
+        if self.is_yielding_events.load(std::sync::atomic::Ordering::Relaxed) {
             panic!("overlapping calls to `poll_events` and `run_forever` are not supported");
         }
 
-        is_yielding_events.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.is_yielding_events.store(true, std::sync::atomic::Ordering::Relaxed);
         self.events_loop.poll_events(callback);
-        is_yielding_events.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.is_yielding_events.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Runs forever until `interrupt()` is called. Whenever an event happens, calls the callback.
@@ -206,13 +206,13 @@ impl EventsLoop {
     pub fn run_forever<F>(&self, callback: F)
         where F: FnMut(Event)
     {
-        if is_yielding_events.load(std::sync::atomic::Ordering::Relaxed) {
+        if self.is_yielding_events.load(std::sync::atomic::Ordering::Relaxed) {
             panic!("overlapping calls to `poll_events` and `run_forever` are not supported");
         }
 
-        is_yielding_events.store(true, std::sync::atomic::Ordering::Relaxed);
-        self.events_loop.run_forever(callback)
-        is_yielding_events.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.is_yielding_events.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.events_loop.run_forever(callback);
+        self.is_yielding_events.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// If we called `run_forever()`, stops the process of waiting for events.
