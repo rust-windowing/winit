@@ -90,7 +90,7 @@ impl Window {
                _: &PlatformSpecificWindowBuilderAttributes)
                 -> Result<Window, CreationError> {
         // getting the default values of attributes
-        Ok(Window)
+        Err(CreationError::NotSupported)
     }
 
     #[inline]
