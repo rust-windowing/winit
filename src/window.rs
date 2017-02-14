@@ -2,7 +2,6 @@ use std::collections::vec_deque::IntoIter as VecDequeIter;
 
 use CreationError;
 use CursorState;
-use WindowEvent as Event;
 use EventsLoop;
 use MouseCursor;
 use Window;
