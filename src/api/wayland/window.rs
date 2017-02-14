@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use wayland_client::{EventQueue, EventQueueHandle, Init};
-use wayland_client::protocol::{wl_display,wl_surface,wl_shell_surface};
+use wayland_client::protocol::{wl_display, wl_surface, wl_shell_surface};
 
 use {CreationError, MouseCursor, CursorState, WindowEvent as Event, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
@@ -33,7 +33,7 @@ pub struct Window {
     surface: Arc<wl_surface::WlSurface>,
     size: Mutex<(u32, u32)>,
     handler_id: usize,
-    decorated_id: usize
+    decorated_id: usize,
 }
 
 pub struct PollEventsIterator<'a> {
@@ -61,9 +61,10 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 }
 
 impl Window {
-    pub fn new(ctxt: Arc<WaylandContext>, attributes: &WindowAttributes)  -> Result<Window, CreationError>
-    {
-        let (width, height) = attributes.dimensions.unwrap_or((800,600));
+    pub fn new(ctxt: Arc<WaylandContext>,
+               attributes: &WindowAttributes)
+               -> Result<Window, CreationError> {
+        let (width, height) = attributes.dimensions.unwrap_or((800, 600));
 
         let mut evq = ctxt.display.create_event_queue();
 
@@ -73,16 +74,15 @@ impl Window {
         let decorated_id = evq.add_handler_with_init(decorated);
         {
             let mut state = evq.state();
-            let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
+            let decorated =
+                state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
             *(decorated.handler()) = Some(DecoratedHandler::new());
 
             if let Some(PlatformMonitorId::Wayland(ref monitor_id)) = attributes.monitor {
                 ctxt.with_output(monitor_id.clone(), |output| {
-                    decorated.set_fullscreen(
-                        wl_shell_surface::FullscreenMethod::Default,
-                        0,
-                        Some(output)
-                    )
+                    decorated.set_fullscreen(wl_shell_surface::FullscreenMethod::Default,
+                                             0,
+                                             Some(output))
                 });
             } else if attributes.decorations {
                 decorated.set_decorate(true);
@@ -102,7 +102,7 @@ impl Window {
             surface: surface,
             size: Mutex::new((width, height)),
             handler_id: handler_id,
-            decorated_id: decorated_id
+            decorated_id: decorated_id,
         })
     }
 
@@ -111,7 +111,8 @@ impl Window {
         let mut evq_guard = self.evq.lock().unwrap();
         let mut state = evq_guard.state();
         let newsize = {
-            let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
+            let decorated =
+                state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
             let newsize = decorated.handler().as_mut().and_then(|h| h.take_newsize());
             if let Some((w, h)) = newsize {
                 decorated.resize(w as i32, h as i32);
@@ -125,7 +126,7 @@ impl Window {
             if let Some(ref callback) = handler.resize_callback {
                 callback(w, h);
             }
-            self.eviter.lock().unwrap().push_back(Event::Resized(w,h));
+            self.eviter.lock().unwrap().push_back(Event::Resized(w, h));
         }
     }
 
@@ -134,7 +135,9 @@ impl Window {
             let mut guard = self.eviter.lock().unwrap();
             guard.pop_front()
         };
-        if evt.is_some() { return evt }
+        if evt.is_some() {
+            return evt;
+        }
 
         // There is no event in the queue, we need to fetch more
 
@@ -178,7 +181,8 @@ impl Window {
     pub fn set_title(&self, title: &str) {
         let mut guard = self.evq.lock().unwrap();
         let mut state = guard.state();
-        let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
+        let mut decorated =
+            state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
         decorated.set_title(title.into())
     }
 
@@ -219,7 +223,8 @@ impl Window {
     pub fn set_inner_size(&self, x: u32, y: u32) {
         let mut guard = self.evq.lock().unwrap();
         let mut state = guard.state();
-        let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
+        let mut decorated =
+            state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
         decorated.resize(x as i32, y as i32);
     }
 
@@ -227,22 +232,18 @@ impl Window {
     pub fn create_window_proxy(&self) -> WindowProxy {
         WindowProxy {
             ctxt: self.ctxt.clone(),
-            eviter: self.eviter.clone()
+            eviter: self.eviter.clone(),
         }
     }
 
     #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator {
-            window: self
-        }
+        PollEventsIterator { window: self }
     }
 
     #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator {
-            window: self
-        }
+        WaitEventsIterator { window: self }
     }
 
     #[inline]
@@ -265,7 +266,7 @@ impl Window {
         match state {
             Grab => Err("Cursor cannot be grabbed on wayland yet.".to_string()),
             Hide => Err("Cursor cannot be hidden on wayland yet.".to_string()),
-            Normal => Ok(())
+            Normal => Ok(()),
         }
     }
 
@@ -280,11 +281,11 @@ impl Window {
         // TODO: not yet possible on wayland
         Err(())
     }
-    
+
     pub fn get_display(&self) -> &wl_display::WlDisplay {
         &self.ctxt.display
     }
-    
+
     pub fn get_surface(&self) -> &wl_surface::WlSurface {
         &self.surface
     }
@@ -298,11 +299,13 @@ impl Drop for Window {
 }
 
 struct DecoratedHandler {
-    newsize: Option<(u32, u32)>
+    newsize: Option<(u32, u32)>,
 }
 
 impl DecoratedHandler {
-    fn new() -> DecoratedHandler { DecoratedHandler { newsize: None }}
+    fn new() -> DecoratedHandler {
+        DecoratedHandler { newsize: None }
+    }
     fn take_newsize(&mut self) -> Option<(u32, u32)> {
         self.newsize.take()
     }
@@ -312,23 +315,23 @@ impl wayland_window::Handler for DecoratedHandler {
     fn configure(&mut self,
                  _: &mut EventQueueHandle,
                  _: wl_shell_surface::Resize,
-                 width: i32, height: i32)
-    {
+                 width: i32,
+                 height: i32) {
         use std::cmp::max;
-        self.newsize = Some((max(width,1) as u32, max(height,1) as u32));
+        self.newsize = Some((max(width, 1) as u32, max(height, 1) as u32));
     }
 }
 
 struct WindowHandler {
     my_id: usize,
-    resize_callback: Option<fn(u32,u32)>,
+    resize_callback: Option<fn(u32, u32)>,
 }
 
 impl WindowHandler {
     fn new() -> WindowHandler {
         WindowHandler {
             my_id: 0,
-            resize_callback: None
+            resize_callback: None,
         }
     }
 }

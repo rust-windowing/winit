@@ -1,4 +1,7 @@
-#![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
+#![cfg(any(target_os = "linux",
+           target_os = "dragonfly",
+           target_os = "freebsd",
+           target_os = "openbsd"))]
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -29,7 +32,7 @@ pub enum UnixBackend {
     X(Arc<XConnection>),
     Wayland(Arc<wayland::WaylandContext>),
     Error(XNotSupported),
-} 
+}
 
 lazy_static!(
     pub static ref UNIX_BACKEND: UnixBackend = {
@@ -49,7 +52,7 @@ pub enum Window {
     #[doc(hidden)]
     X(x11::Window),
     #[doc(hidden)]
-    Wayland(wayland::Window)
+    Wayland(wayland::Window),
 }
 
 #[derive(Clone)]
@@ -57,7 +60,7 @@ pub enum WindowProxy {
     #[doc(hidden)]
     X(x11::WindowProxy),
     #[doc(hidden)]
-    Wayland(wayland::WindowProxy)
+    Wayland(wayland::WindowProxy),
 }
 
 impl WindowProxy {
@@ -65,7 +68,7 @@ impl WindowProxy {
     pub fn wakeup_event_loop(&self) {
         match self {
             &WindowProxy::X(ref wp) => wp.wakeup_event_loop(),
-            &WindowProxy::Wayland(ref wp) => wp.wakeup_event_loop()
+            &WindowProxy::Wayland(ref wp) => wp.wakeup_event_loop(),
         }
     }
 }
@@ -83,15 +86,23 @@ pub enum MonitorId {
 #[inline]
 pub fn get_available_monitors() -> VecDeque<MonitorId> {
     match *UNIX_BACKEND {
-        UnixBackend::Wayland(ref ctxt) => wayland::get_available_monitors(ctxt)
-                                .into_iter()
-                                .map(MonitorId::Wayland)
-                                .collect(),
-        UnixBackend::X(ref connec) => x11::get_available_monitors(connec)
-                                    .into_iter()
-                                    .map(MonitorId::X)
-                                    .collect(),
-        UnixBackend::Error(_) => { let mut d = VecDeque::new(); d.push_back(MonitorId::None); d},
+        UnixBackend::Wayland(ref ctxt) => {
+            wayland::get_available_monitors(ctxt)
+                .into_iter()
+                .map(MonitorId::Wayland)
+                .collect()
+        }
+        UnixBackend::X(ref connec) => {
+            x11::get_available_monitors(connec)
+                .into_iter()
+                .map(MonitorId::X)
+                .collect()
+        }
+        UnixBackend::Error(_) => {
+            let mut d = VecDeque::new();
+            d.push_back(MonitorId::None);
+            d
+        }
     }
 }
 
@@ -119,7 +130,7 @@ impl MonitorId {
         match self {
             &MonitorId::X(ref m) => m.get_native_identifier(),
             &MonitorId::Wayland(ref m) => m.get_native_identifier(),
-            &MonitorId::None => unimplemented!()        // FIXME:
+            &MonitorId::None => unimplemented!(),        // FIXME:
         }
     }
 
@@ -138,7 +149,7 @@ pub enum PollEventsIterator<'a> {
     #[doc(hidden)]
     X(x11::PollEventsIterator<'a>),
     #[doc(hidden)]
-    Wayland(wayland::PollEventsIterator<'a>)
+    Wayland(wayland::PollEventsIterator<'a>),
 }
 
 impl<'a> Iterator for PollEventsIterator<'a> {
@@ -148,7 +159,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     fn next(&mut self) -> Option<Event> {
         match self {
             &mut PollEventsIterator::X(ref mut it) => it.next(),
-            &mut PollEventsIterator::Wayland(ref mut it) => it.next()
+            &mut PollEventsIterator::Wayland(ref mut it) => it.next(),
         }
     }
 }
@@ -157,7 +168,7 @@ pub enum WaitEventsIterator<'a> {
     #[doc(hidden)]
     X(x11::WaitEventsIterator<'a>),
     #[doc(hidden)]
-    Wayland(wayland::WaitEventsIterator<'a>)
+    Wayland(wayland::WaitEventsIterator<'a>),
 }
 
 impl<'a> Iterator for WaitEventsIterator<'a> {
@@ -167,27 +178,27 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     fn next(&mut self) -> Option<Event> {
         match self {
             &mut WaitEventsIterator::X(ref mut it) => it.next(),
-            &mut WaitEventsIterator::Wayland(ref mut it) => it.next()
+            &mut WaitEventsIterator::Wayland(ref mut it) => it.next(),
         }
     }
 }
 
 impl Window {
     #[inline]
-    pub fn new(window: &WindowAttributes, pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window, CreationError>
-    {
+    pub fn new(window: &WindowAttributes,
+               pl_attribs: &PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window, CreationError> {
         match *UNIX_BACKEND {
             UnixBackend::Wayland(ref ctxt) => {
                 wayland::Window::new(ctxt.clone(), window).map(Window::Wayland)
-            },
+            }
 
             UnixBackend::X(ref connec) => {
                 x11::Window::new(connec, window, pl_attribs).map(Window::X)
-            },
+            }
 
             UnixBackend::Error(ref error) => {
-                panic!()        // FIXME: supposed to return an error
+                panic!() // FIXME: supposed to return an error
                 //Err(CreationError::NoUnixBackendAvailable(Box::new(error.clone())))
             }
         }
@@ -197,7 +208,7 @@ impl Window {
     pub fn set_title(&self, title: &str) {
         match self {
             &Window::X(ref w) => w.set_title(title),
-            &Window::Wayland(ref w) => w.set_title(title)
+            &Window::Wayland(ref w) => w.set_title(title),
         }
     }
 
@@ -205,7 +216,7 @@ impl Window {
     pub fn show(&self) {
         match self {
             &Window::X(ref w) => w.show(),
-            &Window::Wayland(ref w) => w.show()
+            &Window::Wayland(ref w) => w.show(),
         }
     }
 
@@ -213,7 +224,7 @@ impl Window {
     pub fn hide(&self) {
         match self {
             &Window::X(ref w) => w.hide(),
-            &Window::Wayland(ref w) => w.hide()
+            &Window::Wayland(ref w) => w.hide(),
         }
     }
 
@@ -221,7 +232,7 @@ impl Window {
     pub fn get_position(&self) -> Option<(i32, i32)> {
         match self {
             &Window::X(ref w) => w.get_position(),
-            &Window::Wayland(ref w) => w.get_position()
+            &Window::Wayland(ref w) => w.get_position(),
         }
     }
 
@@ -229,7 +240,7 @@ impl Window {
     pub fn set_position(&self, x: i32, y: i32) {
         match self {
             &Window::X(ref w) => w.set_position(x, y),
-            &Window::Wayland(ref w) => w.set_position(x, y)
+            &Window::Wayland(ref w) => w.set_position(x, y),
         }
     }
 
@@ -237,7 +248,7 @@ impl Window {
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         match self {
             &Window::X(ref w) => w.get_inner_size(),
-            &Window::Wayland(ref w) => w.get_inner_size()
+            &Window::Wayland(ref w) => w.get_inner_size(),
         }
     }
 
@@ -245,7 +256,7 @@ impl Window {
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         match self {
             &Window::X(ref w) => w.get_outer_size(),
-            &Window::Wayland(ref w) => w.get_outer_size()
+            &Window::Wayland(ref w) => w.get_outer_size(),
         }
     }
 
@@ -253,7 +264,7 @@ impl Window {
     pub fn set_inner_size(&self, x: u32, y: u32) {
         match self {
             &Window::X(ref w) => w.set_inner_size(x, y),
-            &Window::Wayland(ref w) => w.set_inner_size(x, y)
+            &Window::Wayland(ref w) => w.set_inner_size(x, y),
         }
     }
 
@@ -261,7 +272,7 @@ impl Window {
     pub fn create_window_proxy(&self) -> WindowProxy {
         match self {
             &Window::X(ref w) => WindowProxy::X(w.create_window_proxy()),
-            &Window::Wayland(ref w) => WindowProxy::Wayland(w.create_window_proxy())
+            &Window::Wayland(ref w) => WindowProxy::Wayland(w.create_window_proxy()),
         }
     }
 
@@ -269,7 +280,7 @@ impl Window {
     pub fn poll_events(&self) -> PollEventsIterator {
         match self {
             &Window::X(ref w) => PollEventsIterator::X(w.poll_events()),
-            &Window::Wayland(ref w) => PollEventsIterator::Wayland(w.poll_events())
+            &Window::Wayland(ref w) => PollEventsIterator::Wayland(w.poll_events()),
         }
     }
 
@@ -277,7 +288,7 @@ impl Window {
     pub fn wait_events(&self) -> WaitEventsIterator {
         match self {
             &Window::X(ref w) => WaitEventsIterator::X(w.wait_events()),
-            &Window::Wayland(ref w) => WaitEventsIterator::Wayland(w.wait_events())
+            &Window::Wayland(ref w) => WaitEventsIterator::Wayland(w.wait_events()),
         }
     }
 
@@ -285,7 +296,7 @@ impl Window {
     pub fn set_window_resize_callback(&mut self, callback: Option<fn(u32, u32)>) {
         match self {
             &mut Window::X(ref mut w) => w.set_window_resize_callback(callback),
-            &mut Window::Wayland(ref mut w) => w.set_window_resize_callback(callback)
+            &mut Window::Wayland(ref mut w) => w.set_window_resize_callback(callback),
         }
     }
 
@@ -293,7 +304,7 @@ impl Window {
     pub fn set_cursor(&self, cursor: MouseCursor) {
         match self {
             &Window::X(ref w) => w.set_cursor(cursor),
-            &Window::Wayland(ref w) => w.set_cursor(cursor)
+            &Window::Wayland(ref w) => w.set_cursor(cursor),
         }
     }
 
@@ -301,15 +312,15 @@ impl Window {
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
         match self {
             &Window::X(ref w) => w.set_cursor_state(state),
-            &Window::Wayland(ref w) => w.set_cursor_state(state)
+            &Window::Wayland(ref w) => w.set_cursor_state(state),
         }
     }
 
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
-       match self {
+        match self {
             &Window::X(ref w) => w.hidpi_factor(),
-            &Window::Wayland(ref w) => w.hidpi_factor()
+            &Window::Wayland(ref w) => w.hidpi_factor(),
         }
     }
 
@@ -317,7 +328,7 @@ impl Window {
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         match self {
             &Window::X(ref w) => w.set_cursor_position(x, y),
-            &Window::Wayland(ref w) => w.set_cursor_position(x, y)
+            &Window::Wayland(ref w) => w.set_cursor_position(x, y),
         }
     }
 
@@ -326,7 +337,7 @@ impl Window {
         use wayland_client::Proxy;
         match self {
             &Window::X(ref w) => w.platform_display(),
-            &Window::Wayland(ref w) => w.get_display().ptr() as *mut _
+            &Window::Wayland(ref w) => w.get_display().ptr() as *mut _,
         }
     }
 
@@ -335,20 +346,24 @@ impl Window {
         use wayland_client::Proxy;
         match self {
             &Window::X(ref w) => w.platform_window(),
-            &Window::Wayland(ref w) => w.get_surface().ptr() as *mut _
+            &Window::Wayland(ref w) => w.get_surface().ptr() as *mut _,
         }
     }
 }
 
-unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x11::ffi::XErrorEvent)
-                                      -> libc::c_int
-{
+unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display,
+                                      event: *mut x11::ffi::XErrorEvent)
+                                      -> libc::c_int {
     use std::ffi::CStr;
 
     if let UnixBackend::X(ref x) = *UNIX_BACKEND {
         let mut buff: Vec<u8> = Vec::with_capacity(1024);
-        (x.xlib.XGetErrorText)(dpy, (*event).error_code as i32, buff.as_mut_ptr() as *mut libc::c_char, buff.capacity() as i32);
-        let description = CStr::from_ptr(buff.as_mut_ptr() as *const libc::c_char).to_string_lossy();
+        (x.xlib.XGetErrorText)(dpy,
+                               (*event).error_code as i32,
+                               buff.as_mut_ptr() as *mut libc::c_char,
+                               buff.capacity() as i32);
+        let description = CStr::from_ptr(buff.as_mut_ptr() as *const libc::c_char)
+            .to_string_lossy();
 
         let error = XError {
             description: description.into_owned(),

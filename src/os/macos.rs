@@ -50,12 +50,15 @@ impl Default for ActivationPolicy {
 impl From<ActivationPolicy> for NSApplicationActivationPolicy {
     fn from(activation_policy: ActivationPolicy) -> Self {
         match activation_policy {
-            ActivationPolicy::Regular =>
-                NSApplicationActivationPolicy::NSApplicationActivationPolicyRegular,
-            ActivationPolicy::Accessory =>
-                NSApplicationActivationPolicy::NSApplicationActivationPolicyAccessory,
-            ActivationPolicy::Prohibited =>
-                NSApplicationActivationPolicy::NSApplicationActivationPolicyProhibited,
+            ActivationPolicy::Regular => {
+                NSApplicationActivationPolicy::NSApplicationActivationPolicyRegular
+            }
+            ActivationPolicy::Accessory => {
+                NSApplicationActivationPolicy::NSApplicationActivationPolicyAccessory
+            }
+            ActivationPolicy::Prohibited => {
+                NSApplicationActivationPolicy::NSApplicationActivationPolicyProhibited
+            }
         }
     }
 }

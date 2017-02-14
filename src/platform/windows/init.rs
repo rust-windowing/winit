@@ -16,7 +16,7 @@ use CreationError::OsError;
 use CursorState;
 use WindowAttributes;
 
-use std::ffi::{OsStr};
+use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::sync::mpsc::channel;
 
@@ -25,13 +25,17 @@ use kernel32;
 use dwmapi;
 use user32;
 
-pub fn new_window(window: &WindowAttributes, pl_attribs: &PlatformSpecificWindowBuilderAttributes) -> Result<Window, CreationError> {
+pub fn new_window(window: &WindowAttributes,
+                  pl_attribs: &PlatformSpecificWindowBuilderAttributes)
+                  -> Result<Window, CreationError> {
     let window = window.clone();
     let attribs = pl_attribs.clone();
     // initializing variables to be sent to the task
 
-    let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
-                                          .collect::<Vec<_>>();
+    let title = OsStr::new(&window.title)
+        .encode_wide()
+        .chain(Some(0).into_iter())
+        .collect::<Vec<_>>();
 
     let (tx, rx) = channel();
 
@@ -58,7 +62,7 @@ pub fn new_window(window: &WindowAttributes, pl_attribs: &PlatformSpecificWindow
                 }
 
                 user32::TranslateMessage(&msg);
-                user32::DispatchMessageW(&msg);   // calls `callback` (see the callback module)
+                user32::DispatchMessageW(&msg); // calls `callback` (see the callback module)
             }
         }
     });
@@ -66,14 +70,19 @@ pub fn new_window(window: &WindowAttributes, pl_attribs: &PlatformSpecificWindow
     rx.recv().unwrap()
 }
 
-unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes) -> Result<Window, CreationError> {
+unsafe fn init(title: Vec<u16>,
+               window: &WindowAttributes,
+               pl_attribs: PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window, CreationError> {
     // registering the window class
     let class_name = register_window_class();
 
     // building a RECT object with coordinates
     let mut rect = winapi::RECT {
-        left: 0, right: window.dimensions.unwrap_or((1024, 768)).0 as winapi::LONG,
-        top: 0, bottom: window.dimensions.unwrap_or((1024, 768)).1 as winapi::LONG,
+        left: 0,
+        right: window.dimensions.unwrap_or((1024, 768)).0 as winapi::LONG,
+        top: 0,
+        bottom: window.dimensions.unwrap_or((1024, 768)).1 as winapi::LONG,
     };
 
     // switching to fullscreen if necessary
@@ -87,17 +96,15 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pl_attribs: PlatformS
     // computing the style and extended style of the window
     let (ex_style, style) = if window.monitor.is_some() || !window.decorations {
         (winapi::WS_EX_APPWINDOW,
-            //winapi::WS_POPUP is incompatible with winapi::WS_CHILD
-            if pl_attribs.parent.is_some() {
-                winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN
-            }
-            else {
-                winapi::WS_POPUP | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN
-            }
-        )
+         //winapi::WS_POPUP is incompatible with winapi::WS_CHILD
+         if pl_attribs.parent.is_some() {
+             winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN
+         } else {
+             winapi::WS_POPUP | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN
+         })
     } else {
         (winapi::WS_EX_APPWINDOW | winapi::WS_EX_WINDOWEDGE,
-            winapi::WS_OVERLAPPEDWINDOW | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN)
+         winapi::WS_OVERLAPPEDWINDOW | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN)
     };
 
     // adjusting the window coordinates using the style
@@ -128,14 +135,18 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pl_attribs: PlatformS
         }
 
         let handle = user32::CreateWindowExW(ex_style | winapi::WS_EX_ACCEPTFILES,
-            class_name.as_ptr(),
-            title.as_ptr() as winapi::LPCWSTR,
-            style | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN,
-            x.unwrap_or(winapi::CW_USEDEFAULT), y.unwrap_or(winapi::CW_USEDEFAULT),
-            width.unwrap_or(winapi::CW_USEDEFAULT), height.unwrap_or(winapi::CW_USEDEFAULT),
-            pl_attribs.parent.unwrap_or(ptr::null_mut()),
-            ptr::null_mut(), kernel32::GetModuleHandleW(ptr::null()),
-            ptr::null_mut());
+                                             class_name.as_ptr(),
+                                             title.as_ptr() as winapi::LPCWSTR,
+                                             style | winapi::WS_CLIPSIBLINGS |
+                                             winapi::WS_CLIPCHILDREN,
+                                             x.unwrap_or(winapi::CW_USEDEFAULT),
+                                             y.unwrap_or(winapi::CW_USEDEFAULT),
+                                             width.unwrap_or(winapi::CW_USEDEFAULT),
+                                             height.unwrap_or(winapi::CW_USEDEFAULT),
+                                             pl_attribs.parent.unwrap_or(ptr::null_mut()),
+                                             ptr::null_mut(),
+                                             kernel32::GetModuleHandleW(ptr::null()),
+                                             ptr::null_mut());
 
         if handle.is_null() {
             return Err(OsError(format!("CreateWindowEx function failed: {}",
@@ -172,7 +183,7 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pl_attribs: PlatformS
     let window_state = Arc::new(Mutex::new(WindowState {
         cursor: winapi::IDC_ARROW, // use arrow by default
         cursor_state: CursorState::Normal,
-        attributes: window.clone()
+        attributes: window.clone(),
     }));
 
     // filling the CONTEXT_STASH task-local storage so that we can start receiving events
@@ -184,7 +195,7 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pl_attribs: PlatformS
                 win: real_window.0,
                 sender: tx.take().unwrap(),
                 window_state: window_state.clone(),
-                mouse_in_window: false
+                mouse_in_window: false,
             };
             (*context_stash.borrow_mut()) = Some(data);
         });
@@ -200,8 +211,10 @@ unsafe fn init(title: Vec<u16>, window: &WindowAttributes, pl_attribs: PlatformS
 }
 
 unsafe fn register_window_class() -> Vec<u16> {
-    let class_name = OsStr::new("Window Class").encode_wide().chain(Some(0).into_iter())
-                                               .collect::<Vec<_>>();
+    let class_name = OsStr::new("Window Class")
+        .encode_wide()
+        .chain(Some(0).into_iter())
+        .collect::<Vec<_>>();
 
     let class = winapi::WNDCLASSEXW {
         cbSize: mem::size_of::<winapi::WNDCLASSEXW>() as winapi::UINT,
@@ -211,7 +224,7 @@ unsafe fn register_window_class() -> Vec<u16> {
         cbWndExtra: 0,
         hInstance: kernel32::GetModuleHandleW(ptr::null()),
         hIcon: ptr::null_mut(),
-        hCursor: ptr::null_mut(),       // must be null in order for cursor state to work properly
+        hCursor: ptr::null_mut(), // must be null in order for cursor state to work properly
         hbrBackground: ptr::null_mut(),
         lpszMenuName: ptr::null(),
         lpszClassName: class_name.as_ptr(),
@@ -227,9 +240,9 @@ unsafe fn register_window_class() -> Vec<u16> {
     class_name
 }
 
-unsafe fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorId)
-                               -> Result<(), CreationError>
-{
+unsafe fn switch_to_fullscreen(rect: &mut winapi::RECT,
+                               monitor: &MonitorId)
+                               -> Result<(), CreationError> {
     // adjusting the rect
     {
         let pos = monitor.get_position();
@@ -244,12 +257,14 @@ unsafe fn switch_to_fullscreen(rect: &mut winapi::RECT, monitor: &MonitorId)
     screen_settings.dmSize = mem::size_of::<winapi::DEVMODEW>() as winapi::WORD;
     screen_settings.dmPelsWidth = (rect.right - rect.left) as winapi::DWORD;
     screen_settings.dmPelsHeight = (rect.bottom - rect.top) as winapi::DWORD;
-    screen_settings.dmBitsPerPel = 32;      // TODO: ?
+    screen_settings.dmBitsPerPel = 32; // TODO: ?
     screen_settings.dmFields = winapi::DM_BITSPERPEL | winapi::DM_PELSWIDTH | winapi::DM_PELSHEIGHT;
 
     let result = user32::ChangeDisplaySettingsExW(monitor.get_adapter_name().as_ptr(),
-                                                  &mut screen_settings, ptr::null_mut(),
-                                                  winapi::CDS_FULLSCREEN, ptr::null_mut());
+                                                  &mut screen_settings,
+                                                  ptr::null_mut(),
+                                                  winapi::CDS_FULLSCREEN,
+                                                  ptr::null_mut());
 
     if result != winapi::DISP_CHANGE_SUCCESSFUL {
         return Err(OsError(format!("ChangeDisplaySettings failed: {}", result)));

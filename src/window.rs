@@ -31,7 +31,7 @@ impl WindowBuilder {
         self.window.dimensions = Some((width, height));
         self
     }
-    
+
     /// Sets a minimum dimension size for the window
     ///
     /// Width and height are in pixels.
@@ -88,7 +88,7 @@ impl WindowBuilder {
         self
     }
 
-    /// Enables multitouch
+    /// Enables multitouch.
     #[inline]
     pub fn with_multitouch(mut self) -> WindowBuilder {
         self.window.multitouch = true;
@@ -111,7 +111,9 @@ impl WindowBuilder {
         }
 
         // building
-        let w = try!(platform::Window2::new(events_loop.events_loop.clone(), &self.window, &self.platform_specific));
+        let w = try!(platform::Window2::new(events_loop.events_loop.clone(),
+                                            &self.window,
+                                            &self.platform_specific));
 
         Ok(Window { window: w })
     }
@@ -123,7 +125,7 @@ impl Window {
     /// This function is equivalent to `WindowBuilder::new().build(events_loop)`.
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
-    ///  out of memory, etc.
+    /// out of memory, etc.
     #[inline]
     pub fn new(events_loop: &EventsLoop) -> Result<Window, CreationError> {
         let builder = WindowBuilder::new();
@@ -160,15 +162,15 @@ impl Window {
         self.window.hide()
     }
 
-    /// Returns the position of the top-left hand corner of the window relative to the
-    ///  top-left hand corner of the desktop.
+    /// Returns the position of the top-left hand corner of the window relative to the top-left
+    /// hand corner of the desktop.
     ///
-    /// Note that the top-left hand corner of the desktop is not necessarily the same as
-    ///  the screen. If the user uses a desktop with multiple monitors, the top-left hand corner
-    ///  of the desktop is the top-left hand corner of the monitor at the top-left of the desktop.
+    /// Note that the top-left hand corner of the desktop is not necessarily the same as the
+    /// screen. If the user uses a desktop with multiple monitors, the top-left hand corner of the
+    /// desktop is the top-left hand corner of the monitor at the top-left of the desktop.
     ///
-    /// The coordinates can be negative if the top-left hand corner of the window is outside
-    ///  of the visible screen region.
+    /// The coordinates can be negative if the top-left hand corner of the window is outside of the
+    /// visible screen region.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
@@ -188,21 +190,20 @@ impl Window {
 
     /// Returns the size in points of the client area of the window.
     ///
-    /// The client area is the content of the window, excluding the title bar and borders.
-    /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
+    /// The client area is the content of the window, excluding the title bar and borders. To get
+    /// the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
     ///
     /// Returns `None` if the window no longer exists.
-    ///
-    /// DEPRECATED
+    #[deprecated(since = "0.3.4", note = "renamed to `get_inner_size_points()`")]
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         self.window.get_inner_size()
     }
-    
+
     /// Returns the size in points of the client area of the window.
     ///
-    /// The client area is the content of the window, excluding the title bar and borders.
-    /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
+    /// The client area is the content of the window, excluding the title bar and borders. To get
+    /// the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
@@ -213,9 +214,9 @@ impl Window {
 
     /// Returns the size in pixels of the client area of the window.
     ///
-    /// The client area is the content of the window, excluding the title bar and borders.
-    /// These are the dimensions of the frame buffer, and the dimensions that you should use
-    ///  when you call `glViewport`.
+    /// The client area is the content of the window, excluding the title bar and borders. These
+    /// are the dimensions of the frame buffer, and the dimensions that you should use when you
+    /// call `glViewport`.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
@@ -229,7 +230,7 @@ impl Window {
     /// Returns the size in pixels of the window.
     ///
     /// These dimensions include title bar and borders. If you don't want these, you should use
-    ///  use `get_inner_size` instead.
+    /// `get_inner_size()` instead.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
@@ -239,7 +240,7 @@ impl Window {
 
     /// Modifies the inner size of the window.
     ///
-    /// See `get_inner_size` for more informations about the values.
+    /// See `get_inner_size()` for more informations about the values.
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
@@ -247,33 +248,35 @@ impl Window {
         self.window.set_inner_size(x, y)
     }
 
-    /// DEPRECATED. Gets the native platform specific display for this window.
-    /// This is typically only required when integrating with
-    /// other libraries that need this information.
-    #[deprecated]
+    /// Gets the native platform specific display for this window.
+    ///
+    /// This is typically only required when integrating with other libraries that need this
+    /// information.
+    #[deprecated(since = "0.4.0")]
     #[inline]
     pub unsafe fn platform_display(&self) -> *mut libc::c_void {
         self.window.platform_display()
     }
 
-    /// DEPRECATED. Gets the native platform specific window handle. This is
-    /// typically only required when integrating with other libraries
-    /// that need this information.
-    #[deprecated]
+    /// Gets the native platform specific window handle.
+    ///
+    /// This is typically only required when integrating with other libraries that need this
+    /// information.
+    #[deprecated(since = "0.4.0")]
     #[inline]
     pub unsafe fn platform_window(&self) -> *mut libc::c_void {
         self.window.platform_window()
     }
 
     /// Modifies the mouse cursor of the window.
+    ///
     /// Has no effect on Android.
     pub fn set_cursor(&self, cursor: MouseCursor) {
         self.window.set_cursor(cursor);
     }
 
-    /// Returns the ratio between the backing framebuffer resolution and the
-    /// window size in screen pixels. This is typically one for a normal display
-    /// and two for a retina display.
+    /// Returns the ratio between the backing framebuffer resolution and the window size in screen
+    /// pixels. This is typically one for a normal display and two for a retina display.
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
         self.window.hidpi_factor()
@@ -324,7 +327,7 @@ impl Iterator for AvailableMonitorsIter {
 #[inline]
 pub fn get_available_monitors() -> AvailableMonitorsIter {
     let data = platform::get_available_monitors();
-    AvailableMonitorsIter{ data: data.into_iter() }
+    AvailableMonitorsIter { data: data.into_iter() }
 }
 
 /// Returns the primary monitor of the system.

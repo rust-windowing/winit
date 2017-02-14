@@ -16,7 +16,8 @@ use cocoa::foundation::{NSAutoreleasePool, NSDate, NSDefaultRunLoopMode, NSPoint
                         NSString, NSUInteger};
 use cocoa::appkit::{self, NSApplication, NSColor, NSEvent, NSView, NSWindow};
 
-use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID, CGDisplayPixelsHigh, CGWarpMouseCursorPosition};
+use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID,
+                             CGDisplayPixelsHigh, CGWarpMouseCursorPosition};
 
 use std::ffi::CStr;
 use std::collections::VecDeque;
@@ -62,7 +63,7 @@ impl WindowDelegate {
         use std::os::raw::c_void;
         use std::sync::{Once, ONCE_INIT};
 
-        extern fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
+        extern "C" fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = state as *mut DelegateState;
@@ -71,7 +72,7 @@ impl WindowDelegate {
             YES
         }
 
-        extern fn window_did_resize(this: &Object, _: Sel, _: id) {
+        extern "C" fn window_did_resize(this: &Object, _: Sel, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = &mut *(state as *mut DelegateState);
@@ -90,7 +91,7 @@ impl WindowDelegate {
             }
         }
 
-        extern fn window_did_become_key(this: &Object, _: Sel, _: id) {
+        extern "C" fn window_did_become_key(this: &Object, _: Sel, _: id) {
             unsafe {
                 // TODO: center the cursor if the window had mouse grab when it
                 // lost focus
@@ -101,7 +102,7 @@ impl WindowDelegate {
             }
         }
 
-        extern fn window_did_resign_key(this: &Object, _: Sel, _: id) {
+        extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = state as *mut DelegateState;
@@ -119,14 +120,14 @@ impl WindowDelegate {
 
             // Add callback methods
             decl.add_method(sel!(windowShouldClose:),
-                window_should_close as extern fn(&Object, Sel, id) -> BOOL);
+                            window_should_close as extern "C" fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(windowDidResize:),
-                window_did_resize as extern fn(&Object, Sel, id));
+                            window_did_resize as extern "C" fn(&Object, Sel, id));
 
             decl.add_method(sel!(windowDidBecomeKey:),
-                window_did_become_key as extern fn(&Object, Sel, id));
+                            window_did_become_key as extern "C" fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidResignKey:),
-                window_did_resign_key as extern fn(&Object, Sel, id));
+                            window_did_resign_key as extern "C" fn(&Object, Sel, id));
 
             // Store internal state as user data
             decl.add_ivar::<*mut c_void>("glutinState");
@@ -134,9 +135,7 @@ impl WindowDelegate {
             DELEGATE_CLASS = decl.register();
         });
 
-        unsafe {
-            DELEGATE_CLASS
-        }
+        unsafe { DELEGATE_CLASS }
     }
 
     fn new(state: DelegateState) -> WindowDelegate {
@@ -149,7 +148,10 @@ impl WindowDelegate {
             (&mut **delegate).set_ivar("glutinState", state_ptr as *mut ::std::os::raw::c_void);
             let _: () = msg_send![*state.window, setDelegate:*delegate];
 
-            WindowDelegate { state: state, _this: delegate }
+            WindowDelegate {
+                state: state,
+                _this: delegate,
+            }
         }
     }
 }
@@ -198,8 +200,16 @@ impl WindowProxy {
             let pool = NSAutoreleasePool::new(nil);
             let event =
                 NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
-                    nil, appkit::NSApplicationDefined, NSPoint::new(0.0, 0.0), appkit::NSEventModifierFlags::empty(),
-                    0.0, 0, nil, appkit::NSEventSubtype::NSApplicationActivatedEventType, 0, 0);
+                    nil,
+                    appkit::NSApplicationDefined,
+                    NSPoint::new(0.0, 0.0),
+                    appkit::NSEventModifierFlags::empty(),
+                    0.0,
+                    0,
+                    nil,
+                    appkit::NSEventSubtype::NSApplicationActivatedEventType,
+                    0,
+                    0);
             appkit::NSApp().postEvent_atStart_(event, NO);
             pool.drain();
         }
@@ -214,7 +224,8 @@ impl<'a> Iterator for PollEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        if let Some((width, height)) = self.window.delegate.state.pending_resize.lock().unwrap().take() {
+        if let Some((width, height)) =
+            self.window.delegate.state.pending_resize.lock().unwrap().take() {
             return Some(Event::Resized(width, height));
         }
 
@@ -247,7 +258,8 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
-        if let Some((width, height)) = self.window.delegate.state.pending_resize.lock().unwrap().take() {
+        if let Some((width, height)) =
+            self.window.delegate.state.pending_resize.lock().unwrap().take() {
             return Some(Event::Resized(width, height));
         }
 
@@ -280,22 +292,26 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 impl Window {
     pub fn new(win_attribs: &WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window, CreationError>
-    {
+               -> Result<Window, CreationError> {
         // let app = match Window::create_app() {
         let app = match Window::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
-            None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
+            None => {
+                return Err(OsError(format!("Couldn't create NSApplication")));
+            }
         };
 
-        let window = match Window::create_window(win_attribs)
-        {
+        let window = match Window::create_window(win_attribs) {
             Some(window) => window,
-            None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
+            None => {
+                return Err(OsError(format!("Couldn't create NSWindow")));
+            }
         };
         let view = match Window::create_view(*window) {
             Some(view) => view,
-            None       => { return Err(OsError(format!("Couldn't create NSView"))); },
+            None => {
+                return Err(OsError(format!("Couldn't create NSView")));
+            }
         };
 
         unsafe {
@@ -356,7 +372,7 @@ impl Window {
                 Some(ref monitor_id) => {
                     let native_id = match monitor_id.get_native_identifier() {
                         NativeMonitorId::Numeric(num) => num,
-                        _ => panic!("OS X monitors should always have a numeric native ID")
+                        _ => panic!("OS X monitors should always have a numeric native ID"),
                     };
                     let matching_screen = {
                         let screens = appkit::NSScreen::screens(nil);
@@ -368,7 +384,8 @@ impl Window {
                             let device_description = appkit::NSScreen::deviceDescription(screen);
                             let value: id = msg_send![device_description, objectForKey:*key];
                             if value != nil {
-                                let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
+                                let screen_number: NSUInteger =
+                                    msg_send![value, unsignedIntegerValue];
                                 if screen_number as u32 == native_id {
                                     matching_screen = Some(screen);
                                     break;
@@ -378,14 +395,15 @@ impl Window {
                         matching_screen
                     };
                     Some(matching_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
-                },
-                None => None
+                }
+                None => None,
             };
             let frame = match screen {
                 Some(screen) => appkit::NSScreen::frame(screen),
                 None => {
                     let (width, height) = attrs.dimensions.unwrap_or((800, 600));
-                    NSRect::new(NSPoint::new(0., 0.), NSSize::new(width as f64, height as f64))
+                    NSRect::new(NSPoint::new(0., 0.),
+                                NSSize::new(width as f64, height as f64))
                 }
             };
 
@@ -409,12 +427,11 @@ impl Window {
                 appkit::NSFullSizeContentViewWindowMask as NSUInteger
             };
 
-            let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
-                frame,
-                masks,
-                appkit::NSBackingStoreBuffered,
-                NO,
-            ));
+            let window = IdRef::new(NSWindow::alloc(nil)
+                .initWithContentRect_styleMask_backing_defer_(frame,
+                                                              masks,
+                                                              appkit::NSBackingStoreBuffered,
+                                                              NO));
             window.non_nil().map(|window| {
                 let title = IdRef::new(NSString::alloc(nil).init_str(&attrs.title));
                 window.setReleasedWhenClosed_(NO);
@@ -457,21 +474,28 @@ impl Window {
 
     #[inline]
     pub fn show(&self) {
-        unsafe { NSWindow::makeKeyAndOrderFront_(*self.window, nil); }
+        unsafe {
+            NSWindow::makeKeyAndOrderFront_(*self.window, nil);
+        }
     }
 
     #[inline]
     pub fn hide(&self) {
-        unsafe { NSWindow::orderOut_(*self.window, nil); }
+        unsafe {
+            NSWindow::orderOut_(*self.window, nil);
+        }
     }
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
         unsafe {
-            let content_rect = NSWindow::contentRectForFrameRect_(*self.window, NSWindow::frame(*self.window));
+            let content_rect = NSWindow::contentRectForFrameRect_(*self.window,
+                                                                  NSWindow::frame(*self.window));
 
             // TODO: consider extrapolating the calculations for the y axis to
             // a private method
-            Some((content_rect.origin.x as i32, (CGDisplayPixelsHigh(CGMainDisplayID()) as f64 - (content_rect.origin.y + content_rect.size.height)) as i32))
+            Some((content_rect.origin.x as i32,
+                  (CGDisplayPixelsHigh(CGMainDisplayID()) as f64 -
+                   (content_rect.origin.y + content_rect.size.height)) as i32))
         }
     }
 
@@ -487,7 +511,10 @@ impl Window {
 
             // TODO: consider extrapolating the calculations for the y axis to
             // a private method
-            let dummy = NSRect::new(NSPoint::new(x as f64, CGDisplayPixelsHigh(CGMainDisplayID()) as f64 - (frame.size.height + y as f64)), NSSize::new(0f64, 0f64));
+            let dummy = NSRect::new(NSPoint::new(x as f64,
+                                                 CGDisplayPixelsHigh(CGMainDisplayID()) as f64 -
+                                                 (frame.size.height + y as f64)),
+                                    NSSize::new(0f64, 0f64));
             let conv = NSWindow::frameRectForContentRect_(*self.window, dummy);
 
             // NSWindow::setFrameTopLeftPoint_(*self.window, conv.origin);
@@ -525,23 +552,27 @@ impl Window {
 
     #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator {
-            window: self
-        }
+        PollEventsIterator { window: self }
     }
 
     #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator {
-            window: self
-        }
+        WaitEventsIterator { window: self }
     }
 
-    unsafe fn modifier_event(event: id, keymask: appkit::NSEventModifierFlags, key: events::VirtualKeyCode, key_pressed: bool) -> Option<Event> {
+    unsafe fn modifier_event(event: id,
+                             keymask: appkit::NSEventModifierFlags,
+                             key: events::VirtualKeyCode,
+                             key_pressed: bool)
+                             -> Option<Event> {
         if !key_pressed && NSEvent::modifierFlags(event).contains(keymask) {
-            return Some(Event::KeyboardInput(ElementState::Pressed, NSEvent::keyCode(event) as u8, Some(key)));
+            return Some(Event::KeyboardInput(ElementState::Pressed,
+                                             NSEvent::keyCode(event) as u8,
+                                             Some(key)));
         } else if key_pressed && !NSEvent::modifierFlags(event).contains(keymask) {
-            return Some(Event::KeyboardInput(ElementState::Released, NSEvent::keyCode(event) as u8, Some(key)));
+            return Some(Event::KeyboardInput(ElementState::Released,
+                                             NSEvent::keyCode(event) as u8,
+                                             Some(key)));
         }
 
         return None;
@@ -582,14 +613,11 @@ impl Window {
             MouseCursor::NsResize | MouseCursor::RowResize => "resizeUpDownCursor",
 
             /// TODO: Find appropriate OSX cursors
-            MouseCursor::NeResize | MouseCursor::NwResize |
-            MouseCursor::SeResize | MouseCursor::SwResize |
-            MouseCursor::NwseResize | MouseCursor::NeswResize |
-
-            MouseCursor::Cell | MouseCursor::NoneCursor |
-            MouseCursor::Wait | MouseCursor::Progress | MouseCursor::Help |
-            MouseCursor::Move | MouseCursor::AllScroll | MouseCursor::ZoomIn |
-            MouseCursor::ZoomOut => "arrowCursor",
+            MouseCursor::NeResize | MouseCursor::NwResize | MouseCursor::SeResize |
+            MouseCursor::SwResize | MouseCursor::NwseResize | MouseCursor::NeswResize |
+            MouseCursor::Cell | MouseCursor::NoneCursor | MouseCursor::Wait |
+            MouseCursor::Progress | MouseCursor::Help | MouseCursor::Move |
+            MouseCursor::AllScroll | MouseCursor::ZoomIn | MouseCursor::ZoomOut => "arrowCursor",
         };
         let sel = Sel::register(cursor_name);
         let cls = Class::get("NSCursor").unwrap();
@@ -609,11 +637,11 @@ impl Window {
                 let _: () = unsafe { msg_send![cls, unhide] };
                 let _: i32 = unsafe { CGAssociateMouseAndMouseCursorPosition(true) };
                 Ok(())
-            },
+            }
             CursorState::Hide => {
                 let _: () = unsafe { msg_send![cls, hide] };
                 Ok(())
-            },
+            }
             CursorState::Grab => {
                 let _: i32 = unsafe { CGAssociateMouseAndMouseCursorPosition(false) };
                 Ok(())
@@ -623,9 +651,7 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
-        unsafe {
-            NSWindow::backingScaleFactor(*self.window) as f32
-        }
+        unsafe { NSWindow::backingScaleFactor(*self.window) as f32 }
     }
 
     #[inline]
@@ -646,9 +672,9 @@ impl Window {
     }
 }
 
-unsafe fn nswindow_set_min_dimensions<V: NSWindow + Copy>(
-    window: V, min_width: f64, min_height: f64)
-{
+unsafe fn nswindow_set_min_dimensions<V: NSWindow + Copy>(window: V,
+                                                          min_width: f64,
+                                                          min_height: f64) {
     window.setMinSize_(NSSize {
         width: min_width,
         height: min_height,
@@ -662,17 +688,16 @@ unsafe fn nswindow_set_min_dimensions<V: NSWindow + Copy>(
     if current_rect.size.height < min_height {
         // The origin point of a rectangle is at its bottom left in Cocoa. To
         // ensure the window's top-left point remains the same:
-        current_rect.origin.y +=
-            current_rect.size.height - min_height;
+        current_rect.origin.y += current_rect.size.height - min_height;
 
         current_rect.size.height = min_height;
         window.setFrame_display_(current_rect, 0)
     }
 }
 
-unsafe fn nswindow_set_max_dimensions<V: NSWindow + Copy>(
-    window: V, max_width: f64, max_height: f64)
-{
+unsafe fn nswindow_set_max_dimensions<V: NSWindow + Copy>(window: V,
+                                                          max_width: f64,
+                                                          max_height: f64) {
     window.setMaxSize_(NSSize {
         width: max_width,
         height: max_height,
@@ -687,8 +712,7 @@ unsafe fn nswindow_set_max_dimensions<V: NSWindow + Copy>(
         // The origin point of a rectangle is at its bottom left in
         // Cocoa. To ensure the window's top-left point remains the
         // same:
-        current_rect.origin.y +=
-            current_rect.size.height - max_height;
+        current_rect.origin.y += current_rect.size.height - max_height;
 
         current_rect.size.height = max_height;
         window.setFrame_display_(current_rect, 0)
@@ -741,28 +765,45 @@ impl Clone for IdRef {
 
 #[allow(non_snake_case, non_upper_case_globals)]
 unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
-    if nsevent == nil { return None; }
+    if nsevent == nil {
+        return None;
+    }
 
     let event_type = nsevent.eventType();
-    appkit::NSApp().sendEvent_(if let appkit::NSKeyDown = event_type { nil } else { nsevent });
+    appkit::NSApp().sendEvent_(if let appkit::NSKeyDown = event_type {
+        nil
+    } else {
+        nsevent
+    });
 
     match event_type {
-        appkit::NSLeftMouseDown         => { Some(Event::MouseInput(ElementState::Pressed, MouseButton::Left)) },
-        appkit::NSLeftMouseUp           => { Some(Event::MouseInput(ElementState::Released, MouseButton::Left)) },
-        appkit::NSRightMouseDown        => { Some(Event::MouseInput(ElementState::Pressed, MouseButton::Right)) },
-        appkit::NSRightMouseUp          => { Some(Event::MouseInput(ElementState::Released, MouseButton::Right)) },
-        appkit::NSOtherMouseDown        => { Some(Event::MouseInput(ElementState::Pressed, MouseButton::Middle)) },
-        appkit::NSOtherMouseUp          => { Some(Event::MouseInput(ElementState::Released, MouseButton::Middle)) },
-        appkit::NSMouseEntered          => { Some(Event::MouseEntered) },
-        appkit::NSMouseExited           => { Some(Event::MouseLeft) },
-        appkit::NSMouseMoved            |
-        appkit::NSLeftMouseDragged      |
-        appkit::NSOtherMouseDragged     |
-        appkit::NSRightMouseDragged     => {
+        appkit::NSLeftMouseDown => {
+            Some(Event::MouseInput(ElementState::Pressed, MouseButton::Left))
+        }
+        appkit::NSLeftMouseUp => Some(Event::MouseInput(ElementState::Released, MouseButton::Left)),
+        appkit::NSRightMouseDown => {
+            Some(Event::MouseInput(ElementState::Pressed, MouseButton::Right))
+        }
+        appkit::NSRightMouseUp => {
+            Some(Event::MouseInput(ElementState::Released, MouseButton::Right))
+        }
+        appkit::NSOtherMouseDown => {
+            Some(Event::MouseInput(ElementState::Pressed, MouseButton::Middle))
+        }
+        appkit::NSOtherMouseUp => {
+            Some(Event::MouseInput(ElementState::Released, MouseButton::Middle))
+        }
+        appkit::NSMouseEntered => Some(Event::MouseEntered),
+        appkit::NSMouseExited => Some(Event::MouseLeft),
+        appkit::NSMouseMoved |
+        appkit::NSLeftMouseDragged |
+        appkit::NSOtherMouseDragged |
+        appkit::NSRightMouseDragged => {
             let window_point = nsevent.locationInWindow();
             let cWindow: id = msg_send![nsevent, window];
             let view_point = if cWindow == nil {
-                let window_rect = window.window.convertRectFromScreen_(NSRect::new(window_point, NSSize::new(0.0, 0.0)));
+                let window_rect = window.window
+                    .convertRectFromScreen_(NSRect::new(window_point, NSSize::new(0.0, 0.0)));
                 window.view.convertPoint_fromView_(window_rect.origin, nil)
             } else {
                 window.view.convertPoint_fromView_(window_point, nil)
@@ -771,8 +812,9 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
             let scale_factor = window.hidpi_factor();
 
             Some(Event::MouseMoved((scale_factor * view_point.x as f32) as i32,
-                                   (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32))
-        },
+                                   (scale_factor * (view_rect.size.height - view_point.y) as f32) as
+                                   i32))
+        }
         appkit::NSKeyDown => {
             let mut events = VecDeque::new();
             let received_c_str = nsevent.characters().UTF8String();
@@ -781,35 +823,51 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
                 events.push_back(Event::ReceivedCharacter(received_char));
             }
 
-            let vkey =  event::vkeycode_to_element(NSEvent::keyCode(nsevent));
-            events.push_back(Event::KeyboardInput(ElementState::Pressed, NSEvent::keyCode(nsevent) as u8, vkey));
+            let vkey = event::vkeycode_to_element(NSEvent::keyCode(nsevent));
+            events.push_back(Event::KeyboardInput(ElementState::Pressed,
+                                                  NSEvent::keyCode(nsevent) as u8,
+                                                  vkey));
             let event = events.pop_front();
             window.delegate.state.pending_events.lock().unwrap().extend(events.into_iter());
             event
-        },
+        }
         appkit::NSKeyUp => {
-            let vkey =  event::vkeycode_to_element(NSEvent::keyCode(nsevent));
+            let vkey = event::vkeycode_to_element(NSEvent::keyCode(nsevent));
 
-            Some(Event::KeyboardInput(ElementState::Released, NSEvent::keyCode(nsevent) as u8, vkey))
-        },
+            Some(Event::KeyboardInput(ElementState::Released,
+                                      NSEvent::keyCode(nsevent) as u8,
+                                      vkey))
+        }
         appkit::NSFlagsChanged => {
             let mut events = VecDeque::new();
-            let shift_modifier = Window::modifier_event(nsevent, appkit::NSShiftKeyMask, events::VirtualKeyCode::LShift, SHIFT_PRESSED);
+            let shift_modifier = Window::modifier_event(nsevent,
+                                                        appkit::NSShiftKeyMask,
+                                                        events::VirtualKeyCode::LShift,
+                                                        SHIFT_PRESSED);
             if shift_modifier.is_some() {
                 SHIFT_PRESSED = !SHIFT_PRESSED;
                 events.push_back(shift_modifier.unwrap());
             }
-            let ctrl_modifier = Window::modifier_event(nsevent, appkit::NSControlKeyMask, events::VirtualKeyCode::LControl, CTRL_PRESSED);
+            let ctrl_modifier = Window::modifier_event(nsevent,
+                                                       appkit::NSControlKeyMask,
+                                                       events::VirtualKeyCode::LControl,
+                                                       CTRL_PRESSED);
             if ctrl_modifier.is_some() {
                 CTRL_PRESSED = !CTRL_PRESSED;
                 events.push_back(ctrl_modifier.unwrap());
             }
-            let win_modifier = Window::modifier_event(nsevent, appkit::NSCommandKeyMask, events::VirtualKeyCode::LWin, WIN_PRESSED);
+            let win_modifier = Window::modifier_event(nsevent,
+                                                      appkit::NSCommandKeyMask,
+                                                      events::VirtualKeyCode::LWin,
+                                                      WIN_PRESSED);
             if win_modifier.is_some() {
                 WIN_PRESSED = !WIN_PRESSED;
                 events.push_back(win_modifier.unwrap());
             }
-            let alt_modifier = Window::modifier_event(nsevent, appkit::NSAlternateKeyMask, events::VirtualKeyCode::LAlt, ALT_PRESSED);
+            let alt_modifier = Window::modifier_event(nsevent,
+                                                      appkit::NSAlternateKeyMask,
+                                                      events::VirtualKeyCode::LAlt,
+                                                      ALT_PRESSED);
             if alt_modifier.is_some() {
                 ALT_PRESSED = !ALT_PRESSED;
                 events.push_back(alt_modifier.unwrap());
@@ -817,7 +875,7 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
             let event = events.pop_front();
             window.delegate.state.pending_events.lock().unwrap().extend(events.into_iter());
             event
-        },
+        }
         appkit::NSScrollWheel => {
             use events::MouseScrollDelta::{LineDelta, PixelDelta};
             let scale_factor = window.hidpi_factor();
@@ -829,21 +887,22 @@ unsafe fn NSEventToEvent(window: &Window, nsevent: id) -> Option<Event> {
                           scale_factor * nsevent.scrollingDeltaY() as f32)
             };
             let phase = match nsevent.phase() {
-                appkit::NSEventPhaseMayBegin | appkit::NSEventPhaseBegan => TouchPhase::Started,
+                appkit::NSEventPhaseMayBegin |
+                appkit::NSEventPhaseBegan => TouchPhase::Started,
                 appkit::NSEventPhaseEnded => TouchPhase::Ended,
                 _ => TouchPhase::Moved,
             };
             Some(Event::MouseWheel(delta, phase))
-        },
+        }
         appkit::NSEventTypePressure => {
             Some(Event::TouchpadPressure(nsevent.pressure(), nsevent.stage()))
-        },
+        }
         appkit::NSApplicationDefined => {
             match nsevent.subtype() {
-                appkit::NSEventSubtype::NSApplicationActivatedEventType => { Some(Event::Awakened) }
-                _ => { None }
+                appkit::NSEventSubtype::NSApplicationActivatedEventType => Some(Event::Awakened),
+                _ => None,
             }
-        },
-        _  => { None },
+        }
+        _ => None,
     }
 }

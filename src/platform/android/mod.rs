@@ -3,7 +3,7 @@
 extern crate android_glue;
 
 use libc;
-use std::ffi::{CString};
+use std::ffi::CString;
 use std::sync::mpsc::{Receiver, channel};
 use std::os::raw::c_void;
 use {CreationError, WindowEvent as Event, MouseCursor};
@@ -84,9 +84,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     id: motion.pointer_id as u64,
                 }))
             }
-            _ => {
-                None
-            }
+            _ => None,
         }
     }
 }
@@ -113,9 +111,9 @@ impl<'a> Iterator for WaitEventsIterator<'a> {
 }
 
 impl Window {
-    pub fn new(win_attribs: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window, CreationError>
-    {
+    pub fn new(win_attribs: &WindowAttributes,
+               _: &PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window, CreationError> {
         use std::{mem, ptr};
 
         // not implemented
@@ -148,16 +146,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_title(&self, _: &str) {
-    }
+    pub fn set_title(&self, _: &str) {}
 
     #[inline]
-    pub fn show(&self) {
-    }
+    pub fn show(&self) {}
 
     #[inline]
-    pub fn hide(&self) {
-    }
+    pub fn hide(&self) {}
 
     #[inline]
     pub fn get_position(&self) -> Option<(i32, i32)> {
@@ -165,8 +160,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_position(&self, _x: i32, _y: i32) {
-    }
+    pub fn set_position(&self, _x: i32, _y: i32) {}
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
@@ -175,10 +169,8 @@ impl Window {
         if native_window.is_null() {
             None
         } else {
-            Some((
-                unsafe { ffi::ANativeWindow_getWidth(native_window as *const _) } as u32,
-                unsafe { ffi::ANativeWindow_getHeight(native_window as *const _) } as u32
-            ))
+            Some((unsafe { ffi::ANativeWindow_getWidth(native_window as *const _) } as u32,
+                  unsafe { ffi::ANativeWindow_getHeight(native_window as *const _) } as u32))
         }
     }
 
@@ -188,8 +180,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, _x: u32, _y: u32) {
-    }
+    pub fn set_inner_size(&self, _x: u32, _y: u32) {}
 
     #[inline]
     pub fn create_window_proxy(&self) -> WindowProxy {
@@ -198,16 +189,12 @@ impl Window {
 
     #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator {
-            window: self
-        }
+        PollEventsIterator { window: self }
     }
 
     #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator {
-            window: self
-        }
+        WaitEventsIterator { window: self }
     }
 
     #[inline]
@@ -221,12 +208,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
-    }
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {}
 
     #[inline]
-    pub fn set_cursor(&self, _: MouseCursor) {
-    }
+    pub fn set_cursor(&self, _: MouseCursor) {}
 
     #[inline]
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {

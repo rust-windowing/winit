@@ -15,7 +15,7 @@ use super::XConnection;
 #[derive(Debug)]
 enum AxisType {
     HorizontalScroll,
-    VerticalScroll
+    VerticalScroll,
 }
 
 #[derive(Debug)]
@@ -31,7 +31,7 @@ struct Axis {
 struct AxisValue {
     device_id: i32,
     axis_number: i32,
-    value: f64
+    value: f64,
 }
 
 struct InputState {
@@ -40,7 +40,7 @@ struct InputState {
     cursor_pos: (f64, f64),
     /// Last-seen positions of axes, used to report delta
     /// movements when a new absolute axis value is received
-    axis_values: Vec<AxisValue>
+    axis_values: Vec<AxisValue>,
 }
 
 pub struct XInputEventHandler {
@@ -53,8 +53,11 @@ pub struct XInputEventHandler {
 }
 
 impl XInputEventHandler {
-    pub fn new(display: &Arc<XConnection>, window: ffi::Window, ic: ffi::XIC,
-               window_attrs: &WindowAttributes) -> XInputEventHandler {
+    pub fn new(display: &Arc<XConnection>,
+               window: ffi::Window,
+               ic: ffi::XIC,
+               window_attrs: &WindowAttributes)
+               -> XInputEventHandler {
         // query XInput support
         let mut opcode: libc::c_int = 0;
         let mut event: libc::c_int = 0;
@@ -62,7 +65,11 @@ impl XInputEventHandler {
         let xinput_str = CString::new("XInputExtension").unwrap();
 
         unsafe {
-            if (display.xlib.XQueryExtension)(display.display, xinput_str.as_ptr(), &mut opcode, &mut event, &mut error) == ffi::False {
+            if (display.xlib.XQueryExtension)(display.display,
+                                              xinput_str.as_ptr(),
+                                              &mut opcode,
+                                              &mut event,
+                                              &mut error) == ffi::False {
                 panic!("XInput not available")
             }
         }
@@ -71,7 +78,10 @@ impl XInputEventHandler {
         let mut xinput_minor_ver = ffi::XI_2_Minor;
 
         unsafe {
-            if (display.xinput2.XIQueryVersion)(display.display, &mut xinput_major_ver, &mut xinput_minor_ver) != ffi::Success as libc::c_int {
+            if (display.xinput2.XIQueryVersion)(display.display,
+                                                &mut xinput_major_ver,
+                                                &mut xinput_minor_ver) !=
+               ffi::Success as libc::c_int {
                 panic!("Unable to determine XInput version");
             }
         }
@@ -84,28 +94,29 @@ impl XInputEventHandler {
         let mut input_event_mask = ffi::XIEventMask {
             deviceid: ffi::XIAllMasterDevices,
             mask_len: mask.len() as i32,
-            mask: mask.as_mut_ptr()
+            mask: mask.as_mut_ptr(),
         };
-        let events = &[
-            ffi::XI_ButtonPress,
-            ffi::XI_ButtonRelease,
-            ffi::XI_Motion,
-            ffi::XI_Enter,
-            ffi::XI_Leave,
-            ffi::XI_FocusIn,
-            ffi::XI_FocusOut,
-            ffi::XI_TouchBegin,
-            ffi::XI_TouchUpdate,
-            ffi::XI_TouchEnd,
-        ];
+        let events = &[ffi::XI_ButtonPress,
+                       ffi::XI_ButtonRelease,
+                       ffi::XI_Motion,
+                       ffi::XI_Enter,
+                       ffi::XI_Leave,
+                       ffi::XI_FocusIn,
+                       ffi::XI_FocusOut,
+                       ffi::XI_TouchBegin,
+                       ffi::XI_TouchUpdate,
+                       ffi::XI_TouchEnd];
         for event in events {
             ffi::XISetMask(&mut mask, *event);
         }
 
         unsafe {
-            match (display.xinput2.XISelectEvents)(display.display, window, &mut input_event_mask, 1) {
+            match (display.xinput2.XISelectEvents)(display.display,
+                                                   window,
+                                                   &mut input_event_mask,
+                                                   1) {
                 status if status as u8 == ffi::Success => (),
-                err => panic!("Failed to select events {:?}", err)
+                err => panic!("Failed to select events {:?}", err),
             }
         }
 
@@ -116,7 +127,7 @@ impl XInputEventHandler {
             axis_list: read_input_axis_info(display),
             current_state: InputState {
                 cursor_pos: (0.0, 0.0),
-                axis_values: Vec::new()
+                axis_values: Vec::new(),
             },
             multitouch: window_attrs.multitouch,
         }
@@ -144,9 +155,12 @@ impl XInputEventHandler {
 
             let mut buffer: [u8; 16] = [mem::uninitialized(); 16];
             let raw_ev: *mut ffi::XKeyEvent = event;
-            let count = (self.display.xlib.Xutf8LookupString)(self.ic, mem::transmute(raw_ev),
-            mem::transmute(buffer.as_mut_ptr()),
-            buffer.len() as libc::c_int, &mut kp_keysym, ptr::null_mut());
+            let count = (self.display.xlib.Xutf8LookupString)(self.ic,
+                                                              mem::transmute(raw_ev),
+                                                              mem::transmute(buffer.as_mut_ptr()),
+                                                              buffer.len() as libc::c_int,
+                                                              &mut kp_keysym,
+                                                              ptr::null_mut());
 
             str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
         };
@@ -156,10 +170,13 @@ impl XInputEventHandler {
         }
 
         let mut keysym = unsafe {
-            (self.display.xlib.XKeycodeToKeysym)(self.display.display, event.keycode as ffi::KeyCode, 0)
+            (self.display.xlib.XKeycodeToKeysym)(self.display.display,
+                                                 event.keycode as ffi::KeyCode,
+                                                 0)
         };
 
-        if (ffi::XK_KP_Space as libc::c_ulong <= keysym) && (keysym <= ffi::XK_KP_9 as libc::c_ulong) {
+        if (ffi::XK_KP_Space as libc::c_ulong <= keysym) &&
+           (keysym <= ffi::XK_KP_9 as libc::c_ulong) {
             keysym = kp_keysym
         };
 
@@ -170,18 +187,20 @@ impl XInputEventHandler {
     }
 
     pub fn translate_event(&mut self, cookie: &ffi::XGenericEventCookie) -> Option<Event> {
-        use events::WindowEvent::{Focused, MouseEntered, MouseInput, MouseLeft, MouseMoved, MouseWheel};
+        use events::WindowEvent::{Focused, MouseEntered, MouseInput, MouseLeft, MouseMoved,
+                                  MouseWheel};
         use events::ElementState::{Pressed, Released};
         use events::MouseButton::{Left, Right, Middle};
         use events::MouseScrollDelta::LineDelta;
         use events::{Touch, TouchPhase};
 
         match cookie.evtype {
-            ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
-                let event_data: &ffi::XIDeviceEvent = unsafe{mem::transmute(cookie.data)};
+            ffi::XI_ButtonPress |
+            ffi::XI_ButtonRelease => {
+                let event_data: &ffi::XIDeviceEvent = unsafe { mem::transmute(cookie.data) };
                 if self.multitouch && (event_data.flags & ffi::XIPointerEmulated) != 0 {
                     // Deliver multi-touch events instead of emulated mouse events.
-                    return None
+                    return None;
                 }
                 let state = if cookie.evtype == ffi::XI_ButtonPress {
                     Pressed
@@ -209,24 +228,27 @@ impl XInputEventHandler {
                             None
                         }
                     }
-                    _ => None
+                    _ => None,
                 }
-            },
+            }
             ffi::XI_Motion => {
-                let event_data: &ffi::XIDeviceEvent = unsafe{mem::transmute(cookie.data)};
+                let event_data: &ffi::XIDeviceEvent = unsafe { mem::transmute(cookie.data) };
                 if self.multitouch && (event_data.flags & ffi::XIPointerEmulated) != 0 {
                     // Deliver multi-touch events instead of emulated mouse events.
-                    return None
+                    return None;
                 }
                 let axis_state = event_data.valuators;
-                let mask = unsafe{ from_raw_parts(axis_state.mask, axis_state.mask_len as usize) };
+                let mask = unsafe { from_raw_parts(axis_state.mask, axis_state.mask_len as usize) };
                 let mut axis_count = 0;
 
                 let mut scroll_delta = (0.0, 0.0);
                 for axis_id in 0..axis_state.mask_len {
                     if ffi::XIMaskIsSet(&mask, axis_id) {
-                        let axis_value = unsafe{*axis_state.values.offset(axis_count)};
-                        let delta = calc_scroll_deltas(event_data, axis_id, axis_value, &self.axis_list,
+                        let axis_value = unsafe { *axis_state.values.offset(axis_count) };
+                        let delta = calc_scroll_deltas(event_data,
+                                                       axis_id,
+                                                       axis_value,
+                                                       &self.axis_list,
                                                        &mut self.current_state.axis_values);
                         scroll_delta.0 += delta.0;
                         scroll_delta.1 += delta.1;
@@ -246,7 +268,7 @@ impl XInputEventHandler {
                         None
                     }
                 }
-            },
+            }
             ffi::XI_Enter => {
                 // axis movements whilst the cursor is outside the window
                 // will alter the absolute value of the axes. We only want to
@@ -255,20 +277,22 @@ impl XInputEventHandler {
                 // the cursor re-enters the window
                 self.current_state.axis_values.clear();
                 Some(MouseEntered)
-            },
+            }
             ffi::XI_Leave => Some(MouseLeft),
             ffi::XI_FocusIn => Some(Focused(true)),
             ffi::XI_FocusOut => Some(Focused(false)),
-            ffi::XI_TouchBegin | ffi::XI_TouchUpdate | ffi::XI_TouchEnd => {
+            ffi::XI_TouchBegin |
+            ffi::XI_TouchUpdate |
+            ffi::XI_TouchEnd => {
                 if !self.multitouch {
-                    return None
+                    return None;
                 }
-                let event_data: &ffi::XIDeviceEvent = unsafe{mem::transmute(cookie.data)};
+                let event_data: &ffi::XIDeviceEvent = unsafe { mem::transmute(cookie.data) };
                 let phase = match cookie.evtype {
                     ffi::XI_TouchBegin => TouchPhase::Started,
                     ffi::XI_TouchUpdate => TouchPhase::Moved,
                     ffi::XI_TouchEnd => TouchPhase::Ended,
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 Some(Event::Touch(Touch {
                     phase: phase,
@@ -276,7 +300,7 @@ impl XInputEventHandler {
                     id: event_data.detail as u64,
                 }))
             }
-            _ => None
+            _ => None,
         }
     }
 }
@@ -286,7 +310,7 @@ fn read_input_axis_info(display: &Arc<XConnection>) -> Vec<Axis> {
     let mut device_count = 0;
 
     // Check all input devices for scroll axes.
-    let devices = unsafe{
+    let devices = unsafe {
         (display.xinput2.XIQueryDevice)(display.display, ffi::XIAllDevices, &mut device_count)
     };
     for i in 0..device_count {
@@ -298,19 +322,19 @@ fn read_input_axis_info(display: &Arc<XConnection>) -> Vec<Axis> {
                 // are reported both as 'XIScrollClass' and 'XIValuatorClass'
                 // axes. For the moment we only care about scrolling axes.
                 ffi::XIScrollClass => {
-                    let scroll_class: &ffi::XIScrollClassInfo = unsafe{mem::transmute(class)};
-                    axis_list.push(Axis{
+                    let scroll_class: &ffi::XIScrollClassInfo = unsafe { mem::transmute(class) };
+                    axis_list.push(Axis {
                         id: scroll_class.sourceid,
                         device_id: device.deviceid,
                         axis_number: scroll_class.number,
                         axis_type: match scroll_class.scroll_type {
                             ffi::XIScrollTypeHorizontal => AxisType::HorizontalScroll,
                             ffi::XIScrollTypeVertical => AxisType::VerticalScroll,
-                            _ => { unreachable!() }
+                            _ => unreachable!(),
                         },
                         scroll_increment: scroll_class.increment,
                     })
-                },
+                }
                 _ => {}
             }
         }
@@ -327,42 +351,40 @@ fn read_input_axis_info(display: &Arc<XConnection>) -> Vec<Axis> {
 /// state of the axes, return the horizontal/vertical
 /// scroll deltas
 fn calc_scroll_deltas(event: &ffi::XIDeviceEvent,
-                     axis_id: i32,
-                     axis_value: f64,
-                     axis_list: &[Axis],
-                     prev_axis_values: &mut Vec<AxisValue>) -> (f64, f64) {
+                      axis_id: i32,
+                      axis_value: f64,
+                      axis_list: &[Axis],
+                      prev_axis_values: &mut Vec<AxisValue>)
+                      -> (f64, f64) {
     let prev_value_pos = prev_axis_values.iter().position(|prev_axis| {
-        prev_axis.device_id == event.sourceid &&
-            prev_axis.axis_number == axis_id
+        prev_axis.device_id == event.sourceid && prev_axis.axis_number == axis_id
     });
     let delta = match prev_value_pos {
         Some(idx) => prev_axis_values[idx].value - axis_value,
-        None => 0.0
+        None => 0.0,
     };
 
-    let new_axis_value = AxisValue{
+    let new_axis_value = AxisValue {
         device_id: event.sourceid,
         axis_number: axis_id,
-        value: axis_value
+        value: axis_value,
     };
 
     match prev_value_pos {
         Some(idx) => prev_axis_values[idx] = new_axis_value,
-        None => prev_axis_values.push(new_axis_value)
+        None => prev_axis_values.push(new_axis_value),
     }
 
     let mut scroll_delta = (0.0, 0.0);
 
     for axis in axis_list.iter() {
-        if axis.id == event.sourceid &&
-            axis.axis_number == axis_id {
-                match axis.axis_type {
-                    AxisType::HorizontalScroll => scroll_delta.0 = delta / axis.scroll_increment,
-                    AxisType::VerticalScroll => scroll_delta.1 = delta / axis.scroll_increment
-                }
+        if axis.id == event.sourceid && axis.axis_number == axis_id {
+            match axis.axis_type {
+                AxisType::HorizontalScroll => scroll_delta.0 = delta / axis.scroll_increment,
+                AxisType::VerticalScroll => scroll_delta.1 = delta / axis.scroll_increment,
             }
+        }
     }
 
     scroll_delta
 }
-
