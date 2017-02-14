@@ -6,7 +6,7 @@ pub enum Event {
     WindowEvent {
         window_id: WindowId,
         event: WindowEvent,
-    }
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -70,7 +70,7 @@ pub enum WindowEvent {
     Suspended(bool),
 
     /// Touch event has been received
-    Touch(Touch)
+    Touch(Touch),
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -78,7 +78,7 @@ pub enum TouchPhase {
     Started,
     Moved,
     Ended,
-    Cancelled
+    Cancelled,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -99,9 +99,9 @@ pub enum TouchPhase {
 /// Touch may be cancelled if for example window lost focus.
 pub struct Touch {
     pub phase: TouchPhase,
-    pub location: (f64,f64),
+    pub location: (f64, f64),
     /// unique identifier of a finger.
-    pub id: u64
+    pub id: u64,
 }
 
 pub type ScanCode = u8;
@@ -122,19 +122,19 @@ pub enum MouseButton {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MouseScrollDelta {
-	/// Amount in lines or rows to scroll in the horizontal
-	/// and vertical directions.
-	///
-	/// Positive values indicate movement forward
-	/// (away from the user) or rightwards.
-	LineDelta(f32, f32),
-	/// Amount in pixels to scroll in the horizontal and
-	/// vertical direction.
-	///
-	/// Scroll events are expressed as a PixelDelta if
-	/// supported by the device (eg. a touchpad) and
-	/// platform.
-	PixelDelta(f32, f32)
+    /// Amount in lines or rows to scroll in the horizontal
+    /// and vertical directions.
+    ///
+    /// Positive values indicate movement forward
+    /// (away from the user) or rightwards.
+    LineDelta(f32, f32),
+    /// Amount in pixels to scroll in the horizontal and
+    /// vertical direction.
+    ///
+    /// Scroll events are expressed as a PixelDelta if
+    /// supported by the device (eg. a touchpad) and
+    /// platform.
+    PixelDelta(f32, f32),
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]

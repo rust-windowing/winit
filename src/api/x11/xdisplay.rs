@@ -23,7 +23,8 @@ pub struct XConnection {
 unsafe impl Send for XConnection {}
 unsafe impl Sync for XConnection {}
 
-pub type XErrorHandler = Option<unsafe extern fn(*mut ffi::Display, *mut ffi::XErrorEvent) -> libc::c_int>;
+pub type XErrorHandler = Option<unsafe extern "C" fn(*mut ffi::Display, *mut ffi::XErrorEvent)
+                                                     -> libc::c_int>;
 
 impl XConnection {
     pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
@@ -101,8 +102,12 @@ impl Error for XError {
 
 impl fmt::Display for XError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(formatter, "X error: {} (code: {}, request code: {}, minor code: {})",
-               self.description, self.error_code, self.request_code, self.minor_code)
+        write!(formatter,
+               "X error: {} (code: {}, request code: {}, minor code: {})",
+               self.description,
+               self.error_code,
+               self.request_code,
+               self.minor_code)
     }
 }
 
@@ -112,7 +117,7 @@ pub enum XNotSupported {
     /// Failed to load one or several shared libraries.
     LibraryOpenError(ffi::OpenError),
     /// Connecting to the X server with `XOpenDisplay` failed.
-    XOpenDisplayFailed,     // TODO: add better message
+    XOpenDisplayFailed, // TODO: add better message
 }
 
 impl From<ffi::OpenError> for XNotSupported {
@@ -135,7 +140,7 @@ impl Error for XNotSupported {
     fn cause(&self) -> Option<&Error> {
         match *self {
             XNotSupported::LibraryOpenError(ref err) => Some(err),
-            _ => None
+            _ => None,
         }
     }
 }

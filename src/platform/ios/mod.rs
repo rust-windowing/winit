@@ -67,38 +67,26 @@ use std::os::raw::c_void;
 
 use libc;
 use libc::c_int;
-use objc::runtime::{Class, Object, Sel, BOOL, YES };
-use objc::declare::{ ClassDecl };
+use objc::runtime::{Class, Object, Sel, BOOL, YES};
+use objc::declare::ClassDecl;
 
 use native_monitor::NativeMonitorId;
-use { CreationError, CursorState, MouseCursor, WindowAttributes };
+use {CreationError, CursorState, MouseCursor, WindowAttributes};
 use WindowEvent as Event;
-use events::{ Touch, TouchPhase };
+use events::{Touch, TouchPhase};
 
 mod ffi;
-use self::ffi::{
-    setjmp,
-    UIApplicationMain,
-    CFTimeInterval,
-    CFRunLoopRunInMode,
-    kCFRunLoopDefaultMode,
-    kCFRunLoopRunHandledSource,
-    id,
-    nil,
-    NSString,
-    CGFloat,
-    longjmp,
-    CGRect,
-    CGPoint
- };
+use self::ffi::{setjmp, UIApplicationMain, CFTimeInterval, CFRunLoopRunInMode,
+                kCFRunLoopDefaultMode, kCFRunLoopRunHandledSource, id, nil, NSString, CGFloat,
+                longjmp, CGRect, CGPoint};
 
-static mut jmpbuf: [c_int;27] = [0;27];
+static mut jmpbuf: [c_int; 27] = [0; 27];
 
 #[derive(Clone)]
 pub struct MonitorId;
 
 pub struct Window {
-    delegate_state: *mut DelegateState
+    delegate_state: *mut DelegateState,
 }
 
 #[derive(Clone)]
@@ -117,20 +105,20 @@ struct DelegateState {
     events_queue: VecDeque<Event>,
     window: id,
     controller: id,
-    size: (u32,u32),
-    scale: f32
+    size: (u32, u32),
+    scale: f32,
 }
 
 
 impl DelegateState {
     #[inline]
-    fn new(window: id, controller:id, size: (u32,u32), scale: f32) -> DelegateState {
+    fn new(window: id, controller: id, size: (u32, u32), scale: f32) -> DelegateState {
         DelegateState {
             events_queue: VecDeque::new(),
             window: window,
             controller: controller,
             size: size,
-            scale: scale
+            scale: scale,
         }
     }
 }
@@ -170,9 +158,9 @@ gen_api_transition!();
 pub struct PlatformSpecificWindowBuilderAttributes;
 
 impl Window {
-
-    pub fn new(_: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes) -> Result<Window, CreationError>
-    {
+    pub fn new(_: &WindowAttributes,
+               _: &PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window, CreationError> {
         unsafe {
             if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
                 let app: id = msg_send![Class::get("UIApplication").unwrap(), sharedApplication];
@@ -180,11 +168,9 @@ impl Window {
                 let state: *mut c_void = *(&*delegate).get_ivar("glutinState");
                 let state = state as *mut DelegateState;
 
-                let window = Window {
-                    delegate_state: state
-                };
+                let window = Window { delegate_state: state };
 
-                return Ok(window)
+                return Ok(window);
             }
         }
 
@@ -196,7 +182,7 @@ impl Window {
     }
 
     fn create_delegate_class() {
-        extern fn did_finish_launching(this: &mut Object, _: Sel, _: id, _: id) -> BOOL {
+        extern "C" fn did_finish_launching(this: &mut Object, _: Sel, _: id, _: id) -> BOOL {
             unsafe {
                 let main_screen: id = msg_send![Class::get("UIScreen").unwrap(), mainScreen];
                 let bounds: CGRect = msg_send![main_screen, bounds];
@@ -207,27 +193,34 @@ impl Window {
 
                 let size = (bounds.size.width as u32, bounds.size.height as u32);
 
-                let view_controller: id = msg_send![Class::get("MainViewController").unwrap(), alloc];
+                let view_controller: id = msg_send![Class::get("MainViewController").unwrap(),
+                                                    alloc];
                 let view_controller: id = msg_send![view_controller, init];
 
-                let _: () = msg_send![window, setRootViewController:view_controller];
+                let _: () = msg_send![window, setRootViewController: view_controller];
                 let _: () = msg_send![window, makeKeyAndVisible];
 
-                let state = Box::new(DelegateState::new(window, view_controller, size, scale as f32));
+                let state =
+                    Box::new(DelegateState::new(window, view_controller, size, scale as f32));
                 let state_ptr: *mut DelegateState = mem::transmute(state);
                 this.set_ivar("glutinState", state_ptr as *mut c_void);
 
 
-                let _: () = msg_send![this, performSelector:sel!(postLaunch:) withObject:nil afterDelay:0.0];
+                let _: () = msg_send![
+                    this,
+                    performSelector:sel!(postLaunch:) withObject:nil afterDelay:0.0
+                ];
             }
             YES
         }
 
-        extern fn post_launch(_: &Object, _: Sel, _: id) {
-            unsafe { longjmp(mem::transmute(&mut jmpbuf),1); }
+        extern "C" fn post_launch(_: &Object, _: Sel, _: id) {
+            unsafe {
+                longjmp(mem::transmute(&mut jmpbuf), 1);
+            }
         }
 
-        extern fn did_become_active(this: &Object, _: Sel, _: id) {
+        extern "C" fn did_become_active(this: &Object, _: Sel, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = &mut *(state as *mut DelegateState);
@@ -235,7 +228,7 @@ impl Window {
             }
         }
 
-        extern fn will_resign_active(this: &Object, _: Sel, _: id) {
+        extern "C" fn will_resign_active(this: &Object, _: Sel, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = &mut *(state as *mut DelegateState);
@@ -243,7 +236,7 @@ impl Window {
             }
         }
 
-        extern fn will_enter_foreground(this: &Object, _: Sel, _: id) {
+        extern "C" fn will_enter_foreground(this: &Object, _: Sel, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = &mut *(state as *mut DelegateState);
@@ -251,7 +244,7 @@ impl Window {
             }
         }
 
-        extern fn did_enter_background(this: &Object, _: Sel, _: id) {
+        extern "C" fn did_enter_background(this: &Object, _: Sel, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = &mut *(state as *mut DelegateState);
@@ -259,18 +252,18 @@ impl Window {
             }
         }
 
-        extern fn will_terminate(this: &Object, _: Sel, _: id) {
+        extern "C" fn will_terminate(this: &Object, _: Sel, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = &mut *(state as *mut DelegateState);
                 // push event to the front to garantee that we'll process it
                 // immidiatly after jump
                 state.events_queue.push_front(Event::Closed);
-                longjmp(mem::transmute(&mut jmpbuf),1);
+                longjmp(mem::transmute(&mut jmpbuf), 1);
             }
         }
 
-        extern fn handle_touches(this: &Object, _: Sel, touches: id, _:id) {
+        extern "C" fn handle_touches(this: &Object, _: Sel, touches: id, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("glutinState");
                 let state = &mut *(state as *mut DelegateState);
@@ -280,9 +273,9 @@ impl Window {
                 loop {
                     let touch: id = msg_send![touches_enum, nextObject];
                     if touch == nil {
-                        break
+                        break;
                     }
-                    let location: CGPoint = msg_send![touch, locationInView:nil];
+                    let location: CGPoint = msg_send![touch, locationInView: nil];
                     let touch_id = touch as u64;
                     let phase: i32 = msg_send![touch, phase];
 
@@ -295,8 +288,8 @@ impl Window {
                             // 2 is UITouchPhaseStationary and is not expected here
                             3 => TouchPhase::Ended,
                             4 => TouchPhase::Cancelled,
-                            _ => panic!("unexpected touch phase: {:?}", phase)
-                        }
+                            _ => panic!("unexpected touch phase: {:?}", phase),
+                        },
                     }));
                 }
             }
@@ -307,39 +300,40 @@ impl Window {
 
         unsafe {
             decl.add_method(sel!(application:didFinishLaunchingWithOptions:),
-                            did_finish_launching as extern fn(&mut Object, Sel, id, id) -> BOOL);
+                            did_finish_launching as
+                            extern "C" fn(&mut Object, Sel, id, id) -> BOOL);
 
             decl.add_method(sel!(applicationDidBecomeActive:),
-                            did_become_active as extern fn(&Object, Sel, id));
+                            did_become_active as extern "C" fn(&Object, Sel, id));
 
             decl.add_method(sel!(applicationWillResignActive:),
-                            will_resign_active as extern fn(&Object, Sel, id));
+                            will_resign_active as extern "C" fn(&Object, Sel, id));
 
             decl.add_method(sel!(applicationWillEnterForeground:),
-                            will_enter_foreground as extern fn(&Object, Sel, id));
+                            will_enter_foreground as extern "C" fn(&Object, Sel, id));
 
             decl.add_method(sel!(applicationDidEnterBackground:),
-                            did_enter_background as extern fn(&Object, Sel, id));
+                            did_enter_background as extern "C" fn(&Object, Sel, id));
 
             decl.add_method(sel!(applicationWillTerminate:),
-                            will_terminate as extern fn(&Object, Sel, id));
+                            will_terminate as extern "C" fn(&Object, Sel, id));
 
 
             decl.add_method(sel!(touchesBegan:withEvent:),
-                            handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+                            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id));
 
             decl.add_method(sel!(touchesMoved:withEvent:),
-                            handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+                            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id));
 
             decl.add_method(sel!(touchesEnded:withEvent:),
-                            handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+                            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id));
 
             decl.add_method(sel!(touchesCancelled:withEvent:),
-                            handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+                            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id));
 
 
             decl.add_method(sel!(postLaunch:),
-                            post_launch as extern fn(&Object, Sel, id));
+                            post_launch as extern "C" fn(&Object, Sel, id));
 
             decl.add_ivar::<*mut c_void>("glutinState");
 
@@ -357,21 +351,21 @@ impl Window {
     #[inline]
     fn start_app() {
         unsafe {
-            UIApplicationMain(0, ptr::null(), nil, NSString::alloc(nil).init_str("AppDelegate"));
+            UIApplicationMain(0,
+                              ptr::null(),
+                              nil,
+                              NSString::alloc(nil).init_str("AppDelegate"));
         }
     }
 
     #[inline]
-    pub fn set_title(&self, _: &str) {
-    }
+    pub fn set_title(&self, _: &str) {}
 
     #[inline]
-    pub fn show(&self) {
-    }
+    pub fn show(&self) {}
 
     #[inline]
-    pub fn hide(&self) {
-    }
+    pub fn hide(&self) {}
 
     #[inline]
     pub fn get_position(&self) -> Option<(i32, i32)> {
@@ -379,8 +373,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_position(&self, _x: i32, _y: i32) {
-    }
+    pub fn set_position(&self, _x: i32, _y: i32) {}
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
@@ -393,21 +386,16 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, _x: u32, _y: u32) {
-    }
+    pub fn set_inner_size(&self, _x: u32, _y: u32) {}
 
     #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator {
-            window: self
-        }
+        PollEventsIterator { window: self }
     }
 
     #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator {
-            window: self
-        }
+        WaitEventsIterator { window: self }
     }
 
     #[inline]
@@ -421,12 +409,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
-    }
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {}
 
     #[inline]
-    pub fn set_cursor(&self, _: MouseCursor) {
-    }
+    pub fn set_cursor(&self, _: MouseCursor) {}
 
     #[inline]
     pub fn set_cursor_state(&self, _: CursorState) -> Result<(), String> {
@@ -447,7 +433,6 @@ impl Window {
     pub fn create_window_proxy(&self) -> WindowProxy {
         WindowProxy
     }
-
 }
 
 impl WindowProxy {
@@ -479,17 +464,18 @@ impl<'a> Iterator for PollEventsIterator<'a> {
             let state = &mut *self.window.delegate_state;
 
             if let Some(event) = state.events_queue.pop_front() {
-                return Some(event)
+                return Some(event);
             }
 
             // jump hack, so we won't quit on willTerminate event before processing it
             if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
-                return state.events_queue.pop_front()
+                return state.events_queue.pop_front();
             }
 
             // run runloop
             let seconds: CFTimeInterval = 0.000002;
-            while CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, 1) == kCFRunLoopRunHandledSource {}
+            while CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, 1) ==
+                  kCFRunLoopRunHandledSource {}
 
             state.events_queue.pop_front()
         }

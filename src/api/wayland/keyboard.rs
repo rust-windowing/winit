@@ -8,7 +8,7 @@ use wayland_client::EventQueueHandle;
 use wayland_client::protocol::wl_keyboard;
 
 pub struct KbdHandler {
-    pub target: Option<Arc<Mutex<VecDeque<Event>>>>
+    pub target: Option<Arc<Mutex<VecDeque<Event>>>>,
 }
 
 impl KbdHandler {
@@ -26,8 +26,7 @@ impl wayland_kbd::Handler for KbdHandler {
            rawkey: u32,
            keysym: u32,
            state: wl_keyboard::KeyState,
-           utf8: Option<String>)
-    {
+           utf8: Option<String>) {
         if let Some(ref eviter) = self.target {
             let state = match state {
                 wl_keyboard::KeyState::Pressed => ElementState::Pressed,
@@ -37,7 +36,9 @@ impl wayland_kbd::Handler for KbdHandler {
             let mut guard = eviter.lock().unwrap();
             guard.push_back(Event::KeyboardInput(state, rawkey as u8, vkcode));
             // send char event only on key press, not release
-            if let ElementState::Released = state { return }
+            if let ElementState::Released = state {
+                return;
+            }
             if let Some(txt) = utf8 {
                 for chr in txt.chars() {
                     guard.push_back(Event::ReceivedCharacter(chr));
@@ -49,18 +50,18 @@ impl wayland_kbd::Handler for KbdHandler {
 
 fn key_to_vkey(rawkey: u32, keysym: u32) -> Option<VirtualKeyCode> {
     match rawkey {
-         1 => Some(VirtualKeyCode::Escape),
-         2 => Some(VirtualKeyCode::Key1),
-         3 => Some(VirtualKeyCode::Key2),
-         4 => Some(VirtualKeyCode::Key3),
-         5 => Some(VirtualKeyCode::Key4),
-         6 => Some(VirtualKeyCode::Key5),
-         7 => Some(VirtualKeyCode::Key6),
-         8 => Some(VirtualKeyCode::Key7),
-         9 => Some(VirtualKeyCode::Key8),
+        1 => Some(VirtualKeyCode::Escape),
+        2 => Some(VirtualKeyCode::Key1),
+        3 => Some(VirtualKeyCode::Key2),
+        4 => Some(VirtualKeyCode::Key3),
+        5 => Some(VirtualKeyCode::Key4),
+        6 => Some(VirtualKeyCode::Key5),
+        7 => Some(VirtualKeyCode::Key6),
+        8 => Some(VirtualKeyCode::Key7),
+        9 => Some(VirtualKeyCode::Key8),
         10 => Some(VirtualKeyCode::Key9),
         11 => Some(VirtualKeyCode::Key0),
-        _  => keysym_to_vkey(keysym)
+        _ => keysym_to_vkey(keysym),
     }
 }
 
@@ -68,42 +69,68 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
     use super::wayland_kbd::keysyms;
     match keysym {
         // letters
-        keysyms::XKB_KEY_A | keysyms::XKB_KEY_a => Some(VirtualKeyCode::A),
-        keysyms::XKB_KEY_B | keysyms::XKB_KEY_b => Some(VirtualKeyCode::B),
-        keysyms::XKB_KEY_C | keysyms::XKB_KEY_c => Some(VirtualKeyCode::C),
-        keysyms::XKB_KEY_D | keysyms::XKB_KEY_d => Some(VirtualKeyCode::D),
-        keysyms::XKB_KEY_E | keysyms::XKB_KEY_e => Some(VirtualKeyCode::E),
-        keysyms::XKB_KEY_F | keysyms::XKB_KEY_f => Some(VirtualKeyCode::F),
-        keysyms::XKB_KEY_G | keysyms::XKB_KEY_g => Some(VirtualKeyCode::G),
-        keysyms::XKB_KEY_H | keysyms::XKB_KEY_h => Some(VirtualKeyCode::H),
-        keysyms::XKB_KEY_I | keysyms::XKB_KEY_i => Some(VirtualKeyCode::I),
-        keysyms::XKB_KEY_J | keysyms::XKB_KEY_j => Some(VirtualKeyCode::J),
-        keysyms::XKB_KEY_K | keysyms::XKB_KEY_k => Some(VirtualKeyCode::K),
-        keysyms::XKB_KEY_L | keysyms::XKB_KEY_l => Some(VirtualKeyCode::L),
-        keysyms::XKB_KEY_M | keysyms::XKB_KEY_m => Some(VirtualKeyCode::M),
-        keysyms::XKB_KEY_N | keysyms::XKB_KEY_n => Some(VirtualKeyCode::N),
-        keysyms::XKB_KEY_O | keysyms::XKB_KEY_o => Some(VirtualKeyCode::O),
-        keysyms::XKB_KEY_P | keysyms::XKB_KEY_p => Some(VirtualKeyCode::P),
-        keysyms::XKB_KEY_Q | keysyms::XKB_KEY_q => Some(VirtualKeyCode::Q),
-        keysyms::XKB_KEY_R | keysyms::XKB_KEY_r => Some(VirtualKeyCode::R),
-        keysyms::XKB_KEY_S | keysyms::XKB_KEY_s => Some(VirtualKeyCode::S),
-        keysyms::XKB_KEY_T | keysyms::XKB_KEY_t => Some(VirtualKeyCode::T),
-        keysyms::XKB_KEY_U | keysyms::XKB_KEY_u => Some(VirtualKeyCode::U),
-        keysyms::XKB_KEY_V | keysyms::XKB_KEY_v => Some(VirtualKeyCode::V),
-        keysyms::XKB_KEY_W | keysyms::XKB_KEY_w => Some(VirtualKeyCode::W),
-        keysyms::XKB_KEY_X | keysyms::XKB_KEY_x => Some(VirtualKeyCode::X),
-        keysyms::XKB_KEY_Y | keysyms::XKB_KEY_y => Some(VirtualKeyCode::Y),
-        keysyms::XKB_KEY_Z | keysyms::XKB_KEY_z => Some(VirtualKeyCode::Z),
+        keysyms::XKB_KEY_A |
+        keysyms::XKB_KEY_a => Some(VirtualKeyCode::A),
+        keysyms::XKB_KEY_B |
+        keysyms::XKB_KEY_b => Some(VirtualKeyCode::B),
+        keysyms::XKB_KEY_C |
+        keysyms::XKB_KEY_c => Some(VirtualKeyCode::C),
+        keysyms::XKB_KEY_D |
+        keysyms::XKB_KEY_d => Some(VirtualKeyCode::D),
+        keysyms::XKB_KEY_E |
+        keysyms::XKB_KEY_e => Some(VirtualKeyCode::E),
+        keysyms::XKB_KEY_F |
+        keysyms::XKB_KEY_f => Some(VirtualKeyCode::F),
+        keysyms::XKB_KEY_G |
+        keysyms::XKB_KEY_g => Some(VirtualKeyCode::G),
+        keysyms::XKB_KEY_H |
+        keysyms::XKB_KEY_h => Some(VirtualKeyCode::H),
+        keysyms::XKB_KEY_I |
+        keysyms::XKB_KEY_i => Some(VirtualKeyCode::I),
+        keysyms::XKB_KEY_J |
+        keysyms::XKB_KEY_j => Some(VirtualKeyCode::J),
+        keysyms::XKB_KEY_K |
+        keysyms::XKB_KEY_k => Some(VirtualKeyCode::K),
+        keysyms::XKB_KEY_L |
+        keysyms::XKB_KEY_l => Some(VirtualKeyCode::L),
+        keysyms::XKB_KEY_M |
+        keysyms::XKB_KEY_m => Some(VirtualKeyCode::M),
+        keysyms::XKB_KEY_N |
+        keysyms::XKB_KEY_n => Some(VirtualKeyCode::N),
+        keysyms::XKB_KEY_O |
+        keysyms::XKB_KEY_o => Some(VirtualKeyCode::O),
+        keysyms::XKB_KEY_P |
+        keysyms::XKB_KEY_p => Some(VirtualKeyCode::P),
+        keysyms::XKB_KEY_Q |
+        keysyms::XKB_KEY_q => Some(VirtualKeyCode::Q),
+        keysyms::XKB_KEY_R |
+        keysyms::XKB_KEY_r => Some(VirtualKeyCode::R),
+        keysyms::XKB_KEY_S |
+        keysyms::XKB_KEY_s => Some(VirtualKeyCode::S),
+        keysyms::XKB_KEY_T |
+        keysyms::XKB_KEY_t => Some(VirtualKeyCode::T),
+        keysyms::XKB_KEY_U |
+        keysyms::XKB_KEY_u => Some(VirtualKeyCode::U),
+        keysyms::XKB_KEY_V |
+        keysyms::XKB_KEY_v => Some(VirtualKeyCode::V),
+        keysyms::XKB_KEY_W |
+        keysyms::XKB_KEY_w => Some(VirtualKeyCode::W),
+        keysyms::XKB_KEY_X |
+        keysyms::XKB_KEY_x => Some(VirtualKeyCode::X),
+        keysyms::XKB_KEY_Y |
+        keysyms::XKB_KEY_y => Some(VirtualKeyCode::Y),
+        keysyms::XKB_KEY_Z |
+        keysyms::XKB_KEY_z => Some(VirtualKeyCode::Z),
         // F--
-        keysyms::XKB_KEY_F1  => Some(VirtualKeyCode::F1),
-        keysyms::XKB_KEY_F2  => Some(VirtualKeyCode::F2),
-        keysyms::XKB_KEY_F3  => Some(VirtualKeyCode::F3),
-        keysyms::XKB_KEY_F4  => Some(VirtualKeyCode::F4),
-        keysyms::XKB_KEY_F5  => Some(VirtualKeyCode::F5),
-        keysyms::XKB_KEY_F6  => Some(VirtualKeyCode::F6),
-        keysyms::XKB_KEY_F7  => Some(VirtualKeyCode::F7),
-        keysyms::XKB_KEY_F8  => Some(VirtualKeyCode::F8),
-        keysyms::XKB_KEY_F9  => Some(VirtualKeyCode::F9),
+        keysyms::XKB_KEY_F1 => Some(VirtualKeyCode::F1),
+        keysyms::XKB_KEY_F2 => Some(VirtualKeyCode::F2),
+        keysyms::XKB_KEY_F3 => Some(VirtualKeyCode::F3),
+        keysyms::XKB_KEY_F4 => Some(VirtualKeyCode::F4),
+        keysyms::XKB_KEY_F5 => Some(VirtualKeyCode::F5),
+        keysyms::XKB_KEY_F6 => Some(VirtualKeyCode::F6),
+        keysyms::XKB_KEY_F7 => Some(VirtualKeyCode::F7),
+        keysyms::XKB_KEY_F8 => Some(VirtualKeyCode::F8),
+        keysyms::XKB_KEY_F9 => Some(VirtualKeyCode::F9),
         keysyms::XKB_KEY_F10 => Some(VirtualKeyCode::F10),
         keysyms::XKB_KEY_F11 => Some(VirtualKeyCode::F11),
         keysyms::XKB_KEY_F12 => Some(VirtualKeyCode::F12),
@@ -211,6 +238,6 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         // => Some(VirtualKeyCode::WebStop),
         // => Some(VirtualKeyCode::Yen),
         // fallback
-        _ => None
+        _ => None,
     }
 }

@@ -9,25 +9,23 @@ fn main() {
 
     let mut num_windows = 3;
 
-    events_loop.run_forever(|event| {
-        match event {
-            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, window_id } => {
-                if window_id == window1.id() {
-                    println!("Window 1 has been closed")
-                } else if window_id == window2.id() {
-                    println!("Window 2 has been closed")
-                } else if window_id == window3.id() {
-                    println!("Window 3 has been closed");
-                } else {
-                    unreachable!()
-                }
+    events_loop.run_forever(|event| match event {
+        winit::Event::WindowEvent { event: winit::WindowEvent::Closed, window_id } => {
+            if window_id == window1.id() {
+                println!("Window 1 has been closed")
+            } else if window_id == window2.id() {
+                println!("Window 2 has been closed")
+            } else if window_id == window3.id() {
+                println!("Window 3 has been closed");
+            } else {
+                unreachable!()
+            }
 
-                num_windows -= 1;
-                if num_windows == 0 {
-                    events_loop.interrupt();
-                }
-            },
-            _ => (),
+            num_windows -= 1;
+            if num_windows == 0 {
+                events_loop.interrupt();
+            }
         }
+        _ => (),
     })
 }

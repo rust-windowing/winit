@@ -20,23 +20,25 @@ fn main() {
                         if grabbed {
                             grabbed = false;
                             window.set_cursor_state(winit::CursorState::Normal)
-                                .ok().expect("could not ungrab mouse cursor");
+                                .ok()
+                                .expect("could not ungrab mouse cursor");
                         } else {
                             grabbed = true;
                             window.set_cursor_state(winit::CursorState::Grab)
-                                .ok().expect("could not grab mouse cursor");
+                                .ok()
+                                .expect("could not grab mouse cursor");
                         }
-                    },
+                    }
 
                     WindowEvent::Closed => events_loop.interrupt(),
 
                     a @ WindowEvent::MouseMoved(_, _) => {
                         println!("{:?}", a);
-                    },
+                    }
 
                     _ => (),
                 }
-            },
+            }
         }
     });
 }

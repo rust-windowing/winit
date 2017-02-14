@@ -5,10 +5,7 @@ use std::ptr;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::os::raw::c_int;
-use std::sync::{
-    Arc,
-    Mutex
-};
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Receiver;
 use {CreationError, WindowEvent as Event, MouseCursor};
 use CursorState;
@@ -40,7 +37,9 @@ mod init;
 mod monitor;
 
 lazy_static! {
-    static ref WAKEUP_MSG_ID: u32 = unsafe { user32::RegisterWindowMessageA("Glutin::EventID".as_ptr() as *const i8) };
+    static ref WAKEUP_MSG_ID: u32 = unsafe {
+        user32::RegisterWindowMessageA("Glutin::EventID".as_ptr() as *const i8)
+    };
 }
 
 /// Cursor
@@ -51,7 +50,7 @@ pub type Cursor = *const winapi::wchar_t;
 pub struct WindowState {
     pub cursor: Cursor,
     pub cursor_state: CursorState,
-    pub attributes: WindowAttributes
+    pub attributes: WindowAttributes,
 }
 
 /// The Win32 implementation of the main `Window` object.
@@ -101,9 +100,9 @@ impl WindowProxy {
 
 impl Window {
     /// See the docs in the crate root file.
-    pub fn new(window: &WindowAttributes, pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window, CreationError>
-    {
+    pub fn new(window: &WindowAttributes,
+               pl_attribs: &PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window, CreationError> {
         init::new_window(window, pl_attribs)
     }
 
@@ -111,8 +110,10 @@ impl Window {
     ///
     /// Calls SetWindowText on the HWND.
     pub fn set_title(&self, text: &str) {
-        let text = OsStr::new(text).encode_wide().chain(Some(0).into_iter())
-                                   .collect::<Vec<_>>();
+        let text = OsStr::new(text)
+            .encode_wide()
+            .chain(Some(0).into_iter())
+            .collect::<Vec<_>>();
 
         unsafe {
             user32::SetWindowTextW(self.window.0, text.as_ptr() as winapi::LPCWSTR);
@@ -141,7 +142,7 @@ impl Window {
         placement.length = mem::size_of::<winapi::WINDOWPLACEMENT>() as winapi::UINT;
 
         if unsafe { user32::GetWindowPlacement(self.window.0, &mut placement) } == 0 {
-            return None
+            return None;
         }
 
         let ref rect = placement.rcNormalPosition;
@@ -151,8 +152,13 @@ impl Window {
     /// See the docs in the crate root file.
     pub fn set_position(&self, x: i32, y: i32) {
         unsafe {
-            user32::SetWindowPos(self.window.0, ptr::null_mut(), x as c_int, y as c_int,
-                                 0, 0, winapi::SWP_NOZORDER | winapi::SWP_NOSIZE);
+            user32::SetWindowPos(self.window.0,
+                                 ptr::null_mut(),
+                                 x as c_int,
+                                 y as c_int,
+                                 0,
+                                 0,
+                                 winapi::SWP_NOZORDER | winapi::SWP_NOSIZE);
             user32::UpdateWindow(self.window.0);
         }
     }
@@ -163,13 +169,10 @@ impl Window {
         let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
         if unsafe { user32::GetClientRect(self.window.0, &mut rect) } == 0 {
-            return None
+            return None;
         }
 
-        Some((
-            (rect.right - rect.left) as u32,
-            (rect.bottom - rect.top) as u32
-        ))
+        Some(((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32))
     }
 
     /// See the docs in the crate root file.
@@ -178,29 +181,39 @@ impl Window {
         let mut rect: winapi::RECT = unsafe { mem::uninitialized() };
 
         if unsafe { user32::GetWindowRect(self.window.0, &mut rect) } == 0 {
-            return None
+            return None;
         }
 
-        Some((
-            (rect.right - rect.left) as u32,
-            (rect.bottom - rect.top) as u32
-        ))
+        Some(((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32))
     }
 
     /// See the docs in the crate root file.
     pub fn set_inner_size(&self, x: u32, y: u32) {
         unsafe {
             // Calculate the outer size based upon the specified inner size
-            let mut rect = winapi::RECT { top: 0, left: 0, bottom: y as winapi::LONG, right: x as winapi::LONG };
-            let dw_style = user32::GetWindowLongA(self.window.0, winapi::GWL_STYLE) as winapi::DWORD;
+            let mut rect = winapi::RECT {
+                top: 0,
+                left: 0,
+                bottom: y as winapi::LONG,
+                right: x as winapi::LONG,
+            };
+            let dw_style = user32::GetWindowLongA(self.window.0, winapi::GWL_STYLE) as
+                           winapi::DWORD;
             let b_menu = !user32::GetMenu(self.window.0).is_null() as winapi::BOOL;
-            let dw_style_ex = user32::GetWindowLongA(self.window.0, winapi::GWL_EXSTYLE) as winapi::DWORD;
+            let dw_style_ex = user32::GetWindowLongA(self.window.0, winapi::GWL_EXSTYLE) as
+                              winapi::DWORD;
             user32::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
             let outer_x = (rect.right - rect.left).abs() as c_int;
             let outer_y = (rect.top - rect.bottom).abs() as c_int;
 
-            user32::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION | winapi::SWP_NOMOVE);
+            user32::SetWindowPos(self.window.0,
+                                 ptr::null_mut(),
+                                 0,
+                                 0,
+                                 outer_x,
+                                 outer_y,
+                                 winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION |
+                                 winapi::SWP_NOMOVE);
             user32::UpdateWindow(self.window.0);
         }
     }
@@ -213,17 +226,13 @@ impl Window {
     /// See the docs in the crate root file.
     #[inline]
     pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator {
-            window: self,
-        }
+        PollEventsIterator { window: self }
     }
 
     /// See the docs in the crate root file.
     #[inline]
     pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator {
-            window: self,
-        }
+        WaitEventsIterator { window: self }
     }
 
     #[inline]
@@ -240,8 +249,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
-    }
+    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {}
 
     #[inline]
     pub fn set_cursor(&self, _cursor: MouseCursor) {
@@ -249,7 +257,8 @@ impl Window {
             MouseCursor::Arrow | MouseCursor::Default => winapi::IDC_ARROW,
             MouseCursor::Hand => winapi::IDC_HAND,
             MouseCursor::Crosshair => winapi::IDC_CROSS,
-            MouseCursor::Text | MouseCursor::VerticalText => winapi::IDC_IBEAM,
+            MouseCursor::Text |
+            MouseCursor::VerticalText => winapi::IDC_IBEAM,
             MouseCursor::NotAllowed | MouseCursor::NoDrop => winapi::IDC_NO,
             MouseCursor::EResize => winapi::IDC_SIZEWE,
             MouseCursor::NResize => winapi::IDC_SIZENS,
@@ -270,7 +279,8 @@ impl Window {
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
         let mut current_state = self.window_state.lock().unwrap();
 
-        let foreground_thread_id = unsafe { user32::GetWindowThreadProcessId(self.window.0, ptr::null_mut()) };
+        let foreground_thread_id =
+            unsafe { user32::GetWindowThreadProcessId(self.window.0, ptr::null_mut()) };
         let current_thread_id = unsafe { kernel32::GetCurrentThreadId() };
 
         unsafe { user32::AttachThreadInput(foreground_thread_id, current_thread_id, 1) };
@@ -283,37 +293,34 @@ impl Window {
             (CursorState::Hide, CursorState::Normal) => {
                 current_state.cursor_state = CursorState::Hide;
                 Ok(())
-            },
+            }
 
             (CursorState::Normal, CursorState::Hide) => {
                 current_state.cursor_state = CursorState::Normal;
                 Ok(())
+            }
+
+            (CursorState::Grab, CursorState::Normal) |
+            (CursorState::Grab, CursorState::Hide) => unsafe {
+                let mut rect = mem::uninitialized();
+                if user32::GetClientRect(self.window.0, &mut rect) == 0 {
+                    return Err(format!("GetWindowRect failed"));
+                }
+                user32::ClientToScreen(self.window.0, mem::transmute(&mut rect.left));
+                user32::ClientToScreen(self.window.0, mem::transmute(&mut rect.right));
+                if user32::ClipCursor(&rect) == 0 {
+                    return Err(format!("ClipCursor failed"));
+                }
+                current_state.cursor_state = CursorState::Grab;
+                Ok(())
             },
 
-            (CursorState::Grab, CursorState::Normal) | (CursorState::Grab, CursorState::Hide) => {
-                unsafe {
-                    let mut rect = mem::uninitialized();
-                    if user32::GetClientRect(self.window.0, &mut rect) == 0 {
-                        return Err(format!("GetWindowRect failed"));
-                    }
-                    user32::ClientToScreen(self.window.0, mem::transmute(&mut rect.left));
-                    user32::ClientToScreen(self.window.0, mem::transmute(&mut rect.right));
-                    if user32::ClipCursor(&rect) == 0 {
-                        return Err(format!("ClipCursor failed"));
-                    }
-                    current_state.cursor_state = CursorState::Grab;
-                    Ok(())
+            (CursorState::Normal, CursorState::Grab) => unsafe {
+                if user32::ClipCursor(ptr::null()) == 0 {
+                    return Err(format!("ClipCursor failed"));
                 }
-            },
-
-            (CursorState::Normal, CursorState::Grab) => {
-                unsafe {
-                    if user32::ClipCursor(ptr::null()) == 0 {
-                        return Err(format!("ClipCursor failed"));
-                    }
-                    current_state.cursor_state = CursorState::Normal;
-                    Ok(())
-                }
+                current_state.cursor_state = CursorState::Normal;
+                Ok(())
             },
 
             _ => unimplemented!(),
@@ -330,10 +337,7 @@ impl Window {
     }
 
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
-        let mut point = winapi::POINT {
-            x: x,
-            y: y,
-        };
+        let mut point = winapi::POINT { x: x, y: y };
 
         unsafe {
             if user32::ClientToScreen(self.window.0, &mut point) == 0 {

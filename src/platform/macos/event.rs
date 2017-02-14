@@ -130,7 +130,6 @@ pub fn vkeycode_to_element(code: u16) -> Option<events::VirtualKeyCode> {
         0x7d => events::VirtualKeyCode::Down,
         0x7e => events::VirtualKeyCode::Up,
         //0x7f =>  unkown,
-
         _ => return None,
     })
 }

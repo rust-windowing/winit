@@ -44,14 +44,14 @@ impl DeviceEnumerator {
         use std::ptr;
         DeviceEnumerator {
             parent_device: ptr::null(),
-            current_index: 0
+            current_index: 0,
         }
     }
 
     fn monitors(adapter_name: *const winapi::WCHAR) -> DeviceEnumerator {
         DeviceEnumerator {
             parent_device: adapter_name,
-            current_index: 0
+            current_index: 0,
         }
     }
 }
@@ -64,17 +64,19 @@ impl Iterator for DeviceEnumerator {
             let mut output: winapi::DISPLAY_DEVICEW = unsafe { mem::zeroed() };
             output.cb = mem::size_of::<winapi::DISPLAY_DEVICEW>() as winapi::DWORD;
 
-            if unsafe { user32::EnumDisplayDevicesW(self.parent_device,
-                self.current_index as winapi::DWORD, &mut output, 0) } == 0
-            {
+            if unsafe {
+                user32::EnumDisplayDevicesW(self.parent_device,
+                                            self.current_index as winapi::DWORD,
+                                            &mut output,
+                                            0)
+            } == 0 {
                 // the device doesn't exist, which means we have finished enumerating
                 break;
             }
             self.current_index += 1;
 
-            if  (output.StateFlags & winapi::DISPLAY_DEVICE_ACTIVE) == 0 ||
-                (output.StateFlags & winapi::DISPLAY_DEVICE_MIRRORING_DRIVER) != 0
-            {
+            if (output.StateFlags & winapi::DISPLAY_DEVICE_ACTIVE) == 0 ||
+               (output.StateFlags & winapi::DISPLAY_DEVICE_MIRRORING_DRIVER) != 0 {
                 // the device is not active
                 // the Win32 api usually returns a lot of inactive devices
                 continue;
@@ -103,10 +105,10 @@ pub fn get_available_monitors() -> VecDeque<MonitorId> {
             let mut dev: winapi::DEVMODEW = mem::zeroed();
             dev.dmSize = mem::size_of::<winapi::DEVMODEW>() as winapi::WORD;
 
-            if user32::EnumDisplaySettingsExW(adapter.DeviceName.as_ptr(), 
-                winapi::ENUM_CURRENT_SETTINGS,
-                &mut dev, 0) == 0
-            {
+            if user32::EnumDisplaySettingsExW(adapter.DeviceName.as_ptr(),
+                                              winapi::ENUM_CURRENT_SETTINGS,
+                                              &mut dev,
+                                              0) == 0 {
                 continue;
             }
 

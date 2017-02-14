@@ -728,7 +728,8 @@ pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
         //ffi::XK_Greek_omicronaccent => events::VirtualKeyCode::Greek_omicronaccent,
         //ffi::XK_Greek_upsilonaccent => events::VirtualKeyCode::Greek_upsilonaccent,
         //ffi::XK_Greek_upsilondieresis => events::VirtualKeyCode::Greek_upsilondieresis,
-        //ffi::XK_Greek_upsilonaccentdieresis => events::VirtualKeyCode::Greek_upsilonaccentdieresis,
+        //ffi::XK_Greek_upsilonaccentdieresis =>
+        //    events::VirtualKeyCode::Greek_upsilonaccentdieresis,
         //ffi::XK_Greek_omegaaccent => events::VirtualKeyCode::Greek_omegaaccent,
         //ffi::XK_Greek_ALPHA => events::VirtualKeyCode::Greek_alpha,
         //ffi::XK_Greek_BETA => events::VirtualKeyCode::Greek_beta,
@@ -999,6 +1000,6 @@ pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
         //ffi::XK_Hebrew_switch => events::VirtualKeyCode::Hebrew_switch,
         ffi::XF86XK_Back => VirtualKeyCode::NavigateBackward,
         ffi::XF86XK_Forward => VirtualKeyCode::NavigateForward,
-        _ => return None
+        _ => return None,
     })
 }

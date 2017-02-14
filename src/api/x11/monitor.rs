@@ -12,7 +12,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> VecDeque<MonitorId> {
     x.check_errors().expect("Failed to call XScreenCount");
 
     let mut monitors = VecDeque::new();
-    monitors.extend((0 .. nb_monitors).map(|i| MonitorId(x.clone(), i as u32)));
+    monitors.extend((0..nb_monitors).map(|i| MonitorId(x.clone(), i as u32)));
     monitors
 }
 

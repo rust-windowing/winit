@@ -1,4 +1,4 @@
-//! Winit allows you to build a window on as many platforms as possible. 
+//! Winit allows you to build a window on as many platforms as possible.
 //!
 //! # Building a window
 //!
@@ -113,9 +113,15 @@ extern crate cocoa;
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
 extern crate core_graphics;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
+#[cfg(any(target_os = "linux",
+          target_os = "dragonfly",
+          target_os = "freebsd",
+          target_os = "openbsd"))]
 extern crate x11_dl;
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
+#[cfg(any(target_os = "linux",
+          target_os = "freebsd",
+          target_os = "dragonfly",
+          target_os = "openbsd"))]
 #[macro_use(wayland_env,declare_handler)]
 extern crate wayland_client;
 
@@ -179,13 +185,11 @@ pub struct EventsLoop {
 impl EventsLoop {
     /// Builds a new events loop.
     pub fn new() -> EventsLoop {
-        EventsLoop {
-            events_loop: Arc::new(platform::EventsLoop::new()),
-        }
+        EventsLoop { events_loop: Arc::new(platform::EventsLoop::new()) }
     }
 
-    /// Fetches all the events that are pending, calls the callback function for each of them,
-    /// and returns.
+    /// Fetches all the events that are pending, calls the callback function for each of them, and
+    /// returns.
     #[inline]
     pub fn poll_events<F>(&self, callback: F)
         where F: FnMut(Event)
@@ -266,9 +270,9 @@ pub enum MouseCursor {
     Wait,
     /// Help indicator (often rendered as a "?")
     Help,
-    /// Progress indicator. Shows that processing is being done. But in contrast
-    /// with "Wait" the user may still interact with the program. Often rendered
-    /// as a spinning beach ball, or an arrow with a watch or hourglass.
+    /// Progress indicator. Shows that processing is being done. But in contrast with "Wait" the
+    /// user may still interact with the program. Often rendered as a spinning beach ball, or an
+    /// arrow with a watch or hourglass.
     Progress,
 
     /// Cursor showing that something cannot be done.
@@ -286,8 +290,8 @@ pub enum MouseCursor {
     ZoomIn,
     ZoomOut,
 
-    /// Indicate that some edge is to be moved. For example, the 'SeResize' cursor
-    /// is used when the movement starts from the south-east corner of the box.
+    /// Indicate that some edge is to be moved. For example, the 'SeResize' cursor is used when the
+    /// movement starts from the south-east corner of the box.
     EResize,
     NResize,
     NeResize,
@@ -313,9 +317,8 @@ pub enum CursorState {
     /// The cursor will be invisible when over the window.
     Hide,
 
-    /// Grabs the mouse cursor. The cursor's motion will be confined to this
-    /// window and the window has exclusive access to further events regarding
-    /// the cursor.
+    /// Grabs the mouse cursor. The cursor's motion will be confined to this window and the window
+    /// has exclusive access to further events regarding the cursor.
     ///
     /// This is useful for first-person cameras for example.
     Grab,
@@ -330,12 +333,14 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub dimensions: Option<(u32, u32)>,
 
-    /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
+    /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum
+    /// dimensions (aside from reserved).
     ///
     /// The default is `None`.
     pub min_dimensions: Option<(u32, u32)>,
 
-    /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
+    /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum
+    /// or will be set to the primary monitor's dimensions by the platform.
     ///
     /// The default is `None`.
     pub max_dimensions: Option<(u32, u32)>,
@@ -355,8 +360,8 @@ pub struct WindowAttributes {
     /// The default is `true`.
     pub visible: bool,
 
-    /// Whether the the window should be transparent. If this is true, writing colors
-    /// with alpha values different than `1.0` will produce a transparent window.
+    /// Whether the the window should be transparent. If this is true, writing colors with alpha
+    /// values different than `1.0` will produce a transparent window.
     ///
     /// The default is `false`.
     pub transparent: bool,
@@ -389,8 +394,8 @@ impl Default for WindowAttributes {
 }
 
 mod native_monitor {
-    /// Native platform identifier for a monitor. Different platforms use fundamentally different types
-    /// to represent a monitor ID.
+    /// Native platform identifier for a monitor. Different platforms use fundamentally different
+    /// types to represent a monitor ID.
     #[derive(Clone, PartialEq, Eq)]
     pub enum NativeMonitorId {
         /// Cocoa and X11 use a numeric identifier to represent a monitor.
@@ -400,6 +405,6 @@ mod native_monitor {
         Name(String),
 
         /// Other platforms (Android) don't support monitor identification.
-        Unavailable
+        Unavailable,
     }
 }
