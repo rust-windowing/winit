@@ -158,18 +158,26 @@ impl<'a> Iterator for PollEventsIterator<'a> {
             }
 
             let mut xev = unsafe { mem::uninitialized() };
-            let res = unsafe { (xlib.XCheckMaskEvent)(self.window.x.display.display, -1, &mut xev) };
 
-            if res == 0 {
-                let res = unsafe { (xlib.XCheckTypedEvent)(self.window.x.display.display, ffi::ClientMessage, &mut xev) };
-
-                if res == 0 {
-                    let res = unsafe { (xlib.XCheckTypedEvent)(self.window.x.display.display, ffi::GenericEvent, &mut xev) };
-                    if res == 0 {
-                        return None;
-                    }
+            // Get the next X11 event. XNextEvent will block if there's no
+            // events available; checking the count first ensures an event will
+            // be returned without blocking.
+            //
+            // Functions like XCheckTypedEvent can prevent events from being
+            // popped if they are of the wrong type in which case winit would
+            // enter a busy loop. To avoid that, XNextEvent is used to pop
+            // events off the queue since it will accept any event type.
+            unsafe {
+                let count = (xlib.XPending)(self.window.x.display.display);
+                if count == 0 {
+                    return None;
                 }
-            }
+
+                let res = (xlib.XNextEvent)(self.window.x.display.display, &mut xev);
+
+                // Can res ever be none zero if count is > 0?
+                assert!(res == 0);
+            };
 
             match xev.get_type() {
                 ffi::MappingNotify => {
