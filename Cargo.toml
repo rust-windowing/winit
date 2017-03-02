@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.5.10"
+version = "0.6.0"
 authors = ["The winit contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
@@ -23,7 +23,7 @@ objc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"
-cgl = "0.1"
+cgl = "0.2"
 cocoa = "=0.5.2"
 core-foundation = "0.2"
 core-graphics = "0.4"
