@@ -1,9 +1,29 @@
 use events::VirtualKeyCode;
+use events::ModifiersState;
 use winapi;
 use user32;
 use ScanCode;
 
 const MAPVK_VSC_TO_VK_EX: u32 = 3;
+
+pub fn get_key_mods() -> ModifiersState {
+    let mut mods = ModifiersState::default();
+    unsafe {
+        if user32::GetKeyState(winapi::VK_SHIFT) & (1 << 15) == (1 << 15) {
+            mods.shift = true;
+        }
+        if user32::GetKeyState(winapi::VK_CONTROL) & (1 << 15) == (1 << 15) {
+            mods.ctrl = true;
+        }
+        if user32::GetKeyState(winapi::VK_MENU) & (1 << 15) == (1 << 15) {
+            mods.alt = true;
+        }
+        if (user32::GetKeyState(winapi::VK_LWIN) | user32::GetKeyState(winapi::VK_RWIN)) & (1 << 15) == (1 << 15) {
+            mods.logo = true;
+        }
+    }
+    mods
+}
 
 pub fn vkeycode_to_element(wparam: winapi::WPARAM, lparam: winapi::LPARAM) -> (ScanCode, Option<VirtualKeyCode>) {
     let scancode = ((lparam >> 16) & 0xff) as u8;

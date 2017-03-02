@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use {VirtualKeyCode, ElementState, WindowEvent as Event};
 
+use events::ModifiersState;
+
 use super::wayland_kbd;
 use wayland_client::EventQueueHandle;
 use wayland_client::protocol::wl_keyboard;
@@ -35,7 +37,8 @@ impl wayland_kbd::Handler for KbdHandler {
             };
             let vkcode = key_to_vkey(rawkey, keysym);
             let mut guard = eviter.lock().unwrap();
-            guard.push_back(Event::KeyboardInput(state, rawkey as u8, vkcode));
+	    // TODO implement ModifiersState
+            guard.push_back(Event::KeyboardInput(state, rawkey as u8, vkcode, ModifiersState::default()));
             // send char event only on key press, not release
             if let ElementState::Released = state { return }
             if let Some(txt) = utf8 {

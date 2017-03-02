@@ -8,6 +8,7 @@ use std::slice::from_raw_parts;
 use WindowAttributes;
 
 use events::WindowEvent as Event;
+use events::ModifiersState;
 
 use super::{events, ffi};
 use super::XConnection;
@@ -139,6 +140,8 @@ impl XInputEventHandler {
 
         let mut kp_keysym = 0;
 
+        let mut ev_mods = ModifiersState::default();
+
         let written = unsafe {
             use std::str;
 
@@ -147,6 +150,26 @@ impl XInputEventHandler {
             let count = (self.display.xlib.Xutf8LookupString)(self.ic, mem::transmute(raw_ev),
             mem::transmute(buffer.as_mut_ptr()),
             buffer.len() as libc::c_int, &mut kp_keysym, ptr::null_mut());
+
+            {
+                // Translate x event state to mods
+                let state = event.state;
+                if (state & ffi::Mod1Mask) != 0 {
+                    ev_mods.alt = true;
+                }
+
+                if (state & ffi::ShiftMask) != 0 {
+                    ev_mods.shift = true;
+                }
+
+                if (state & ffi::ControlMask) != 0 {
+                    ev_mods.ctrl = true;
+                }
+
+                if (state & ffi::Mod4Mask) != 0 {
+                    ev_mods.logo = true;
+                }
+            }
 
             str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
         };
@@ -165,7 +188,7 @@ impl XInputEventHandler {
 
         let vkey = events::keycode_to_element(keysym as libc::c_uint);
 
-        translated_events.push(KeyboardInput(state, event.keycode as u8, vkey));
+        translated_events.push(KeyboardInput(state, event.keycode as u8, vkey, ev_mods));
         translated_events
     }
 
