@@ -25,6 +25,7 @@ impl wayland_kbd::Handler for KbdHandler {
            _proxy: &wl_keyboard::WlKeyboard,
            _serial: u32,
            _time: u32,
+           mods: &wayland_kbd::ModifiersState,
            rawkey: u32,
            keysym: u32,
            state: wl_keyboard::KeyState,
@@ -37,8 +38,19 @@ impl wayland_kbd::Handler for KbdHandler {
             };
             let vkcode = key_to_vkey(rawkey, keysym);
             let mut guard = eviter.lock().unwrap();
-	    // TODO implement ModifiersState
-            guard.push_back(Event::KeyboardInput(state, rawkey as u8, vkcode, ModifiersState::default()));
+            guard.push_back(
+                Event::KeyboardInput(
+                    state,
+                    rawkey as u8,
+                    vkcode,
+                    ModifiersState {
+                        shift: mods.shift,
+                        ctrl: mods.ctrl,
+                        alt: mods.alt,
+                        logo: mods.logo
+                    }
+                )
+            );
             // send char event only on key press, not release
             if let ElementState::Released = state { return }
             if let Some(txt) = utf8 {
