@@ -7,13 +7,11 @@ use Window;
 use platform::Window as LinuxWindow;
 use platform::{UnixBackend, UNIX_BACKEND};
 use WindowBuilder;
-use api::x11::XConnection;
-use api::x11::ffi::XVisualInfo;
+use platform::x11::XConnection;
+use platform::x11::ffi::XVisualInfo;
 
 use wayland_client::protocol::wl_display::WlDisplay;
 use wayland_client::protocol::wl_surface::WlSurface;
-
-pub use api::x11;
 
 // TODO: do not expose XConnection
 pub fn get_x11_xconnection() -> Option<Arc<XConnection>> {

@@ -10,12 +10,15 @@ use MouseCursor;
 use WindowAttributes;
 use libc;
 
-use api::wayland;
-use api::x11;
-use api::x11::XConnection;
-use api::x11::XError;
-use api::x11::XNotSupported;
-use api::x11::ffi::XVisualInfo;
+use self::x11::XConnection;
+use self::x11::XError;
+use self::x11::XNotSupported;
+use self::x11::ffi::XVisualInfo;
+
+mod dlopen;
+pub mod wayland;
+pub mod x11;
+
 
 gen_api_transition!();
 
