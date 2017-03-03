@@ -956,9 +956,15 @@ impl Window {
         }
     }
 
-    #[inline]
     pub fn hidpi_factor(&self) -> f32 {
-        1.0
+        unsafe {
+            let x_px = (self.x.display.xlib.XDisplayWidth)(self.x.display.display, self.x.screen_id);
+            let y_px = (self.x.display.xlib.XDisplayHeight)(self.x.display.display, self.x.screen_id);
+            let x_mm = (self.x.display.xlib.XDisplayWidthMM)(self.x.display.display, self.x.screen_id);
+            let y_mm = (self.x.display.xlib.XDisplayHeightMM)(self.x.display.display, self.x.screen_id);
+            let ppmm = ((x_px as f32 * y_px as f32) / (x_mm as f32 * y_mm as f32)).sqrt();
+            ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0) // quantize with 1/12 step size.
+        }
     }
 
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
