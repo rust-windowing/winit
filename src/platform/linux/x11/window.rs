@@ -793,7 +793,7 @@ impl Window {
             // differs on the desktop environments or themes.
             //
             // Try the better looking (or more suiting) names first.
-            let mut xcursor = match cursor {
+            let xcursor = match cursor {
                 MouseCursor::Alias => load("link"),
                 MouseCursor::Arrow => load("arrow"),
                 MouseCursor::Cell => load("plus"),

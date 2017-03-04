@@ -1,7 +1,6 @@
 use std::ptr;
 use std::fmt;
 use std::error::Error;
-use std::ffi::CString;
 use std::sync::Mutex;
 
 use libc;

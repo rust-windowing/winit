@@ -94,7 +94,9 @@ impl WaylandEnv {
     fn get_seat(&self) -> Option<wl_seat::WlSeat> {
         for &(name, ref interface, version) in self.inner.globals() {
             if interface == "wl_seat" {
-                // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
+                if version < 5 {
+                    panic!("Winit requires at least version 5 of the wl_seat global.");
+                }
                 let seat = self.registry.bind::<wl_seat::WlSeat>(5, name).expect("Seat cannot be destroyed");
                 return Some(seat)
             }
@@ -209,7 +211,7 @@ impl WaylandContext {
         // this handles both "no libwayland" and "no compositor" cases
         let (display, mut event_queue) = match default_connect() {
             Ok(ret) => ret,
-            Err(e) => return None
+            Err(_) => return None
         };
 
         // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
@@ -237,7 +239,7 @@ impl WaylandContext {
     }
 
     pub fn flush(&self) {
-        self.display.flush();
+        let _ = self.display.flush();
     }
 
     pub fn with_output<F>(&self, id: MonitorId, f: F) where F: FnOnce(&wl_output::WlOutput) {
@@ -512,7 +514,7 @@ impl wl_pointer::Handler for WaylandEnv {
     fn axis_source(&mut self,
                    _evqh: &mut EventQueueHandle,
                    _proxy: &wl_pointer::WlPointer,
-                   axis_source: wl_pointer::AxisSource)
+                   _axis_source: wl_pointer::AxisSource)
     {
     }
 
@@ -520,7 +522,7 @@ impl wl_pointer::Handler for WaylandEnv {
                  _evqh: &mut EventQueueHandle,
                  _proxy: &wl_pointer::WlPointer,
                  _time: u32,
-                 axis: wl_pointer::Axis)
+                 _axis: wl_pointer::Axis)
     {
         self.axis_state = TouchPhase::Ended;
     }

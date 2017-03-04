@@ -5,9 +5,7 @@ use std::sync::Arc;
 
 use CreationError;
 use CursorState;
-use WindowEvent as Event;
 use MouseCursor;
-use WindowAttributes;
 use libc;
 
 use self::x11::XConnection;
