@@ -147,7 +147,10 @@ impl Window2 {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        unimplemented!()
+        match self {
+            &Window2::X(ref w) => WindowId::X(w.id()),
+            &Window2::Wayland(ref w) => WindowId::Wayland(w.id())
+        }
     }
 
     #[inline]
