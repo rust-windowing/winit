@@ -10,7 +10,7 @@ use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subc
                                wl_display, wl_registry, wl_output, wl_surface, wl_pointer,
                                wl_keyboard};
 
-use super::wayland_window;
+use super::{wayland_window, EventsLoopSink, make_wid};
 use super::wayland_kbd::MappedKeyboard;
 use super::keyboard::KbdHandler;
 
@@ -27,7 +27,7 @@ wayland_env!(InnerEnv,
 
 enum KbdType {
     Mapped(MappedKeyboard<KbdHandler>),
-    Plain(Option<Arc<Mutex<VecDeque<Event>>>>)
+    Plain(Option<(Arc<wl_surface::WlSurface>,Arc<Mutex<EventsLoopSink>>)>)
 }
 
 struct WaylandEnv {
@@ -35,10 +35,10 @@ struct WaylandEnv {
     inner: EnvHandler<InnerEnv>,
     monitors: Vec<OutputInfo>,
     my_id: usize,
-    windows: Vec<(Arc<wl_surface::WlSurface>,Arc<Mutex<VecDeque<Event>>>)>,
+    windows: Vec<(Arc<wl_surface::WlSurface>,Arc<Mutex<EventsLoopSink>>)>,
     seat: Option<wl_seat::WlSeat>,
     mouse: Option<wl_pointer::WlPointer>,
-    mouse_focus: Option<Arc<Mutex<VecDeque<Event>>>>,
+    mouse_focus: Option<(Arc<wl_surface::WlSurface>,Arc<Mutex<EventsLoopSink>>)>,
     mouse_location: (i32, i32),
     axis_buffer: Option<(f32, f32)>,
     axis_discrete_buffer: Option<(i32, i32)>,
@@ -252,16 +252,15 @@ impl WaylandContext {
         }
     }
 
-    pub fn create_window<H: wayland_window::Handler>(&self)
-        -> (Arc<wl_surface::WlSurface>, Arc<Mutex<VecDeque<Event>>>, wayland_window::DecoratedSurface<H>)
+    pub fn create_window<H: wayland_window::Handler>(&self, sink: Arc<Mutex<EventsLoopSink>>)
+        -> (Arc<wl_surface::WlSurface>, wayland_window::DecoratedSurface<H>)
     {
         let mut guard = self.evq.lock().unwrap();
         let mut state = guard.state();
         let env = state.get_mut_handler::<WaylandEnv>(self.env_id);
         // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
         let surface = Arc::new(env.inner.compositor.create_surface().expect("Compositor cannot be dead"));
-        let eventiter = Arc::new(Mutex::new(VecDeque::new()));
-        env.windows.push((surface.clone(), eventiter.clone()));
+        env.windows.push((surface.clone(), sink));
         let decorated = wayland_window::DecoratedSurface::new(
             &*surface, 800, 600,
             &env.inner.compositor,
@@ -271,7 +270,7 @@ impl WaylandContext {
             env.get_seat(),
             false
         ).expect("Failed to create a tmpfile buffer.");
-        (surface, eventiter, decorated)
+        (surface, decorated)
     }
 
     pub fn prune_dead_windows(&self) {
@@ -397,13 +396,13 @@ impl wl_pointer::Handler for WaylandEnv {
              surface_y: f64)
     {
         self.mouse_location = (surface_x as i32, surface_y as i32);
-        for &(ref window, ref eviter) in &self.windows {
+        for &(ref window, ref sink) in &self.windows {
             if window.equals(surface) {
-                self.mouse_focus = Some(eviter.clone());
+                self.mouse_focus = Some((window.clone(), sink.clone()));
                 let (w, h) = self.mouse_location;
-                let mut event_queue = eviter.lock().unwrap();
-                event_queue.push_back(Event::MouseEntered);
-                event_queue.push_back(Event::MouseMoved(w, h));
+                let mut event_queue = sink.lock().unwrap();
+                event_queue.push_event(Event::MouseEntered, make_wid(window));
+                event_queue.push_event(Event::MouseMoved(w, h), make_wid(window));
                 break;
             }
         }
@@ -416,10 +415,10 @@ impl wl_pointer::Handler for WaylandEnv {
              surface: &wl_surface::WlSurface)
     {
         self.mouse_focus = None;
-        for &(ref window, ref eviter) in &self.windows {
+        for &(ref window, ref sink) in &self.windows {
             if window.equals(surface) {
-                let mut event_queue = eviter.lock().unwrap();
-                event_queue.push_back(Event::MouseLeft);
+                let mut event_queue = sink.lock().unwrap();
+                event_queue.push_event(Event::MouseLeft, make_wid(window));
                 break;
             }
         }
@@ -433,10 +432,11 @@ impl wl_pointer::Handler for WaylandEnv {
               surface_y: f64)
     {
         self.mouse_location = (surface_x as i32, surface_y as i32);
-        if let Some(ref eviter) = self.mouse_focus {
+        if let Some((ref window, ref sink)) = self.mouse_focus {
             let (w,h) = self.mouse_location;
-            eviter.lock().unwrap().push_back(
-                Event::MouseMoved(w, h)
+            sink.lock().unwrap().push_event(
+                Event::MouseMoved(w, h),
+                make_wid(window)
             );
         }
     }
@@ -449,7 +449,7 @@ impl wl_pointer::Handler for WaylandEnv {
               button: u32,
               state: wl_pointer::ButtonState)
     {
-        if let Some(ref eviter) = self.mouse_focus {
+        if let Some((ref window, ref sink)) = self.mouse_focus {
             let state = match state {
                 wl_pointer::ButtonState::Pressed => ElementState::Pressed,
                 wl_pointer::ButtonState::Released => ElementState::Released
@@ -461,8 +461,9 @@ impl wl_pointer::Handler for WaylandEnv {
                 // TODO figure out the translation ?
                 _ => return
             };
-            eviter.lock().unwrap().push_back(
-                Event::MouseInput(state, button)
+            sink.lock().unwrap().push_event(
+                Event::MouseInput(state, button),
+                make_wid(window)
             );
         }
     }
@@ -492,20 +493,22 @@ impl wl_pointer::Handler for WaylandEnv {
     {
         let axis_buffer = self.axis_buffer.take();
         let axis_discrete_buffer = self.axis_discrete_buffer.take();
-        if let Some(ref eviter) = self.mouse_focus {
+        if let Some((ref window, ref sink)) = self.mouse_focus {
             if let Some((x, y)) = axis_discrete_buffer {
-                eviter.lock().unwrap().push_back(
+                sink.lock().unwrap().push_event(
                     Event::MouseWheel(
                         MouseScrollDelta::LineDelta(x as f32, y as f32),
                         self.axis_state
-                    )
+                    ),
+                    make_wid(window)
                 );
             } else if let Some((x, y)) = axis_buffer {
-                eviter.lock().unwrap().push_back(
+                sink.lock().unwrap().push_event(
                     Event::MouseWheel(
                         MouseScrollDelta::PixelDelta(x as f32, y as f32),
                         self.axis_state
-                    )
+                    ),
+                    make_wid(window)
                 );
             }
         }
@@ -574,24 +577,24 @@ impl wl_keyboard::Handler for WaylandEnv {
              surface: &wl_surface::WlSurface,
              keys: Vec<u8>)
     {
-        let mut opt_eviter = None;
-        for &(ref window, ref eviter) in &self.windows {
+        let mut opt_sink = None;
+        for &(ref window, ref sink) in &self.windows {
             if window.equals(surface) {
-                opt_eviter = Some(eviter.clone());
+                opt_sink = Some((window.clone(), sink.clone()));
                 break;
             }
         }
-        if let Some(ref eviter) = opt_eviter {
+        if let Some((ref window, ref sink)) = opt_sink {
             // send focused event
-            let mut guard = eviter.lock().unwrap();
-            guard.push_back(Event::Focused(true));
+            let mut guard = sink.lock().unwrap();
+            guard.push_event(Event::Focused(true), make_wid(window));
         }
         match self.kbd_handler {
             KbdType::Mapped(ref mut h) => {
-                h.handler().target = opt_eviter;
+                h.handler().target = opt_sink;
                 h.enter(evqh, proxy, serial, surface, keys);
             },
-            KbdType::Plain(ref mut opt) => { *opt = opt_eviter; }
+            KbdType::Plain(ref mut opt) => { *opt = opt_sink; }
         }
     }
 
@@ -601,17 +604,17 @@ impl wl_keyboard::Handler for WaylandEnv {
              serial: u32,
              surface: &wl_surface::WlSurface)
     {
-        let opt_eviter = match self.kbd_handler {
+        let opt_sink = match self.kbd_handler {
             KbdType::Mapped(ref mut h) => {
-                let eviter = h.handler().target.take();
+                let sink = h.handler().target.take();
                 h.leave(evqh, proxy, serial, surface);
-                eviter
+                sink
             },
             KbdType::Plain(ref mut opt) => opt.take()
         };
-        if let Some(eviter) = opt_eviter {
-            let mut guard = eviter.lock().unwrap();
-            guard.push_back(Event::Focused(false));
+        if let Some((ref window, ref sink)) = opt_sink {
+            let mut guard = sink.lock().unwrap();
+            guard.push_event(Event::Focused(false), make_wid(window));
         }
     }
 
@@ -625,12 +628,12 @@ impl wl_keyboard::Handler for WaylandEnv {
     {
         match self.kbd_handler {
             KbdType::Mapped(ref mut h) => h.key(evqh, proxy, serial, time, key, state),
-            KbdType::Plain(Some(ref eviter)) => {
+            KbdType::Plain(Some((ref window, ref sink))) => {
                 let state = match state {
                     wl_keyboard::KeyState::Pressed => ElementState::Pressed,
                     wl_keyboard::KeyState::Released => ElementState::Released,
                 };
-                let mut guard = eviter.lock().unwrap();
+                let mut guard = sink.lock().unwrap();
                 // This is fallback impl if libxkbcommon was not available
                 // This case should probably never happen, as most wayland
                 // compositors _need_ libxkbcommon anyway...
@@ -638,12 +641,15 @@ impl wl_keyboard::Handler for WaylandEnv {
                 // In this case, we don't have the modifiers state information
                 // anyway, as we need libxkbcommon to interpret it (it is
                 // supposed to be serialized by the compositor using libxkbcommon)
-                guard.push_back(Event::KeyboardInput(
-                    state,
-                    key as u8,
-                    None,
-                    ModifiersState::default()
-                ));
+                guard.push_event(
+                    Event::KeyboardInput(
+                        state,
+                        key as u8,
+                        None,
+                        ModifiersState::default()
+                    ),
+                    make_wid(window)
+                );
             },
             KbdType::Plain(None) => ()
         }

@@ -1,16 +1,15 @@
-use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use {VirtualKeyCode, ElementState, WindowEvent as Event};
 
 use events::ModifiersState;
 
-use super::wayland_kbd;
+use super::{wayland_kbd, make_wid, EventsLoopSink};
 use wayland_client::EventQueueHandle;
-use wayland_client::protocol::wl_keyboard;
+use wayland_client::protocol::{wl_keyboard, wl_surface};
 
 pub struct KbdHandler {
-    pub target: Option<Arc<Mutex<VecDeque<Event>>>>
+    pub target: Option<(Arc<wl_surface::WlSurface>,Arc<Mutex<EventsLoopSink>>)>
 }
 
 impl KbdHandler {
@@ -31,14 +30,14 @@ impl wayland_kbd::Handler for KbdHandler {
            state: wl_keyboard::KeyState,
            utf8: Option<String>)
     {
-        if let Some(ref eviter) = self.target {
+        if let Some((ref window, ref sink)) = self.target {
             let state = match state {
                 wl_keyboard::KeyState::Pressed => ElementState::Pressed,
                 wl_keyboard::KeyState::Released => ElementState::Released,
             };
             let vkcode = key_to_vkey(rawkey, keysym);
-            let mut guard = eviter.lock().unwrap();
-            guard.push_back(
+            let mut guard = sink.lock().unwrap();
+            guard.push_event(
                 Event::KeyboardInput(
                     state,
                     rawkey as u8,
@@ -49,13 +48,14 @@ impl wayland_kbd::Handler for KbdHandler {
                         alt: mods.alt,
                         logo: mods.logo
                     }
-                )
+                ),
+                make_wid(window)
             );
             // send char event only on key press, not release
             if let ElementState::Released = state { return }
             if let Some(txt) = utf8 {
                 for chr in txt.chars() {
-                    guard.push_back(Event::ReceivedCharacter(chr));
+                    guard.push_event(Event::ReceivedCharacter(chr), make_wid(window));
                 }
             }
         }

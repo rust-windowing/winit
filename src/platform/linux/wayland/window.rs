@@ -1,141 +1,80 @@
-use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use wayland_client::{EventQueue, EventQueueHandle, Init};
+use wayland_client::{EventQueue, EventQueueHandle, Init, Proxy};
 use wayland_client::protocol::{wl_display,wl_surface,wl_shell_surface};
 
-use {CreationError, MouseCursor, CursorState, WindowEvent as Event, WindowAttributes};
+use {CreationError, MouseCursor, CursorState, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
 
-use super::WaylandContext;
+use super::{WaylandContext, EventsLoop};
 use super::wayland_window;
 use super::wayland_window::DecoratedSurface;
 
 pub struct Window {
     ctxt: Arc<WaylandContext>,
-    evq: Mutex<EventQueue>,
-    eviter: Arc<Mutex<VecDeque<Event>>>,
+    evq: Arc<Mutex<EventQueue>>,
     surface: Arc<wl_surface::WlSurface>,
     size: Mutex<(u32, u32)>,
-    handler_id: usize,
     decorated_id: usize
 }
 
-pub struct PollEventsIterator<'a> {
-    window: &'a Window,
-}
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct WindowId(usize);
 
-impl<'a> Iterator for PollEventsIterator<'a> {
-    type Item = Event;
-
-    fn next(&mut self) -> Option<Event> {
-        self.window.next_event(false)
-    }
+#[inline]
+pub fn make_wid(s: &wl_surface::WlSurface) -> WindowId {
+    WindowId(s.ptr() as usize)
 }
 
 impl Window {
-    pub fn new(ctxt: Arc<WaylandContext>, attributes: &WindowAttributes)  -> Result<Window, CreationError>
+    pub fn new(evlp: &EventsLoop, ctxt: Arc<WaylandContext>, attributes: &WindowAttributes)  -> Result<Window, CreationError>
     {
         let (width, height) = attributes.dimensions.unwrap_or((800,600));
 
-        let mut evq = ctxt.display.create_event_queue();
-
-        let (surface, eviter, decorated) = ctxt.create_window::<DecoratedHandler>();
+        let (surface, decorated) = ctxt.create_window::<DecoratedHandler>(evlp.get_sink());
 
         // init DecoratedSurface
-        let decorated_id = evq.add_handler_with_init(decorated);
-        {
-            let mut state = evq.state();
-            let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
-            *(decorated.handler()) = Some(DecoratedHandler::new());
+        let evq = evlp.get_event_queue();
+        let decorated_id = {
+            let mut evq_guard = evq.lock().unwrap();
+            let decorated_id = evq_guard.add_handler_with_init(decorated);
+            {
+                let mut state = evq_guard.state();
+                let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
+                *(decorated.handler()) = Some(DecoratedHandler::new());
 
-            if let Some(PlatformMonitorId::Wayland(ref monitor_id)) = attributes.monitor {
-                ctxt.with_output(monitor_id.clone(), |output| {
-                    decorated.set_fullscreen(
-                        wl_shell_surface::FullscreenMethod::Default,
-                        0,
-                        Some(output)
-                    )
-                });
-            } else if attributes.decorations {
-                decorated.set_decorate(true);
+                if let Some(PlatformMonitorId::Wayland(ref monitor_id)) = attributes.monitor {
+                    ctxt.with_output(monitor_id.clone(), |output| {
+                        decorated.set_fullscreen(
+                            wl_shell_surface::FullscreenMethod::Default,
+                            0,
+                            Some(output)
+                        )
+                    });
+                } else if attributes.decorations {
+                    decorated.set_decorate(true);
+                }
+                // Finally, set the decorations size
+                decorated.resize(width as i32, height as i32);
             }
-            // Finally, set the decorations size
-            decorated.resize(width as i32, height as i32);
-        }
-
-        // init general handler
-        let handler = WindowHandler::new();
-        let handler_id = evq.add_handler_with_init(handler);
-
-        Ok(Window {
+            decorated_id
+        };
+        let me = Window {
             ctxt: ctxt,
-            evq: Mutex::new(evq),
-            eviter: eviter,
+            evq: evq,
             surface: surface,
             size: Mutex::new((width, height)),
-            handler_id: handler_id,
             decorated_id: decorated_id
-        })
-    }
-
-    fn process_resize(&self) {
-        let mut evq_guard = self.evq.lock().unwrap();
-        let mut state = evq_guard.state();
-        let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
-        if let Some((w, h)) = decorated.handler().as_mut().and_then(|h| h.take_newsize()) {
-            decorated.resize(w as i32, h as i32);
-            *self.size.lock().unwrap() = (w, h);
-            self.eviter.lock().unwrap().push_back(Event::Resized(w,h));
-        }
-    }
-
-    fn next_event(&self, block: bool) -> Option<Event> {
-        let mut evt = {
-            let mut guard = self.eviter.lock().unwrap();
-            guard.pop_front()
-        };
-        if evt.is_some() { return evt }
-
-        // There is no event in the queue, we need to fetch more
-
-        // flush the display
-        self.ctxt.flush();
-
-        // read some events if some are waiting & queue is empty
-        if let Some(guard) = self.evq.lock().unwrap().prepare_read() {
-            guard.read_events().expect("Wayland connection unexpectedly lost");
-        }
-
-        // try a pending dispatch
-        {
-            self.ctxt.dispatch_pending();
-            self.evq.lock().unwrap().dispatch_pending()
-                                    .expect("Wayland connection unexpectedly lost");
-            // some events were dispatched, need to process a potential resising
-            self.process_resize();
-        }
-
-        evt = {
-            let mut guard = self.eviter.lock().unwrap();
-            guard.pop_front()
         };
 
-        while block && evt.is_none() {
-            // no event waiting, need to repopulate!
-            {
-                self.ctxt.flush();
-                self.ctxt.dispatch();
-                self.evq.lock().unwrap().dispatch_pending()
-                                        .expect("Wayland connection unexpectedly lost");
-                // some events were dispatched, need to process a potential resising
-                self.process_resize();
-            }
-            // try again
-            let mut guard = self.eviter.lock().unwrap();
-            evt = guard.pop_front();
-        }
-        evt
+        evlp.register_window(me.decorated_id, me.id());
+
+        Ok(me)
+    }
+
+    #[inline]
+    pub fn id(&self) -> WindowId {
+        make_wid(&self.surface)
     }
 
     pub fn set_title(&self, title: &str) {
@@ -187,13 +126,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator {
-            window: self
-        }
-    }
-
-    #[inline]
     pub fn set_cursor(&self, _cursor: MouseCursor) {
         // TODO
     }
@@ -237,13 +169,14 @@ impl Drop for Window {
     }
 }
 
-struct DecoratedHandler {
+pub struct DecoratedHandler {
     newsize: Option<(u32, u32)>
 }
 
 impl DecoratedHandler {
     fn new() -> DecoratedHandler { DecoratedHandler { newsize: None }}
-    fn take_newsize(&mut self) -> Option<(u32, u32)> {
+
+    pub fn take_newsize(&mut self) -> Option<(u32, u32)> {
         self.newsize.take()
     }
 }
@@ -256,23 +189,5 @@ impl wayland_window::Handler for DecoratedHandler {
     {
         use std::cmp::max;
         self.newsize = Some((max(width,1) as u32, max(height,1) as u32));
-    }
-}
-
-struct WindowHandler {
-    my_id: usize,
-}
-
-impl WindowHandler {
-    fn new() -> WindowHandler {
-        WindowHandler {
-            my_id: 0,
-        }
-    }
-}
-
-impl Init for WindowHandler {
-    fn init(&mut self, _evqh: &mut EventQueueHandle, index: usize) {
-        self.my_id = index;
     }
 }
