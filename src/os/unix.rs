@@ -4,16 +4,14 @@ use std::sync::Arc;
 use std::ptr;
 use libc;
 use Window;
-use platform::Window as LinuxWindow;
+use platform::Window2 as LinuxWindow;
 use platform::{UnixBackend, UNIX_BACKEND};
 use WindowBuilder;
-use api::x11::XConnection;
-use api::x11::ffi::XVisualInfo;
+use platform::x11::XConnection;
+use platform::x11::ffi::XVisualInfo;
 
 use wayland_client::protocol::wl_display::WlDisplay;
 use wayland_client::protocol::wl_surface::WlSurface;
-
-pub use api::x11;
 
 // TODO: do not expose XConnection
 pub fn get_x11_xconnection() -> Option<Arc<XConnection>> {
@@ -86,7 +84,7 @@ pub trait WindowExt {
 impl WindowExt for Window {
     #[inline]
     fn get_xlib_window(&self) -> Option<*mut libc::c_void> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_window()),
             _ => None
         }
@@ -94,28 +92,28 @@ impl WindowExt for Window {
 
     #[inline]
     fn get_xlib_display(&self) -> Option<*mut libc::c_void> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_display()),
             _ => None
         }
     }
 
     fn get_xlib_screen_id(&self) -> Option<*mut libc::c_void> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_screen_id()),
             _ => None
         }
     }
 
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_xconnection()),
             _ => None
         }
     }
 
     fn get_xcb_connection(&self) -> Option<*mut libc::c_void> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xcb_connection()),
             _ => None
         }
@@ -136,7 +134,7 @@ impl WindowExt for Window {
 
     #[inline]
     fn get_wayland_client_surface(&self) -> Option<&WlSurface> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.get_surface()),
             _ => None
         }
@@ -144,7 +142,7 @@ impl WindowExt for Window {
 
     #[inline]
     fn get_wayland_client_display(&self) -> Option<&WlDisplay> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.get_display()),
             _ => None
         }

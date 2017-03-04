@@ -128,7 +128,6 @@ pub use native_monitor::NativeMonitorId;
 #[macro_use]
 mod api_transition;
 
-mod api;
 mod platform;
 mod events;
 mod window;

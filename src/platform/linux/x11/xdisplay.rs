@@ -7,7 +7,6 @@ use std::sync::Mutex;
 use libc;
 
 use super::ffi;
-use api::dlopen;
 
 /// A connection to an X server.
 pub struct XConnection {
