@@ -629,7 +629,13 @@ impl wl_keyboard::Handler for WaylandEnv {
                     wl_keyboard::KeyState::Released => ElementState::Released,
                 };
                 let mut guard = eviter.lock().unwrap();
-		// TODO implement ModifiersState
+                // This is fallback impl if libxkbcommon was not available
+                // This case should probably never happen, as most wayland
+                // compositors _need_ libxkbcommon anyway...
+                //
+                // In this case, we don't have the modifiers state information
+                // anyway, as we need libxkbcommon to interpret it (it is
+                // supposed to be serialized by the compositor using libxkbcommon)
                 guard.push_back(Event::KeyboardInput(
                     state,
                     key as u8,
