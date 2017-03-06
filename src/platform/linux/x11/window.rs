@@ -596,6 +596,7 @@ impl Window {
         };
 
         window.set_title(&window_attrs.title);
+        window.set_decorations(window_attrs.decorations);
 
         if window_attrs.visible {
             unsafe {
@@ -651,6 +652,48 @@ impl Window {
         });
         self.x.display.check_errors().expect("Failed to set window title");
 
+    }
+
+    pub fn set_decorations(&self, decorations: bool) {
+        #[repr(C)]
+        struct MotifWindowHints {
+            flags: u32,
+            functions: u32,
+            decorations: u32,
+            input_mode: i32,
+            status: u32,
+        }
+
+        let wm_hints = unsafe {
+            (self.x.display.xlib.XInternAtom)(self.x.display.display, b"_MOTIF_WM_HINTS\0".as_ptr() as *const _, 0)
+        };
+        self.x.display.check_errors().expect("Failed to call XInternAtom");
+
+        if !decorations {
+            let hints = MotifWindowHints {
+                flags: 2, // MWM_HINTS_DECORATIONS
+                functions: 0,
+                decorations: 0,
+                input_mode: 0,
+                status: 0,
+            };
+
+            unsafe {
+                (self.x.display.xlib.XChangeProperty)(
+                    self.x.display.display, self.x.window,
+                    wm_hints, wm_hints, 32 /* Size of elements in struct */,
+                    ffi::PropModeReplace, &hints as *const MotifWindowHints as *const u8,
+                    5 /* Number of elements in struct */);
+                (self.x.display.xlib.XFlush)(self.x.display.display);
+            }
+        } else {
+            unsafe {
+                (self.x.display.xlib.XDeleteProperty)(self.x.display.display, self.x.window, wm_hints);
+                (self.x.display.xlib.XFlush)(self.x.display.display);
+            }
+        }
+
+        self.x.display.check_errors().expect("Failed to set decorations");
     }
 
     pub fn show(&self) {

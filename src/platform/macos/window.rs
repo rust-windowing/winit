@@ -311,23 +311,22 @@ impl Window {
                 }
             };
 
-            let masks = if screen.is_some() || attrs.transparent {
-                // Fullscreen or transparent window
+            let masks = if screen.is_some() {
+                // Fullscreen window
                 appkit::NSBorderlessWindowMask as NSUInteger |
                 appkit::NSResizableWindowMask as NSUInteger |
                 appkit::NSTitledWindowMask as NSUInteger
             } else if attrs.decorations {
-                // Classic opaque window with titlebar
+                // Window with a titlebar
                 appkit::NSClosableWindowMask as NSUInteger |
                 appkit::NSMiniaturizableWindowMask as NSUInteger |
                 appkit::NSResizableWindowMask as NSUInteger |
                 appkit::NSTitledWindowMask as NSUInteger
             } else {
-                // Opaque window without a titlebar
+                // Window without a titlebar
                 appkit::NSClosableWindowMask as NSUInteger |
                 appkit::NSMiniaturizableWindowMask as NSUInteger |
                 appkit::NSResizableWindowMask as NSUInteger |
-                appkit::NSTitledWindowMask as NSUInteger |
                 appkit::NSFullSizeContentViewWindowMask as NSUInteger
             };
 
