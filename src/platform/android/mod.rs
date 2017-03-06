@@ -83,6 +83,23 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     location: (motion.x as f64, motion.y as f64),
                     id: motion.pointer_id as u64,
                 }))
+            },
+            Ok(android_glue::Event::InitWindow) => {
+                // The activity went to foreground.
+                Some(Event::Suspended(false))
+            },
+            Ok(android_glue::Event::TermWindow) => {
+                // The activity went to background.
+                Some(Event::Suspended(true))
+            },
+            Ok(android_glue::Event::WindowResized) |
+            Ok(android_glue::Event::ConfigChanged) => {
+                // Activity Orientation changed or resized.
+                self.window.get_inner_size().map(|s| Event::Resized(s.0, s.1))
+            },
+            Ok(android_glue::Event::WindowRedrawNeeded) => {
+                // The activity needs to be redrawn.
+                Some(Event::Refresh)
             }
             _ => {
                 None
@@ -253,6 +270,6 @@ pub struct WindowProxy;
 impl WindowProxy {
     #[inline]
     pub fn wakeup_event_loop(&self) {
-        unimplemented!()
+        android_glue::wake_event_loop();
     }
 }
