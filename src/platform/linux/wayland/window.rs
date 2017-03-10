@@ -12,11 +12,17 @@ use super::wayland_window;
 use super::wayland_window::DecoratedSurface;
 
 pub struct Window {
+    // the global wayland context
     ctxt: Arc<WaylandContext>,
+    // the EventQueue of our EventsLoop
     evq: Arc<Mutex<EventQueue>>,
+    // signal to advertize the EventsLoop when we are destroyed
     cleanup_signal: Arc<AtomicBool>,
+    // our wayland surface
     surface: Arc<wl_surface::WlSurface>,
+    // our current inner dimensions
     size: Mutex<(u32, u32)>,
+    // the id of our DecoratedHandler in the EventQueue
     decorated_id: usize
 }
 
@@ -41,10 +47,12 @@ impl Window {
             let mut evq_guard = evq.lock().unwrap();
             let decorated_id = evq_guard.add_handler_with_init(decorated);
             {
+                // initialize the DecoratedHandler
                 let mut state = evq_guard.state();
                 let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
                 *(decorated.handler()) = Some(DecoratedHandler::new());
 
+                // set fullscreen if necessary
                 if let Some(PlatformMonitorId::Wayland(ref monitor_id)) = attributes.monitor {
                     ctxt.with_output(monitor_id.clone(), |output| {
                         decorated.set_fullscreen(
@@ -70,6 +78,7 @@ impl Window {
             decorated_id: decorated_id
         };
 
+        // register ourselves to the EventsLoop
         evlp.register_window(me.decorated_id, me.surface.clone());
 
         Ok(me)

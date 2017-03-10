@@ -14,6 +14,15 @@ use super::wayland_window::DecoratedSurface;
 use super::wayland_kbd::MappedKeyboard;
 use super::keyboard::KbdHandler;
 
+/// This struct is used as a holder for the callback
+/// during the dispatching of events.
+///
+/// The proper ay to use it is:
+/// - set a callback in it (and retrieve the noop one it contains)
+/// - dispatch the EventQueue
+/// - put back the noop callback in it
+///
+/// Failure to do so is unsafe™
 pub struct EventsLoopSink {
     callback: Box<FnMut(::Event)>
 }
@@ -50,11 +59,17 @@ impl EventsLoopSink {
 }
 
 pub struct EventsLoop {
+    // the global wayland context
     ctxt: Arc<WaylandContext>,
+    // our EventQueue
     evq: Arc<Mutex<EventQueue>>,
+    // ids of the DecoratedHandlers of the surfaces we know
     decorated_ids: Mutex<Vec<(usize, Arc<wl_surface::WlSurface>)>>,
+    // our sink, receiver of callbacks, shared with some handlers
     sink: Arc<Mutex<EventsLoopSink>>,
+    // trigger interruption of the run
     interrupted: AtomicBool,
+    // trigger cleanup of the dead surfaces
     cleanup_needed: Arc<AtomicBool>,
     hid: usize
 }
@@ -75,6 +90,7 @@ impl EventsLoop {
         }
     }
 
+    // some internals that Window needs access to
     pub fn get_window_init(&self) -> (Arc<Mutex<EventQueue>>, Arc<AtomicBool>) {
         (self.evq.clone(), self.cleanup_needed.clone())
     }
@@ -183,14 +199,14 @@ impl EventsLoop {
                 |cb| Self::process_resize(&mut evq_guard, &ids_guard, cb)
             );
             self.ctxt.flush();
+
+            if self.cleanup_needed.swap(false, ::std::sync::atomic::Ordering::Relaxed) {
+                self.prune_dead_windows()
+            }
         }
 
         // replace the old noop callback
         unsafe { self.sink.lock().unwrap().set_callback(old_cb) };
-
-        if self.cleanup_needed.swap(false, ::std::sync::atomic::Ordering::Relaxed) {
-            self.prune_dead_windows()
-        }
     }
 }
 
