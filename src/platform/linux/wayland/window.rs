@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use wayland_client::{EventQueue, EventQueueHandle, Init, Proxy};
+use wayland_client::{EventQueue, EventQueueHandle, Proxy};
 use wayland_client::protocol::{wl_display,wl_surface,wl_shell_surface};
 
 use {CreationError, MouseCursor, CursorState, WindowAttributes};
@@ -31,7 +31,7 @@ impl Window {
     {
         let (width, height) = attributes.dimensions.unwrap_or((800,600));
 
-        let (surface, decorated) = ctxt.create_window::<DecoratedHandler>(evlp.get_sink());
+        let (surface, decorated) = ctxt.create_window::<DecoratedHandler>();
 
         // init DecoratedSurface
         let evq = evlp.get_event_queue();
@@ -67,7 +67,7 @@ impl Window {
             decorated_id: decorated_id
         };
 
-        evlp.register_window(me.decorated_id, me.id());
+        evlp.register_window(me.decorated_id, me.surface.clone());
 
         Ok(me)
     }
@@ -165,7 +165,6 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         self.surface.destroy();
-        self.ctxt.prune_dead_windows();
     }
 }
 
