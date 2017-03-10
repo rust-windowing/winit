@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::AtomicBool;
 
 use wayland_client::{EventQueue, EventQueueHandle, Proxy};
 use wayland_client::protocol::{wl_display,wl_surface,wl_shell_surface};
@@ -13,6 +14,7 @@ use super::wayland_window::DecoratedSurface;
 pub struct Window {
     ctxt: Arc<WaylandContext>,
     evq: Arc<Mutex<EventQueue>>,
+    cleanup_signal: Arc<AtomicBool>,
     surface: Arc<wl_surface::WlSurface>,
     size: Mutex<(u32, u32)>,
     decorated_id: usize
@@ -34,7 +36,7 @@ impl Window {
         let (surface, decorated) = ctxt.create_window::<DecoratedHandler>();
 
         // init DecoratedSurface
-        let evq = evlp.get_event_queue();
+        let (evq, cleanup_signal) = evlp.get_window_init();
         let decorated_id = {
             let mut evq_guard = evq.lock().unwrap();
             let decorated_id = evq_guard.add_handler_with_init(decorated);
@@ -62,6 +64,7 @@ impl Window {
         let me = Window {
             ctxt: ctxt,
             evq: evq,
+            cleanup_signal: cleanup_signal,
             surface: surface,
             size: Mutex::new((width, height)),
             decorated_id: decorated_id
@@ -165,6 +168,7 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         self.surface.destroy();
+        self.cleanup_signal.store(true, ::std::sync::atomic::Ordering::Relaxed);
     }
 }
 

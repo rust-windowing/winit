@@ -1,7 +1,5 @@
 use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase, ModifiersState};
 
-use std::cell::UnsafeCell;
-use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicBool;
 
@@ -54,9 +52,10 @@ impl EventsLoopSink {
 pub struct EventsLoop {
     ctxt: Arc<WaylandContext>,
     evq: Arc<Mutex<EventQueue>>,
-    decorated_ids: Mutex<Vec<(usize, WindowId)>>,
+    decorated_ids: Mutex<Vec<(usize, Arc<wl_surface::WlSurface>)>>,
     sink: Arc<Mutex<EventsLoopSink>>,
     interrupted: AtomicBool,
+    cleanup_needed: Arc<AtomicBool>,
     hid: usize
 }
 
@@ -71,31 +70,32 @@ impl EventsLoop {
             decorated_ids: Mutex::new(Vec::new()),
             sink: sink,
             interrupted: AtomicBool::new(false),
+            cleanup_needed: Arc::new(AtomicBool::new(false)),
             hid: hid
         }
     }
 
-    pub fn get_event_queue(&self) -> Arc<Mutex<EventQueue>> {
-        self.evq.clone()
+    pub fn get_window_init(&self) -> (Arc<Mutex<EventQueue>>, Arc<AtomicBool>) {
+        (self.evq.clone(), self.cleanup_needed.clone())
     }
 
     pub fn register_window(&self, decorated_id: usize, surface: Arc<wl_surface::WlSurface>) {
-        self.decorated_ids.lock().unwrap().push((decorated_id, make_wid(&surface)));
+        self.decorated_ids.lock().unwrap().push((decorated_id, surface.clone()));
         let mut guard = self.evq.lock().unwrap();
         let mut state = guard.state();
         state.get_mut_handler::<InputHandler>(self.hid).windows.push(surface);
     }
 
-    fn process_resize(evq: &mut EventQueue, ids: &[(usize, WindowId)], callback: &mut FnMut(::Event))
+    fn process_resize(evq: &mut EventQueue, ids: &[(usize, Arc<wl_surface::WlSurface>)], callback: &mut FnMut(::Event))
     {
         let mut state = evq.state();
-        for &(decorated_id, window_id) in ids {
+        for &(decorated_id, ref window) in ids {
             let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
             if let Some((w, h)) = decorated.handler().as_mut().and_then(|h| h.take_newsize()) {
                 decorated.resize(w as i32, h as i32);
                 callback(
                     ::Event::WindowEvent {
-                        window_id: ::WindowId(::platform::WindowId::Wayland(window_id)),
+                        window_id: ::WindowId(::platform::WindowId::Wayland(make_wid(&window))),
                         event: ::WindowEvent::Resized(w,h)
                     }
                 );
@@ -107,7 +107,20 @@ impl EventsLoop {
         self.interrupted.store(true, ::std::sync::atomic::Ordering::Relaxed);
     }
 
-    pub fn poll_events<F>(&self, mut callback: F)
+    fn prune_dead_windows(&self) {
+        self.decorated_ids.lock().unwrap().retain(|&(_, ref w)| w.is_alive());
+        let mut evq_guard = self.evq.lock().unwrap();
+        let mut state = evq_guard.state();
+        let handler = state.get_mut_handler::<InputHandler>(self.hid);
+        handler.windows.retain(|w| w.is_alive());
+        if let Some(w) = handler.mouse_focus.take() {
+            if w.is_alive() {
+                handler.mouse_focus = Some(w)
+            }
+        }
+    }
+
+    pub fn poll_events<F>(&self, callback: F)
         where F: FnMut(::Event)
     {
         // send pending requests to the server...
@@ -142,9 +155,12 @@ impl EventsLoop {
         // replace the old noop callback
         unsafe { self.sink.lock().unwrap().set_callback(old_cb) };
 
+        if self.cleanup_needed.swap(false, ::std::sync::atomic::Ordering::Relaxed) {
+            self.prune_dead_windows()
+        }
     }
 
-    pub fn run_forever<F>(&self, mut callback: F)
+    pub fn run_forever<F>(&self, callback: F)
         where F: FnMut(::Event)
     {
         // send pending requests to the server...
@@ -171,6 +187,10 @@ impl EventsLoop {
 
         // replace the old noop callback
         unsafe { self.sink.lock().unwrap().set_callback(old_cb) };
+
+        if self.cleanup_needed.swap(false, ::std::sync::atomic::Ordering::Relaxed) {
+            self.prune_dead_windows()
+        }
     }
 }
 
