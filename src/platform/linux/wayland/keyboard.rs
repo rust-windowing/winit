@@ -1,21 +1,21 @@
-use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use {VirtualKeyCode, ElementState, WindowEvent as Event};
 
 use events::ModifiersState;
 
-use super::wayland_kbd;
+use super::{wayland_kbd, EventsLoopSink, WindowId};
 use wayland_client::EventQueueHandle;
 use wayland_client::protocol::wl_keyboard;
 
 pub struct KbdHandler {
-    pub target: Option<Arc<Mutex<VecDeque<Event>>>>
+    sink: Arc<Mutex<EventsLoopSink>>,
+    pub target: Option<WindowId>
 }
 
 impl KbdHandler {
-    pub fn new() -> KbdHandler {
-        KbdHandler { target: None }
+    pub fn new(sink: Arc<Mutex<EventsLoopSink>>) -> KbdHandler {
+        KbdHandler { sink: sink, target: None }
     }
 }
 
@@ -31,14 +31,14 @@ impl wayland_kbd::Handler for KbdHandler {
            state: wl_keyboard::KeyState,
            utf8: Option<String>)
     {
-        if let Some(ref eviter) = self.target {
+        if let Some(wid) = self.target {
             let state = match state {
                 wl_keyboard::KeyState::Pressed => ElementState::Pressed,
                 wl_keyboard::KeyState::Released => ElementState::Released,
             };
             let vkcode = key_to_vkey(rawkey, keysym);
-            let mut guard = eviter.lock().unwrap();
-            guard.push_back(
+            let mut guard = self.sink.lock().unwrap();
+            guard.send_event(
                 Event::KeyboardInput(
                     state,
                     rawkey as u8,
@@ -49,13 +49,14 @@ impl wayland_kbd::Handler for KbdHandler {
                         alt: mods.alt,
                         logo: mods.logo
                     }
-                )
+                ),
+                wid
             );
             // send char event only on key press, not release
             if let ElementState::Released = state { return }
             if let Some(txt) = utf8 {
                 for chr in txt.chars() {
-                    guard.push_back(Event::ReceivedCharacter(chr));
+                    guard.send_event(Event::ReceivedCharacter(chr), wid);
                 }
             }
         }

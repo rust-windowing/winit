@@ -5,9 +5,7 @@ use std::sync::Arc;
 
 use CreationError;
 use CursorState;
-use WindowEvent as Event;
 use MouseCursor;
-use WindowAttributes;
 use libc;
 
 use self::x11::XConnection;
@@ -49,7 +47,7 @@ pub enum Window2 {
     #[doc(hidden)]
     X(x11::Window2),
     #[doc(hidden)]
-    Wayland(wayland::Window2)
+    Wayland(wayland::Window)
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -131,7 +129,12 @@ impl Window2 {
     {
         match *UNIX_BACKEND {
             UnixBackend::Wayland(ref ctxt) => {
-                wayland::Window2::new(events_loop, ctxt.clone(), window).map(Window2::Wayland)
+                if let EventsLoop::Wayland(ref evlp) = *events_loop {
+                    wayland::Window::new(evlp, ctxt.clone(), window).map(Window2::Wayland)
+                } else {
+                    // It is not possible to instanciate an EventsLoop not matching its backend
+                    unreachable!()
+                }
             },
 
             UnixBackend::X(ref connec) => {
@@ -301,8 +304,8 @@ pub enum EventsLoop {
 impl EventsLoop {
     pub fn new() -> EventsLoop {
         match *UNIX_BACKEND {
-            UnixBackend::Wayland(_) => {
-                EventsLoop::Wayland(wayland::EventsLoop::new())
+            UnixBackend::Wayland(ref ctxt) => {
+                EventsLoop::Wayland(wayland::EventsLoop::new(ctxt.clone()))
             },
 
             UnixBackend::X(_) => {

@@ -44,7 +44,7 @@ impl EventsLoop {
     pub fn poll_events<F>(&self, mut callback: F)
         where F: FnMut(::Event)
     {
-        let mut windows = self.windows.lock().unwrap();
+        let windows = self.windows.lock().unwrap();
         for window in windows.iter() {
             for event in window.poll_events() {
                 callback(::Event::WindowEvent {
@@ -63,7 +63,7 @@ impl EventsLoop {
         // Yeah that's a very bad implementation.
         loop {
             self.poll_events(|e| callback(e));
-            ::std::thread::sleep_ms(5);
+            ::std::thread::sleep(::std::time::Duration::from_millis(5));
             if self.interrupted.load(::std::sync::atomic::Ordering::Relaxed) {
                 break;
             }
