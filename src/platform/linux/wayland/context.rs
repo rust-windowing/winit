@@ -61,7 +61,7 @@ impl WaylandEnv {
                 if version < 5 {
                     panic!("Winit requires at least version 5 of the wl_seat global.");
                 }
-                let seat = self.registry.bind::<wl_seat::WlSeat>(5, name).expect("Seat cannot be destroyed");
+                let seat = self.registry.bind::<wl_seat::WlSeat>(5, name);
                 return Some(seat)
             }
         }
@@ -87,8 +87,7 @@ impl wl_registry::Handler for WaylandEnv {
         if interface == "wl_output" {
             // intercept outputs
             // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
-            let output = self.registry.bind::<wl_output::WlOutput>(1, name)
-                             .expect("Registry cannot be dead");
+            let output = self.registry.bind::<wl_output::WlOutput>(1, name);
             evqh.register::<_, WaylandEnv>(&output, self.my_id);
             self.monitors.push(OutputInfo::new(output, name));
         }
@@ -171,7 +170,7 @@ impl WaylandContext {
         };
 
         // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
-        let registry = display.get_registry().expect("Display cannot be already destroyed.");
+        let registry = display.get_registry();
         let env_id = event_queue.add_handler_with_init(WaylandEnv::new(registry));
         // two syncs fully initialize
         event_queue.sync_roundtrip().expect("Wayland connection unexpectedly lost");
@@ -221,7 +220,7 @@ impl WaylandContext {
         let mut state = guard.state();
         let env = state.get_mut_handler::<WaylandEnv>(self.env_id);
         // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
-        let surface = Arc::new(env.inner.compositor.create_surface().expect("Compositor cannot be dead"));
+        let surface = Arc::new(env.inner.compositor.create_surface());
         let decorated = wayland_window::DecoratedSurface::new(
             &*surface, 800, 600,
             &env.inner.compositor,
