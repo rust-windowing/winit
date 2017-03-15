@@ -13,6 +13,8 @@ use platform::x11::ffi::XVisualInfo;
 use wayland_client::protocol::wl_display::WlDisplay;
 use wayland_client::protocol::wl_surface::WlSurface;
 
+pub use platform::x11;
+
 // TODO: do not expose XConnection
 pub fn get_x11_xconnection() -> Option<Arc<XConnection>> {
     match *UNIX_BACKEND {
