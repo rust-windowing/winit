@@ -174,7 +174,10 @@ impl Drop for Window {
         let id = self.id();
         if let Some(ev) = self.delegate.state.events_loop.upgrade() {
             let mut windows = ev.windows.lock().unwrap();
-            windows.retain(|w| w.id() != id)
+            windows.retain(|w| match w.upgrade() {
+                Some(w) => w.id() != id,
+                None => true,
+            })
         }
     }
 }

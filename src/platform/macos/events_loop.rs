@@ -6,7 +6,7 @@ use std;
 
 
 pub struct EventsLoop {
-    pub windows: std::sync::Mutex<Vec<std::sync::Arc<Window>>>,
+    pub windows: std::sync::Mutex<Vec<std::sync::Weak<Window>>>,
     pub pending_events: std::sync::Mutex<std::collections::VecDeque<Event>>,
     modifiers: std::sync::Mutex<Modifiers>,
     interrupted: std::sync::atomic::AtomicBool,
@@ -236,8 +236,6 @@ impl EventsLoop {
         let event_type = ns_event.eventType();
         let ns_window = ns_event.window();
         let window_id = super::window::get_window_id(ns_window);
-        let windows = self.windows.lock().unwrap();
-        let maybe_window = windows.iter().find(|window| window_id == window.id());
 
         // FIXME: Document this. Why do we do this? Seems like it passes on events to window/app.
         // If we don't do this, window does not become main for some reason.
@@ -246,16 +244,23 @@ impl EventsLoop {
             _ => appkit::NSApp().sendEvent_(ns_event),
         }
 
+        let windows = self.windows.lock().unwrap();
+        let maybe_window = windows.iter()
+            .filter_map(std::sync::Weak::upgrade)
+            .find(|window| window_id == window.id());
+
         let into_event = |window_event| Event::WindowEvent {
             window_id: ::WindowId(window_id),
             event: window_event,
         };
 
         // Returns `Some` window if one of our windows is the key window.
-        let maybe_key_window = || windows.iter().find(|window| {
-            let is_key_window: cocoa::base::BOOL = msg_send![*window.window, isKeyWindow];
-            is_key_window == cocoa::base::YES
-        });
+        let maybe_key_window = || windows.iter()
+            .filter_map(std::sync::Weak::upgrade)
+            .find(|window| {
+                let is_key_window: cocoa::base::BOOL = msg_send![*window.window, isKeyWindow];
+                is_key_window == cocoa::base::YES
+            });
 
         match event_type {
 
