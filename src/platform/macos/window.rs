@@ -181,6 +181,14 @@ impl Drop for Window {
         if let Some(ev) = self.delegate.state.events_loop.upgrade() {
             ev.find_and_remove_window(id);
         }
+
+        // Close the window if it has not yet been closed.
+        let nswindow = *self.window;
+        if nswindow != nil {
+            unsafe {
+                msg_send![nswindow, close];
+            }
+        }
     }
 }
 
