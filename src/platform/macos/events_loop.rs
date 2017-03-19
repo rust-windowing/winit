@@ -19,7 +19,7 @@ pub struct EventsLoop {
     //
     // This is *only* `Some` for the duration of a call to either of these methods and will be
     // `None` otherwise.
-    pub user_callback: UserCallback,
+    user_callback: UserCallback,
 }
 
 struct Modifiers {
@@ -61,15 +61,19 @@ impl UserCallback {
 
     // Emits the given event via the user-given callback.
     //
-    // This is *only* called within the `poll_events` and `run_forever` methods so we know that it
-    // is safe to `unwrap` the callback without causing a panic as there must be at least one
-    // callback stored.
-    //
     // This is unsafe as it requires dereferencing the pointer to the user-given callback. We
     // guarantee this is safe by ensuring the `UserCallback` never lives longer than the user-given
     // callback.
-    pub unsafe fn call_with_event(&self, event: Event) {
-        let callback: *mut FnMut(Event) = self.mutex.lock().unwrap().take().unwrap();
+    //
+    // Note that the callback may not always be `Some`. This is because some `NSWindowDelegate`
+    // callbacks can be triggered by means other than `NSApp().sendEvent`. For example, if a window
+    // is destroyed or created during a call to the user's callback, the `WindowDelegate` methods
+    // may be called with `windowShouldClose` or `windowDidResignKey`.
+    unsafe fn call_with_event(&self, event: Event) {
+        let callback = match self.mutex.lock().unwrap().take() {
+            Some(callback) => callback,
+            None => return,
+        };
         (*callback)(event);
         *self.mutex.lock().unwrap() = Some(callback);
     }
@@ -117,9 +121,7 @@ impl EventsLoop {
         loop {
             unsafe {
                 // First, yield all pending events.
-                while let Some(event) = self.pending_events.lock().unwrap().pop_front() {
-                    self.user_callback.call_with_event(event);
-                }
+                self.call_user_callback_with_pending_events();
 
                 let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
 
@@ -161,9 +163,7 @@ impl EventsLoop {
         loop {
             unsafe {
                 // First, yield all pending events.
-                while let Some(event) = self.pending_events.lock().unwrap().pop_front() {
-                    self.user_callback.call_with_event(event);
-                }
+                self.call_user_callback_with_pending_events();
 
                 let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
 
@@ -214,6 +214,34 @@ impl EventsLoop {
                     0);
             appkit::NSApp().postEvent_atStart_(event, cocoa::base::NO);
             foundation::NSAutoreleasePool::drain(pool);
+        }
+    }
+
+    fn call_user_callback_with_pending_events(&self) {
+        loop {
+            let event = match self.pending_events.lock().unwrap().pop_front() {
+                Some(event) => event,
+                None => return,
+            };
+            unsafe {
+                self.user_callback.call_with_event(event);
+            }
+        }
+    }
+
+    // Calls the user callback if one exists.
+    //
+    // Otherwise, stores the event in the `pending_events` queue.
+    //
+    // This is necessary for the case when `WindowDelegate` callbacks are triggered during a call
+    // to the user's callback.
+    pub fn call_user_callback_with_event_or_store_in_pending(&self, event: Event) {
+        if self.user_callback.mutex.lock().unwrap().is_some() {
+            unsafe {
+                self.user_callback.call_with_event(event);
+            }
+        } else {
+            self.pending_events.lock().unwrap().push_back(event);
         }
     }
 

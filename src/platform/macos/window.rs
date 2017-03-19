@@ -57,7 +57,7 @@ impl WindowDelegate {
             };
 
             if let Some(events_loop) = state.events_loop.upgrade() {
-                events_loop.user_callback.call_with_event(event);
+                events_loop.call_user_callback_with_event_or_store_in_pending(event);
             }
         }
 
