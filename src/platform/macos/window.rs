@@ -66,6 +66,12 @@ impl WindowDelegate {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 emit_event(state, WindowEvent::Closed);
+
+                // Remove the window from the events_loop.
+                if let Some(events_loop) = state.events_loop.upgrade() {
+                    let window_id = get_window_id(*state.window);
+                    events_loop.find_and_remove_window(window_id);
+                }
             }
             YES
         }
@@ -173,11 +179,7 @@ impl Drop for Window {
         // Remove this window from the `EventLoop`s list of windows.
         let id = self.id();
         if let Some(ev) = self.delegate.state.events_loop.upgrade() {
-            let mut windows = ev.windows.lock().unwrap();
-            windows.retain(|w| match w.upgrade() {
-                Some(w) => w.id() != id,
-                None => true,
-            })
+            ev.find_and_remove_window(id);
         }
     }
 }

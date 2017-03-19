@@ -217,6 +217,18 @@ impl EventsLoop {
         }
     }
 
+    // Removes the window with the given `Id` from the `windows` list.
+    //
+    // This is called when a window is either `Closed` or `Drop`ped.
+    pub fn find_and_remove_window(&self, id: super::window::Id) {
+        if let Ok(mut windows) = self.windows.lock() {
+            windows.retain(|w| match w.upgrade() {
+                Some(w) => w.id() != id,
+                None => true,
+            });
+        }
+    }
+
     fn call_user_callback_with_pending_events(&self) {
         loop {
             let event = match self.pending_events.lock().unwrap().pop_front() {
