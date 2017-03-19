@@ -43,12 +43,7 @@ impl WindowDelegate {
     fn class() -> *const Class {
         use std::os::raw::c_void;
 
-        // Emits an event via the `EventsLoop`'s callback.
-        //
-        // The `Eventloop`'s callback should always be `Some` while the `WindowDelegate`'s methods
-        // are called as the delegate methods should only be called during a call to
-        // `nextEventMatchingMask` (called via EventsLoop::poll_events and
-        // EventsLoop::run_forever).
+        // Emits an event via the `EventsLoop`'s callback or stores it in the pending queue.
         unsafe fn emit_event(state: &mut DelegateState, window_event: WindowEvent) {
             let window_id = get_window_id(*state.window);
             let event = Event::WindowEvent {
@@ -59,6 +54,15 @@ impl WindowDelegate {
             if let Some(events_loop) = state.events_loop.upgrade() {
                 events_loop.call_user_callback_with_event_or_store_in_pending(event);
             }
+        }
+
+        // Called when the window is resized or when the window was moved to a different screen.
+        unsafe fn emit_resize_event(state: &mut DelegateState) {
+            let rect = NSView::frame(*state.view);
+            let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
+            let width = (scale_factor * rect.size.width as f32) as u32;
+            let height = (scale_factor * rect.size.height as f32) as u32;
+            emit_event(state, WindowEvent::Resized(width, height));
         }
 
         extern fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
@@ -80,11 +84,15 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-                let rect = NSView::frame(*state.view);
-                let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
-                let width = (scale_factor * rect.size.width as f32) as u32;
-                let height = (scale_factor * rect.size.height as f32) as u32;
-                emit_event(state, WindowEvent::Resized(width, height));
+                emit_resize_event(state);
+            }
+        }
+
+        extern fn window_did_change_screen(this: &Object, _: Sel, _: id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+                emit_resize_event(state);
             }
         }
 
@@ -119,6 +127,8 @@ impl WindowDelegate {
                 window_should_close as extern fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(windowDidResize:),
                 window_did_resize as extern fn(&Object, Sel, id));
+            decl.add_method(sel!(windowDidChangeScreen:),
+                window_did_change_screen as extern fn(&Object, Sel, id));
 
             decl.add_method(sel!(windowDidBecomeKey:),
                 window_did_become_key as extern fn(&Object, Sel, id));
