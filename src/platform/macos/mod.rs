@@ -26,7 +26,8 @@ impl Window2 {
     {
         let weak_events_loop = ::std::sync::Arc::downgrade(&events_loop);
         let window = ::std::sync::Arc::new(try!(Window::new(weak_events_loop, attributes, pl_attribs)));
-        events_loop.windows.lock().unwrap().push(window.clone());
+        let weak_window = ::std::sync::Arc::downgrade(&window);
+        events_loop.windows.lock().unwrap().push(weak_window);
         Ok(Window2 { window: window })
     }
 
