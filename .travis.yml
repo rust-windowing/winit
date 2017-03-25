@@ -14,8 +14,7 @@ addons:
 install:
   - |
       if [ $TRAVIS_OS_NAME = osx ]; then
-        sh ~/rust-installer/rustup.sh -y --disable-sudo --prefix=/Users/travis/rust \
-          --add-target=x86_64-apple-ios
+        rustup target add x86_64-apple-ios
       fi
 
 script:
