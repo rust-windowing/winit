@@ -57,6 +57,9 @@ macro_rules! gen_api_transition {
         #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct WindowId(usize);
 
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct DeviceId;
+
         pub struct Window2 {
             pub window: ::std::sync::Arc<Window>,
             events_loop: ::std::sync::Weak<EventsLoop>,

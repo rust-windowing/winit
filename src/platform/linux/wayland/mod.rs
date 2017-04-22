@@ -15,3 +15,6 @@ mod context;
 mod event_loop;
 mod keyboard;
 mod window;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeviceId;

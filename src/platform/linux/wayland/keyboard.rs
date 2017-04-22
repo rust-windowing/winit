@@ -1,10 +1,10 @@
 use std::sync::{Arc, Mutex};
 
-use {VirtualKeyCode, ElementState, WindowEvent as Event};
+use {VirtualKeyCode, ElementState, WindowEvent as Event, KeyboardInput};
 
 use events::ModifiersState;
 
-use super::{wayland_kbd, EventsLoopSink, WindowId};
+use super::{wayland_kbd, EventsLoopSink, WindowId, DeviceId};
 use wayland_client::EventQueueHandle;
 use wayland_client::protocol::wl_keyboard;
 
@@ -39,17 +39,20 @@ impl wayland_kbd::Handler for KbdHandler {
             let vkcode = key_to_vkey(rawkey, keysym);
             let mut guard = self.sink.lock().unwrap();
             guard.send_event(
-                Event::KeyboardInput(
-                    state,
-                    rawkey as u8,
-                    vkcode,
-                    ModifiersState {
-                        shift: mods.shift,
-                        ctrl: mods.ctrl,
-                        alt: mods.alt,
-                        logo: mods.logo
-                    }
-                ),
+                Event::KeyboardInput {
+                    device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                    input: KeyboardInput {
+                        state: state,
+                        scancode: rawkey,
+                        virtual_keycode: vkcode,
+                        modifiers: ModifiersState {
+                            shift: mods.shift,
+                            ctrl: mods.ctrl,
+                            alt: mods.alt,
+                            logo: mods.logo
+                        },
+                    },
+                },
                 wid
             );
             // send char event only on key press, not release

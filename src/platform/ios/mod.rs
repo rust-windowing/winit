@@ -287,6 +287,7 @@ impl Window {
                     let phase: i32 = msg_send![touch, phase];
 
                     state.events_queue.push_back(Event::Touch(Touch {
+                        device_id: DEVICE_ID,
                         id: touch_id,
                         location: (location.x as f64, location.y as f64),
                         phase: match phase {
@@ -495,3 +496,6 @@ impl<'a> Iterator for PollEventsIterator<'a> {
         }
     }
 }
+
+// Constant device ID, to be removed when this backend is updated to report real device IDs.
+const DEVICE_ID: ::DeviceId = ::DeviceId(DeviceId);

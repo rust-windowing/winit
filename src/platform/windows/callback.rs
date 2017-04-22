@@ -8,6 +8,7 @@ use std::os::windows::ffi::OsStringExt;
 
 use CursorState;
 use WindowEvent as Event;
+use KeyboardInput;
 use events::ModifiersState;
 use super::event;
 use super::WindowState;
@@ -140,7 +141,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             });
 
             if mouse_outside_window {
-                send_event(window, MouseEntered);
+                send_event(window, MouseEntered { device_id: DEVICE_ID });
                 
                 // Calling TrackMouseEvent in order to receive mouse leave events.
                 user32::TrackMouseEvent(&mut winapi::TRACKMOUSEEVENT {
@@ -151,10 +152,10 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 });
             }
 
-            let x = winapi::GET_X_LPARAM(lparam) as i32;
-            let y = winapi::GET_Y_LPARAM(lparam) as i32;
+            let x = winapi::GET_X_LPARAM(lparam) as f64;
+            let y = winapi::GET_Y_LPARAM(lparam) as f64;
 
-            send_event(window, MouseMoved(x, y));
+            send_event(window, MouseMoved { device_id: DEVICE_ID, position: (x, y) });
 
             0
         },
@@ -174,7 +175,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             });
 
             if mouse_in_window {
-                send_event(window, MouseLeft);
+                send_event(window, MouseLeft { device_id: DEVICE_ID });
             }
 
             0
@@ -189,28 +190,42 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             let value = value as i32;
             let value = value as f32 / winapi::WHEEL_DELTA as f32;
 
-            send_event(window, MouseWheel(LineDelta(0.0, value), TouchPhase::Moved));
+            send_event(window, MouseWheel { device_id: DEVICE_ID, delta: LineDelta(0.0, value), phase: TouchPhase::Moved });
 
             0
         },
 
         winapi::WM_KEYDOWN | winapi::WM_SYSKEYDOWN => {
-            use events::WindowEvent::KeyboardInput;
             use events::ElementState::Pressed;
             if msg == winapi::WM_SYSKEYDOWN && wparam as i32 == winapi::VK_F4 {
                 user32::DefWindowProcW(window, msg, wparam, lparam)
             } else {
                 let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
-                send_event(window, KeyboardInput(Pressed, scancode, vkey, event::get_key_mods()));
+                send_event(window, Event::KeyboardInput {
+                    device_id: DEVICE_ID,
+                    input: KeyboardInput {
+                        state: Pressed,
+                        scancode: scancode,
+                        virtual_keycode: vkey,
+                        modifiers: event::get_key_mods(),
+                    }
+                });
                 0
             }
         },
 
         winapi::WM_KEYUP | winapi::WM_SYSKEYUP => {
-            use events::WindowEvent::KeyboardInput;
             use events::ElementState::Released;
             let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
-            send_event(window, KeyboardInput(Released, scancode, vkey, event::get_key_mods()));
+            send_event(window, Event::KeyboardInput {
+                device_id: DEVICE_ID,
+                input: KeyboardInput {
+                    state: Released,
+                    scancode: scancode,
+                    virtual_keycode: vkey,
+                    modifiers: event::get_key_mods(),
+                },
+            });
             0
         },
 
@@ -218,7 +233,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Left;
             use events::ElementState::Pressed;
-            send_event(window, MouseInput(Pressed, Left));
+            send_event(window, MouseInput { device_id: DEVICE_ID, state: Pressed, button: Left });
             0
         },
 
@@ -226,7 +241,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Left;
             use events::ElementState::Released;
-            send_event(window, MouseInput(Released, Left));
+            send_event(window, MouseInput { device_id: DEVICE_ID, state: Released, button: Left });
             0
         },
 
@@ -234,7 +249,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Right;
             use events::ElementState::Pressed;
-            send_event(window, MouseInput(Pressed, Right));
+            send_event(window, MouseInput { device_id: DEVICE_ID, state: Pressed, button: Right });
             0
         },
 
@@ -242,7 +257,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Right;
             use events::ElementState::Released;
-            send_event(window, MouseInput(Released, Right));
+            send_event(window, MouseInput { device_id: DEVICE_ID, state: Released, button: Right });
             0
         },
 
@@ -250,7 +265,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Middle;
             use events::ElementState::Pressed;
-            send_event(window, MouseInput(Pressed, Middle));
+            send_event(window, MouseInput { device_id: DEVICE_ID, state: Pressed, button: Middle });
             0
         },
 
@@ -258,7 +273,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Middle;
             use events::ElementState::Released;
-            send_event(window, MouseInput(Released, Middle));
+            send_event(window, MouseInput { device_id: DEVICE_ID, state: Released, button: Middle });
             0
         },
 
@@ -267,7 +282,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::MouseButton::Other;
             use events::ElementState::Pressed;
             let xbutton = winapi::HIWORD(wparam as winapi::DWORD) as winapi::c_int; // waiting on PR for winapi to add GET_XBUTTON_WPARAM
-            send_event(window, MouseInput(Pressed, Other(xbutton as u8)));
+            send_event(window, MouseInput { device_id: DEVICE_ID, state: Pressed, button: Other(xbutton as u8) });
             0
         },
 
@@ -276,7 +291,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::MouseButton::Other;
             use events::ElementState::Released;
             let xbutton = winapi::HIWORD(wparam as winapi::DWORD) as winapi::c_int; 
-            send_event(window, MouseInput(Released, Other(xbutton as u8)));
+            send_event(window, MouseInput { device_id: DEVICE_ID, state: Released, button: Other(xbutton as u8) });
             0
         },
 
@@ -405,3 +420,6 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         }
     }
 }
+
+// Constant device ID, to be removed when this backend is updated to report real device IDs.
+const DEVICE_ID: ::DeviceId = ::DeviceId(super::DeviceId);

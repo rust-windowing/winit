@@ -4,6 +4,9 @@ pub use self::events_loop::EventsLoop;
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 pub use self::window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, Window};
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeviceId;
+
 use {CreationError};
 
 pub struct Window2 {

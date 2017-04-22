@@ -58,6 +58,14 @@ pub enum WindowId {
     Wayland(wayland::WindowId)
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DeviceId {
+    #[doc(hidden)]
+    X(x11::DeviceId),
+    #[doc(hidden)]
+    Wayland(wayland::DeviceId)
+}
+
 #[derive(Clone)]
 pub enum MonitorId {
     #[doc(hidden)]
@@ -137,8 +145,8 @@ impl Window2 {
                 }
             },
 
-            UnixBackend::X(ref connec) => {
-                x11::Window2::new(events_loop, connec, window, pl_attribs).map(Window2::X)
+            UnixBackend::X(_) => {
+                x11::Window2::new(events_loop, window, pl_attribs).map(Window2::X)
             },
             UnixBackend::Error(_) => {
                 // If the Backend is Error(), it is not possible to instanciate an EventsLoop at all,
@@ -308,8 +316,8 @@ impl EventsLoop {
                 EventsLoop::Wayland(wayland::EventsLoop::new(ctxt.clone()))
             },
 
-            UnixBackend::X(_) => {
-                EventsLoop::X(x11::EventsLoop::new())
+            UnixBackend::X(ref ctxt) => {
+                EventsLoop::X(x11::EventsLoop::new(ctxt.clone()))
             },
 
             UnixBackend::Error(_) => {

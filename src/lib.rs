@@ -169,6 +169,22 @@ pub struct Window {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(platform::WindowId);
 
+/// Identifier of an input device.
+///
+/// Whenever you receive an event arising from a particular input device, this event contains a `DeviceId` which
+/// identifies its origin. Note that devices may be virtual (representing an on-screen cursor and keyboard focus) or
+/// physical. Virtual devices typically aggregate inputs from multiple physical devices.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeviceId(platform::DeviceId);
+
+/// Identifier for a specific analog axis on some device.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AxisId(u32);
+
+/// Identifier for a specific button on some device.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ButtonId(u32);
+
 /// Provides a way to retreive events from the windows that were registered to it.
 // TODO: document usage in multiple threads
 pub struct EventsLoop {
