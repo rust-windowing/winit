@@ -138,6 +138,7 @@ pub enum MouseScrollDelta {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[repr(u32)]
 pub enum VirtualKeyCode {
     /// The '1' key over the letters.
     Key1,
