@@ -403,6 +403,19 @@ impl Window {
             win
         };
 
+        // Set ICCCM WM_CLASS property based on initial window title
+        // Must be done *before* mapping the window by ICCCM 4.1.2.5
+        unsafe {
+            with_c_str(&*window_attrs.title, |c_name| {
+                let hint = (display.xlib.XAllocClassHint)();
+                (*hint).res_name = c_name as *mut libc::c_char;
+                (*hint).res_class = c_name as *mut libc::c_char;
+                (display.xlib.XSetClassHint)(display.display, window, hint);
+                display.check_errors().expect("Failed to call XSetClassHint");
+                (display.xlib.XFree)(hint as *mut _);
+            });
+        }
+
         // set visibility
         if window_attrs.visible {
             unsafe {
@@ -464,18 +477,6 @@ impl Window {
             if supported_ptr == ffi::False {
                 return Err(OsError(format!("XkbSetDetectableAutoRepeat failed")));
             }
-        }
-
-        // Set ICCCM WM_CLASS property based on initial window title
-        unsafe {
-            with_c_str(&*window_attrs.title, |c_name| {
-                let hint = (display.xlib.XAllocClassHint)();
-                (*hint).res_name = c_name as *mut libc::c_char;
-                (*hint).res_class = c_name as *mut libc::c_char;
-                (display.xlib.XSetClassHint)(display.display, window, hint);
-                display.check_errors().expect("Failed to call XSetClassHint");
-                (display.xlib.XFree)(hint as *mut _);
-            });
         }
 
         let is_fullscreen = window_attrs.monitor.is_some();
