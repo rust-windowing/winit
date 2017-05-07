@@ -2,8 +2,8 @@ use {events, libc};
 use super::ffi;
 use VirtualKeyCode;
 
-pub fn keycode_to_element(scancode: libc::c_uint) -> Option<VirtualKeyCode> {
-    Some(match scancode {
+pub fn keysym_to_element(keysym: libc::c_uint) -> Option<VirtualKeyCode> {
+    Some(match keysym {
         ffi::XK_BackSpace => events::VirtualKeyCode::Back,
         ffi::XK_Tab => events::VirtualKeyCode::Tab,
         //ffi::XK_Linefeed => events::VirtualKeyCode::Linefeed,

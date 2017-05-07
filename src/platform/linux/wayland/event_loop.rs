@@ -1,9 +1,9 @@
-use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase, ModifiersState};
+use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase, ModifiersState, KeyboardInput};
 
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicBool;
 
-use super::{DecoratedHandler, WindowId, WaylandContext};
+use super::{DecoratedHandler, WindowId, DeviceId, WaylandContext};
 
 
 use wayland_client::{EventQueue, EventQueueHandle, Init, Proxy};
@@ -221,7 +221,7 @@ struct InputHandler {
     seat: Option<wl_seat::WlSeat>,
     mouse: Option<wl_pointer::WlPointer>,
     mouse_focus: Option<Arc<wl_surface::WlSurface>>,
-    mouse_location: (i32, i32),
+    mouse_location: (f64, f64),
     axis_buffer: Option<(f32, f32)>,
     axis_discrete_buffer: Option<(i32, i32)>,
     axis_state: TouchPhase,
@@ -242,7 +242,7 @@ impl InputHandler {
             seat: ctxt.get_seat(),
             mouse: None,
             mouse_focus: None,
-            mouse_location: (0,0),
+            mouse_location: (0.0,0.0),
             axis_buffer: None,
             axis_discrete_buffer: None,
             axis_state: TouchPhase::Started,
@@ -310,14 +310,17 @@ impl wl_pointer::Handler for InputHandler {
              surface_x: f64,
              surface_y: f64)
     {
-        self.mouse_location = (surface_x as i32, surface_y as i32);
+        self.mouse_location = (surface_x, surface_y);
         for window in &self.windows {
             if window.equals(surface) {
                 self.mouse_focus = Some(window.clone());
                 let (w, h) = self.mouse_location;
                 let mut guard = self.callback.lock().unwrap();
-                guard.send_event(Event::MouseEntered, make_wid(window));
-                guard.send_event(Event::MouseMoved(w, h), make_wid(window));
+                guard.send_event(Event::MouseEntered { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)) },
+                                 make_wid(window));
+                guard.send_event(Event::MouseMoved { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                                     position: (w, h) },
+                                 make_wid(window));
                 break;
             }
         }
@@ -332,7 +335,8 @@ impl wl_pointer::Handler for InputHandler {
         self.mouse_focus = None;
         for window in &self.windows {
             if window.equals(surface) {
-                self.callback.lock().unwrap().send_event(Event::MouseLeft, make_wid(window));
+                self.callback.lock().unwrap().send_event(Event::MouseLeft { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)) },
+                                                         make_wid(window));
             }
         }
     }
@@ -344,10 +348,11 @@ impl wl_pointer::Handler for InputHandler {
               surface_x: f64,
               surface_y: f64)
     {
-        self.mouse_location = (surface_x as i32, surface_y as i32);
+        self.mouse_location = (surface_x, surface_y);
         if let Some(ref window) = self.mouse_focus {
             let (w,h) = self.mouse_location;
-            self.callback.lock().unwrap().send_event(Event::MouseMoved(w, h), make_wid(window));
+            self.callback.lock().unwrap().send_event(Event::MouseMoved { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                                                         position: (w, h) }, make_wid(window));
         }
     }
 
@@ -371,7 +376,14 @@ impl wl_pointer::Handler for InputHandler {
                 // TODO figure out the translation ?
                 _ => return
             };
-            self.callback.lock().unwrap().send_event(Event::MouseInput(state, button), make_wid(window));
+            self.callback.lock().unwrap().send_event(
+                Event::MouseInput {
+                    device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                    state: state,
+                    button: button,
+                },
+                make_wid(window)
+            );
         }
     }
 
@@ -403,18 +415,20 @@ impl wl_pointer::Handler for InputHandler {
         if let Some(ref window) = self.mouse_focus {
             if let Some((x, y)) = axis_discrete_buffer {
                 self.callback.lock().unwrap().send_event(
-                    Event::MouseWheel(
-                        MouseScrollDelta::LineDelta(x as f32, y as f32),
-                        self.axis_state
-                    ),
+                    Event::MouseWheel {
+                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                        delta: MouseScrollDelta::LineDelta(x as f32, y as f32),
+                        phase: self.axis_state,
+                    },
                     make_wid(window)
                 );
             } else if let Some((x, y)) = axis_buffer {
                 self.callback.lock().unwrap().send_event(
-                    Event::MouseWheel(
-                        MouseScrollDelta::PixelDelta(x as f32, y as f32),
-                        self.axis_state
-                    ),
+                    Event::MouseWheel {
+                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                        delta: MouseScrollDelta::PixelDelta(x as f32, y as f32),
+                        phase: self.axis_state,
+                    },
                     make_wid(window)
                 );
             }
@@ -547,12 +561,15 @@ impl wl_keyboard::Handler for InputHandler {
                 // anyway, as we need libxkbcommon to interpret it (it is
                 // supposed to be serialized by the compositor using libxkbcommon)
                 self.callback.lock().unwrap().send_event(
-                    Event::KeyboardInput(
-                        state,
-                        key as u8,
-                        None,
-                        ModifiersState::default()
-                    ),
+                    Event::KeyboardInput {
+                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                        input: KeyboardInput {
+                            state: state,
+                            scancode: key,
+                            virtual_keycode: None,
+                            modifiers: ModifiersState::default(),
+                        },
+                    },
                     wid
                 );
             },

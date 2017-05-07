@@ -1,8 +1,9 @@
 use cocoa::{self, appkit, foundation};
 use cocoa::appkit::{NSApplication, NSEvent, NSView, NSWindow};
-use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, ModifiersState};
+use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, ModifiersState, KeyboardInput};
 use super::window::Window;
 use std;
+use super::DeviceId;
 
 
 pub struct EventsLoop {
@@ -315,8 +316,16 @@ impl EventsLoop {
 
                 let vkey =  to_virtual_key_code(NSEvent::keyCode(ns_event));
                 let state = ElementState::Pressed;
-                let code = NSEvent::keyCode(ns_event) as u8;
-                let window_event = WindowEvent::KeyboardInput(state, code, vkey, event_mods(ns_event));
+                let code = NSEvent::keyCode(ns_event) as u32;
+                let window_event = WindowEvent::KeyboardInput {
+                    device_id: DEVICE_ID,
+                    input: KeyboardInput {
+                        state: state,
+                        scancode: code,
+                        virtual_keycode: vkey,
+                        modifiers: event_mods(ns_event),
+                    },
+                };
                 events.push_back(into_event(window_event));
                 let event = events.pop_front();
                 self.pending_events.lock().unwrap().extend(events.into_iter());
@@ -327,8 +336,16 @@ impl EventsLoop {
                 let vkey =  to_virtual_key_code(NSEvent::keyCode(ns_event));
 
                 let state = ElementState::Released;
-                let code = NSEvent::keyCode(ns_event) as u8;
-                let window_event = WindowEvent::KeyboardInput(state, code, vkey, event_mods(ns_event));
+                let code = NSEvent::keyCode(ns_event) as u32;
+                let window_event = WindowEvent::KeyboardInput {
+                    device_id: DEVICE_ID,
+                    input: KeyboardInput {
+                        state: state,
+                        scancode: code,
+                        virtual_keycode: vkey,
+                        modifiers: event_mods(ns_event),
+                    },
+                };
                 Some(into_event(window_event))
             },
 
@@ -342,14 +359,30 @@ impl EventsLoop {
                 {
                     if !key_pressed && NSEvent::modifierFlags(event).contains(keymask) {
                         let state = ElementState::Pressed;
-                        let code = NSEvent::keyCode(event) as u8;
-                        let window_event = WindowEvent::KeyboardInput(state, code, Some(key), event_mods(event));
+                        let code = NSEvent::keyCode(event) as u32;
+                        let window_event = WindowEvent::KeyboardInput {
+                            device_id: DEVICE_ID,
+                            input: KeyboardInput {
+                                state: state,
+                                scancode: code,
+                                virtual_keycode: Some(key),
+                                modifiers: event_mods(event),
+                            },
+                        };
                         Some(window_event)
 
                     } else if key_pressed && !NSEvent::modifierFlags(event).contains(keymask) {
                         let state = ElementState::Released;
-                        let code = NSEvent::keyCode(event) as u8;
-                        let window_event = WindowEvent::KeyboardInput(state, code, Some(key), event_mods(event));
+                        let code = NSEvent::keyCode(event) as u32;
+                        let window_event = WindowEvent::KeyboardInput {
+                            device_id: DEVICE_ID,
+                            input: KeyboardInput {
+                                state: state,
+                                scancode: code,
+                                virtual_keycode: Some(key),
+                                modifiers: event_mods(event),
+                            },
+                        };
                         Some(window_event)
 
                     } else {
@@ -399,15 +432,15 @@ impl EventsLoop {
                 event
             },
 
-            appkit::NSLeftMouseDown => { Some(into_event(WindowEvent::MouseInput(ElementState::Pressed, MouseButton::Left))) },
-            appkit::NSLeftMouseUp => { Some(into_event(WindowEvent::MouseInput(ElementState::Released, MouseButton::Left))) },
-            appkit::NSRightMouseDown => { Some(into_event(WindowEvent::MouseInput(ElementState::Pressed, MouseButton::Right))) },
-            appkit::NSRightMouseUp => { Some(into_event(WindowEvent::MouseInput(ElementState::Released, MouseButton::Right))) },
-            appkit::NSOtherMouseDown => { Some(into_event(WindowEvent::MouseInput(ElementState::Pressed, MouseButton::Middle))) },
-            appkit::NSOtherMouseUp => { Some(into_event(WindowEvent::MouseInput(ElementState::Released, MouseButton::Middle))) },
+            appkit::NSLeftMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Left })) },
+            appkit::NSLeftMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Left })) },
+            appkit::NSRightMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Right })) },
+            appkit::NSRightMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Right })) },
+            appkit::NSOtherMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Middle })) },
+            appkit::NSOtherMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Middle })) },
 
-            appkit::NSMouseEntered => { Some(into_event(WindowEvent::MouseEntered)) },
-            appkit::NSMouseExited => { Some(into_event(WindowEvent::MouseLeft)) },
+            appkit::NSMouseEntered => { Some(into_event(WindowEvent::MouseEntered { device_id: DEVICE_ID })) },
+            appkit::NSMouseExited => { Some(into_event(WindowEvent::MouseLeft { device_id: DEVICE_ID })) },
 
             appkit::NSMouseMoved |
             appkit::NSLeftMouseDragged |
@@ -433,9 +466,9 @@ impl EventsLoop {
                 let view_rect = NSView::frame(*window.view);
                 let scale_factor = window.hidpi_factor();
 
-                let x = (scale_factor * view_point.x as f32) as i32;
-                let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as i32;
-                let window_event = WindowEvent::MouseMoved(x, y);
+                let x = (scale_factor * view_point.x as f32) as f64;
+                let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
+                let window_event = WindowEvent::MouseMoved { device_id: DEVICE_ID, position: (x, y) };
                 let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
                 Some(event)
             },
@@ -461,14 +494,14 @@ impl EventsLoop {
                     appkit::NSEventPhaseEnded => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
                 };
-                let window_event = WindowEvent::MouseWheel(delta, phase);
+                let window_event = WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: delta, phase: phase };
                 Some(into_event(window_event))
             },
 
             appkit::NSEventTypePressure => {
                 let pressure = ns_event.pressure();
                 let stage = ns_event.stage();
-                let window_event = WindowEvent::TouchpadPressure(pressure, stage);
+                let window_event = WindowEvent::TouchpadPressure { device_id: DEVICE_ID, pressure: pressure, stage: stage };
                 Some(into_event(window_event))
             },
 
@@ -632,3 +665,6 @@ fn event_mods(event: cocoa::base::id) -> ModifiersState {
         logo: flags.contains(appkit::NSCommandKeyMask),
     }
 }
+
+// Constant device ID, to be removed when this backend is updated to report real device IDs.
+const DEVICE_ID: ::DeviceId = ::DeviceId(DeviceId);
