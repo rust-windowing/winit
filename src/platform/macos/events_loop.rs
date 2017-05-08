@@ -309,10 +309,6 @@ impl EventsLoop {
                 let mut events = std::collections::VecDeque::new();
                 let received_c_str = foundation::NSString::UTF8String(ns_event.characters());
                 let received_str = std::ffi::CStr::from_ptr(received_c_str);
-                for received_char in std::str::from_utf8(received_str.to_bytes()).unwrap().chars() {
-                    let window_event = WindowEvent::ReceivedCharacter(received_char);
-                    events.push_back(into_event(window_event));
-                }
 
                 let vkey =  to_virtual_key_code(NSEvent::keyCode(ns_event));
                 let state = ElementState::Pressed;
@@ -326,10 +322,12 @@ impl EventsLoop {
                         modifiers: event_mods(ns_event),
                     },
                 };
-                events.push_back(into_event(window_event));
-                let event = events.pop_front();
+                for received_char in std::str::from_utf8(received_str.to_bytes()).unwrap().chars() {
+                    let window_event = WindowEvent::ReceivedCharacter(received_char);
+                    events.push_back(into_event(window_event));
+                }
                 self.pending_events.lock().unwrap().extend(events.into_iter());
-                event
+                Some(into_event(window_event))
             },
 
             appkit::NSKeyUp => {
