@@ -228,6 +228,23 @@ impl EventsLoop {
 
                 let mut ev_mods = ModifiersState::default();
 
+                let mut keysym = unsafe {
+                    (self.display.xlib.XKeycodeToKeysym)(self.display.display, xkev.keycode as ffi::KeyCode, 0)
+                };
+
+                let vkey = events::keysym_to_element(keysym as libc::c_uint);
+
+                callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
+                     // Typical virtual core keyboard ID. xinput2 needs to be used to get a reliable value.
+                    device_id: mkdid(3),
+                    input: KeyboardInput {
+                        state: state,
+                        scancode: xkev.keycode,
+                        virtual_keycode: vkey,
+                        modifiers: ev_mods,
+                    },
+                }});
+
                 if state == Pressed {
                     let written = unsafe {
                         use std::str;
@@ -267,23 +284,6 @@ impl EventsLoop {
                         callback(Event::WindowEvent { window_id: wid, event: WindowEvent::ReceivedCharacter(chr) })
                     }
                 }
-
-                let mut keysym = unsafe {
-                    (self.display.xlib.XKeycodeToKeysym)(self.display.display, xkev.keycode as ffi::KeyCode, 0)
-                };
-
-                let vkey = events::keysym_to_element(keysym as libc::c_uint);
-
-                callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
-                     // Typical virtual core keyboard ID. xinput2 needs to be used to get a reliable value.
-                    device_id: mkdid(3),
-                    input: KeyboardInput {
-                        state: state,
-                        scancode: xkev.keycode,
-                        virtual_keycode: vkey,
-                        modifiers: ev_mods,
-                    },
-                }});
             }
 
             ffi::GenericEvent => {
