@@ -179,11 +179,11 @@ pub struct DeviceId(platform::DeviceId);
 
 /// Identifier for a specific analog axis on some device.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AxisId(u32);
+pub struct AxisId(pub u32);
 
 /// Identifier for a specific button on some device.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ButtonId(u32);
+pub struct ButtonId(pub u32);
 
 /// Provides a way to retreive events from the windows that were registered to it.
 // TODO: document usage in multiple threads
