@@ -103,6 +103,37 @@ impl EventsLoop {
 
     pub fn interrupt(&self) {
         self.interrupted.store(true, ::std::sync::atomic::Ordering::Relaxed);
+
+        // Push an event on the X event queue so that methods like run_forever will advance.
+
+        // Get a window for the event.
+        //
+        // It should not matter which window is used since the purpose is merely
+        // to advance the event loop.
+        let window = {
+            let windows = self.windows.lock().unwrap();
+            match windows.keys().nth(0) {
+                Some(window_id) => window_id.0,
+                None => return
+            }
+        };
+
+        let mut xev = ffi::XClientMessageEvent {
+            type_: ffi::ClientMessage,
+            window: window,
+            format: 32,
+            message_type: 0,
+            serial: 0,
+            send_event: 0,
+            display: self.display.display,
+            data: unsafe { mem::zeroed() },
+        };
+
+        unsafe {
+            (self.display.xlib.XSendEvent)(self.display.display, window, 0, 0, mem::transmute(&mut xev));
+            (self.display.xlib.XFlush)(self.display.display);
+            self.display.check_errors().expect("Failed to call XSendEvent after wakeup");
+        }
     }
 
     pub fn poll_events<F>(&self, mut callback: F)
