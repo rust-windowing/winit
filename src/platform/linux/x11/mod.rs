@@ -234,7 +234,7 @@ impl EventsLoop {
 
                 let mut ev_mods = ModifiersState::default();
 
-                let mut keysym = unsafe {
+                let keysym = unsafe {
                     (self.display.xlib.XKeycodeToKeysym)(self.display.display, xkev.keycode as ffi::KeyCode, 0)
                 };
 
