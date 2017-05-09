@@ -111,16 +111,22 @@ impl EventsLoop {
         let xlib = &self.display.xlib;
 
         let mut xev = unsafe { mem::uninitialized() };
-        unsafe {
-            // Ensure XNextEvent won't block
-            let count = (xlib.XPending)(self.display.display);
-            if count == 0 {
-                return;
+        loop {
+            // Get next event
+            unsafe {
+                // Ensure XNextEvent won't block
+                let count = (xlib.XPending)(self.display.display);
+                if count == 0 {
+                    break;
+                }
+
+                (xlib.XNextEvent)(self.display.display, &mut xev);
             }
-            
-            (xlib.XNextEvent)(self.display.display, &mut xev);
+            self.process_event(&mut xev, &mut callback);
+            if self.interrupted.load(::std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
         }
-        self.process_event(&mut xev, &mut callback);
     }
 
     pub fn run_forever<F>(&self, mut callback: F)
