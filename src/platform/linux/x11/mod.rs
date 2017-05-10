@@ -103,6 +103,24 @@ impl EventsLoop {
 
     pub fn interrupt(&self) {
         self.interrupted.store(true, ::std::sync::atomic::Ordering::Relaxed);
+
+        // Push an event on the X event queue so that methods like run_forever will advance.
+        let mut xev = ffi::XClientMessageEvent {
+            type_: ffi::ClientMessage,
+            window: self.root,
+            format: 32,
+            message_type: 0,
+            serial: 0,
+            send_event: 0,
+            display: self.display.display,
+            data: unsafe { mem::zeroed() },
+        };
+
+        unsafe {
+            (self.display.xlib.XSendEvent)(self.display.display, self.root, 0, 0, mem::transmute(&mut xev));
+            (self.display.xlib.XFlush)(self.display.display);
+            self.display.check_errors().expect("Failed to call XSendEvent after wakeup");
+        }
     }
 
     pub fn poll_events<F>(&self, mut callback: F)
@@ -111,16 +129,22 @@ impl EventsLoop {
         let xlib = &self.display.xlib;
 
         let mut xev = unsafe { mem::uninitialized() };
-        unsafe {
-            // Ensure XNextEvent won't block
-            let count = (xlib.XPending)(self.display.display);
-            if count == 0 {
-                return;
+        loop {
+            // Get next event
+            unsafe {
+                // Ensure XNextEvent won't block
+                let count = (xlib.XPending)(self.display.display);
+                if count == 0 {
+                    break;
+                }
+
+                (xlib.XNextEvent)(self.display.display, &mut xev);
             }
-            
-            (xlib.XNextEvent)(self.display.display, &mut xev);
+            self.process_event(&mut xev, &mut callback);
+            if self.interrupted.load(::std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
         }
-        self.process_event(&mut xev, &mut callback);
     }
 
     pub fn run_forever<F>(&self, mut callback: F)
@@ -228,7 +252,7 @@ impl EventsLoop {
 
                 let mut ev_mods = ModifiersState::default();
 
-                let mut keysym = unsafe {
+                let keysym = unsafe {
                     (self.display.xlib.XKeycodeToKeysym)(self.display.display, xkev.keycode as ffi::KeyCode, 0)
                 };
 
