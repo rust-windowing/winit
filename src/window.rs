@@ -117,7 +117,7 @@ impl WindowBuilder {
 }
 
 impl Window {
-    /// Creates a new OpenGL context, and a Window for platforms where this is appropriate.
+    /// Creates a new Window for platforms where this is appropriate.
     ///
     /// This function is equivalent to `WindowBuilder::new().build(events_loop)`.
     ///
@@ -284,7 +284,7 @@ impl Window {
         self.window.set_cursor_position(x, y)
     }
 
-    /// Sets how glutin handles the cursor. See the documentation of `CursorState` for details.
+    /// Sets how winit handles the cursor. See the documentation of `CursorState` for details.
     ///
     /// Has no effect on Android.
     #[inline]
