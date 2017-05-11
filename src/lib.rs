@@ -319,7 +319,7 @@ pub enum MouseCursor {
     RowResize,
 }
 
-/// Describes how glutin handles the cursor.
+/// Describes how winit handles the cursor.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum CursorState {
     /// Normal cursor behavior.
@@ -362,7 +362,7 @@ pub struct WindowAttributes {
 
     /// The title of the window in the title bar.
     ///
-    /// The default is `"glutin window"`.
+    /// The default is `"winit window"`.
     pub title: String,
 
     /// Whether the window should be immediately visible upon creation.
@@ -394,7 +394,7 @@ impl Default for WindowAttributes {
             min_dimensions: None,
             max_dimensions: None,
             monitor: None,
-            title: "glutin window".to_owned(),
+            title: "winit window".to_owned(),
             visible: true,
             transparent: false,
             decorations: true,
