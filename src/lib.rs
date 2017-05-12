@@ -187,6 +187,7 @@ pub struct ButtonId(u32);
 
 /// Provides a way to retreive events from the windows that were registered to it.
 // TODO: document usage in multiple threads
+#[derive(Clone)]
 pub struct EventsLoop {
     events_loop: Arc<platform::EventsLoop>,
 }
