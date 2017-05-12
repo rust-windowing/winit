@@ -126,6 +126,7 @@ impl EventsLoop {
     pub fn poll_events<F>(&self, mut callback: F)
         where F: FnMut(Event)
     {
+        self.interrupted.store(false, ::std::sync::atomic::Ordering::Relaxed);
         let xlib = &self.display.xlib;
 
         let mut xev = unsafe { mem::uninitialized() };
