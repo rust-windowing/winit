@@ -160,16 +160,18 @@ impl EventsLoop {
         self.ctxt.dispatch_pending();
         evq_guard.dispatch_pending().expect("Wayland connection unexpectedly lost");
 
-        let mut sink_guard = self.sink.lock().unwrap();
+        {
+            let mut sink_guard = self.sink.lock().unwrap();
 
-        // events where probably dispatched, process resize
-        let ids_guard = self.decorated_ids.lock().unwrap();
-        sink_guard.with_callback(
-            |cb| Self::process_resize(&mut evq_guard, &ids_guard, cb)
-        );
+            // events where probably dispatched, process resize
+            let ids_guard = self.decorated_ids.lock().unwrap();
+            sink_guard.with_callback(
+                |cb| Self::process_resize(&mut evq_guard, &ids_guard, cb)
+            );
 
-        // replace the old noop callback
-        unsafe { self.sink.lock().unwrap().set_callback(old_cb) };
+            // replace the old noop callback
+            unsafe { sink_guard.set_callback(old_cb) };
+        }
 
         if self.cleanup_needed.swap(false, ::std::sync::atomic::Ordering::Relaxed) {
             self.prune_dead_windows()
