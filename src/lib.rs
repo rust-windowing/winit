@@ -186,10 +186,15 @@ pub struct AxisId(u32);
 pub struct ButtonId(u32);
 
 /// Provides a way to retreive events from the windows that were registered to it.
-// TODO: document usage in multiple threads
-#[derive(Clone)]
+///
+/// To wake up an `EventsLoop` from a another thread, see the `EventsLoopProxy` docs.
 pub struct EventsLoop {
-    events_loop: Arc<platform::EventsLoop>,
+    events_loop: platform::EventsLoop,
+}
+
+/// Used to wake up the `EventsLoop` from another thread.
+pub struct EventsLoopProxy {
+    events_loop_proxy: platform::EventsLoopProxy,
 }
 
 impl EventsLoop {
@@ -218,10 +223,26 @@ impl EventsLoop {
     }
 
     /// If we called `run_forever()`, stops the process of waiting for events.
-    // TODO: what if we're waiting from multiple threads?
     #[inline]
     pub fn interrupt(&self) {
         self.events_loop.interrupt()
+    }
+
+    /// Creates an `EventsLoopProxy` that can be used to wake up the `EventsLoop` from another
+    /// thread.
+    pub fn create_proxy(&self) -> EventsLoopProxy {
+        EventsLoopProxy {
+            events_loop_proxy: platform::EventsLoopProxy::new(&self.events_loop),
+        }
+    }
+}
+
+impl EventsLoopProxy {
+    /// Wake up the `EventsLoop` from which this proxy was created.
+    ///
+    /// This causes the `EventsLoop` to emit an `Awakened` event.
+    pub fn wakeup(&self) {
+        self.events_loop_proxy.wakeup();
     }
 }
 
