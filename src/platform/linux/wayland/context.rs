@@ -1,11 +1,14 @@
 use std::collections::VecDeque;
+use std::fs::File;
+use std::io::Write;
+use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 
 use wayland_client::{EnvHandler, default_connect, EventQueue, EventQueueHandle, Init, Proxy};
 use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subcompositor,
-                               wl_display, wl_registry, wl_output, wl_surface};
+                               wl_display, wl_registry, wl_output, wl_surface, wl_buffer};
 
-use super::wayland_window;
+use super::{wayland_window, tempfile};
 
 /*
  * Registry and globals handling
@@ -213,13 +216,12 @@ impl WaylandContext {
         }
     }
 
-    pub fn create_window<H: wayland_window::Handler>(&self)
-        -> (Arc<wl_surface::WlSurface>, wayland_window::DecoratedSurface<H>)
+    pub fn create_window<H: wayland_window::Handler>(&self, width: u32, height: u32)
+        -> (Arc<wl_surface::WlSurface>, wayland_window::DecoratedSurface<H>, wl_buffer::WlBuffer, File)
     {
         let mut guard = self.evq.lock().unwrap();
         let mut state = guard.state();
         let env = state.get_mut_handler::<WaylandEnv>(self.env_id);
-        // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
         let surface = Arc::new(env.inner.compositor.create_surface());
         let decorated = wayland_window::DecoratedSurface::new(
             &*surface, 800, 600,
@@ -230,7 +232,19 @@ impl WaylandContext {
             env.get_seat(),
             false
         ).expect("Failed to create a tmpfile buffer.");
-        (surface, decorated)
+        // prepare a white content for the window, so that it exists
+        let mut tmp = tempfile::tempfile().expect("Failed to create a tmpfile buffer.");
+        for _ in 0..(width*height) {
+            tmp.write_all(&[0xff,0xff,0xff,0xff]).unwrap();
+        }
+        tmp.flush().unwrap();
+        let pool = env.inner.shm.create_pool(tmp.as_raw_fd(), (width*height*4) as i32);
+        let buffer = pool.create_buffer(0, width as i32, height as i32, width as i32, wl_shm::Format::Argb8888).expect("Pool cannot be already dead");
+        surface.attach(Some(&buffer), 0, 0);
+        surface.commit();
+        // the buffer wiil keep the contents alive as needed
+        pool.destroy();
+        (surface, decorated, buffer, tmp)
     }
 }
 

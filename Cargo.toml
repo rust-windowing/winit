@@ -40,4 +40,5 @@ dwmapi-sys = "0.1"
 wayland-client = { version = "0.8.6", features = ["dlopen"] }
 wayland-kbd = "0.8.0"
 wayland-window = "0.5.0"
+tempfile = "2.1"
 x11-dl = "2.8"
