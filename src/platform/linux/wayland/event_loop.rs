@@ -181,6 +181,8 @@ impl EventsLoop {
     pub fn run_forever<F>(&self, callback: F)
         where F: FnMut(::Event)
     {
+        self.interrupted.store(false, ::std::sync::atomic::Ordering::Relaxed);
+
         // send pending requests to the server...
         self.ctxt.flush();
 
@@ -193,13 +195,7 @@ impl EventsLoop {
         let static_cb = unsafe { ::std::mem::transmute(Box::new(callback) as Box<FnMut(_)>) };
         let old_cb = unsafe { self.sink.lock().unwrap().set_callback(static_cb) };
 
-        loop {
-            // If `interrupt` was called, break from the loop after resetting the flag.
-            if self.interrupted.load(::std::sync::atomic::Ordering::Relaxed) {
-                self.interrupted.store(false, ::std::sync::atomic::Ordering::Relaxed);
-                break;
-            }
-
+        while !self.interrupted.load(::std::sync::atomic::Ordering::Relaxed) {
             self.ctxt.dispatch();
             evq_guard.dispatch_pending().expect("Wayland connection unexpectedly lost");
             let ids_guard = self.decorated_ids.lock().unwrap();
