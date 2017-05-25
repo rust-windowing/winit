@@ -190,6 +190,7 @@ pub struct ButtonId(u32);
 #[derive(Clone)]
 pub struct EventsLoop {
     events_loop: Arc<platform::EventsLoop>,
+    is_in_user_callback: std::sync::atomic::AtomicBool,
 }
 
 impl EventsLoop {
@@ -197,6 +198,7 @@ impl EventsLoop {
     pub fn new() -> EventsLoop {
         EventsLoop {
             events_loop: Arc::new(platform::EventsLoop::new()),
+            is_in_user_callback: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -206,7 +208,13 @@ impl EventsLoop {
     pub fn poll_events<F>(&self, callback: F)
         where F: FnMut(Event)
     {
-        self.events_loop.poll_events(callback)
+        if self.is_in_user_callback.load(std::sync::atomic::Ordering::Relaxed) {
+            panic!("overlapping calls to `poll_events` and `run_forever` are not supported");
+        }
+
+        self.is_in_user_callback.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.events_loop.poll_events(callback);
+        self.is_in_user_callback.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Runs forever until `interrupt()` is called. Whenever an event happens, calls the callback.
@@ -214,7 +222,13 @@ impl EventsLoop {
     pub fn run_forever<F>(&self, callback: F)
         where F: FnMut(Event)
     {
-        self.events_loop.run_forever(callback)
+        if self.is_in_user_callback.load(std::sync::atomic::Ordering::Relaxed) {
+            panic!("overlapping calls to `poll_events` and `run_forever` are not supported");
+        }
+
+        self.is_in_user_callback.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.events_loop.run_forever(callback);
+        self.is_in_user_callback.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// If we called `run_forever()`, stops the process of waiting for events.
