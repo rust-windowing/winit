@@ -3,9 +3,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use CreationError;
-use CursorState;
-use MouseCursor;
+use {CreationError, CursorState, EventsLoopClosed, MouseCursor};
 use libc;
 
 use self::x11::XConnection;
@@ -309,6 +307,11 @@ pub enum EventsLoop {
     X(x11::EventsLoop)
 }
 
+pub enum EventsLoopProxy {
+    X(x11::EventsLoopProxy),
+    Wayland(wayland::EventsLoopProxy),
+}
+
 impl EventsLoop {
     pub fn new() -> EventsLoop {
         match *UNIX_BACKEND {
@@ -323,6 +326,13 @@ impl EventsLoop {
             UnixBackend::Error(_) => {
                 panic!("Attempted to create an EventsLoop while no backend was available.")
             }
+        }
+    }
+
+    pub fn create_proxy(&self) -> EventsLoopProxy {
+        match *self {
+            EventsLoop::Wayland(ref evlp) => EventsLoopProxy::Wayland(evlp.create_proxy()),
+            EventsLoop::X(ref evlp) => EventsLoopProxy::X(evlp.create_proxy()),
         }
     }
 
@@ -348,6 +358,15 @@ impl EventsLoop {
         match *self {
             EventsLoop::Wayland(ref evlp) => evlp.run_forever(callback),
             EventsLoop::X(ref evlp) => evlp.run_forever(callback)
+        }
+    }
+}
+
+impl EventsLoopProxy {
+    pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
+        match *self {
+            EventsLoopProxy::Wayland(ref proxy) => proxy.wakeup(),
+            EventsLoopProxy::X(ref proxy) => proxy.wakeup(),
         }
     }
 }

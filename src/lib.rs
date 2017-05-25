@@ -189,12 +189,7 @@ pub struct ButtonId(u32);
 ///
 /// To wake up an `EventsLoop` from a another thread, see the `EventsLoopProxy` docs.
 pub struct EventsLoop {
-    events_loop: platform::EventsLoop,
-}
-
-/// Used to wake up the `EventsLoop` from another thread.
-pub struct EventsLoopProxy {
-    events_loop_proxy: platform::EventsLoopProxy,
+    events_loop: Arc<platform::EventsLoop>,
 }
 
 impl EventsLoop {
@@ -232,17 +227,41 @@ impl EventsLoop {
     /// thread.
     pub fn create_proxy(&self) -> EventsLoopProxy {
         EventsLoopProxy {
-            events_loop_proxy: platform::EventsLoopProxy::new(&self.events_loop),
+            events_loop_proxy: self.events_loop.create_proxy(),
         }
     }
+}
+
+/// Used to wake up the `EventsLoop` from another thread.
+pub struct EventsLoopProxy {
+    events_loop_proxy: platform::EventsLoopProxy,
 }
 
 impl EventsLoopProxy {
     /// Wake up the `EventsLoop` from which this proxy was created.
     ///
     /// This causes the `EventsLoop` to emit an `Awakened` event.
-    pub fn wakeup(&self) {
-        self.events_loop_proxy.wakeup();
+    ///
+    /// Returns an `Err` if the associated `EventsLoop` no longer exists.
+    pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
+        self.events_loop_proxy.wakeup()
+    }
+}
+
+/// The error that is returned when an `EventsLoopProxy` attempts to wake up an `EventsLoop` that
+/// no longer exists.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct EventsLoopClosed;
+
+impl std::fmt::Display for EventsLoopClosed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", std::error::Error::description(self))
+    }
+}
+
+impl std::error::Error for EventsLoopClosed {
+    fn description(&self) -> &str {
+        "Tried to wake up a closed `EventsLoop`"
     }
 }
 

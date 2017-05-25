@@ -14,7 +14,7 @@ fn main() {
         // Wake up the `events_loop` once every second.
         loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
-            proxy.wakeup();
+            proxy.wakeup().unwrap();
         }
     });
 

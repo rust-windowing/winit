@@ -1,7 +1,7 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
 pub use self::window::{Window, WindowId};
-pub use self::event_loop::EventsLoop;
+pub use self::event_loop::{EventsLoop, EventsLoopProxy};
 pub use self::context::{WaylandContext, MonitorId, get_available_monitors,
                         get_primary_monitor};
 
