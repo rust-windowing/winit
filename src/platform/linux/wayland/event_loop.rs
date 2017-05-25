@@ -181,6 +181,8 @@ impl EventsLoop {
     pub fn run_forever<F>(&self, callback: F)
         where F: FnMut(::Event)
     {
+        self.interrupted.store(false, ::std::sync::atomic::Ordering::Relaxed);
+
         // send pending requests to the server...
         self.ctxt.flush();
 
