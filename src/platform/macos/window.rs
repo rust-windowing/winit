@@ -215,6 +215,33 @@ impl WindowExt for Window {
 }
 
 impl Window {
+    pub fn with_handle(events_loop: std::sync::Weak<super::EventsLoop>, handle: *mut libc::c_void) -> Result<Window, CreationError> {
+
+        let view = IdRef::new(handle as id);
+
+        // view.non_nil().map(|view| {
+        //     view.setWantsBestResolutionOpenGLSurface_(YES);
+        //     window.setContentView_(*view);
+        //     view
+        // })
+
+        let window = view.clone();
+
+        let ds = DelegateState {
+            view: view.clone(),
+            window: window.clone(),
+            events_loop: events_loop,
+        };
+
+        let window = Window {
+            view: view,
+            window: window,
+            delegate: WindowDelegate::new(ds),
+        };
+
+        Ok(window)
+    }
+
     pub fn new(events_loop: std::sync::Weak<super::EventsLoop>,
                win_attribs: &WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
