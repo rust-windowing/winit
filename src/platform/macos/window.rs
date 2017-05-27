@@ -225,7 +225,9 @@ impl Window {
         //     view
         // })
 
-        let window = view.clone();
+        use cocoa::appkit::NSEvent;
+        let window_handle = unsafe { (handle as id).window() };
+        let window = IdRef::new(window_handle);
 
         let ds = DelegateState {
             view: view.clone(),
