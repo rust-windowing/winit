@@ -95,9 +95,9 @@ impl EventsLoopProxy {
             (Some(ctxt), Some(wakeup)) => {
                 // Update the `EventsLoop`'s `pending_wakeup` flag.
                 wakeup.store(true, atomic::Ordering::Relaxed);
-                // TODO:
                 // Cause the `EventsLoop` to break from `dispatch` if it is currently blocked.
                 ctxt.display.sync();
+                ctxt.display.flush().ok();
                 Ok(())
             },
             _ => Err(EventsLoopClosed),
