@@ -219,16 +219,8 @@ impl Window {
 
         let view = IdRef::new(handle as id);
 
-        // view.non_nil().map(|view| {
-        //     view.setWantsBestResolutionOpenGLSurface_(YES);
-        //     window.setContentView_(*view);
-        //     view
-        // })
-
-        // use cocoa::appkit::NSEvent;
-        // let window_handle = unsafe { (handle as id).superview() };
-        // let window = IdRef::new(window_handle);
-        let window = IdRef::new(nil);
+        let ns_window_ptr: cocoa::base::id = unsafe { msg_send![handle as cocoa::base::id, window] };
+        let window = IdRef::new(ns_window_ptr as id);
 
         let ds = DelegateState {
             view: view.clone(),
