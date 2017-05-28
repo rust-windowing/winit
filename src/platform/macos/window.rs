@@ -215,6 +215,28 @@ impl WindowExt for Window {
 }
 
 impl Window {
+    pub fn with_handle(events_loop: std::sync::Weak<super::EventsLoop>, handle: *mut libc::c_void) -> Result<Window, CreationError> {
+
+        let view = IdRef::new(handle as id);
+
+        let ns_window_ptr: cocoa::base::id = unsafe { msg_send![handle as cocoa::base::id, window] };
+        let window = IdRef::new(ns_window_ptr as id);
+
+        let ds = DelegateState {
+            view: view.clone(),
+            window: window.clone(),
+            events_loop: events_loop,
+        };
+
+        let window = Window {
+            view: view,
+            window: window,
+            delegate: WindowDelegate::new(ds),
+        };
+
+        Ok(window)
+    }
+
     pub fn new(events_loop: std::sync::Weak<super::EventsLoop>,
                win_attribs: &WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)

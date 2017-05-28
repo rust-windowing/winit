@@ -12,6 +12,8 @@ use native_monitor::NativeMonitorId;
 use libc;
 use platform;
 
+use libc::c_void;
+
 impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
@@ -21,6 +23,13 @@ impl WindowBuilder {
             platform_specific: Default::default(),
         }
     }
+
+    /// Builds a WindowBuilder with a pre existing window handle.
+    // #[inline]
+    // pub fn with_handle(mut self, handle: *mut c_void) -> WindowBuilder {
+    //     self.window.set_handle(handle);
+    //     self
+    // }
 
     /// Requests the window to be of specific dimensions.
     ///
@@ -92,6 +101,25 @@ impl WindowBuilder {
     pub fn with_multitouch(mut self) -> WindowBuilder {
         self.window.multitouch = true;
         self
+    }
+    
+    #[inline]
+    pub fn build_with_handle(mut self, events_loop: &EventsLoop, handle: *mut c_void) -> Result<Window, CreationError> {
+        // building
+
+        // resizing the window to the dimensions of the monitor when fullscreen
+        if self.window.dimensions.is_none() && self.window.monitor.is_some() {
+            self.window.dimensions = Some(self.window.monitor.as_ref().unwrap().get_dimensions())
+        }
+
+        // default dimensions
+        if self.window.dimensions.is_none() {
+            self.window.dimensions = Some((1024, 768));
+        }
+
+        let w = try!(platform::Window2::with_handle(events_loop.events_loop.clone(), handle));
+
+        Ok(Window { window: w })
     }
 
     /// Builds the window.

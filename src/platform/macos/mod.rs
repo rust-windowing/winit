@@ -21,7 +21,20 @@ impl ::std::ops::Deref for Window2 {
     }
 }
 
+use libc::c_void;
+
 impl Window2 {
+
+    pub fn with_handle(events_loop: ::std::sync::Arc<EventsLoop>, handle: *mut c_void) -> Result<Self, CreationError> {
+
+        let weak_events_loop = ::std::sync::Arc::downgrade(&events_loop);
+
+        let window = ::std::sync::Arc::new(try!(Window::with_handle(weak_events_loop, handle)));
+        
+        let weak_window = ::std::sync::Arc::downgrade(&window);
+        events_loop.windows.lock().unwrap().push(weak_window);
+        Ok(Window2 { window: window })
+    }
 
     pub fn new(events_loop: ::std::sync::Arc<EventsLoop>,
                attributes: &::WindowAttributes,
