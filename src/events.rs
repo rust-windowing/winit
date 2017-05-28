@@ -93,7 +93,25 @@ pub enum WindowEvent {
 pub enum DeviceEvent {
     Added,
     Removed,
-    Motion { axis: AxisId, value: f64 },
+
+    /// Change in physical position of a pointing device.
+    ///
+    /// This represents raw, unfiltered physical motion. Not to be confused with `WindowEvent::MouseMoved`.
+    MouseMoved {
+        /// (x, y) change in position in unspecified units.
+        ///
+        /// Different devices may use different units.
+        delta: (f64, f64),
+    },
+
+    /// Physical scroll event
+    MouseWheel {
+        delta: MouseScrollDelta,
+    },
+
+    /// Motion on some analog axis not otherwise handled.
+    AxisMoved { axis: AxisId, value: f64 },
+
     Button { button: ButtonId, state: ElementState },
     Key(KeyboardInput),
     Text { codepoint: char },

@@ -485,15 +485,36 @@ impl EventsLoop {
                         let did = mkdid(xev.deviceid);
 
                         let mask = unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
-                        let mut value = xev.valuators.values;
+                        let mut value = xev.raw_values;
+                        let mut mouse_delta = (0.0, 0.0);
+                        let mut scroll_delta = (0.0, 0.0);
                         for i in 0..xev.valuators.mask_len*8 {
                             if ffi::XIMaskIsSet(mask, i) {
-                                callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::Motion {
-                                    axis: AxisId(i as u32),
-                                    value: unsafe { *value },
-                                }});
+                                let x = unsafe { *value };
+                                // We assume that every XInput2 device with analog axes is a pointing device emitting
+                                // relative coordinates.
+                                match i {
+                                    0 => mouse_delta.0 = x,
+                                    1 => mouse_delta.1 = x,
+                                    2 => scroll_delta.0 = x as f32,
+                                    3 => scroll_delta.1 = x as f32,
+                                    _ => callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::Motion {
+                                        axis: AxisId(i as u32),
+                                        value: x,
+                                    }}),
+                                }
                                 value = unsafe { value.offset(1) };
                             }
+                        }
+                        if mouse_delta != (0.0, 0.0) {
+                            callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::MouseMoved {
+                                delta: mouse_delta,
+                            }});
+                        }
+                        if scroll_delta != (0.0, 0.0) {
+                            callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::MouseWheel {
+                                delta: LineDelta(scroll_delta.0, scroll_delta.1),
+                            }});
                         }
                     }
 
