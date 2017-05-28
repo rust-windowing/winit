@@ -338,7 +338,7 @@ impl EventsLoop {
                     return;
                 }
 
-                use events::WindowEvent::{Focused, MouseEntered, MouseInput, MouseLeft, MouseMoved, MouseWheel, AxisMotion};
+                use events::WindowEvent::{Focused, MouseEntered, MouseInput, MouseLeft, MouseMoved, MouseWheel, AxisMoved};
                 use events::ElementState::{Pressed, Released};
                 use events::MouseButton::{Left, Right, Middle, Other};
                 use events::MouseScrollDelta::LineDelta;
@@ -405,9 +405,10 @@ impl EventsLoop {
                             let mut value = xev.valuators.values;
                             for i in 0..xev.valuators.mask_len*8 {
                                 if ffi::XIMaskIsSet(mask, i) {
+                                    let x = unsafe { *value };
                                     if let Some(&mut (_, ref mut info)) = physical_device.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == i) {
-                                        let delta = (unsafe { *value } - info.position) / info.increment;
-                                        info.position = unsafe { *value };
+                                        let delta = (x - info.position) / info.increment;
+                                        info.position = x;
                                         events.push(Event::WindowEvent { window_id: wid, event: MouseWheel {
                                             device_id: did,
                                             delta: match info.orientation {
@@ -417,10 +418,10 @@ impl EventsLoop {
                                             phase: TouchPhase::Moved,
                                         }});
                                     } else {
-                                        events.push(Event::WindowEvent { window_id: wid, event: AxisMotion {
+                                        events.push(Event::WindowEvent { window_id: wid, event: AxisMoved {
                                             device_id: did,
                                             axis: AxisId(i as u32),
-                                            value: unsafe { *value },
+                                            value: x,
                                         }});
                                     }
                                     value = unsafe { value.offset(1) };
@@ -498,7 +499,7 @@ impl EventsLoop {
                                     1 => mouse_delta.1 = x,
                                     2 => scroll_delta.0 = x as f32,
                                     3 => scroll_delta.1 = x as f32,
-                                    _ => callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::Motion {
+                                    _ => callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::AxisMoved {
                                         axis: AxisId(i as u32),
                                         value: x,
                                     }}),

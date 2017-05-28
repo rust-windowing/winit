@@ -41,11 +41,14 @@ pub enum WindowEvent {
     KeyboardInput { device_id: DeviceId, input: KeyboardInput },
 
     /// The cursor has moved on the window.
-    ///
-    /// `position` is (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this
-    /// data is limited by the display area and it may have been transformed by the OS to implement effects such as
-    /// mouse acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-    MouseMoved { device_id: DeviceId, position: (f64, f64) },
+    MouseMoved {
+        device_id: DeviceId,
+
+        /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
+        /// limited by the display area and it may have been transformed by the OS to implement effects such as mouse
+        /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
+        position: (f64, f64),
+    },
 
     /// The cursor has entered the window.
     MouseEntered { device_id: DeviceId },
@@ -66,8 +69,10 @@ pub enum WindowEvent {
     /// is being pressed) and stage (integer representing the click level).
     TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
 
-    /// Motion on some analog axis not otherwise handled. May overlap with mouse motion.
-    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
+    /// Motion on some analog axis not otherwise handled.
+    ///
+    /// May overlap with mouse motion.
+    AxisMoved { device_id: DeviceId, axis: AxisId, value: f64 },
 
     /// The window needs to be redrawn.
     Refresh,
