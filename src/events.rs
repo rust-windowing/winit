@@ -69,9 +69,7 @@ pub enum WindowEvent {
     /// is being pressed) and stage (integer representing the click level).
     TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
 
-    /// Motion on some analog axis not otherwise handled.
-    ///
-    /// May overlap with mouse motion.
+    /// Motion on some analog axis. May report data redundant to other, more specific events.
     AxisMoved { device_id: DeviceId, axis: AxisId, value: f64 },
 
     /// The window needs to be redrawn.
@@ -114,7 +112,7 @@ pub enum DeviceEvent {
         delta: MouseScrollDelta,
     },
 
-    /// Motion on some analog axis not otherwise handled.
+    /// Motion on some analog axis. May report data redundant to other, more specific events.
     AxisMoved { axis: AxisId, value: f64 },
 
     Button { button: ButtonId, state: ElementState },
