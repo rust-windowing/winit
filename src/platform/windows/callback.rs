@@ -410,7 +410,9 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         x if x == *super::WAKEUP_MSG_ID => {
-            send_event(window, ::Event::Awakened);
+            // TODO: `Awakened` has been moved from the `WindowEvent` enum to the `Event` enum.
+            // This code needs to be updated to reflect this change.
+            //send_event(window, ::Event::Awakened);
             0
         },
 
