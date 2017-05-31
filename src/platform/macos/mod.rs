@@ -1,6 +1,6 @@
 #![cfg(target_os = "macos")]
 
-pub use self::events_loop::EventsLoop;
+pub use self::events_loop::{EventsLoop, Proxy as EventsLoopProxy};
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 pub use self::window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, Window};
 

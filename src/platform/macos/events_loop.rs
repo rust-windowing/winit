@@ -1,3 +1,4 @@
+use EventsLoopClosed;
 use cocoa::{self, appkit, foundation};
 use cocoa::appkit::{NSApplication, NSEvent, NSView, NSWindow};
 use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, ModifiersState, KeyboardInput};
@@ -23,6 +24,8 @@ pub struct EventsLoop {
     user_callback: UserCallback,
 }
 
+pub struct Proxy {}
+
 struct Modifiers {
     shift_pressed: bool,
     ctrl_pressed: bool,
@@ -39,9 +42,6 @@ pub struct UserCallback {
     mutex: std::sync::Mutex<Option<*mut FnMut(Event)>>,
 }
 
-
-unsafe impl Send for UserCallback {}
-unsafe impl Sync for UserCallback {}
 
 impl UserCallback {
 
@@ -197,25 +197,6 @@ impl EventsLoop {
 
     pub fn interrupt(&self) {
         self.interrupted.store(true, std::sync::atomic::Ordering::Relaxed);
-
-        // Awaken the event loop by triggering `NSApplicationActivatedEventType`.
-        unsafe {
-            let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
-            let event =
-                NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
-                    cocoa::base::nil,
-                    appkit::NSApplicationDefined,
-                    foundation::NSPoint::new(0.0, 0.0),
-                    appkit::NSEventModifierFlags::empty(),
-                    0.0,
-                    0,
-                    cocoa::base::nil,
-                    appkit::NSEventSubtype::NSApplicationActivatedEventType,
-                    0,
-                    0);
-            appkit::NSApp().postEvent_atStart_(event, cocoa::base::NO);
-            foundation::NSAutoreleasePool::drain(pool);
-        }
     }
 
     // Removes the window with the given `Id` from the `windows` list.
@@ -505,7 +486,7 @@ impl EventsLoop {
 
             appkit::NSApplicationDefined => match ns_event.subtype() {
                 appkit::NSEventSubtype::NSApplicationActivatedEventType => {
-                    Some(into_event(WindowEvent::Awakened))
+                    Some(Event::Awakened)
                 },
                 _ => None,
             },
@@ -514,6 +495,34 @@ impl EventsLoop {
         }
     }
 
+    pub fn create_proxy(&self) -> Proxy {
+        Proxy {}
+    }
+
+}
+
+impl Proxy {
+    pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
+        // Awaken the event loop by triggering `NSApplicationActivatedEventType`.
+        unsafe {
+            let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
+            let event =
+                NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+                    cocoa::base::nil,
+                    appkit::NSApplicationDefined,
+                    foundation::NSPoint::new(0.0, 0.0),
+                    appkit::NSEventModifierFlags::empty(),
+                    0.0,
+                    0,
+                    cocoa::base::nil,
+                    appkit::NSEventSubtype::NSApplicationActivatedEventType,
+                    0,
+                    0);
+            appkit::NSApp().postEvent_atStart_(event, cocoa::base::NO);
+            foundation::NSAutoreleasePool::drain(pool);
+        }
+        Ok(())
+    }
 }
 
 
