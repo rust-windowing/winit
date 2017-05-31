@@ -10,6 +10,11 @@ macro_rules! gen_api_transition {
         pub struct EventsLoop {
             windows: ::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>,
             interrupted: ::std::sync::atomic::AtomicBool,
+            awakened: ::std::sync::Arc<::std::sync::atomic::AtomicBool>,
+        }
+
+        pub struct EventsLoopProxy {
+            awakened: ::std::sync::Weak<::std::sync::atomic::AtomicBool>,
         }
 
         impl EventsLoop {
@@ -17,6 +22,7 @@ macro_rules! gen_api_transition {
                 EventsLoop {
                     windows: ::std::sync::Mutex::new(vec![]),
                     interrupted: ::std::sync::atomic::AtomicBool::new(false),
+                    awakened: ::std::sync::Arc::new(::std::sync::atomic::AtomicBool::new(false)),
                 }
             }
 
@@ -27,6 +33,11 @@ macro_rules! gen_api_transition {
             pub fn poll_events<F>(&self, mut callback: F)
                 where F: FnMut(::Event)
             {
+                if self.awakened.load(::std::sync::atomic::Ordering::Relaxed) {
+                    self.awakened.store(false, ::std::sync::atomic::Ordering::Relaxed);
+                    callback(::Event::Awakened);
+                }
+
                 let mut windows = self.windows.lock().unwrap();
                 for window in windows.iter() {
                     for event in window.poll_events() {
@@ -42,6 +53,7 @@ macro_rules! gen_api_transition {
                 where F: FnMut(::Event)
             {
                 self.interrupted.store(false, ::std::sync::atomic::Ordering::Relaxed);
+                self.awakened.store(false, ::std::sync::atomic::Ordering::Relaxed);
 
                 // Yeah that's a very bad implementation.
                 loop {
@@ -50,6 +62,24 @@ macro_rules! gen_api_transition {
                     if self.interrupted.load(::std::sync::atomic::Ordering::Relaxed) {
                         break;
                     }
+                }
+            }
+
+            pub fn create_proxy(&self) -> EventsLoopProxy {
+                EventsLoopProxy {
+                    awakened: ::std::sync::Arc::downgrade(&self.awakened),
+                }
+            }
+        }
+
+        impl EventsLoopProxy {
+            pub fn wakeup(&self) -> Result<(), ::EventsLoopClosed> {
+                match self.awakened.upgrade() {
+                    None => Err(::EventsLoopClosed),
+                    Some(awakened) => {
+                        awakened.store(true, ::std::sync::atomic::Ordering::Relaxed);
+                        Ok(())
+                    },
                 }
             }
         }
