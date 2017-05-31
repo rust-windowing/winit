@@ -42,6 +42,8 @@ pub struct EventsLoop {
 
 pub struct EventsLoopProxy {
     pending_wakeup: Weak<AtomicBool>,
+    display: Weak<XConnection>,
+    root: ffi::Window,
 }
 
 impl EventsLoop {
@@ -111,29 +113,13 @@ impl EventsLoop {
     pub fn create_proxy(&self) -> EventsLoopProxy {
         EventsLoopProxy {
             pending_wakeup: Arc::downgrade(&self.pending_wakeup),
+            display: Arc::downgrade(&self.display),
+            root: self.root,
         }
     }
 
     pub fn interrupt(&self) {
         self.interrupted.store(true, atomic::Ordering::Relaxed);
-
-        // Push an event on the X event queue so that methods like run_forever will advance.
-        let mut xev = ffi::XClientMessageEvent {
-            type_: ffi::ClientMessage,
-            window: self.root,
-            format: 32,
-            message_type: 0,
-            serial: 0,
-            send_event: 0,
-            display: self.display.display,
-            data: unsafe { mem::zeroed() },
-        };
-
-        unsafe {
-            (self.display.xlib.XSendEvent)(self.display.display, self.root, 0, 0, mem::transmute(&mut xev));
-            (self.display.xlib.XFlush)(self.display.display);
-            self.display.check_errors().expect("Failed to call XSendEvent after wakeup");
-        }
     }
 
     pub fn poll_events<F>(&self, mut callback: F)
@@ -165,6 +151,7 @@ impl EventsLoop {
         where F: FnMut(Event)
     {
         self.interrupted.store(false, atomic::Ordering::Relaxed);
+        self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
 
         let xlib = &self.display.xlib;
 
@@ -172,6 +159,12 @@ impl EventsLoop {
 
         loop {
             unsafe { (xlib.XNextEvent)(self.display.display, &mut xev) }; // Blocks as necessary
+
+            if self.pending_wakeup.load(atomic::Ordering::Relaxed) {
+                self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
+                callback(Event::Awakened);
+            }
+
             self.process_event(&mut xev, &mut callback);
             if self.interrupted.load(atomic::Ordering::Relaxed) {
                 break;
@@ -539,13 +532,33 @@ impl EventsLoop {
 impl EventsLoopProxy {
     pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
         // Update the `EventsLoop`'s `pending_wakeup` flag.
-        match self.pending_wakeup.upgrade() {
-            Some(wakeup) => Ok(wakeup.store(true, atomic::Ordering::Relaxed)),
-            None => Err(EventsLoopClosed),
+        let display = match (self.pending_wakeup.upgrade(), self.display.upgrade()) {
+            (Some(wakeup), Some(display)) => {
+                wakeup.store(true, atomic::Ordering::Relaxed);
+                display
+            },
+            _ => return Err(EventsLoopClosed),
+        };
+
+        // Push an event on the X event queue so that methods like run_forever will advance.
+        let mut xev = ffi::XClientMessageEvent {
+            type_: ffi::ClientMessage,
+            window: self.root,
+            format: 32,
+            message_type: 0,
+            serial: 0,
+            send_event: 0,
+            display: display.display,
+            data: unsafe { mem::zeroed() },
+        };
+
+        unsafe {
+            (display.xlib.XSendEvent)(display.display, self.root, 0, 0, mem::transmute(&mut xev));
+            (display.xlib.XFlush)(display.display);
+            display.check_errors().expect("Failed to call XSendEvent after wakeup");
         }
 
-        // TODO:
-        // Cause the `EventsLoop` to break if it is currently blocked.
+        Ok(())
     }
 }
 
