@@ -8,7 +8,7 @@
 macro_rules! gen_api_transition {
     () => {
         pub struct EventsLoop {
-            windows: ::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>,
+            windows: ::std::sync::Arc<::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>>,
             interrupted: ::std::sync::atomic::AtomicBool,
             awakened: ::std::sync::Arc<::std::sync::atomic::AtomicBool>,
         }
@@ -20,7 +20,7 @@ macro_rules! gen_api_transition {
         impl EventsLoop {
             pub fn new() -> EventsLoop {
                 EventsLoop {
-                    windows: ::std::sync::Mutex::new(vec![]),
+                    windows: ::std::sync::Arc::new(::std::sync::Mutex::new(vec![])),
                     interrupted: ::std::sync::atomic::AtomicBool::new(false),
                     awakened: ::std::sync::Arc::new(::std::sync::atomic::AtomicBool::new(false)),
                 }
@@ -92,7 +92,7 @@ macro_rules! gen_api_transition {
 
         pub struct Window2 {
             pub window: ::std::sync::Arc<Window>,
-            events_loop: ::std::sync::Weak<EventsLoop>,
+            windows: ::std::sync::Weak<::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>>
         }
 
         impl ::std::ops::Deref for Window2 {
@@ -104,7 +104,8 @@ macro_rules! gen_api_transition {
         }
 
         impl Window2 {
-            pub fn new(events_loop: ::std::sync::Arc<EventsLoop>, window: &::WindowAttributes,
+            pub fn new(events_loop: &EventsLoop,
+                       window: &::WindowAttributes,
                        pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                        -> Result<Window2, CreationError>
             {
@@ -112,7 +113,7 @@ macro_rules! gen_api_transition {
                 events_loop.windows.lock().unwrap().push(win.clone());
                 Ok(Window2 {
                     window: win,
-                    events_loop: ::std::sync::Arc::downgrade(&events_loop),
+                    events_loop: ::std::sync::Arc::downgrade(&events_loop.windows),
                 })
             }
 
@@ -124,8 +125,8 @@ macro_rules! gen_api_transition {
 
         impl Drop for Window2 {
             fn drop(&mut self) {
-                if let Some(ev) = self.events_loop.upgrade() {
-                    let mut windows = ev.windows.lock().unwrap();
+                if let Some(windows) = self.windows.upgrade() {
+                    let mut windows = windows.lock().unwrap();
                     windows.retain(|w| &**w as *const Window != &*self.window as *const _);
                 }
             }

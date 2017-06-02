@@ -3,7 +3,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use {CreationError, CursorState, EventsLoopClosed, MouseCursor};
+use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow};
 use libc;
 
 use self::x11::XConnection;
@@ -129,9 +129,10 @@ impl MonitorId {
 
 impl Window2 {
     #[inline]
-    pub fn new(events_loop: ::std::sync::Arc<EventsLoop>, window: &::WindowAttributes,
+    pub fn new(events_loop: &EventsLoop,
+               window: &::WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window2, CreationError>
+               -> Result<Self, CreationError>
     {
         match *UNIX_BACKEND {
             UnixBackend::Wayland(ref ctxt) => {
@@ -336,28 +337,21 @@ impl EventsLoop {
         }
     }
 
-    pub fn interrupt(&self) {
-        match *self {
-            EventsLoop::Wayland(ref evlp) => evlp.interrupt(),
-            EventsLoop::X(ref evlp) => evlp.interrupt()
-        }
-    }
-
-    pub fn poll_events<F>(&self, callback: F)
+    pub fn poll_events<F>(&mut self, callback: F)
         where F: FnMut(::Event)
     {
         match *self {
-            EventsLoop::Wayland(ref evlp) => evlp.poll_events(callback),
-            EventsLoop::X(ref evlp) => evlp.poll_events(callback)
+            EventsLoop::Wayland(ref mut evlp) => evlp.poll_events(callback),
+            EventsLoop::X(ref mut evlp) => evlp.poll_events(callback)
         }
     }
 
-    pub fn run_forever<F>(&self, callback: F)
-        where F: FnMut(::Event)
+    pub fn run_forever<F>(&mut self, callback: F)
+        where F: FnMut(::Event) -> ControlFlow
     {
         match *self {
-            EventsLoop::Wayland(ref evlp) => evlp.run_forever(callback),
-            EventsLoop::X(ref evlp) => evlp.run_forever(callback)
+            EventsLoop::Wayland(ref mut evlp) => evlp.run_forever(callback),
+            EventsLoop::X(ref mut evlp) => evlp.run_forever(callback)
         }
     }
 }

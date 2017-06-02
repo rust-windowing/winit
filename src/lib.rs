@@ -119,8 +119,6 @@ extern crate x11_dl;
 #[macro_use(wayland_env,declare_handler)]
 extern crate wayland_client;
 
-use std::sync::Arc;
-
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
 pub use native_monitor::NativeMonitorId;
@@ -189,21 +187,32 @@ pub struct ButtonId(u32);
 ///
 /// To wake up an `EventsLoop` from a another thread, see the `EventsLoopProxy` docs.
 pub struct EventsLoop {
-    events_loop: Arc<platform::EventsLoop>,
+    events_loop: platform::EventsLoop,
+}
+
+/// Returned by the user callback given to the `EventsLoop::run_forever` method.
+///
+/// Indicates whether the `run_forever` method should continue or complete.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ControlFlow {
+    /// Continue looping and waiting for events.
+    Continue,
+    /// Exit from the event loop.
+    Complete,
 }
 
 impl EventsLoop {
     /// Builds a new events loop.
     pub fn new() -> EventsLoop {
         EventsLoop {
-            events_loop: Arc::new(platform::EventsLoop::new()),
+            events_loop: platform::EventsLoop::new(),
         }
     }
 
     /// Fetches all the events that are pending, calls the callback function for each of them,
     /// and returns.
     #[inline]
-    pub fn poll_events<F>(&self, callback: F)
+    pub fn poll_events<F>(&mut self, callback: F)
         where F: FnMut(Event)
     {
         self.events_loop.poll_events(callback)
@@ -211,16 +220,10 @@ impl EventsLoop {
 
     /// Runs forever until `interrupt()` is called. Whenever an event happens, calls the callback.
     #[inline]
-    pub fn run_forever<F>(&self, callback: F)
-        where F: FnMut(Event)
+    pub fn run_forever<F>(&mut self, callback: F)
+        where F: FnMut(Event) -> ControlFlow
     {
         self.events_loop.run_forever(callback)
-    }
-
-    /// If we called `run_forever()`, stops the process of waiting for events.
-    #[inline]
-    pub fn interrupt(&self) {
-        self.events_loop.interrupt()
     }
 
     /// Creates an `EventsLoopProxy` that can be used to wake up the `EventsLoop` from another

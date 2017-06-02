@@ -1,4 +1,5 @@
-use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase, ModifiersState, KeyboardInput, EventsLoopClosed};
+use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase, ModifiersState,
+     KeyboardInput, EventsLoopClosed, ControlFlow};
 
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{self, AtomicBool};
@@ -53,7 +54,9 @@ impl EventsLoopSink {
         ::std::mem::replace(&mut self.callback, cb)
     }
 
-    fn with_callback<F: FnOnce(&mut FnMut(::Event))>(&mut self, f: F) {
+    fn with_callback<F>(&mut self, f: F)
+        where F: FnOnce(&mut FnMut(::Event)),
+    {
         f(&mut *self.callback)
     }
 }
@@ -67,8 +70,6 @@ pub struct EventsLoop {
     decorated_ids: Mutex<Vec<(usize, Arc<wl_surface::WlSurface>)>>,
     // our sink, receiver of callbacks, shared with some handlers
     sink: Arc<Mutex<EventsLoopSink>>,
-    // trigger interruption of the run
-    interrupted: AtomicBool,
     // trigger cleanup of the dead surfaces
     cleanup_needed: Arc<AtomicBool>,
     // Whether or not there is a pending `Awakened` event to be emitted.
@@ -115,7 +116,6 @@ impl EventsLoop {
             evq: Arc::new(Mutex::new(evq)),
             decorated_ids: Mutex::new(Vec::new()),
             sink: sink,
-            interrupted: AtomicBool::new(false),
             pending_wakeup: Arc::new(AtomicBool::new(false)),
             cleanup_needed: Arc::new(AtomicBool::new(false)),
             hid: hid
@@ -158,10 +158,6 @@ impl EventsLoop {
         }
     }
 
-    pub fn interrupt(&self) {
-        self.interrupted.store(true, atomic::Ordering::Relaxed);
-    }
-
     fn prune_dead_windows(&self) {
         self.decorated_ids.lock().unwrap().retain(|&(_, ref w)| w.is_alive());
         let mut evq_guard = self.evq.lock().unwrap();
@@ -175,7 +171,7 @@ impl EventsLoop {
         }
     }
 
-    pub fn poll_events<F>(&self, callback: F)
+    pub fn poll_events<F>(&mut self, callback: F)
         where F: FnMut(::Event)
     {
         // send pending requests to the server...
@@ -219,16 +215,20 @@ impl EventsLoop {
         }
     }
 
-    pub fn run_forever<F>(&self, callback: F)
-        where F: FnMut(::Event)
+    pub fn run_forever<F>(&mut self, mut callback: F)
+        where F: FnMut(::Event) -> ControlFlow,
     {
-        self.interrupted.store(false, atomic::Ordering::Relaxed);
-
         // send pending requests to the server...
         self.ctxt.flush();
 
         // first of all, get exclusive access to this event queue
         let mut evq_guard = self.evq.lock().unwrap();
+
+        // Check for control flow by wrapping the callback.
+        let control_flow = ::std::cell::Cell::new(ControlFlow::Continue);
+        let callback = |event| if let ControlFlow::Complete = callback(event) {
+            control_flow.set(ControlFlow::Complete);
+        };
 
         // set the callback into the sink
         // we extend the lifetime of the closure to 'static to be able to put it in
@@ -236,20 +236,23 @@ impl EventsLoop {
         let static_cb = unsafe { ::std::mem::transmute(Box::new(callback) as Box<FnMut(_)>) };
         let old_cb = unsafe { self.sink.lock().unwrap().set_callback(static_cb) };
 
-        while !self.interrupted.load(atomic::Ordering::Relaxed) {
+        loop {
             self.ctxt.dispatch();
             evq_guard.dispatch_pending().expect("Wayland connection unexpectedly lost");
 
             self.emit_pending_wakeup();
 
             let ids_guard = self.decorated_ids.lock().unwrap();
-            self.sink.lock().unwrap().with_callback(
-                |cb| Self::process_resize(&mut evq_guard, &ids_guard, cb)
-            );
+            self.sink.lock().unwrap()
+                .with_callback(|cb| Self::process_resize(&mut evq_guard, &ids_guard, cb));
             self.ctxt.flush();
 
             if self.cleanup_needed.swap(false, atomic::Ordering::Relaxed) {
                 self.prune_dead_windows()
+            }
+
+            if let ControlFlow::Complete = control_flow.get() {
+                break;
             }
         }
 

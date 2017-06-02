@@ -12,8 +12,10 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => events_loop.interrupt(),
-            _ => ()
+            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => {
+                winit::ControlFlow::Complete
+            },
+            _ => winit::ControlFlow::Continue,
         }
     });
 }
