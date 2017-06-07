@@ -34,10 +34,9 @@
 //! screen, such as video games.
 //!
 //! ```no_run
-//! use winit::Event;
-//! use winit::WindowEvent;
+//! use winit::{Event, WindowEvent};
 //! # use winit::EventsLoop;
-//! # let events_loop = EventsLoop::new();
+//! # let mut events_loop = EventsLoop::new();
 //!
 //! loop {
 //!     events_loop.poll_events(|event| {
@@ -52,21 +51,20 @@
 //! ```
 //!
 //! The second way is to call `events_loop.run_forever(...)`. As its name tells, it will run
-//! forever unless it is stopped by calling `events_loop.interrupt()`.
+//! forever unless it is stopped by returning `ControlFlow::Complete`.
 //!
 //! ```no_run
-//! use winit::Event;
-//! use winit::WindowEvent;
+//! use winit::{ControlFlow, Event, WindowEvent};
 //! # use winit::EventsLoop;
-//! # let events_loop = EventsLoop::new();
+//! # let mut events_loop = EventsLoop::new();
 //!
 //! events_loop.run_forever(|event| {
 //!     match event {
 //!         Event::WindowEvent { event: WindowEvent::Closed, .. } => {
 //!             println!("The window was closed ; stopping");
-//!             events_loop.interrupt();
+//!             ControlFlow::Complete
 //!         },
-//!         _ => ()
+//!         _ => ControlFlow::Continue,
 //!     }
 //! });
 //! ```
@@ -137,20 +135,17 @@ pub mod os;
 /// # Example
 ///
 /// ```no_run
-/// use winit::Event;
-/// use winit::EventsLoop;
-/// use winit::Window;
-/// use winit::WindowEvent;
+/// use winit::{Event, EventsLoop, Window, WindowEvent, ControlFlow};
 ///
-/// let events_loop = EventsLoop::new();
+/// let mut events_loop = EventsLoop::new();
 /// let window = Window::new(&events_loop).unwrap();
 ///
 /// events_loop.run_forever(|event| {
 ///     match event {
 ///         Event::WindowEvent { event: WindowEvent::Closed, .. } => {
-///             events_loop.interrupt();
+///             ControlFlow::Complete
 ///         },
-///         _ => ()
+///         _ => ControlFlow::Continue,
 ///     }
 /// });
 /// ```

@@ -1,6 +1,7 @@
 extern crate winit;
 
 use std::io::{self, Write};
+use winit::{ControlFlow, Event, WindowEvent};
 
 fn main() {
     // enumerating monitors
@@ -22,7 +23,7 @@ fn main() {
         monitor
     };
 
-    let events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventsLoop::new();
 
     let _window = winit::WindowBuilder::new()
         .with_title("Hello world!")
@@ -34,16 +35,18 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            winit::Event::WindowEvent { event, .. } => {
+            Event::WindowEvent { event, .. } => {
                 match event {
-                    winit::WindowEvent::Closed => events_loop.interrupt(),
-                    winit::WindowEvent::KeyboardInput {
+                    WindowEvent::Closed => return ControlFlow::Complete,
+                    WindowEvent::KeyboardInput {
                         input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::Escape), .. }, ..
-                    } => events_loop.interrupt(),
+                    } => return ControlFlow::Complete,
                     _ => ()
                 }
             },
             _ => {}
         }
+
+        ControlFlow::Continue
     });
 }

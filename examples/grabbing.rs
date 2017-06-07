@@ -1,9 +1,9 @@
 extern crate winit;
 
-use winit::{WindowEvent, ElementState, KeyboardInput};
+use winit::{ControlFlow, WindowEvent, ElementState, KeyboardInput};
 
 fn main() {
-    let events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventsLoop::new();
 
     let window = winit::WindowBuilder::new().build(&events_loop).unwrap();
     window.set_title("winit - Cursor grabbing test");
@@ -28,7 +28,7 @@ fn main() {
                         }
                     },
 
-                    WindowEvent::Closed => events_loop.interrupt(),
+                    WindowEvent::Closed => return ControlFlow::Complete,
 
                     a @ WindowEvent::MouseMoved { .. } => {
                         println!("{:?}", a);
@@ -39,5 +39,7 @@ fn main() {
             }
             _ => {}
         }
+
+        ControlFlow::Continue
     });
 }

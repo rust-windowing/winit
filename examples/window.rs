@@ -1,9 +1,9 @@
 extern crate winit;
 
 fn main() {
-    let events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventsLoop::new();
 
-    let window = winit::WindowBuilder::new()
+    let _window = winit::WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&events_loop)
         .unwrap();
