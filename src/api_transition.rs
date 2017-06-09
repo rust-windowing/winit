@@ -32,7 +32,7 @@ macro_rules! gen_api_transition {
                     callback(::Event::Awakened);
                 }
 
-                let mut windows = self.windows.lock().unwrap();
+                let windows = self.windows.lock().unwrap();
                 for window in windows.iter() {
                     for event in window.poll_events() {
                         callback(::Event::WindowEvent {
@@ -44,7 +44,7 @@ macro_rules! gen_api_transition {
             }
 
             pub fn run_forever<F>(&mut self, mut callback: F)
-                where F: FnMut(::Event) -> ControlFlow,
+                where F: FnMut(::Event) -> ::ControlFlow,
             {
                 self.awakened.store(false, ::std::sync::atomic::Ordering::Relaxed);
 
@@ -59,7 +59,7 @@ macro_rules! gen_api_transition {
                     if let ::ControlFlow::Complete = control_flow {
                         break;
                     }
-                    ::std::thread::sleep_ms(5);
+                    ::std::thread::sleep(::std::time::Duration::from_millis(5));
                 }
             }
 
@@ -111,7 +111,7 @@ macro_rules! gen_api_transition {
                 events_loop.windows.lock().unwrap().push(win.clone());
                 Ok(Window2 {
                     window: win,
-                    events_loop: ::std::sync::Arc::downgrade(&events_loop.windows),
+                    windows: ::std::sync::Arc::downgrade(&events_loop.windows),
                 })
             }
 
