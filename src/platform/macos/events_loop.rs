@@ -1,4 +1,4 @@
-use EventsLoopClosed;
+use {ControlFlow, EventsLoopClosed};
 use cocoa::{self, appkit, foundation};
 use cocoa::appkit::{NSApplication, NSEvent, NSView, NSWindow};
 use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, ModifiersState, KeyboardInput};
@@ -11,7 +11,6 @@ pub struct EventsLoop {
     pub windows: std::sync::Mutex<Vec<std::sync::Weak<Window>>>,
     pub pending_events: std::sync::Mutex<std::collections::VecDeque<Event>>,
     modifiers: std::sync::Mutex<Modifiers>,
-    interrupted: std::sync::atomic::AtomicBool,
 
     // The user event callback given via either of the `poll_events` or `run_forever` methods.
     //
@@ -102,12 +101,11 @@ impl EventsLoop {
             windows: std::sync::Mutex::new(Vec::new()),
             pending_events: std::sync::Mutex::new(std::collections::VecDeque::new()),
             modifiers: std::sync::Mutex::new(modifiers),
-            interrupted: std::sync::atomic::AtomicBool::new(false),
             user_callback: UserCallback { mutex: std::sync::Mutex::new(None) },
         }
     }
 
-    pub fn poll_events<F>(&self, mut callback: F)
+    pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(Event),
     {
         unsafe {
@@ -148,16 +146,23 @@ impl EventsLoop {
         self.user_callback.drop();
     }
 
-    pub fn run_forever<F>(&self, mut callback: F)
-        where F: FnMut(Event)
+    pub fn run_forever<F>(&mut self, mut callback: F)
+        where F: FnMut(Event) -> ControlFlow
     {
-        self.interrupted.store(false, std::sync::atomic::Ordering::Relaxed);
-
         unsafe {
             if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
                 panic!("Events can only be polled from the main thread on macOS");
             }
         }
+
+        // Track whether or not control flow has changed.
+        let mut control_flow = std::cell::Cell::new(ControlFlow::Continue);
+
+        let mut callback = |event| {
+            if let ControlFlow::Complete = callback(event) {
+                control_flow.set(ControlFlow::Complete);
+            }
+        };
 
         self.user_callback.store(&mut callback);
 
@@ -165,6 +170,9 @@ impl EventsLoop {
             unsafe {
                 // First, yield all pending events.
                 self.call_user_callback_with_pending_events();
+                if let ControlFlow::Complete = control_flow.get() {
+                    break;
+                }
 
                 let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
 
@@ -183,20 +191,14 @@ impl EventsLoop {
 
                 if let Some(event) = maybe_event {
                     self.user_callback.call_with_event(event);
+                    if let ControlFlow::Complete = control_flow.get() {
+                        break;
+                    }
                 }
-            }
-
-            if self.interrupted.load(std::sync::atomic::Ordering::Relaxed) {
-                self.interrupted.store(false, std::sync::atomic::Ordering::Relaxed);
-                break;
             }
         }
 
         self.user_callback.drop();
-    }
-
-    pub fn interrupt(&self) {
-        self.interrupted.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     // Removes the window with the given `Id` from the `windows` list.
