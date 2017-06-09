@@ -117,7 +117,7 @@ impl EventsLoop {
         }
     }
 
-    pub fn poll_events<F>(&self, mut callback: F)
+    pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(Event)
     {
         let xlib = &self.display.xlib;
