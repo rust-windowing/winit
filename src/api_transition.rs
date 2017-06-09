@@ -9,7 +9,6 @@ macro_rules! gen_api_transition {
     () => {
         pub struct EventsLoop {
             windows: ::std::sync::Arc<::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>>,
-            interrupted: ::std::sync::atomic::AtomicBool,
             awakened: ::std::sync::Arc<::std::sync::atomic::AtomicBool>,
         }
 
@@ -21,16 +20,11 @@ macro_rules! gen_api_transition {
             pub fn new() -> EventsLoop {
                 EventsLoop {
                     windows: ::std::sync::Arc::new(::std::sync::Mutex::new(vec![])),
-                    interrupted: ::std::sync::atomic::AtomicBool::new(false),
                     awakened: ::std::sync::Arc::new(::std::sync::atomic::AtomicBool::new(false)),
                 }
             }
 
-            pub fn interrupt(&self) {
-                self.interrupted.store(true, ::std::sync::atomic::Ordering::Relaxed);
-            }
-
-            pub fn poll_events<F>(&self, mut callback: F)
+            pub fn poll_events<F>(&mut self, mut callback: F)
                 where F: FnMut(::Event)
             {
                 if self.awakened.load(::std::sync::atomic::Ordering::Relaxed) {
@@ -49,19 +43,23 @@ macro_rules! gen_api_transition {
                 }
             }
 
-            pub fn run_forever<F>(&self, mut callback: F)
-                where F: FnMut(::Event)
+            pub fn run_forever<F>(&mut self, mut callback: F)
+                where F: FnMut(::Event) -> ControlFlow,
             {
-                self.interrupted.store(false, ::std::sync::atomic::Ordering::Relaxed);
                 self.awakened.store(false, ::std::sync::atomic::Ordering::Relaxed);
 
                 // Yeah that's a very bad implementation.
                 loop {
-                    self.poll_events(|e| callback(e));
-                    ::std::thread::sleep_ms(5);
-                    if self.interrupted.load(::std::sync::atomic::Ordering::Relaxed) {
+                    let mut control_flow = ::ControlFlow::Continue;
+                    self.poll_events(|e| {
+                        if let ::ControlFlow::Complete = callback(e) {
+                            control_flow = ::ControlFlow::Complete;
+                        }
+                    });
+                    if let ::ControlFlow::Complete = control_flow {
                         break;
                     }
+                    ::std::thread::sleep_ms(5);
                 }
             }
 
