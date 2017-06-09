@@ -5,6 +5,7 @@ use libc;
 use WindowAttributes;
 use native_monitor::NativeMonitorId;
 use os::macos::ActivationPolicy;
+use os::macos::WindowExt;
 
 use objc;
 use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
@@ -20,8 +21,9 @@ use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDispl
 use std;
 use std::ops::Deref;
 use std::os::raw::c_void;
+use std::sync::Weak;
 
-use os::macos::WindowExt;
+use super::events_loop::Shared;
 
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -30,7 +32,7 @@ pub struct Id(pub usize);
 struct DelegateState {
     view: IdRef,
     window: IdRef,
-    events_loop: std::sync::Weak<super::EventsLoop>,
+    shared: Weak<Shared>,
 }
 
 pub struct WindowDelegate {
@@ -51,8 +53,8 @@ impl WindowDelegate {
                 event: window_event,
             };
 
-            if let Some(events_loop) = state.events_loop.upgrade() {
-                events_loop.call_user_callback_with_event_or_store_in_pending(event);
+            if let Some(shared) = state.shared.upgrade() {
+                shared.call_user_callback_with_event_or_store_in_pending(event);
             }
         }
 
@@ -71,10 +73,10 @@ impl WindowDelegate {
                 let state = &mut *(state as *mut DelegateState);
                 emit_event(state, WindowEvent::Closed);
 
-                // Remove the window from the events_loop.
-                if let Some(events_loop) = state.events_loop.upgrade() {
+                // Remove the window from the shared state.
+                if let Some(shared) = state.shared.upgrade() {
                     let window_id = get_window_id(*state.window);
-                    events_loop.find_and_remove_window(window_id);
+                    shared.find_and_remove_window(window_id);
                 }
             }
             YES
@@ -188,8 +190,8 @@ impl Drop for Window {
     fn drop(&mut self) {
         // Remove this window from the `EventLoop`s list of windows.
         let id = self.id();
-        if let Some(ev) = self.delegate.state.events_loop.upgrade() {
-            ev.find_and_remove_window(id);
+        if let Some(shared) = self.delegate.state.shared.upgrade() {
+            shared.find_and_remove_window(id);
         }
 
         // Close the window if it has not yet been closed.
@@ -215,7 +217,7 @@ impl WindowExt for Window {
 }
 
 impl Window {
-    pub fn new(events_loop: std::sync::Weak<super::EventsLoop>,
+    pub fn new(shared: Weak<Shared>,
                win_attribs: &WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
@@ -266,7 +268,7 @@ impl Window {
         let ds = DelegateState {
             view: view.clone(),
             window: window.clone(),
-            events_loop: events_loop,
+            shared: shared,
         };
 
         let window = Window {

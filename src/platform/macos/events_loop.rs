@@ -2,16 +2,22 @@ use {ControlFlow, EventsLoopClosed};
 use cocoa::{self, appkit, foundation};
 use cocoa::appkit::{NSApplication, NSEvent, NSView, NSWindow};
 use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, ModifiersState, KeyboardInput};
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex, Weak};
 use super::window::Window;
 use std;
 use super::DeviceId;
 
 
 pub struct EventsLoop {
-    pub windows: std::sync::Mutex<Vec<std::sync::Weak<Window>>>,
-    pub pending_events: std::sync::Mutex<std::collections::VecDeque<Event>>,
-    modifiers: std::sync::Mutex<Modifiers>,
+    modifiers: Modifiers,
+    pub shared: Arc<Shared>,
+}
 
+// State shared between the `EventsLoop` and its registered windows.
+pub struct Shared {
+    pub windows: Mutex<Vec<Weak<Window>>>,
+    pub pending_events: Mutex<VecDeque<Event>>,
     // The user event callback given via either of the `poll_events` or `run_forever` methods.
     //
     // We store the user's callback here so that it may be accessed by each of the window delegate
@@ -36,9 +42,74 @@ struct Modifiers {
 //
 // - ensure the callback pointer is never accidentally cloned
 // - ensure that only the `EventsLoop` can `store` and `drop` the callback pointer
-// - `unsafe impl Send` and `Sync` so that `Send` and `Sync` can be implemented for `EventsLoop`.
+// - Share access to the user callback with the NSWindow callbacks.
 pub struct UserCallback {
-    mutex: std::sync::Mutex<Option<*mut FnMut(Event)>>,
+    mutex: Mutex<Option<*mut FnMut(Event)>>,
+}
+
+
+impl Shared {
+
+    pub fn new() -> Self {
+        Shared {
+            windows: Mutex::new(Vec::new()),
+            pending_events: Mutex::new(VecDeque::new()),
+            user_callback: UserCallback { mutex: Mutex::new(None) },
+        }
+    }
+
+    fn call_user_callback_with_pending_events(&self) {
+        loop {
+            let event = match self.pending_events.lock().unwrap().pop_front() {
+                Some(event) => event,
+                None => return,
+            };
+            unsafe {
+                self.user_callback.call_with_event(event);
+            }
+        }
+    }
+
+    // Calls the user callback if one exists.
+    //
+    // Otherwise, stores the event in the `pending_events` queue.
+    //
+    // This is necessary for the case when `WindowDelegate` callbacks are triggered during a call
+    // to the user's callback.
+    pub fn call_user_callback_with_event_or_store_in_pending(&self, event: Event) {
+        if self.user_callback.mutex.lock().unwrap().is_some() {
+            unsafe {
+                self.user_callback.call_with_event(event);
+            }
+        } else {
+            self.pending_events.lock().unwrap().push_back(event);
+        }
+    }
+
+    // Removes the window with the given `Id` from the `windows` list.
+    //
+    // This is called when a window is either `Closed` or `Drop`ped.
+    pub fn find_and_remove_window(&self, id: super::window::Id) {
+        if let Ok(mut windows) = self.windows.lock() {
+            windows.retain(|w| match w.upgrade() {
+                Some(w) => w.id() != id,
+                None => true,
+            });
+        }
+    }
+
+}
+
+
+impl Modifiers {
+    pub fn new() -> Self {
+        Modifiers {
+            shift_pressed: false,
+            ctrl_pressed: false,
+            win_pressed: false,
+            alt_pressed: false,
+        }
+    }
 }
 
 
@@ -91,17 +162,9 @@ impl UserCallback {
 impl EventsLoop {
 
     pub fn new() -> Self {
-        let modifiers = Modifiers {
-            shift_pressed: false,
-            ctrl_pressed: false,
-            win_pressed: false,
-            alt_pressed: false,
-        };
         EventsLoop {
-            windows: std::sync::Mutex::new(Vec::new()),
-            pending_events: std::sync::Mutex::new(std::collections::VecDeque::new()),
-            modifiers: std::sync::Mutex::new(modifiers),
-            user_callback: UserCallback { mutex: std::sync::Mutex::new(None) },
+            shared: Arc::new(Shared::new()),
+            modifiers: Modifiers::new(),
         }
     }
 
@@ -114,13 +177,13 @@ impl EventsLoop {
             }
         }
 
-        self.user_callback.store(&mut callback);
+        self.shared.user_callback.store(&mut callback);
 
         // Loop as long as we have pending events to return.
         loop {
             unsafe {
                 // First, yield all pending events.
-                self.call_user_callback_with_pending_events();
+                self.shared.call_user_callback_with_pending_events();
 
                 let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
 
@@ -137,13 +200,13 @@ impl EventsLoop {
 
                 match event {
                     // Call the user's callback.
-                    Some(event) => self.user_callback.call_with_event(event),
+                    Some(event) => self.shared.user_callback.call_with_event(event),
                     None => break,
                 }
             }
         }
 
-        self.user_callback.drop();
+        self.shared.user_callback.drop();
     }
 
     pub fn run_forever<F>(&mut self, mut callback: F)
@@ -156,7 +219,7 @@ impl EventsLoop {
         }
 
         // Track whether or not control flow has changed.
-        let mut control_flow = std::cell::Cell::new(ControlFlow::Continue);
+        let control_flow = std::cell::Cell::new(ControlFlow::Continue);
 
         let mut callback = |event| {
             if let ControlFlow::Complete = callback(event) {
@@ -164,12 +227,12 @@ impl EventsLoop {
             }
         };
 
-        self.user_callback.store(&mut callback);
+        self.shared.user_callback.store(&mut callback);
 
         loop {
             unsafe {
                 // First, yield all pending events.
-                self.call_user_callback_with_pending_events();
+                self.shared.call_user_callback_with_pending_events();
                 if let ControlFlow::Complete = control_flow.get() {
                     break;
                 }
@@ -190,7 +253,7 @@ impl EventsLoop {
                 let _: () = msg_send![pool, release];
 
                 if let Some(event) = maybe_event {
-                    self.user_callback.call_with_event(event);
+                    self.shared.user_callback.call_with_event(event);
                     if let ControlFlow::Complete = control_flow.get() {
                         break;
                     }
@@ -198,51 +261,11 @@ impl EventsLoop {
             }
         }
 
-        self.user_callback.drop();
-    }
-
-    // Removes the window with the given `Id` from the `windows` list.
-    //
-    // This is called when a window is either `Closed` or `Drop`ped.
-    pub fn find_and_remove_window(&self, id: super::window::Id) {
-        if let Ok(mut windows) = self.windows.lock() {
-            windows.retain(|w| match w.upgrade() {
-                Some(w) => w.id() != id,
-                None => true,
-            });
-        }
-    }
-
-    fn call_user_callback_with_pending_events(&self) {
-        loop {
-            let event = match self.pending_events.lock().unwrap().pop_front() {
-                Some(event) => event,
-                None => return,
-            };
-            unsafe {
-                self.user_callback.call_with_event(event);
-            }
-        }
-    }
-
-    // Calls the user callback if one exists.
-    //
-    // Otherwise, stores the event in the `pending_events` queue.
-    //
-    // This is necessary for the case when `WindowDelegate` callbacks are triggered during a call
-    // to the user's callback.
-    pub fn call_user_callback_with_event_or_store_in_pending(&self, event: Event) {
-        if self.user_callback.mutex.lock().unwrap().is_some() {
-            unsafe {
-                self.user_callback.call_with_event(event);
-            }
-        } else {
-            self.pending_events.lock().unwrap().push_back(event);
-        }
+        self.shared.user_callback.drop();
     }
 
     // Convert some given `NSEvent` into a winit `Event`.
-    unsafe fn ns_event_to_event(&self, ns_event: cocoa::base::id) -> Option<Event> {
+    unsafe fn ns_event_to_event(&mut self, ns_event: cocoa::base::id) -> Option<Event> {
         if ns_event == cocoa::base::nil {
             return None;
         }
@@ -268,9 +291,9 @@ impl EventsLoop {
             _ => appkit::NSApp().sendEvent_(ns_event),
         }
 
-        let windows = self.windows.lock().unwrap();
+        let windows = self.shared.windows.lock().unwrap();
         let maybe_window = windows.iter()
-            .filter_map(std::sync::Weak::upgrade)
+            .filter_map(Weak::upgrade)
             .find(|window| window_id == window.id());
 
         let into_event = |window_event| Event::WindowEvent {
@@ -280,7 +303,7 @@ impl EventsLoop {
 
         // Returns `Some` window if one of our windows is the key window.
         let maybe_key_window = || windows.iter()
-            .filter_map(std::sync::Weak::upgrade)
+            .filter_map(Weak::upgrade)
             .find(|window| {
                 let is_key_window: cocoa::base::BOOL = msg_send![*window.window, isKeyWindow];
                 is_key_window == cocoa::base::YES
@@ -309,7 +332,7 @@ impl EventsLoop {
                     let window_event = WindowEvent::ReceivedCharacter(received_char);
                     events.push_back(into_event(window_event));
                 }
-                self.pending_events.lock().unwrap().extend(events.into_iter());
+                self.shared.pending_events.lock().unwrap().extend(events.into_iter());
                 Some(into_event(window_event))
             },
 
@@ -331,8 +354,6 @@ impl EventsLoop {
             },
 
             appkit::NSFlagsChanged => {
-                let mut modifiers = self.modifiers.lock().unwrap();
-
                 unsafe fn modifier_event(event: cocoa::base::id,
                                          keymask: appkit::NSEventModifierFlags,
                                          key: events::VirtualKeyCode,
@@ -375,41 +396,41 @@ impl EventsLoop {
                 if let Some(window_event) = modifier_event(ns_event,
                                                            appkit::NSShiftKeyMask,
                                                            events::VirtualKeyCode::LShift,
-                                                           modifiers.shift_pressed)
+                                                           self.modifiers.shift_pressed)
                 {
-                    modifiers.shift_pressed = !modifiers.shift_pressed;
+                    self.modifiers.shift_pressed = !self.modifiers.shift_pressed;
                     events.push_back(into_event(window_event));
                 }
 
                 if let Some(window_event) = modifier_event(ns_event,
                                                            appkit::NSControlKeyMask,
                                                            events::VirtualKeyCode::LControl,
-                                                           modifiers.ctrl_pressed)
+                                                           self.modifiers.ctrl_pressed)
                 {
-                    modifiers.ctrl_pressed = !modifiers.ctrl_pressed;
+                    self.modifiers.ctrl_pressed = !self.modifiers.ctrl_pressed;
                     events.push_back(into_event(window_event));
                 }
 
                 if let Some(window_event) = modifier_event(ns_event,
                                                            appkit::NSCommandKeyMask,
                                                            events::VirtualKeyCode::LWin,
-                                                           modifiers.win_pressed)
+                                                           self.modifiers.win_pressed)
                 {
-                    modifiers.win_pressed = !modifiers.win_pressed;
+                    self.modifiers.win_pressed = !self.modifiers.win_pressed;
                     events.push_back(into_event(window_event));
                 }
 
                 if let Some(window_event) = modifier_event(ns_event,
                                                            appkit::NSAlternateKeyMask,
                                                            events::VirtualKeyCode::LAlt,
-                                                           modifiers.alt_pressed)
+                                                           self.modifiers.alt_pressed)
                 {
-                    modifiers.alt_pressed = !modifiers.alt_pressed;
+                    self.modifiers.alt_pressed = !self.modifiers.alt_pressed;
                     events.push_back(into_event(window_event));
                 }
 
                 let event = events.pop_front();
-                self.pending_events.lock().unwrap().extend(events.into_iter());
+                self.shared.pending_events.lock().unwrap().extend(events.into_iter());
                 event
             },
 
