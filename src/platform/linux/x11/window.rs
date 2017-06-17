@@ -166,8 +166,7 @@ impl Window {
         };
 
         // getting the root window
-        let root = unsafe { (display.xlib.XDefaultRootWindow)(display.display) };
-        display.check_errors().expect("Failed to get root window");
+        let root = ctx.root;
 
         // creating
         let mut set_win_attr = {

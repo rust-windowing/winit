@@ -38,12 +38,15 @@ pub struct EventsLoop {
     xi2ext: XExtension,
     pending_wakeup: Arc<AtomicBool>,
     root: ffi::Window,
+    // A dummy, `InputOnly` window that we can use to receive wakeup events and interrupt blocking
+    // `XNextEvent` calls.
+    wakeup_dummy_window: ffi::Window,
 }
 
 pub struct EventsLoopProxy {
     pending_wakeup: Weak<AtomicBool>,
     display: Weak<XConnection>,
-    root: ffi::Window,
+    wakeup_dummy_window: ffi::Window,
 }
 
 impl EventsLoop {
@@ -80,6 +83,13 @@ impl EventsLoop {
 
         let root = unsafe { (display.xlib.XDefaultRootWindow)(display.display) };
 
+        let wakeup_dummy_window = unsafe {
+            let (x, y, w, h) = (10, 10, 10, 10);
+            let (border_w, border_px, background_px) = (0, 0, 0);
+            (display.xlib.XCreateSimpleWindow)(display.display, root, x, y, w, h,
+                                               border_w, border_px, background_px)
+        };
+
         let result = EventsLoop {
             pending_wakeup: Arc::new(AtomicBool::new(false)),
             display: display,
@@ -88,6 +98,7 @@ impl EventsLoop {
             devices: Mutex::new(HashMap::new()),
             xi2ext: xi2ext,
             root: root,
+            wakeup_dummy_window: wakeup_dummy_window,
         };
 
         {
@@ -113,7 +124,7 @@ impl EventsLoop {
         EventsLoopProxy {
             pending_wakeup: Arc::downgrade(&self.pending_wakeup),
             display: Arc::downgrade(&self.display),
-            root: self.root,
+            wakeup_dummy_window: self.wakeup_dummy_window,
         }
     }
 
@@ -151,11 +162,6 @@ impl EventsLoop {
             unsafe { (xlib.XNextEvent)(self.display.display, &mut xev) }; // Blocks as necessary
 
             let mut control_flow = ControlFlow::Continue;
-
-            if self.pending_wakeup.load(atomic::Ordering::Relaxed) {
-                self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
-                control_flow = callback(Event::Awakened);
-            }
 
             // Track whether or not `Complete` was returned when processing the event.
             {
@@ -204,8 +210,10 @@ impl EventsLoop {
                 if client_msg.data.get_long(0) as ffi::Atom == self.wm_delete_window {
                     callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Closed })
                 } else {
-                    // FIXME: Prone to spurious wakeups
-                    callback(Event::Awakened)
+                    if self.pending_wakeup.load(atomic::Ordering::Relaxed) {
+                        self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
+                        callback(Event::Awakened);
+                    }
                 }
             }
 
@@ -546,10 +554,14 @@ impl EventsLoopProxy {
             _ => return Err(EventsLoopClosed),
         };
 
-        // Push an event on the X event queue so that methods like run_forever will advance.
+        // Push an event on the X event queue so that methods run_forever will advance.
+        //
+        // NOTE: This code (and the following `XSendEvent` code) is taken from the old
+        // `WindowProxy::wakeup` implementation. The code assumes that X11 is thread safe. Is this
+        // true?
         let mut xev = ffi::XClientMessageEvent {
             type_: ffi::ClientMessage,
-            window: self.root,
+            window: self.wakeup_dummy_window,
             format: 32,
             message_type: 0,
             serial: 0,
@@ -559,7 +571,10 @@ impl EventsLoopProxy {
         };
 
         unsafe {
-            (display.xlib.XSendEvent)(display.display, self.root, 0, 0, mem::transmute(&mut xev));
+            let propagate = false as i32;
+            let event_mask = 0;
+            let xevent = &mut xev as *mut ffi::XClientMessageEvent as *mut ffi::XEvent;
+            (display.xlib.XSendEvent)(display.display, self.wakeup_dummy_window, propagate, event_mask, xevent);
             (display.xlib.XFlush)(display.display);
             display.check_errors().expect("Failed to call XSendEvent after wakeup");
         }
