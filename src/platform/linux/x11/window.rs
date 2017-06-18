@@ -792,5 +792,23 @@ impl Window {
     }
 
     #[inline]
-    pub fn id(&self) -> WindowId { WindowId(self.x.window) }
+    pub fn id(&self) -> WindowId {
+        WindowId(self.x.window)
+    }
+
+    pub fn monitor_id(&self) -> super::MonitorId {
+        unsafe {
+            // Retrieve the XWindowAttributes
+            let mut window_attributes = mem::uninitialized();
+            (self.x.display.xlib.XGetWindowAttributes)
+                (self.x.display.display, self.x.window, &mut window_attributes);
+            self.x.display.check_errors().expect("Failed to call XGetWindowAttributes");
+
+            // Get the screen number of the screen.
+            let screen_number = (self.x.display.xlib.XScreenNumberOfScreen)(window_attributes.screen);
+            self.x.display.check_errors().expect("Failed to call XScreenNumberOfScreen");
+
+            super::MonitorId(self.x.display.clone(), screen_number as u32)
+        }
+    }
 }

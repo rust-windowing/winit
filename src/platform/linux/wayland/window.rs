@@ -184,6 +184,10 @@ impl Window {
     pub fn get_surface(&self) -> &wl_surface::WlSurface {
         &self.surface
     }
+
+    pub fn monitor_id(&self) -> super::MonitorId {
+        unimplemented!()
+    }
 }
 
 impl Drop for Window {
