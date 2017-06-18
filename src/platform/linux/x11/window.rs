@@ -520,7 +520,13 @@ impl Window {
                 return None;
             }
 
-            Some((x as i32, y as i32, width as u32, height as u32, border as u32))
+            let scale = self.hidpi_factor();
+
+            Some(((x as f32 / scale) as i32,
+                  (y as f32 / scale) as i32,
+                  (width as f32 / scale) as u32,
+                  (height as f32 / scale) as u32,
+                  (border as f32 / scale) as u32))
         }
     }
 
