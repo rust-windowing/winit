@@ -292,9 +292,16 @@ impl Window {
         self.window.set_cursor_state(state)
     }
 
+    /// A unique identifier associated with this `Window`.
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.id())
+    }
+
+    /// The monitor upon which most of the `Window` is currently placed.
+    #[inline]
+    pub fn monitor_id(&self) -> MonitorId {
+        MonitorId(self.window.monitor_id())
     }
 }
 
