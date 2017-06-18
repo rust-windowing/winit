@@ -556,6 +556,21 @@ impl Window {
 
         Ok(())
     }
+
+    pub fn monitor_id(&self) -> super::MonitorId {
+        unsafe {
+            let screen = NSWindow::screen(*self.window);
+            let device_description = appkit::NSScreen::deviceDescription(screen);
+            let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
+            let value: id = msg_send![device_description, objectForKey:*key];
+            if value != nil {
+                let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
+                super::MonitorId(screen_number as u32)
+            } else {
+                super::get_primary_monitor()
+            }
+        }
+    }
 }
 
 // Convert the `cocoa::base::id` associated with a window to a usize to use as a unique identifier
