@@ -34,7 +34,7 @@ fn main() {
     events_loop.run_forever(|event| {
         match event {
             winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => {
-                winit::ControlFlow::Complete
+                winit::ControlFlow::Break
             },
             _ => winit::ControlFlow::Continue,
         }
