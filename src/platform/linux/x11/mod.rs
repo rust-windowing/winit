@@ -163,18 +163,18 @@ impl EventsLoop {
 
             let mut control_flow = ControlFlow::Continue;
 
-            // Track whether or not `Complete` was returned when processing the event.
+            // Track whether or not `Break` was returned when processing the event.
             {
                 let mut cb = |event| {
-                    if let ControlFlow::Complete = callback(event) {
-                        control_flow = ControlFlow::Complete;
+                    if let ControlFlow::Break = callback(event) {
+                        control_flow = ControlFlow::Break;
                     }
                 };
                     
                 self.process_event(&mut xev, &mut cb);
             }
 
-            if let ControlFlow::Complete = control_flow {
+            if let ControlFlow::Break = control_flow {
                 break;
             }
         }

@@ -37,10 +37,10 @@ fn main() {
         match event {
             Event::WindowEvent { event, .. } => {
                 match event {
-                    WindowEvent::Closed => return ControlFlow::Complete,
+                    WindowEvent::Closed => return ControlFlow::Break,
                     WindowEvent::KeyboardInput {
                         input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::Escape), .. }, ..
-                    } => return ControlFlow::Complete,
+                    } => return ControlFlow::Break,
                     _ => ()
                 }
             },

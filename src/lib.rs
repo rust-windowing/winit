@@ -51,7 +51,7 @@
 //! ```
 //!
 //! The second way is to call `events_loop.run_forever(...)`. As its name tells, it will run
-//! forever unless it is stopped by returning `ControlFlow::Complete`.
+//! forever unless it is stopped by returning `ControlFlow::Break`.
 //!
 //! ```no_run
 //! use winit::{ControlFlow, Event, WindowEvent};
@@ -62,7 +62,7 @@
 //!     match event {
 //!         Event::WindowEvent { event: WindowEvent::Closed, .. } => {
 //!             println!("The window was closed ; stopping");
-//!             ControlFlow::Complete
+//!             ControlFlow::Break
 //!         },
 //!         _ => ControlFlow::Continue,
 //!     }
@@ -143,7 +143,7 @@ pub mod os;
 /// events_loop.run_forever(|event| {
 ///     match event {
 ///         Event::WindowEvent { event: WindowEvent::Closed, .. } => {
-///             ControlFlow::Complete
+///             ControlFlow::Break
 ///         },
 ///         _ => ControlFlow::Continue,
 ///     }
@@ -192,8 +192,8 @@ pub struct EventsLoop {
 pub enum ControlFlow {
     /// Continue looping and waiting for events.
     Continue,
-    /// Exit from the event loop.
-    Complete,
+    /// Break from the event loop.
+    Break,
 }
 
 impl EventsLoop {

@@ -13,7 +13,7 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => winit::ControlFlow::Complete,
+            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => winit::ControlFlow::Break,
             _ => winit::ControlFlow::Continue,
         }
     });

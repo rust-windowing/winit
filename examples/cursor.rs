@@ -23,7 +23,7 @@ fn main() {
                 }
             },
             Event::WindowEvent { event: WindowEvent::Closed, .. } => {
-                return ControlFlow::Complete;
+                return ControlFlow::Break;
             },
             _ => ()
         }

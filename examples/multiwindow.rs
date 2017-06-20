@@ -24,7 +24,7 @@ fn main() {
 
                 num_windows -= 1;
                 if num_windows == 0 {
-                    return winit::ControlFlow::Complete;
+                    return winit::ControlFlow::Break;
                 }
             },
             _ => (),

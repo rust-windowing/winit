@@ -52,11 +52,11 @@ macro_rules! gen_api_transition {
                 loop {
                     let mut control_flow = ::ControlFlow::Continue;
                     self.poll_events(|e| {
-                        if let ::ControlFlow::Complete = callback(e) {
-                            control_flow = ::ControlFlow::Complete;
+                        if let ::ControlFlow::Break = callback(e) {
+                            control_flow = ::ControlFlow::Break;
                         }
                     });
-                    if let ::ControlFlow::Complete = control_flow {
+                    if let ::ControlFlow::Break = control_flow {
                         break;
                     }
                     ::std::thread::sleep(::std::time::Duration::from_millis(5));

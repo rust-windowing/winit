@@ -222,8 +222,8 @@ impl EventsLoop {
         let control_flow = std::cell::Cell::new(ControlFlow::Continue);
 
         let mut callback = |event| {
-            if let ControlFlow::Complete = callback(event) {
-                control_flow.set(ControlFlow::Complete);
+            if let ControlFlow::Break = callback(event) {
+                control_flow.set(ControlFlow::Break);
             }
         };
 
@@ -233,7 +233,7 @@ impl EventsLoop {
             unsafe {
                 // First, yield all pending events.
                 self.shared.call_user_callback_with_pending_events();
-                if let ControlFlow::Complete = control_flow.get() {
+                if let ControlFlow::Break = control_flow.get() {
                     break;
                 }
 
@@ -254,7 +254,7 @@ impl EventsLoop {
 
                 if let Some(event) = maybe_event {
                     self.shared.user_callback.call_with_event(event);
-                    if let ControlFlow::Complete = control_flow.get() {
+                    if let ControlFlow::Break = control_flow.get() {
                         break;
                     }
                 }

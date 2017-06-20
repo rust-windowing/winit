@@ -226,8 +226,8 @@ impl EventsLoop {
 
         // Check for control flow by wrapping the callback.
         let control_flow = ::std::cell::Cell::new(ControlFlow::Continue);
-        let callback = |event| if let ControlFlow::Complete = callback(event) {
-            control_flow.set(ControlFlow::Complete);
+        let callback = |event| if let ControlFlow::Break = callback(event) {
+            control_flow.set(ControlFlow::Break);
         };
 
         // set the callback into the sink
@@ -251,7 +251,7 @@ impl EventsLoop {
                 self.prune_dead_windows()
             }
 
-            if let ControlFlow::Complete = control_flow.get() {
+            if let ControlFlow::Break = control_flow.get() {
                 break;
             }
         }
