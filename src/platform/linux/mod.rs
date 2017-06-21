@@ -19,8 +19,8 @@ pub mod x11;
 /// Environment variable that indicates a backend preference
 /// `WINIT_UNIX_BACKEND=x11` : Will try to use an X11 backend
 /// `WINIT_UNIX_BACKEND=wayland` : Will try to use a wayland backend
-/// When used is selected backends will not fallback to one another
-/// (Current default behaviour is wayland, fallback to X)
+/// When the variable is present the indicated backend will not fallback to another
+/// (Current default behaviour, without the env var, is try wayland then fallback to X)
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
 #[derive(Clone, Default)]
