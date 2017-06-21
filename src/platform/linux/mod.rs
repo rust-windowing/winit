@@ -16,9 +16,12 @@ mod dlopen;
 pub mod wayland;
 pub mod x11;
 
-/// Environment variable that indicates the X11 backend should be used
-/// even if Wayland is available. In this case XWayland will be used.
-const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_PREFER_UNIX_BACKEND";
+/// Environment variable that indicates a backend preference
+/// `WINIT_UNIX_BACKEND=x11` : Will try to use an X11 backend
+/// `WINIT_UNIX_BACKEND=wayland` : Will try to use a wayland backend
+/// When used is selected backends will not fallback to one another
+/// (Current default behaviour is wayland, fallback to X)
+const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
