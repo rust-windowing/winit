@@ -6,7 +6,7 @@ fn main() {
         println!("\tMonitor #{}: {:?}", num, monitor.get_name());
     }
 
-    let events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventsLoop::new();
 
     let window = winit::WindowBuilder::new()
         .with_title("A fantastic window!")
@@ -26,8 +26,8 @@ fn main() {
         }
 
         match event {
-            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => events_loop.interrupt(),
-            _ => ()
+            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => winit::ControlFlow::Break,
+            _ => winit::ControlFlow::Continue,
         }
     });
 }
