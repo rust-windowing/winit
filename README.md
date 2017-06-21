@@ -28,15 +28,15 @@ another library.
 extern crate winit;
 
 fn main() {
-    let events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventsLoop::new();
     let window = winit::Window::new(&events_loop).unwrap();
 
     events_loop.run_forever(|event| {
         match event {
             winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => {
-                events_loop.interrupt();
+                winit::ControlFlow::Break
             },
-            _ => ()
+            _ => winit::ControlFlow::Continue,
         }
     });
 }

@@ -34,10 +34,9 @@
 //! screen, such as video games.
 //!
 //! ```no_run
-//! use winit::Event;
-//! use winit::WindowEvent;
+//! use winit::{Event, WindowEvent};
 //! # use winit::EventsLoop;
-//! # let events_loop = EventsLoop::new();
+//! # let mut events_loop = EventsLoop::new();
 //!
 //! loop {
 //!     events_loop.poll_events(|event| {
@@ -52,21 +51,20 @@
 //! ```
 //!
 //! The second way is to call `events_loop.run_forever(...)`. As its name tells, it will run
-//! forever unless it is stopped by calling `events_loop.interrupt()`.
+//! forever unless it is stopped by returning `ControlFlow::Break`.
 //!
 //! ```no_run
-//! use winit::Event;
-//! use winit::WindowEvent;
+//! use winit::{ControlFlow, Event, WindowEvent};
 //! # use winit::EventsLoop;
-//! # let events_loop = EventsLoop::new();
+//! # let mut events_loop = EventsLoop::new();
 //!
 //! events_loop.run_forever(|event| {
 //!     match event {
 //!         Event::WindowEvent { event: WindowEvent::Closed, .. } => {
 //!             println!("The window was closed ; stopping");
-//!             events_loop.interrupt();
+//!             ControlFlow::Break
 //!         },
-//!         _ => ()
+//!         _ => ControlFlow::Continue,
 //!     }
 //! });
 //! ```
@@ -119,8 +117,6 @@ extern crate x11_dl;
 #[macro_use(wayland_env,declare_handler)]
 extern crate wayland_client;
 
-use std::sync::Arc;
-
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
 pub use native_monitor::NativeMonitorId;
@@ -139,20 +135,17 @@ pub mod os;
 /// # Example
 ///
 /// ```no_run
-/// use winit::Event;
-/// use winit::EventsLoop;
-/// use winit::Window;
-/// use winit::WindowEvent;
+/// use winit::{Event, EventsLoop, Window, WindowEvent, ControlFlow};
 ///
-/// let events_loop = EventsLoop::new();
+/// let mut events_loop = EventsLoop::new();
 /// let window = Window::new(&events_loop).unwrap();
 ///
 /// events_loop.run_forever(|event| {
 ///     match event {
 ///         Event::WindowEvent { event: WindowEvent::Closed, .. } => {
-///             events_loop.interrupt();
+///             ControlFlow::Break
 ///         },
-///         _ => ()
+///         _ => ControlFlow::Continue,
 ///     }
 /// });
 /// ```
@@ -186,24 +179,35 @@ pub struct AxisId(u32);
 pub struct ButtonId(u32);
 
 /// Provides a way to retreive events from the windows that were registered to it.
-// TODO: document usage in multiple threads
-#[derive(Clone)]
+///
+/// To wake up an `EventsLoop` from a another thread, see the `EventsLoopProxy` docs.
 pub struct EventsLoop {
-    events_loop: Arc<platform::EventsLoop>,
+    events_loop: platform::EventsLoop,
+}
+
+/// Returned by the user callback given to the `EventsLoop::run_forever` method.
+///
+/// Indicates whether the `run_forever` method should continue or complete.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ControlFlow {
+    /// Continue looping and waiting for events.
+    Continue,
+    /// Break from the event loop.
+    Break,
 }
 
 impl EventsLoop {
     /// Builds a new events loop.
     pub fn new() -> EventsLoop {
         EventsLoop {
-            events_loop: Arc::new(platform::EventsLoop::new()),
+            events_loop: platform::EventsLoop::new(),
         }
     }
 
     /// Fetches all the events that are pending, calls the callback function for each of them,
     /// and returns.
     #[inline]
-    pub fn poll_events<F>(&self, callback: F)
+    pub fn poll_events<F>(&mut self, callback: F)
         where F: FnMut(Event)
     {
         self.events_loop.poll_events(callback)
@@ -211,17 +215,51 @@ impl EventsLoop {
 
     /// Runs forever until `interrupt()` is called. Whenever an event happens, calls the callback.
     #[inline]
-    pub fn run_forever<F>(&self, callback: F)
-        where F: FnMut(Event)
+    pub fn run_forever<F>(&mut self, callback: F)
+        where F: FnMut(Event) -> ControlFlow
     {
         self.events_loop.run_forever(callback)
     }
 
-    /// If we called `run_forever()`, stops the process of waiting for events.
-    // TODO: what if we're waiting from multiple threads?
-    #[inline]
-    pub fn interrupt(&self) {
-        self.events_loop.interrupt()
+    /// Creates an `EventsLoopProxy` that can be used to wake up the `EventsLoop` from another
+    /// thread.
+    pub fn create_proxy(&self) -> EventsLoopProxy {
+        EventsLoopProxy {
+            events_loop_proxy: self.events_loop.create_proxy(),
+        }
+    }
+}
+
+/// Used to wake up the `EventsLoop` from another thread.
+pub struct EventsLoopProxy {
+    events_loop_proxy: platform::EventsLoopProxy,
+}
+
+impl EventsLoopProxy {
+    /// Wake up the `EventsLoop` from which this proxy was created.
+    ///
+    /// This causes the `EventsLoop` to emit an `Awakened` event.
+    ///
+    /// Returns an `Err` if the associated `EventsLoop` no longer exists.
+    pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
+        self.events_loop_proxy.wakeup()
+    }
+}
+
+/// The error that is returned when an `EventsLoopProxy` attempts to wake up an `EventsLoop` that
+/// no longer exists.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct EventsLoopClosed;
+
+impl std::fmt::Display for EventsLoopClosed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", std::error::Error::description(self))
+    }
+}
+
+impl std::error::Error for EventsLoopClosed {
+    fn description(&self) -> &str {
+        "Tried to wake up a closed `EventsLoop`"
     }
 }
 

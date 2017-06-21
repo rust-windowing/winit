@@ -1,7 +1,7 @@
 extern crate winit;
 
 fn main() {
-    let events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventsLoop::new();
 
     let window1 = winit::Window::new(&events_loop).unwrap();
     let window2 = winit::Window::new(&events_loop).unwrap();
@@ -24,10 +24,11 @@ fn main() {
 
                 num_windows -= 1;
                 if num_windows == 0 {
-                    events_loop.interrupt();
+                    return winit::ControlFlow::Break;
                 }
             },
             _ => (),
         }
+        winit::ControlFlow::Continue
     })
 }

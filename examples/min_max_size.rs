@@ -1,7 +1,7 @@
 extern crate winit;
 
 fn main() {
-    let events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventsLoop::new();
 
     let _window = winit::WindowBuilder::new()
         .with_min_dimensions(400, 200)
@@ -13,8 +13,8 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => events_loop.interrupt(),
-            _ => ()
+            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => winit::ControlFlow::Break,
+            _ => winit::ControlFlow::Continue,
         }
     });
 }

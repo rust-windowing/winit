@@ -8,26 +8,31 @@
 macro_rules! gen_api_transition {
     () => {
         pub struct EventsLoop {
-            windows: ::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>,
-            interrupted: ::std::sync::atomic::AtomicBool,
+            windows: ::std::sync::Arc<::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>>,
+            awakened: ::std::sync::Arc<::std::sync::atomic::AtomicBool>,
+        }
+
+        pub struct EventsLoopProxy {
+            awakened: ::std::sync::Weak<::std::sync::atomic::AtomicBool>,
         }
 
         impl EventsLoop {
             pub fn new() -> EventsLoop {
                 EventsLoop {
-                    windows: ::std::sync::Mutex::new(vec![]),
-                    interrupted: ::std::sync::atomic::AtomicBool::new(false),
+                    windows: ::std::sync::Arc::new(::std::sync::Mutex::new(vec![])),
+                    awakened: ::std::sync::Arc::new(::std::sync::atomic::AtomicBool::new(false)),
                 }
             }
 
-            pub fn interrupt(&self) {
-                self.interrupted.store(true, ::std::sync::atomic::Ordering::Relaxed);
-            }
-
-            pub fn poll_events<F>(&self, mut callback: F)
+            pub fn poll_events<F>(&mut self, mut callback: F)
                 where F: FnMut(::Event)
             {
-                let mut windows = self.windows.lock().unwrap();
+                if self.awakened.load(::std::sync::atomic::Ordering::Relaxed) {
+                    self.awakened.store(false, ::std::sync::atomic::Ordering::Relaxed);
+                    callback(::Event::Awakened);
+                }
+
+                let windows = self.windows.lock().unwrap();
                 for window in windows.iter() {
                     for event in window.poll_events() {
                         callback(::Event::WindowEvent {
@@ -38,18 +43,41 @@ macro_rules! gen_api_transition {
                 }
             }
 
-            pub fn run_forever<F>(&self, mut callback: F)
-                where F: FnMut(::Event)
+            pub fn run_forever<F>(&mut self, mut callback: F)
+                where F: FnMut(::Event) -> ::ControlFlow,
             {
-                self.interrupted.store(false, ::std::sync::atomic::Ordering::Relaxed);
+                self.awakened.store(false, ::std::sync::atomic::Ordering::Relaxed);
 
                 // Yeah that's a very bad implementation.
                 loop {
-                    self.poll_events(|e| callback(e));
-                    ::std::thread::sleep_ms(5);
-                    if self.interrupted.load(::std::sync::atomic::Ordering::Relaxed) {
+                    let mut control_flow = ::ControlFlow::Continue;
+                    self.poll_events(|e| {
+                        if let ::ControlFlow::Break = callback(e) {
+                            control_flow = ::ControlFlow::Break;
+                        }
+                    });
+                    if let ::ControlFlow::Break = control_flow {
                         break;
                     }
+                    ::std::thread::sleep(::std::time::Duration::from_millis(5));
+                }
+            }
+
+            pub fn create_proxy(&self) -> EventsLoopProxy {
+                EventsLoopProxy {
+                    awakened: ::std::sync::Arc::downgrade(&self.awakened),
+                }
+            }
+        }
+
+        impl EventsLoopProxy {
+            pub fn wakeup(&self) -> Result<(), ::EventsLoopClosed> {
+                match self.awakened.upgrade() {
+                    None => Err(::EventsLoopClosed),
+                    Some(awakened) => {
+                        awakened.store(true, ::std::sync::atomic::Ordering::Relaxed);
+                        Ok(())
+                    },
                 }
             }
         }
@@ -62,7 +90,7 @@ macro_rules! gen_api_transition {
 
         pub struct Window2 {
             pub window: ::std::sync::Arc<Window>,
-            events_loop: ::std::sync::Weak<EventsLoop>,
+            windows: ::std::sync::Weak<::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>>
         }
 
         impl ::std::ops::Deref for Window2 {
@@ -74,7 +102,8 @@ macro_rules! gen_api_transition {
         }
 
         impl Window2 {
-            pub fn new(events_loop: ::std::sync::Arc<EventsLoop>, window: &::WindowAttributes,
+            pub fn new(events_loop: &EventsLoop,
+                       window: &::WindowAttributes,
                        pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                        -> Result<Window2, CreationError>
             {
@@ -82,7 +111,7 @@ macro_rules! gen_api_transition {
                 events_loop.windows.lock().unwrap().push(win.clone());
                 Ok(Window2 {
                     window: win,
-                    events_loop: ::std::sync::Arc::downgrade(&events_loop),
+                    windows: ::std::sync::Arc::downgrade(&events_loop.windows),
                 })
             }
 
@@ -94,8 +123,8 @@ macro_rules! gen_api_transition {
 
         impl Drop for Window2 {
             fn drop(&mut self) {
-                if let Some(ev) = self.events_loop.upgrade() {
-                    let mut windows = ev.windows.lock().unwrap();
+                if let Some(windows) = self.windows.upgrade() {
+                    let mut windows = windows.lock().unwrap();
                     windows.retain(|w| &**w as *const Window != &*self.window as *const _);
                 }
             }

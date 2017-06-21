@@ -3,9 +3,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use CreationError;
-use CursorState;
-use MouseCursor;
+use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow};
 use libc;
 
 use self::x11::XConnection;
@@ -131,9 +129,10 @@ impl MonitorId {
 
 impl Window2 {
     #[inline]
-    pub fn new(events_loop: ::std::sync::Arc<EventsLoop>, window: &::WindowAttributes,
+    pub fn new(events_loop: &EventsLoop,
+               window: &::WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window2, CreationError>
+               -> Result<Self, CreationError>
     {
         match *UNIX_BACKEND {
             UnixBackend::Wayland(ref ctxt) => {
@@ -309,6 +308,11 @@ pub enum EventsLoop {
     X(x11::EventsLoop)
 }
 
+pub enum EventsLoopProxy {
+    X(x11::EventsLoopProxy),
+    Wayland(wayland::EventsLoopProxy),
+}
+
 impl EventsLoop {
     pub fn new() -> EventsLoop {
         match *UNIX_BACKEND {
@@ -326,28 +330,37 @@ impl EventsLoop {
         }
     }
 
-    pub fn interrupt(&self) {
+    pub fn create_proxy(&self) -> EventsLoopProxy {
         match *self {
-            EventsLoop::Wayland(ref evlp) => evlp.interrupt(),
-            EventsLoop::X(ref evlp) => evlp.interrupt()
+            EventsLoop::Wayland(ref evlp) => EventsLoopProxy::Wayland(evlp.create_proxy()),
+            EventsLoop::X(ref evlp) => EventsLoopProxy::X(evlp.create_proxy()),
         }
     }
 
-    pub fn poll_events<F>(&self, callback: F)
+    pub fn poll_events<F>(&mut self, callback: F)
         where F: FnMut(::Event)
     {
         match *self {
-            EventsLoop::Wayland(ref evlp) => evlp.poll_events(callback),
-            EventsLoop::X(ref evlp) => evlp.poll_events(callback)
+            EventsLoop::Wayland(ref mut evlp) => evlp.poll_events(callback),
+            EventsLoop::X(ref mut evlp) => evlp.poll_events(callback)
         }
     }
 
-    pub fn run_forever<F>(&self, callback: F)
-        where F: FnMut(::Event)
+    pub fn run_forever<F>(&mut self, callback: F)
+        where F: FnMut(::Event) -> ControlFlow
     {
         match *self {
-            EventsLoop::Wayland(ref evlp) => evlp.run_forever(callback),
-            EventsLoop::X(ref evlp) => evlp.run_forever(callback)
+            EventsLoop::Wayland(ref mut evlp) => evlp.run_forever(callback),
+            EventsLoop::X(ref mut evlp) => evlp.run_forever(callback)
+        }
+    }
+}
+
+impl EventsLoopProxy {
+    pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
+        match *self {
+            EventsLoopProxy::Wayland(ref proxy) => proxy.wakeup(),
+            EventsLoopProxy::X(ref proxy) => proxy.wakeup(),
         }
     }
 }

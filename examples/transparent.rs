@@ -1,7 +1,7 @@
 extern crate winit;
 
 fn main() {
-    let events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventsLoop::new();
 
     let window = winit::WindowBuilder::new().with_decorations(false)
                                                  .with_transparency(true)
@@ -13,8 +13,8 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => events_loop.interrupt(),
-            _ => ()
+            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => winit::ControlFlow::Break,
+            _ => winit::ControlFlow::Continue,
         }
     });
 }

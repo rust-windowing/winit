@@ -11,12 +11,11 @@ pub enum Event {
         device_id: DeviceId,
         event: DeviceEvent,
     },
+    Awakened,
 }
 
 #[derive(Clone, Debug)]
 pub enum WindowEvent {
-    // TODO: remove ; can break the lib internally so be careful
-    Awakened,
 
     /// The size of the window has changed.
     Resized(u32, u32),
