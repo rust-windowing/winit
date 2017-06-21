@@ -29,29 +29,40 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 pub enum UnixBackend {
     X(Arc<XConnection>),
     Wayland(Arc<wayland::WaylandContext>),
-    Error(XNotSupported),
+    Error(Option<XNotSupported>, Option<String>),
 }
 
 lazy_static!(
     pub static ref UNIX_BACKEND: UnixBackend = {
         #[inline]
-        fn x_backend() -> UnixBackend {
+        fn x_backend() -> Result<UnixBackend, XNotSupported> {
             match XConnection::new(Some(x_error_callback)) {
-                Ok(x) => UnixBackend::X(Arc::new(x)),
-                Err(e) => UnixBackend::Error(e),
+                Ok(x) => Ok(UnixBackend::X(Arc::new(x))),
+                Err(e) => Err(e),
             }
         }
+        #[inline]
+        fn wayland_backend() -> Result<UnixBackend, ()> {
+             wayland::WaylandContext::init()
+                .map(|ctx| UnixBackend::Wayland(Arc::new(ctx)))
+                .ok_or(())
+        }
         match env::var(BACKEND_PREFERENCE_ENV_VAR) {
-            Ok(ref s) if s == "x11" => {
-                println!("{}: using x11 backend", BACKEND_PREFERENCE_ENV_VAR);
-                x_backend()
+            Ok(s) => match s.as_str() {
+                "x11" => x_backend().unwrap_or_else(|e| UnixBackend::Error(Some(e), None)),
+                "wayland" => wayland_backend().unwrap_or_else(|_| {
+                    UnixBackend::Error(None, Some("Wayland not available".into()))
+                }),
+                _ => panic!("Unknown environment variable value for {}, try one of `x11`,`wayland`",
+                            BACKEND_PREFERENCE_ENV_VAR),
             },
-            _ => {
-                if let Some(ctxt) = wayland::WaylandContext::init() {
-                    UnixBackend::Wayland(Arc::new(ctxt))
-                } else {
-                    x_backend()
-                }
+            Err(_) => {
+                // Try wayland, fallback to X11
+                wayland_backend().unwrap_or_else(|_| {
+                    x_backend().unwrap_or_else(|x_err| {
+                        UnixBackend::Error(Some(x_err), Some("Wayland not available".into()))
+                    })
+                })
             },
         }
     };
@@ -102,7 +113,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorId> {
                                     .into_iter()
                                     .map(MonitorId::X)
                                     .collect(),
-        UnixBackend::Error(_) => { let mut d = VecDeque::new(); d.push_back(MonitorId::None); d},
+        UnixBackend::Error(..) => { let mut d = VecDeque::new(); d.push_back(MonitorId::None); d},
     }
 }
 
@@ -111,7 +122,7 @@ pub fn get_primary_monitor() -> MonitorId {
     match *UNIX_BACKEND {
         UnixBackend::Wayland(ref ctxt) => MonitorId::Wayland(wayland::get_primary_monitor(ctxt)),
         UnixBackend::X(ref connec) => MonitorId::X(x11::get_primary_monitor(connec)),
-        UnixBackend::Error(_) => MonitorId::None,
+        UnixBackend::Error(..) => MonitorId::None,
     }
 }
 
@@ -164,7 +175,7 @@ impl Window2 {
             UnixBackend::X(_) => {
                 x11::Window2::new(events_loop, window, pl_attribs).map(Window2::X)
             },
-            UnixBackend::Error(_) => {
+            UnixBackend::Error(..) => {
                 // If the Backend is Error(), it is not possible to instanciate an EventsLoop at all,
                 // thus this function cannot be called!
                 unreachable!()
@@ -341,7 +352,7 @@ impl EventsLoop {
                 EventsLoop::X(x11::EventsLoop::new(ctxt.clone()))
             },
 
-            UnixBackend::Error(_) => {
+            UnixBackend::Error(..) => {
                 panic!("Attempted to create an EventsLoop while no backend was available.")
             }
         }
