@@ -16,11 +16,13 @@ mod dlopen;
 pub mod wayland;
 pub mod x11;
 
-/// Environment variable that indicates a backend preference
-/// `WINIT_UNIX_BACKEND=x11` : Will try to use an X11 backend
-/// `WINIT_UNIX_BACKEND=wayland` : Will try to use a wayland backend
-/// When the variable is present the indicated backend will not fallback to another
-/// (Current default behaviour, without the env var, is try wayland then fallback to X)
+/// Environment variable specifying which backend should be used on unix platform.
+///
+/// Legal values are x11 and wayland. If this variable is set only the named backend
+/// will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
+/// and if it fails will fallback on x11.
+///
+/// If this variable is set with any other value, winit will panic.
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
 #[derive(Clone, Default)]
