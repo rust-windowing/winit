@@ -2,6 +2,7 @@
 
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::env;
 
 use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow};
 use libc;
@@ -15,6 +16,10 @@ mod dlopen;
 pub mod wayland;
 pub mod x11;
 
+/// Environment variable that indicates the X11 backend should be used
+/// even if Wayland is available. In this case XWayland will be used.
+const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_PREFER_UNIX_BACKEND";
+
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub visual_infos: Option<XVisualInfo>,
@@ -25,17 +30,29 @@ pub enum UnixBackend {
     X(Arc<XConnection>),
     Wayland(Arc<wayland::WaylandContext>),
     Error(XNotSupported),
-} 
+}
 
 lazy_static!(
     pub static ref UNIX_BACKEND: UnixBackend = {
-        if let Some(ctxt) = wayland::WaylandContext::init() {
-            UnixBackend::Wayland(Arc::new(ctxt))
-        } else {
+        #[inline]
+        fn x_backend() -> UnixBackend {
             match XConnection::new(Some(x_error_callback)) {
                 Ok(x) => UnixBackend::X(Arc::new(x)),
                 Err(e) => UnixBackend::Error(e),
             }
+        }
+        match env::var(BACKEND_PREFERENCE_ENV_VAR) {
+            Ok(ref s) if s == "x11" => {
+                println!("{}: using x11 backend", BACKEND_PREFERENCE_ENV_VAR);
+                x_backend()
+            },
+            _ => {
+                if let Some(ctxt) = wayland::WaylandContext::init() {
+                    UnixBackend::Wayland(Arc::new(ctxt))
+                } else {
+                    x_backend()
+                }
+            },
         }
     };
 );
