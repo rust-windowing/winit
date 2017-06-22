@@ -10,37 +10,37 @@ use native_monitor::NativeMonitorId;
 #[derive(Clone)]
 pub struct MonitorId {
     /// The system name of the adapter.
-    adapter_name: [winapi::WCHAR; 32],
+    pub adapter_name: [winapi::WCHAR; 32],
 
     /// The system name of the monitor.
-    monitor_name: String,
+    pub monitor_name: String,
 
     /// Name to give to the user.
-    readable_name: String,
+    pub readable_name: String,
 
     /// See the `StateFlags` element here:
     /// http://msdn.microsoft.com/en-us/library/dd183569(v=vs.85).aspx
-    flags: winapi::DWORD,
+    pub flags: winapi::DWORD,
 
     /// True if this is the primary monitor.
-    primary: bool,
+    pub primary: bool,
 
     /// The position of the monitor in pixels on the desktop.
     ///
     /// A window that is positionned at these coordinates will overlap the monitor.
-    position: (u32, u32),
+    pub position: (u32, u32),
 
     /// The current resolution in pixels on the monitor.
-    dimensions: (u32, u32),
+    pub dimensions: (u32, u32),
 }
 
-struct DeviceEnumerator {
+pub struct DeviceEnumerator {
     parent_device: *const winapi::WCHAR,
     current_index: u32,
 }
 
 impl DeviceEnumerator {
-    fn adapters() -> DeviceEnumerator {
+    pub fn adapters() -> DeviceEnumerator {
         use std::ptr;
         DeviceEnumerator {
             parent_device: ptr::null(),
@@ -48,7 +48,7 @@ impl DeviceEnumerator {
         }
     }
 
-    fn monitors(adapter_name: *const winapi::WCHAR) -> DeviceEnumerator {
+    pub fn monitors(adapter_name: *const winapi::WCHAR) -> DeviceEnumerator {
         DeviceEnumerator {
             parent_device: adapter_name,
             current_index: 0
@@ -86,10 +86,26 @@ impl Iterator for DeviceEnumerator {
     }
 }
 
-fn wchar_as_string(wchar: &[winapi::WCHAR]) -> String {
-    String::from_utf16_lossy(wchar)
-        .trim_right_matches(0 as char)
-        .to_string()
+/// The position and size of the given display adapter, in that order.
+pub fn adapter_positioning(adapter: winapi::DISPLAY_DEVICEW) -> Option<((u32, u32), (u32, u32))> {
+    unsafe {
+        let mut dev: winapi::DEVMODEW = mem::zeroed();
+        dev.dmSize = mem::size_of::<winapi::DEVMODEW>() as winapi::WORD;
+
+        if user32::EnumDisplaySettingsExW(adapter.DeviceName.as_ptr(), 
+            winapi::ENUM_CURRENT_SETTINGS,
+            &mut dev, 0) == 0
+        {
+            return None;
+        }
+
+        let point: &winapi::POINTL = mem::transmute(&dev.union1);
+        let position = (point.x as u32, point.y as u32);
+
+        let dimensions = (dev.dmPelsWidth as u32, dev.dmPelsHeight as u32);
+
+        Some((position, dimensions))
+    }
 }
 
 /// Win32 implementation of the main `get_available_monitors` function.
@@ -99,31 +115,17 @@ pub fn get_available_monitors() -> VecDeque<MonitorId> {
 
     for adapter in DeviceEnumerator::adapters() {
         // getting the position
-        let (position, dimensions) = unsafe {
-            let mut dev: winapi::DEVMODEW = mem::zeroed();
-            dev.dmSize = mem::size_of::<winapi::DEVMODEW>() as winapi::WORD;
-
-            if user32::EnumDisplaySettingsExW(adapter.DeviceName.as_ptr(), 
-                winapi::ENUM_CURRENT_SETTINGS,
-                &mut dev, 0) == 0
-            {
-                continue;
-            }
-
-            let point: &winapi::POINTL = mem::transmute(&dev.union1);
-            let position = (point.x as u32, point.y as u32);
-
-            let dimensions = (dev.dmPelsWidth as u32, dev.dmPelsHeight as u32);
-
-            (position, dimensions)
+        let (position, dimensions) = match adapter_positioning(adapter) {
+            None => continue,
+            Some(positioning) => positioning,
         };
 
         for (num, monitor) in DeviceEnumerator::monitors(adapter.DeviceName.as_ptr()).enumerate() {
             // adding to the resulting list
             result.push_back(MonitorId {
                 adapter_name: adapter.DeviceName,
-                monitor_name: wchar_as_string(&monitor.DeviceName),
-                readable_name: wchar_as_string(&monitor.DeviceString),
+                monitor_name: super::wchar_as_string(&monitor.DeviceName),
+                readable_name: super::wchar_as_string(&monitor.DeviceString),
                 flags: monitor.StateFlags,
                 primary: (adapter.StateFlags & winapi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 &&
                          num == 0,
