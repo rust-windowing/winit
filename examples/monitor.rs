@@ -3,7 +3,10 @@ extern crate winit;
 fn main() {
     println!("Available monitors:");
     for (num, monitor) in winit::get_available_monitors().enumerate() {
-        println!("\tMonitor #{}: {:?}", num, monitor.get_name());
+        println!("\tMonitor #{}:", num);
+        println!("\t\tName: {:?}", monitor.get_name());
+        println!("\t\tNative Identifier: {:?}", monitor.get_native_identifier());
+        println!("\t\tDimensions: {:?}", monitor.get_dimensions());
     }
 
     let mut events_loop = winit::EventsLoop::new();
