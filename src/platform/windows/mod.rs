@@ -349,7 +349,7 @@ impl Window {
         Ok(())
     }
 
-    pub fn monitor_id(&self) -> MonitorId {
+    pub fn monitor_id(&self) -> Option<MonitorId> {
         unsafe {
             // A handle to the monitor that has the largest intersection with the window.
             let hmonitor = MonitorFromWindow(self.window.0, winapi::MONITOR_DEFAULTTONEAREST);
@@ -368,9 +368,10 @@ impl Window {
                                                      device_index,
                                                      &mut display_device,
                                                      flags);
+            // This should only be zero if device_index is out of range, but we know
+            // that device_index is `0`.
             if result == 0 {
-                panic!("EnumDisplayDevicesW failed. \
-                       This should only happen if device_index is out of range.");
+                return None;
             }
 
             // Find the adapter associated with this display device.
@@ -393,7 +394,7 @@ impl Window {
                     let primary = (adapter.StateFlags & winapi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0
                         && num == 0;
 
-                    return MonitorId {
+                    return Some(MonitorId {
                         adapter_name: adapter.DeviceName,
                         monitor_name: wchar_as_string(&display_device.DeviceName),
                         readable_name: wchar_as_string(&display_device.DeviceString),
@@ -401,11 +402,11 @@ impl Window {
                         primary: primary,
                         position: position,
                         dimensions: dimensions,
-                    };
+                    });
                 }
             }
 
-            panic!("Could not find the display adapter associated with the monitor under the window");
+            None
         }
     }
 }

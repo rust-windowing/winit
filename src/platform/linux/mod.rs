@@ -278,10 +278,10 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn monitor_id(&self) -> MonitorId {
+    pub fn monitor_id(&self) -> Option<MonitorId> {
         match self {
-            &Window2::X(ref w) => MonitorId::X(w.monitor_id()),
-            &Window2::Wayland(ref w) => MonitorId::Wayland(w.monitor_id()),
+            &Window2::X(ref w) => w.monitor_id().map(MonitorId::X),
+            &Window2::Wayland(ref w) => w.monitor_id().map(MonitorId::Wayland),
         }
     }
 }

@@ -298,10 +298,17 @@ impl Window {
         WindowId(self.window.id())
     }
 
-    /// The monitor upon which most of the `Window` is currently placed.
+    /// The monitor which has the largest intersection with the `Window`.
+    ///
+    /// The method may return `None` if the window does not intersect any monitors.
+    ///
+    /// Note: On wayland, there does not seem to be any way of finding the intersection. Thus, this
+    /// returns the monitor which most recently contained the full surface of the `Window`. If the
+    /// window always intersected multiple monitors, this will return the monitor upon which the
+    /// `Window` was initialised (usually the primary monitor).
     #[inline]
-    pub fn monitor_id(&self) -> MonitorId {
-        MonitorId(self.window.monitor_id())
+    pub fn monitor_id(&self) -> Option<MonitorId> {
+        self.window.monitor_id().map(MonitorId)
     }
 }
 

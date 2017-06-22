@@ -557,7 +557,7 @@ impl Window {
         Ok(())
     }
 
-    pub fn monitor_id(&self) -> super::MonitorId {
+    pub fn monitor_id(&self) -> Option<super::MonitorId> {
         unsafe {
             let screen = NSWindow::screen(*self.window);
             let device_description = appkit::NSScreen::deviceDescription(screen);
@@ -565,9 +565,9 @@ impl Window {
             let value: id = msg_send![device_description, objectForKey:*key];
             if value != nil {
                 let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
-                super::MonitorId(screen_number as u32)
+                Some(super::MonitorId(screen_number as u32))
             } else {
-                super::get_primary_monitor()
+                None
             }
         }
     }
