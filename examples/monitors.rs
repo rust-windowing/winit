@@ -17,16 +17,27 @@ fn main() {
         .unwrap();
 
     let mut monitor = window.monitor_id();
-    println!("Window opened on monitor: {}", monitor.get_name().unwrap());
+    if let Some(ref monitor) = monitor {
+        println!("Window opened on monitor: {}", monitor.get_name().unwrap());
+    }
     println!("Try moving the window to a different monitor to see the monitor's name printed to the screen.");
 
     events_loop.run_forever(|event| {
 
         let current_monitor = window.monitor_id();
-        if monitor.get_name() != current_monitor.get_name() {
-            println!("Window moved to monitor: {}", current_monitor.get_name().unwrap());
-            monitor = current_monitor;
+        match (&monitor, &current_monitor) {
+            (&None, &Some(ref monitor)) => {
+                println!("Window appeared on {}", monitor.get_name().unwrap());
+            },
+            (&Some(ref monitor), &None) => {
+                println!("Window disappeared from {}", monitor.get_name().unwrap());
+            },
+            (&Some(ref old), &Some(ref new)) => if old.get_name() != new.get_name() {
+                println!("Window moved from {} to {}", old.get_name().unwrap(), new.get_name().unwrap());
+            },
+            _ => (),
         }
+        monitor = current_monitor;
 
         match event {
             winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => winit::ControlFlow::Break,
