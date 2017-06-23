@@ -7,7 +7,7 @@ use std::sync::atomic::{self, AtomicBool};
 use super::{DecoratedHandler, WindowId, DeviceId, WaylandContext};
 
 
-use wayland_client::{EventQueue, EventQueueHandle, Init, Proxy};
+use wayland_client::{EventQueue, EventQueueHandle, Init, Proxy, Liveness};
 use wayland_client::protocol::{wl_seat, wl_surface, wl_pointer, wl_keyboard};
 
 use super::make_wid;
@@ -159,13 +159,13 @@ impl EventsLoop {
     }
 
     fn prune_dead_windows(&self) {
-        self.decorated_ids.lock().unwrap().retain(|&(_, ref w)| w.is_alive());
+        self.decorated_ids.lock().unwrap().retain(|&(_, ref w)| w.status() == Liveness::Alive);
         let mut evq_guard = self.evq.lock().unwrap();
         let mut state = evq_guard.state();
         let handler = state.get_mut_handler::<InputHandler>(self.hid);
-        handler.windows.retain(|w| w.is_alive());
+        handler.windows.retain(|w| w.status() == Liveness::Alive);
         if let Some(w) = handler.mouse_focus.take() {
-            if w.is_alive() {
+            if w.status() == Liveness::Alive {
                 handler.mouse_focus = Some(w)
             }
         }
