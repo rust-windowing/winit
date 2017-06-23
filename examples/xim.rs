@@ -5,8 +5,11 @@ extern crate x11_dl;
 fn main() {
     let mut events_loop = winit::EventsLoop::new();
     unsafe {
+        // using empty c string to fallback to LC_CTYPE in environment variables
         libc::setlocale(libc::LC_CTYPE, b"\0".as_ptr() as *const _);
         let xlib = x11_dl::xlib::Xlib::open().expect("get xlib");
+        // using empty c string for implementation dependent behavior,
+        // which might be the XMODIFIERS set in env
         (xlib.XSetLocaleModifiers)(b"\0".as_ptr() as *const _);
     }
     let _window = winit::Window::new(&events_loop)
