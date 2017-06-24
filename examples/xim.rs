@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 extern crate winit;
 extern crate libc;
 extern crate x11_dl;
