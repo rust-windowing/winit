@@ -30,7 +30,7 @@ impl WindowBuilder {
         self.window.dimensions = Some((width, height));
         self
     }
-    
+
     /// Sets a minimum dimension size for the window
     ///
     /// Width and height are in pixels.
@@ -197,7 +197,7 @@ impl Window {
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         self.window.get_inner_size()
     }
-    
+
     /// Returns the size in points of the client area of the window.
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
@@ -320,6 +320,14 @@ impl Iterator for AvailableMonitorsIter {
 }
 
 /// Returns the list of all available monitors.
+///
+/// Usage will result in display backend initialisation, this can be controlled on linux
+/// using an environment variable `WINIT_UNIX_BACKEND`.
+/// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
+/// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
+/// > and if it fails will fallback on x11.
+/// >
+/// > If this variable is set with any other value, winit will panic.
 #[inline]
 pub fn get_available_monitors() -> AvailableMonitorsIter {
     let data = platform::get_available_monitors();
@@ -327,6 +335,14 @@ pub fn get_available_monitors() -> AvailableMonitorsIter {
 }
 
 /// Returns the primary monitor of the system.
+///
+/// Usage will result in display backend initialisation, this can be controlled on linux
+/// using an environment variable `WINIT_UNIX_BACKEND`.
+/// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
+/// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
+/// > and if it fails will fallback on x11.
+/// >
+/// > If this variable is set with any other value, winit will panic.
 #[inline]
 pub fn get_primary_monitor() -> MonitorId {
     MonitorId(platform::get_primary_monitor())
