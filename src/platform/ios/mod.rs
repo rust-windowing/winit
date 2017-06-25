@@ -449,6 +449,9 @@ impl Window {
         WindowProxy
     }
 
+    pub fn monitor_id(&self) -> Option<MonitorId> {
+        Some(MonitorId)
+    }
 }
 
 impl WindowProxy {

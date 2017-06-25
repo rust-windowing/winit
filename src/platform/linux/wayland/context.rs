@@ -21,16 +21,16 @@ wayland_env!(InnerEnv,
     subcompositor: wl_subcompositor::WlSubcompositor
 );
 
-struct WaylandEnv {
+pub struct WaylandEnv {
     registry: wl_registry::WlRegistry,
     inner: EnvHandler<InnerEnv>,
-    monitors: Vec<OutputInfo>,
+    pub monitors: Vec<OutputInfo>,
     my_id: usize,
 }
 
-struct OutputInfo {
-    output: wl_output::WlOutput,
-    id: u32,
+pub struct OutputInfo {
+    pub output: wl_output::WlOutput,
+    pub id: u32,
     scale: f32,
     pix_size: (u32, u32),
     name: String
@@ -159,8 +159,8 @@ declare_handler!(WaylandEnv, wl_output::Handler, wl_output::WlOutput);
 
 pub struct WaylandContext {
     pub display: wl_display::WlDisplay,
-    evq: Mutex<EventQueue>,
-    env_id: usize,
+    pub evq: Mutex<EventQueue>,
+    pub env_id: usize,
 }
 
 impl WaylandContext {
@@ -277,8 +277,8 @@ pub fn get_available_monitors(ctxt: &Arc<WaylandContext>) -> VecDeque<MonitorId>
 
 #[derive(Clone)]
 pub struct MonitorId {
-    id: u32,
-    ctxt: Arc<WaylandContext>
+    pub id: u32,
+    pub ctxt: Arc<WaylandContext>
 }
 
 impl MonitorId {

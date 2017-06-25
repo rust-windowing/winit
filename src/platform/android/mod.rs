@@ -259,6 +259,10 @@ impl Window {
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         unimplemented!();
     }
+
+    pub fn monitor_id(&self) -> Option<MonitorId> {
+        Some(MonitorId)
+    }
 }
 
 unsafe impl Send for Window {}

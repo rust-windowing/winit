@@ -28,7 +28,8 @@ unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
 #[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
-pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
+pub use self::monitor::{DeviceEnumerator, MonitorId, adapter_positioning, get_available_monitors,
+                        get_primary_monitor};
 
 use winapi;
 use user32;
@@ -347,6 +348,67 @@ impl Window {
 
         Ok(())
     }
+
+    pub fn monitor_id(&self) -> Option<MonitorId> {
+        unsafe {
+            // A handle to the monitor that has the largest intersection with the window.
+            let hmonitor = MonitorFromWindow(self.window.0, winapi::MONITOR_DEFAULTTONEAREST);
+
+            // Information about the monitor.
+            let mut monitor_info_ex: winapi::MONITORINFOEXW = mem::zeroed();
+            monitor_info_ex.cbSize = mem::size_of::<winapi::MONITORINFOEXW>() as winapi::DWORD;
+            user32::GetMonitorInfoW(hmonitor, &mut monitor_info_ex as *mut _ as *mut _);
+
+            // Retrieve the name of the display device.
+            let mut display_device: winapi::DISPLAY_DEVICEW = mem::zeroed();
+            display_device.cb = mem::size_of::<winapi::DISPLAY_DEVICEW>() as winapi::DWORD;
+            let device_index = 0;
+            let flags = winapi::EDD_GET_DEVICE_INTERFACE_NAME;
+            let result = user32::EnumDisplayDevicesW(monitor_info_ex.szDevice.as_ptr(),
+                                                     device_index,
+                                                     &mut display_device,
+                                                     flags);
+            // This should only be zero if device_index is out of range, but we know
+            // that device_index is `0`.
+            if result == 0 {
+                return None;
+            }
+
+            // Find the adapter associated with this display device.
+            //
+            // There does not seem to be a function for this, so we loop through the adapters
+            // manually until we find one that has a monitor with the same unique identifier.
+            for adapter in DeviceEnumerator::adapters() {
+
+                // Check to see if our monitor is associated with this display adapter.
+                for (num, monitor) in DeviceEnumerator::monitors(adapter.DeviceName.as_ptr()).enumerate() {
+                    if monitor.DeviceName != display_device.DeviceName {
+                        continue;
+                    }
+
+                    let (position, dimensions) = match adapter_positioning(adapter) {
+                        None => continue,
+                        Some(positioning) => positioning,
+                    };
+
+                    let primary = (adapter.StateFlags & winapi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0
+                        && num == 0;
+
+                    return Some(MonitorId {
+                        adapter_name: adapter.DeviceName,
+                        monitor_name: wchar_as_string(&display_device.DeviceName),
+                        readable_name: wchar_as_string(&display_device.DeviceString),
+                        flags: display_device.StateFlags,
+                        primary: primary,
+                        position: position,
+                        dimensions: dimensions,
+                    });
+                }
+            }
+
+            None
+        }
+    }
 }
 
 impl Drop for Window {
@@ -356,6 +418,18 @@ impl Drop for Window {
             user32::PostMessageW(self.window.0, winapi::WM_DESTROY, 0, 0);
         }
     }
+}
+
+
+// TODO: Remove this when winapi 0.3 is published.
+extern "system" {
+    pub fn MonitorFromWindow(hwnd: winapi::HWND, dwFlags: winapi::DWORD) -> winapi::HMONITOR;
+}
+
+fn wchar_as_string(wchar: &[winapi::WCHAR]) -> String {
+    String::from_utf16_lossy(wchar)
+        .trim_right_matches(0 as char)
+        .to_string()
 }
 
 pub struct PollEventsIterator<'a> {

@@ -309,6 +309,14 @@ impl Window2 {
             &Window2::Wayland(ref w) => w.get_surface().ptr() as *mut _
         }
     }
+
+    #[inline]
+    pub fn monitor_id(&self) -> Option<MonitorId> {
+        match self {
+            &Window2::X(ref w) => w.monitor_id().map(MonitorId::X),
+            &Window2::Wayland(ref w) => w.monitor_id().map(MonitorId::Wayland),
+        }
+    }
 }
 
 unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x11::ffi::XErrorEvent)

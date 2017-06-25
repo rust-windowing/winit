@@ -453,7 +453,7 @@ impl Default for WindowAttributes {
 mod native_monitor {
     /// Native platform identifier for a monitor. Different platforms use fundamentally different types
     /// to represent a monitor ID.
-    #[derive(Clone, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     pub enum NativeMonitorId {
         /// Cocoa and X11 use a numeric identifier to represent a monitor.
         Numeric(u32),
