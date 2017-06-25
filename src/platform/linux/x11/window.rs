@@ -190,7 +190,8 @@ impl Window {
             swa
         };
 
-        let mut window_attributes = ffi::CWBorderPixel | ffi::CWColormap | ffi::CWEventMask;
+        let mut window_attributes = ffi::CWBorderPixel | ffi::CWColormap | ffi::CWEventMask |
+            ffi::CWOverrideRedirect;
 
         if window_attrs.transparent {
             window_attributes |= ffi::CWBackPixel;
