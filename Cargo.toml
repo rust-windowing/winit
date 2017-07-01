@@ -24,9 +24,9 @@ objc = "0.2"
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"
 cgl = "0.2"
-cocoa = "=0.5.2"
-core-foundation = "0.2"
-core-graphics = "0.4"
+cocoa = "0.9"
+core-foundation = "0.4"
+core-graphics = "0.8"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = "0.2"
