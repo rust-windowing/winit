@@ -66,7 +66,7 @@ extern {
     pub fn longjmp(env: *mut libc::c_void, val: libc::c_int);
 }
 
-pub trait NSString {
+pub trait NSString: Sized {
     unsafe fn alloc(_: Self) -> id {
         msg_send![class("NSString"), alloc]
     }
