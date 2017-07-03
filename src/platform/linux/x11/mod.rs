@@ -338,7 +338,7 @@ impl EventsLoop {
                     return;
                 }
 
-                use events::WindowEvent::{Focused, MouseEntered, MouseInput, MouseLeft, MouseMoved, MouseWheel, AxisMoved};
+                use events::WindowEvent::{Focused, CursorEntered, MouseInput, CursorLeft, CursorMoved, MouseWheel, AxisMoved};
                 use events::ElementState::{Pressed, Released};
                 use events::MouseButton::{Left, Right, Middle, Other};
                 use events::MouseScrollDelta::LineDelta;
@@ -389,7 +389,7 @@ impl EventsLoop {
                                 true
                             } else { false }
                         } {
-                            callback(Event::WindowEvent { window_id: wid, event: MouseMoved {
+                            callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
                                 device_id: did,
                                 position: new_cursor_pos
                             }});
@@ -435,11 +435,11 @@ impl EventsLoop {
 
                     ffi::XI_Enter => {
                         let xev: &ffi::XIEnterEvent = unsafe { &*(xev.data as *const _) };
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: MouseEntered { device_id: mkdid(xev.deviceid) } })
+                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorEntered { device_id: mkdid(xev.deviceid) } })
                     }
                     ffi::XI_Leave => {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: MouseLeft { device_id: mkdid(xev.deviceid) } })
+                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorLeft { device_id: mkdid(xev.deviceid) } })
                     }
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };

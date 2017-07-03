@@ -375,10 +375,10 @@ impl wl_pointer::Handler for InputHandler {
                 self.mouse_focus = Some(window.clone());
                 let (w, h) = self.mouse_location;
                 let mut guard = self.callback.lock().unwrap();
-                guard.send_event(Event::MouseEntered { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)) },
+                guard.send_event(Event::CursorEntered { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)) },
                                  make_wid(window));
-                guard.send_event(Event::MouseMoved { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                                                     position: (w, h) },
+                guard.send_event(Event::CursorMoved { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                                      position: (w, h) },
                                  make_wid(window));
                 break;
             }
@@ -394,7 +394,7 @@ impl wl_pointer::Handler for InputHandler {
         self.mouse_focus = None;
         for window in &self.windows {
             if window.equals(surface) {
-                self.callback.lock().unwrap().send_event(Event::MouseLeft { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)) },
+                self.callback.lock().unwrap().send_event(Event::CursorLeft { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)) },
                                                          make_wid(window));
             }
         }
@@ -410,8 +410,8 @@ impl wl_pointer::Handler for InputHandler {
         self.mouse_location = (surface_x, surface_y);
         if let Some(ref window) = self.mouse_focus {
             let (w,h) = self.mouse_location;
-            self.callback.lock().unwrap().send_event(Event::MouseMoved { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                                                                         position: (w, h) }, make_wid(window));
+            self.callback.lock().unwrap().send_event(Event::CursorMoved { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                                                          position: (w, h) }, make_wid(window));
         }
     }
 
