@@ -104,8 +104,6 @@ extern crate dwmapi;
 #[macro_use]
 extern crate objc;
 #[cfg(target_os = "macos")]
-extern crate cgl;
-#[cfg(target_os = "macos")]
 extern crate cocoa;
 #[cfg(target_os = "macos")]
 extern crate core_foundation;
