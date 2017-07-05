@@ -42,6 +42,7 @@ use KeyboardInput;
 use WindowAttributes;
 use WindowEvent;
 use WindowId as SuperWindowId;
+use AxisId;
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Clone)]
@@ -556,6 +557,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         winapi::WM_INPUT => {
+            use events::DeviceEvent::Motion;
             let mut data: winapi::RAWINPUT = mem::uninitialized();
             let mut data_size = mem::size_of::<winapi::RAWINPUT>() as winapi::UINT;
             user32::GetRawInputData(mem::transmute(lparam), winapi::RID_INPUT,
@@ -563,13 +565,26 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                                     mem::size_of::<winapi::RAWINPUTHEADER>() as winapi::UINT);
 
             if data.header.dwType == winapi::RIM_TYPEMOUSE {
-                let _x = data.mouse.lLastX;  // FIXME: this is not always the relative movement
-                let _y = data.mouse.lLastY;
-                // TODO:
-                //send_event(window, Event::MouseRawMovement { x: x, y: y });
+                if data.mouse.usFlags & winapi::MOUSE_MOVE_RELATIVE == winapi::MOUSE_MOVE_RELATIVE {
+                    let x = data.mouse.lLastX as f64;
+                    let y = data.mouse.lLastY as f64;
+
+                    if x != 0.0 {
+                        send_event(Event::DeviceEvent {
+                            device_id: DEVICE_ID,
+                            event: Motion { axis: AxisId(0), value: x }
+                        });
+                    }
+
+                    if y != 0.0 {
+                        send_event(Event::DeviceEvent {
+                            device_id: DEVICE_ID,
+                            event: Motion { axis: AxisId(1), value: y }
+                        });
+                    }
+                }
 
                 0
-
             } else {
                 user32::DefWindowProcW(window, msg, wparam, lparam)
             }
