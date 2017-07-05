@@ -10,6 +10,7 @@ use self::event_loop::EventsLoopSink;
 
 extern crate wayland_kbd;
 extern crate wayland_window;
+extern crate wayland_protocols;
 extern crate tempfile;
 
 mod context;

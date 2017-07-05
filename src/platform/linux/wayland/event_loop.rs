@@ -155,6 +155,15 @@ impl EventsLoop {
                     }
                 );
             }
+            if decorated.handler().as_ref().map(|h| h.is_closed()).unwrap_or(false) {
+                 callback(
+                    ::Event::WindowEvent {
+                        window_id: ::WindowId(::platform::WindowId::Wayland(make_wid(&window))),
+                        event: ::WindowEvent::Closed
+                    }
+                );
+
+            }
         }
     }
 
