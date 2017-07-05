@@ -389,6 +389,17 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
         WindowWrapper(handle, hdc)
     };
 
+    // Set up raw mouse input
+    {
+        let mut rid: winapi::RAWINPUTDEVICE = mem::uninitialized();
+        rid.usUsagePage = winapi::HID_USAGE_PAGE_GENERIC;
+        rid.usUsage = winapi::HID_USAGE_GENERIC_MOUSE;
+        rid.dwFlags = 0;
+        rid.hwndTarget = real_window.0;
+
+        user32::RegisterRawInputDevices(&rid, 1, mem::size_of::<winapi::RAWINPUTDEVICE>() as u32);
+    }
+
     // Creating a mutex to track the current window state
     let window_state = Arc::new(Mutex::new(events_loop::WindowState {
         cursor: winapi::IDC_ARROW, // use arrow by default
