@@ -82,6 +82,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     },
                     location: (motion.x as f64, motion.y as f64),
                     id: motion.pointer_id as u64,
+                    device_id: DEVICE_ID,
                 }))
             },
             Ok(android_glue::Event::InitWindow) => {
@@ -273,3 +274,6 @@ impl WindowProxy {
         android_glue::wake_event_loop();
     }
 }
+
+// Constant device ID, to be removed when this backend is updated to report real device IDs.
+const DEVICE_ID: ::DeviceId = ::DeviceId(DeviceId);
