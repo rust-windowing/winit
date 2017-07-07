@@ -41,17 +41,20 @@ pub enum WindowEvent {
     KeyboardInput { device_id: DeviceId, input: KeyboardInput },
 
     /// The cursor has moved on the window.
-    ///
-    /// `position` is (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this
-    /// data is limited by the display area and it may have been transformed by the OS to implement effects such as
-    /// mouse acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-    MouseMoved { device_id: DeviceId, position: (f64, f64) },
+    CursorMoved {
+        device_id: DeviceId,
+
+        /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
+        /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
+        /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
+        position: (f64, f64),
+    },
 
     /// The cursor has entered the window.
-    MouseEntered { device_id: DeviceId },
+    CursorEntered { device_id: DeviceId },
 
     /// The cursor has left the window.
-    MouseLeft { device_id: DeviceId },
+    CursorLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase },
@@ -66,8 +69,8 @@ pub enum WindowEvent {
     /// is being pressed) and stage (integer representing the click level).
     TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
 
-    /// Motion on some analog axis not otherwise handled. May overlap with mouse motion.
-    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
+    /// Motion on some analog axis. May report data redundant to other, more specific events.
+    AxisMoved { device_id: DeviceId, axis: AxisId, value: f64 },
 
     /// The window needs to be redrawn.
     Refresh,
@@ -93,7 +96,25 @@ pub enum WindowEvent {
 pub enum DeviceEvent {
     Added,
     Removed,
-    Motion { axis: AxisId, value: f64 },
+
+    /// Change in physical position of a pointing device.
+    ///
+    /// This represents raw, unfiltered physical motion. Not to be confused with `WindowEvent::CursorMoved`.
+    MouseMoved {
+        /// (x, y) change in position in unspecified units.
+        ///
+        /// Different devices may use different units.
+        delta: (f64, f64),
+    },
+
+    /// Physical scroll event
+    MouseWheel {
+        delta: MouseScrollDelta,
+    },
+
+    /// Motion on some analog axis. May report data redundant to other, more specific events.
+    AxisMoved { axis: AxisId, value: f64 },
+
     Button { button: ButtonId, state: ElementState },
     Key(KeyboardInput),
     Text { codepoint: char },
