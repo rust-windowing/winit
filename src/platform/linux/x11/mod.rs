@@ -434,6 +434,15 @@ impl EventsLoop {
 
                     ffi::XI_Enter => {
                         let xev: &ffi::XIEnterEvent = unsafe { &*(xev.data as *const _) };
+
+                        let mut devices = self.devices.lock().unwrap();
+                        let physical_device = devices.get_mut(&DeviceId(xev.sourceid)).unwrap();
+                        for info in DeviceInfo::get(&self.display, ffi::XIAllDevices).iter() {
+                            if info.deviceid == xev.sourceid {
+                                physical_device.reset_scroll_position(info);
+                            }
+                        }
+
                         callback(Event::WindowEvent { window_id: mkwid(xev.event), event: MouseEntered { device_id: mkdid(xev.deviceid) } })
                     }
                     ffi::XI_Leave => {
@@ -799,9 +808,9 @@ impl Device {
     fn new(el: &EventsLoop, info: &ffi::XIDeviceInfo) -> Self
     {
         let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
+        let mut scroll_axes = Vec::new();
 
-        let physical_device = info._use == ffi::XISlaveKeyboard || info._use == ffi::XISlavePointer || info._use == ffi::XIFloatingSlave;
-        if physical_device {
+        if Device::physical_device(info) {
             // Register for global raw events
             let mask = ffi::XI_RawMotionMask
                 | ffi::XI_RawButtonPressMask | ffi::XI_RawButtonReleaseMask
@@ -814,15 +823,9 @@ impl Device {
                 };
                 (el.display.xinput2.XISelectEvents)(el.display.display, el.root, &mut event_mask as *mut ffi::XIEventMask, 1);
             }
-        }
 
-        let mut scroll_axes = Vec::new();
-
-        if physical_device {
-            let classes : &[*const ffi::XIAnyClassInfo] =
-                unsafe { slice::from_raw_parts(info.classes as *const *const ffi::XIAnyClassInfo, info.num_classes as usize) };
             // Identify scroll axes
-            for class_ptr in classes {
+            for class_ptr in Device::classes(info) {
                 let class = unsafe { &**class_ptr };
                 match class._type {
                     ffi::XIScrollClass => {
@@ -840,13 +843,24 @@ impl Device {
                     _ => {}
                 }
             }
-            // Fix up initial scroll positions
-            for class_ptr in classes {
+        }
+
+        let mut device = Device {
+            name: name.into_owned(),
+            scroll_axes: scroll_axes,
+        };
+        device.reset_scroll_position(info);
+        device
+    }
+
+    fn reset_scroll_position(&mut self, info: &ffi::XIDeviceInfo) {
+        if Device::physical_device(info) {
+            for class_ptr in Device::classes(info) {
                 let class = unsafe { &**class_ptr };
                 match class._type {
                     ffi::XIValuatorClass => {
                         let info = unsafe { mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class) };
-                        if let Some(&mut (_, ref mut axis)) = scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == info.number) {
+                        if let Some(&mut (_, ref mut axis)) = self.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == info.number) {
                             axis.position = info.value;
                         }
                     }
@@ -854,10 +868,15 @@ impl Device {
                 }
             }
         }
+    }
 
-        Device {
-            name: name.into_owned(),
-            scroll_axes: scroll_axes,
-        }
+    #[inline]
+    fn physical_device(info: &ffi::XIDeviceInfo) -> bool {
+        info._use == ffi::XISlaveKeyboard || info._use == ffi::XISlavePointer || info._use == ffi::XIFloatingSlave
+    }
+
+    #[inline]
+    fn classes(info: &ffi::XIDeviceInfo) -> &[*const ffi::XIAnyClassInfo] {
+        unsafe { slice::from_raw_parts(info.classes as *const *const ffi::XIAnyClassInfo, info.num_classes as usize) }
     }
 }
