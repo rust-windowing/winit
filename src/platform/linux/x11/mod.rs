@@ -685,6 +685,7 @@ impl Window2 {
         x_events_loop.windows.lock().unwrap().insert(win.id(), WindowData {
             im: im,
             ic: ic,
+            spot: ffi::XPoint {x: 0, y: 0},
             config: None,
             multitouch: window.multitouch,
             cursor_pos: None,
@@ -700,6 +701,26 @@ impl Window2 {
     #[inline]
     pub fn id(&self) -> WindowId {
         self.window.id()
+    }
+
+    #[inline]
+    pub fn send_xim_spot(&self, x: i16, y: i16) {
+        if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
+            let nspot = ffi::XPoint{x: x, y: y};
+            let mut windows = windows.lock().unwrap();
+            let mut w = windows.get_mut(&self.window.id()).unwrap();
+            if w.spot.x == x && w.spot.y == y {
+                return
+            }
+            w.spot = nspot;
+            unsafe {
+                let preedit_attr = (display.xlib.XVaCreateNestedList)
+                    (0, b"spotLocation\0", &nspot, ptr::null::<()>());
+                (display.xlib.XSetICValues)(w.ic, b"preeditAttributes\0",
+                                            preedit_attr, ptr::null::<()>());
+                (display.xlib.XFree)(preedit_attr);
+            }
+        }
     }
 }
 
@@ -722,6 +743,7 @@ struct WindowData {
     config: Option<WindowConfig>,
     im: ffi::XIM,
     ic: ffi::XIC,
+    spot: ffi::XPoint,
     multitouch: bool,
     cursor_pos: Option<(f64, f64)>,
 }
