@@ -151,13 +151,14 @@ impl Window {
         }
     }
 
-    // TODO: remove
+    #[deprecated]
     pub fn platform_display(&self) -> *mut ::libc::c_void {
-        panic!()        // Deprecated function ; we don't care anymore
+        panic!("Error! Function platform_display is deprecated.")
     }
-    // TODO: remove
+
+    #[deprecated]
     pub fn platform_window(&self) -> *mut ::libc::c_void {
-        panic!()        // Deprecated function ; we don't care anymore
+        panic!("Error! Function platform_window is deprecated.")
     }
 
     /// Returns the `hwnd` of this window.

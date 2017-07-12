@@ -193,6 +193,7 @@ impl Window {
     /// Returns `None` if the window no longer exists.
     ///
     /// DEPRECATED
+    #[deprecated]
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         self.window.get_inner_size()
