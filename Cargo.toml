@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.6.4"
+version = "0.7.2"
 authors = ["The winit contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
@@ -23,10 +23,9 @@ objc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"
-cgl = "0.2"
-cocoa = "=0.5.2"
-core-foundation = "0.2"
-core-graphics = "0.4"
+cocoa = "0.9"
+core-foundation = "0.4"
+core-graphics = "0.8"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = "0.2"
@@ -37,8 +36,8 @@ kernel32-sys = "0.2"
 dwmapi-sys = "0.1"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
-wayland-client = { version = "0.8.6", features = ["dlopen"] }
-wayland-kbd = "0.8.0"
-wayland-window = "0.5.0"
+wayland-client = { version = "0.9.9", features = ["dlopen"] }
+wayland-kbd = "0.9.1"
+wayland-window = "0.6.1"
 tempfile = "2.1"
 x11-dl = "2.8"

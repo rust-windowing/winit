@@ -338,21 +338,17 @@ impl Window {
 
             let masks = if screen.is_some() {
                 // Fullscreen window
-                appkit::NSBorderlessWindowMask as NSUInteger |
-                appkit::NSResizableWindowMask as NSUInteger |
-                appkit::NSTitledWindowMask as NSUInteger
+                appkit::NSBorderlessWindowMask | appkit::NSResizableWindowMask |
+                    appkit::NSTitledWindowMask
             } else if attrs.decorations {
                 // Window with a titlebar
-                appkit::NSClosableWindowMask as NSUInteger |
-                appkit::NSMiniaturizableWindowMask as NSUInteger |
-                appkit::NSResizableWindowMask as NSUInteger |
-                appkit::NSTitledWindowMask as NSUInteger
+                appkit::NSClosableWindowMask | appkit::NSMiniaturizableWindowMask |
+                    appkit::NSResizableWindowMask | appkit::NSTitledWindowMask
             } else {
                 // Window without a titlebar
-                appkit::NSClosableWindowMask as NSUInteger |
-                appkit::NSMiniaturizableWindowMask as NSUInteger |
-                appkit::NSResizableWindowMask as NSUInteger |
-                appkit::NSFullSizeContentViewWindowMask as NSUInteger
+                appkit::NSClosableWindowMask | appkit::NSMiniaturizableWindowMask |
+                    appkit::NSResizableWindowMask |
+                    appkit::NSFullSizeContentViewWindowMask
             };
 
             let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(

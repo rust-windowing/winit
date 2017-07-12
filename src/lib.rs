@@ -1,4 +1,4 @@
-//! Winit allows you to build a window on as many platforms as possible. 
+//! Winit allows you to build a window on as many platforms as possible.
 //!
 //! # Building a window
 //!
@@ -104,8 +104,6 @@ extern crate dwmapi;
 #[macro_use]
 extern crate objc;
 #[cfg(target_os = "macos")]
-extern crate cgl;
-#[cfg(target_os = "macos")]
 extern crate cocoa;
 #[cfg(target_os = "macos")]
 extern crate core_foundation;
@@ -114,7 +112,7 @@ extern crate core_graphics;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 extern crate x11_dl;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
-#[macro_use(wayland_env,declare_handler)]
+#[macro_use]
 extern crate wayland_client;
 
 pub use events::*;
@@ -181,6 +179,14 @@ pub struct ButtonId(u32);
 /// Provides a way to retreive events from the windows that were registered to it.
 ///
 /// To wake up an `EventsLoop` from a another thread, see the `EventsLoopProxy` docs.
+///
+/// Usage will result in display backend initialisation, this can be controlled on linux
+/// using an environment variable `WINIT_UNIX_BACKEND`.
+/// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
+/// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
+/// > and if it fails will fallback on x11.
+/// >
+/// > If this variable is set with any other value, winit will panic.
 pub struct EventsLoop {
     events_loop: platform::EventsLoop,
 }
