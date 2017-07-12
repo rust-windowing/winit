@@ -1,17 +1,19 @@
 use {ControlFlow, EventsLoopClosed};
 use cocoa::{self, appkit, foundation};
 use cocoa::appkit::{NSApplication, NSEvent, NSView, NSWindow};
+use core_foundation::base::{CFRetain, CFRelease, CFTypeRef};
 use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, DeviceEvent, ModifiersState, KeyboardInput};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 use super::window::Window;
 use std;
 use super::DeviceId;
-
+use super::send_event::SendEvent;
 
 pub struct EventsLoop {
     modifiers: Modifiers,
     pub shared: Arc<Shared>,
+    current_event: Option<CocoaEvent>,
 }
 
 // State shared between the `EventsLoop` and its registered windows.
@@ -158,13 +160,13 @@ impl UserCallback {
 
 }
 
-
 impl EventsLoop {
 
     pub fn new() -> Self {
         EventsLoop {
             shared: Arc::new(Shared::new()),
             modifiers: Modifiers::new(),
+            current_event: None,
         }
     }
 
@@ -181,28 +183,34 @@ impl EventsLoop {
 
         // Loop as long as we have pending events to return.
         loop {
-            unsafe {
-                // First, yield all pending events.
-                self.shared.call_user_callback_with_pending_events();
+            // First, yield all pending events.
+            self.shared.call_user_callback_with_pending_events();
 
-                let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
+            // Are we already working on something?
+            if self.current_event.is_none() {
+                // Attempt to receive a single message with an immediate timeout
+                self.current_event = CocoaEvent::receive(true);
+            }
 
-                // Poll for the next event, returning `nil` if there are none.
-                let ns_event = appkit::NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                    appkit::NSAnyEventMask.bits() | appkit::NSEventMaskPressure.bits(),
-                    foundation::NSDate::distantPast(cocoa::base::nil),
-                    foundation::NSDefaultRunLoopMode,
-                    cocoa::base::YES);
-
-                let event = self.ns_event_to_event(ns_event);
-
-                let _: () = msg_send![pool, release];
-
-                match event {
-                    // Call the user's callback.
-                    Some(event) => self.shared.user_callback.call_with_event(event),
-                    None => break,
+            // Do we have something to process?
+            if let Some(mut current_event) = self.current_event.take() {
+                // Process it until it's done
+                while !current_event.work(self) {
+                    // Repeat
                 }
+
+                // Did we get an event?
+                if let CocoaEvent::Complete(Some(winit_event)) = current_event {
+                    // Call the user's callback
+                    unsafe { self.shared.user_callback.call_with_event(winit_event); }
+
+                    // Repeat
+                    continue
+                }
+            } else {
+                // The event loop returned no message
+                // Finish
+                break
             }
         }
 
@@ -237,25 +245,28 @@ impl EventsLoop {
                     break;
                 }
 
-                let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
+                // Are we already working on something?
+                if self.current_event.is_none() {
+                    // Attempt to receive a single message with a forever timeout
+                    self.current_event = CocoaEvent::receive(false);
+                }
 
-                // Wait for the next event. Note that this function blocks during resize.
-                let ns_event = appkit::NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                    appkit::NSAnyEventMask.bits() | appkit::NSEventMaskPressure.bits(),
-                    foundation::NSDate::distantFuture(cocoa::base::nil),
-                    foundation::NSDefaultRunLoopMode,
-                    cocoa::base::YES);
+                // Do we have something to process?
+                if let Some(mut current_event) = self.current_event.take() {
+                    // Process it until it's done
+                    while !current_event.work(self) {
+                        // Repeat
+                    }
 
-                let maybe_event = self.ns_event_to_event(ns_event);
+                    // Did we get an event?
+                    if let CocoaEvent::Complete(Some(winit_event)) = current_event {
+                        // Call the callback
+                        self.shared.user_callback.call_with_event(winit_event);
 
-                // Release the pool before calling the top callback in case the user calls either
-                // `run_forever` or `poll_events` within the callback.
-                let _: () = msg_send![pool, release];
-
-                if let Some(event) = maybe_event {
-                    self.shared.user_callback.call_with_event(event);
-                    if let ControlFlow::Break = control_flow.get() {
-                        break;
+                        // Exit as directed
+                        if let ControlFlow::Break = control_flow.get() {
+                            break;
+                        }
                     }
                 }
             }
@@ -264,286 +275,9 @@ impl EventsLoop {
         self.shared.user_callback.drop();
     }
 
-    // Convert some given `NSEvent` into a winit `Event`.
-    unsafe fn ns_event_to_event(&mut self, ns_event: cocoa::base::id) -> Option<Event> {
-        if ns_event == cocoa::base::nil {
-            return None;
-        }
-
-        // FIXME: Despite not being documented anywhere, an `NSEvent` is produced when a user opens
-        // Spotlight while the NSApplication is in focus. This `NSEvent` produces a `NSEventType`
-        // with value `21`. This causes a SEGFAULT as soon as we try to match on the `NSEventType`
-        // enum as there is no variant associated with the value. Thus, we return early if this
-        // sneaky event occurs. If someone does find some documentation on this, please fix this by
-        // adding an appropriate variant to the `NSEventType` enum in the cocoa-rs crate.
-        if ns_event.eventType() as u64 == 21 {
-            return None;
-        }
-
-        let event_type = ns_event.eventType();
-        let ns_window = ns_event.window();
-        let window_id = super::window::get_window_id(ns_window);
-
-        // FIXME: Document this. Why do we do this? Seems like it passes on events to window/app.
-        // If we don't do this, window does not become main for some reason.
-        match event_type {
-            appkit::NSKeyDown => (),
-            _ => appkit::NSApp().sendEvent_(ns_event),
-        }
-
-        let windows = self.shared.windows.lock().unwrap();
-        let maybe_window = windows.iter()
-            .filter_map(Weak::upgrade)
-            .find(|window| window_id == window.id());
-
-        let into_event = |window_event| Event::WindowEvent {
-            window_id: ::WindowId(window_id),
-            event: window_event,
-        };
-
-        // Returns `Some` window if one of our windows is the key window.
-        let maybe_key_window = || windows.iter()
-            .filter_map(Weak::upgrade)
-            .find(|window| {
-                let is_key_window: cocoa::base::BOOL = msg_send![*window.window, isKeyWindow];
-                is_key_window == cocoa::base::YES
-            });
-
-        match event_type {
-
-            appkit::NSKeyDown => {
-                let mut events = std::collections::VecDeque::new();
-                let received_c_str = foundation::NSString::UTF8String(ns_event.characters());
-                let received_str = std::ffi::CStr::from_ptr(received_c_str);
-
-                let vkey =  to_virtual_key_code(NSEvent::keyCode(ns_event));
-                let state = ElementState::Pressed;
-                let code = NSEvent::keyCode(ns_event) as u32;
-                let window_event = WindowEvent::KeyboardInput {
-                    device_id: DEVICE_ID,
-                    input: KeyboardInput {
-                        state: state,
-                        scancode: code,
-                        virtual_keycode: vkey,
-                        modifiers: event_mods(ns_event),
-                    },
-                };
-                for received_char in std::str::from_utf8(received_str.to_bytes()).unwrap().chars() {
-                    let window_event = WindowEvent::ReceivedCharacter(received_char);
-                    events.push_back(into_event(window_event));
-                }
-                self.shared.pending_events.lock().unwrap().extend(events.into_iter());
-                Some(into_event(window_event))
-            },
-
-            appkit::NSKeyUp => {
-                let vkey =  to_virtual_key_code(NSEvent::keyCode(ns_event));
-
-                let state = ElementState::Released;
-                let code = NSEvent::keyCode(ns_event) as u32;
-                let window_event = WindowEvent::KeyboardInput {
-                    device_id: DEVICE_ID,
-                    input: KeyboardInput {
-                        state: state,
-                        scancode: code,
-                        virtual_keycode: vkey,
-                        modifiers: event_mods(ns_event),
-                    },
-                };
-                Some(into_event(window_event))
-            },
-
-            appkit::NSFlagsChanged => {
-                unsafe fn modifier_event(event: cocoa::base::id,
-                                         keymask: appkit::NSEventModifierFlags,
-                                         key: events::VirtualKeyCode,
-                                         key_pressed: bool) -> Option<WindowEvent>
-                {
-                    if !key_pressed && NSEvent::modifierFlags(event).contains(keymask) {
-                        let state = ElementState::Pressed;
-                        let code = NSEvent::keyCode(event) as u32;
-                        let window_event = WindowEvent::KeyboardInput {
-                            device_id: DEVICE_ID,
-                            input: KeyboardInput {
-                                state: state,
-                                scancode: code,
-                                virtual_keycode: Some(key),
-                                modifiers: event_mods(event),
-                            },
-                        };
-                        Some(window_event)
-
-                    } else if key_pressed && !NSEvent::modifierFlags(event).contains(keymask) {
-                        let state = ElementState::Released;
-                        let code = NSEvent::keyCode(event) as u32;
-                        let window_event = WindowEvent::KeyboardInput {
-                            device_id: DEVICE_ID,
-                            input: KeyboardInput {
-                                state: state,
-                                scancode: code,
-                                virtual_keycode: Some(key),
-                                modifiers: event_mods(event),
-                            },
-                        };
-                        Some(window_event)
-
-                    } else {
-                        None
-                    }
-                }
-
-                let mut events = std::collections::VecDeque::new();
-                if let Some(window_event) = modifier_event(ns_event,
-                                                           appkit::NSShiftKeyMask,
-                                                           events::VirtualKeyCode::LShift,
-                                                           self.modifiers.shift_pressed)
-                {
-                    self.modifiers.shift_pressed = !self.modifiers.shift_pressed;
-                    events.push_back(into_event(window_event));
-                }
-
-                if let Some(window_event) = modifier_event(ns_event,
-                                                           appkit::NSControlKeyMask,
-                                                           events::VirtualKeyCode::LControl,
-                                                           self.modifiers.ctrl_pressed)
-                {
-                    self.modifiers.ctrl_pressed = !self.modifiers.ctrl_pressed;
-                    events.push_back(into_event(window_event));
-                }
-
-                if let Some(window_event) = modifier_event(ns_event,
-                                                           appkit::NSCommandKeyMask,
-                                                           events::VirtualKeyCode::LWin,
-                                                           self.modifiers.win_pressed)
-                {
-                    self.modifiers.win_pressed = !self.modifiers.win_pressed;
-                    events.push_back(into_event(window_event));
-                }
-
-                if let Some(window_event) = modifier_event(ns_event,
-                                                           appkit::NSAlternateKeyMask,
-                                                           events::VirtualKeyCode::LAlt,
-                                                           self.modifiers.alt_pressed)
-                {
-                    self.modifiers.alt_pressed = !self.modifiers.alt_pressed;
-                    events.push_back(into_event(window_event));
-                }
-
-                let event = events.pop_front();
-                self.shared.pending_events.lock().unwrap().extend(events.into_iter());
-                event
-            },
-
-            appkit::NSLeftMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Left })) },
-            appkit::NSLeftMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Left })) },
-            appkit::NSRightMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Right })) },
-            appkit::NSRightMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Right })) },
-            appkit::NSOtherMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Middle })) },
-            appkit::NSOtherMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Middle })) },
-
-            appkit::NSMouseEntered => { Some(into_event(WindowEvent::MouseEntered { device_id: DEVICE_ID })) },
-            appkit::NSMouseExited => { Some(into_event(WindowEvent::MouseLeft { device_id: DEVICE_ID })) },
-
-            appkit::NSMouseMoved |
-            appkit::NSLeftMouseDragged |
-            appkit::NSOtherMouseDragged |
-            appkit::NSRightMouseDragged => {
-                // If the mouse movement was on one of our windows, use it.
-                // Otherwise, if one of our windows is the key window (receiving input), use it.
-                // Otherwise, return `None`.
-                let window = match maybe_window.or_else(maybe_key_window) {
-                    Some(window) => window,
-                    None => return None,
-                };
-
-                let window_point = ns_event.locationInWindow();
-                let view_point = if ns_window == cocoa::base::nil {
-                    let ns_size = foundation::NSSize::new(0.0, 0.0);
-                    let ns_rect = foundation::NSRect::new(window_point, ns_size);
-                    let window_rect = window.window.convertRectFromScreen_(ns_rect);
-                    window.view.convertPoint_fromView_(window_rect.origin, cocoa::base::nil)
-                } else {
-                    window.view.convertPoint_fromView_(window_point, cocoa::base::nil)
-                };
-                let view_rect = NSView::frame(*window.view);
-                let scale_factor = window.hidpi_factor();
-
-                let mut events = std::collections::VecDeque::new();
-
-                {
-                    let x = (scale_factor * view_point.x as f32) as f64;
-                    let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
-                    let window_event = WindowEvent::MouseMoved { device_id: DEVICE_ID, position: (x, y) };
-                    let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
-                    events.push_back(event);
-                }
-
-                let delta_x = (scale_factor * ns_event.deltaX() as f32) as f64;
-                if delta_x != 0.0 {
-                    let motion_event = DeviceEvent::Motion { axis: 0, value: delta_x };
-                    let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
-                    events.push_back(event);
-                }
-
-                let delta_y = (scale_factor * ns_event.deltaY() as f32) as f64;
-                if delta_y != 0.0 {
-                    let motion_event = DeviceEvent::Motion { axis: 1, value: delta_y };
-                    let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
-                    events.push_back(event);
-                }
-
-                let event = events.pop_front();
-                self.shared.pending_events.lock().unwrap().extend(events.into_iter());
-                event
-            },
-
-            appkit::NSScrollWheel => {
-                // If none of the windows received the scroll, return `None`.
-                let window = match maybe_window {
-                    Some(window) => window,
-                    None => return None,
-                };
-
-                use events::MouseScrollDelta::{LineDelta, PixelDelta};
-                let scale_factor = window.hidpi_factor();
-                let delta = if ns_event.hasPreciseScrollingDeltas() == cocoa::base::YES {
-                    PixelDelta(scale_factor * ns_event.scrollingDeltaX() as f32,
-                               scale_factor * ns_event.scrollingDeltaY() as f32)
-                } else {
-                    LineDelta(scale_factor * ns_event.scrollingDeltaX() as f32,
-                              scale_factor * ns_event.scrollingDeltaY() as f32)
-                };
-                let phase = match ns_event.phase() {
-                    appkit::NSEventPhaseMayBegin | appkit::NSEventPhaseBegan => TouchPhase::Started,
-                    appkit::NSEventPhaseEnded => TouchPhase::Ended,
-                    _ => TouchPhase::Moved,
-                };
-                let window_event = WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: delta, phase: phase };
-                Some(into_event(window_event))
-            },
-
-            appkit::NSEventTypePressure => {
-                let pressure = ns_event.pressure();
-                let stage = ns_event.stage();
-                let window_event = WindowEvent::TouchpadPressure { device_id: DEVICE_ID, pressure: pressure, stage: stage };
-                Some(into_event(window_event))
-            },
-
-            appkit::NSApplicationDefined => match ns_event.subtype() {
-                appkit::NSEventSubtype::NSApplicationActivatedEventType => {
-                    Some(Event::Awakened)
-                },
-                _ => None,
-            },
-
-            _  => None,
-        }
-    }
-
     pub fn create_proxy(&self) -> Proxy {
         Proxy {}
     }
-
 }
 
 impl Proxy {
@@ -569,6 +303,377 @@ impl Proxy {
         Ok(())
     }
 }
+
+struct RetainedEvent(cocoa::base::id);
+impl RetainedEvent {
+    fn new(event: cocoa::base::id) -> RetainedEvent {
+        unsafe { CFRetain(event as CFTypeRef); }
+        RetainedEvent(event)
+    }
+    fn into_inner(self) -> cocoa::base::id {
+        self.0
+    }
+}
+impl Drop for RetainedEvent {
+    fn drop(&mut self) {
+        unsafe { CFRelease(self.0 as CFTypeRef); }
+    }
+}
+
+enum CocoaEvent {
+    Received(RetainedEvent),
+    Sending(SendEvent, RetainedEvent),
+    Complete(Option<Event>),
+}
+
+impl CocoaEvent {
+    fn receive(immediate_timeout: bool) -> Option<CocoaEvent> {
+        unsafe {
+            let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
+
+            // Pick a timeout
+            let timeout = if immediate_timeout {
+                foundation::NSDate::distantPast(cocoa::base::nil)
+            } else {
+                foundation::NSDate::distantFuture(cocoa::base::nil)
+            };
+
+            // Poll for the next event
+            let ns_event = appkit::NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
+                appkit::NSAnyEventMask.bits() | appkit::NSEventMaskPressure.bits(),
+                timeout,
+                foundation::NSDefaultRunLoopMode,
+                cocoa::base::YES);
+
+            // Wrap the result in a CocoaEvent
+            let event = Self::new(ns_event);
+
+            let _: () = msg_send![pool, release];
+
+            return event
+        }
+    }
+
+    fn new(ns_event: cocoa::base::id) -> Option<CocoaEvent> {
+        // we (possibly) received `ns_event` from the windowing subsystem
+        // is this an event?
+        if ns_event == cocoa::base::nil {
+            return None;
+        }
+
+        // FIXME: Despite not being documented anywhere, an `NSEvent` is produced when a user opens
+        // Spotlight while the NSApplication is in focus. This `NSEvent` produces a `NSEventType`
+        // with value `21`. This causes a SEGFAULT as soon as we try to match on the `NSEventType`
+        // enum as there is no variant associated with the value. Thus, we return early if this
+        // sneaky event occurs. If someone does find some documentation on this, please fix this by
+        // adding an appropriate variant to the `NSEventType` enum in the cocoa-rs crate.
+        if unsafe { ns_event.eventType() } as u64 == 21 {
+            return None;
+        }
+
+        // good enough
+        Some(CocoaEvent::Received(RetainedEvent::new(ns_event)))
+    }
+
+    // Attempt to push a CocoaEvent towards a winit Event
+    // Returns true on completion
+    fn work(&mut self, events_loop: &mut EventsLoop) -> bool {
+        // take ourselves and match on it
+        let (new_event, is_complete) = match std::mem::replace(self, CocoaEvent::Complete(None)) {
+            CocoaEvent::Received(retained_event) => {
+                // Determine if we need to send this event
+                // FIXME: Document this. Why do we do this? Seems like it passes on events to window/app.
+                // If we don't do this, window does not become main for some reason.
+                let needs_send = match unsafe { retained_event.0.eventType() } {
+                    appkit::NSKeyDown => false,
+                    _ => true,
+                };
+
+                if needs_send {
+                    (CocoaEvent::Sending(SendEvent::new(retained_event.0), retained_event), false)
+                } else {
+                    (CocoaEvent::Complete(Self::to_event(events_loop, retained_event.into_inner())), true)
+                }
+            }
+
+            CocoaEvent::Sending(send_event, retained_event) => {
+                // Try to advance send event
+                if let Some(new_send_event) = send_event.work() {
+                    // Needs more time
+                    (CocoaEvent::Sending(new_send_event, retained_event), false)
+                } else {
+                    // Done
+                    (CocoaEvent::Complete(Self::to_event(events_loop, retained_event.into_inner())), true)
+                }
+            }
+
+            CocoaEvent::Complete(event) => {
+                // nothing to do
+                (CocoaEvent::Complete(event), true)
+            }
+        };
+
+        // replace ourselves with the result of the match
+        std::mem::replace(self, new_event);
+
+        // return the completion flag
+        is_complete
+    }
+
+    fn to_event(events_loop: &mut EventsLoop, ns_event: cocoa::base::id) -> Option<Event> {
+        unsafe {
+            let event_type = ns_event.eventType();
+            let ns_window = ns_event.window();
+            let window_id = super::window::get_window_id(ns_window);
+
+            let windows = events_loop.shared.windows.lock().unwrap();
+            let maybe_window = windows.iter()
+                .filter_map(Weak::upgrade)
+                .find(|window| window_id == window.id());
+
+            let into_event = |window_event| Event::WindowEvent {
+                window_id: ::WindowId(window_id),
+                event: window_event,
+            };
+
+            // Returns `Some` window if one of our windows is the key window.
+            let maybe_key_window = || windows.iter()
+                .filter_map(Weak::upgrade)
+                .find(|window| {
+                    let is_key_window: cocoa::base::BOOL = msg_send![*window.window, isKeyWindow];
+                    is_key_window == cocoa::base::YES
+                });
+
+            match event_type {
+                appkit::NSKeyDown => {
+                    let mut events = std::collections::VecDeque::new();
+                    let received_c_str = foundation::NSString::UTF8String(ns_event.characters());
+                    let received_str = std::ffi::CStr::from_ptr(received_c_str);
+
+                    let vkey = to_virtual_key_code(NSEvent::keyCode(ns_event));
+                    let state = ElementState::Pressed;
+                    let code = NSEvent::keyCode(ns_event) as u32;
+                    let window_event = WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        input: KeyboardInput {
+                            state: state,
+                            scancode: code,
+                            virtual_keycode: vkey,
+                            modifiers: event_mods(ns_event),
+                        },
+                    };
+                    for received_char in std::str::from_utf8(received_str.to_bytes()).unwrap().chars() {
+                        let window_event = WindowEvent::ReceivedCharacter(received_char);
+                        events.push_back(into_event(window_event));
+                    }
+                    events_loop.shared.pending_events.lock().unwrap().extend(events.into_iter());
+                    Some(into_event(window_event))
+                },
+
+                appkit::NSKeyUp => {
+                    let vkey = to_virtual_key_code(NSEvent::keyCode(ns_event));
+
+                    let state = ElementState::Released;
+                    let code = NSEvent::keyCode(ns_event) as u32;
+                    let window_event = WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        input: KeyboardInput {
+                            state: state,
+                            scancode: code,
+                            virtual_keycode: vkey,
+                            modifiers: event_mods(ns_event),
+                        },
+                    };
+                    Some(into_event(window_event))
+                },
+
+                appkit::NSFlagsChanged => {
+                    unsafe fn modifier_event(event: cocoa::base::id,
+                                             keymask: appkit::NSEventModifierFlags,
+                                             key: events::VirtualKeyCode,
+                                             key_pressed: bool) -> Option<WindowEvent>
+                    {
+                        if !key_pressed && NSEvent::modifierFlags(event).contains(keymask) {
+                            let state = ElementState::Pressed;
+                            let code = NSEvent::keyCode(event) as u32;
+                            let window_event = WindowEvent::KeyboardInput {
+                                device_id: DEVICE_ID,
+                                input: KeyboardInput {
+                                    state: state,
+                                    scancode: code,
+                                    virtual_keycode: Some(key),
+                                    modifiers: event_mods(event),
+                                },
+                            };
+                            Some(window_event)
+                        } else if key_pressed && !NSEvent::modifierFlags(event).contains(keymask) {
+                            let state = ElementState::Released;
+                            let code = NSEvent::keyCode(event) as u32;
+                            let window_event = WindowEvent::KeyboardInput {
+                                device_id: DEVICE_ID,
+                                input: KeyboardInput {
+                                    state: state,
+                                    scancode: code,
+                                    virtual_keycode: Some(key),
+                                    modifiers: event_mods(event),
+                                },
+                            };
+                            Some(window_event)
+                        } else {
+                            None
+                        }
+                    }
+
+                    let mut events = std::collections::VecDeque::new();
+                    if let Some(window_event) = modifier_event(ns_event,
+                                                               appkit::NSShiftKeyMask,
+                                                               events::VirtualKeyCode::LShift,
+                                                               events_loop.modifiers.shift_pressed)
+                        {
+                            events_loop.modifiers.shift_pressed = !events_loop.modifiers.shift_pressed;
+                            events.push_back(into_event(window_event));
+                        }
+
+                    if let Some(window_event) = modifier_event(ns_event,
+                                                               appkit::NSControlKeyMask,
+                                                               events::VirtualKeyCode::LControl,
+                                                               events_loop.modifiers.ctrl_pressed)
+                        {
+                            events_loop.modifiers.ctrl_pressed = !events_loop.modifiers.ctrl_pressed;
+                            events.push_back(into_event(window_event));
+                        }
+
+                    if let Some(window_event) = modifier_event(ns_event,
+                                                               appkit::NSCommandKeyMask,
+                                                               events::VirtualKeyCode::LWin,
+                                                               events_loop.modifiers.win_pressed)
+                        {
+                            events_loop.modifiers.win_pressed = !events_loop.modifiers.win_pressed;
+                            events.push_back(into_event(window_event));
+                        }
+
+                    if let Some(window_event) = modifier_event(ns_event,
+                                                               appkit::NSAlternateKeyMask,
+                                                               events::VirtualKeyCode::LAlt,
+                                                               events_loop.modifiers.alt_pressed)
+                        {
+                            events_loop.modifiers.alt_pressed = !events_loop.modifiers.alt_pressed;
+                            events.push_back(into_event(window_event));
+                        }
+
+                    let event = events.pop_front();
+                    events_loop.shared.pending_events.lock().unwrap().extend(events.into_iter());
+                    event
+                },
+
+                appkit::NSLeftMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Left })) },
+                appkit::NSLeftMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Left })) },
+                appkit::NSRightMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Right })) },
+                appkit::NSRightMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Right })) },
+                appkit::NSOtherMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Middle })) },
+                appkit::NSOtherMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Middle })) },
+
+                appkit::NSMouseEntered => { Some(into_event(WindowEvent::MouseEntered { device_id: DEVICE_ID })) },
+                appkit::NSMouseExited => { Some(into_event(WindowEvent::MouseLeft { device_id: DEVICE_ID })) },
+
+                appkit::NSMouseMoved |
+                appkit::NSLeftMouseDragged |
+                appkit::NSOtherMouseDragged |
+                appkit::NSRightMouseDragged => {
+                    // If the mouse movement was on one of our windows, use it.
+                    // Otherwise, if one of our windows is the key window (receiving input), use it.
+                    // Otherwise, return `None`.
+                    let window = match maybe_window.or_else(maybe_key_window) {
+                        Some(window) => window,
+                        None => return None,
+                    };
+
+                    let window_point = ns_event.locationInWindow();
+                    let view_point = if ns_window == cocoa::base::nil {
+                        let ns_size = foundation::NSSize::new(0.0, 0.0);
+                        let ns_rect = foundation::NSRect::new(window_point, ns_size);
+                        let window_rect = window.window.convertRectFromScreen_(ns_rect);
+                        window.view.convertPoint_fromView_(window_rect.origin, cocoa::base::nil)
+                    } else {
+                        window.view.convertPoint_fromView_(window_point, cocoa::base::nil)
+                    };
+                    let view_rect = NSView::frame(*window.view);
+                    let scale_factor = window.hidpi_factor();
+
+                    let mut events = std::collections::VecDeque::new();
+
+                    {
+                        let x = (scale_factor * view_point.x as f32) as f64;
+                        let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
+                        let window_event = WindowEvent::MouseMoved { device_id: DEVICE_ID, position: (x, y) };
+                        let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
+                        events.push_back(event);
+                    }
+
+                    let delta_x = (scale_factor * ns_event.deltaX() as f32) as f64;
+                    if delta_x != 0.0 {
+                        let motion_event = DeviceEvent::Motion { axis: 0, value: delta_x };
+                        let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
+                        events.push_back(event);
+                    }
+
+                    let delta_y = (scale_factor * ns_event.deltaY() as f32) as f64;
+                    if delta_y != 0.0 {
+                        let motion_event = DeviceEvent::Motion { axis: 1, value: delta_y };
+                        let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
+                        events.push_back(event);
+                    }
+
+                    let event = events.pop_front();
+                    events.shared.pending_events.lock().unwrap().extend(events.into_iter());
+                    event
+                },
+
+                appkit::NSScrollWheel => {
+                    // If none of the windows received the scroll, return `None`.
+                    let window = match maybe_window {
+                        Some(window) => window,
+                        None => return None,
+                    };
+
+                    use events::MouseScrollDelta::{LineDelta, PixelDelta};
+                    let scale_factor = window.hidpi_factor();
+                    let delta = if ns_event.hasPreciseScrollingDeltas() == cocoa::base::YES {
+                        PixelDelta(scale_factor * ns_event.scrollingDeltaX() as f32,
+                                   scale_factor * ns_event.scrollingDeltaY() as f32)
+                    } else {
+                        LineDelta(scale_factor * ns_event.scrollingDeltaX() as f32,
+                                  scale_factor * ns_event.scrollingDeltaY() as f32)
+                    };
+                    let phase = match ns_event.phase() {
+                        appkit::NSEventPhaseMayBegin | appkit::NSEventPhaseBegan => TouchPhase::Started,
+                        appkit::NSEventPhaseEnded => TouchPhase::Ended,
+                        _ => TouchPhase::Moved,
+                    };
+                    let window_event = WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: delta, phase: phase };
+                    Some(into_event(window_event))
+                },
+
+                appkit::NSEventTypePressure => {
+                    let pressure = ns_event.pressure();
+                    let stage = ns_event.stage();
+                    let window_event = WindowEvent::TouchpadPressure { device_id: DEVICE_ID, pressure: pressure, stage: stage };
+                    Some(into_event(window_event))
+                },
+
+                appkit::NSApplicationDefined => match ns_event.subtype() {
+                    appkit::NSEventSubtype::NSApplicationActivatedEventType => {
+                        Some(Event::Awakened)
+                    },
+                    _ => None,
+                },
+
+                _ => None,
+            }
+        }
+    }
+}
+
 
 
 fn to_virtual_key_code(code: u16) -> Option<events::VirtualKeyCode> {
