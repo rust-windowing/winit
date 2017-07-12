@@ -290,14 +290,26 @@ impl EventsLoop {
                     let written = unsafe {
                         use std::str;
 
-                        const BUFF_SIZE: usize = 512;
+                        const INIT_BUFF_SIZE: usize = 16;
                         let mut windows = self.windows.lock().unwrap();
                         let window_data = windows.get_mut(&WindowId(xwindow)).unwrap();
-                        let mut buffer: [u8; BUFF_SIZE] = [mem::uninitialized(); BUFF_SIZE];
-                        let mut keysym = 0;
-                        let count = (self.display.xlib.Xutf8LookupString)(window_data.ic, xkev,
+                        /* buffer allocated on heap instead of stack, due to the possible
+                         * reallocation */
+                        let mut buffer: Vec<u8> = vec![mem::uninitialized(); INIT_BUFF_SIZE];
+                        let mut keysym: ffi::KeySym = 0;
+                        let mut status: ffi::Status = 0;
+                        let mut count = (self.display.xlib.Xutf8LookupString)(window_data.ic, xkev,
                                                                           mem::transmute(buffer.as_mut_ptr()),
-                                                                          buffer.len() as libc::c_int, &mut keysym, ptr::null_mut());
+                                                                          buffer.len() as libc::c_int,
+                                                                          &mut keysym, &mut status);
+                        /* buffer overflowed, dynamically reallocate */
+                        if status == ffi::XBufferOverflow {
+                            buffer = vec![mem::uninitialized(); count as usize];
+                            count = (self.display.xlib.Xutf8LookupString)(window_data.ic, xkev,
+                                                                          mem::transmute(buffer.as_mut_ptr()),
+                                                                          buffer.len() as libc::c_int,
+                                                                          &mut keysym, &mut status);
+                        }
 
                         {
                             // Translate x event state to mods
@@ -443,16 +455,20 @@ impl EventsLoop {
                     }
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
-                        let mut windows = self.windows.lock().unwrap();
-                        let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
-                        unsafe { (self.display.xlib.XSetICFocus)(window_data.ic) };
+                        unsafe {
+                            let mut windows = self.windows.lock().unwrap();
+                            let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
+                            (self.display.xlib.XSetICFocus)(window_data.ic);
+                        }
                         callback(Event::WindowEvent { window_id: mkwid(xev.event), event: Focused(true) })
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
-                        let mut windows = self.windows.lock().unwrap();
-                        let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
-                        unsafe { (self.display.xlib.XUnsetICFocus)(window_data.ic) };
+                        unsafe {
+                            let mut windows = self.windows.lock().unwrap();
+                            let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
+                            (self.display.xlib.XUnsetICFocus)(window_data.ic);
+                        }
                         callback(Event::WindowEvent { window_id: mkwid(xev.event), event: Focused(false) })
                     }
 
