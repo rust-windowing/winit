@@ -44,6 +44,10 @@ fn main() {
 
     events_loop.run_forever(|event| {
         match event {
+            winit::Event::WindowEvent { event: winit::WindowEvent::DPIChanged(x_dpi, y_dpi), .. } => {
+                println!("New DPI: {}x{}", x_dpi, y_dpi);
+                winit::ControlFlow::Continue
+            },
             winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => {
                 winit::ControlFlow::Break
             },

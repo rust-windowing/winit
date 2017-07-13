@@ -78,7 +78,12 @@ pub enum WindowEvent {
     Suspended(bool),
 
     /// Touch event has been received
-    Touch(Touch)
+    Touch(Touch),
+
+    /// The window has been moved to a new display, with a different DPI, or the DPI of the current display changed.
+    ///
+    /// The parameters are the X-axis and Y-axis DPI.
+    DPIChanged(i32, i32)
 }
 
 /// Represents raw hardware events that are not associated with any particular window.
