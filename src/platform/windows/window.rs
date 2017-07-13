@@ -157,7 +157,7 @@ impl Window {
     }
     // TODO: remove
     pub fn platform_window(&self) -> *mut ::libc::c_void {
-        panic!()        // Deprecated function ; we don't care anymore
+        self.window.0 as *mut ::libc::c_void
     }
 
     /// Returns the `hwnd` of this window.
