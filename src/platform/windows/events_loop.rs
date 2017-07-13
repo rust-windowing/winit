@@ -708,6 +708,22 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
+        // Only sent on Windows 8 or newer, on Windows 7 and older user has to log out to change DPI,
+        // therefore all applications are closed while DPI is changing.
+        winapi::WM_DPICHANGED => {
+            use events::WindowEvent::DPIChanged;
+
+            let dpi_x = winapi::LOWORD(wparam as u32);
+            let dpi_y = winapi::HIWORD(wparam as u32);
+
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: DPIChanged(dpi_x as i32, dpi_y as i32)
+            });
+
+            0
+        },
+
         _ => {
             user32::DefWindowProcW(window, msg, wparam, lparam)
         }
