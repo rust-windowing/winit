@@ -153,7 +153,7 @@ impl Window {
 
     // TODO: remove
     pub fn platform_display(&self) -> *mut ::libc::c_void {
-        self.window.0 as *mut ::libc::c_void
+        panic!()        // Deprecated function ; we don't care anymore
     }
     // TODO: remove
     pub fn platform_window(&self) -> *mut ::libc::c_void {
