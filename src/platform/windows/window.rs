@@ -44,7 +44,7 @@ impl Window {
     {
         let mut w_attr = Some(w_attr.clone());
         let mut pl_attr = Some(pl_attr.clone());
-
+        
         let (tx, rx) = channel();
 
         events_loop.execute_in_thread(move |inserter| {
@@ -153,7 +153,7 @@ impl Window {
 
     // TODO: remove
     pub fn platform_display(&self) -> *mut ::libc::c_void {
-        panic!()        // Deprecated function ; we don't care anymore
+        self.window.0 as *mut ::libc::c_void
     }
     // TODO: remove
     pub fn platform_window(&self) -> *mut ::libc::c_void {
