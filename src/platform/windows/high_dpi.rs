@@ -7,8 +7,8 @@ type Result = result::Result<(), ()>;
 // Helper function to dynamically load a function pointer and call it.
 // The result of the callback is forwarded.
 fn try_get_function_pointer<F>(dll: &str, name: &str, callback: &Fn(&F) -> Result) -> Result {
-	use shared_library::dynamic_library::DynamicLibrary;
-	use std::path::Path;
+    use shared_library::dynamic_library::DynamicLibrary;
+    use std::path::Path;
 
     // Try to load the function dynamically.
     let lib = DynamicLibrary::open(Some(Path::new(dll))).map_err(|_| ())?;
@@ -17,7 +17,7 @@ fn try_get_function_pointer<F>(dll: &str, name: &str, callback: &Fn(&F) -> Resul
         lib.symbol::<F>(name).map_err(|_| ())?
     };
 
-	let func = unsafe { mem::transmute(&func_ptr) };
+    let func = unsafe { mem::transmute(&func_ptr) };
 
     callback(func)
 }
@@ -110,6 +110,6 @@ pub fn set_process_high_dpi_aware() {
         // Fall back to the old, Windows Vista method.
         .or_else(|_| set_high_dpi_windows_vista());
 
-	// If all methods failed, either the OS is older than Vista 
-	// or the user already set the process as high-DPI aware using an application manifest.
+    // If all methods failed, either the OS is older than Vista
+    // or the user already set the process as high-DPI aware using an application manifest.
 }
