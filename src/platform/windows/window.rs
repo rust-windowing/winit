@@ -25,7 +25,6 @@ use dwmapi;
 use kernel32;
 use user32;
 use winapi;
-use lazy_static;
 
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
@@ -45,7 +44,7 @@ impl Window {
     {
         let mut w_attr = Some(w_attr.clone());
         let mut pl_attr = Some(pl_attr.clone());
-        
+
         let (tx, rx) = channel();
 
         events_loop.execute_in_thread(move |inserter| {
@@ -303,15 +302,6 @@ impl Drop for WindowWrapper {
 
 unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes,
                inserter: events_loop::Inserter) -> Result<Window, CreationError> {
-    // Need to set the process as high-DPI aware before any GUI calls are made.
-    lazy_static! {
-        static ref HIGH_DPI_INITIALIZER: () = {
-            super::high_dpi::set_process_high_dpi_aware();
-        };
-    }
-
-    lazy_static::initialize(&HIGH_DPI_INITIALIZER);
-
     let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 

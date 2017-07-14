@@ -348,6 +348,26 @@ pub fn get_primary_monitor() -> MonitorId {
     MonitorId(platform::get_primary_monitor())
 }
 
+/// Makes the process high-DPI aware.
+///
+/// Without high-DPI awareness, a process' window would be scaled by Windows on high-DPI display.
+/// This can cause blurry text and degrade the quality of images.
+/// A well-written application would handle high-DPI displays by adapting its layout and using bigger fonts.
+///
+/// Note: it's recommended to mark your applications as high-DPI aware by embedding an
+/// [application manifest](https://msdn.microsoft.com/en-us/library/windows/desktop/aa374191(v=vs.85).aspx).
+///
+/// For more information read [Writing High-DPI aware applications](https://msdn.microsoft.com/en-us/library/windows/desktop/dn469266(v=vs.85).aspx).
+#[cfg(windows)]
+pub fn set_process_high_dpi_aware() {
+    platform::set_process_high_dpi_aware();
+}
+
+/// This function only works on Windows.
+#[cfg(not(windows))]
+pub fn set_process_high_dpi_aware() {
+}
+
 /// Identifier for a monitor.
 pub struct MonitorId(platform::MonitorId);
 

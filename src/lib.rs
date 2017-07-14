@@ -116,7 +116,7 @@ extern crate x11_dl;
 extern crate wayland_client;
 
 pub use events::*;
-pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
+pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor, set_process_high_dpi_aware};
 pub use native_monitor::NativeMonitorId;
 
 #[macro_use]
