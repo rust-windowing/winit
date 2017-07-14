@@ -10,7 +10,7 @@ extern crate gdi32;
 
 #[cfg(windows)]
 fn main() {
-	winit::set_process_high_dpi_aware();
+    winit::set_process_high_dpi_aware();
 
     let mut events_loop = winit::EventsLoop::new();
 
