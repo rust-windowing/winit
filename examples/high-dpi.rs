@@ -41,7 +41,7 @@ fn main() {
             message.len() as i32
         );
 
-        gdi32::DeleteDC(dc);
+        user32::ReleaseDC(dc);
     }
 
     events_loop.run_forever(|event| {
