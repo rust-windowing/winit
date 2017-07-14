@@ -81,8 +81,13 @@ pub enum WindowEvent {
     Touch(Touch),
 
     /// The window has been moved to a new display, with a different DPI, or the DPI of the current display changed.
+	///
+	/// Requires that the window is high-DPI aware, that is, the window has been created after a call
+	/// to [`set_process_high_dpi_aware`](fn.set_process_high_dpi_aware.html).
     ///
     /// The parameters are the X-axis and Y-axis DPI.
+	///
+	/// Note: currently, Windows 8 or newer is the only OS supporting this event.
     DPIChanged(i32, i32)
 }
 
