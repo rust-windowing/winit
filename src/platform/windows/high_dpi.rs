@@ -6,7 +6,6 @@ type Result = result::Result<(), ()>;
 
 // Helper function to dynamically load a function pointer and call it.
 // The result of the callback is forwarded.
-
 fn try_get_function_pointer<F>(dll: &str, name: &str, callback: &Fn(&F) -> Result) -> Result {
 	use shared_library::dynamic_library::DynamicLibrary;
 	use std::path::Path;
