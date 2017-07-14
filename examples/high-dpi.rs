@@ -41,7 +41,7 @@ fn main() {
             message.len() as i32
         );
 
-        user32::ReleaseDC(dc);
+        user32::ReleaseDC(hwnd, dc);
     }
 
     events_loop.run_forever(|event| {
