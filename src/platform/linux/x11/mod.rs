@@ -8,7 +8,7 @@ pub mod ffi;
 
 use platform::PlatformSpecificWindowBuilderAttributes;
 use {CreationError, Event, EventsLoopClosed, WindowEvent, DeviceEvent, AxisId, ButtonId,
-     KeyboardInput, ControlFlow};
+     KeyboardInput, DeviceKeyboardInput, ControlFlow};
 
 use std::{mem, ptr, slice};
 use std::sync::{Arc, Mutex, Weak};
@@ -533,7 +533,7 @@ impl EventsLoop {
                         // TODO: Use xkbcommon for keysym and text decoding
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
                         let xkeysym = unsafe { (self.display.xlib.XKeycodeToKeysym)(self.display.display, xev.detail as ffi::KeyCode, 0) };
-                        callback(Event::DeviceEvent { device_id: mkdid(xev.deviceid), event: DeviceEvent::Key(KeyboardInput {
+                        callback(Event::DeviceEvent { device_id: mkdid(xev.deviceid), event: DeviceEvent::Key(DeviceKeyboardInput {
                             scancode: xev.detail as u32,
                             virtual_keycode: events::keysym_to_element(xkeysym as libc::c_uint),
                             state: match xev.evtype {
@@ -541,7 +541,6 @@ impl EventsLoop {
                                 ffi::XI_RawKeyRelease => Released,
                                 _ => unreachable!(),
                             },
-                            modifiers: ::events::ModifiersState::default(),
                         })});
                     }
 
