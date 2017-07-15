@@ -95,7 +95,7 @@ pub enum DeviceEvent {
     Removed,
     Motion { axis: AxisId, value: f64 },
     Button { button: ButtonId, state: ElementState },
-    Key(KeyboardInput),
+    Key(DeviceKeyboardInput),
     Text { codepoint: char },
 }
 
@@ -121,6 +121,24 @@ pub struct KeyboardInput {
     /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
     pub modifiers: ModifiersState
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DeviceKeyboardInput {
+    /// Identifies the physical key pressed
+    ///
+    /// This should not change if the user adjusts the host's keyboard map. Use when the physical location of the
+    /// key is more important than the key's host GUI semantics, such as for movement controls in a first-person
+    /// game.
+    pub scancode: ScanCode,
+
+    pub state: ElementState,
+
+    /// Identifies the semantic meaning of the key
+    ///
+    /// Use when the semantics of the key are more important than the physical location of the key, such as when
+    /// implementing appropriate behavior for "page up."
+    pub virtual_keycode: Option<VirtualKeyCode>,
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
