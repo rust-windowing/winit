@@ -266,8 +266,16 @@ impl EventsLoop {
 
                 let xkev: &mut ffi::XKeyEvent = xev.as_mut();
 
-
-                let mut ev_mods = ModifiersState::default();
+                let ev_mods = {
+                    // Translate x event state to mods
+                    let state = xkev.state;
+                    ModifiersState {
+                        alt:   state & ffi::Mod1Mask != 0,
+                        shift: state & ffi::ShiftMask != 0,
+                        ctrl:  state & ffi::ControlMask != 0,
+                        logo:  state & ffi::Mod4Mask != 0,
+                    }
+                };
 
                 let keysym = unsafe {
                     (self.display.xlib.XKeycodeToKeysym)(self.display.display, xkev.keycode as ffi::KeyCode, 0)
@@ -309,26 +317,6 @@ impl EventsLoop {
                                                                           mem::transmute(buffer.as_mut_ptr()),
                                                                           buffer.len() as libc::c_int,
                                                                           &mut keysym, &mut status);
-                        }
-
-                        {
-                            // Translate x event state to mods
-                            let state = xkev.state;
-                            if (state & ffi::Mod1Mask) != 0 {
-                                ev_mods.alt = true;
-                            }
-
-                            if (state & ffi::ShiftMask) != 0 {
-                                ev_mods.shift = true;
-                            }
-
-                            if (state & ffi::ControlMask) != 0 {
-                                ev_mods.ctrl = true;
-                            }
-
-                            if (state & ffi::Mod4Mask) != 0 {
-                                ev_mods.logo = true;
-                            }
                         }
 
                         str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
