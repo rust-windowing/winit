@@ -320,9 +320,15 @@ impl Drop for RetainedEvent {
     }
 }
 
+// Encapsulates the lifecycle of a Cocoa event
 enum CocoaEvent {
+    // We just received this event, and haven't processed it yet
     Received(RetainedEvent),
+
+    // We're trying to sending to the windowing system and haven't completed it yet
     Sending(SendEvent, RetainedEvent),
+
+    // We delivered the message to the windowing system and possibly got back an events::Event
     Complete(Option<Event>),
 }
 
@@ -371,7 +377,7 @@ impl CocoaEvent {
             return None;
         }
 
-        // good enough
+        // good enough, let's dispatch
         Some(CocoaEvent::Received(RetainedEvent::new(ns_event)))
     }
 

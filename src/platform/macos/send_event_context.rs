@@ -1,7 +1,12 @@
 use cocoa;
 use cocoa::appkit::{NSApp,NSApplication};
+use core_foundation::base::*;
+use core_foundation::runloop::*;
 use context;
 use std::mem;
+use std::cell::{Cell,RefCell};
+use std::rc::Rc;
+use libc::c_void;
 
 // Size of the coroutine's stack
 const STACK_SIZE: usize = 512 * 1024;
@@ -14,6 +19,104 @@ pub struct SendEvent {
     ctx: context::Context
 }
 
+struct Resumable(Cell<Option<context::Context>>);
+
+impl Resumable {
+    fn new(ctx: context::Context) -> Self {
+        Resumable(Cell::new(Some(ctx)))
+    }
+
+    unsafe fn resume(&self, value: usize) {
+        // fish out the current context
+        let mut context = self.0.take().expect("Resumable should always have a context");
+
+        // resume it, getting a new context
+        let result = context.resume(value);
+
+        // store the new context and return
+        self.0.set(Some(result.context));
+    }
+}
+
+// A RunLoopObserver corresponds to a CFRunLoopObserver.
+struct RunLoopObserver {
+    id: CFRunLoopObserverRef,
+}
+
+extern "C" fn runloop_observer_callback(observer: CFRunLoopObserverRef, activity: CFRunLoopActivity, info: *mut c_void) {
+    // convert the raw pointer into an Rc
+    let mut resumable: Rc<Resumable> = unsafe { Rc::from_raw(info as _) };
+
+    // we're either about to wait or just finished waiting
+    // in either case, yield back to the caller, signaling the operation is still in progress
+    unsafe {
+        resumable.resume(1);
+    }
+
+    // convert the Rc back into a raw pointer to retain the refcount
+    Rc::into_raw(resumable);
+}
+
+extern "C" fn retain_resumable(info: *const c_void) {
+    // convert the raw pointer into an Rc
+    let mut resumable: Rc<Resumable> = unsafe { Rc::from_raw(info as _) };
+
+    // clone it and conver to a raw pointer to increment the refcount
+    Rc::into_raw(resumable.clone());
+
+    // convert the Rc back into a raw pointer to retain the refcount
+    Rc::into_raw(resumable);
+}
+
+extern "C" fn release_resumable(info: *const c_void) {
+    // convert the raw pointer into an Rc
+    let mut resumable: Rc<Resumable> = unsafe { Rc::from_raw(info as _) };
+
+    // let it drop to decrement the refcount
+}
+
+impl RunLoopObserver {
+    fn new(resumable: Rc<Resumable>) -> RunLoopObserver {
+        // CFRunLoopObserverCreate copies this struct, so we can give it a pointer to this local
+        let mut context: CFRunLoopObserverContext = unsafe { mem::zeroed() };
+        context.info = Rc::into_raw(resumable) as _;
+        context.release = release_resumable;
+
+        // Make the runloop observer itself
+        let id = unsafe {
+            CFRunLoopObserverCreate(
+                kCFAllocatorDefault,
+                kCFRunLoopBeforeWaiting | kCFRunLoopAfterWaiting,
+                1,      // repeats
+                0,      // order
+                runloop_observer_callback,
+                &mut context as *mut CFRunLoopObserverContext,
+            )
+        };
+
+        // Add to event loop
+        unsafe {
+            CFRunLoopAddObserver(CFRunLoopGetMain(), id, kCFRunLoopCommonModes);
+        }
+
+        // Decrement the refcount now that the platform owns it
+        release_resumable(context.info);
+
+        RunLoopObserver{
+            id,
+        }
+    }
+}
+
+impl Drop for RunLoopObserver {
+    fn drop(&mut self) {
+        unsafe {
+            CFRunLoopRemoveObserver(CFRunLoopGetMain(), self.id, kCFRunLoopCommonModes);
+            CFRelease(self.id as _);
+        }
+    }
+}
+
 // An instance of this struct is passed from `SendEvent::new()` to `send_event_fn()`.
 // Any data that needs to flow that direction should be included here.
 struct SendEventInvocation {
@@ -24,14 +127,27 @@ impl SendEventInvocation {
     // `run()` is called from the SendEvent coroutine.
     //
     // It should resume t.context with 1 when there is more work to do, or 0 if it is complete.
-    fn run(self, t: context::Transfer) {
-        // boring
-        unsafe {
-            NSApp().sendEvent_(self.event);
+    fn run(self, t: context::Transfer) -> ! {
+        // save our current context
+        let resumable: Rc<Resumable> = Rc::new(Resumable::new(t.context));
+
+        {
+            // make a runloop observer for its side effects
+            let _observer = RunLoopObserver::new(resumable.clone());
+
+            // send the message
+            unsafe {
+                NSApp().sendEvent_(self.event);
+            }
+
+            // drop the runloop observer
         }
 
         // signal completion
-        unsafe { t.context.resume(0); }
+        unsafe { resumable.resume(0); }
+
+        // we should never be resumed after completion
+        unreachable!();
     }
 }
 
@@ -62,8 +178,6 @@ impl SendEvent {
 
             // Run the SendEvent process
             invocation.run(t);
-
-            unreachable!();
         }
 
         // Set up a stack
