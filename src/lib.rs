@@ -115,6 +115,9 @@ extern crate x11_dl;
 #[macro_use]
 extern crate wayland_client;
 
+#[cfg(feature="context")]
+extern crate context;
+
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
 pub use native_monitor::NativeMonitorId;

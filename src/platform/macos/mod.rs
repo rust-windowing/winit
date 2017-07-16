@@ -41,4 +41,10 @@ mod events_loop;
 mod monitor;
 mod window;
 
+#[cfg(not(feature="context"))]
 mod send_event;
+
+#[cfg(feature="context")]
+mod send_event_context;
+#[cfg(feature="context")]
+use self::send_event_context as send_event;
