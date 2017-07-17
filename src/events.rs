@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use {WindowId, DeviceId, AxisId, ButtonId};
+use {WindowId, DeviceId};
 
 #[derive(Clone, Debug)]
 pub enum Event {
@@ -156,6 +156,12 @@ pub struct Touch {
 }
 
 pub type ScanCode = u32;
+
+/// Identifier for a specific analog axis on some device.
+pub type AxisId = u32;
+
+/// Identifier for a specific button on some device.
+pub type ButtonId = u32;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ElementState {

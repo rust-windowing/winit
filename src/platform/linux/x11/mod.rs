@@ -7,7 +7,7 @@ pub use self::xdisplay::{XConnection, XNotSupported, XError};
 pub mod ffi;
 
 use platform::PlatformSpecificWindowBuilderAttributes;
-use {CreationError, Event, EventsLoopClosed, WindowEvent, DeviceEvent, AxisId, ButtonId,
+use {CreationError, Event, EventsLoopClosed, WindowEvent, DeviceEvent,
      KeyboardInput, ControlFlow};
 
 use std::{mem, ptr, slice};
@@ -420,7 +420,7 @@ impl EventsLoop {
                                     } else {
                                         events.push(Event::WindowEvent { window_id: wid, event: AxisMotion {
                                             device_id: did,
-                                            axis: AxisId(i as u32),
+                                            axis: i as u32,
                                             value: unsafe { *value },
                                         }});
                                     }
@@ -490,7 +490,7 @@ impl EventsLoop {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
                         if xev.flags & ffi::XIPointerEmulated == 0 {
                             callback(Event::DeviceEvent { device_id: mkdid(xev.deviceid), event: DeviceEvent::Button {
-                                button: ButtonId(xev.detail as u32),
+                                button: xev.detail as u32,
                                 state: match xev.evtype {
                                     ffi::XI_RawButtonPress => Pressed,
                                     ffi::XI_RawButtonRelease => Released,
@@ -509,7 +509,7 @@ impl EventsLoop {
                         for i in 0..xev.valuators.mask_len*8 {
                             if ffi::XIMaskIsSet(mask, i) {
                                 callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::Motion {
-                                    axis: AxisId(i as u32),
+                                    axis: i as u32,
                                     value: unsafe { *value },
                                 }});
                                 value = unsafe { value.offset(1) };
