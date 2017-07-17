@@ -41,6 +41,8 @@ mod events_loop;
 mod monitor;
 mod window;
 
+mod timer;
+
 #[cfg(not(feature="context"))]
 mod send_event;
 

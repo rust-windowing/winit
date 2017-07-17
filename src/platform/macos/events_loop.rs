@@ -10,6 +10,7 @@ use super::window::Window;
 use std;
 use super::DeviceId;
 use super::send_event::SendEvent;
+use super::timer::Timer;
 
 pub struct EventsLoop {
     modifiers: Modifiers,
@@ -23,6 +24,8 @@ pub struct Shared {
 
     // A queue of events that are pending delivery to the library user.
     pub pending_events: Mutex<VecDeque<Event>>,
+
+    timer: Timer,
 }
 
 pub struct Proxy {
@@ -42,6 +45,7 @@ impl Shared {
         Shared {
             windows: Mutex::new(Vec::new()),
             pending_events: Mutex::new(VecDeque::new()),
+            timer: Timer::new(),
         }
     }
 
@@ -50,6 +54,7 @@ impl Shared {
         self.pending_events.lock().unwrap().push_back(event);
 
         // attempt to wake the runloop
+        self.timer.trigger();
         unsafe {
             runloop::CFRunLoopWakeUp(runloop::CFRunLoopGetMain());
         }

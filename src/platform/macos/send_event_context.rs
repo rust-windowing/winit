@@ -23,18 +23,26 @@ thread_local!{
 }
 
 unsafe fn resume(value: usize) {
-    // get the context we're resuming
-    let context = INNER_CONTEXT.with(|c| {
-        c.take()
-    }).expect("resume context");
+    if try_resume(value) == false {
+        panic!("no coroutine context to resume");
+    }
+}
 
-    // resume it, getting a new context
-    let result = context.resume(value);
+pub unsafe fn try_resume(value: usize) -> bool {
+    if let Some(context) = INNER_CONTEXT.with(|c| { c.take() }) {
+        // resume it, getting a new context
+        let result = context.resume(value);
 
-    // store the new context and return
-    INNER_CONTEXT.with(move |c| {
-        c.set(Some(result.context));
-    });
+        // store the new context and return
+        INNER_CONTEXT.with(move |c| {
+            c.set(Some(result.context));
+        });
+
+        true
+    } else {
+        // no context
+        false
+    }
 }
 
 // A RunLoopObserver corresponds to a CFRunLoopObserver.
@@ -45,8 +53,9 @@ struct RunLoopObserver {
 extern "C" fn runloop_observer_callback(_observer: CFRunLoopObserverRef, _activity: CFRunLoopActivity, _info: *mut c_void) {
     // we're either about to wait or just finished waiting
     // in either case, yield back to the caller, signaling the operation is still in progress
+    // this is strictly advisory, so don't worry about it if there's nothing o resume
     unsafe {
-        resume(1);
+        try_resume(1);
     }
 }
 
