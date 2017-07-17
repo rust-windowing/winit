@@ -2,6 +2,7 @@ use {ControlFlow, EventsLoopClosed};
 use cocoa::{self, appkit, foundation};
 use cocoa::appkit::{NSApplication, NSEvent, NSView, NSWindow};
 use core_foundation::base::{CFRetain, CFRelease, CFTypeRef};
+use core_foundation::runloop;
 use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, DeviceEvent, ModifiersState, KeyboardInput};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
@@ -13,25 +14,20 @@ use super::send_event::SendEvent;
 pub struct EventsLoop {
     modifiers: Modifiers,
     pub shared: Arc<Shared>,
-    current_event: Option<CocoaEvent>,
+    current_cocoa_event: Option<CocoaEvent>,
 }
 
 // State shared between the `EventsLoop` and its registered windows.
 pub struct Shared {
     pub windows: Mutex<Vec<Weak<Window>>>,
+
+    // A queue of events that are pending delivery to the library user.
     pub pending_events: Mutex<VecDeque<Event>>,
-    // The user event callback given via either of the `poll_events` or `run_forever` methods.
-    //
-    // We store the user's callback here so that it may be accessed by each of the window delegate
-    // callbacks (e.g. resize, close, etc) for the duration of a call to either of the
-    // `poll_events` or `run_forever` methods.
-    //
-    // This is *only* `Some` for the duration of a call to either of these methods and will be
-    // `None` otherwise.
-    user_callback: UserCallback,
 }
 
-pub struct Proxy {}
+pub struct Proxy {
+    shared: Weak<Shared>,
+}
 
 struct Modifiers {
     shift_pressed: bool,
@@ -56,36 +52,22 @@ impl Shared {
         Shared {
             windows: Mutex::new(Vec::new()),
             pending_events: Mutex::new(VecDeque::new()),
-            user_callback: UserCallback { mutex: Mutex::new(None) },
         }
     }
 
-    fn call_user_callback_with_pending_events(&self) {
-        loop {
-            let event = match self.pending_events.lock().unwrap().pop_front() {
-                Some(event) => event,
-                None => return,
-            };
-            unsafe {
-                self.user_callback.call_with_event(event);
-            }
+    // Enqueues the event for prompt delivery to the application.
+    pub fn enqueue_event(&self, event: Event) {
+        self.pending_events.lock().unwrap().push_back(event);
+
+        // attempt to wake the runloop
+        unsafe {
+            runloop::CFRunLoopWakeUp(runloop::CFRunLoopGetMain());
         }
     }
 
-    // Calls the user callback if one exists.
-    //
-    // Otherwise, stores the event in the `pending_events` queue.
-    //
-    // This is necessary for the case when `WindowDelegate` callbacks are triggered during a call
-    // to the user's callback.
-    pub fn call_user_callback_with_event_or_store_in_pending(&self, event: Event) {
-        if self.user_callback.mutex.lock().unwrap().is_some() {
-            unsafe {
-                self.user_callback.call_with_event(event);
-            }
-        } else {
-            self.pending_events.lock().unwrap().push_back(event);
-        }
+    // Dequeues the first event, if any, from the queue.
+    fn dequeue_event(&self) -> Option<Event> {
+        self.pending_events.lock().unwrap().pop_front()
     }
 
     // Removes the window with the given `Id` from the `windows` list.
@@ -114,50 +96,19 @@ impl Modifiers {
     }
 }
 
+#[derive(Debug,Clone,Copy,Eq,PartialEq)]
+enum Timeout {
+    Now,
+    Forever,
+}
 
-impl UserCallback {
-
-    // Here we store user's `callback` behind the mutex so that they may be safely shared between
-    // each of the window delegates.
-    //
-    // In order to make sure that the pointer is always valid, we must manually guarantee that it
-    // is dropped before the callback itself is dropped. Thus, this should *only* be called at the
-    // beginning of a call to `poll_events` and `run_forever`, both of which *must* drop the
-    // callback at the end of their scope using the `drop` method.
-    fn store<F>(&self, callback: &mut F)
-        where F: FnMut(Event)
-    {
-        let trait_object = callback as &mut FnMut(Event);
-        let trait_object_ptr = trait_object as *const FnMut(Event) as *mut FnMut(Event);
-        *self.mutex.lock().unwrap() = Some(trait_object_ptr);
+impl Timeout {
+    fn is_elapsed(&self) -> bool {
+        match self {
+            &Timeout::Now => true,
+            &Timeout::Forever => false,
+        }
     }
-
-    // Emits the given event via the user-given callback.
-    //
-    // This is unsafe as it requires dereferencing the pointer to the user-given callback. We
-    // guarantee this is safe by ensuring the `UserCallback` never lives longer than the user-given
-    // callback.
-    //
-    // Note that the callback may not always be `Some`. This is because some `NSWindowDelegate`
-    // callbacks can be triggered by means other than `NSApp().sendEvent`. For example, if a window
-    // is destroyed or created during a call to the user's callback, the `WindowDelegate` methods
-    // may be called with `windowShouldClose` or `windowDidResignKey`.
-    unsafe fn call_with_event(&self, event: Event) {
-        let callback = match self.mutex.lock().unwrap().take() {
-            Some(callback) => callback,
-            None => return,
-        };
-        (*callback)(event);
-        *self.mutex.lock().unwrap() = Some(callback);
-    }
-
-    // Used to drop the user callback pointer at the end of the `poll_events` and `run_forever`
-    // methods. This is done to enforce our guarantee that the top callback will never live longer
-    // than the call to either `poll_events` or `run_forever` to which it was given.
-    fn drop(&self) {
-        self.mutex.lock().unwrap().take();
-    }
-
 }
 
 impl EventsLoop {
@@ -166,141 +117,106 @@ impl EventsLoop {
         EventsLoop {
             shared: Arc::new(Shared::new()),
             modifiers: Modifiers::new(),
-            current_event: None,
+            current_cocoa_event: None,
+        }
+    }
+
+    // Attempt to get an Event by a specified timeout.
+    fn get_event(&mut self, timeout: Timeout) -> Option<Event> {
+        unsafe {
+            if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
+                panic!("Events can only be polled from the main thread on macOS");
+            }
+        }
+
+        loop {
+            // Pop any queued events
+            // This is immediate, so no need to consider a timeout
+            if let Some(event) = self.shared.dequeue_event() {
+                return Some(event);
+            }
+
+            // If we have no CocoaEvent, attempt to receive one
+            // CocoaEvent::receive() respects the timeout
+            if self.current_cocoa_event.is_none() {
+                self.current_cocoa_event = CocoaEvent::receive(timeout);
+            }
+
+            // If we have a CocoaEvent, attempt to process it
+            // TODO: plumb timeouts down to CocoaEvent::work()
+            if let Some(mut current_event) = self.current_cocoa_event.take() {
+                if current_event.work(self) == false {
+                    // Event is not complete
+                    // We must either process it further or store it again for later
+                    if let Some(event) = self.shared.dequeue_event() {
+                        // Another event landed while we were working this
+                        // Store the CocoaEvent and return the Event from the queue
+                        self.current_cocoa_event = Some(current_event);
+                        return Some(event);
+
+                    } else if timeout.is_elapsed() {
+                        // Timeout is elapsed; we must return empty-handed
+                        // Store the CocoaEvent and return nothing
+                        self.current_cocoa_event = Some(current_event);
+                        return None;
+
+                    } else {
+                        // We can repeat
+                        continue;
+                    }
+                }
+
+                // CocoaEvent processing is complete
+                // Is it an event?
+                if let CocoaEvent::Complete(Some(winit_event)) = current_event {
+                    // Return it
+                    return Some(winit_event);
+                } else {
+                    // CocoaEvent did not translate into an events::Event
+                    // Loop around again
+                }
+            }
         }
     }
 
     pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(Event),
     {
-        unsafe {
-            if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
-                panic!("Events can only be polled from the main thread on macOS");
-            }
+        // Return as many events as we can without blocking
+        while let Some(event) = self.get_event(Timeout::Now) {
+            callback(event);
         }
-
-        self.shared.user_callback.store(&mut callback);
-
-        // Loop as long as we have pending events to return.
-        loop {
-            // First, yield all pending events.
-            self.shared.call_user_callback_with_pending_events();
-
-            // Are we already working on something?
-            if self.current_event.is_none() {
-                // Attempt to receive a single message with an immediate timeout
-                self.current_event = CocoaEvent::receive(true);
-            }
-
-            // Do we have something to process?
-            if let Some(mut current_event) = self.current_event.take() {
-                // Process it until it's done
-                while !current_event.work(self) {
-                    // Repeat
-                }
-
-                // Did we get an event?
-                if let CocoaEvent::Complete(Some(winit_event)) = current_event {
-                    // Call the user's callback
-                    unsafe { self.shared.user_callback.call_with_event(winit_event); }
-
-                    // Repeat
-                    continue
-                }
-            } else {
-                // The event loop returned no message
-                // Finish
-                break
-            }
-        }
-
-        self.shared.user_callback.drop();
     }
 
     pub fn run_forever<F>(&mut self, mut callback: F)
         where F: FnMut(Event) -> ControlFlow
     {
-        unsafe {
-            if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
-                panic!("Events can only be polled from the main thread on macOS");
+        // Get events until we're told to stop
+        while let Some(event) = self.get_event(Timeout::Forever) {
+            // Send to the app
+            let control_flow = callback(event);
+
+            // Do what it says
+            match control_flow {
+                ControlFlow::Break => break,
+                ControlFlow::Continue => (),
             }
         }
-
-        // Track whether or not control flow has changed.
-        let control_flow = std::cell::Cell::new(ControlFlow::Continue);
-
-        let mut callback = |event| {
-            if let ControlFlow::Break = callback(event) {
-                control_flow.set(ControlFlow::Break);
-            }
-        };
-
-        self.shared.user_callback.store(&mut callback);
-
-        loop {
-            unsafe {
-                // First, yield all pending events.
-                self.shared.call_user_callback_with_pending_events();
-                if let ControlFlow::Break = control_flow.get() {
-                    break;
-                }
-
-                // Are we already working on something?
-                if self.current_event.is_none() {
-                    // Attempt to receive a single message with a forever timeout
-                    self.current_event = CocoaEvent::receive(false);
-                }
-
-                // Do we have something to process?
-                if let Some(mut current_event) = self.current_event.take() {
-                    // Process it until it's done
-                    while !current_event.work(self) {
-                        // Repeat
-                    }
-
-                    // Did we get an event?
-                    if let CocoaEvent::Complete(Some(winit_event)) = current_event {
-                        // Call the callback
-                        self.shared.user_callback.call_with_event(winit_event);
-
-                        // Exit as directed
-                        if let ControlFlow::Break = control_flow.get() {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        self.shared.user_callback.drop();
     }
 
     pub fn create_proxy(&self) -> Proxy {
-        Proxy {}
+        Proxy { shared: Arc::downgrade(&self.shared) }
     }
 }
 
 impl Proxy {
     pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
-        // Awaken the event loop by triggering `NSApplicationActivatedEventType`.
-        unsafe {
-            let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
-            let event =
-                NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
-                    cocoa::base::nil,
-                    appkit::NSApplicationDefined,
-                    foundation::NSPoint::new(0.0, 0.0),
-                    appkit::NSEventModifierFlags::empty(),
-                    0.0,
-                    0,
-                    cocoa::base::nil,
-                    appkit::NSEventSubtype::NSApplicationActivatedEventType,
-                    0,
-                    0);
-            appkit::NSApp().postEvent_atStart_(event, cocoa::base::NO);
-            foundation::NSAutoreleasePool::drain(pool);
+        if let Some(shared) = self.shared.upgrade() {
+            shared.enqueue_event(Event::Awakened);
+            Ok(())
+        } else {
+            Err(EventsLoopClosed)
         }
-        Ok(())
     }
 }
 
@@ -333,15 +249,14 @@ enum CocoaEvent {
 }
 
 impl CocoaEvent {
-    fn receive(immediate_timeout: bool) -> Option<CocoaEvent> {
+    fn receive(timeout: Timeout) -> Option<CocoaEvent> {
         unsafe {
             let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
 
             // Pick a timeout
-            let timeout = if immediate_timeout {
-                foundation::NSDate::distantPast(cocoa::base::nil)
-            } else {
-                foundation::NSDate::distantFuture(cocoa::base::nil)
+            let timeout = match timeout {
+                Timeout::Now => foundation::NSDate::distantPast(cocoa::base::nil),
+                Timeout::Forever => foundation::NSDate::distantFuture(cocoa::base::nil),
             };
 
             // Poll for the next event
@@ -665,13 +580,6 @@ impl CocoaEvent {
                     let stage = ns_event.stage();
                     let window_event = WindowEvent::TouchpadPressure { device_id: DEVICE_ID, pressure: pressure, stage: stage };
                     Some(into_event(window_event))
-                },
-
-                appkit::NSApplicationDefined => match ns_event.subtype() {
-                    appkit::NSEventSubtype::NSApplicationActivatedEventType => {
-                        Some(Event::Awakened)
-                    },
-                    _ => None,
                 },
 
                 _ => None,
