@@ -28,6 +28,8 @@ unsafe fn resume(value: usize) {
     }
 }
 
+// Attempt to hop back to the "normal" stack frame, yielding `value`. Returns false if we're not
+// inside a coroutine.
 pub unsafe fn try_resume(value: usize) -> bool {
     if let Some(context) = INNER_CONTEXT.with(|c| { c.take() }) {
         // resume it, getting a new context

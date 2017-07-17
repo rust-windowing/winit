@@ -53,10 +53,15 @@ impl Shared {
     pub fn enqueue_event(&self, event: Event) {
         self.pending_events.lock().unwrap().push_back(event);
 
-        // attempt to wake the runloop
-        self.timer.trigger();
-        unsafe {
-            runloop::CFRunLoopWakeUp(runloop::CFRunLoopGetMain());
+        // attempt to hop back
+        if unsafe { super::send_event::try_resume(1) } {
+            // success!
+        } else {
+            // attempt to wake the runloop
+            self.timer.trigger();
+            unsafe {
+                runloop::CFRunLoopWakeUp(runloop::CFRunLoopGetMain());
+            }
         }
     }
 

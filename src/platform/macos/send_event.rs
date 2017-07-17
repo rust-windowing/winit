@@ -1,6 +1,10 @@
 use cocoa;
 use cocoa::appkit::{NSApp,NSApplication};
 
+pub unsafe fn try_resume(value: usize) -> bool {
+    false
+}
+
 // The `SendEvent` struct encapsulates the idea of calling [NSApp sendEvent:event].
 // This is a separate struct because, in the case of resize events, dispatching an event can enter
 // an internal runloop, and we don't want to get stuck there.

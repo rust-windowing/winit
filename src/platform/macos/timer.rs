@@ -10,19 +10,13 @@ pub struct Timer {
     timer: CFRunLoopTimerRef,
 }
 
-#[cfg(feature="context")]
 extern "C" fn timer_callback(_timer: CFRunLoopTimerRef, _info: *mut c_void) {
     // attempt to yield back to the caller
-    use super::send_event_context::try_resume;
     unsafe {
-        try_resume(1);
+        super::send_event::try_resume(1);
     }
 }
 
-#[cfg(not(feature="context"))]
-extern "C" fn timer_callback(timer: CFRunLoopTimerRef, info: *mut c_void) {
-    // nothing to do
-}
 
 impl Timer {
     pub fn new() -> Timer {
