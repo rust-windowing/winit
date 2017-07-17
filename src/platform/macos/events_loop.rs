@@ -36,16 +36,6 @@ struct Modifiers {
     alt_pressed: bool,
 }
 
-// Wrapping the user callback in a type allows us to:
-//
-// - ensure the callback pointer is never accidentally cloned
-// - ensure that only the `EventsLoop` can `store` and `drop` the callback pointer
-// - Share access to the user callback with the NSWindow callbacks.
-pub struct UserCallback {
-    mutex: Mutex<Option<*mut FnMut(Event)>>,
-}
-
-
 impl Shared {
 
     pub fn new() -> Self {
