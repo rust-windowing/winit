@@ -4,8 +4,7 @@ use core_foundation::base::*;
 use core_foundation::runloop::*;
 use context;
 use std::mem;
-use std::cell::{Cell,RefCell};
-use std::rc::Rc;
+use std::cell::Cell;
 use libc::c_void;
 
 // Size of the coroutine's stack
@@ -19,23 +18,23 @@ pub struct SendEvent {
     ctx: context::Context
 }
 
-struct Resumable(Cell<Option<context::Context>>);
+thread_local!{
+    static INNER_CONTEXT: Cell<Option<context::Context>> = Cell::new(None);
+}
 
-impl Resumable {
-    fn new(ctx: context::Context) -> Self {
-        Resumable(Cell::new(Some(ctx)))
-    }
+unsafe fn resume(value: usize) {
+    // get the context we're resuming
+    let context = INNER_CONTEXT.with(|c| {
+        c.take()
+    }).expect("resume context");
 
-    unsafe fn resume(&self, value: usize) {
-        // fish out the current context
-        let mut context = self.0.take().expect("Resumable should always have a context");
+    // resume it, getting a new context
+    let result = context.resume(value);
 
-        // resume it, getting a new context
-        let result = context.resume(value);
-
-        // store the new context and return
-        self.0.set(Some(result.context));
-    }
+    // store the new context and return
+    INNER_CONTEXT.with(move |c| {
+        c.set(Some(result.context));
+    });
 }
 
 // A RunLoopObserver corresponds to a CFRunLoopObserver.
@@ -43,44 +42,18 @@ struct RunLoopObserver {
     id: CFRunLoopObserverRef,
 }
 
-extern "C" fn runloop_observer_callback(observer: CFRunLoopObserverRef, activity: CFRunLoopActivity, info: *mut c_void) {
-    // convert the raw pointer into an Rc
-    let mut resumable: Rc<Resumable> = unsafe { Rc::from_raw(info as _) };
-
+extern "C" fn runloop_observer_callback(_observer: CFRunLoopObserverRef, _activity: CFRunLoopActivity, _info: *mut c_void) {
     // we're either about to wait or just finished waiting
     // in either case, yield back to the caller, signaling the operation is still in progress
     unsafe {
-        resumable.resume(1);
+        resume(1);
     }
-
-    // convert the Rc back into a raw pointer to retain the refcount
-    Rc::into_raw(resumable);
-}
-
-extern "C" fn retain_resumable(info: *const c_void) {
-    // convert the raw pointer into an Rc
-    let mut resumable: Rc<Resumable> = unsafe { Rc::from_raw(info as _) };
-
-    // clone it and conver to a raw pointer to increment the refcount
-    Rc::into_raw(resumable.clone());
-
-    // convert the Rc back into a raw pointer to retain the refcount
-    Rc::into_raw(resumable);
-}
-
-extern "C" fn release_resumable(info: *const c_void) {
-    // convert the raw pointer into an Rc
-    let mut resumable: Rc<Resumable> = unsafe { Rc::from_raw(info as _) };
-
-    // let it drop to decrement the refcount
 }
 
 impl RunLoopObserver {
-    fn new(resumable: Rc<Resumable>) -> RunLoopObserver {
+    fn new() -> RunLoopObserver {
         // CFRunLoopObserverCreate copies this struct, so we can give it a pointer to this local
         let mut context: CFRunLoopObserverContext = unsafe { mem::zeroed() };
-        context.info = Rc::into_raw(resumable) as _;
-        context.release = release_resumable;
 
         // Make the runloop observer itself
         let id = unsafe {
@@ -98,9 +71,6 @@ impl RunLoopObserver {
         unsafe {
             CFRunLoopAddObserver(CFRunLoopGetMain(), id, kCFRunLoopCommonModes);
         }
-
-        // Decrement the refcount now that the platform owns it
-        release_resumable(context.info);
 
         RunLoopObserver{
             id,
@@ -127,13 +97,10 @@ impl SendEventInvocation {
     // `run()` is called from the SendEvent coroutine.
     //
     // It should resume t.context with 1 when there is more work to do, or 0 if it is complete.
-    fn run(self, t: context::Transfer) -> ! {
-        // save our current context
-        let resumable: Rc<Resumable> = Rc::new(Resumable::new(t.context));
-
+    fn run(self) -> ! {
         {
             // make a runloop observer for its side effects
-            let _observer = RunLoopObserver::new(resumable.clone());
+            let _observer = RunLoopObserver::new();
 
             // send the message
             unsafe {
@@ -144,7 +111,7 @@ impl SendEventInvocation {
         }
 
         // signal completion
-        unsafe { resumable.resume(0); }
+        unsafe { resume(0); }
 
         // we should never be resumed after completion
         unreachable!();
@@ -162,9 +129,14 @@ impl SendEvent {
         let mut invocation: Option<SendEventInvocation> = Some(invocation);
 
         // Make a callback to run from inside the coroutine
-        extern fn send_event_fn(mut t: context::Transfer) -> ! {
+        extern fn send_event_fn(t: context::Transfer) -> ! {
             // t.data is a pointer to the caller's `invocation` Option
             let invocation: *mut Option<SendEventInvocation> = t.data as _;
+
+            // Move the coroutine context to thread-local storage
+            INNER_CONTEXT.with(move |c| {
+                c.set(Some(t.context));
+            });
 
             // Turn this into a mutable borrow, then move the invocation into the coroutine's stack
             let invocation: SendEventInvocation =
@@ -172,12 +144,11 @@ impl SendEvent {
                     .take()
                     .unwrap();
 
-
             // Yield back to `SendEvent::new()`
-            t = unsafe { t.context.resume(1) };
+            unsafe { resume(0); }
 
             // Run the SendEvent process
-            invocation.run(t);
+            invocation.run();
         }
 
         // Set up a stack
