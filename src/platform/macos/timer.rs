@@ -11,7 +11,7 @@ pub struct Timer {
 }
 
 #[cfg(feature="context")]
-extern "C" fn timer_callback(timer: CFRunLoopTimerRef, info: *mut c_void) {
+extern "C" fn timer_callback(_timer: CFRunLoopTimerRef, _info: *mut c_void) {
     // attempt to yield back to the caller
     use super::send_event_context::try_resume;
     unsafe {

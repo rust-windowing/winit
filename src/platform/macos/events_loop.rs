@@ -140,7 +140,7 @@ impl EventsLoop {
             // If we have a CocoaEvent, attempt to process it
             // TODO: plumb timeouts down to CocoaEvent::work()
             if let Some(mut current_event) = self.current_cocoa_event.take() {
-                if current_event.work(self) == false {
+                while current_event.work(self) == false {
                     // Event is not complete
                     // We must either process it further or store it again for later
                     if let Some(event) = self.shared.dequeue_event() {
@@ -157,7 +157,6 @@ impl EventsLoop {
 
                     } else {
                         // We can repeat
-                        continue;
                     }
                 }
 
