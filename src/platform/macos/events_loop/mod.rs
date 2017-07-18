@@ -6,7 +6,15 @@ use super::window::{self, Window};
 
 mod nsevent;
 
+// Simple blocking runloop
+#[cfg(not(feature="context"))]
 mod runloop;
+
+// Coroutine-based nonblocking runloop
+#[cfg(feature="context")]
+#[path="runloop_context.rs"]
+mod runloop;
+
 use self::runloop::Runloop;
 
 pub struct EventsLoop {
@@ -22,26 +30,7 @@ pub struct Shared {
     pub pending_events: Mutex<VecDeque<Event>>,
 }
 
-impl nsevent::WindowFinder for Shared {
-    fn find_window_by_id(&self, id: window::Id) -> Option<Arc<Window>> {
-        for window in self.windows.lock().unwrap().iter() {
-            if let Some(window) = window.upgrade() {
-                if window.id() == id {
-                    return Some(window);
-                }
-            }
-        }
-
-        None
-    }
-}
-
-pub struct Proxy {
-    shared: Weak<Shared>,
-}
-
 impl Shared {
-
     pub fn new() -> Self {
         Shared {
             windows: Mutex::new(Vec::new()),
@@ -61,6 +50,11 @@ impl Shared {
         self.pending_events.lock().unwrap().pop_front()
     }
 
+    // Are there any events pending delivery?
+    fn has_queued_events(&self) -> bool {
+        !self.pending_events.lock().unwrap().is_empty()
+    }
+
     // Removes the window with the given `Id` from the `windows` list.
     //
     // This is called when a window is either `Closed` or `Drop`ped.
@@ -72,12 +66,24 @@ impl Shared {
             });
         }
     }
-
 }
 
+impl nsevent::WindowFinder for Shared {
+    fn find_window_by_id(&self, id: window::Id) -> Option<Arc<Window>> {
+        for window in self.windows.lock().unwrap().iter() {
+            if let Some(window) = window.upgrade() {
+                if window.id() == id {
+                    return Some(window);
+                }
+            }
+        }
+
+        None
+    }
+}
 
 #[derive(Debug,Clone,Copy,Eq,PartialEq)]
-enum Timeout {
+pub enum Timeout {
     Now,
     Forever,
 }
@@ -151,6 +157,10 @@ impl EventsLoop {
     pub fn create_proxy(&self) -> Proxy {
         Proxy { shared: Arc::downgrade(&self.shared) }
     }
+}
+
+pub struct Proxy {
+    shared: Weak<Shared>,
 }
 
 impl Proxy {
