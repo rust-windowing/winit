@@ -40,9 +40,11 @@ impl Shared {
 
     // Enqueues the event for prompt delivery to the application.
     pub fn enqueue_event(&self, event: Event) {
+        // Store the event
         self.pending_events.lock().unwrap().push_back(event);
 
-        // TODO: wake the runloop
+        // Attempt to wake the runloop
+        Runloop::wake();
     }
 
     // Dequeues the first event, if any, from the queue.

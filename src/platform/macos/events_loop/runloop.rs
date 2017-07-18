@@ -76,7 +76,7 @@ impl Runloop {
     }
 
     // Attempt to wake the Runloop. Must be thread safe.
-    pub fn wake(&self) {
+    pub fn wake() {
         unsafe {
             core_foundation::runloop::CFRunLoopWakeUp(core_foundation::runloop::CFRunLoopGetMain());
         }

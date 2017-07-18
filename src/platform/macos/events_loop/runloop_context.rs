@@ -1,5 +1,6 @@
-use std::sync::Weak;
+use std::cell::Cell;
 use std::mem;
+use std::sync::Weak;
 use context;
 use core_foundation;
 use cocoa::{self, foundation};
@@ -93,11 +94,35 @@ impl Runloop {
     }
 
     // Attempt to wake the Runloop. Must be thread safe.
-    pub fn wake(&self) {
-        unsafe {
-            core_foundation::runloop::CFRunLoopWakeUp(core_foundation::runloop::CFRunLoopGetMain());
+    pub fn wake() {
+        // Try to context switch back to the main thread
+        if yield_to_caller() {
+            // We did!
+        } else {
+            unsafe {
+                core_foundation::runloop::CFRunLoopWakeUp(core_foundation::runloop::CFRunLoopGetMain());
+            }
         }
     }
+}
+
+thread_local!{
+    // A pointer to the InnerRunloop, if we are presently inside the InnerRunloop coroutine
+    static INSIDE_INNER_RUNLOOP: Cell<Option<*mut InnerRunloop>> = Cell::new(None);
+}
+
+// If we're inside the InnerRunloop, call InnerRunloop::yield_to_caller() and return true;
+// if we're outside, do nothing and return false
+fn yield_to_caller() -> bool {
+    INSIDE_INNER_RUNLOOP.with(|runloop| {
+        if let Some(runloop) = runloop.get() {
+            let runloop: &mut InnerRunloop = unsafe { mem::transmute(runloop) };
+            runloop.yield_to_caller();
+            true
+        } else {
+            false
+        }
+    })
 }
 
 pub struct InnerRunloop {
@@ -121,6 +146,11 @@ impl InnerRunloop {
 
     fn yield_to_caller(&mut self) {
         if let Some(ctx) = self.caller.take() {
+            // clear INSIDE_INNER_RUNLOOP, since we're leaving
+            INSIDE_INNER_RUNLOOP.with(|runloop| {
+                runloop.set(None);
+            });
+
             // yield
             let t = unsafe { ctx.resume(1) };
 
@@ -137,16 +167,11 @@ impl InnerRunloop {
 
             // store the new timeout
             self.timeout = timeout;
-        }
-    }
 
-    fn enqueue_event(&mut self, event: Event) {
-        if let Some(shared) = self.shared.upgrade() {
-            shared.enqueue_event(event);
-            self.yield_to_caller();
-        } else {
-            // shared went away
-            self.shutdown = true;
+            // set INSIDE_INNER_RUNLOOP, since we're entering
+            INSIDE_INNER_RUNLOOP.with(|runloop| {
+                runloop.set(Some(self as *mut InnerRunloop));
+            });
         }
     }
 
@@ -169,7 +194,7 @@ impl InnerRunloop {
     }
 
     fn run(&mut self) {
-        while !self.shutdown {
+        loop {
             // upgrade the shared pointer
             let shared = match self.shared.upgrade() {
                 None => return,
@@ -206,7 +231,7 @@ impl InnerRunloop {
 
             // Post them
             for event in events {
-                self.enqueue_event(event);
+                shared.enqueue_event(event);
             }
         }
     }
