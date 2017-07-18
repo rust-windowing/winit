@@ -455,7 +455,8 @@ impl wl_pointer::Handler for InputHandler {
     {
         let (mut x, mut y) = self.axis_buffer.unwrap_or((0.0, 0.0));
         match axis {
-            wl_pointer::Axis::VerticalScroll => y += value as f32,
+            // wayland vertical sign convention is the inverse of winit
+            wl_pointer::Axis::VerticalScroll => y -= value as f32,
             wl_pointer::Axis::HorizontalScroll => x += value as f32
         }
         self.axis_buffer = Some((x,y));
@@ -518,7 +519,8 @@ impl wl_pointer::Handler for InputHandler {
     {
         let (mut x, mut y) = self.axis_discrete_buffer.unwrap_or((0,0));
         match axis {
-            wl_pointer::Axis::VerticalScroll => y += discrete,
+            // wayland vertical sign convention is the inverse of winit
+            wl_pointer::Axis::VerticalScroll => y -= discrete,
             wl_pointer::Axis::HorizontalScroll => x += discrete
         }
         self.axis_discrete_buffer = Some((x,y));
