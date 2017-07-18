@@ -5,7 +5,7 @@ use cocoa::appkit::{self, NSApplication, NSApp, NSEvent, NSView, NSWindow};
 use cocoa::foundation;
 use core_foundation::base::{CFRetain,CFRelease,CFTypeRef};
 
-use super::EventsLoop;
+use super::{EventsLoop, Timeout};
 use super::super::DeviceId;
 use super::super::window::{self, Window};
 use events::{self, ElementState, Event, MouseButton, TouchPhase, DeviceEvent, WindowEvent, ModifiersState, KeyboardInput};
@@ -109,6 +109,42 @@ impl Modifiers {
             win_pressed: false,
             alt_pressed: false,
         }
+    }
+}
+
+pub fn receive_event_from_cocoa(timeout: Timeout) -> Option<RetainedEvent> {
+    unsafe {
+        let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
+
+        // Pick a timeout
+        let timeout = match timeout {
+            Timeout::Now => foundation::NSDate::distantPast(cocoa::base::nil),
+            Timeout::Forever => foundation::NSDate::distantFuture(cocoa::base::nil),
+        };
+
+        // Poll for the next event
+        let ns_event = appkit::NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
+            appkit::NSAnyEventMask.bits() | appkit::NSEventMaskPressure.bits(),
+            timeout,
+            foundation::NSDefaultRunLoopMode,
+            cocoa::base::YES);
+
+        // Wrap the event, if any, in a RetainedEvent
+        let event = if ns_event == cocoa::base::nil {
+            None
+        } else {
+            Some(RetainedEvent::new(ns_event))
+        };
+
+        let _: () = msg_send![pool, release];
+
+        return event
+    }
+}
+
+pub fn forward_event_to_cocoa(event: &RetainedEvent) {
+    unsafe {
+        NSApp().sendEvent_(event.id());
     }
 }
 

@@ -38,7 +38,7 @@ impl Runloop {
         };
 
         loop {
-            let event = match self.receive_event_from_cocoa(timeout) {
+            let event = match nsevent::receive_event_from_cocoa(timeout) {
                 None => {
                     // Our timeout expired
                     // Bail out
@@ -56,7 +56,7 @@ impl Runloop {
 
             // Is this a message type that we should forward back to Cocoa?
             if nsevent::should_forward_event(&event) {
-                self.forward_event_to_cocoa(&event);
+                nsevent::forward_event_to_cocoa(&event);
             }
 
             // Can we turn it into one or more events?

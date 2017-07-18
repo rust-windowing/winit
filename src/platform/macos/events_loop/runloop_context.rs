@@ -202,7 +202,7 @@ impl InnerRunloop {
             };
 
             // try to receive an event
-            let event = match self.receive_event_from_cocoa() {
+            let event = match nsevent::receive_event_from_cocoa(self.timeout) {
                 None => {
                     // Our timeout expired
                     // Yield
@@ -223,7 +223,7 @@ impl InnerRunloop {
 
             // Is this a message type that we should forward back to Cocoa?
             if nsevent::should_forward_event(&event) {
-                self.forward_event_to_cocoa(&event);
+                nsevent::forward_event_to_cocoa(&event);
             }
 
             // Can we turn it into one or more events?
@@ -233,42 +233,6 @@ impl InnerRunloop {
             for event in events {
                 shared.enqueue_event(event);
             }
-        }
-    }
-
-    fn receive_event_from_cocoa(&mut self) -> Option<nsevent::RetainedEvent> {
-        unsafe {
-            let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
-
-            // Pick a timeout
-            let timeout = match self.timeout {
-                Timeout::Now => foundation::NSDate::distantPast(cocoa::base::nil),
-                Timeout::Forever => foundation::NSDate::distantFuture(cocoa::base::nil),
-            };
-
-            // Poll for the next event
-            let ns_event = appkit::NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                appkit::NSAnyEventMask.bits() | appkit::NSEventMaskPressure.bits(),
-                timeout,
-                foundation::NSDefaultRunLoopMode,
-                cocoa::base::YES);
-
-            // Wrap the event, if any, in a RetainedEvent
-            let event = if ns_event == cocoa::base::nil {
-                None
-            } else {
-                Some(nsevent::RetainedEvent::new(ns_event))
-            };
-
-            let _: () = msg_send![pool, release];
-
-            return event
-        }
-    }
-
-    fn forward_event_to_cocoa(&mut self, event: &nsevent::RetainedEvent) {
-        unsafe {
-            NSApp().sendEvent_(event.id());
         }
     }
 }
