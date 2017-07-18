@@ -1,11 +1,11 @@
 use std;
-use std::sync::{Arc,Weak};
+use std::sync::Arc;
 use cocoa;
 use cocoa::appkit::{self, NSApplication, NSApp, NSEvent, NSView, NSWindow};
 use cocoa::foundation;
 use core_foundation::base::{CFRetain,CFRelease,CFTypeRef};
 
-use super::{EventsLoop, Timeout};
+use super::Timeout;
 use super::super::DeviceId;
 use super::super::window::{self, Window};
 use events::{self, ElementState, Event, MouseButton, TouchPhase, DeviceEvent, WindowEvent, ModifiersState, KeyboardInput};

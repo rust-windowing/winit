@@ -12,7 +12,6 @@ use libc::c_void;
 use super::{Shared,Timeout};
 use super::nsevent;
 use super::timer::Timer;
-use events::Event;
 
 const STACK_SIZE: usize = 512 * 1024;
 
@@ -21,7 +20,7 @@ const STACK_SIZE: usize = 512 * 1024;
 //   - forwarding NSEvents back to Cocoa
 //   - posting Events to the queue
 pub struct Runloop {
-    stack: context::stack::ProtectedFixedSizeStack,
+    _stack: context::stack::ProtectedFixedSizeStack,
     ctx: Option<context::Context>,
 
     // Hang onto a timer that goes off every few milliseconds
@@ -41,27 +40,6 @@ impl Runloop {
         let stack = context::stack::ProtectedFixedSizeStack::new(STACK_SIZE)
             .expect("Runloop coroutine stack allocation");
 
-        // Make a callback to run from inside the coroutine which delegates to the
-        extern fn inner_runloop_entrypoint(t: context::Transfer) -> ! {
-            // t.data is a pointer to the constructor's `inner` variable
-            let inner: *mut Option<InnerRunloop> = t.data as _;
-
-            // Turn this into a mutable borrow, then move the inner runloop into the coroutine's stack
-            let mut inner: InnerRunloop =
-                unsafe { mem::transmute::<*mut Option<_>, &mut Option<_>>(inner) }
-                    .take()
-                    .unwrap();
-
-            // Store the caller's context
-            inner.caller = Some(t.context);
-
-            // Yield back to `Runloop::new()` so it can return
-            inner.yield_to_caller();
-
-            // Run the inner runloop
-            inner.run_coroutine();
-        }
-
         // Set up a new context
         let result = unsafe {
             // Start by calling inner_runloop_entrypoint
@@ -72,7 +50,7 @@ impl Runloop {
         };
 
         Runloop{
-            stack,
+            _stack: stack,
             ctx: Some(result.context),
             _timer: Timer::new(0.005),
             _observer: RunloopObserver::new(),
@@ -100,8 +78,6 @@ impl Runloop {
         // Store the new coroutine context
         self.ctx = Some(result.context);
 
-        assert_eq!(result.data, 1, "expected coroutine runloop to be active");
-
         // Return to caller
     }
 
@@ -120,30 +96,86 @@ impl Runloop {
 }
 
 thread_local!{
-    // A pointer to the InnerRunloop, if we are presently inside the InnerRunloop coroutine
-    static INSIDE_INNER_RUNLOOP: Cell<Option<*mut InnerRunloop>> = Cell::new(None);
+    // If we are inside the inner runloop, this contains the caller's context and their Timeout
+    static INSIDE_INNER_RUNLOOP_CONTEXT: Cell<Option<context::Context>> = Cell::new(None);
+    static INSIDE_INNER_RUNLOOP_TIMEOUT: Cell<Option<Timeout>> = Cell::new(None);
 }
 
-// If we're inside the InnerRunloop, call InnerRunloop::yield_to_caller() and return true;
+// This is the first function called from inside the coroutine. It must not return.
+// Contract: t.data is a *mut Option<InnerRunloop>.
+extern fn inner_runloop_entrypoint(t: context::Transfer) -> ! {
+    let inner: *mut Option<InnerRunloop> = t.data as _;
+
+    // Turn this into a mutable borrow, then move the inner runloop into the coroutine's stack
+    let mut inner: InnerRunloop =
+        unsafe { mem::transmute::<*mut Option<_>, &mut Option<_>>(inner) }
+            .take()
+            .unwrap();
+
+    // Store the caller's context in the usual place
+    let context = Some(t.context);
+    INSIDE_INNER_RUNLOOP_CONTEXT.with(move |ctx| { ctx.set(context) });
+
+    // Yield back to `Runloop::new()` so it can return
+    // Our next execution -- and all subsequent executions -- will happen inside `Runloop::work()`.
+    yield_to_caller();
+
+    // Run the inner runloop
+    inner.run();
+
+    // Drop it
+    drop(inner);
+
+    // Yield forever
+    loop {
+        yield_to_caller();
+    }
+}
+
+
+// If we're inside the InnerRunloop, return the current Timeout.
+fn current_timeout() -> Option<Timeout> {
+    INSIDE_INNER_RUNLOOP_TIMEOUT.with(|timeout| {
+        timeout.get()
+    })
+}
+
+// If we're inside the InnerRunloop, context switch and return true;
 // if we're outside, do nothing and return false
 fn yield_to_caller() -> bool {
-    INSIDE_INNER_RUNLOOP.with(|runloop| {
-        if let Some(runloop) = runloop.get() {
-            let runloop: &mut InnerRunloop = unsafe { mem::transmute(runloop) };
-            runloop.yield_to_caller();
-            true
-        } else {
-            false
-        }
-    })
+    // See if we we're inside the inner runloop
+    // If we are in the inner runloop, take the context since we're leaving
+    if let Some(context) = INSIDE_INNER_RUNLOOP_CONTEXT.with(|context_cell| { context_cell.take() }) {
+        // Yield
+        let t = unsafe { context.resume(0) };
+        // We're returned
+
+        // t.context is the caller's context
+        let context = Some(t.context);
+        // t.data is a pointer to an Option<Timeout>
+        // take() it
+        let timeout: *mut Option<Timeout> = t.data as *mut Option<_>;
+        let timeout: Option<Timeout> =
+            unsafe { mem::transmute::<*mut Option<_>, &mut Option<_>>(timeout) }
+                .take();
+
+        // Store the new values in the thread local cells until we yield back
+        INSIDE_INNER_RUNLOOP_CONTEXT.with(move |context_cell| {
+            context_cell.set(context);
+        });
+        INSIDE_INNER_RUNLOOP_TIMEOUT.with(move |timeout_cell| {
+            timeout_cell.set(timeout);
+        });
+
+        true
+    } else {
+        false
+    }
 }
 
 pub struct InnerRunloop {
     shared: Weak<Shared>,
     event_state: nsevent::PersistentState,
-    timeout: Timeout,
-    shutdown: bool, // should the runloop shut down?
-    caller: Option<context::Context>,
 }
 
 impl InnerRunloop {
@@ -151,58 +183,6 @@ impl InnerRunloop {
         InnerRunloop{
             shared,
             event_state: nsevent::PersistentState::new(),
-            timeout: Timeout::Now,
-            shutdown: false,
-            caller: None,
-        }
-    }
-
-    fn yield_to_caller(&mut self) {
-        if let Some(ctx) = self.caller.take() {
-            // clear INSIDE_INNER_RUNLOOP, since we're leaving
-            INSIDE_INNER_RUNLOOP.with(|runloop| {
-                runloop.set(None);
-            });
-
-            // yield
-            let t = unsafe { ctx.resume(1) };
-
-            // t.context is the caller's context
-            self.caller = Some(t.context);
-
-            // t.data is a pointer to an Option<Timeout>
-            // take it
-            let timeout = t.data as *mut Option<Timeout>;
-            let timeout =
-                unsafe { mem::transmute::<*mut Option<_>, &mut Option<_>>(timeout) }
-                    .take()
-                    .unwrap();
-
-            // store the new timeout
-            self.timeout = timeout;
-
-            // set INSIDE_INNER_RUNLOOP, since we're entering
-            INSIDE_INNER_RUNLOOP.with(|runloop| {
-                runloop.set(Some(self as *mut InnerRunloop));
-            });
-        }
-    }
-
-    fn run_coroutine(mut self) -> ! {
-        // run the normal process
-        self.run();
-
-        // extract the context
-        let mut ctx = self.caller.take().expect("run_coroutine() context");
-
-        // drop the rest
-        drop(self);
-
-        // keep yielding until they give up
-        loop {
-            let t = unsafe { ctx.resume(0) };
-            println!("coroutine runloop is terminated but is still getting called");
-            ctx = t.context;
         }
     }
 
@@ -215,11 +195,11 @@ impl InnerRunloop {
             };
 
             // try to receive an event
-            let event = match nsevent::receive_event_from_cocoa(self.timeout) {
+            let event = match nsevent::receive_event_from_cocoa(current_timeout().unwrap_or(Timeout::Now)) {
                 None => {
                     // Our timeout expired
                     // Yield
-                    self.yield_to_caller();
+                    yield_to_caller();
 
                     // Retry
                     continue;
