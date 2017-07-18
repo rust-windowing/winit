@@ -413,7 +413,8 @@ impl EventsLoop {
                                             device_id: did,
                                             delta: match info.orientation {
                                                 ScrollOrientation::Horizontal => LineDelta(delta as f32, 0.0),
-                                                ScrollOrientation::Vertical => LineDelta(0.0, delta as f32),
+                                                // X11 vertical scroll coordinates are opposite to winit's
+                                                ScrollOrientation::Vertical => LineDelta(0.0, -delta as f32),
                                             },
                                             phase: TouchPhase::Moved,
                                         }});
