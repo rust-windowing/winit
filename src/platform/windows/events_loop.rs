@@ -98,15 +98,15 @@ impl EventsLoop {
             });
 
             unsafe {
-                let mut msg = mem::uninitialized();
-
                 // Calling `PostThreadMessageA` on a thread that does not have an events queue yet
-                // will fail. In order to avoid this situation, we call `PeekMessage` to initialize
+                // will fail. In order to avoid this situation, we call `IsGuiThread` to initialize
                 // it.
-                user32::PeekMessageA(&mut msg, ptr::null_mut(), 0, 0, 0);
+                user32::IsGUIThread(1);
                 // Then only we unblock the `new()` function. We are sure that we don't call
                 // `PostThreadMessageA()` before `new()` returns.
                 local_block_tx.send(()).unwrap();
+
+                let mut msg = mem::uninitialized();
 
                 loop {
                     if user32::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
