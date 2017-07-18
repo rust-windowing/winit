@@ -572,14 +572,14 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                     if x != 0.0 {
                         send_event(Event::DeviceEvent {
                             device_id: DEVICE_ID,
-                            event: Motion { axis: AxisId(0), value: x }
+                            event: Motion { axis: 0, value: x }
                         });
                     }
 
                     if y != 0.0 {
                         send_event(Event::DeviceEvent {
                             device_id: DEVICE_ID,
-                            event: Motion { axis: AxisId(1), value: y }
+                            event: Motion { axis: 1, value: y }
                         });
                     }
                 }
