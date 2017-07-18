@@ -3,11 +3,15 @@ use std::mem;
 use std::sync::Weak;
 use context;
 use core_foundation;
+use core_foundation::base::*;
+use core_foundation::runloop::*;
 use cocoa::{self, foundation};
 use cocoa::appkit::{self, NSApplication, NSApp};
+use libc::c_void;
 
 use super::{Shared,Timeout};
 use super::nsevent;
+use super::timer::Timer;
 use events::Event;
 
 const STACK_SIZE: usize = 512 * 1024;
@@ -19,6 +23,12 @@ const STACK_SIZE: usize = 512 * 1024;
 pub struct Runloop {
     stack: context::stack::ProtectedFixedSizeStack,
     ctx: Option<context::Context>,
+
+    // Hang onto a timer that goes off every few milliseconds
+    _timer: Timer,
+
+    // Hang onto a runloop observer
+    _observer: RunloopObserver,
 }
 
 impl Runloop {
@@ -63,7 +73,9 @@ impl Runloop {
 
         Runloop{
             stack,
-            ctx: Some(result.context)
+            ctx: Some(result.context),
+            _timer: Timer::new(0.005),
+            _observer: RunloopObserver::new(),
         }
     }
 
@@ -99,6 +111,7 @@ impl Runloop {
         if yield_to_caller() {
             // We did!
         } else {
+            // Wake the runloop, because... we can, I guess?
             unsafe {
                 core_foundation::runloop::CFRunLoopWakeUp(core_foundation::runloop::CFRunLoopGetMain());
             }
@@ -233,6 +246,52 @@ impl InnerRunloop {
             for event in events {
                 shared.enqueue_event(event);
             }
+        }
+    }
+}
+
+// A RunloopObserver corresponds to a CFRunLoopObserver.
+struct RunloopObserver {
+    id: CFRunLoopObserverRef,
+}
+
+extern "C" fn runloop_observer_callback(_observer: CFRunLoopObserverRef, _activity: CFRunLoopActivity, _info: *mut c_void) {
+    yield_to_caller();
+}
+
+impl RunloopObserver {
+    fn new() -> RunloopObserver {
+        // CFRunLoopObserverCreate copies this struct, so we can give it a pointer to this local
+        let mut context: CFRunLoopObserverContext = unsafe { mem::zeroed() };
+
+        // Make the runloop observer itself
+        let id = unsafe {
+            CFRunLoopObserverCreate(
+                kCFAllocatorDefault,
+                kCFRunLoopBeforeWaiting | kCFRunLoopAfterWaiting,
+                1,      // repeats
+                0,      // order
+                runloop_observer_callback,
+                &mut context as *mut CFRunLoopObserverContext,
+            )
+        };
+
+        // Add to event loop
+        unsafe {
+            CFRunLoopAddObserver(CFRunLoopGetMain(), id, kCFRunLoopCommonModes);
+        }
+
+        RunloopObserver {
+            id,
+        }
+    }
+}
+
+impl Drop for RunloopObserver {
+    fn drop(&mut self) {
+        unsafe {
+            CFRunLoopRemoveObserver(CFRunLoopGetMain(), self.id, kCFRunLoopCommonModes);
+            CFRelease(self.id as _);
         }
     }
 }

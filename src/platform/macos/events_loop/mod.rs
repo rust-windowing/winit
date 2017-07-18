@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, Weak};
 use super::window::{self, Window};
 
 mod nsevent;
+mod timer;
 
 // Simple blocking runloop
 #[cfg(not(feature="context"))]
