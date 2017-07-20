@@ -8,7 +8,11 @@ use wayland_client::{EnvHandler, default_connect, EventQueue, EventQueueHandle, 
 use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subcompositor,
                                wl_display, wl_registry, wl_output, wl_surface, wl_buffer};
 
+use super::wayland_protocols::unstable::xdg_shell::client::zxdg_shell_v6;
+
 use super::{wayland_window, tempfile};
+
+use super::wayland_window::Shell;
 
 /*
  * Registry and globals handling
@@ -16,7 +20,6 @@ use super::{wayland_window, tempfile};
 
 wayland_env!(InnerEnv,
     compositor: wl_compositor::WlCompositor,
-    shell: wl_shell::WlShell,
     shm: wl_shm::WlShm,
     subcompositor: wl_subcompositor::WlSubcompositor
 );
@@ -24,6 +27,7 @@ wayland_env!(InnerEnv,
 struct WaylandEnv {
     registry: wl_registry::WlRegistry,
     inner: EnvHandler<InnerEnv>,
+    shell: Option<wayland_window::Shell>,
     monitors: Vec<OutputInfo>,
     my_id: usize,
 }
@@ -53,6 +57,7 @@ impl WaylandEnv {
         WaylandEnv {
             registry: registry,
             inner: EnvHandler::new(),
+            shell: None,
             monitors: Vec::new(),
             my_id: 0,
         }
@@ -69,6 +74,24 @@ impl WaylandEnv {
             }
         }
         None
+    }
+
+    fn ensure_shell(&mut self) -> bool {
+        if self.shell.is_some() {
+            return true;
+        }
+        // xdg_shell is not available, so initialize wl_shell
+        for &(name, ref interface, _) in self.inner.globals() {
+            if interface == "wl_shell" {
+                self.shell = Some(Shell::Wl(self.registry.bind::<wl_shell::WlShell>(1, name)));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    fn get_shell(&self) -> &Shell {
+        self.shell.as_ref().expect("Shell was not properly initialized")
     }
 }
 
@@ -87,13 +110,19 @@ impl wl_registry::Handler for WaylandEnv {
               interface: String,
               version: u32)
     {
-        if interface == "wl_output" {
+        if interface == wl_output::WlOutput::interface_name() {
             // intercept outputs
             // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
             let output = self.registry.bind::<wl_output::WlOutput>(1, name);
             evqh.register::<_, WaylandEnv>(&output, self.my_id);
             self.monitors.push(OutputInfo::new(output, name));
+        } else if interface == zxdg_shell_v6::ZxdgShellV6::interface_name() {
+            let xdg_shell = self.registry.bind::<zxdg_shell_v6::ZxdgShellV6>(1, name);
+			let xdg_ping_hid = evqh.add_handler(XdgShellPingHandler);
+            evqh.register::<_, XdgShellPingHandler>(&xdg_shell, xdg_ping_hid);
+            self.shell = Some(Shell::Xdg(xdg_shell));
         }
+
         self.inner.global(evqh, registry, name, interface, version);
     }
 
@@ -107,6 +136,16 @@ impl wl_registry::Handler for WaylandEnv {
         self.inner.global_remove(evqh, registry, name);
     }
 }
+
+struct XdgShellPingHandler;
+
+impl zxdg_shell_v6::Handler for XdgShellPingHandler {
+    fn ping(&mut self, _: &mut EventQueueHandle, proxy: &zxdg_shell_v6::ZxdgShellV6, serial: u32) {
+        proxy.pong(serial);
+    }
+}
+
+declare_handler!(XdgShellPingHandler, zxdg_shell_v6::Handler, zxdg_shell_v6::ZxdgShellV6);
 
 declare_handler!(WaylandEnv, wl_registry::Handler, wl_registry::WlRegistry);
 
@@ -175,9 +214,18 @@ impl WaylandContext {
         // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
         let registry = display.get_registry();
         let env_id = event_queue.add_handler_with_init(WaylandEnv::new(registry));
-        // two syncs fully initialize
+        // two round trips to fully initialize
         event_queue.sync_roundtrip().expect("Wayland connection unexpectedly lost");
         event_queue.sync_roundtrip().expect("Wayland connection unexpectedly lost");
+
+        {
+            let mut state = event_queue.state();
+            let mut env = state.get_mut_handler::<WaylandEnv>(env_id);
+            if !env.ensure_shell() {
+                // This is a compositor bug, it _must_ at least support xl_shell
+                panic!("Compositor didi not advertize xdg_shell not wl_shell.");
+            }
+        }
 
         Some(WaylandContext {
             evq: Mutex::new(event_queue),
@@ -216,35 +264,65 @@ impl WaylandContext {
         }
     }
 
-    pub fn create_window<H: wayland_window::Handler>(&self, width: u32, height: u32)
-        -> (Arc<wl_surface::WlSurface>, wayland_window::DecoratedSurface<H>, wl_buffer::WlBuffer, File)
-    {
-        let mut guard = self.evq.lock().unwrap();
-        let mut state = guard.state();
-        let env = state.get_mut_handler::<WaylandEnv>(self.env_id);
-        let surface = Arc::new(env.inner.compositor.create_surface());
-        let decorated = wayland_window::DecoratedSurface::new(
-            &*surface, 800, 600,
-            &env.inner.compositor,
-            &env.inner.subcompositor,
-            &env.inner.shm,
-            &env.inner.shell,
-            env.get_seat(),
-            false
-        ).expect("Failed to create a tmpfile buffer.");
-        // prepare a white content for the window, so that it exists
+    fn blank_surface(&self, surface: &wl_surface::WlSurface, evq: &mut EventQueue, width: i32, height: i32) {
         let mut tmp = tempfile::tempfile().expect("Failed to create a tmpfile buffer.");
         for _ in 0..(width*height) {
             tmp.write_all(&[0xff,0xff,0xff,0xff]).unwrap();
         }
         tmp.flush().unwrap();
-        let pool = env.inner.shm.create_pool(tmp.as_raw_fd(), (width*height*4) as i32);
-        let buffer = pool.create_buffer(0, width as i32, height as i32, width as i32, wl_shm::Format::Argb8888).expect("Pool cannot be already dead");
+        let pool = {
+            let mut state = evq.state();
+            let env = state.get_mut_handler::<WaylandEnv>(self.env_id);
+            env.inner.shm.create_pool(tmp.as_raw_fd(), width*height*4)
+        };
+        let buffer = pool.create_buffer(0, width, height, width, wl_shm::Format::Argb8888).expect("Pool cannot be already dead");
         surface.attach(Some(&buffer), 0, 0);
         surface.commit();
-        // the buffer wiil keep the contents alive as needed
+        // the buffer will keep the contents alive as needed
         pool.destroy();
-        (surface, decorated, buffer, tmp)
+
+        // create a handler to clean up initial buffer
+        let init_buffer_handler = InitialBufferHandler {
+            initial_buffer: Some((buffer.clone().unwrap(), tmp))
+        };
+        let initial_buffer_handler_id = evq.add_handler(init_buffer_handler);
+        // register the buffer to it
+        evq.register::<_, InitialBufferHandler>(&buffer, initial_buffer_handler_id);
+    }
+
+    pub fn create_window<H: wayland_window::Handler>(&self, width: u32, height: u32)
+        -> (Arc<wl_surface::WlSurface>, wayland_window::DecoratedSurface<H>)
+    {
+        let mut guard = self.evq.lock().unwrap();
+        let (surface, decorated, xdg) = {
+            let mut state = guard.state();
+            let env = state.get_mut_handler::<WaylandEnv>(self.env_id);
+            let surface = Arc::new(env.inner.compositor.create_surface());
+            let decorated = wayland_window::DecoratedSurface::new(
+                &*surface, 800, 600,
+                &env.inner.compositor,
+                &env.inner.subcompositor,
+                &env.inner.shm,
+                env.get_shell(),
+                env.get_seat(),
+                false
+            ).expect("Failed to create a tmpfile buffer.");
+            let xdg = match env.get_shell() {
+                &Shell::Xdg(_) => true,
+                &Shell::Wl(_) => false
+            };
+            (surface, decorated, xdg)
+        };
+
+        if !xdg {
+            // if using wl_shell, we need to draw something in order to kickstart
+            // the event loop
+            // if using xdg_shell, it is an error to do it now, and the events loop will not
+            // be stuck. We cannot draw anything before having received an appropriate event
+            // from the compositor
+            self.blank_surface(&surface, &mut *guard, width as i32, height as i32);
+        }
+        (surface, decorated)
     }
 }
 
@@ -309,3 +387,19 @@ impl MonitorId {
         (0,0)
     }
 }
+
+// a handler to release the ressources acquired to draw the initial white screen as soon as
+// the compositor does not use them any more
+pub struct InitialBufferHandler {
+    initial_buffer: Option<(wl_buffer::WlBuffer, File)>
+}
+
+impl wl_buffer::Handler for InitialBufferHandler {
+    fn release(&mut self, _: &mut EventQueueHandle, buffer: &wl_buffer::WlBuffer) {
+        // release the ressources we've acquired for initial white window
+        buffer.destroy();
+        self.initial_buffer = None;
+    }
+}
+
+declare_handler!(InitialBufferHandler, wl_buffer::Handler, wl_buffer::WlBuffer);

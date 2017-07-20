@@ -1,9 +1,8 @@
-use std::fs::File;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicBool;
 
 use wayland_client::{EventQueue, EventQueueHandle, Proxy};
-use wayland_client::protocol::{wl_display,wl_surface,wl_shell_surface,wl_buffer};
+use wayland_client::protocol::{wl_display,wl_surface};
 
 use {CreationError, MouseCursor, CursorState, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
@@ -40,26 +39,16 @@ impl Window {
     {
         let (width, height) = attributes.dimensions.unwrap_or((800,600));
 
-        let (surface, decorated, buffer, tmpfile) = ctxt.create_window::<DecoratedHandler>(width, height);
+        let (surface, decorated) = ctxt.create_window::<DecoratedHandler>(width, height);
 
         // init DecoratedSurface
         let (evq, cleanup_signal) = evlp.get_window_init();
         let decorated_id = {
             let mut evq_guard = evq.lock().unwrap();
-            // create a handler to clean up initial buffer
-            let initial_buffer_handler_id = evq_guard.add_handler(InitialBufferHandler::new());
-            // register the buffer to it
-            evq_guard.register::<_, InitialBufferHandler>(&buffer, initial_buffer_handler_id);
             // store the DecoratedSurface handler
             let decorated_id = evq_guard.add_handler_with_init(decorated);
             {
                 let mut state = evq_guard.state();
-                {
-                    // store the buffer and tempfile in the handler, to be cleanded up at the right
-                    // time
-                    let initial_buffer_h = state.get_mut_handler::<InitialBufferHandler>(initial_buffer_handler_id);
-                    initial_buffer_h.initial_buffer = Some((buffer, tmpfile));
-                }
                 // initialize the DecoratedHandler
                 let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
                 *(decorated.handler()) = Some(DecoratedHandler::new());
@@ -67,11 +56,7 @@ impl Window {
                 // set fullscreen if necessary
                 if let Some(PlatformMonitorId::Wayland(ref monitor_id)) = attributes.monitor {
                     ctxt.with_output(monitor_id.clone(), |output| {
-                        decorated.set_fullscreen(
-                            wl_shell_surface::FullscreenMethod::Default,
-                            0,
-                            Some(output)
-                        )
+                        decorated.set_fullscreen(Some(output))
                     });
                 } else if attributes.decorations {
                     decorated.set_decorate(true);
@@ -147,6 +132,7 @@ impl Window {
         let mut state = guard.state();
         let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
         decorated.resize(x as i32, y as i32);
+        *(self.size.lock().unwrap()) = (x, y);
     }
 
     #[inline]
@@ -194,50 +180,38 @@ impl Drop for Window {
 }
 
 pub struct DecoratedHandler {
-    newsize: Option<(u32, u32)>
+    newsize: Option<(u32, u32)>,
+    closed: bool,
 }
 
 impl DecoratedHandler {
-    fn new() -> DecoratedHandler { DecoratedHandler { newsize: None }}
+    fn new() -> DecoratedHandler {
+        DecoratedHandler {
+            newsize: None,
+            closed: false,
+        }
+    }
 
     pub fn take_newsize(&mut self) -> Option<(u32, u32)> {
         self.newsize.take()
     }
+
+    pub fn is_closed(&self) -> bool { self.closed }
 }
 
 impl wayland_window::Handler for DecoratedHandler {
     fn configure(&mut self,
                  _: &mut EventQueueHandle,
-                 _: wl_shell_surface::Resize,
+                 _: wayland_window::Configure,
                  width: i32, height: i32)
     {
         use std::cmp::max;
         self.newsize = Some((max(width,1) as u32, max(height,1) as u32));
     }
-}
 
-// a handler to release the ressources acquired to draw the initial white screen as soon as
-// the compositor does not use them any more
-
-pub struct InitialBufferHandler {
-    initial_buffer: Option<(wl_buffer::WlBuffer, File)>
-}
-
-impl InitialBufferHandler {
-    fn new() -> InitialBufferHandler {
-        InitialBufferHandler {
-            initial_buffer: None,
-        }
+    fn close(&mut self, _: &mut EventQueueHandle) {
+        self.closed = true;
     }
 }
 
 
-impl wl_buffer::Handler for InitialBufferHandler {
-    fn release(&mut self, _: &mut EventQueueHandle, buffer: &wl_buffer::WlBuffer) {
-        // release the ressources we've acquired for initial white window
-        buffer.destroy();
-        self.initial_buffer = None;
-    }
-}
-
-declare_handler!(InitialBufferHandler, wl_buffer::Handler, wl_buffer::WlBuffer);
