@@ -28,7 +28,6 @@ impl Timer {
         // default to firing every year, starting one year in the future
         let interval: CFTimeInterval = interval_seconds;
         let now = unsafe { CFAbsoluteTimeGetCurrent() };
-        let next_interval = now + interval;
 
         let mut context: CFRunLoopTimerContext = unsafe { mem::zeroed() };
 
@@ -52,13 +51,6 @@ impl Timer {
 
         Timer{
             timer
-        }
-    }
-
-    // Cause the timer to fire ASAP. Can be called across threads.
-    pub fn trigger(&self) {
-        unsafe {
-            CFRunLoopTimerSetNextFireDate(self.timer, CFAbsoluteTimeGetCurrent());
         }
     }
 }

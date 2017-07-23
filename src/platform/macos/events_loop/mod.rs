@@ -5,7 +5,6 @@ use std::sync::{Arc, Mutex, Weak};
 use super::window::{self, Window};
 
 mod nsevent;
-mod timer;
 
 // Simple blocking runloop
 #[cfg(not(feature="context"))]
@@ -15,6 +14,10 @@ mod runloop;
 #[cfg(feature="context")]
 #[path="runloop_context.rs"]
 mod runloop;
+
+// NSTimer wrapper, needed only for coroutine-baesd runloop
+#[cfg(feature="context")]
+mod timer;
 
 use self::runloop::Runloop;
 
@@ -54,6 +57,7 @@ impl Shared {
     }
 
     // Are there any events pending delivery?
+    #[allow(dead_code)]
     fn has_queued_events(&self) -> bool {
         !self.pending_events.lock().unwrap().is_empty()
     }

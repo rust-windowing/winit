@@ -1,7 +1,6 @@
 use std::sync::Weak;
 use core_foundation;
-use cocoa::{self, foundation};
-use cocoa::appkit::{self, NSApplication, NSApp};
+use cocoa;
 
 use super::{Shared,Timeout};
 use super::nsevent;

@@ -5,8 +5,7 @@ use context;
 use core_foundation;
 use core_foundation::base::*;
 use core_foundation::runloop::*;
-use cocoa::{self, foundation};
-use cocoa::appkit::{self, NSApplication, NSApp};
+use cocoa;
 use libc::c_void;
 
 use super::{Shared,Timeout};

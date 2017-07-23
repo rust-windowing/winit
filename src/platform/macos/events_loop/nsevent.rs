@@ -18,9 +18,6 @@ impl RetainedEvent {
         unsafe { CFRetain(event as CFTypeRef); }
         RetainedEvent(event)
     }
-    pub fn into_inner(self) -> cocoa::base::id {
-        self.0
-    }
     pub fn id(&self) -> cocoa::base::id {
         self.0
     }
@@ -116,6 +113,7 @@ impl Modifiers {
 //
 // The event itself corresponds to no `Event`, but it does cause `receive_event_from_cocoa()` to
 // return to its caller.
+#[allow(dead_code)]
 pub fn post_event_to_self() {
     unsafe {
         let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
