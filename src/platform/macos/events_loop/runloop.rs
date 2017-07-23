@@ -38,6 +38,11 @@ impl Runloop {
         };
 
         loop {
+            // Return if there's already an event waiting
+            if shared.has_queued_events() {
+                return;
+            }
+
             let event = match nsevent::receive_event_from_cocoa(timeout) {
                 None => {
                     // Our timeout expired
@@ -77,6 +82,8 @@ impl Runloop {
 
     // Attempt to wake the Runloop. Must be thread safe.
     pub fn wake() {
+        nsevent::post_event_to_self();
+
         unsafe {
             core_foundation::runloop::CFRunLoopWakeUp(core_foundation::runloop::CFRunLoopGetMain());
         }

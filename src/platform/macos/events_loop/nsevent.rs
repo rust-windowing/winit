@@ -112,6 +112,30 @@ impl Modifiers {
     }
 }
 
+// Send an application-defined event to ourselves. May be called from any thread.
+//
+// The event itself corresponds to no `Event`, but it does cause `receive_event_from_cocoa()` to
+// return to its caller.
+pub fn post_event_to_self() {
+    unsafe {
+        let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
+        let event =
+            NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+                cocoa::base::nil,
+                appkit::NSApplicationDefined,
+                foundation::NSPoint::new(0.0, 0.0),
+                appkit::NSEventModifierFlags::empty(),
+                0.0,
+                0,
+                cocoa::base::nil,
+                appkit::NSEventSubtype::NSApplicationActivatedEventType,
+                0,
+                0);
+        appkit::NSApp().postEvent_atStart_(event, cocoa::base::NO);
+        foundation::NSAutoreleasePool::drain(pool);
+    }
+}
+
 pub fn receive_event_from_cocoa(timeout: Timeout) -> Option<RetainedEvent> {
     unsafe {
         let pool = foundation::NSAutoreleasePool::new(cocoa::base::nil);
