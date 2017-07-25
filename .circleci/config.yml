@@ -9,10 +9,10 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: test-cache-{{ checksum "Cargo.lock" }}
+          key: test-cache-{{ checksum "Cargo.toml" }}
       - run: cargo apk build --example window
       - save_cache:
-          key: test-cache-{{ checksum "Cargo.lock" }}
+          key: test-cache-{{ checksum "Cargo.toml" }}
           paths:
             - target
 
