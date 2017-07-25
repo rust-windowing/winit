@@ -1,3 +1,8 @@
+sudo: required
+
+services:
+  - docker
+  
 language: rust
 
 rust:
@@ -21,6 +26,7 @@ script:
   - cargo build --verbose
   - if [ $TRAVIS_OS_NAME = osx ]; then cargo build --target x86_64-apple-ios --verbose; fi
   - cargo test --verbose
+  - docker run --rm -v "$(pwd):/root/src" -w /root/src tomaka/cargo-apk cargo apk build --verbose
 
 os:
   - linux
