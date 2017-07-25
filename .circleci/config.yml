@@ -1,0 +1,23 @@
+version: 2
+
+jobs:
+
+  test:
+    working_directory: ~/tgst
+    docker:
+      - image: tomaka/cargo-apk
+    steps:
+      - checkout
+      - restore_cache:
+          key: test-cache-{{ checksum "Cargo.toml" }}
+      - run: cargo apk build --example window
+      - save_cache:
+          key: test-cache-{{ checksum "Cargo.toml" }}
+          paths:
+            - target
+
+workflows:
+  version: 2
+  build-test-and-deploy:
+    jobs:
+      - test
