@@ -143,9 +143,7 @@ impl WindowDelegate {
         }
 
         /// Invoked when the image is released
-        extern fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) {
-            println!("prepare_for_drag_operation");
-        }
+        extern fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) {}
 
         /// Invoked after the released image has been removed from the screen
         extern fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
@@ -174,13 +172,15 @@ impl WindowDelegate {
         }
 
         /// Invoked when the dragging operation is complete
-        extern fn conclude_drag_operation(_: &Object, _: Sel, _: id) {
-            println!("conclude_drag_operation");
-        }
+        extern fn conclude_drag_operation(_: &Object, _: Sel, _: id) {}
 
         /// Invoked when the dragging operation is cancelled
-        extern fn dragging_exited(_: &Object, _: Sel, _: id) {
-            println!("dragging_exited");
+        extern fn dragging_exited(this: &Object, _: Sel, _: id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+                emit_event(state, WindowEvent::HoveredFileCancelled);
+            }
         }
 
         static mut DELEGATE_CLASS: *const Class = 0 as *const Class;
@@ -204,7 +204,7 @@ impl WindowDelegate {
             decl.add_method(sel!(windowDidResignKey:),
                 window_did_resign_key as extern fn(&Object, Sel, id));
 
-            // callback for drag events
+            // callbacks for drag and drop events
             decl.add_method(sel!(draggingEntered:),
                 dragging_entered as extern fn(&Object, Sel, id) -> BOOL);
            decl.add_method(sel!(prepareForDragOperation:),
