@@ -117,8 +117,29 @@ impl WindowDelegate {
         }
 
         /// Invoked when the dragged image enters destination bounds or frame
-        extern fn dragging_entered(_: &Object, _: Sel, _: id) {
-            println!("dragging_entered");
+        extern fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
+            use cocoa::appkit::NSPasteboard;
+            use cocoa::foundation::NSFastEnumeration;
+            use std::path::PathBuf;
+
+            let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
+            let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+
+            for file in unsafe { filenames.iter() } {
+                use cocoa::foundation::NSString;
+                use std::ffi::CStr;
+
+                unsafe {
+                    let f = NSString::UTF8String(file);
+                    let path = CStr::from_ptr(f).to_string_lossy().into_owned();
+
+                    let state: *mut c_void = *this.get_ivar("winitState");
+                    let state = &mut *(state as *mut DelegateState);
+                    emit_event(state, WindowEvent::HoveredFile(PathBuf::from(path)));
+                }
+            };
+
+            YES
         }
 
         /// Invoked when the image is released
@@ -127,27 +148,29 @@ impl WindowDelegate {
         }
 
         /// Invoked after the released image has been removed from the screen
-        extern fn perform_drag_operation(_: &Object, _: Sel, sender: id) -> BOOL {
+        extern fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
             use cocoa::appkit::NSPasteboard;
+            use cocoa::foundation::NSFastEnumeration;
+            use std::path::PathBuf;
 
             let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
-
             let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
 
-            use cocoa::foundation::NSFastEnumeration;
             for file in unsafe { filenames.iter() } {
                 use cocoa::foundation::NSString;
-                unsafe {
-                    use std::ffi::CStr;
-                    let f = NSString::UTF8String(file);
-                    let str = CStr::from_ptr(f).to_string_lossy().into_owned();
+                use std::ffi::CStr;
 
-                    println!("file: {:?}", str);
+                unsafe {
+                    let f = NSString::UTF8String(file);
+                    let path = CStr::from_ptr(f).to_string_lossy().into_owned();
+
+                    let state: *mut c_void = *this.get_ivar("winitState");
+                    let state = &mut *(state as *mut DelegateState);
+                    emit_event(state, WindowEvent::DroppedFile(PathBuf::from(path)));
                 }
             };
 
             YES
-
         }
 
         /// Invoked when the dragging operation is complete
@@ -183,7 +206,7 @@ impl WindowDelegate {
 
             // callback for drag events
             decl.add_method(sel!(draggingEntered:),
-                dragging_entered as extern fn(&Object, Sel, id));
+                dragging_entered as extern fn(&Object, Sel, id) -> BOOL);
            decl.add_method(sel!(prepareForDragOperation:),
                 prepare_for_drag_operation as extern fn(&Object, Sel, id));
            decl.add_method(sel!(performDragOperation:),
