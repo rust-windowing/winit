@@ -535,7 +535,7 @@ impl Window {
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        self.get_geometry().map(|(_, _, w, h, _)| (w, h))
+        self.get_geometry().map(|(_, _, w, h, _)| ((w as f32 / self.hidpi_factor()) as u32, (h as f32 / self.hidpi_factor()) as u32))
     }
 
     #[inline]
