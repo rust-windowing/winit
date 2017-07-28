@@ -208,8 +208,8 @@ impl EventsLoop {
                 let client_msg: &ffi::XClientMessageEvent = xev.as_ref();
 
                 if client_msg.data.get_long(0) as ffi::Atom == self.wm_delete_window {
-                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Closing })
-                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Closed })
+                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Closing });
+                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Closed });
                 } else {
                     if self.pending_wakeup.load(atomic::Ordering::Relaxed) {
                         self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
