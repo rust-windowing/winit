@@ -291,7 +291,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 let mut context_stash = context_stash.borrow_mut();
                 context_stash.as_mut().unwrap().windows.remove(&window);
             });
-            0
+            user32::DefWindowProcW(window, msg, wparam, lparam)
         },
 
         winapi::WM_ERASEBKGND => {
