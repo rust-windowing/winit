@@ -265,6 +265,7 @@ impl Window {
                 let state = &mut *(state as *mut DelegateState);
                 // push event to the front to garantee that we'll process it
                 // immidiatly after jump
+                state.events_queue.push_front(Event::Closing);
                 state.events_queue.push_front(Event::Closed);
                 longjmp(mem::transmute(&mut jmpbuf),1);
             }

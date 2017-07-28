@@ -23,6 +23,9 @@ pub enum WindowEvent {
     /// The position of the window has changed.
     Moved(i32, i32),
 
+    /// The window is just about to close but resources ar not released yet.
+    Closing,
+
     /// The window has been closed.
     Closed,
 
