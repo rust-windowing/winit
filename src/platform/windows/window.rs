@@ -282,7 +282,7 @@ impl Drop for Window {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            user32::PostMessageW(self.window.0, winapi::WM_DESTROY, 0, 0);
+            user32::PostMessageW(self.window.0, winapi::WM_CLOSE, 0, 0);
         }
     }
 }
