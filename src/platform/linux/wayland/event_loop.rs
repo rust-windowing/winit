@@ -159,10 +159,15 @@ impl EventsLoop {
                  callback(
                     ::Event::WindowEvent {
                         window_id: ::WindowId(::platform::WindowId::Wayland(make_wid(&window))),
+                        event: ::WindowEvent::Closing
+                    }
+                );
+                callback(
+                    ::Event::WindowEvent {
+                        window_id: ::WindowId(::platform::WindowId::Wayland(make_wid(&window))),
                         event: ::WindowEvent::Closed
                     }
                 );
-
             }
         }
     }

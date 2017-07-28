@@ -281,6 +281,15 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                                        -> winapi::LRESULT
 {
     match msg {
+        winapi::WM_CLOSE => {
+            use events::WindowEvent::Closing;
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: Closing,
+            });
+            user32::DefWindowProcW(window, msg, wparam, lparam)
+        },
+
         winapi::WM_DESTROY => {
             use events::WindowEvent::Closed;
             send_event(Event::WindowEvent {
