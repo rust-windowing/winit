@@ -7,7 +7,6 @@ use std::sync::{Arc, Mutex, Weak};
 use super::window::Window;
 use std;
 use super::DeviceId;
-use AxisId;
 
 
 pub struct EventsLoop {
@@ -481,14 +480,14 @@ impl EventsLoop {
 
                 let delta_x = (scale_factor * ns_event.deltaX() as f32) as f64;
                 if delta_x != 0.0 {
-                    let motion_event = DeviceEvent::Motion { axis: AxisId(0), value: delta_x };
+                    let motion_event = DeviceEvent::Motion { axis: 0, value: delta_x };
                     let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
                     events.push_back(event);
                 }
 
                 let delta_y = (scale_factor * ns_event.deltaY() as f32) as f64;
                 if delta_y != 0.0 {
-                    let motion_event = DeviceEvent::Motion { axis: AxisId(1), value: delta_y };
+                    let motion_event = DeviceEvent::Motion { axis: 1, value: delta_y };
                     let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
                     events.push_back(event);
                 }
