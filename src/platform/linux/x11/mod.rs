@@ -370,7 +370,19 @@ impl EventsLoop {
                             // Suppress emulated scroll wheel clicks, since we handle the real motion events for those.
                             // In practice, even clicky scroll wheels appear to be reported by evdev (and XInput2 in
                             // turn) as axis motion, so we don't otherwise special-case these button presses.
-                            4 | 5 | 6 | 7 if xev.flags & ffi::XIPointerEmulated != 0 => {}
+                            4 | 5 | 6 | 7 => if xev.flags & ffi::XIPointerEmulated == 0 {
+                                callback(Event::WindowEvent { window_id: wid, event: MouseWheel {
+                                    device_id: did,
+                                    delta: match xev.detail {
+                                        4 => LineDelta(0.0, 1.0),
+                                        5 => LineDelta(0.0, -1.0),
+                                        6 => LineDelta(-1.0, 0.0),
+                                        7 => LineDelta(1.0, 0.0),
+                                        _ => unreachable!()
+                                    },
+                                    phase: TouchPhase::Moved,
+                                }});
+                            },
 
                             x => callback(Event::WindowEvent { window_id: wid, event: MouseInput { device_id: did, state: state, button: Other(x as u8) } })
                         }
