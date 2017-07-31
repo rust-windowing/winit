@@ -281,7 +281,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                                        -> winapi::LRESULT
 {
     match msg {
-        winapi::WM_DESTROY => {
+        winapi::WM_CLOSE => {
             use events::WindowEvent::Closed;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
@@ -291,7 +291,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 let mut context_stash = context_stash.borrow_mut();
                 context_stash.as_mut().unwrap().windows.remove(&window);
             });
-            0
+            user32::DefWindowProcW(window, msg, wparam, lparam)
         },
 
         winapi::WM_ERASEBKGND => {
