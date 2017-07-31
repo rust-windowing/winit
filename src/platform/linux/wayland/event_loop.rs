@@ -1,11 +1,12 @@
-use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase, ModifiersState,
-     KeyboardInput, EventsLoopClosed, ControlFlow};
+use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase,
+     EventsLoopClosed, ControlFlow};
 
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{self, AtomicBool};
 
 use super::{DecoratedHandler, WindowId, DeviceId, WaylandContext};
 
+use keyboard_types::{Code, Key, KeyEvent, KeyState, Modifiers as KeyModifiers, Location as KeyLocation};
 
 use wayland_client::{EventQueue, EventQueueHandle, Init, Proxy, Liveness};
 use wayland_client::protocol::{wl_seat, wl_surface, wl_pointer, wl_keyboard};
@@ -620,8 +621,8 @@ impl wl_keyboard::Handler for InputHandler {
             KbdType::Mapped(ref mut h) => h.key(evqh, proxy, serial, time, key, state),
             KbdType::Plain(Some(wid)) => {
                 let state = match state {
-                    wl_keyboard::KeyState::Pressed => ElementState::Pressed,
-                    wl_keyboard::KeyState::Released => ElementState::Released,
+                    wl_keyboard::KeyState::Pressed => KeyState::Down,
+                    wl_keyboard::KeyState::Released => KeyState::Up,
                 };
                 // This is fallback impl if libxkbcommon was not available
                 // This case should probably never happen, as most wayland
@@ -633,11 +634,14 @@ impl wl_keyboard::Handler for InputHandler {
                 self.callback.lock().unwrap().send_event(
                     Event::KeyboardInput {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                        input: KeyboardInput {
+                        input: KeyEvent {
                             state: state,
-                            scancode: key,
-                            virtual_keycode: None,
-                            modifiers: ModifiersState::default(),
+                            key: Key::Unidentified,
+                            code: Code::Unidentified,
+                            location: KeyLocation::Standard,
+                            modifiers: KeyModifiers::empty(),
+                            repeat: false,
+                            is_composing: false,
                         },
                     },
                     wid

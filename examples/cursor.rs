@@ -1,6 +1,9 @@
 extern crate winit;
+extern crate keyboard_types;
 
-use winit::{Event, ElementState, MouseCursor, WindowEvent, KeyboardInput, ControlFlow};
+use keyboard_types::{KeyEvent, KeyState};
+
+use winit::{Event, MouseCursor, WindowEvent, ControlFlow};
 
 fn main() {
     let mut events_loop = winit::EventsLoop::new();
@@ -19,7 +22,7 @@ fn main() {
 
     events_loop.run_forever(|event| {
         match event {
-            Event::WindowEvent { event: WindowEvent::KeyboardInput { input: KeyboardInput { state: ElementState::Pressed, .. }, .. }, .. } => {
+            Event::WindowEvent { event: WindowEvent::KeyboardInput { input: KeyEvent { state: KeyState::Down, .. }, .. }, .. } => {
                 println!("Setting cursor to \"{:?}\"", cursors[cursor_idx]);
                 window.set_cursor(cursors[cursor_idx]);
                 if cursor_idx < cursors.len() - 1 {
