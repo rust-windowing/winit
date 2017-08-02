@@ -1,7 +1,7 @@
 use {ControlFlow, EventsLoopClosed};
 use cocoa::{self, appkit, foundation};
 use cocoa::appkit::{NSApplication, NSEvent, NSView, NSWindow};
-use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, ModifiersState, KeyboardInput};
+use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, DeviceEvent, ModifiersState, KeyboardInput};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 use super::window::Window;
@@ -468,11 +468,33 @@ impl EventsLoop {
                 let view_rect = NSView::frame(*window.view);
                 let scale_factor = window.hidpi_factor();
 
-                let x = (scale_factor * view_point.x as f32) as f64;
-                let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
-                let window_event = WindowEvent::MouseMoved { device_id: DEVICE_ID, position: (x, y) };
-                let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
-                Some(event)
+                let mut events = std::collections::VecDeque::new();
+
+                {
+                    let x = (scale_factor * view_point.x as f32) as f64;
+                    let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
+                    let window_event = WindowEvent::MouseMoved { device_id: DEVICE_ID, position: (x, y) };
+                    let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
+                    events.push_back(event);
+                }
+
+                let delta_x = (scale_factor * ns_event.deltaX() as f32) as f64;
+                if delta_x != 0.0 {
+                    let motion_event = DeviceEvent::Motion { axis: 0, value: delta_x };
+                    let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
+                    events.push_back(event);
+                }
+
+                let delta_y = (scale_factor * ns_event.deltaY() as f32) as f64;
+                if delta_y != 0.0 {
+                    let motion_event = DeviceEvent::Motion { axis: 1, value: delta_y };
+                    let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
+                    events.push_back(event);
+                }
+
+                let event = events.pop_front();
+                self.shared.pending_events.lock().unwrap().extend(events.into_iter());
+                event
             },
 
             appkit::NSScrollWheel => {

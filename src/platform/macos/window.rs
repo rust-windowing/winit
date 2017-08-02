@@ -523,6 +523,7 @@ impl Window {
                 Ok(())
             },
             CursorState::Grab => {
+                let _: () = unsafe { msg_send![cls, hide] };
                 let _: i32 = unsafe { CGAssociateMouseAndMouseCursorPosition(false) };
                 Ok(())
             }
