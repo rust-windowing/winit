@@ -1,3 +1,105 @@
+//! This is the coroutine-based `Runloop` implementation. See `runloop.rs` for the simple blocking
+//! `Runloop` implementation.
+//!
+//! ## Structure
+//!
+//! The basic `Runloop` does everything in `Runloop`. The `context`-enabled version moves those
+//! functions to `InnerRunloop`, and it adds a `Runloop` with the same public interface whose
+//! purpose is to start an `InnerRunloop` coroutine and context switch into it as needed.
+//!
+//! ## Entering the coroutine
+//!
+//! After initialization in `Runloop::new()`, `Runloop::work()` is the only place where the main
+//! thread context switches into the `InnerRunloop` coroutine.
+//!
+//! `Runloop::work()` is called only by `EventLoop::get_event()`. Whatever invariants about the main
+//! thread are true at that point remain true for the entire duration of the inner runloop. For
+//! example, we know that the main thread is not holding locks inside `Shared`, so the coroutine can
+//! acquire and release locks on `Shared` without deadlocking on the main thread.
+//!
+//! `Runloop::work()` checks the `NSThread`'s identity to ensure that the coroutine can only be
+//! resumed from the main thread.
+//!
+//! ## Moving data into the coroutine
+//!
+//! The initial call into the coroutine entrypoint needs to bring an `InnerRunloop`, and all
+//! subsequent calls into the coroutine bring a `Timeout`. The strategy here is to accomplish this
+//! by combining three properties:
+//!
+//! * `context` can carry a `data: usize` along during a context switch.
+//! * When execution is transferred into a coroutine, the caller stops running until execution
+//!   transfers back.
+//! * `Option::take()` moves a value out of the `Option`.
+//!
+//! Put together, this means the caller can declare a local `Option`, pass a `&mut` of it into the
+//! coroutine, and the coroutine can safely `.take()` its value. Again, there's no concurrency at
+//! work -- everything executes sequentially -- so we can guarantee that there's only one mutable
+//! borrow to the caller's `Option`.
+//!
+//! Actually doing this via a `usize` uses `&mut` as `*mut` as `usize` on the way down, and then
+//! `usize` as `*mut` transmute `&mut` on the way up. One could transmute straight to and from
+//! `usize`, but casting all the way through preserves symmetry.
+//!
+//! Calls into the coroutine look like:
+//!
+//! ```ignore
+//! // caller
+//! let mut input: Option<Foo> = Some(Foo);
+//! context.resume(&mut input as *mut Option<Foo> as usize);
+//!
+//!         // coroutine's resume() returns, holding the &mut Option
+//!         let t: context::Transfer = context.resume( /* … */ );
+//!         let input: *mut Option<Foo> = t.data as *mut Option<Foo>;
+//!         let input: &mut Option<Foo> = mem::transmute(input);
+//!         let input: Foo = input.take().unwrap();
+//!         // input is now moved to the coroutine
+//!         // coroutine eventually returns to the caller
+//!         t.context.resume( /* … */ );
+//!
+//! // caller's context.resume() returns
+//! // input = None, since the value was taken by the coroutine
+//! ```
+//!
+//! ## Inside the coroutine
+//!
+//! `yield_to_caller()` is the place where the coroutine context switches back to `Runloop::work()`,
+//! and it is therefore also the place where the coroutine resumes.
+//!
+//! `yield_to_caller()` sets a thread local cell containing the caller's context when execution
+//! switched into the coroutine, and it moves the context out of that cell before it switches back.
+//! If that cell is full, then we are currently inside the coroutine; if that cell is empty, then we
+//! are not.
+//!
+//! `yield_to_caller()` also sets a thread local cell containing the caller's `Timeout`, which can
+//! be retrieved by `fn current_timeout() -> Option<Timeout>`. The inner runloop uses this when
+//! asking Cocoa to receive an event.
+//!
+//! The coroutine's `InnerRunloop` looks very much like the normal blocking `Runloop`. It tries to
+//! receive an event from Cocoa, forwards it back to Cocoa, translates it into zero or more
+//! `Event`s, and posts them to the queue.
+//!
+//! ## Exiting the coroutine
+//!
+//! `Shared::enqueue_event()` enqueues the event and then tries to wake the runloop, and the
+//! coroutine version of `Runloop:::wake()` calls `yield_to_caller()`. This means that if we enqueue
+//! an event from inside the coroutine -- for example, from the normal inner runloop or because a
+//! Cocoa callback posted an event -- then execution immediately returns to
+//! `EventLoop::get_event()`, which checks `Shared`'s event queue, finds an event, and returns it to
+//! its caller.
+//!
+//! If `Runloop::wake()` finds that its caller is _not_ inside the coroutine -- for example, because
+//! it's on a different thread calling `Proxy::wakeup()` -- it uses `libdispatch` to enqueues a
+//! block on the main thread that calls `yield_to_caller()`, then uses `CFRunLoopWakeUp()` to wake
+//! the thread in case it was sleeping. The system runloop will then check its dispatch queue, run
+//! the block, and thus yield control of the main thread, even if we're stuck inside someone else's
+//! runloop.
+//!
+//! Additionally, if the coroutine is invoked with `Timeout::Now`, it calls
+//! `guard_against_lengthy_operations()` which enqueues a block for execution in the very near
+//! future, i.e. a couple milliseconds. This puts an upper bound on how long the coroutine will run
+//! after a caller has specified `Timeout::Now`.
+
+
 use std::cell::Cell;
 use std::mem;
 use std::sync::Weak;

@@ -1,3 +1,26 @@
+//! The MacOS event loop has a few components:
+//!
+//! `EventsLoop` is the user-facing object that encapsulates everything events related. It contains
+//! a `Shared` object which keeps track of windows and contains an internal event queue. It also
+//! contains a `Runloop` whose job is to interface with MacOS X, use the `nsevent` module to
+//! translate Cocoa events into Winit events, and to deliver events to the `Shared` event queue.
+//!
+//! `Runloop` exposes three functions:
+//!
+//! * `Runloop::new(shared: Weak<Shared>) -> Runloop` to create a new `Runloop`
+//! * `Runloop::work(&mut self, Timeout)` to drive the runloop either for one cycle or for the
+//!   specified `Timeout`, whichever comes first
+//! * `Runloop::wake()` to wake up the runloop as quickly as possible
+//!
+//! There are two `Runloop` implementations: one which operates in a straighforward blocking manner,
+//! and a second which runs in a coroutine.
+//!
+//! The coroutine-based runloop is necessary because Cocoa event processing can trigger internal
+//! runloops, for example during a resize operation. The blocking `Runloop` cannot return from an
+//! inner runloop even if it knows its timeout has expired, whereas the coroutine `Runloop` can
+//! suspend itself from any configuration and return to the caller. For additional discussion, see
+//! [tomaka/winit#219](https://github.com/tomaka/winit/issues/219#issuecomment-315830359).
+
 use {ControlFlow, EventsLoopClosed};
 use events::Event;
 use std::collections::VecDeque;
