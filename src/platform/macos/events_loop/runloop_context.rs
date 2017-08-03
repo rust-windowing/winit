@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::mem;
 use std::sync::Weak;
+use std::sync::atomic::{AtomicUsize,ATOMIC_USIZE_INIT,Ordering};
 use context;
 use core_foundation;
 use cocoa;
@@ -8,7 +9,6 @@ use dispatch;
 
 use super::{Shared,Timeout};
 use super::nsevent;
-use super::timer::Timer;
 
 const STACK_SIZE: usize = 512 * 1024;
 
@@ -19,9 +19,6 @@ const STACK_SIZE: usize = 512 * 1024;
 pub struct Runloop {
     _stack: context::stack::ProtectedFixedSizeStack,
     ctx: Option<context::Context>,
-
-    // Hang onto a timer that goes off every few milliseconds
-    _timer: Timer,
 }
 
 impl Runloop {
@@ -46,7 +43,6 @@ impl Runloop {
         Runloop{
             _stack: stack,
             ctx: Some(result.context),
-            _timer: Timer::new(0.005),
         }
     }
 
@@ -157,6 +153,12 @@ fn yield_to_caller() -> bool {
             unsafe { mem::transmute::<*mut Option<_>, &mut Option<_>>(timeout) }
                 .take();
 
+        // Does the caller want their thread back soon?
+        if timeout == Some(Timeout::Now) {
+            // Try to ensure we'll yield again soon, regardless of what happens inside Cocoa
+            guard_against_lengthy_operations();
+        }
+
         // Store the new values in the thread local cells until we yield back
         INSIDE_INNER_RUNLOOP_CONTEXT.with(move |context_cell| {
             context_cell.set(context);
@@ -169,6 +171,32 @@ fn yield_to_caller() -> bool {
     } else {
         false
     }
+}
+
+
+fn guard_against_lengthy_operations() {
+    // Schedule a block to run in the near future, just in case
+    // We can get called repeatedly, and we only want the most recent call to matter, so keep track
+    // using an atomic counter
+    static INVOCATIONS: AtomicUsize = ATOMIC_USIZE_INIT;
+
+    // Get the current value of the counter, and increment it
+    let this_invocation = INVOCATIONS.fetch_add(1, Ordering::SeqCst);
+
+    // Queue a block in two milliseconds
+    dispatch::Queue::main().after_ms(2, move || {
+        // Get the most recent invocation, which is one before the current value of the counter
+        let current_counter = INVOCATIONS.load(Ordering::Acquire);
+        let (most_recent_invocation, _) = current_counter.overflowing_sub(1);
+
+        // Are we the most recent call?
+        if most_recent_invocation == this_invocation {
+            yield_to_caller();
+        } else {
+            // We have already yielded and returned
+            // Do nothing
+        }
+    });
 }
 
 pub struct InnerRunloop {

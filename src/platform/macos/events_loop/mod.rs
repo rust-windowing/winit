@@ -15,10 +15,6 @@ mod runloop;
 #[path="runloop_context.rs"]
 mod runloop;
 
-// NSTimer wrapper, needed only for coroutine-baesd runloop
-#[cfg(feature="context")]
-mod timer;
-
 use self::runloop::Runloop;
 
 pub struct EventsLoop {
