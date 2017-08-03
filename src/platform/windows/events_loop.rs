@@ -271,7 +271,7 @@ lazy_static! {
     // WPARAM and LPARAM are unused.
     static ref WAKEUP_MSG_ID: u32 = {
         unsafe {
-            user32::RegisterWindowMessageA("Winit::WakeupMsg".as_ptr() as *const i8)
+            user32::RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr() as *const i8)
         }
     };
     // Message sent when we want to execute a closure in the thread.
@@ -279,7 +279,7 @@ lazy_static! {
     // and LPARAM is unused.
     static ref EXEC_MSG_ID: u32 = {
         unsafe {
-            user32::RegisterWindowMessageA("Winit::ExecMsg".as_ptr() as *const i8)
+            user32::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as *const i8)
         }
     };
     // Message sent when the parent thread receives a resize event and wants this thread to use any
