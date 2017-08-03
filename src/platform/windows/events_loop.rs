@@ -22,6 +22,7 @@ use std::ptr;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::Barrier;
 use std::thread;
 
 use kernel32;
@@ -78,22 +79,28 @@ pub struct EventsLoop {
     thread_id: winapi::DWORD,
     // Receiver for the events. The sender is in the background thread.
     receiver: mpsc::Receiver<Event>,
+    // Barrier used to unblock the event loop thread after a resize event is processed.
+    resize_barrier: Arc<Barrier>
 }
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
         // The main events transfer channel.
         let (tx, rx) = mpsc::channel();
+        let resize_barrier = Arc::new(Barrier::new(2));
+        let resize_barrier_child = resize_barrier.clone();
 
         // Local channel in order to block the `new()` function until the background thread has
         // an events queue.
         let (local_block_tx, local_block_rx) = mpsc::channel();
 
-        let thread = thread::spawn(move || {    
+        let thread = thread::spawn(move || {
             CONTEXT_STASH.with(|context_stash| {
                 *context_stash.borrow_mut() = Some(ThreadLocalData {
                     sender: tx,
                     windows: HashMap::with_capacity(4),
+                    resize_barrier: resize_barrier_child,
+                    deferred_waits: 0
                 });
             });
 
@@ -123,6 +130,15 @@ impl EventsLoop {
                         x if x == *WAKEUP_MSG_ID => {
                             send_event(Event::Awakened);
                         },
+                        x if x == *USE_WAIT_ID => CONTEXT_STASH.with(|context_stash| {
+                            let mut context_stash = context_stash.borrow_mut();
+                            let cstash = context_stash.as_mut().unwrap();
+                            // Run a deferred wait
+                            if cstash.deferred_waits > 0 {
+                                cstash.deferred_waits -= 1;
+                                cstash.resize_barrier.wait();
+                            }
+                        }),
                         _ => {
                             // Calls `callback` below.
                             user32::TranslateMessage(&msg);
@@ -139,6 +155,7 @@ impl EventsLoop {
         EventsLoop {
             thread_id: unsafe { kernel32::GetThreadId(thread.as_raw_handle()) },
             receiver: rx,
+            resize_barrier: resize_barrier
         }
     }
 
@@ -150,8 +167,12 @@ impl EventsLoop {
                 Ok(e) => e,
                 Err(_) => return
             };
+            let is_resize = event_is_resize(&event);
 
             callback(event);
+            if is_resize {
+                self.sync_with_thread();
+            }
         }
     }
 
@@ -163,8 +184,12 @@ impl EventsLoop {
                 Ok(e) => e,
                 Err(_) => return
             };
+            let is_resize = event_is_resize(&event);
 
             let flow = callback(event);
+            if is_resize {
+                self.sync_with_thread();
+            }
             match flow {
                 ControlFlow::Continue => continue,
                 ControlFlow::Break => break,
@@ -176,6 +201,12 @@ impl EventsLoop {
         EventsLoopProxy {
             thread_id: self.thread_id,
         }
+    }
+
+    fn sync_with_thread(&self) {
+        let res = unsafe{ user32::PostThreadMessageA(self.thread_id, *USE_WAIT_ID, 0, 0) };
+        self.resize_barrier.wait();
+        assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
     }
 
     /// Executes a function in the background thread.
@@ -251,6 +282,13 @@ lazy_static! {
             user32::RegisterWindowMessageA("Winit::ExecMsg".as_ptr() as *const i8)
         }
     };
+    // Message sent when the parent thread receives a resize event and wants this thread to use any
+    // deferred waits it may have.
+    static ref USE_WAIT_ID: u32 = {
+        unsafe {
+            user32::RegisterWindowMessageA("Winit::UseWait\0".as_ptr() as *const i8)
+        }
+    };
 }
 
 // There's no parameters passed to the callback function, so it needs to get its context stashed
@@ -259,12 +297,22 @@ thread_local!(static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::
 struct ThreadLocalData {
     sender: mpsc::Sender<Event>,
     windows: HashMap<winapi::HWND, Arc<Mutex<WindowState>>>,
+    resize_barrier: Arc<Barrier>,
+    deferred_waits: u32
+}
+
+fn event_is_resize(event: &Event) -> bool {
+    match *event {
+        Event::WindowEvent{ event: WindowEvent::Resized(..), .. } => true,
+        _ => false
+    }
 }
 
 // Utility function that dispatches an event on the current thread.
 fn send_event(event: Event) {
     CONTEXT_STASH.with(|context_stash| {
         let context_stash = context_stash.borrow();
+
         let _ = context_stash.as_ref().unwrap().sender.send(event);   // Ignoring if closed
     });
 }
@@ -305,6 +353,22 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Resized(w, h),
+            });
+
+            // Wait for the parent thread to process the resize event before returning from the
+            // callback.
+            CONTEXT_STASH.with(|context_stash| {
+                let mut context_stash = context_stash.borrow_mut();
+                let cstash = context_stash.as_mut().unwrap();
+
+                if cstash.windows.get(&window).is_some() {
+                    cstash.resize_barrier.wait();
+                } else {
+                    // If the window isn't in the hashmap, this is the resize event that was sent
+                    // upon window creation. The parent thread isn't going to wait until the event
+                    // loop, so record that a wait must happen when the event loop is reached.
+                    cstash.deferred_waits += 1;
+                }
             });
             0
         },
