@@ -159,11 +159,17 @@ impl EventsLoop {
                 Ok(e) => e,
                 Err(_) => return
             };
-            let is_resize = event_is_resize(&event);
+            let is_resize = match event {
+                Event::WindowEvent{ event: WindowEvent::Resized(..), .. } => true,
+                _ => false
+            };
 
             callback(event);
             if is_resize {
-                self.sync_with_thread();
+                let (ref mutex, ref cvar) = *self.win32_block_loop;
+                let mut block_thread = mutex.lock().unwrap();
+                *block_thread = false;
+                cvar.notify_all();
             }
         }
     }
@@ -176,11 +182,17 @@ impl EventsLoop {
                 Ok(e) => e,
                 Err(_) => return
             };
-            let is_resize = event_is_resize(&event);
+            let is_resize = match event {
+                Event::WindowEvent{ event: WindowEvent::Resized(..), .. } => true,
+                _ => false
+            };
 
             let flow = callback(event);
             if is_resize {
-                self.sync_with_thread();
+                let (ref mutex, ref cvar) = *self.win32_block_loop;
+                let mut block_thread = mutex.lock().unwrap();
+                *block_thread = false;
+                cvar.notify_all();
             }
             match flow {
                 ControlFlow::Continue => continue,
@@ -193,13 +205,6 @@ impl EventsLoop {
         EventsLoopProxy {
             thread_id: self.thread_id,
         }
-    }
-
-    fn sync_with_thread(&self) {
-        let (ref mutex, ref cvar) = *self.win32_block_loop;
-        let mut block_thread = mutex.lock().unwrap();
-        *block_thread = false;
-        cvar.notify_all();
     }
 
     /// Executes a function in the background thread.
@@ -286,13 +291,6 @@ struct ThreadLocalData {
     win32_block_loop: Arc<(Mutex<bool>, Condvar)>
 }
 
-fn event_is_resize(event: &Event) -> bool {
-    match *event {
-        Event::WindowEvent{ event: WindowEvent::Resized(..), .. } => true,
-        _ => false
-    }
-}
-
 // Utility function that dispatches an event on the current thread.
 fn send_event(event: Event) {
     CONTEXT_STASH.with(|context_stash| {
@@ -335,16 +333,17 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::WindowEvent::Resized;
             let w = winapi::LOWORD(lparam as winapi::DWORD) as u32;
             let h = winapi::HIWORD(lparam as winapi::DWORD) as u32;
-            send_event(Event::WindowEvent {
-                window_id: SuperWindowId(WindowId(window)),
-                event: Resized(w, h),
-            });
 
             // Wait for the parent thread to process the resize event before returning from the
             // callback.
             CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
                 let cstash = context_stash.as_mut().unwrap();
+
+                let event = Event::WindowEvent {
+                    window_id: SuperWindowId(WindowId(window)),
+                    event: Resized(w, h),
+                };
 
                 // If this window has been inserted into the window map, the resize event happened
                 // during the event loop. If it hasn't, the event happened on window creation and
@@ -353,9 +352,16 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                     let (ref mutex, ref cvar) = *cstash.win32_block_loop;
                     let mut block_thread = mutex.lock().unwrap();
                     *block_thread = true;
+
+                    // The event needs to be sent after the lock to ensure that `notify_all` is
+                    // called after `wait`.
+                    cstash.sender.send(event).ok();
+
                     while *block_thread {
                         block_thread = cvar.wait(block_thread).unwrap();
                     }
+                } else {
+                    cstash.sender.send(event).ok();
                 }
             });
             0
