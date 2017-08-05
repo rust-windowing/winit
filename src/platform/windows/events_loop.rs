@@ -1,12 +1,12 @@
 //! An events loop on Win32 is a background thread.
-//! 
+//!
 //! Creating an events loop spawns a thread and blocks it in a permanent Win32 events loop.
 //! Destroying the events loop stops the thread.
-//! 
+//!
 //! You can use the `execute_in_thread` method to execute some code in the background thread.
 //! Since Win32 requires you to create a window in the right thread, you must use this method
 //! to create a window.
-//! 
+//!
 //! If you create a window whose class is set to `callback`, the window's events will be
 //! propagated with `run_forever` and `poll_events`.
 //! The closure passed to the `execute_in_thread` method takes an `Inserter` that you can use to
@@ -22,6 +22,7 @@ use std::ptr;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::Condvar;
 use std::thread;
 
 use kernel32;
@@ -78,22 +79,29 @@ pub struct EventsLoop {
     thread_id: winapi::DWORD,
     // Receiver for the events. The sender is in the background thread.
     receiver: mpsc::Receiver<Event>,
+    // Variable that contains the block state of the win32 event loop thread during a WM_SIZE event.
+    // The mutex's value is `true` when it's blocked, and should be set to false when it's done
+    // blocking. That's done by the parent thread when it receives a Resized event.
+    win32_block_loop: Arc<(Mutex<bool>, Condvar)>
 }
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
         // The main events transfer channel.
         let (tx, rx) = mpsc::channel();
+        let win32_block_loop = Arc::new((Mutex::new(false), Condvar::new()));
+        let win32_block_loop_child = win32_block_loop.clone();
 
         // Local channel in order to block the `new()` function until the background thread has
         // an events queue.
         let (local_block_tx, local_block_rx) = mpsc::channel();
 
-        let thread = thread::spawn(move || {    
+        let thread = thread::spawn(move || {
             CONTEXT_STASH.with(|context_stash| {
                 *context_stash.borrow_mut() = Some(ThreadLocalData {
                     sender: tx,
                     windows: HashMap::with_capacity(4),
+                    win32_block_loop: win32_block_loop_child
                 });
             });
 
@@ -139,6 +147,7 @@ impl EventsLoop {
         EventsLoop {
             thread_id: unsafe { kernel32::GetThreadId(thread.as_raw_handle()) },
             receiver: rx,
+            win32_block_loop
         }
     }
 
@@ -150,8 +159,18 @@ impl EventsLoop {
                 Ok(e) => e,
                 Err(_) => return
             };
+            let is_resize = match event {
+                Event::WindowEvent{ event: WindowEvent::Resized(..), .. } => true,
+                _ => false
+            };
 
             callback(event);
+            if is_resize {
+                let (ref mutex, ref cvar) = *self.win32_block_loop;
+                let mut block_thread = mutex.lock().unwrap();
+                *block_thread = false;
+                cvar.notify_all();
+            }
         }
     }
 
@@ -163,8 +182,18 @@ impl EventsLoop {
                 Ok(e) => e,
                 Err(_) => return
             };
+            let is_resize = match event {
+                Event::WindowEvent{ event: WindowEvent::Resized(..), .. } => true,
+                _ => false
+            };
 
             let flow = callback(event);
+            if is_resize {
+                let (ref mutex, ref cvar) = *self.win32_block_loop;
+                let mut block_thread = mutex.lock().unwrap();
+                *block_thread = false;
+                cvar.notify_all();
+            }
             match flow {
                 ControlFlow::Continue => continue,
                 ControlFlow::Break => break,
@@ -240,7 +269,7 @@ lazy_static! {
     // WPARAM and LPARAM are unused.
     static ref WAKEUP_MSG_ID: u32 = {
         unsafe {
-            user32::RegisterWindowMessageA("Winit::WakeupMsg".as_ptr() as *const i8)
+            user32::RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr() as *const i8)
         }
     };
     // Message sent when we want to execute a closure in the thread.
@@ -248,7 +277,7 @@ lazy_static! {
     // and LPARAM is unused.
     static ref EXEC_MSG_ID: u32 = {
         unsafe {
-            user32::RegisterWindowMessageA("Winit::ExecMsg".as_ptr() as *const i8)
+            user32::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as *const i8)
         }
     };
 }
@@ -259,12 +288,14 @@ thread_local!(static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::
 struct ThreadLocalData {
     sender: mpsc::Sender<Event>,
     windows: HashMap<winapi::HWND, Arc<Mutex<WindowState>>>,
+    win32_block_loop: Arc<(Mutex<bool>, Condvar)>
 }
 
 // Utility function that dispatches an event on the current thread.
 fn send_event(event: Event) {
     CONTEXT_STASH.with(|context_stash| {
         let context_stash = context_stash.borrow();
+
         let _ = context_stash.as_ref().unwrap().sender.send(event);   // Ignoring if closed
     });
 }
@@ -302,9 +333,36 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::WindowEvent::Resized;
             let w = winapi::LOWORD(lparam as winapi::DWORD) as u32;
             let h = winapi::HIWORD(lparam as winapi::DWORD) as u32;
-            send_event(Event::WindowEvent {
-                window_id: SuperWindowId(WindowId(window)),
-                event: Resized(w, h),
+
+            // Wait for the parent thread to process the resize event before returning from the
+            // callback.
+            CONTEXT_STASH.with(|context_stash| {
+                let mut context_stash = context_stash.borrow_mut();
+                let cstash = context_stash.as_mut().unwrap();
+
+                let event = Event::WindowEvent {
+                    window_id: SuperWindowId(WindowId(window)),
+                    event: Resized(w, h),
+                };
+
+                // If this window has been inserted into the window map, the resize event happened
+                // during the event loop. If it hasn't, the event happened on window creation and
+                // should be ignored.
+                if cstash.windows.get(&window).is_some() {
+                    let (ref mutex, ref cvar) = *cstash.win32_block_loop;
+                    let mut block_thread = mutex.lock().unwrap();
+                    *block_thread = true;
+
+                    // The event needs to be sent after the lock to ensure that `notify_all` is
+                    // called after `wait`.
+                    cstash.sender.send(event).ok();
+
+                    while *block_thread {
+                        block_thread = cvar.wait(block_thread).unwrap();
+                    }
+                } else {
+                    cstash.sender.send(event).ok();
+                }
             });
             0
         },
@@ -361,7 +419,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                     window_id: SuperWindowId(WindowId(window)),
                     event: MouseEntered { device_id: DEVICE_ID },
                 });
-                
+
                 // Calling TrackMouseEvent in order to receive mouse leave events.
                 user32::TrackMouseEvent(&mut winapi::TRACKMOUSEEVENT {
                     cbSize: mem::size_of::<winapi::TRACKMOUSEEVENT>() as winapi::DWORD,
@@ -548,7 +606,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Other;
             use events::ElementState::Released;
-            let xbutton = winapi::HIWORD(wparam as winapi::DWORD) as winapi::c_int; 
+            let xbutton = winapi::HIWORD(wparam as winapi::DWORD) as winapi::c_int;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Other(xbutton as u8) }
@@ -638,7 +696,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
             if call_def_window_proc {
                 user32::DefWindowProcW(window, msg, wparam, lparam)
-            } else {    
+            } else {
                 0
             }
         },
