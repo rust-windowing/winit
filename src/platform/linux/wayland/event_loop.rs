@@ -643,6 +643,7 @@ impl wl_keyboard::Handler for InputHandler {
                             repeat: false,
                             is_composing: false,
                         },
+                        keycode: 0
                     },
                     wid
                 );

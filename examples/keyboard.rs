@@ -5,7 +5,7 @@ use winit::{ControlFlow, WindowEvent};
 
 use keyboard_types::*;
 
-fn print_line(type_: &'static str, key: Option<Key>, is_composing: bool, data: Option<String>) {
+fn print_line(type_: &'static str, key: Option<Key>, is_composing: bool, data: Option<String>, keycode: u32) {
     let composing_string = if (&key).is_some() {
         format!("{:?}", is_composing)
     } else {
@@ -16,7 +16,7 @@ fn print_line(type_: &'static str, key: Option<Key>, is_composing: bool, data: O
         Some(Key::Character(s)) => s,
         Some(k) => format!("{:?}", k),
     };
-    println!("{:<20} {:<15} {:<5}  {}", type_, key_string, composing_string, data.unwrap_or(String::new()))
+    println!("{:<20} {:<15} {:<5}  {:<5} {}", type_, key_string, composing_string, data.unwrap_or(String::new()), keycode)
 }
 
 fn process_event(event: WindowEvent) -> ControlFlow {
@@ -24,13 +24,13 @@ fn process_event(event: WindowEvent) -> ControlFlow {
         WindowEvent::Closed => {
             return ControlFlow::Break;
         }
-        WindowEvent::KeyboardInput { input, .. } => {
+        WindowEvent::KeyboardInput { input, keycode, .. } => {
             let state = match input.state {
                 KeyState::Down if !input.repeat => "keydown",
                 KeyState::Down => "keydown (rep)",
                 KeyState::Up => "keyup",
             };
-            print_line(state, Some(input.key), input.is_composing, None);
+            print_line(state, Some(input.key), input.is_composing, None, keycode);
         }
         WindowEvent::CompositionInput { input, .. } => {
             let state = match input.state {
@@ -38,7 +38,7 @@ fn process_event(event: WindowEvent) -> ControlFlow {
                 CompositionState::Update => "compositionupdate",
                 CompositionState::End => "compositionend",
             };
-            print_line(state, None, false, Some(input.data));
+            print_line(state, None, false, Some(input.data), 0);
         }
         WindowEvent::ReceivedCharacter(c) => {
             println!("{:<20} {}", "char", c);

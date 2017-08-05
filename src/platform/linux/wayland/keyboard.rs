@@ -49,6 +49,7 @@ impl wayland_kbd::Handler for KbdHandler {
                         repeat: false,
                         is_composing: false,
                     },
+                    keycode: 0
                 },
                 wid
             );

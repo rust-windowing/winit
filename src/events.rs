@@ -40,7 +40,7 @@ pub enum WindowEvent {
     Focused(bool),
 
     /// An event from the keyboard has been received.
-    KeyboardInput { device_id: DeviceId, input: KeyEvent },
+    KeyboardInput { device_id: DeviceId, input: KeyEvent, keycode: ScanCode },
 
     CompositionInput { device_id: DeviceId, input: CompositionEvent },
 

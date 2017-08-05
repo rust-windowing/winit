@@ -278,6 +278,7 @@ impl EventsLoop {
                     callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
                         device_id: mkdid(3),
                         input: key_event,
+                        keycode: xkev.keycode,
                     }});
                     callback(Event::WindowEvent { window_id: wid, event: WindowEvent::CompositionInput {
                         device_id,
@@ -301,6 +302,7 @@ impl EventsLoop {
                     callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
                         device_id: mkdid(3),
                         input: key_event,
+                        keycode: xkev.keycode,
                     }});
                     if !filter_event {
                         // composing character created, session successful
@@ -340,12 +342,14 @@ impl EventsLoop {
                     callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
                         device_id: mkdid(3),
                         input: key_event,
+                        keycode: xkev.keycode,
                     }});
                 } else {
                     // no composing event
                     callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
                         device_id: mkdid(3),
                         input: key_event,
+                        keycode: xkev.keycode
                     }});
                 }
 
