@@ -1,6 +1,7 @@
 use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase, ModifiersState,
      KeyboardInput, EventsLoopClosed, ControlFlow};
 
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{self, AtomicBool};
 
@@ -31,10 +32,13 @@ pub struct EventsLoopSink {
 unsafe impl Send for EventsLoopSink { }
 
 impl EventsLoopSink {
-    pub fn new() -> EventsLoopSink {
-        EventsLoopSink {
-            callback: Box::new(|_| {}),
-        }
+    pub fn new() -> (EventsLoopSink, Arc<Mutex<VecDeque<::Event>>>) {
+        let buffer = Arc::new(Mutex::new(VecDeque::new()));
+        let buffer_clone = buffer.clone();
+        let sink = EventsLoopSink {
+            callback: Box::new(move |evt| { println!("TEMP: {:?}", evt); buffer.lock().unwrap().push_back(evt)}),
+        };
+        (sink, buffer_clone)
     }
 
     pub fn send_event(&mut self, evt: ::WindowEvent, wid: WindowId) {
@@ -70,6 +74,9 @@ pub struct EventsLoop {
     decorated_ids: Mutex<Vec<(usize, Arc<wl_surface::WlSurface>)>>,
     // our sink, receiver of callbacks, shared with some handlers
     sink: Arc<Mutex<EventsLoopSink>>,
+    // a buffer in which events that were dispatched internally are stored
+    // until the user next dispatches events
+    buffer: Arc<Mutex<VecDeque<::Event>>>,
     // trigger cleanup of the dead surfaces
     cleanup_needed: Arc<AtomicBool>,
     // Whether or not there is a pending `Awakened` event to be emitted.
@@ -109,13 +116,15 @@ impl EventsLoopProxy {
 impl EventsLoop {
     pub fn new(ctxt: Arc<WaylandContext>) -> EventsLoop {
         let mut evq = ctxt.display.create_event_queue();
-        let sink = Arc::new(Mutex::new(EventsLoopSink::new()));
+        let (sink, buffer) = EventsLoopSink::new();
+        let sink = Arc::new(Mutex::new(sink));
         let hid = evq.add_handler_with_init(InputHandler::new(&ctxt, sink.clone()));
         EventsLoop {
             ctxt: ctxt,
             evq: Arc::new(Mutex::new(evq)),
             decorated_ids: Mutex::new(Vec::new()),
             sink: sink,
+            buffer: buffer,
             pending_wakeup: Arc::new(AtomicBool::new(false)),
             cleanup_needed: Arc::new(AtomicBool::new(false)),
             hid: hid
@@ -135,6 +144,10 @@ impl EventsLoop {
     }
 
     pub fn register_window(&self, decorated_id: usize, surface: Arc<wl_surface::WlSurface>) {
+        self.buffer.lock().unwrap().push_back(::Event::WindowEvent {
+            window_id: ::WindowId(::platform::WindowId::Wayland(make_wid(&surface))),
+            event: ::WindowEvent::Refresh
+        });
         self.decorated_ids.lock().unwrap().push((decorated_id, surface.clone()));
         let mut guard = self.evq.lock().unwrap();
         let mut state = guard.state();
@@ -180,7 +193,14 @@ impl EventsLoop {
         }
     }
 
-    pub fn poll_events<F>(&mut self, callback: F)
+    fn empty_buffer<F>(&self, callback: &mut F) where F: FnMut(::Event) {
+        let mut guard = self.buffer.lock().unwrap();
+        for evt in guard.drain(..) {
+            callback(evt)
+        }
+    }
+
+    pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(::Event)
     {
         // send pending requests to the server...
@@ -188,6 +208,9 @@ impl EventsLoop {
 
         // first of all, get exclusive access to this event queue
         let mut evq_guard = self.evq.lock().unwrap();
+
+        // dispatch pre-buffered events
+        self.empty_buffer(&mut callback);
 
         // read some events from the socket if some are waiting & queue is empty
         if let Some(guard) = evq_guard.prepare_read() {
@@ -235,9 +258,12 @@ impl EventsLoop {
 
         // Check for control flow by wrapping the callback.
         let control_flow = ::std::cell::Cell::new(ControlFlow::Continue);
-        let callback = |event| if let ControlFlow::Break = callback(event) {
+        let mut callback = |event| if let ControlFlow::Break = callback(event) {
             control_flow.set(ControlFlow::Break);
         };
+
+        // dispatch pre-buffered events
+        self.empty_buffer(&mut callback);
 
         // set the callback into the sink
         // we extend the lifetime of the closure to 'static to be able to put it in
