@@ -30,7 +30,6 @@ use super::events_loop::Shared;
 pub struct Id(pub usize);
 
 struct DelegateState {
-    view: IdRef,
     window: IdRef,
     shared: Weak<Shared>,
 }
@@ -60,7 +59,7 @@ impl WindowDelegate {
 
         // Called when the window is resized or when the window was moved to a different screen.
         unsafe fn emit_resize_event(state: &mut DelegateState) {
-            let rect = NSView::frame(*state.view);
+            let rect = NSView::frame(NSWindow::contentView(*state.window));
             let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
             let width = (scale_factor * rect.size.width as f32) as u32;
             let height = (scale_factor * rect.size.height as f32) as u32;
@@ -178,7 +177,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 }
 
 pub struct Window {
-    pub view: IdRef,
     pub window: IdRef,
     pub delegate: WindowDelegate,
 }
@@ -212,7 +210,9 @@ impl WindowExt for Window {
 
     #[inline]
     fn get_nsview(&self) -> *mut c_void {
-        *self.view as *mut c_void
+        unsafe {
+            NSWindow::contentView(*self.window) as *mut c_void
+        }
     }
 }
 
@@ -238,10 +238,9 @@ impl Window {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
-        let view = match Window::create_view(*window) {
-            Some(view) => view,
-            None       => { return Err(OsError(format!("Couldn't create NSView"))); },
-        };
+        if Window::create_view(*window).is_none() {
+            return Err(OsError(format!("Couldn't create NSView")));
+        }
 
         unsafe {
             if win_attribs.transparent {
@@ -266,13 +265,11 @@ impl Window {
         }
 
         let ds = DelegateState {
-            view: view.clone(),
             window: window.clone(),
             shared: shared,
         };
 
         let window = Window {
-            view: view,
             window: window,
             delegate: WindowDelegate::new(ds),
         };
@@ -419,7 +416,7 @@ impl Window {
 
     pub fn set_position(&self, x: i32, y: i32) {
         unsafe {
-            let frame = NSWindow::frame(*self.view);
+            let frame = NSWindow::frame(NSWindow::contentView(*self.window));
 
             // NOTE: `setFrameOrigin` might not give desirable results when
             // setting window, as it treats bottom left as origin.
@@ -440,7 +437,7 @@ impl Window {
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         unsafe {
-            let view_frame = NSView::frame(*self.view);
+            let view_frame = NSView::frame(NSWindow::contentView(*self.window));
             Some((view_frame.size.width as u32, view_frame.size.height as u32))
         }
     }
