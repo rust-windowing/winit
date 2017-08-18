@@ -103,7 +103,8 @@
 use std::cell::Cell;
 use std::mem;
 use std::sync::Weak;
-use std::sync::atomic::{AtomicUsize,ATOMIC_USIZE_INIT,Ordering};
+use std::sync::atomic::{AtomicBool,ATOMIC_BOOL_INIT,Ordering};
+use std::time::{Instant,Duration};
 use context;
 use core_foundation;
 use cocoa;
@@ -195,6 +196,7 @@ thread_local!{
     // If we are inside the inner runloop, this contains the caller's context and their Timeout
     static INSIDE_INNER_RUNLOOP_CONTEXT: Cell<Option<context::Context>> = Cell::new(None);
     static INSIDE_INNER_RUNLOOP_TIMEOUT: Cell<Option<Timeout>> = Cell::new(None);
+    static INSIDE_INNER_RUNLOOP_ENTERED_AT: Cell<Instant> = Cell::new(Instant::now());
 }
 
 // This is the first function called from inside the coroutine. It must not return.
@@ -255,12 +257,6 @@ fn yield_to_caller() -> bool {
             unsafe { mem::transmute::<*mut Option<_>, &mut Option<_>>(timeout) }
                 .take();
 
-        // Does the caller want their thread back soon?
-        if timeout == Some(Timeout::Now) {
-            // Try to ensure we'll yield again soon, regardless of what happens inside Cocoa
-            guard_against_lengthy_operations();
-        }
-
         // Store the new values in the thread local cells until we yield back
         INSIDE_INNER_RUNLOOP_CONTEXT.with(move |context_cell| {
             context_cell.set(context);
@@ -268,6 +264,15 @@ fn yield_to_caller() -> bool {
         INSIDE_INNER_RUNLOOP_TIMEOUT.with(move |timeout_cell| {
             timeout_cell.set(timeout);
         });
+        INSIDE_INNER_RUNLOOP_ENTERED_AT.with(move |entered_at_cell| {
+            entered_at_cell.set(Instant::now());
+        });
+
+        // Does the caller want their thread back soon?
+        if timeout == Some(Timeout::Now) {
+            // Try to ensure we'll yield again soon, regardless of what happens inside Cocoa
+            guard_against_lengthy_operations();
+        }
 
         true
     } else {
@@ -275,28 +280,39 @@ fn yield_to_caller() -> bool {
     }
 }
 
-
 fn guard_against_lengthy_operations() {
-    // Schedule a block to run in the near future, just in case
-    // We can get called repeatedly, and we only want the most recent call to matter, so keep track
-    // using an atomic counter
-    static INVOCATIONS: AtomicUsize = ATOMIC_USIZE_INIT;
+    // We can get called repeatedly, and we only want a single block in the runloop's execution
+    // queue, so keep track of if there is currently one queued
+    static HAS_BLOCK_QUEUED: AtomicBool = ATOMIC_BOOL_INIT;
 
-    // Get the current value of the counter, and increment it
-    let this_invocation = INVOCATIONS.fetch_add(1, Ordering::SeqCst);
+    // Is there currently a block queued?
+    if HAS_BLOCK_QUEUED.load(Ordering::Acquire) {
+        // Do nothing
+        return;
+    }
 
     // Queue a block in two milliseconds
     dispatch::Queue::main().after_ms(2, move || {
-        // Get the most recent invocation, which is one before the current value of the counter
-        let current_counter = INVOCATIONS.load(Ordering::Acquire);
-        let (most_recent_invocation, _) = current_counter.overflowing_sub(1);
+        // Indicate that there is not currently a block queued
+        HAS_BLOCK_QUEUED.store(false, Ordering::Release);
 
-        // Are we the most recent call?
-        if most_recent_invocation == this_invocation {
-            yield_to_caller();
-        } else {
-            // We have already yielded and returned
-            // Do nothing
+        // Are we in an invocation that's supposed to yield promptly?
+        if current_timeout() == Some(Timeout::Now) {
+            // Figure out when we entered the runloop as compared to now
+            let runloop_entered_at = INSIDE_INNER_RUNLOOP_ENTERED_AT.with(move |entered_at_cell| {
+                entered_at_cell.get()
+            });
+            let duration_since_runloop_entry = runloop_entered_at.elapsed();
+
+            // Did we enter more than one millisecond ago?
+            if duration_since_runloop_entry > Duration::from_millis(1) {
+                // Return, even if this is a bit early
+                yield_to_caller();
+            } else {
+                // We haven't been in the runloop very long
+                // Instead of returning, queue another block for the near future
+                guard_against_lengthy_operations();
+            }
         }
     });
 }
