@@ -116,6 +116,73 @@ impl WindowDelegate {
             }
         }
 
+        /// Invoked when the dragged image enters destination bounds or frame
+        extern fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
+            use cocoa::appkit::NSPasteboard;
+            use cocoa::foundation::NSFastEnumeration;
+            use std::path::PathBuf;
+
+            let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
+            let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+
+            for file in unsafe { filenames.iter() } {
+                use cocoa::foundation::NSString;
+                use std::ffi::CStr;
+
+                unsafe {
+                    let f = NSString::UTF8String(file);
+                    let path = CStr::from_ptr(f).to_string_lossy().into_owned();
+
+                    let state: *mut c_void = *this.get_ivar("winitState");
+                    let state = &mut *(state as *mut DelegateState);
+                    emit_event(state, WindowEvent::HoveredFile(PathBuf::from(path)));
+                }
+            };
+
+            YES
+        }
+
+        /// Invoked when the image is released
+        extern fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) {}
+
+        /// Invoked after the released image has been removed from the screen
+        extern fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
+            use cocoa::appkit::NSPasteboard;
+            use cocoa::foundation::NSFastEnumeration;
+            use std::path::PathBuf;
+
+            let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
+            let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+
+            for file in unsafe { filenames.iter() } {
+                use cocoa::foundation::NSString;
+                use std::ffi::CStr;
+
+                unsafe {
+                    let f = NSString::UTF8String(file);
+                    let path = CStr::from_ptr(f).to_string_lossy().into_owned();
+
+                    let state: *mut c_void = *this.get_ivar("winitState");
+                    let state = &mut *(state as *mut DelegateState);
+                    emit_event(state, WindowEvent::DroppedFile(PathBuf::from(path)));
+                }
+            };
+
+            YES
+        }
+
+        /// Invoked when the dragging operation is complete
+        extern fn conclude_drag_operation(_: &Object, _: Sel, _: id) {}
+
+        /// Invoked when the dragging operation is cancelled
+        extern fn dragging_exited(this: &Object, _: Sel, _: id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+                emit_event(state, WindowEvent::HoveredFileCancelled);
+            }
+        }
+
         static mut DELEGATE_CLASS: *const Class = 0 as *const Class;
         static INIT: std::sync::Once = std::sync::ONCE_INIT;
 
@@ -136,6 +203,18 @@ impl WindowDelegate {
                 window_did_become_key as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidResignKey:),
                 window_did_resign_key as extern fn(&Object, Sel, id));
+
+            // callbacks for drag and drop events
+            decl.add_method(sel!(draggingEntered:),
+                dragging_entered as extern fn(&Object, Sel, id) -> BOOL);
+           decl.add_method(sel!(prepareForDragOperation:),
+                prepare_for_drag_operation as extern fn(&Object, Sel, id));
+           decl.add_method(sel!(performDragOperation:),
+                perform_drag_operation as extern fn(&Object, Sel, id) -> BOOL);
+           decl.add_method(sel!(concludeDragOperation:),
+                conclude_drag_operation as extern fn(&Object, Sel, id));
+           decl.add_method(sel!(draggingExited:),
+                dragging_exited as extern fn(&Object, Sel, id));
 
             // Store internal state as user data
             decl.add_ivar::<*mut c_void>("winitState");
@@ -263,6 +342,11 @@ impl Window {
             if let Some((width, height)) = win_attribs.max_dimensions {
                 nswindow_set_max_dimensions(window.0, width.into(), height.into());
             }
+
+            use cocoa::foundation::NSArray;
+            // register for drag and drop operations.
+            msg_send![(*window as id),
+                registerForDraggedTypes:NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)];
         }
 
         let ds = DelegateState {

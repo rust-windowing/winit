@@ -29,6 +29,12 @@ pub enum WindowEvent {
     /// A file has been dropped into the window.
     DroppedFile(PathBuf),
 
+    /// A file is being hovered over the window.
+    HoveredFile(PathBuf),
+
+    /// A file was hovered, but has exited the window.
+    HoveredFileCancelled,
+
     /// The window received a unicode character.
     ReceivedCharacter(char),
 
