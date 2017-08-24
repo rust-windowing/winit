@@ -272,7 +272,7 @@ pub struct WindowBuilder {
 }
 
 /// Error that can happen while creating a window or a headless renderer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CreationError {
     OsError(String),
     /// TODO: remove this error
