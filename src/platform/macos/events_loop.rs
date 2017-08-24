@@ -6,11 +6,40 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 use super::window::Window;
 use std;
+use libc;
 use super::DeviceId;
+
+extern crate encoding;
+use self::encoding::all::UTF_16LE;
+use self::encoding::Encoding;
+use self::encoding::DecoderTrap;
+
+#[link(name = "Carbon", kind = "framework")]
+extern {
+    fn TISCopyCurrentKeyboardInputSource() -> *const libc::c_void;
+    fn UCKeyTranslate(keyLayoutPtr: *const libc::c_void,
+                      virtualKeyCode: i16,
+                      keyAction: u16,
+                      modifierKeyState: u32,
+                      keyboardType: u32,
+                      keyTranslateOptions: u32,
+                      deadKeyState: *mut u32,
+                      maxStringLength: u32,
+                      actualStringLength: *mut u32,
+                      unicodeString: *const u8
+    ) -> i32;
+    fn LMGetKbdType() -> u8;
+    fn TISGetInputSourceProperty(keyboard: *const libc::c_void,
+                                 property: *const libc::c_void) -> *const libc::c_void;
+    fn CFDataGetBytePtr(theData: *const libc::c_void) -> *const libc::c_void;
+
+    static kTISPropertyUnicodeKeyLayoutData: *const libc::c_void;
+}
 
 
 pub struct EventsLoop {
     modifiers: Modifiers,
+    dead_key_state: u32,
     pub shared: Arc<Shared>,
 }
 
@@ -165,6 +194,7 @@ impl EventsLoop {
         EventsLoop {
             shared: Arc::new(Shared::new()),
             modifiers: Modifiers::new(),
+            dead_key_state: 0,
         }
     }
 
@@ -313,10 +343,8 @@ impl EventsLoop {
 
             appkit::NSKeyDown => {
                 let mut events = std::collections::VecDeque::new();
-                let received_c_str = foundation::NSString::UTF8String(ns_event.characters());
-                let received_str = std::ffi::CStr::from_ptr(received_c_str);
-
-                let vkey =  to_virtual_key_code(NSEvent::keyCode(ns_event));
+                let vkey = to_virtual_key_code(NSEvent::keyCode(ns_event));
+                let (alt_vkey, key_str) = event_to_code_and_string(ns_event, &mut self.dead_key_state);
                 let state = ElementState::Pressed;
                 let code = NSEvent::keyCode(ns_event) as u32;
                 let window_event = WindowEvent::KeyboardInput {
@@ -328,7 +356,21 @@ impl EventsLoop {
                         modifiers: event_mods(ns_event),
                     },
                 };
-                for received_char in std::str::from_utf8(received_str.to_bytes()).unwrap().chars() {
+                if vkey != alt_vkey {
+                    // If this is the result of a dead key, also push a dead key key code
+                    // into the event stream.
+                    let window_event = WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        input: KeyboardInput {
+                            state: state,
+                            scancode: code,
+                            virtual_keycode: alt_vkey,
+                            modifiers: event_mods(ns_event),
+                        },
+                    };
+                    events.push_back(into_event(window_event));
+                }
+                for received_char in key_str.chars() {
                     let window_event = WindowEvent::ReceivedCharacter(received_char);
                     events.push_back(into_event(window_event));
                 }
@@ -337,8 +379,7 @@ impl EventsLoop {
             },
 
             appkit::NSKeyUp => {
-                let vkey =  to_virtual_key_code(NSEvent::keyCode(ns_event));
-
+                let vkey = to_virtual_key_code(NSEvent::keyCode(ns_event));
                 let state = ElementState::Released;
                 let code = NSEvent::keyCode(ns_event) as u32;
                 let window_event = WindowEvent::KeyboardInput {
@@ -393,36 +434,44 @@ impl EventsLoop {
                 }
 
                 let mut events = std::collections::VecDeque::new();
+                let key = to_virtual_key_code(NSEvent::keyCode(ns_event))
+                    .unwrap_or(events::VirtualKeyCode::LShift);
                 if let Some(window_event) = modifier_event(ns_event,
                                                            appkit::NSShiftKeyMask,
-                                                           events::VirtualKeyCode::LShift,
+                                                           key,
                                                            self.modifiers.shift_pressed)
                 {
                     self.modifiers.shift_pressed = !self.modifiers.shift_pressed;
                     events.push_back(into_event(window_event));
                 }
 
+                let key = to_virtual_key_code(NSEvent::keyCode(ns_event))
+                    .unwrap_or(events::VirtualKeyCode::LControl);
                 if let Some(window_event) = modifier_event(ns_event,
                                                            appkit::NSControlKeyMask,
-                                                           events::VirtualKeyCode::LControl,
+                                                           key,
                                                            self.modifiers.ctrl_pressed)
                 {
                     self.modifiers.ctrl_pressed = !self.modifiers.ctrl_pressed;
                     events.push_back(into_event(window_event));
                 }
 
+                let key = to_virtual_key_code(NSEvent::keyCode(ns_event))
+                    .unwrap_or(events::VirtualKeyCode::LWin);
                 if let Some(window_event) = modifier_event(ns_event,
                                                            appkit::NSCommandKeyMask,
-                                                           events::VirtualKeyCode::LWin,
+                                                           key,
                                                            self.modifiers.win_pressed)
                 {
                     self.modifiers.win_pressed = !self.modifiers.win_pressed;
                     events.push_back(into_event(window_event));
                 }
 
+                let key = to_virtual_key_code(NSEvent::keyCode(ns_event))
+                    .unwrap_or(events::VirtualKeyCode::LAlt);
                 if let Some(window_event) = modifier_event(ns_event,
                                                            appkit::NSAlternateKeyMask,
-                                                           events::VirtualKeyCode::LAlt,
+                                                           key,
                                                            self.modifiers.alt_pressed)
                 {
                     self.modifiers.alt_pressed = !self.modifiers.alt_pressed;
@@ -631,10 +680,10 @@ fn to_virtual_key_code(code: u16) -> Option<events::VirtualKeyCode> {
         0x37 => events::VirtualKeyCode::LWin,
         0x38 => events::VirtualKeyCode::LShift,
         //0x39 => Caps lock,
-        //0x3a => Left alt,
+        0x3a => events::VirtualKeyCode::LAlt,
         0x3b => events::VirtualKeyCode::LControl,
         0x3c => events::VirtualKeyCode::RShift,
-        //0x3d => Right alt,
+        0x3d => events::VirtualKeyCode::RAlt,
         0x3e => events::VirtualKeyCode::RControl,
         //0x3f => Fn key,
         //0x40 => F17 Key,
@@ -716,6 +765,81 @@ fn event_mods(event: cocoa::base::id) -> ModifiersState {
         alt: flags.contains(appkit::NSAlternateKeyMask),
         logo: flags.contains(appkit::NSCommandKeyMask),
     }
+}
+
+unsafe fn event_to_code_and_string(ns_event: cocoa::base::id, dead_key_state: &mut u32) -> (Option<events::VirtualKeyCode>, String) {
+    let received_c_str = foundation::NSString::UTF8String(ns_event.characters());
+    let received_str = std::ffi::CStr::from_ptr(received_c_str);
+    let raw_code = NSEvent::keyCode(ns_event) as i16;
+    let cocoa_flags = ns_event.modifierFlags();
+    let start_dead_state = *dead_key_state;
+    let mut code = to_virtual_key_code(NSEvent::keyCode(ns_event));
+
+    // Convert Cocoa modifier flags to Carbon flags
+    let mut mods: u8 = 0;
+    mods |= (cocoa_flags.contains(appkit::NSCommandKeyMask) as u8) << 0;
+    mods |= (cocoa_flags.contains(appkit::NSShiftKeyMask) as u8) << 1;
+    mods |= (cocoa_flags.contains(appkit::NSAlternateKeyMask) as u8) << 3;
+    mods |= (cocoa_flags.contains(appkit::NSControlKeyMask) as u8) << 4;
+    let mods = mods as u32;
+
+    // Try to get current keyboard layout from Carbon
+    let mut keyboard_layout = std::ptr::null();
+    let keyboard_source = TISCopyCurrentKeyboardInputSource();
+    if keyboard_source != std::ptr::null() {
+        let keyboard_layout_data = TISGetInputSourceProperty(keyboard_source, kTISPropertyUnicodeKeyLayoutData);
+        if keyboard_layout_data != std::ptr::null() {
+            keyboard_layout = CFDataGetBytePtr(keyboard_layout_data)
+        }
+    }
+    let keyboard_type: u32 = LMGetKbdType() as u32;
+
+    // Fixed-size buffer for Carbon to write 16-bit key chars into.  Note that
+    // Carbon is counting in 16-bit wide chars, while the Rust is using bytes.
+    let mut s: [u8; 8] = [0; 8];
+    let s_ptr = s.as_mut_ptr();
+    let mut strlen: u32 = 0;
+
+    // Request keys from Carbon if there is a valid keyboard layout
+    match keyboard_layout != std::ptr::null() {
+        true => {
+            let _ = UCKeyTranslate(keyboard_layout, raw_code, 0, mods, keyboard_type,
+                                   0, dead_key_state, 4, &mut strlen, s_ptr);
+        },
+        false => {
+            *dead_key_state = 0;
+        }
+    }
+
+    let char_str = match (strlen > 0, *dead_key_state > 0) {
+        (true, _) => {
+            // Got a normal character from Carbon; use it.
+            let utf_s = UTF_16LE.decode(&s[0 .. (strlen*2) as usize], DecoderTrap::Ignore);
+            if start_dead_state > 0 {
+                code = Some(events::VirtualKeyCode::DeadKeyGlyph);
+                // Explicitly cancel the dead-key state, since hitting dead keys repeatedly
+                // gets it into a weird state if you don't.
+                *dead_key_state = 0;
+            }
+            utf_s.unwrap_or(String::new())
+        },
+        (false, true) => {
+            // Got a dead-key.  Run again to get the dead-key placeholder glyph.  This
+            // gives the character that would have been displayed if it weren't a dead-key.
+            let mut dead_state = *dead_key_state; // temp copy, results discarded
+            let _ = UCKeyTranslate(keyboard_layout, raw_code, 0, mods, keyboard_type,
+                                   1, // kUCKeyTranslateNoDeadKeysBit
+                                   &mut dead_state, 4, &mut strlen, s_ptr);
+            let utf_s = UTF_16LE.decode(&s[0 .. (strlen*2) as usize], DecoderTrap::Ignore);
+            code = Some(events::VirtualKeyCode::DeadKeyPlaceholder);
+            utf_s.unwrap_or(String::new())
+        }
+        (false, false) => {
+            // Carbon failed.  Fallback to the chars in the Cocoa event.
+            std::str::from_utf8(received_str.to_bytes()).unwrap_or("").to_string()
+        }
+    };
+    (code, char_str)
 }
 
 // Constant device ID, to be removed when this backend is updated to report real device IDs.

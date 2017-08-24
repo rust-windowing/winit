@@ -383,6 +383,24 @@ pub enum VirtualKeyCode {
     WebSearch,
     WebStop,
     Yen,
+
+    // Special codes for "dead keys", keys that statefully modifies the meaning
+    // of the next key.  It's not actually a key code, and it might be wiser to
+    // send the real key code, but doing it this way doesn't require breaking
+    // the existing API.  Downstream consumers of the API need to be aware of
+    // dead-keys, since they are typically displayed temporarily and then
+    // then replaced by the final combination glyph.
+    //
+    // These should be sent only on key pressed events, in *addition* and after
+    // the raw code is sent.  The raw code should be sent without characters.
+    // This allows tracking the key pressed/released events on the raw character
+    // code, but maps how the character(s) should be displayed with the DeadKey
+    // events.
+    //
+    /// Character is a temporary placeholder that represents a pending dead-key.
+    DeadKeyPlaceholder = 0xFFFFFFFE,
+    /// Character is a final glyph created from a dead-key combination.
+    DeadKeyGlyph = 0xFFFFFFFF,
 }
 
 /// Represents the current state of the keyboard modifiers
