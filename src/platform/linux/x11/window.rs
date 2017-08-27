@@ -35,6 +35,7 @@ unsafe impl Send for WindowProxyData {}
 pub struct XWindow {
     display: Arc<XConnection>,
     window: ffi::Window,
+    root: ffi::Window,
     is_fullscreen: bool,
     screen_id: libc::c_int,
     xf86_desk_mode: Option<ffi::XF86VidModeModeInfo>,
@@ -227,6 +228,12 @@ impl Window {
             });
         }
 
+        // set maximization
+        if window_attrs.maximized {
+            Window::set_netwm(display, window, root, "_NET_WM_STATE_MAXIMIZED_HORZ", true);
+            Window::set_netwm(display, window, root, "_NET_WM_STATE_MAXIMIZED_VERT", true);
+        }
+
         // set visibility
         if window_attrs.visible {
             unsafe {
@@ -257,48 +264,7 @@ impl Window {
         let is_fullscreen = window_attrs.monitor.is_some();
 
         if is_fullscreen {
-            let state_atom = unsafe {
-                with_c_str("_NET_WM_STATE", |state|
-                    (display.xlib.XInternAtom)(display.display, state, 0)
-                )
-            };
-            display.check_errors().expect("Failed to call XInternAtom");
-            let fullscreen_atom = unsafe {
-                with_c_str("_NET_WM_STATE_FULLSCREEN", |state_fullscreen|
-                    (display.xlib.XInternAtom)(display.display, state_fullscreen, 0)
-                )
-            };
-            display.check_errors().expect("Failed to call XInternAtom");
-
-            let client_message_event = ffi::XClientMessageEvent {
-                type_: ffi::ClientMessage,
-                serial: 0,
-                send_event: 1,            // true because we are sending this through `XSendEvent`
-                display: display.display,
-                window: window,
-                message_type: state_atom, // the _NET_WM_STATE atom is sent to change the state of a window
-                format: 32,               // view `data` as `c_long`s
-                data: {
-                    let mut data = ffi::ClientMessageData::new();
-                    // This first `long` is the action; `1` means add/set following property.
-                    data.set_long(0, 1);
-                    // This second `long` is the property to set (fullscreen)
-                    data.set_long(1, fullscreen_atom as c_long);
-                    data
-                }
-            };
-            let mut x_event = ffi::XEvent::from(client_message_event);
-
-            unsafe {
-                (display.xlib.XSendEvent)(
-                    display.display,
-                    root,
-                    0,
-                    ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask,
-                    &mut x_event as *mut _
-                );
-                display.check_errors().expect("Failed to call XSendEvent");
-            }
+            Window::set_netwm(display, window, root, "_NET_WM_STATE_FULLSCREEN", true);
 
             if let Some(mut mode_to_switch_to) = mode_to_switch_to {
                 unsafe {
@@ -375,6 +341,7 @@ impl Window {
             x: Arc::new(XWindow {
                 display: display.clone(),
                 window: window,
+                root: root,
                 screen_id: screen_id,
                 is_fullscreen: is_fullscreen,
                 xf86_desk_mode: xf86_desk_mode,
@@ -416,6 +383,60 @@ impl Window {
 
         // returning
         Ok(window)
+    }
+
+    fn set_netwm(display: &Arc<XConnection>, window: u64, root: u64, property: &str, val: bool) {
+        let state_atom = unsafe {
+            with_c_str("_NET_WM_STATE", |state|
+                (display.xlib.XInternAtom)(display.display, state, 0)
+            )
+        };
+        display.check_errors().expect("Failed to call XInternAtom");
+        let atom = unsafe {
+            with_c_str(property, |state|
+                (display.xlib.XInternAtom)(display.display, state, 0)
+            )
+        };
+        display.check_errors().expect("Failed to call XInternAtom");
+
+        let client_message_event = ffi::XClientMessageEvent {
+            type_: ffi::ClientMessage,
+            serial: 0,
+            send_event: 1,            // true because we are sending this through `XSendEvent`
+            display: display.display,
+            window: window,
+            message_type: state_atom, // the _NET_WM_STATE atom is sent to change the state of a window
+            format: 32,               // view `data` as `c_long`s
+            data: {
+                let mut data = ffi::ClientMessageData::new();
+                // This first `long` is the action; `1` means add/set following property.
+                data.set_long(0, val as i64);
+                // This second `long` is the property to set (fullscreen)
+                data.set_long(1, atom as c_long);
+                data
+            }
+        };
+        let mut x_event = ffi::XEvent::from(client_message_event);
+
+        unsafe {
+            (display.xlib.XSendEvent)(
+                display.display,
+                root,
+                0,
+                ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask,
+                &mut x_event as *mut _
+            );
+            display.check_errors().expect("Failed to call XSendEvent");
+        }
+    }
+
+    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
+        Window::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", fullscreen);
+    }
+
+    pub fn set_maximized(&self, maximized: bool) {
+        Window::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_HORZ", maximized);
+        Window::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_VERT", maximized);
     }
 
     pub fn set_title(&self, title: &str) {

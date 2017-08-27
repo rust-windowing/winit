@@ -402,6 +402,11 @@ pub struct WindowAttributes {
     /// The default is `"winit window"`.
     pub title: String,
 
+    /// Whether the window should be maximized upon creation.
+    ///
+    /// The default is `false`.
+    pub maximized: bool,
+
     /// Whether the window should be immediately visible upon creation.
     ///
     /// The default is `true`.
@@ -432,6 +437,7 @@ impl Default for WindowAttributes {
             max_dimensions: None,
             monitor: None,
             title: "winit window".to_owned(),
+            maximized: false,
             visible: true,
             transparent: false,
             decorations: true,

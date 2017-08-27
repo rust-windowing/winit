@@ -309,6 +309,14 @@ impl Window2 {
             &Window2::Wayland(ref w) => w.get_surface().ptr() as *mut _
         }
     }
+
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+        match self {
+            &Window2::X(ref w) => w.set_maximized(maximized),
+            &Window2::Wayland(ref _w) => {},
+        }
+    }
 }
 
 unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x11::ffi::XErrorEvent)

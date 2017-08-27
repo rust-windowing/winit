@@ -66,6 +66,13 @@ impl WindowBuilder {
         self
     }
 
+    /// Requests maximized mode.
+    #[inline]
+    pub fn with_maximized(mut self, maximized: bool) -> WindowBuilder {
+        self.window.maximized = maximized;
+        self
+    }
+
     /// Sets whether the window will be initially hidden or visible.
     #[inline]
     pub fn with_visibility(mut self, visible: bool) -> WindowBuilder {
@@ -290,6 +297,12 @@ impl Window {
     #[inline]
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
         self.window.set_cursor_state(state)
+    }
+
+    /// Sets the window to maximized or back
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+        self.window.set_maximized(maximized)
     }
 
     #[inline]
