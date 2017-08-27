@@ -97,7 +97,7 @@ pub enum DeviceId {
     Wayland(wayland::DeviceId)
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum MonitorId {
     #[doc(hidden)]
     X(x11::MonitorId),
@@ -314,6 +314,14 @@ impl Window2 {
     pub fn set_maximized(&self, maximized: bool) {
         match self {
             &Window2::X(ref w) => w.set_maximized(maximized),
+            &Window2::Wayland(ref _w) => {},
+        }
+    }
+
+    #[inline]
+    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
+        match self {
+            &Window2::X(ref w) => w.set_fullscreen_windowed(fullscreen),
             &Window2::Wayland(ref _w) => {},
         }
     }

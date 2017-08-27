@@ -260,6 +260,10 @@ impl Window {
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         unimplemented!();
     }
+
+    #[inline]
+    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
+    }
 }
 
 unsafe impl Send for Window {}

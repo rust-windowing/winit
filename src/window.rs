@@ -7,6 +7,7 @@ use MouseCursor;
 use Window;
 use WindowBuilder;
 use WindowId;
+use FullScreenState;
 use native_monitor::NativeMonitorId;
 
 use libc;
@@ -59,10 +60,22 @@ impl WindowBuilder {
     /// Requests fullscreen mode.
     ///
     /// If you don't specify dimensions for the window, it will match the monitor's.
+    /// Disables fullscreen windowed mode if set.
     #[inline]
     pub fn with_fullscreen(mut self, monitor: MonitorId) -> WindowBuilder {
         let MonitorId(monitor) = monitor;
-        self.window.monitor = Some(monitor);
+        self.window.fullscreen = FullScreenState::Exclusive(monitor);
+        self
+    }
+
+    /// Requests fullscreen windowed mode.
+    ///
+    /// Disables the non-windowed fullscreen mode if set
+    #[inline]
+    pub fn with_fullscreen_windowed(mut self, fullscreen: bool) -> WindowBuilder {
+        if fullscreen {
+           self.window.fullscreen = FullScreenState::Windowed;
+        }
         self
     }
 
@@ -107,8 +120,10 @@ impl WindowBuilder {
     /// out of memory, etc.
     pub fn build(mut self, events_loop: &EventsLoop) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
-        if self.window.dimensions.is_none() && self.window.monitor.is_some() {
-            self.window.dimensions = Some(self.window.monitor.as_ref().unwrap().get_dimensions())
+        if self.window.dimensions.is_none() {
+            if let Some(monitor) = self.window.fullscreen.get_monitor() {
+                self.window.dimensions = Some(monitor.get_dimensions());
+            }
         }
 
         // default dimensions
@@ -305,6 +320,12 @@ impl Window {
         self.window.set_maximized(maximized)
     }
 
+    /// Sets the window to fullscreen or back
+    #[inline]
+    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
+        self.window.set_fullscreen_windowed(fullscreen)
+    }
+
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.id())
@@ -362,7 +383,7 @@ pub fn get_primary_monitor() -> MonitorId {
 }
 
 /// Identifier for a monitor.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct MonitorId(platform::MonitorId);
 
 impl MonitorId {

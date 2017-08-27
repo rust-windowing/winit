@@ -6,6 +6,11 @@ use native_monitor::NativeMonitorId;
 
 #[derive(Clone)]
 pub struct MonitorId(pub Arc<XConnection>, pub u32);
+impl PartialEq for MonitorId {
+    fn eq(&self, other: &MonitorId) -> bool {
+        self.1 == other.1
+    }
+}
 
 pub fn get_available_monitors(x: &Arc<XConnection>) -> VecDeque<MonitorId> {
     let nb_monitors = unsafe { (x.xlib.XScreenCount)(x.display) };

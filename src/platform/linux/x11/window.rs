@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use CursorState;
 use WindowAttributes;
+use FullScreenState;
 use platform::PlatformSpecificWindowBuilderAttributes;
 
 use platform::MonitorId as PlatformMonitorId;
@@ -128,11 +129,13 @@ impl Window {
 
         let screen_id = match pl_attribs.screen_id {
             Some(id) => id,
-            None => match window_attrs.monitor {
-                Some(PlatformMonitorId::X(MonitorId(_, monitor))) => monitor as i32,
+            None => match window_attrs.fullscreen {
+                FullScreenState::Exclusive(PlatformMonitorId::X(MonitorId(_, monitor))) => monitor as i32,
                 _ => unsafe { (display.xlib.XDefaultScreen)(display.display) },
             }
         };
+
+        let is_fullscreen = window_attrs.fullscreen.get_monitor().is_some();
 
         // finding the mode to switch to if necessary
         let (mode_to_switch_to, xf86_desk_mode) = unsafe {
@@ -142,7 +145,7 @@ impl Window {
                 (None, None)
             } else {
                 let xf86_desk_mode: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(0));
-                let mode_to_switch_to = if window_attrs.monitor.is_some() {
+                let mode_to_switch_to = if is_fullscreen {
                     let matching_mode = (0 .. mode_num).map(|i| {
                         let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
                     }).find(|m| m.hdisplay == dimensions.0 as u16 && m.vdisplay == dimensions.1 as u16);
@@ -234,6 +237,10 @@ impl Window {
             Window::set_netwm(display, window, root, "_NET_WM_STATE_MAXIMIZED_VERT", true);
         }
 
+        if window_attrs.fullscreen == FullScreenState::Windowed {
+            Window::set_netwm(display, window, root, "_NET_WM_STATE_FULLSCREEN", true);
+        }
+
         // set visibility
         if window_attrs.visible {
             unsafe {
@@ -260,8 +267,6 @@ impl Window {
                 return Err(OsError(format!("XkbSetDetectableAutoRepeat failed")));
             }
         }
-
-        let is_fullscreen = window_attrs.monitor.is_some();
 
         if is_fullscreen {
             Window::set_netwm(display, window, root, "_NET_WM_STATE_FULLSCREEN", true);
