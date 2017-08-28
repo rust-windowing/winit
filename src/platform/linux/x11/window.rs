@@ -231,16 +231,6 @@ impl Window {
             });
         }
 
-        // set maximization
-        if window_attrs.maximized {
-            Window::set_netwm(display, window, root, "_NET_WM_STATE_MAXIMIZED_HORZ", true);
-            Window::set_netwm(display, window, root, "_NET_WM_STATE_MAXIMIZED_VERT", true);
-        }
-
-        if window_attrs.fullscreen == FullScreenState::Windowed {
-            Window::set_netwm(display, window, root, "_NET_WM_STATE_FULLSCREEN", true);
-        }
-
         // set visibility
         if window_attrs.visible {
             unsafe {
@@ -357,6 +347,8 @@ impl Window {
 
         window.set_title(&window_attrs.title);
         window.set_decorations(window_attrs.decorations);
+        window.set_maximized(window_attrs.maximized);
+        window.set_fullscreen_windowed(window_attrs.fullscreen == FullScreenState::Windowed);
 
         if window_attrs.visible {
             unsafe {
