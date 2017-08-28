@@ -94,7 +94,7 @@ use self::ffi::{
 
 static mut jmpbuf: [c_int;27] = [0;27];
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct MonitorId;
 
 pub struct Window {
@@ -449,6 +449,13 @@ impl Window {
         WindowProxy
     }
 
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+    }
+
+    #[inline]
+    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
+    }
 }
 
 impl WindowProxy {

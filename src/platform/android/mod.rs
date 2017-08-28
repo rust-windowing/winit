@@ -24,7 +24,7 @@ pub struct Window {
     event_rx: Receiver<android_glue::Event>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct MonitorId;
 
 mod ffi;
@@ -259,6 +259,10 @@ impl Window {
     #[inline]
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         unimplemented!();
+    }
+
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
     }
 
     #[inline]

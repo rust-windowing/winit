@@ -383,7 +383,7 @@ impl Window {
 
     fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
         unsafe {
-            let screen = match attrs.monitor {
+            let screen = match attrs.fullscreen.get_monitor() {
                 Some(ref monitor_id) => {
                     let native_id = match monitor_id.get_native_identifier() {
                         NativeMonitorId::Numeric(num) => num,
@@ -636,6 +636,14 @@ impl Window {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+    }
+
+    #[inline]
+    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
     }
 }
 

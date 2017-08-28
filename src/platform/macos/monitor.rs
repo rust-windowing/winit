@@ -2,7 +2,7 @@ use core_graphics::display;
 use std::collections::VecDeque;
 use native_monitor::NativeMonitorId;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct MonitorId(u32);
 
 pub fn get_available_monitors() -> VecDeque<MonitorId> {
