@@ -46,7 +46,7 @@ impl Window {
     {
         let mut w_attr = Some(w_attr.clone());
         let mut pl_attr = Some(pl_attr.clone());
-        
+
         let (tx, rx) = channel();
 
         events_loop.execute_in_thread(move |inserter| {

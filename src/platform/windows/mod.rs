@@ -30,7 +30,10 @@ pub struct WindowId(winapi::HWND);
 unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 
+pub use self::high_dpi::set_process_high_dpi_aware;
+
 mod event;
 mod events_loop;
 mod monitor;
 mod window;
+mod high_dpi;
