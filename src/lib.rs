@@ -357,17 +357,17 @@ pub enum MouseCursor {
 }
 
 /// Describes if the Window is in one of the fullscreen modes
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub enum FullScreenState {
     None,
     Windowed,
-    Exclusive(platform::MonitorId),
+    Exclusive(MonitorId),
 }
 
 impl FullScreenState {
     pub fn get_monitor(&self) -> Option<platform::MonitorId> {
         if let FullScreenState::Exclusive(ref monitor) = *self {
-            Some(monitor.clone())
+            Some(monitor.0.clone())
         } else {
             None
         }

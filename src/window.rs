@@ -57,25 +57,12 @@ impl WindowBuilder {
         self
     }
 
-    /// Requests fullscreen mode.
+    /// Sets the fullscreen mode.
     ///
     /// If you don't specify dimensions for the window, it will match the monitor's.
-    /// Disables fullscreen windowed mode if set.
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: MonitorId) -> WindowBuilder {
-        let MonitorId(monitor) = monitor;
-        self.window.fullscreen = FullScreenState::Exclusive(monitor);
-        self
-    }
-
-    /// Requests fullscreen windowed mode.
-    ///
-    /// Disables the non-windowed fullscreen mode if set
-    #[inline]
-    pub fn with_fullscreen_windowed(mut self, fullscreen: bool) -> WindowBuilder {
-        if fullscreen {
-           self.window.fullscreen = FullScreenState::Windowed;
-        }
+    pub fn with_fullscreen(mut self, state: FullScreenState) -> WindowBuilder {
+        self.window.fullscreen = state;
         self
     }
 
@@ -322,8 +309,8 @@ impl Window {
 
     /// Sets the window to fullscreen or back
     #[inline]
-    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
-        self.window.set_fullscreen_windowed(fullscreen)
+    pub fn set_fullscreen(&self, state: FullScreenState) {
+        self.window.set_fullscreen(state)
     }
 
     #[inline]
@@ -384,7 +371,7 @@ pub fn get_primary_monitor() -> MonitorId {
 
 /// Identifier for a monitor.
 #[derive(Clone, PartialEq)]
-pub struct MonitorId(platform::MonitorId);
+pub struct MonitorId(pub platform::MonitorId);
 
 impl MonitorId {
     /// Returns a human-readable name of the monitor.
