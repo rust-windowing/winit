@@ -120,6 +120,12 @@ impl EventsLoop {
         result
     }
 
+    /// Returns the `XConnection` of this events loop.
+    #[inline]
+    pub fn x_connection(&self) -> &Arc<XConnection> {
+        &self.display
+    }
+
     pub fn create_proxy(&self) -> EventsLoopProxy {
         EventsLoopProxy {
             pending_wakeup: Arc::downgrade(&self.pending_wakeup),

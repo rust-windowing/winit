@@ -6,20 +6,11 @@ use libc;
 use MonitorId;
 use Window;
 use platform::Window2 as LinuxWindow;
-use platform::{UnixBackend, UNIX_BACKEND};
 use WindowBuilder;
 use platform::x11::XConnection;
 use platform::x11::ffi::XVisualInfo;
 
 pub use platform::x11;
-
-// TODO: do not expose XConnection
-pub fn get_x11_xconnection() -> Option<Arc<XConnection>> {
-    match *UNIX_BACKEND {
-        UnixBackend::X(ref connec) => Some(connec.clone()),
-        _ => None,
-    }
-}
 
 /// Additional methods on `Window` that are specific to Unix.
 pub trait WindowExt {
