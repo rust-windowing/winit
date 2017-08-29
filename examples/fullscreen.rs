@@ -1,7 +1,7 @@
 extern crate winit;
 
 use std::io::{self, Write};
-use winit::{ControlFlow, Event, WindowEvent};
+use winit::{ControlFlow, Event, WindowEvent, FullScreenState};
 
 fn main() {
     // enumerating monitors
@@ -27,7 +27,7 @@ fn main() {
 
     let _window = winit::WindowBuilder::new()
         .with_title("Hello world!")
-        .with_fullscreen(monitor)
+        .with_fullscreen(FullScreenState::Exclusive(monitor))
         .build(&events_loop)
         .unwrap();
 
