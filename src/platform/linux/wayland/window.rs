@@ -56,7 +56,7 @@ impl Window {
                 *(decorated.handler()) = Some(DecoratedHandler::new());
 
                 // set fullscreen if necessary
-                if let FullScreenState::Exclusive(RootMonitorId(PlatformMonitorId::Wayland(ref monitor_id))) = attributes.fullscreen {
+                if let FullScreenState::Exclusive(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
                     ctxt.with_output(monitor_id.clone(), |output| {
                         decorated.set_fullscreen(Some(output))
                     });

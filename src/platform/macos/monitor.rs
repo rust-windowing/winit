@@ -33,7 +33,7 @@ impl MonitorId {
 
     #[inline]
     pub fn get_native_identifier(&self) -> u32 {
-        self.0;
+        self.0
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {

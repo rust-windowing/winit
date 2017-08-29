@@ -48,11 +48,6 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        NativeMonitorId::Unavailable
-    }
-
-    #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         unimplemented!()
     }
