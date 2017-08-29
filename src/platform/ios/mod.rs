@@ -70,7 +70,6 @@ use libc::c_int;
 use objc::runtime::{Class, Object, Sel, BOOL, YES };
 use objc::declare::{ ClassDecl };
 
-use native_monitor::NativeMonitorId;
 use { CreationError, CursorState, MouseCursor, WindowAttributes, FullScreenState };
 use WindowEvent as Event;
 use events::{ Touch, TouchPhase };
@@ -151,11 +150,6 @@ impl MonitorId {
     #[inline]
     pub fn get_name(&self) -> Option<String> {
         Some("Primary".to_string())
-    }
-
-    #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        NativeMonitorId::Unavailable
     }
 
     #[inline]
