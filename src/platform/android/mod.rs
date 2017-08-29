@@ -16,7 +16,6 @@ use std::collections::VecDeque;
 use CursorState;
 use WindowAttributes;
 use FullScreenState;
-use native_monitor::NativeMonitorId;
 
 gen_api_transition!();
 

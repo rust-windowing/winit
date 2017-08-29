@@ -158,7 +158,7 @@ pub trait MonitorIdExt {
 
 impl MonitorIdExt for MonitorId {
     #[inline]
-    fn native_id(&self) -> String {
+    fn native_id(&self) -> Option<u32> {
         self.inner.get_native_identifier()
     }
 }
