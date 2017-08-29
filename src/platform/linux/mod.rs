@@ -9,8 +9,9 @@ use libc;
 
 use self::x11::XConnection;
 use self::x11::XError;
-use self::x11::XNotSupported;
 use self::x11::ffi::XVisualInfo;
+
+pub use self::x11::XNotSupported;
 
 mod dlopen;
 pub mod wayland;
@@ -285,10 +286,7 @@ impl EventsLoop {
         if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
             match env_var.as_str() {
                 "x11" => {
-                    match EventsLoop::new_x11() {
-                        Ok(e) => return e,
-                        Err(_) => panic!()      // TODO: propagate
-                    }
+                    return EventsLoop::new_x11().unwrap();      // TODO: propagate
                 },
                 "wayland" => {
                     match EventsLoop::new_wayland() {
@@ -318,12 +316,11 @@ impl EventsLoop {
             .ok_or(())
     }
 
-    pub fn new_x11() -> Result<EventsLoop, ()> {
-        if let Ok(ref x) = *X11_BACKEND {
-            return Ok(EventsLoop::X(x11::EventsLoop::new(x.clone())));
+    pub fn new_x11() -> Result<EventsLoop, XNotSupported> {
+        match *X11_BACKEND {
+            Ok(ref x) => Ok(EventsLoop::X(x11::EventsLoop::new(x.clone()))),
+            Err(ref err) => Err(err.clone()),
         }
-
-        Err(())
     }
 
     #[inline]

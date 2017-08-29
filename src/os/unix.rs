@@ -12,26 +12,23 @@ use WindowBuilder;
 use platform::x11::XConnection;
 use platform::x11::ffi::XVisualInfo;
 
-pub use platform::x11;
+pub use platform::XNotSupported;
 
 /// Additional methods on `EventsLoop` that are specific to Linux.
 pub trait EventsLoopExt {
     /// Builds a new `EventsLoop` that is forced to use X11.
-    fn new_x11() -> Self;
+    fn new_x11() -> Result<Self, XNotSupported>
+        where Self: Sized;
 
     /// Builds a new `EventsLoop` that is forced to use Wayland.
-    fn new_wayland() -> Self;
+    fn new_wayland() -> Self
+        where Self: Sized;
 }
 
 impl EventsLoopExt for EventsLoop {
     #[inline]
-    fn new_x11() -> Self {
-        EventsLoop {
-            events_loop: match LinuxEventsLoop::new_x11() {
-                Ok(e) => e,
-                Err(_) => panic!()      // TODO: propagate
-            }
-        }
+    fn new_x11() -> Result<Self, XNotSupported> {
+        LinuxEventsLoop::new_x11().map(|ev| EventsLoop { events_loop: ev })
     }
 
     #[inline]
