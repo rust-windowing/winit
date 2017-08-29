@@ -71,7 +71,7 @@ use objc::runtime::{Class, Object, Sel, BOOL, YES };
 use objc::declare::{ ClassDecl };
 
 use native_monitor::NativeMonitorId;
-use { CreationError, CursorState, MouseCursor, WindowAttributes };
+use { CreationError, CursorState, MouseCursor, WindowAttributes, FullScreenState };
 use WindowEvent as Event;
 use events::{ Touch, TouchPhase };
 
@@ -449,6 +449,13 @@ impl Window {
         WindowProxy
     }
 
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, state: FullScreenState) {
+    }
 }
 
 impl WindowProxy {

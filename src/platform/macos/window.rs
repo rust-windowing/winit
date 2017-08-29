@@ -3,6 +3,7 @@ use CreationError::OsError;
 use libc;
 
 use WindowAttributes;
+use FullScreenState;
 use native_monitor::NativeMonitorId;
 use os::macos::ActivationPolicy;
 use os::macos::WindowExt;
@@ -383,8 +384,8 @@ impl Window {
 
     fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
         unsafe {
-            let screen = match attrs.monitor {
-                Some(ref monitor_id) => {
+            let screen = match attrs.fullscreen {
+                FullScreenState::Exclusive(ref monitor_id) => {
                     let native_id = match monitor_id.get_native_identifier() {
                         NativeMonitorId::Numeric(num) => num,
                         _ => panic!("OS X monitors should always have a numeric native ID")
@@ -410,7 +411,7 @@ impl Window {
                     };
                     Some(matching_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
                 },
-                None => None
+                _ => None,
             };
             let frame = match screen {
                 Some(screen) => appkit::NSScreen::frame(screen),
@@ -636,6 +637,14 @@ impl Window {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, state: FullScreenState) {
     }
 }
 

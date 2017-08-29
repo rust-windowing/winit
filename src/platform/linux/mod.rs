@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::env;
 
-use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow};
+use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow, FullScreenState};
 use libc;
 
 use self::x11::XConnection;
@@ -307,6 +307,22 @@ impl Window2 {
         match self {
             &Window2::X(ref w) => w.platform_window(),
             &Window2::Wayland(ref w) => w.get_surface().ptr() as *mut _
+        }
+    }
+
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+        match self {
+            &Window2::X(ref w) => w.set_maximized(maximized),
+            &Window2::Wayland(ref _w) => {},
+        }
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, state: FullScreenState) {
+        match self {
+            &Window2::X(ref w) => w.set_fullscreen(state),
+            &Window2::Wayland(ref _w) => {},
         }
     }
 }

@@ -15,6 +15,7 @@ use std::collections::VecDeque;
 
 use CursorState;
 use WindowAttributes;
+use FullScreenState;
 use native_monitor::NativeMonitorId;
 
 gen_api_transition!();
@@ -259,6 +260,14 @@ impl Window {
     #[inline]
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         unimplemented!();
+    }
+
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, state: FullScreenState) {
     }
 }
 

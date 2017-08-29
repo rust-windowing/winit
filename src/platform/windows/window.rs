@@ -20,6 +20,8 @@ use CreationError;
 use CursorState;
 use MouseCursor;
 use WindowAttributes;
+use FullScreenState;
+use MonitorId as RootMonitorId;
 
 use dwmapi;
 use kernel32;
@@ -276,6 +278,14 @@ impl Window {
     pub fn id(&self) -> WindowId {
         WindowId(self.window.0)
     }
+
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, state: FullScreenState) {
+    }
 }
 
 impl Drop for Window {
@@ -319,13 +329,15 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     // switching to fullscreen if necessary
     // this means adjusting the window's position so that it overlaps the right monitor,
     //  and change the monitor's resolution if necessary
-    if window.monitor.is_some() {
-        let monitor = window.monitor.as_ref().unwrap();
+    let fullscreen = if let FullScreenState::Exclusive(RootMonitorId(ref monitor)) = window.fullscreen {
         try!(switch_to_fullscreen(&mut rect, monitor));
-    }
+        true
+    } else {
+        false
+    };
 
     // computing the style and extended style of the window
-    let (ex_style, style) = if window.monitor.is_some() || !window.decorations {
+    let (ex_style, style) = if fullscreen || !window.decorations {
         (winapi::WS_EX_APPWINDOW,
             //winapi::WS_POPUP is incompatible with winapi::WS_CHILD
             if pl_attribs.parent.is_some() {
@@ -345,13 +357,13 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
 
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
-        let (width, height) = if window.monitor.is_some() || window.dimensions.is_some() {
+        let (width, height) = if fullscreen || window.dimensions.is_some() {
             (Some(rect.right - rect.left), Some(rect.bottom - rect.top))
         } else {
             (None, None)
         };
 
-        let (x, y) = if window.monitor.is_some() {
+        let (x, y) = if fullscreen {
             (Some(rect.left), Some(rect.top))
         } else {
             (None, None)
@@ -425,7 +437,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     }
 
     // calling SetForegroundWindow if fullscreen
-    if window.monitor.is_some() {
+    if fullscreen {
         user32::SetForegroundWindow(real_window.0);
     }
 

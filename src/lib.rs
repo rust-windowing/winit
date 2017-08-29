@@ -356,6 +356,14 @@ pub enum MouseCursor {
     RowResize,
 }
 
+/// Describes if the Window is in one of the fullscreen modes
+#[derive(Clone)]
+pub enum FullScreenState {
+    None,
+    Windowed,
+    Exclusive(MonitorId),
+}
+
 /// Describes how winit handles the cursor.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum CursorState {
@@ -392,15 +400,20 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub max_dimensions: Option<(u32, u32)>,
 
-    /// If `Some`, the window will be in fullscreen mode with the given monitor.
+    /// Whether the window should be set as fullscreen upon creation.
     ///
     /// The default is `None`.
-    pub monitor: Option<platform::MonitorId>,
+    pub fullscreen: FullScreenState,
 
     /// The title of the window in the title bar.
     ///
     /// The default is `"winit window"`.
     pub title: String,
+
+    /// Whether the window should be maximized upon creation.
+    ///
+    /// The default is `false`.
+    pub maximized: bool,
 
     /// Whether the window should be immediately visible upon creation.
     ///
@@ -430,8 +443,9 @@ impl Default for WindowAttributes {
             dimensions: None,
             min_dimensions: None,
             max_dimensions: None,
-            monitor: None,
             title: "winit window".to_owned(),
+            maximized: false,
+            fullscreen: FullScreenState::None,
             visible: true,
             transparent: false,
             decorations: true,
