@@ -98,30 +98,6 @@ pub enum MonitorId {
     None,
 }
 
-#[inline]
-pub fn get_available_monitors() -> VecDeque<MonitorId> {
-    match *UNIX_BACKEND {
-        UnixBackend::Wayland(ref ctxt) => wayland::get_available_monitors(ctxt)
-                                .into_iter()
-                                .map(MonitorId::Wayland)
-                                .collect(),
-        UnixBackend::X(ref connec) => x11::get_available_monitors(connec)
-                                    .into_iter()
-                                    .map(MonitorId::X)
-                                    .collect(),
-        UnixBackend::Error(..) => { let mut d = VecDeque::new(); d.push_back(MonitorId::None); d},
-    }
-}
-
-#[inline]
-pub fn get_primary_monitor() -> MonitorId {
-    match *UNIX_BACKEND {
-        UnixBackend::Wayland(ref ctxt) => MonitorId::Wayland(wayland::get_primary_monitor(ctxt)),
-        UnixBackend::X(ref connec) => MonitorId::X(x11::get_primary_monitor(connec)),
-        UnixBackend::Error(..) => MonitorId::None,
-    }
-}
-
 impl MonitorId {
     #[inline]
     pub fn get_name(&self) -> Option<String> {
@@ -355,6 +331,30 @@ impl EventsLoop {
             UnixBackend::Error(..) => {
                 panic!("Attempted to create an EventsLoop while no backend was available.")
             }
+        }
+    }
+
+    #[inline]
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        match *UNIX_BACKEND {
+            UnixBackend::Wayland(ref ctxt) => wayland::get_available_monitors(ctxt)
+                                    .into_iter()
+                                    .map(MonitorId::Wayland)
+                                    .collect(),
+            UnixBackend::X(ref connec) => x11::get_available_monitors(connec)
+                                        .into_iter()
+                                        .map(MonitorId::X)
+                                        .collect(),
+            UnixBackend::Error(..) => { let mut d = VecDeque::new(); d.push_back(MonitorId::None); d},
+        }
+    }
+
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        match *UNIX_BACKEND {
+            UnixBackend::Wayland(ref ctxt) => MonitorId::Wayland(wayland::get_primary_monitor(ctxt)),
+            UnixBackend::X(ref connec) => MonitorId::X(x11::get_primary_monitor(connec)),
+            UnixBackend::Error(..) => MonitorId::None,
         }
     }
 

@@ -116,7 +116,7 @@ extern crate x11_dl;
 extern crate wayland_client;
 
 pub use events::*;
-pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
+pub use window::{AvailableMonitorsIter, MonitorId};
 
 #[macro_use]
 mod api_transition;
@@ -199,6 +199,36 @@ impl EventsLoop {
         EventsLoop {
             events_loop: platform::EventsLoop::new(),
         }
+    }
+
+    /// Returns the list of all available monitors.
+    ///
+    /// Usage will result in display backend initialisation, this can be controlled on linux
+    /// using an environment variable `WINIT_UNIX_BACKEND`.
+    /// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
+    /// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
+    /// > and if it fails will fallback on x11.
+    /// >
+    /// > If this variable is set with any other value, winit will panic.
+    // Note: should be replaced with `-> impl Iterator` once stable.
+    #[inline]
+    pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
+        let data = self.events_loop.get_available_monitors();
+        AvailableMonitorsIter{ data: data.into_iter() }
+    }
+
+    /// Returns the primary monitor of the system.
+    ///
+    /// Usage will result in display backend initialisation, this can be controlled on linux
+    /// using an environment variable `WINIT_UNIX_BACKEND`.
+    /// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
+    /// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
+    /// > and if it fails will fallback on x11.
+    /// >
+    /// > If this variable is set with any other value, winit will panic.
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId { inner: self.events_loop.get_primary_monitor() }
     }
 
     /// Fetches all the events that are pending, calls the callback function for each of them,

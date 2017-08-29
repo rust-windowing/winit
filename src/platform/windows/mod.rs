@@ -3,7 +3,7 @@
 use winapi;
 
 pub use self::events_loop::{EventsLoop, EventsLoopProxy};
-pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
+pub use self::monitor::MonitorId;
 pub use self::window::Window;
 
 #[derive(Clone, Default)]
