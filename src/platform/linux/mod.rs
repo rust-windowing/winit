@@ -75,35 +75,26 @@ lazy_static!(
 
 
 pub enum Window2 {
-    #[doc(hidden)]
     X(x11::Window2),
-    #[doc(hidden)]
     Wayland(wayland::Window)
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WindowId {
-    #[doc(hidden)]
     X(x11::WindowId),
-    #[doc(hidden)]
     Wayland(wayland::WindowId)
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceId {
-    #[doc(hidden)]
     X(x11::DeviceId),
-    #[doc(hidden)]
     Wayland(wayland::DeviceId)
 }
 
 #[derive(Clone)]
 pub enum MonitorId {
-    #[doc(hidden)]
     X(x11::MonitorId),
-    #[doc(hidden)]
     Wayland(wayland::MonitorId),
-    #[doc(hidden)]
     None,
 }
 
@@ -167,24 +158,14 @@ impl Window2 {
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Self, CreationError>
     {
-        match *UNIX_BACKEND {
-            UnixBackend::Wayland(ref ctxt) => {
-                if let EventsLoop::Wayland(ref evlp) = *events_loop {
-                    wayland::Window::new(evlp, ctxt.clone(), window).map(Window2::Wayland)
-                } else {
-                    // It is not possible to instanciate an EventsLoop not matching its backend
-                    unreachable!()
-                }
+        match *events_loop {
+            EventsLoop::Wayland(ref evlp) => {
+                wayland::Window::new(evlp, window).map(Window2::Wayland)
             },
 
-            UnixBackend::X(_) => {
-                x11::Window2::new(events_loop, window, pl_attribs).map(Window2::X)
+            EventsLoop::X(ref el) => {
+                x11::Window2::new(el, window, pl_attribs).map(Window2::X)
             },
-            UnixBackend::Error(..) => {
-                // If the Backend is Error(), it is not possible to instanciate an EventsLoop at all,
-                // thus this function cannot be called!
-                unreachable!()
-            }
         }
     }
 
@@ -351,9 +332,7 @@ unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x
 }
 
 pub enum EventsLoop {
-    #[doc(hidden)]
     Wayland(wayland::EventsLoop),
-    #[doc(hidden)]
     X(x11::EventsLoop)
 }
 

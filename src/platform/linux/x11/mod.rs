@@ -675,12 +675,11 @@ lazy_static! {      // TODO: use a static mutex when that's possible, and put me
 }
 
 impl Window2 {
-    pub fn new(events_loop: &::platform::EventsLoop,
+    pub fn new(x_events_loop: &EventsLoop,
                window: &::WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Self, CreationError>
     {
-        let x_events_loop = if let ::platform::EventsLoop::X(ref e) = *events_loop { e } else { unreachable!() };
         let win = ::std::sync::Arc::new(try!(Window::new(&x_events_loop, window, pl_attribs)));
 
         // creating IM

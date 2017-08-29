@@ -122,6 +122,11 @@ impl EventsLoop {
         }
     }
 
+    #[inline]
+    pub fn context(&self) -> &Arc<WaylandContext> {
+        &self.ctxt
+    }
+
     pub fn create_proxy(&self) -> EventsLoopProxy {
         EventsLoopProxy {
             ctxt: Arc::downgrade(&self.ctxt),
