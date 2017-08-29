@@ -1,6 +1,5 @@
 use core_graphics::display;
 use std::collections::VecDeque;
-use native_monitor::NativeMonitorId;
 
 #[derive(Clone)]
 pub struct MonitorId(u32);
@@ -33,9 +32,8 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        let MonitorId(display_id) = *self;
-        NativeMonitorId::Numeric(display_id)
+    pub fn get_native_identifier(&self) -> u32 {
+        self.0;
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {

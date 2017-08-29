@@ -371,11 +371,6 @@ impl MonitorId {
         None
     }
 
-    #[inline]
-    pub fn get_native_identifier(&self) -> ::native_monitor::NativeMonitorId {
-        ::native_monitor::NativeMonitorId::Unavailable
-    }
-
     pub fn get_dimensions(&self) -> (u32, u32) {
         let mut guard = self.ctxt.evq.lock().unwrap();
         let state = guard.state();

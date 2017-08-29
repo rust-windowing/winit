@@ -4,8 +4,6 @@ use user32;
 use std::collections::VecDeque;
 use std::mem;
 
-use native_monitor::NativeMonitorId;
-
 /// Win32 implementation of the main `MonitorId` object.
 #[derive(Clone)]
 pub struct MonitorId {
@@ -158,8 +156,8 @@ impl MonitorId {
 
     /// See the docs of the crate root file.
     #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        NativeMonitorId::Name(self.monitor_name.clone())
+    pub fn get_native_identifier(&self) -> String {
+        self.monitor_name.clone()
     }
 
     /// See the docs if the crate root file.

@@ -142,10 +142,10 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> ::native_monitor::NativeMonitorId {
+    pub fn get_native_identifier(&self) -> Option<u32> {
         match self {
-            &MonitorId::X(ref m) => m.get_native_identifier(),
-            &MonitorId::Wayland(ref m) => m.get_native_identifier(),
+            &MonitorId::X(ref m) => Some(m.get_native_identifier()),
+            &MonitorId::Wayland(ref m) => None,
             &MonitorId::None => unimplemented!()        // FIXME:
         }
     }

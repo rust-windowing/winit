@@ -8,7 +8,6 @@ use Window;
 use WindowBuilder;
 use WindowId;
 use FullScreenState;
-use native_monitor::NativeMonitorId;
 
 use libc;
 use platform;
@@ -331,7 +330,7 @@ impl Iterator for AvailableMonitorsIter {
 
     #[inline]
     fn next(&mut self) -> Option<MonitorId> {
-        self.data.next().map(|id| MonitorId(id))
+        self.data.next().map(|id| MonitorId { inner: id })
     }
 
     #[inline]
@@ -349,6 +348,7 @@ impl Iterator for AvailableMonitorsIter {
 /// > and if it fails will fallback on x11.
 /// >
 /// > If this variable is set with any other value, winit will panic.
+// Note: should be replaced with `-> impl Iterator` once stable.
 #[inline]
 pub fn get_available_monitors() -> AvailableMonitorsIter {
     let data = platform::get_available_monitors();
@@ -366,32 +366,27 @@ pub fn get_available_monitors() -> AvailableMonitorsIter {
 /// > If this variable is set with any other value, winit will panic.
 #[inline]
 pub fn get_primary_monitor() -> MonitorId {
-    MonitorId(platform::get_primary_monitor())
+    MonitorId { inner: platform::get_primary_monitor() }
 }
 
 /// Identifier for a monitor.
 #[derive(Clone)]
-pub struct MonitorId(pub platform::MonitorId);
+pub struct MonitorId {
+    pub(crate) inner: platform::MonitorId
+}
 
 impl MonitorId {
     /// Returns a human-readable name of the monitor.
+    ///
+    /// Returns `None` if the monitor doesn't exist anymore.
     #[inline]
     pub fn get_name(&self) -> Option<String> {
-        let &MonitorId(ref id) = self;
-        id.get_name()
-    }
-
-    /// Returns the native platform identifier for this monitor.
-    #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        let &MonitorId(ref id) = self;
-        id.get_native_identifier()
+        self.inner.get_name()
     }
 
     /// Returns the number of pixels currently displayed on the monitor.
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
-        let &MonitorId(ref id) = self;
-        id.get_dimensions()
+        self.inner.get_dimensions()
     }
 }
