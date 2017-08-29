@@ -152,13 +152,13 @@ impl WindowBuilderExt for WindowBuilder {
 
 /// Additional methods on `MonitorId` that are specific to Linux.
 pub trait MonitorIdExt {
-    /// Returns the identifier of the monitor for X11, and `None` for Wayland.
-    fn native_id(&self) -> Option<u32>;
+    /// Returns the inner identifier of the monitor.
+    fn native_id(&self) -> u32;
 }
 
 impl MonitorIdExt for MonitorId {
     #[inline]
-    fn native_id(&self) -> Option<u32> {
+    fn native_id(&self) -> u32 {
         self.inner.get_native_identifier()
     }
 }
