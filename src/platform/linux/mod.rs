@@ -282,6 +282,25 @@ pub enum EventsLoopProxy {
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
+        if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
+            match env_var.as_str() {
+                "x11" => {
+                    match EventsLoop::new_x11() {
+                        Ok(e) => return e,
+                        Err(_) => panic!()      // TODO: propagate
+                    }
+                },
+                "wayland" => {
+                    match EventsLoop::new_wayland() {
+                        Ok(e) => return e,
+                        Err(_) => panic!()      // TODO: propagate
+                    }
+                },
+                _ => panic!("Unknown environment variable value for {}, try one of `x11`,`wayland`",
+                            BACKEND_PREFERENCE_ENV_VAR),
+            }
+        }
+
         if let Ok(el) = EventsLoop::new_wayland() {
             return el;
         }

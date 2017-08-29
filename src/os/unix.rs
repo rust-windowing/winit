@@ -3,14 +3,47 @@
 use std::sync::Arc;
 use std::ptr;
 use libc;
+use EventsLoop;
 use MonitorId;
 use Window;
+use platform::EventsLoop as LinuxEventsLoop;
 use platform::Window2 as LinuxWindow;
 use WindowBuilder;
 use platform::x11::XConnection;
 use platform::x11::ffi::XVisualInfo;
 
 pub use platform::x11;
+
+/// Additional methods on `EventsLoop` that are specific to Linux.
+pub trait EventsLoopExt {
+    /// Builds a new `EventsLoop` that is forced to use X11.
+    fn new_x11() -> Self;
+
+    /// Builds a new `EventsLoop` that is forced to use Wayland.
+    fn new_wayland() -> Self;
+}
+
+impl EventsLoopExt for EventsLoop {
+    #[inline]
+    fn new_x11() -> Self {
+        EventsLoop {
+            events_loop: match LinuxEventsLoop::new_x11() {
+                Ok(e) => e,
+                Err(_) => panic!()      // TODO: propagate
+            }
+        }
+    }
+
+    #[inline]
+    fn new_wayland() -> Self {
+        EventsLoop {
+            events_loop: match LinuxEventsLoop::new_wayland() {
+                Ok(e) => e,
+                Err(_) => panic!()      // TODO: propagate
+            }
+        }
+    }
+}
 
 /// Additional methods on `Window` that are specific to Unix.
 pub trait WindowExt {
