@@ -10,7 +10,7 @@ use super::ffi;
 /// A connection to an X server.
 pub struct XConnection {
     pub xlib: ffi::Xlib,
-    pub xf86vmode: ffi::Xf86vmode,
+    pub xrandr: ffi::Xrandr,
     pub xcursor: ffi::Xcursor,
     pub xinput2: ffi::XInput2,
     pub xlib_xcb: ffi::Xlib_xcb,
@@ -28,7 +28,7 @@ impl XConnection {
         // opening the libraries
         let xlib = try!(ffi::Xlib::open());
         let xcursor = try!(ffi::Xcursor::open());
-        let xf86vmode = try!(ffi::Xf86vmode::open());
+        let xrandr = try!(ffi::Xrandr::open());
         let xinput2 = try!(ffi::XInput2::open());
         let xlib_xcb = try!(ffi::Xlib_xcb::open());
 
@@ -45,12 +45,12 @@ impl XConnection {
         };
 
         Ok(XConnection {
-            xlib: xlib,
-            xf86vmode: xf86vmode,
-            xcursor: xcursor,
-            xinput2: xinput2,
-            xlib_xcb: xlib_xcb,
-            display: display,
+            xlib,
+            xrandr,
+            xcursor,
+            xinput2,
+            xlib_xcb,
+            display,
             latest_error: Mutex::new(None),
         })
     }
