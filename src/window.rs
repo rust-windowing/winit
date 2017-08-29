@@ -108,7 +108,7 @@ impl WindowBuilder {
     pub fn build(mut self, events_loop: &EventsLoop) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
         if self.window.dimensions.is_none() {
-            if let Some(monitor) = self.window.fullscreen.get_monitor() {
+            if let FullScreenState::Exclusive(ref monitor) = self.window.fullscreen {
                 self.window.dimensions = Some(monitor.get_dimensions());
             }
         }

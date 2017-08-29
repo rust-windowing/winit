@@ -384,8 +384,8 @@ impl Window {
 
     fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
         unsafe {
-            let screen = match attrs.fullscreen.get_monitor() {
-                Some(ref monitor_id) => {
+            let screen = match attrs.fullscreen {
+                FullScreenState::Exclusive(ref monitor_id) => {
                     let native_id = match monitor_id.get_native_identifier() {
                         NativeMonitorId::Numeric(num) => num,
                         _ => panic!("OS X monitors should always have a numeric native ID")
@@ -411,7 +411,7 @@ impl Window {
                     };
                     Some(matching_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
                 },
-                None => None
+                _ => None,
             };
             let frame = match screen {
                 Some(screen) => appkit::NSScreen::frame(screen),

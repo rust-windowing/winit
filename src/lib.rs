@@ -364,16 +364,6 @@ pub enum FullScreenState {
     Exclusive(MonitorId),
 }
 
-impl FullScreenState {
-    pub fn get_monitor(&self) -> Option<platform::MonitorId> {
-        if let FullScreenState::Exclusive(ref monitor) = *self {
-            Some(monitor.0.clone())
-        } else {
-            None
-        }
-    }
-}
-
 /// Describes how winit handles the cursor.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum CursorState {

@@ -21,6 +21,7 @@ use CursorState;
 use MouseCursor;
 use WindowAttributes;
 use FullScreenState;
+use MonitorId as RootMonitorId;
 
 use dwmapi;
 use kernel32;
@@ -328,11 +329,12 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     // switching to fullscreen if necessary
     // this means adjusting the window's position so that it overlaps the right monitor,
     //  and change the monitor's resolution if necessary
-    if let Some(ref monitor) = window.fullscreen.get_monitor() {
+    let fullscreen = if let FullScreenState::Exclusive(RootMonitorId(ref monitor)) = window.fullscreen {
         try!(switch_to_fullscreen(&mut rect, monitor));
+        true
+    } else {
+        false
     };
-
-    let fullscreen = window.fullscreen.get_monitor().is_some();
 
     // computing the style and extended style of the window
     let (ex_style, style) = if fullscreen || !window.decorations {
