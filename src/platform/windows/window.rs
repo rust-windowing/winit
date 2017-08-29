@@ -20,6 +20,7 @@ use CreationError;
 use CursorState;
 use MouseCursor;
 use WindowAttributes;
+use FullScreenState;
 
 use dwmapi;
 use kernel32;
@@ -282,7 +283,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
+    pub fn set_fullscreen(&self, state: FullScreenState) {
     }
 }
 
@@ -329,7 +330,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     //  and change the monitor's resolution if necessary
     if let Some(ref monitor) = window.fullscreen.get_monitor() {
         try!(switch_to_fullscreen(&mut rect, monitor));
-    }
+    };
 
     let fullscreen = window.fullscreen.get_monitor().is_some();
 

@@ -3,6 +3,7 @@ use CreationError::OsError;
 use libc;
 
 use WindowAttributes;
+use FullScreenState;
 use native_monitor::NativeMonitorId;
 use os::macos::ActivationPolicy;
 use os::macos::WindowExt;
@@ -643,7 +644,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
+    pub fn set_fullscreen(&self, state: FullScreenState) {
     }
 }
 

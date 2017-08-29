@@ -34,12 +34,6 @@ pub struct MonitorId {
     dimensions: (u32, u32),
 }
 
-impl PartialEq for MonitorId {
-    fn eq(&self, other: &MonitorId) -> bool {
-        self.monitor_name == other.monitor_name
-    }
-}
-
 struct DeviceEnumerator {
     parent_device: *const winapi::WCHAR,
     current_index: u32,

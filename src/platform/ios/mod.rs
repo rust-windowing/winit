@@ -71,7 +71,7 @@ use objc::runtime::{Class, Object, Sel, BOOL, YES };
 use objc::declare::{ ClassDecl };
 
 use native_monitor::NativeMonitorId;
-use { CreationError, CursorState, MouseCursor, WindowAttributes };
+use { CreationError, CursorState, MouseCursor, WindowAttributes, FullScreenState };
 use WindowEvent as Event;
 use events::{ Touch, TouchPhase };
 
@@ -94,7 +94,7 @@ use self::ffi::{
 
 static mut jmpbuf: [c_int;27] = [0;27];
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct MonitorId;
 
 pub struct Window {
@@ -454,7 +454,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
+    pub fn set_fullscreen(&self, state: FullScreenState) {
     }
 }
 

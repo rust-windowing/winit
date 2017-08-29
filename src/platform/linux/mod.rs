@@ -97,7 +97,7 @@ pub enum DeviceId {
     Wayland(wayland::DeviceId)
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub enum MonitorId {
     #[doc(hidden)]
     X(x11::MonitorId),

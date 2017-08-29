@@ -370,7 +370,7 @@ pub fn get_primary_monitor() -> MonitorId {
 }
 
 /// Identifier for a monitor.
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct MonitorId(pub platform::MonitorId);
 
 impl MonitorId {

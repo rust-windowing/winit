@@ -359,12 +359,6 @@ pub struct MonitorId {
     ctxt: Arc<WaylandContext>
 }
 
-impl PartialEq for MonitorId {
-    fn eq(&self, other: &MonitorId) -> bool {
-        self.id == other.id
-    }
-}
-
 impl MonitorId {
     pub fn get_name(&self) -> Option<String> {
         let mut guard = self.ctxt.evq.lock().unwrap();

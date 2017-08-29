@@ -15,6 +15,7 @@ use std::collections::VecDeque;
 
 use CursorState;
 use WindowAttributes;
+use FullScreenState;
 use native_monitor::NativeMonitorId;
 
 gen_api_transition!();
@@ -24,7 +25,7 @@ pub struct Window {
     event_rx: Receiver<android_glue::Event>,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct MonitorId;
 
 mod ffi;
@@ -266,7 +267,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen_windowed(&self, fullscreen: bool) {
+    pub fn set_fullscreen(&self, state: FullScreenState) {
     }
 }
 
