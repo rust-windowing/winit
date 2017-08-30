@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::slice;
 
@@ -11,8 +10,8 @@ pub struct MonitorId {
   pub name: String,
 }
 
-pub fn get_available_monitors(x: &Arc<XConnection>) -> VecDeque<MonitorId> {
-    let mut monitors = VecDeque::new();
+pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
+    let mut monitors = Vec::new();
     unsafe {
         let root = (x.xlib.XDefaultRootWindow)(x.display);
         let resources = (x.xrandr.XRRGetScreenResources)(x.display, root);
@@ -25,7 +24,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> VecDeque<MonitorId> {
                 let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
                 let name = String::from_utf8_lossy(nameslice).into_owned();
                 (x.xrandr.XRRFreeOutputInfo)(output);
-                monitors.push_back(MonitorId{
+                monitors.push(MonitorId{
                     x: x.clone(),
                     crtc: crtcid,
                     name,
