@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::ptr;
+use std::{ptr, slice};
 
 use super::XConnection;
 
@@ -8,6 +8,7 @@ use super::XConnection;
 pub struct MonitorId {
   pub x: Arc<XConnection>,
   pub crtc: u64,
+  pub name: String,
 }
 
 pub fn get_available_monitors(x: &Arc<XConnection>) -> VecDeque<MonitorId> {
@@ -20,9 +21,14 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> VecDeque<MonitorId> {
             let crtcid = ptr::read((*resources).crtcs.offset(i as isize));
             let crtc = (x.xrandr.XRRGetCrtcInfo)(x.display, resources, crtcid);
             if (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0 {
+                let output = (x.xrandr.XRRGetOutputInfo)(x.display, resources, ptr::read((*crtc).outputs.offset(0)));
+                let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
+                let name = String::from_utf8_lossy(nameslice).into_owned();
+                (x.xrandr.XRRFreeOutputInfo)(output);
                 monitors.push_back(MonitorId{
                     x: x.clone(),
-                    crtc: crtcid
+                    crtc: crtcid,
+                    name,
                 });
             }
             (x.xrandr.XRRFreeCrtcInfo)(crtc);
@@ -39,7 +45,7 @@ pub fn get_primary_monitor(x: &Arc<XConnection>) -> MonitorId {
 
 impl MonitorId {
     pub fn get_name(&self) -> Option<String> {
-        Some(format!("CRTC #{}", self.crtc))
+        Some(self.name.clone())
     }
 
     #[inline]
