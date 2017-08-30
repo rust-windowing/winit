@@ -21,6 +21,7 @@ use std::os::windows::io::AsRawHandle;
 use std::ptr;
 use std::sync::mpsc;
 use std::sync::Arc;
+use std::sync::Barrier;
 use std::sync::Mutex;
 use std::sync::Condvar;
 use std::thread;
@@ -92,9 +93,10 @@ impl EventsLoop {
         let win32_block_loop = Arc::new((Mutex::new(false), Condvar::new()));
         let win32_block_loop_child = win32_block_loop.clone();
 
-        // Local channel in order to block the `new()` function until the background thread has
+        // Local barrier in order to block the `new()` function until the background thread has
         // an events queue.
-        let (local_block_tx, local_block_rx) = mpsc::channel();
+        let barrier = Arc::new(Barrier::new(2));
+        let barrier_clone = barrier.clone();
 
         let thread = thread::spawn(move || {
             CONTEXT_STASH.with(|context_stash| {
@@ -112,7 +114,8 @@ impl EventsLoop {
                 user32::IsGUIThread(1);
                 // Then only we unblock the `new()` function. We are sure that we don't call
                 // `PostThreadMessageA()` before `new()` returns.
-                local_block_tx.send(()).unwrap();
+                barrier_clone.wait();
+                drop(barrier_clone);
 
                 let mut msg = mem::uninitialized();
 
@@ -142,7 +145,7 @@ impl EventsLoop {
         });
 
         // Blocks this function until the background thread has an events loop. See other comments.
-        local_block_rx.recv().unwrap();
+        barrier.wait();
 
         EventsLoop {
             thread_id: unsafe { kernel32::GetThreadId(thread.as_raw_handle()) },
