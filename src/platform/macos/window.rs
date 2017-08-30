@@ -4,7 +4,6 @@ use libc;
 
 use WindowAttributes;
 use FullScreenState;
-use native_monitor::NativeMonitorId;
 use os::macos::ActivationPolicy;
 use os::macos::WindowExt;
 
@@ -386,10 +385,7 @@ impl Window {
         unsafe {
             let screen = match attrs.fullscreen {
                 FullScreenState::Exclusive(ref monitor_id) => {
-                    let native_id = match monitor_id.get_native_identifier() {
-                        NativeMonitorId::Numeric(num) => num,
-                        _ => panic!("OS X monitors should always have a numeric native ID")
-                    };
+                    let native_id = monitor_id.inner.get_native_identifier();
                     let matching_screen = {
                         let screens = appkit::NSScreen::screens(nil);
                         let count: NSUInteger = msg_send![screens, count];

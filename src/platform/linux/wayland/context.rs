@@ -372,8 +372,8 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> ::native_monitor::NativeMonitorId {
-        ::native_monitor::NativeMonitorId::Unavailable
+    pub fn get_native_identifier(&self) -> u32 {
+        self.id
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {

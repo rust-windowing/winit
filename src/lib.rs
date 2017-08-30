@@ -117,7 +117,6 @@ extern crate wayland_client;
 
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
-pub use native_monitor::NativeMonitorId;
 
 #[macro_use]
 mod api_transition;
@@ -451,21 +450,5 @@ impl Default for WindowAttributes {
             decorations: true,
             multitouch: false,
         }
-    }
-}
-
-mod native_monitor {
-    /// Native platform identifier for a monitor. Different platforms use fundamentally different types
-    /// to represent a monitor ID.
-    #[derive(Clone, PartialEq, Eq)]
-    pub enum NativeMonitorId {
-        /// Cocoa and X11 use a numeric identifier to represent a monitor.
-        Numeric(u32),
-
-        /// Win32 uses a Unicode string to represent a monitor.
-        Name(String),
-
-        /// Other platforms (Android) don't support monitor identification.
-        Unavailable
     }
 }

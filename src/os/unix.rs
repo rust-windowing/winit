@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::ptr;
 use libc;
+use MonitorId;
 use Window;
 use platform::Window2 as LinuxWindow;
 use platform::{UnixBackend, UNIX_BACKEND};
@@ -146,5 +147,18 @@ impl WindowBuilderExt for WindowBuilder {
     fn with_x11_screen(mut self, screen_id: i32) -> WindowBuilder {
         self.platform_specific.screen_id = Some(screen_id);
         self
+    }
+}
+
+/// Additional methods on `MonitorId` that are specific to Linux.
+pub trait MonitorIdExt {
+    /// Returns the inner identifier of the monitor.
+    fn native_id(&self) -> u32;
+}
+
+impl MonitorIdExt for MonitorId {
+    #[inline]
+    fn native_id(&self) -> u32 {
+        self.inner.get_native_identifier()
     }
 }

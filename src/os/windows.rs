@@ -1,6 +1,7 @@
 #![cfg(target_os = "windows")]
 
 use libc;
+use MonitorId;
 use Window;
 use WindowBuilder;
 use winapi;
@@ -33,5 +34,18 @@ impl WindowBuilderExt for WindowBuilder {
     fn with_parent_window(mut self, parent: winapi::HWND) -> WindowBuilder {
         self.platform_specific.parent = Some(parent);
         self
+    }
+}
+
+/// Additional methods on `MonitorId` that are specific to Windows.
+pub trait MonitorIdExt {
+    /// Returns the name of the monitor specific to the Win32 API.
+    fn native_id(&self) -> String;
+}
+
+impl MonitorIdExt for MonitorId {
+    #[inline]
+    fn native_id(&self) -> String {
+        self.inner.get_native_identifier()
     }
 }

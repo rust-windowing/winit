@@ -16,7 +16,6 @@ use std::collections::VecDeque;
 use CursorState;
 use WindowAttributes;
 use FullScreenState;
-use native_monitor::NativeMonitorId;
 
 gen_api_transition!();
 
@@ -46,11 +45,6 @@ impl MonitorId {
     #[inline]
     pub fn get_name(&self) -> Option<String> {
         Some("Primary".to_string())
-    }
-
-    #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        NativeMonitorId::Unavailable
     }
 
     #[inline]

@@ -215,7 +215,7 @@ impl Window {
         let screen_id = match pl_attribs.screen_id {
             Some(id) => id,
             None => match window_attrs.fullscreen {
-                FullScreenState::Exclusive(RootMonitorId(PlatformMonitorId::X(X11MonitorId(_, monitor)))) => monitor as i32,
+                FullScreenState::Exclusive(RootMonitorId { inner: PlatformMonitorId::X(X11MonitorId(_, monitor)) }) => monitor as i32,
                 _ => unsafe { (display.xlib.XDefaultScreen)(display.display) },
             }
         };
@@ -458,7 +458,7 @@ impl Window {
               self.x.switch_from_fullscreen_mode();
               Window::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", true);
             },
-            FullScreenState::Exclusive(RootMonitorId(PlatformMonitorId::X(X11MonitorId(_, monitor)))) => {
+            FullScreenState::Exclusive(RootMonitorId { inner: PlatformMonitorId::X(X11MonitorId(_, monitor)) }) => {
               if let Some(dimensions) = self.get_inner_size() {
                 self.x.switch_to_fullscreen_mode(monitor as i32, dimensions.0 as u16, dimensions.1 as u16);
                 Window::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", true);

@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use super::XConnection;
-use native_monitor::NativeMonitorId;
 
 #[derive(Clone)]
 pub struct MonitorId(pub Arc<XConnection>, pub u32);
@@ -30,8 +29,8 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        NativeMonitorId::Numeric(self.1)
+    pub fn get_native_identifier(&self) -> u32 {
+        self.1
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
