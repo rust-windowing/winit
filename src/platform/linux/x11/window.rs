@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::os::raw::{c_int, c_long, c_uchar};
 use std::thread;
 use std::time::Duration;
+use std::collections::HashMap;
 
 use CursorState;
 use WindowAttributes;
@@ -33,7 +34,9 @@ pub struct XWindow {
     display: Arc<XConnection>,
     window: ffi::Window,
     root: ffi::Window,
-    fullscreen: Arc<Mutex<(i32, Option<(i32,i32)>)>>,
+    screen_id: i32,
+    // (CRTC we're using, Original Mode)
+    fullscreen: Arc<Mutex<Option<(u64,u64)>>>,
 }
 
 unsafe impl Send for XWindow {}
@@ -43,99 +46,107 @@ unsafe impl Send for Window2 {}
 unsafe impl Sync for Window2 {}
 
 impl XWindow {
-    fn switch_to_fullscreen_mode(&self, monitor: i32, width: i32, height: i32) {
-        let original_monitor = {
-            let fullscreen = self.fullscreen.lock().unwrap();
-            fullscreen.0
+    fn switch_to_fullscreen_mode(&self, crtc: u64, width: u32, height: u32) {
+        let original_crtc = {
+            match *(self.fullscreen.lock().unwrap()) {
+                Some((crtc, _)) => Some(crtc),
+                _ => None,
+            }
         };
-        if monitor != original_monitor {
-            // We're setting fullscreen on a new screen so first revert the original screen
-            self.switch_from_fullscreen_mode();
+
+        if let Some(original_crtc) = original_crtc  {
+            if crtc != original_crtc {
+                // We're setting fullscreen on a new crtc so first revert the original crtc
+                self.switch_from_fullscreen_mode();
+            }
         }
 
-        let current_resolution = unsafe {
-            let width = (self.display.xlib.XDisplayWidth)(self.display.display, monitor);
-            let height = (self.display.xlib.XDisplayHeight)(self.display.display, monitor);
-            (width, height)
-        };
+        let (current_mode, new_mode) = unsafe {
+            let resources = (self.display.xrandr.XRRGetScreenResources)(self.display.display, self.window);
 
-        let new_resolution = unsafe {
-            let mut nsizes: i32 = 0;
-            let sizes = (self.display.xrandr.XRRSizes)(self.display.display, monitor, &mut nsizes);
-            if nsizes <= 0 {
-                eprintln!("[winit] didn't find any XrandR modes");
+            let crtc = (self.display.xrandr.XRRGetCrtcInfo)(self.display.display, resources, crtc);
+            if (*crtc).noutput <= 0 {
+                eprintln!("[winit] trying to set fullscreen on a disabled CRTC");
                 return
             }
+            let current_mode = (*crtc).mode;
 
-            let mode = ptr::read(sizes.offset(0));
-            let mut new_resolution = (mode.width, mode.height);
-            for i in 1..nsizes {
-                let mode = ptr::read(sizes.offset(i as isize));
+            // Build a hash of the modes to be able to lookup by id
+            let mut modes: HashMap<u64, ffi::XRRModeInfo> = HashMap::new();
+            for k in 0..(*resources).nmode {
+                let mode = ptr::read((*resources).modes.offset(k as isize));
+                modes.insert(mode.id, mode);
+            }
 
+            let output = (self.display.xrandr.XRRGetOutputInfo)(self.display.display, resources, ptr::read((*crtc).outputs.offset(0)));
+            let mut new_mode = modes[&ptr::read((*output).modes.offset(0))];
+            for j in 1..(*output).nmode {
+                let modeid = ptr::read((*output).modes.offset(j as isize));
+                let mode = modes[&modeid];
+                let curr_clock = (new_mode.dotClock as f32) / (new_mode.hTotal as f32) / (new_mode.vTotal as f32);
+                let mode_clock = (mode.dotClock as f32) / (mode.hTotal as f32) / (mode.vTotal as f32);
                 if mode.width == width && mode.height == height {
-                    // Exact match, look no further
-                    new_resolution = (mode.width, mode.height);
-                    break
-                }
-
-                let curr_area = new_resolution.0 * new_resolution.1;
-                let mode_area = mode.width * mode.height;
-                if mode.width >= width && mode.height >= height && mode_area <= curr_area {
-                    // Better match, swap
-                    new_resolution = (mode.width, mode.height);
+                    // We've found a mode that matches exactly
+                    if new_mode.width != width || new_mode.height != height || curr_clock < mode_clock {
+                        // Our previous option didn't match or had a lower refresh rate
+                        new_mode = mode;
+                    }
+                } else {
+                    let curr_area = new_mode.width * new_mode.height;
+                    let mode_area = mode.width * mode.height;
+                    if mode.width >= width && mode.height >= height && (mode_area < curr_area || mode_clock < curr_clock) {
+                        // We found a better mode, swap
+                        new_mode = mode;
+                    }
                 }
             }
-            new_resolution
+
+            let new_mode = new_mode.id;
+
+            (self.display.xrandr.XRRFreeOutputInfo)(output);
+            (self.display.xrandr.XRRFreeCrtcInfo)(crtc);
+            (self.display.xrandr.XRRFreeScreenResources)(resources);
+            (current_mode, new_mode)
         };
 
-        if new_resolution != current_resolution {
+        if new_mode != current_mode {
             // We actually need to change modes
-            self.set_resolution(monitor, new_resolution.0, new_resolution.1);
+            self.set_mode(crtc, new_mode);
             let mut fullscreen = self.fullscreen.lock().unwrap();
-            if fullscreen.1.is_none() {
+            if (*fullscreen).is_none() {
                 // It's our first mode switch, save the original resolution to be able to go back
-                fullscreen.1 = Some(current_resolution);
+                *fullscreen = Some((crtc, current_mode));
             }
         }
     }
 
     fn switch_from_fullscreen_mode(&self) {
-        let (monitor, mode) = {
-            let fullscreen = self.fullscreen.lock().unwrap();
-            (fullscreen.0, fullscreen.1)
-        };
-
-        if let Some(mode) = mode {
-            self.set_resolution(monitor, mode.0, mode.1);
-            let mut fullscreen = self.fullscreen.lock().unwrap();
-            fullscreen.1 = None;
+        let mut fullscreen = self.fullscreen.lock().unwrap();
+        if let Some(parts) = *fullscreen {
+            let (crtc, original_mode) = parts;
+            self.set_mode(crtc, original_mode);
+            *fullscreen = None;
         }
     }
 
-    pub fn set_resolution(&self, monitor: i32, width: i32, height: i32) {
+    pub fn set_mode(&self, crtcid: u64, modeid: u64) {
         unsafe {
-            let mut nsizes: i32 = 0;
-            let sizes = (self.display.xrandr.XRRSizes)(self.display.display, monitor, &mut nsizes);
-            for i in 0..nsizes {
-                let mode = ptr::read(sizes.offset(i as isize));
-                if mode.width == width && mode.height == height {
-                    return self.set_mode(monitor, i);
-                }
-            }
-        }
-        eprintln!("[winit] Couldn't find mode with size {}x{}", width, height);
-    }
-
-    pub fn set_mode(&self, monitor: i32, mode: i32) {
-        unsafe {
-            let mut _cfg_time: ffi::Time = mem::uninitialized();
-            let time = (self.display.xrandr.XRRTimes)(self.display.display, monitor, &mut _cfg_time);
-            let mut rotation: ffi::Rotation = mem::uninitialized();
-            (self.display.xrandr.XRRRotations)(self.display.display, monitor, &mut rotation);
-            let cfg = (self.display.xrandr.XRRGetScreenInfo)(self.display.display, self.window);
-            (self.display.xrandr.XRRSetScreenConfig)(self.display.display, cfg, self.root, mode, rotation, time);
-            (self.display.xrandr.XRRFreeScreenConfigInfo)(cfg);
-            (self.display.xlib.XRaiseWindow)(self.display.display, self.window);
+            let resources = (self.display.xrandr.XRRGetScreenResources)(self.display.display, self.window);
+            let crtc = (self.display.xrandr.XRRGetCrtcInfo)(self.display.display, resources, crtcid);
+            (self.display.xrandr.XRRSetCrtcConfig)(
+                self.display.display,
+                resources,
+                crtcid,
+                (*resources).timestamp,
+                (*crtc).x,
+                (*crtc).y,
+                modeid, // The only one we're actually changing
+                (*crtc).rotation,
+                (*crtc).outputs,
+                (*crtc).noutput
+            );
+            (self.display.xrandr.XRRFreeCrtcInfo)(crtc);
+            (self.display.xrandr.XRRFreeScreenResources)(resources);
         }
     }
 }
@@ -178,10 +189,7 @@ impl Window2 {
 
         let screen_id = match pl_attribs.screen_id {
             Some(id) => id,
-            None => match window_attrs.fullscreen {
-                FullScreenState::Exclusive(RootMonitorId { inner: PlatformMonitorId::X(X11MonitorId(_, monitor)) }) => monitor as i32,
-                _ => unsafe { (display.xlib.XDefaultScreen)(display.display) },
-            }
+            None => unsafe { (display.xlib.XDefaultScreen)(display.display) },
         };
 
         // getting the root window
@@ -315,9 +323,10 @@ impl Window2 {
         let window = Window2 {
             x: Arc::new(XWindow {
                 display: display.clone(),
-                window: window,
-                root: root,
-                fullscreen: Arc::new(Mutex::new((screen_id, None))),
+                window,
+                root,
+                screen_id,
+                fullscreen: Arc::new(Mutex::new(None)),
             }),
             cursor_state: Mutex::new(CursorState::Normal),
         };
@@ -414,9 +423,9 @@ impl Window2 {
               self.x.switch_from_fullscreen_mode();
               self.set_fullscreen_hint(true);
             },
-            FullScreenState::Exclusive(RootMonitorId { inner: PlatformMonitorId::X(X11MonitorId(_, monitor)) }) => {
+            FullScreenState::Exclusive(RootMonitorId { inner: PlatformMonitorId::X(X11MonitorId{crtc,..}) }) => {
               if let Some(dimensions) = self.get_inner_size() {
-                self.x.switch_to_fullscreen_mode(monitor as i32, dimensions.0 as i32, dimensions.1 as i32);
+                self.x.switch_to_fullscreen_mode(crtc, dimensions.0, dimensions.1);
                 self.set_fullscreen_hint(true);
               } else {
                 eprintln!("[winit] Couldn't get window dimensions to go fullscreen");
@@ -573,12 +582,7 @@ impl Window2 {
 
     #[inline]
     pub fn get_xlib_screen_id(&self) -> *mut libc::c_void {
-        let screen_id = {
-            let fullscreen = self.x.fullscreen.lock().unwrap();
-            fullscreen.0
-        };
-
-        screen_id as *mut libc::c_void
+        self.x.screen_id as *mut libc::c_void
     }
 
     #[inline]
@@ -785,16 +789,11 @@ impl Window2 {
     }
 
     pub fn hidpi_factor(&self) -> f32 {
-        let screen_id = {
-            let fullscreen = self.x.fullscreen.lock().unwrap();
-            fullscreen.0
-        };
-
         unsafe {
-            let x_px = (self.x.display.xlib.XDisplayWidth)(self.x.display.display, screen_id);
-            let y_px = (self.x.display.xlib.XDisplayHeight)(self.x.display.display, screen_id);
-            let x_mm = (self.x.display.xlib.XDisplayWidthMM)(self.x.display.display, screen_id);
-            let y_mm = (self.x.display.xlib.XDisplayHeightMM)(self.x.display.display, screen_id);
+            let x_px = (self.x.display.xlib.XDisplayWidth)(self.x.display.display, self.x.screen_id);
+            let y_px = (self.x.display.xlib.XDisplayHeight)(self.x.display.display, self.x.screen_id);
+            let x_mm = (self.x.display.xlib.XDisplayWidthMM)(self.x.display.display, self.x.screen_id);
+            let y_mm = (self.x.display.xlib.XDisplayHeightMM)(self.x.display.display, self.x.screen_id);
             let ppmm = ((x_px as f32 * y_px as f32) / (x_mm as f32 * y_mm as f32)).sqrt();
             ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0) // quantize with 1/12 step size.
         }

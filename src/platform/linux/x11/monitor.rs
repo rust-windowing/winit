@@ -1,43 +1,62 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::ptr;
 
 use super::XConnection;
 
 #[derive(Clone)]
-pub struct MonitorId(pub Arc<XConnection>, pub u32);
+pub struct MonitorId {
+  pub x: Arc<XConnection>,
+  pub crtc: u64,
+}
 
 pub fn get_available_monitors(x: &Arc<XConnection>) -> VecDeque<MonitorId> {
-    let nb_monitors = unsafe { (x.xlib.XScreenCount)(x.display) };
-    x.check_errors().expect("Failed to call XScreenCount");
-
     let mut monitors = VecDeque::new();
-    monitors.extend((0 .. nb_monitors).map(|i| MonitorId(x.clone(), i as u32)));
+    unsafe {
+        let root = (x.xlib.XDefaultRootWindow)(x.display);
+        let resources = (x.xrandr.XRRGetScreenResources)(x.display, root);
+
+        for i in 0..(*resources).ncrtc {
+            let crtcid = ptr::read((*resources).crtcs.offset(i as isize));
+            let crtc = (x.xrandr.XRRGetCrtcInfo)(x.display, resources, crtcid);
+            if (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0 {
+                monitors.push_back(MonitorId{
+                    x: x.clone(),
+                    crtc: crtcid
+                });
+            }
+            (x.xrandr.XRRFreeCrtcInfo)(crtc);
+        }
+        (x.xrandr.XRRFreeScreenResources)(resources);
+    }
     monitors
 }
 
 #[inline]
 pub fn get_primary_monitor(x: &Arc<XConnection>) -> MonitorId {
-    let primary_monitor = unsafe { (x.xlib.XDefaultScreen)(x.display) };
-    x.check_errors().expect("Failed to call XDefaultScreen");
-    MonitorId(x.clone(), primary_monitor as u32)
+    get_available_monitors(x)[0].clone()
 }
 
 impl MonitorId {
     pub fn get_name(&self) -> Option<String> {
-        let MonitorId(_, screen_num) = *self;
-        Some(format!("Monitor #{}", screen_num))
+        Some(format!("CRTC #{}", self.crtc))
     }
 
     #[inline]
     pub fn get_native_identifier(&self) -> u32 {
-        self.1
+        self.crtc as u32
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
-        let screen = unsafe { (self.0.xlib.XScreenOfDisplay)(self.0.display, self.1 as i32) };
-        let width = unsafe { (self.0.xlib.XWidthOfScreen)(screen) };
-        let height = unsafe { (self.0.xlib.XHeightOfScreen)(screen) };
-        self.0.check_errors().expect("Failed to get monitor dimensions");
-        (width as u32, height as u32)
+        unsafe {
+            let root = (self.x.xlib.XDefaultRootWindow)(self.x.display);
+            let resources = (self.x.xrandr.XRRGetScreenResources)(self.x.display, root);
+            let crtc = (self.x.xrandr.XRRGetCrtcInfo)(self.x.display, resources, self.crtc);
+            let width = (*crtc).width;
+            let height = (*crtc).height;
+            (self.x.xrandr.XRRFreeCrtcInfo)(crtc);
+            (self.x.xrandr.XRRFreeScreenResources)(resources);
+            (width, height)
+        }
     }
 }
