@@ -3,7 +3,7 @@ use CreationError;
 use CreationError::OsError;
 use libc;
 use std::borrow::Borrow;
-use std::{mem, ptr, cmp};
+use std::{mem, cmp};
 use std::sync::{Arc, Mutex};
 use std::os::raw::{c_int, c_long, c_uchar};
 use std::thread;
@@ -74,14 +74,14 @@ impl XWindow {
             // Build a hash of the modes to be able to lookup by id
             let mut modes: HashMap<u64, ffi::XRRModeInfo> = HashMap::new();
             for k in 0..(*resources).nmode {
-                let mode = ptr::read((*resources).modes.offset(k as isize));
+                let mode = *((*resources).modes.offset(k as isize));
                 modes.insert(mode.id, mode);
             }
 
-            let output = (self.display.xrandr.XRRGetOutputInfo)(self.display.display, resources, ptr::read((*crtc).outputs.offset(0)));
-            let mut new_mode = modes[&ptr::read((*output).modes.offset(0))];
+            let output = (self.display.xrandr.XRRGetOutputInfo)(self.display.display, resources, *((*crtc).outputs.offset(0)));
+            let mut new_mode = modes[&*((*output).modes.offset(0))];
             for j in 1..(*output).nmode {
-                let modeid = ptr::read((*output).modes.offset(j as isize));
+                let modeid = *((*output).modes.offset(j as isize));
                 let mode = modes[&modeid];
                 let curr_clock = (new_mode.dotClock as f32) / (new_mode.hTotal as f32) / (new_mode.vTotal as f32);
                 let mode_clock = (mode.dotClock as f32) / (mode.hTotal as f32) / (mode.vTotal as f32);

@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::{ptr, slice};
+use std::slice;
 
 use super::XConnection;
 
@@ -18,10 +18,10 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> VecDeque<MonitorId> {
         let resources = (x.xrandr.XRRGetScreenResources)(x.display, root);
 
         for i in 0..(*resources).ncrtc {
-            let crtcid = ptr::read((*resources).crtcs.offset(i as isize));
+            let crtcid = *((*resources).crtcs.offset(i as isize));
             let crtc = (x.xrandr.XRRGetCrtcInfo)(x.display, resources, crtcid);
             if (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0 {
-                let output = (x.xrandr.XRRGetOutputInfo)(x.display, resources, ptr::read((*crtc).outputs.offset(0)));
+                let output = (x.xrandr.XRRGetOutputInfo)(x.display, resources, *((*crtc).outputs.offset(0)));
                 let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
                 let name = String::from_utf8_lossy(nameslice).into_owned();
                 (x.xrandr.XRRFreeOutputInfo)(output);
