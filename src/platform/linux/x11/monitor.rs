@@ -5,13 +5,24 @@ use super::XConnection;
 
 #[derive(Clone)]
 pub struct MonitorId {
-  pub x: Arc<XConnection>,
-  pub crtc: u64,
-  pub name: String,
+  /// This is the actual ID but isn't really used as name/dimensions/position are cached
+  crtc: u64,
+  /// The name of the monitor
+  name: String,
+  /// The size of the monitor
+  dimensions: (u32, u32),
+  /// The position of the monitor in the X screen
+  position: (u32, u32),
 }
 
 pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
     let mut monitors = Vec::new();
+    // For simplicity we just enumerate CRTCs and use those as monitors. XRandR 1.5 adds
+    // the concept of a monitor that aggregates several CRTCs which is useful from Multi
+    // Stream Transport monitors (same screen, fed as if 2) and for video wall kinds of
+    // situations.
+    // Given test hardware it would be easy to support these cases by testing if we have
+    // XRandR 1.5 and if yes, enumerating monitors instead of CRTCs
     unsafe {
         let root = (x.xlib.XDefaultRootWindow)(x.display);
         let resources = (x.xrandr.XRRGetScreenResources)(x.display, root);
@@ -25,9 +36,10 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                 let name = String::from_utf8_lossy(nameslice).into_owned();
                 (x.xrandr.XRRFreeOutputInfo)(output);
                 monitors.push(MonitorId{
-                    x: x.clone(),
                     crtc: crtcid,
                     name,
+                    dimensions: ((*crtc).width as u32, (*crtc).height as u32),
+                    position: ((*crtc).x as u32, (*crtc).y as u32),
                 });
             }
             (x.xrandr.XRRFreeCrtcInfo)(crtc);
@@ -53,15 +65,10 @@ impl MonitorId {
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
-        unsafe {
-            let root = (self.x.xlib.XDefaultRootWindow)(self.x.display);
-            let resources = (self.x.xrandr.XRRGetScreenResources)(self.x.display, root);
-            let crtc = (self.x.xrandr.XRRGetCrtcInfo)(self.x.display, resources, self.crtc);
-            let width = (*crtc).width;
-            let height = (*crtc).height;
-            (self.x.xrandr.XRRFreeCrtcInfo)(crtc);
-            (self.x.xrandr.XRRFreeScreenResources)(resources);
-            (width, height)
-        }
+        self.dimensions
+    }
+
+    pub fn get_position(&self) -> (u32, u32) {
+        self.position
     }
 }
