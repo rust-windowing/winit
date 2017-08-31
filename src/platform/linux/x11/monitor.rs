@@ -5,8 +5,8 @@ use super::XConnection;
 
 #[derive(Clone)]
 pub struct MonitorId {
-  /// This is the actual ID but isn't really used as name/dimensions/position are cached
-  crtc: u64,
+  /// The actual id
+  id: u32,
   /// The name of the monitor
   name: String,
   /// The size of the monitor
@@ -16,37 +16,57 @@ pub struct MonitorId {
 }
 
 pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
-    let mut monitors = Vec::new();
-    // For simplicity we just enumerate CRTCs and use those as monitors. XRandR 1.5 adds
-    // the concept of a monitor that aggregates several CRTCs which is useful from Multi
-    // Stream Transport monitors (same screen, fed as if 2) and for video wall kinds of
-    // situations.
-    // Given test hardware it would be easy to support these cases by testing if we have
-    // XRandR 1.5 and if yes, enumerating monitors instead of CRTCs
+    let mut available = Vec::new();
     unsafe {
         let root = (x.xlib.XDefaultRootWindow)(x.display);
         let resources = (x.xrandr.XRRGetScreenResources)(x.display, root);
 
-        for i in 0..(*resources).ncrtc {
-            let crtcid = *((*resources).crtcs.offset(i as isize));
-            let crtc = (x.xrandr.XRRGetCrtcInfo)(x.display, resources, crtcid);
-            if (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0 {
-                let output = (x.xrandr.XRRGetOutputInfo)(x.display, resources, *((*crtc).outputs.offset(0)));
+        let mut major = 0;
+        let mut minor = 0;
+        (x.xrandr.XRRQueryVersion)(x.display, &mut major, &mut minor);
+        if ((major as u64)<<32)+(minor as u64) >= (1<<32)+5 {
+            // We're in XRandR >= 1.5, enumerate Monitors to handle things like MST and videowalls
+            let mut nmonitors = 0;
+            let monitors = (x.xrandr.XRRGetMonitors)(x.display, root, 1, &mut nmonitors);
+            for i in 0..nmonitors {
+                let monitor = *(monitors.offset(i as isize));
+                let output = (x.xrandr.XRRGetOutputInfo)(x.display, resources, *(monitor.outputs.offset(0)));
                 let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
                 let name = String::from_utf8_lossy(nameslice).into_owned();
                 (x.xrandr.XRRFreeOutputInfo)(output);
-                monitors.push(MonitorId{
-                    crtc: crtcid,
+                available.push(MonitorId{
+                    id: i as u32,
                     name,
-                    dimensions: ((*crtc).width as u32, (*crtc).height as u32),
-                    position: ((*crtc).x as u32, (*crtc).y as u32),
+                    dimensions: (monitor.width as u32, monitor.height as u32),
+                    position: (monitor.x as u32, monitor.y as u32),
                 });
             }
-            (x.xrandr.XRRFreeCrtcInfo)(crtc);
+            (x.xrandr.XRRFreeMonitors)(monitors);
+        } else {
+            // We're in XRandR < 1.5, enumerate CRTCs. Everything will work but MST and
+            // videowall setups will show more monitors than the logical groups the user
+            // cares about
+            for i in 0..(*resources).ncrtc {
+                let crtcid = *((*resources).crtcs.offset(i as isize));
+                let crtc = (x.xrandr.XRRGetCrtcInfo)(x.display, resources, crtcid);
+                if (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0 {
+                    let output = (x.xrandr.XRRGetOutputInfo)(x.display, resources, *((*crtc).outputs.offset(0)));
+                    let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
+                    let name = String::from_utf8_lossy(nameslice).into_owned();
+                    (x.xrandr.XRRFreeOutputInfo)(output);
+                    available.push(MonitorId{
+                        id: crtcid as u32,
+                        name,
+                        dimensions: ((*crtc).width as u32, (*crtc).height as u32),
+                        position: ((*crtc).x as u32, (*crtc).y as u32),
+                    });
+                }
+                (x.xrandr.XRRFreeCrtcInfo)(crtc);
+            }
         }
         (x.xrandr.XRRFreeScreenResources)(resources);
     }
-    monitors
+    available
 }
 
 #[inline]
@@ -61,7 +81,7 @@ impl MonitorId {
 
     #[inline]
     pub fn get_native_identifier(&self) -> u32 {
-        self.crtc as u32
+        self.id as u32
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
