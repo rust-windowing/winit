@@ -39,6 +39,6 @@ dwmapi-sys = "0.1"
 wayland-client = { version = "0.9.9", features = ["dlopen"] }
 wayland-protocols = { version = "0.9.9", features = ["unstable_protocols"] }
 wayland-kbd = "0.9.1"
-wayland-window = "0.7.0"
+wayland-window = "0.8.0"
 tempfile = "2.1"
 x11-dl = "2.8"

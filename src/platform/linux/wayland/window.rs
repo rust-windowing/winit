@@ -66,6 +66,9 @@ impl Window {
                 // Finally, set the decorations size
                 decorated.resize(width as i32, height as i32);
             }
+
+            evq_guard.sync_roundtrip().unwrap();
+
             decorated_id
         };
         let me = Window {
@@ -204,11 +207,12 @@ impl DecoratedHandler {
 impl wayland_window::Handler for DecoratedHandler {
     fn configure(&mut self,
                  _: &mut EventQueueHandle,
-                 _: wayland_window::Configure,
-                 width: i32, height: i32)
+                 _cfg: wayland_window::Configure,
+                 newsize: Option<(i32, i32)>)
     {
-        use std::cmp::max;
-        self.newsize = Some((max(width,1) as u32, max(height,1) as u32));
+        if let Some((w, h)) = newsize {
+            self.newsize = Some((w as u32, h as u32));
+        }
     }
 
     fn close(&mut self, _: &mut EventQueueHandle) {
