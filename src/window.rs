@@ -7,7 +7,7 @@ use MouseCursor;
 use Window;
 use WindowBuilder;
 use WindowId;
-use FullScreenState;
+use FullScreen;
 
 use libc;
 use platform;
@@ -60,7 +60,7 @@ impl WindowBuilder {
     ///
     /// If you don't specify dimensions for the window, it will match the monitor's.
     #[inline]
-    pub fn with_fullscreen(mut self, state: FullScreenState) -> WindowBuilder {
+    pub fn with_fullscreen(mut self, state: FullScreen) -> WindowBuilder {
         self.window.fullscreen = state;
         self
     }
@@ -107,7 +107,7 @@ impl WindowBuilder {
     pub fn build(mut self, events_loop: &EventsLoop) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
         if self.window.dimensions.is_none() {
-            if let FullScreenState::Exclusive(ref monitor) = self.window.fullscreen {
+            if let FullScreen::SpecificMonitor(ref monitor) = self.window.fullscreen {
                 self.window.dimensions = Some(monitor.get_dimensions());
             }
         }
@@ -308,7 +308,7 @@ impl Window {
 
     /// Sets the window to fullscreen or back
     #[inline]
-    pub fn set_fullscreen(&self, state: FullScreenState) {
+    pub fn set_fullscreen(&self, state: FullScreen) {
         self.window.set_fullscreen(state)
     }
 

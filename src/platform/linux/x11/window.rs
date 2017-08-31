@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use CursorState;
 use WindowAttributes;
-use FullScreenState;
+use FullScreen;
 use platform::PlatformSpecificWindowBuilderAttributes;
 
 use platform::MonitorId as PlatformMonitorId;
@@ -294,15 +294,15 @@ impl Window2 {
         }
     }
 
-    pub fn set_fullscreen(&self, state: FullScreenState) {
+    pub fn set_fullscreen(&self, state: FullScreen) {
         match state {
-            FullScreenState::None => {
+            FullScreen::None => {
                 self.set_fullscreen_hint(false);
             },
-            FullScreenState::Windowed => {
+            FullScreen::CurrentMonitor => {
                 self.set_fullscreen_hint(true);
             },
-            FullScreenState::Exclusive(RootMonitorId { inner: PlatformMonitorId::X(monitor) }) => {
+            FullScreen::SpecificMonitor(RootMonitorId { inner: PlatformMonitorId::X(monitor) }) => {
                 let screenpos = monitor.get_position();
                 self.set_position(screenpos.0 as i32, screenpos.1 as i32);
                 self.set_fullscreen_hint(true);

@@ -1,7 +1,7 @@
 extern crate winit;
 
 use std::io::{self, Write};
-use winit::{ControlFlow, Event, WindowEvent, FullScreenState};
+use winit::{ControlFlow, Event, WindowEvent, FullScreen};
 
 fn main() {
     let mut events_loop = winit::EventsLoop::new();
@@ -27,7 +27,7 @@ fn main() {
 
     let _window = winit::WindowBuilder::new()
         .with_title("Hello world!")
-        .with_fullscreen(FullScreenState::Exclusive(monitor))
+        .with_fullscreen(FullScreen::SpecificMonitor(monitor))
         .build(&events_loop)
         .unwrap();
 

@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::env;
 
-use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow, FullScreenState};
+use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow, FullScreen};
 use libc;
 
 use self::x11::XConnection;
@@ -236,7 +236,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, state: FullScreenState) {
+    pub fn set_fullscreen(&self, state: FullScreen) {
         match self {
             &Window::X(ref w) => w.set_fullscreen(state),
             &Window::Wayland(ref _w) => {},

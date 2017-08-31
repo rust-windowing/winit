@@ -14,7 +14,7 @@ use std::collections::VecDeque;
 
 use CursorState;
 use WindowAttributes;
-use FullScreenState;
+use FullScreen;
 
 pub struct EventsLoop {
     event_rx: Receiver<android_glue::Event>,
@@ -261,7 +261,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, _state: FullScreenState) {
+    pub fn set_fullscreen(&self, _state: FullScreen) {
     }
 
     pub fn id(&self) -> WindowId {
