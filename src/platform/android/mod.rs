@@ -100,12 +100,18 @@ impl EventsLoop {
     pub fn run_forever<F>(&mut self, mut callback: F)
         where F: FnMut(::Event) -> ::ControlFlow,
     {
+        // Yeah that's a very bad implementation.
         loop {
-            // calling poll_events()
-            self.poll_events(|e| { callback(e); });
-
-            // TODO: Implement a proper way of sleeping on the event queue
-            // timer::sleep(Duration::milliseconds(16));
+            let mut control_flow = ::ControlFlow::Continue;
+            self.poll_events(|e| {
+                if let ::ControlFlow::Break = callback(e) {
+                    control_flow = ::ControlFlow::Break;
+                }
+            });
+            if let ::ControlFlow::Break = control_flow {
+                break;
+            }
+            ::std::thread::sleep(::std::time::Duration::from_millis(5));
         }
     }
 
