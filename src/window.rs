@@ -322,7 +322,7 @@ impl Window {
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
 pub struct AvailableMonitorsIter {
-    data: VecDequeIter<platform::MonitorId>,
+    pub(crate) data: VecDequeIter<platform::MonitorId>,
 }
 
 impl Iterator for AvailableMonitorsIter {
@@ -337,36 +337,6 @@ impl Iterator for AvailableMonitorsIter {
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.data.size_hint()
     }
-}
-
-/// Returns the list of all available monitors.
-///
-/// Usage will result in display backend initialisation, this can be controlled on linux
-/// using an environment variable `WINIT_UNIX_BACKEND`.
-/// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
-/// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
-/// > and if it fails will fallback on x11.
-/// >
-/// > If this variable is set with any other value, winit will panic.
-// Note: should be replaced with `-> impl Iterator` once stable.
-#[inline]
-pub fn get_available_monitors() -> AvailableMonitorsIter {
-    let data = platform::get_available_monitors();
-    AvailableMonitorsIter{ data: data.into_iter() }
-}
-
-/// Returns the primary monitor of the system.
-///
-/// Usage will result in display backend initialisation, this can be controlled on linux
-/// using an environment variable `WINIT_UNIX_BACKEND`.
-/// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
-/// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
-/// > and if it fails will fallback on x11.
-/// >
-/// > If this variable is set with any other value, winit will panic.
-#[inline]
-pub fn get_primary_monitor() -> MonitorId {
-    MonitorId { inner: platform::get_primary_monitor() }
 }
 
 /// Identifier for a monitor.

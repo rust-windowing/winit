@@ -24,6 +24,16 @@ macro_rules! gen_api_transition {
                 }
             }
 
+            #[inline]
+            pub fn get_available_monitors(&self) -> ::std::collections::VecDeque<MonitorId> {
+                get_available_monitors()
+            }
+
+            #[inline]
+            pub fn get_primary_monitor(&self) -> MonitorId {
+                get_primary_monitor()
+            }
+
             pub fn poll_events<F>(&mut self, mut callback: F)
                 where F: FnMut(::Event)
             {

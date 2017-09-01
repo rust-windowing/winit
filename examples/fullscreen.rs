@@ -4,9 +4,11 @@ use std::io::{self, Write};
 use winit::{ControlFlow, Event, WindowEvent, FullScreenState};
 
 fn main() {
+    let mut events_loop = winit::EventsLoop::new();
+
     // enumerating monitors
     let monitor = {
-        for (num, monitor) in winit::get_available_monitors().enumerate() {
+        for (num, monitor) in events_loop.get_available_monitors().enumerate() {
             println!("Monitor #{}: {:?}", num, monitor.get_name());
         }
 
@@ -16,14 +18,12 @@ fn main() {
         let mut num = String::new();
         io::stdin().read_line(&mut num).unwrap();
         let num = num.trim().parse().ok().expect("Please enter a number");
-        let monitor = winit::get_available_monitors().nth(num).expect("Please enter a valid ID");
+        let monitor = events_loop.get_available_monitors().nth(num).expect("Please enter a valid ID");
 
         println!("Using {:?}", monitor.get_name());
 
         monitor
     };
-
-    let mut events_loop = winit::EventsLoop::new();
 
     let _window = winit::WindowBuilder::new()
         .with_title("Hello world!")

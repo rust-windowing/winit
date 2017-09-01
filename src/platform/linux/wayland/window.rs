@@ -37,8 +37,9 @@ pub fn make_wid(s: &wl_surface::WlSurface) -> WindowId {
 }
 
 impl Window {
-    pub fn new(evlp: &EventsLoop, ctxt: Arc<WaylandContext>, attributes: &WindowAttributes)  -> Result<Window, CreationError>
+    pub fn new(evlp: &EventsLoop, attributes: &WindowAttributes) -> Result<Window, CreationError>
     {
+        let ctxt = evlp.context().clone();
         let (width, height) = attributes.dimensions.unwrap_or((800,600));
 
         let (surface, decorated) = ctxt.create_window::<DecoratedHandler>(width, height);
