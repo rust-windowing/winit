@@ -71,7 +71,9 @@ use objc::runtime::{Class, Object, Sel, BOOL, YES };
 use objc::declare::{ ClassDecl };
 
 use { CreationError, CursorState, MouseCursor, WindowAttributes, FullScreenState };
-use WindowEvent as Event;
+use WindowId as RootEventId;
+use WindowEvent;
+use Event;
 use events::{ Touch, TouchPhase };
 
 mod ffi;
@@ -96,24 +98,16 @@ static mut jmpbuf: [c_int;27] = [0;27];
 #[derive(Clone)]
 pub struct MonitorId;
 
-pub struct Window {
+pub struct Window2 {
     delegate_state: *mut DelegateState
 }
 
 #[derive(Clone)]
 pub struct WindowProxy;
 
-pub struct PollEventsIterator<'a> {
-    window: &'a Window,
-}
-
-pub struct WaitEventsIterator<'a> {
-    window: &'a Window,
-}
-
 #[derive(Debug)]
 struct DelegateState {
-    events_queue: VecDeque<Event>,
+    events_queue: VecDeque<WindowEvent>,
     window: id,
     controller: id,
     size: (u32,u32),
@@ -147,16 +141,33 @@ impl MonitorId {
 }
 
 pub struct EventsLoop {
-    windows: ::std::sync::Arc<::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>>,
+    delegate_state: *mut DelegateState
 }
 
 pub struct EventsLoopProxy;
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
-        EventsLoop {
-            windows: ::std::sync::Arc::new(::std::sync::Mutex::new(vec![])),
+        unsafe {
+            if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
+                let app: id = msg_send![Class::get("UIApplication").unwrap(), sharedApplication];
+                let delegate: id = msg_send![app, delegate];
+                let state: *mut c_void = *(&*delegate).get_ivar("glutinState");
+                let state = state as *mut DelegateState;
+
+                let events_loop = EventsLoop {
+                    delegate_state: state
+                };
+
+                return events_loop;
+            }
         }
+
+        create_delegate_class();
+        create_view_class();
+        start_app();
+
+        panic!("Couldn't create UIApplication")
     }
 
     #[inline]
@@ -174,16 +185,35 @@ impl EventsLoop {
     pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(::Event)
     {
-        if self.awakened.load(::std::sync::atomic::Ordering::Relaxed) {
-            self.awakened.store(false, ::std::sync::atomic::Ordering::Relaxed);
-            callback(::Event::Awakened);
-        }
+        unsafe {
+            let state = &mut *self.delegate_state;
 
-        let windows = self.windows.lock().unwrap();
-        for window in windows.iter() {
-            for event in window.poll_events() {
-                callback(::Event::WindowEvent {
-                    window_id: ::WindowId(WindowId(&**window as *const Window as usize)),
+            if let Some(event) = state.events_queue.pop_front() {
+                callback(Event::WindowEvent {
+                    window_id: RootEventId(WindowId),
+                    event: event,
+                });
+                return;
+            }
+
+            // jump hack, so we won't quit on willTerminate event before processing it
+            if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
+                if let Some(event) = state.events_queue.pop_front() {
+                    callback(Event::WindowEvent {
+                        window_id: RootEventId(WindowId),
+                        event: event,
+                    });
+                    return;
+                }
+            }
+
+            // run runloop
+            let seconds: CFTimeInterval = 0.000002;
+            while CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, 1) == kCFRunLoopRunHandledSource {}
+
+            if let Some(event) = state.events_queue.pop_front() {
+                callback(Event::WindowEvent {
+                    window_id: RootEventId(WindowId),
                     event: event,
                 })
             }
@@ -193,8 +223,6 @@ impl EventsLoop {
     pub fn run_forever<F>(&mut self, mut callback: F)
         where F: FnMut(::Event) -> ::ControlFlow,
     {
-        self.awakened.store(false, ::std::sync::atomic::Ordering::Relaxed);
-
         // Yeah that's a very bad implementation.
         loop {
             let mut control_flow = ::ControlFlow::Continue;
@@ -222,80 +250,21 @@ impl EventsLoopProxy {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(usize);
+pub struct WindowId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
 
-pub struct Window2 {
-    pub window: ::std::sync::Arc<Window>,
-    windows: ::std::sync::Weak<::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>>
-}
-
-impl ::std::ops::Deref for Window2 {
-    type Target = Window;
-    #[inline]
-    fn deref(&self) -> &Window {
-        &*self.window
-    }
-}
-
-impl Window2 {
-    pub fn new(events_loop: &EventsLoop,
-                window: &::WindowAttributes,
-                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-                -> Result<Window2, CreationError>
-    {
-        let win = ::std::sync::Arc::new(try!(Window::new(window, pl_attribs)));
-        events_loop.windows.lock().unwrap().push(win.clone());
-        Ok(Window2 {
-            window: win,
-            windows: ::std::sync::Arc::downgrade(&events_loop.windows),
-        })
-    }
-
-    #[inline]
-    pub fn id(&self) -> WindowId {
-        WindowId(&*self.window as *const Window as usize)
-    }
-}
-
-impl Drop for Window2 {
-    fn drop(&mut self) {
-        if let Some(windows) = self.windows.upgrade() {
-            let mut windows = windows.lock().unwrap();
-            windows.retain(|w| &**w as *const Window != &*self.window as *const _);
-        }
-    }
-}
-
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes;
 
-impl Window {
-
-    pub fn new(_: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes) -> Result<Window, CreationError>
+impl Window2 {
+    pub fn new(ev: &EventsLoop, _: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window2, CreationError>
     {
-        unsafe {
-            if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
-                let app: id = msg_send![Class::get("UIApplication").unwrap(), sharedApplication];
-                let delegate: id = msg_send![app, delegate];
-                let state: *mut c_void = *(&*delegate).get_ivar("glutinState");
-                let state = state as *mut DelegateState;
-
-                let window = Window {
-                    delegate_state: state
-                };
-
-                return Ok(window)
-            }
-        }
-
-        create_delegate_class();
-        create_view_class();
-        start_app();
-
-        Err(CreationError::OsError(format!("Couldn't create UIApplication")))
+        Ok(Window2 {
+            delegate_state: ev.delegate_state,
+        })
     }
 
     #[inline]
@@ -331,20 +300,6 @@ impl Window {
 
     #[inline]
     pub fn set_inner_size(&self, _x: u32, _y: u32) {
-    }
-
-    #[inline]
-    pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator {
-            window: self
-        }
-    }
-
-    #[inline]
-    pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator {
-            window: self
-        }
     }
 
     #[inline]
@@ -392,6 +347,11 @@ impl Window {
     #[inline]
     pub fn set_fullscreen(&self, state: FullScreenState) {
     }
+
+    #[inline]
+    pub fn id(&self) -> WindowId {
+        WindowId
+    }
 }
 
 fn create_delegate_class() {
@@ -430,7 +390,7 @@ fn create_delegate_class() {
         unsafe {
             let state: *mut c_void = *this.get_ivar("glutinState");
             let state = &mut *(state as *mut DelegateState);
-            state.events_queue.push_back(Event::Focused(true));
+            state.events_queue.push_back(WindowEvent::Focused(true));
         }
     }
 
@@ -438,7 +398,7 @@ fn create_delegate_class() {
         unsafe {
             let state: *mut c_void = *this.get_ivar("glutinState");
             let state = &mut *(state as *mut DelegateState);
-            state.events_queue.push_back(Event::Focused(false));
+            state.events_queue.push_back(WindowEvent::Focused(false));
         }
     }
 
@@ -446,7 +406,7 @@ fn create_delegate_class() {
         unsafe {
             let state: *mut c_void = *this.get_ivar("glutinState");
             let state = &mut *(state as *mut DelegateState);
-            state.events_queue.push_back(Event::Suspended(false));
+            state.events_queue.push_back(WindowEvent::Suspended(false));
         }
     }
 
@@ -454,7 +414,7 @@ fn create_delegate_class() {
         unsafe {
             let state: *mut c_void = *this.get_ivar("glutinState");
             let state = &mut *(state as *mut DelegateState);
-            state.events_queue.push_back(Event::Suspended(true));
+            state.events_queue.push_back(WindowEvent::Suspended(true));
         }
     }
 
@@ -464,7 +424,7 @@ fn create_delegate_class() {
             let state = &mut *(state as *mut DelegateState);
             // push event to the front to garantee that we'll process it
             // immidiatly after jump
-            state.events_queue.push_front(Event::Closed);
+            state.events_queue.push_front(WindowEvent::Closed);
             longjmp(mem::transmute(&mut jmpbuf),1);
         }
     }
@@ -485,7 +445,7 @@ fn create_delegate_class() {
                 let touch_id = touch as u64;
                 let phase: i32 = msg_send![touch, phase];
 
-                state.events_queue.push_back(Event::Touch(Touch {
+                state.events_queue.push_back(WindowEvent::Touch(Touch {
                     device_id: DEVICE_ID,
                     id: touch_id,
                     location: (location.x as f64, location.y as f64),
@@ -558,44 +518,6 @@ fn create_view_class() {
 fn start_app() {
     unsafe {
         UIApplicationMain(0, ptr::null(), nil, NSString::alloc(nil).init_str("AppDelegate"));
-    }
-}
-
-impl<'a> Iterator for WaitEventsIterator<'a> {
-    type Item = Event;
-
-    #[inline]
-    fn next(&mut self) -> Option<Event> {
-        loop {
-            if let Some(ev) = self.window.poll_events().next() {
-                return Some(ev);
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for PollEventsIterator<'a> {
-    type Item = Event;
-
-    fn next(&mut self) -> Option<Event> {
-        unsafe {
-            let state = &mut *self.window.delegate_state;
-
-            if let Some(event) = state.events_queue.pop_front() {
-                return Some(event)
-            }
-
-            // jump hack, so we won't quit on willTerminate event before processing it
-            if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
-                return state.events_queue.pop_front()
-            }
-
-            // run runloop
-            let seconds: CFTimeInterval = 0.000002;
-            while CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, 1) == kCFRunLoopRunHandledSource {}
-
-            state.events_queue.pop_front()
-        }
     }
 }
 
