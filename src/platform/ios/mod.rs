@@ -134,18 +134,6 @@ impl DelegateState {
     }
 }
 
-#[inline]
-pub fn get_available_monitors() -> VecDeque<MonitorId> {
-    let mut rb = VecDeque::new();
-    rb.push_back(MonitorId);
-    rb
-}
-
-#[inline]
-pub fn get_primary_monitor() -> MonitorId {
-    MonitorId
-}
-
 impl MonitorId {
     #[inline]
     pub fn get_name(&self) -> Option<String> {
@@ -172,13 +160,15 @@ impl EventsLoop {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> ::std::collections::VecDeque<MonitorId> {
-        get_available_monitors()
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        let mut rb = VecDeque::new();
+        rb.push_back(MonitorId);
+        rb
     }
 
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
-        get_primary_monitor()
+        MonitorId
     }
 
     pub fn poll_events<F>(&mut self, mut callback: F)
