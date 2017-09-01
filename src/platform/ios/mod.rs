@@ -160,18 +160,14 @@ impl MonitorId {
 
 pub struct EventsLoop {
     windows: ::std::sync::Arc<::std::sync::Mutex<Vec<::std::sync::Arc<Window>>>>,
-    awakened: ::std::sync::Arc<::std::sync::atomic::AtomicBool>,
 }
 
-pub struct EventsLoopProxy {
-    awakened: ::std::sync::Weak<::std::sync::atomic::AtomicBool>,
-}
+pub struct EventsLoopProxy;
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
         EventsLoop {
             windows: ::std::sync::Arc::new(::std::sync::Mutex::new(vec![])),
-            awakened: ::std::sync::Arc::new(::std::sync::atomic::AtomicBool::new(false)),
         }
     }
 
@@ -225,21 +221,13 @@ impl EventsLoop {
     }
 
     pub fn create_proxy(&self) -> EventsLoopProxy {
-        EventsLoopProxy {
-            awakened: ::std::sync::Arc::downgrade(&self.awakened),
-        }
+        EventsLoopProxy
     }
 }
 
 impl EventsLoopProxy {
     pub fn wakeup(&self) -> Result<(), ::EventsLoopClosed> {
-        match self.awakened.upgrade() {
-            None => Err(::EventsLoopClosed),
-            Some(awakened) => {
-                awakened.store(true, ::std::sync::atomic::Ordering::Relaxed);
-                Ok(())
-            },
-        }
+        unimplemented!()
     }
 }
 
@@ -582,14 +570,6 @@ impl Window {
     pub fn set_fullscreen(&self, state: FullScreenState) {
     }
 }
-
-impl WindowProxy {
-    #[inline]
-    pub fn wakeup_event_loop(&self) {
-        unimplemented!()
-    }
-}
-
 
 impl<'a> Iterator for WaitEventsIterator<'a> {
     type Item = Event;
