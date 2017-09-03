@@ -285,6 +285,11 @@ impl Window {
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
     }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        unimplemented!()
+    }
 }
 
 impl Drop for Window {

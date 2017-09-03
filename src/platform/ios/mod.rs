@@ -75,6 +75,7 @@ use WindowId as RootEventId;
 use WindowEvent;
 use Event;
 use events::{ Touch, TouchPhase };
+use window::MonitorId as RootMonitorId;
 
 mod ffi;
 use self::ffi::{
@@ -350,7 +351,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<MonitorId>) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        unimplemented!()
     }
 
     #[inline]

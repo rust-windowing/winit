@@ -9,6 +9,7 @@ use {CreationError, Event, WindowEvent, MouseCursor};
 use CreationError::OsError;
 use WindowId as RootWindowId;
 use events::{Touch, TouchPhase};
+use window::MonitorId as RootMonitorId;
 
 use std::collections::VecDeque;
 
@@ -265,7 +266,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, _monitor: Option<MonitorId>) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        unimplemented!()
     }
 
     pub fn id(&self) -> WindowId {

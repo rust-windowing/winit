@@ -24,7 +24,7 @@ use std::sync::Weak;
 
 use super::events_loop::Shared;
 
-use window::MonitorId;
+use window::MonitorId as RootMonitorId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub usize);
@@ -640,7 +640,12 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<MonitorId>) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        unimplemented!()
     }
 }
 
