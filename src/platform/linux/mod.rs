@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::env;
 
-use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow, FullScreen};
+use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow};
 use libc;
 
 use self::x11::XConnection;
@@ -12,6 +12,7 @@ use self::x11::XError;
 use self::x11::ffi::XVisualInfo;
 
 pub use self::x11::XNotSupported;
+use window::MonitorId as RootMonitorId;
 
 mod dlopen;
 pub mod wayland;
@@ -236,9 +237,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, state: FullScreen) {
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         match self {
-            &Window::X(ref w) => w.set_fullscreen(state),
+            &Window::X(ref w) => w.set_fullscreen(monitor),
             &Window::Wayland(ref _w) => {},
         }
     }

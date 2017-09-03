@@ -70,7 +70,7 @@ use libc::c_int;
 use objc::runtime::{Class, Object, Sel, BOOL, YES };
 use objc::declare::{ ClassDecl };
 
-use { CreationError, CursorState, MouseCursor, WindowAttributes, FullScreen };
+use { CreationError, CursorState, MouseCursor, WindowAttributes };
 use WindowId as RootEventId;
 use WindowEvent;
 use Event;
@@ -345,7 +345,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, state: FullScreen) {
+    pub fn set_fullscreen(&self, monitor: Option<MonitorId>) {
     }
 
     #[inline]

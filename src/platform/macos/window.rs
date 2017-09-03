@@ -3,7 +3,6 @@ use CreationError::OsError;
 use libc;
 
 use WindowAttributes;
-use FullScreen;
 use os::macos::ActivationPolicy;
 use os::macos::WindowExt;
 
@@ -384,7 +383,7 @@ impl Window2 {
     fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
         unsafe {
             let screen = match attrs.fullscreen {
-                FullScreen::SpecificMonitor(ref monitor_id) => {
+                Some(ref monitor_id) => {
                     let native_id = monitor_id.inner.get_native_identifier();
                     let matching_screen = {
                         let screens = appkit::NSScreen::screens(nil);
@@ -640,7 +639,7 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, state: FullScreen) {
+    pub fn set_fullscreen(&self, monitor: Option<MonitorId>) {
     }
 }
 

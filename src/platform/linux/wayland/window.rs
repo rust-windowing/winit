@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicBool;
 use wayland_client::{EventQueue, EventQueueHandle, Proxy};
 use wayland_client::protocol::{wl_display,wl_surface};
 
-use {CreationError, MouseCursor, CursorState, WindowAttributes, FullScreen};
+use {CreationError, MouseCursor, CursorState, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
 
@@ -56,7 +56,7 @@ impl Window {
                 *(decorated.handler()) = Some(DecoratedHandler::new());
 
                 // set fullscreen if necessary
-                if let FullScreen::SpecificMonitor(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
+                if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
                     ctxt.with_output(monitor_id.clone(), |output| {
                         decorated.set_fullscreen(Some(output))
                     });
