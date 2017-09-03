@@ -1,5 +1,4 @@
 use std::collections::vec_deque::IntoIter as VecDequeIter;
-use std::cmp;
 
 use CreationError;
 use CursorState;
@@ -313,40 +312,8 @@ impl Window {
 
     /// Returns the current monitor the window is on or the primary monitor is nothing
     /// matches
-    pub fn get_current_monitor(&self, evloop: &EventsLoop) -> MonitorId {
-        // If anything fails we'll just return the primary
-        let primary = evloop.get_primary_monitor();
-
-        let (wx,wy) = match self.get_position() {
-            Some(val) => (cmp::max(0,val.0) as u32, cmp::max(0,val.1) as u32),
-            None=> return primary,
-        };
-        let (ww,wh) = match self.get_outer_size() {
-            Some(val) => val,
-            None=> return primary,
-        };
-        // Opposite corner coordinates
-        let (wxo, wyo) = (wx+ww-1, wy+wh-1);
-
-        // Find the monitor with the biggest overlap with the window
-        let monitors = evloop.get_available_monitors();
-        let mut overlap = 0;
-        let mut find = primary;
-        for monitor in monitors {
-            let (mx, my) = monitor.get_position();
-            let (mw, mh) = monitor.get_dimensions();
-            let (mxo, myo) = (mx+mw-1, my+mh-1);
-            let (ox, oy) = (cmp::max(wx, mx), cmp::max(wy, my));
-            let (oxo, oyo) = (cmp::min(wxo, mxo), cmp::min(wyo, myo));
-            let osize = if ox <= oxo || oy <= oyo { 0 } else { (oxo-ox)*(oyo-oy) };
-
-            if osize > overlap {
-                overlap = osize;
-                find = monitor;
-            }
-        }
-
-        find
+    pub fn get_current_monitor(&self) -> MonitorId {
+        self.window.get_current_monitor()
     }
 
     #[inline]

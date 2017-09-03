@@ -14,7 +14,10 @@ use WindowAttributes;
 use platform::PlatformSpecificWindowBuilderAttributes;
 
 use platform::MonitorId as PlatformMonitorId;
+use platform::x11::MonitorId as X11MonitorId;
 use window::MonitorId as RootMonitorId;
+
+use platform::x11::monitor::get_available_monitors;
 
 use super::{ffi};
 use super::{XConnection, WindowId, EventsLoop};
@@ -307,6 +310,41 @@ impl Window2 {
                 eprintln!("[winit] Something's broken, got an unknown fullscreen state in X11");
             }
         }
+    }
+
+    pub fn get_current_monitor(&self) -> X11MonitorId {
+        let monitors = get_available_monitors(&self.x.display);
+        let default = monitors[0].clone();
+
+        let (wx,wy) = match self.get_position() {
+            Some(val) => (cmp::max(0,val.0) as u32, cmp::max(0,val.1) as u32),
+            None=> return default,
+        };
+        let (ww,wh) = match self.get_outer_size() {
+            Some(val) => val,
+            None=> return default,
+        };
+        // Opposite corner coordinates
+        let (wxo, wyo) = (wx+ww-1, wy+wh-1);
+
+        // Find the monitor with the biggest overlap with the window
+        let mut overlap = 0;
+        let mut find = default;
+        for monitor in monitors {
+            let (mx, my) = monitor.get_position();
+            let (mw, mh) = monitor.get_dimensions();
+            let (mxo, myo) = (mx+mw-1, my+mh-1);
+            let (ox, oy) = (cmp::max(wx, mx), cmp::max(wy, my));
+            let (oxo, oyo) = (cmp::min(wxo, mxo), cmp::min(wyo, myo));
+            let osize = if ox <= oxo || oy <= oyo { 0 } else { (oxo-ox)*(oyo-oy) };
+
+            if osize > overlap {
+                overlap = osize;
+                find = monitor;
+            }
+        }
+
+        find
     }
 
     pub fn set_maximized(&self, maximized: bool) {

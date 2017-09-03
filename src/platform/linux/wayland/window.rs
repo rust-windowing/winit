@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicBool;
+use std::cmp;
 
 use wayland_client::{EventQueue, EventQueueHandle, Proxy};
 use wayland_client::protocol::{wl_display,wl_surface};
@@ -7,6 +8,8 @@ use wayland_client::protocol::{wl_display,wl_surface};
 use {CreationError, MouseCursor, CursorState, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
+use platform::wayland::MonitorId as WaylandMonitorId;
+use platform::wayland::context::get_available_monitors;
 
 use super::{WaylandContext, EventsLoop};
 use super::wayland_window;
@@ -174,6 +177,41 @@ impl Window {
     
     pub fn get_surface(&self) -> &wl_surface::WlSurface {
         &self.surface
+    }
+
+    pub fn get_current_monitor(&self) -> WaylandMonitorId {
+        let monitors = get_available_monitors(&self.ctxt);
+        let default = monitors[0].clone();
+
+        let (wx,wy) = match self.get_position() {
+            Some(val) => (cmp::max(0,val.0) as u32, cmp::max(0,val.1) as u32),
+            None=> return default,
+        };
+        let (ww,wh) = match self.get_outer_size() {
+            Some(val) => val,
+            None=> return default,
+        };
+        // Opposite corner coordinates
+        let (wxo, wyo) = (wx+ww-1, wy+wh-1);
+
+        // Find the monitor with the biggest overlap with the window
+        let mut overlap = 0;
+        let mut find = default;
+        for monitor in monitors {
+            let (mx, my) = monitor.get_position();
+            let (mw, mh) = monitor.get_dimensions();
+            let (mxo, myo) = (mx+mw-1, my+mh-1);
+            let (ox, oy) = (cmp::max(wx, mx), cmp::max(wy, my));
+            let (oxo, oyo) = (cmp::min(wxo, mxo), cmp::min(wyo, myo));
+            let osize = if ox <= oxo || oy <= oyo { 0 } else { (oxo-ox)*(oyo-oy) };
+
+            if osize > overlap {
+                overlap = osize;
+                find = monitor;
+            }
+        }
+
+        find
     }
 }
 

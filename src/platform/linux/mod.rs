@@ -251,6 +251,14 @@ impl Window {
             &Window::Wayland(ref _w) => {},
         }
     }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        match self {
+            &Window::X(ref w) => RootMonitorId{inner: MonitorId::X(w.get_current_monitor())},
+            &Window::Wayland(ref w) => RootMonitorId{inner: MonitorId::Wayland(w.get_current_monitor())},
+        }
+    }
 }
 
 unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x11::ffi::XErrorEvent)
