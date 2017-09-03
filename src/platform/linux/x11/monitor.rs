@@ -13,6 +13,8 @@ pub struct MonitorId {
   dimensions: (u32, u32),
   /// The position of the monitor in the X screen
   position: (u32, u32),
+  /// If the monitor is the primary one
+  primary: bool,
 }
 
 pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
@@ -39,6 +41,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                     name,
                     dimensions: (monitor.width as u32, monitor.height as u32),
                     position: (monitor.x as u32, monitor.y as u32),
+                    primary: (monitor.primary != 0),
                 });
             }
             (x.xrandr.XRRFreeMonitors)(monitors);
@@ -59,6 +62,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                         name,
                         dimensions: ((*crtc).width as u32, (*crtc).height as u32),
                         position: ((*crtc).x as u32, (*crtc).y as u32),
+                        primary: true,
                     });
                 }
                 (x.xrandr.XRRFreeCrtcInfo)(crtc);
@@ -71,7 +75,13 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
 
 #[inline]
 pub fn get_primary_monitor(x: &Arc<XConnection>) -> MonitorId {
-    get_available_monitors(x)[0].clone()
+    for monitor in get_available_monitors(x) {
+        if monitor.primary {
+            return monitor.clone()
+        }
+    }
+
+    panic!("[winit] Failed to find the primary monitor")
 }
 
 impl MonitorId {
