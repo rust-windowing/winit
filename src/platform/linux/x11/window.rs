@@ -29,20 +29,12 @@ fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> 
     f(c_str.as_ptr())
 }
 
-struct WindowProxyData {
-    display: Arc<XConnection>,
-    window: ffi::Window,
-}
-
-unsafe impl Send for WindowProxyData {}
-
 pub struct XWindow {
     display: Arc<XConnection>,
     window: ffi::Window,
     root: ffi::Window,
     // screen we're using, original screen mode if we've switched
     fullscreen: Arc<Mutex<(i32, Option<ffi::XF86VidModeModeInfo>)>>,
-    window_proxy_data: Arc<Mutex<Option<WindowProxyData>>>,
 }
 
 unsafe impl Send for XWindow {}
@@ -144,42 +136,8 @@ impl XWindow {
 
 impl Drop for XWindow {
     fn drop(&mut self) {
-        // Clear out the window proxy data arc, so that any window proxy objects
-        // are no longer able to send messages to this window.
-        *self.window_proxy_data.lock().unwrap() = None;
-
         // Make sure we return the display to the original resolution if we've changed it
         self.switch_from_fullscreen_mode();
-    }
-}
-
-#[derive(Clone)]
-pub struct WindowProxy {
-    data: Arc<Mutex<Option<WindowProxyData>>>,
-}
-
-impl WindowProxy {
-    pub fn wakeup_event_loop(&self) {
-        let window_proxy_data = self.data.lock().unwrap();
-
-        if let Some(ref data) = *window_proxy_data {
-            let mut xev = ffi::XClientMessageEvent {
-                type_: ffi::ClientMessage,
-                window: data.window,
-                format: 32,
-                message_type: 0,
-                serial: 0,
-                send_event: 0,
-                display: data.display.display,
-                data: unsafe { mem::zeroed() },
-            };
-
-            unsafe {
-                (data.display.xlib.XSendEvent)(data.display.display, data.window, 0, 0, mem::transmute(&mut xev));
-                (data.display.xlib.XFlush)(data.display.display);
-                data.display.check_errors().expect("Failed to call XSendEvent after wakeup");
-            }
-        }
     }
 }
 
@@ -348,20 +306,12 @@ impl Window {
             };
         }
 
-        // creating the window object
-        let window_proxy_data = WindowProxyData {
-            display: display.clone(),
-            window: window,
-        };
-        let window_proxy_data = Arc::new(Mutex::new(Some(window_proxy_data)));
-
         let window = Window {
             x: Arc::new(XWindow {
                 display: display.clone(),
                 window: window,
                 root: root,
                 fullscreen: Arc::new(Mutex::new((screen_id, None))),
-                window_proxy_data: window_proxy_data,
             }),
             cursor_state: Mutex::new(CursorState::Normal),
         };
@@ -607,13 +557,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn create_window_proxy(&self) -> WindowProxy {
-        WindowProxy {
-            data: self.x.window_proxy_data.clone()
-        }
-    }
-
-    #[inline]
     pub fn get_xlib_display(&self) -> *mut libc::c_void {
         self.x.display.display as *mut libc::c_void
     }
@@ -652,10 +595,6 @@ impl Window {
         unsafe {
             (self.x.display.xlib_xcb.XGetXCBConnection)(self.get_xlib_display() as *mut _) as *mut _
         }
-    }
-
-    #[inline]
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {

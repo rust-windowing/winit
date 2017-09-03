@@ -59,7 +59,6 @@ pub enum DeviceId {
 pub enum MonitorId {
     X(x11::MonitorId),
     Wayland(wayland::MonitorId),
-    None,
 }
 
 impl MonitorId {
@@ -68,7 +67,6 @@ impl MonitorId {
         match self {
             &MonitorId::X(ref m) => m.get_name(),
             &MonitorId::Wayland(ref m) => m.get_name(),
-            &MonitorId::None => None,
         }
     }
 
@@ -77,7 +75,6 @@ impl MonitorId {
         match self {
             &MonitorId::X(ref m) => m.get_native_identifier(),
             &MonitorId::Wayland(ref m) => m.get_native_identifier(),
-            &MonitorId::None => unimplemented!()        // FIXME:
         }
     }
 
@@ -86,7 +83,6 @@ impl MonitorId {
         match self {
             &MonitorId::X(ref m) => m.get_dimensions(),
             &MonitorId::Wayland(ref m) => m.get_dimensions(),
-            &MonitorId::None => (800, 600),     // FIXME:
         }
     }
 }

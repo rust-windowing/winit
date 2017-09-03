@@ -83,9 +83,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-#[macro_use]
-extern crate shared_library;
-
 extern crate libc;
 
 #[cfg(target_os = "windows")]

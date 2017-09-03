@@ -5,6 +5,7 @@
 //! This is temporary so that existing backends can smoothly transition. After all implementations
 //! have finished transitionning, this module should disappear.
 
+#[cfg(any(target_os = "android", target_os = "ios"))]
 macro_rules! gen_api_transition {
     () => {
         pub struct EventsLoop {
