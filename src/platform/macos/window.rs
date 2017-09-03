@@ -24,6 +24,7 @@ use std::sync::Weak;
 
 use super::events_loop::Shared;
 
+use window::MonitorId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub usize);

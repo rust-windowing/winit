@@ -151,6 +151,11 @@ impl MonitorId {
     pub fn get_dimensions(&self) -> (u32, u32) {
         unimplemented!()
     }
+
+    #[inline]
+    pub fn get_position(&self) -> (u32, u32) {
+        unimplemented!()
+    }
 }
 
 #[derive(Clone, Default)]
