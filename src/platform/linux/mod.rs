@@ -86,6 +86,14 @@ impl MonitorId {
             &MonitorId::Wayland(ref m) => m.get_dimensions(),
         }
     }
+
+    #[inline]
+    pub fn get_position(&self) -> (u32, u32) {
+        match self {
+            &MonitorId::X(ref m) => m.get_position(),
+            &MonitorId::Wayland(ref m) => m.get_position(),
+        }
+    }
 }
 
 impl Window {

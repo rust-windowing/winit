@@ -37,6 +37,7 @@ struct OutputInfo {
     id: u32,
     scale: f32,
     pix_size: (u32, u32),
+    pix_pos: (u32, u32),
     name: String
 }
 
@@ -47,6 +48,7 @@ impl OutputInfo {
             id: id,
             scale: 1.0,
             pix_size: (0, 0),
+            pix_pos: (0, 0),
             name: "".into()
         }
     }
@@ -153,7 +155,7 @@ impl wl_output::Handler for WaylandEnv {
     fn geometry(&mut self,
                 _: &mut EventQueueHandle,
                 proxy: &wl_output::WlOutput,
-                _x: i32, _y: i32,
+                x: i32, y: i32,
                 _physical_width: i32, _physical_height: i32,
                 _subpixel: wl_output::Subpixel,
                 make: String, model: String,
@@ -161,6 +163,7 @@ impl wl_output::Handler for WaylandEnv {
     {
         for m in self.monitors.iter_mut().filter(|m| m.output.equals(proxy)) {
             m.name = format!("{} ({})", model, make);
+            m.pix_pos = (x as u32, y as u32);
             break;
         }
     }
@@ -382,6 +385,17 @@ impl MonitorId {
         let env = state.get_handler::<WaylandEnv>(self.ctxt.env_id);
         for m in env.monitors.iter().filter(|m| m.id == self.id) {
             return m.pix_size
+        }
+        // if we reach here, this monitor does not exist any more
+        (0,0)
+    }
+
+    pub fn get_position(&self) -> (u32, u32) {
+        let mut guard = self.ctxt.evq.lock().unwrap();
+        let state = guard.state();
+        let env = state.get_handler::<WaylandEnv>(self.ctxt.env_id);
+        for m in env.monitors.iter().filter(|m| m.id == self.id) {
+            return m.pix_pos
         }
         // if we reach here, this monitor does not exist any more
         (0,0)
