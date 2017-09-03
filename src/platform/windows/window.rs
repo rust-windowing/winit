@@ -279,11 +279,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_maximized(&self, maximized: bool) {
+    pub fn set_maximized(&self, _maximized: bool) {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
     }
 
     #[inline]

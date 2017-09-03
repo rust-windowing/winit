@@ -347,7 +347,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_maximized(&self, maximized: bool) {
+    pub fn set_maximized(&self, _maximized: bool) {
     }
 
     #[inline]
