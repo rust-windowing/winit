@@ -1,7 +1,7 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
-pub use self::window::{Window, XWindow, WindowProxy};
+pub use self::window::{Window, XWindow};
 pub use self::xdisplay::{XConnection, XNotSupported, XError};
 
 pub mod ffi;
@@ -184,12 +184,6 @@ impl EventsLoop {
                 break;
             }
         }
-    }
-
-    pub fn device_name(&self, device: DeviceId) -> String {
-        let devices = self.devices.lock().unwrap();
-        let device = devices.get(&device).unwrap();
-        device.name.clone()
     }
 
     fn process_event<F>(&self, xev: &mut ffi::XEvent, mut callback: F)

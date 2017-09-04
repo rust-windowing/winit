@@ -7,7 +7,6 @@ use wayland_client::protocol::{wl_display,wl_surface};
 use {CreationError, MouseCursor, CursorState, WindowAttributes, FullScreenState};
 use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
-use super::context::MonitorId as WaylandMonitorId;
 
 use super::{WaylandContext, EventsLoop};
 use super::wayland_window;
