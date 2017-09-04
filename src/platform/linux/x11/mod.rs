@@ -37,16 +37,16 @@ pub struct EventsLoop {
     devices: Mutex<HashMap<DeviceId, Device>>,
     xi2ext: XExtension,
     pending_wakeup: Arc<AtomicBool>,
-    root: ffi::Window2,
+    root: ffi::Window,
     // A dummy, `InputOnly` window that we can use to receive wakeup events and interrupt blocking
     // `XNextEvent` calls.
-    wakeup_dummy_window: ffi::Window2,
+    wakeup_dummy_window: ffi::Window,
 }
 
 pub struct EventsLoopProxy {
     pending_wakeup: Weak<AtomicBool>,
     display: Weak<XConnection>,
-    wakeup_dummy_window: ffi::Window2,
+    wakeup_dummy_window: ffi::Window,
 }
 
 impl EventsLoop {
@@ -650,7 +650,7 @@ impl<'a> ::std::ops::Deref for DeviceInfo<'a> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(ffi::Window2);
+pub struct WindowId(ffi::Window);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
@@ -827,7 +827,7 @@ struct XExtension {
     first_error_id: c_int,
 }
 
-fn mkwid(w: ffi::Window2) -> ::WindowId { ::WindowId(::platform::WindowId::X(WindowId(w))) }
+fn mkwid(w: ffi::Window) -> ::WindowId { ::WindowId(::platform::WindowId::X(WindowId(w))) }
 fn mkdid(w: c_int) -> ::DeviceId { ::DeviceId(::platform::DeviceId::X(DeviceId(w))) }
 
 #[derive(Debug)]

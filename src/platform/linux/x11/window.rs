@@ -31,8 +31,8 @@ fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> 
 
 pub struct XWindow {
     display: Arc<XConnection>,
-    window: ffi::Window2,
-    root: ffi::Window2,
+    window: ffi::Window,
+    root: ffi::Window,
     // screen we're using, original screen mode if we've switched
     fullscreen: Arc<Mutex<(i32, Option<ffi::XF86VidModeModeInfo>)>>,
 }
@@ -511,7 +511,7 @@ impl Window2 {
         unsafe {
             use std::mem;
 
-            let mut root: ffi::Window2 = mem::uninitialized();
+            let mut root: ffi::Window = mem::uninitialized();
             let mut x: libc::c_int = mem::uninitialized();
             let mut y: libc::c_int = mem::uninitialized();
             let mut width: libc::c_uint = mem::uninitialized();
