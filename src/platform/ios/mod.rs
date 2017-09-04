@@ -98,7 +98,7 @@ static mut jmpbuf: [c_int;27] = [0;27];
 #[derive(Clone)]
 pub struct MonitorId;
 
-pub struct Window2 {
+pub struct Window {
     delegate_state: *mut DelegateState
 }
 
@@ -258,11 +258,11 @@ pub struct DeviceId;
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes;
 
-impl Window2 {
+impl Window {
     pub fn new(ev: &EventsLoop, _: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window2, CreationError>
+               -> Result<Window, CreationError>
     {
-        Ok(Window2 {
+        Ok(Window {
             delegate_state: ev.delegate_state,
         })
     }

@@ -4,7 +4,7 @@ use cocoa::appkit::{NSApplication, NSEvent, NSView, NSWindow};
 use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, DeviceEvent, ModifiersState, KeyboardInput};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
-use super::window::Window;
+use super::window::Window2;
 use std;
 use super::DeviceId;
 
@@ -16,7 +16,7 @@ pub struct EventsLoop {
 
 // State shared between the `EventsLoop` and its registered windows.
 pub struct Shared {
-    pub windows: Mutex<Vec<Weak<Window>>>,
+    pub windows: Mutex<Vec<Weak<Window2>>>,
     pub pending_events: Mutex<VecDeque<Event>>,
     // The user event callback given via either of the `poll_events` or `run_forever` methods.
     //

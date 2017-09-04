@@ -31,8 +31,8 @@ fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> 
 
 pub struct XWindow {
     display: Arc<XConnection>,
-    window: ffi::Window,
-    root: ffi::Window,
+    window: ffi::Window2,
+    root: ffi::Window2,
     // screen we're using, original screen mode if we've switched
     fullscreen: Arc<Mutex<(i32, Option<ffi::XF86VidModeModeInfo>)>>,
 }
@@ -40,8 +40,8 @@ pub struct XWindow {
 unsafe impl Send for XWindow {}
 unsafe impl Sync for XWindow {}
 
-unsafe impl Send for Window {}
-unsafe impl Sync for Window {}
+unsafe impl Send for Window2 {}
+unsafe impl Sync for Window2 {}
 
 impl XWindow {
     fn switch_to_fullscreen_mode(&self, monitor: i32, width: u16, height: u16) {
@@ -141,15 +141,15 @@ impl Drop for XWindow {
     }
 }
 
-pub struct Window {
+pub struct Window2 {
     pub x: Arc<XWindow>,
     cursor_state: Mutex<CursorState>,
 }
 
-impl Window {
+impl Window2 {
     pub fn new(ctx: &EventsLoop, window_attrs: &WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window, CreationError>
+               -> Result<Window2, CreationError>
     {
         let display = &ctx.display;
         let dimensions = {
@@ -306,7 +306,7 @@ impl Window {
             };
         }
 
-        let window = Window {
+        let window = Window2 {
             x: Arc::new(XWindow {
                 display: display.clone(),
                 window: window,
@@ -402,16 +402,16 @@ impl Window {
         match state {
             FullScreenState::None => {
               self.x.switch_from_fullscreen_mode();
-              Window::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", false);
+              Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", false);
             },
             FullScreenState::Windowed => {
               self.x.switch_from_fullscreen_mode();
-              Window::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", true);
+              Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", true);
             },
             FullScreenState::Exclusive(RootMonitorId { inner: PlatformMonitorId::X(X11MonitorId(_, monitor)) }) => {
               if let Some(dimensions) = self.get_inner_size() {
                 self.x.switch_to_fullscreen_mode(monitor as i32, dimensions.0 as u16, dimensions.1 as u16);
-                Window::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", true);
+                Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", true);
               } else {
                 eprintln!("[winit] Couldn't get window dimensions to go fullscreen");
               }
@@ -421,8 +421,8 @@ impl Window {
     }
 
     pub fn set_maximized(&self, maximized: bool) {
-        Window::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_HORZ", maximized);
-        Window::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_VERT", maximized);
+        Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_HORZ", maximized);
+        Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_VERT", maximized);
     }
 
     pub fn set_title(&self, title: &str) {
@@ -511,7 +511,7 @@ impl Window {
         unsafe {
             use std::mem;
 
-            let mut root: ffi::Window = mem::uninitialized();
+            let mut root: ffi::Window2 = mem::uninitialized();
             let mut x: libc::c_int = mem::uninitialized();
             let mut y: libc::c_int = mem::uninitialized();
             let mut width: libc::c_uint = mem::uninitialized();

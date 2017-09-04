@@ -1,7 +1,7 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
-pub use self::window::{Window, XWindow};
+pub use self::window::{Window2, XWindow};
 pub use self::xdisplay::{XConnection, XNotSupported, XError};
 
 pub mod ffi;
@@ -37,16 +37,16 @@ pub struct EventsLoop {
     devices: Mutex<HashMap<DeviceId, Device>>,
     xi2ext: XExtension,
     pending_wakeup: Arc<AtomicBool>,
-    root: ffi::Window,
+    root: ffi::Window2,
     // A dummy, `InputOnly` window that we can use to receive wakeup events and interrupt blocking
     // `XNextEvent` calls.
-    wakeup_dummy_window: ffi::Window,
+    wakeup_dummy_window: ffi::Window2,
 }
 
 pub struct EventsLoopProxy {
     pending_wakeup: Weak<AtomicBool>,
     display: Weak<XConnection>,
-    wakeup_dummy_window: ffi::Window,
+    wakeup_dummy_window: ffi::Window2,
 }
 
 impl EventsLoop {
@@ -650,21 +650,21 @@ impl<'a> ::std::ops::Deref for DeviceInfo<'a> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(ffi::Window);
+pub struct WindowId(ffi::Window2);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
 
-pub struct Window2 {
-    pub window: Arc<Window>,
+pub struct Window {
+    pub window: Arc<Window2>,
     display: Weak<XConnection>,
     windows: Weak<Mutex<HashMap<WindowId, WindowData>>>,
 }
 
-impl ::std::ops::Deref for Window2 {
-    type Target = Window;
+impl ::std::ops::Deref for Window {
+    type Target = Window2;
     #[inline]
-    fn deref(&self) -> &Window {
+    fn deref(&self) -> &Window2 {
         &*self.window
     }
 }
@@ -674,13 +674,13 @@ lazy_static! {      // TODO: use a static mutex when that's possible, and put me
     static ref GLOBAL_XOPENIM_LOCK: Mutex<()> = Mutex::new(());
 }
 
-impl Window2 {
+impl Window {
     pub fn new(x_events_loop: &EventsLoop,
                window: &::WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Self, CreationError>
     {
-        let win = ::std::sync::Arc::new(try!(Window::new(&x_events_loop, window, pl_attribs)));
+        let win = ::std::sync::Arc::new(try!(Window2::new(&x_events_loop, window, pl_attribs)));
 
         // creating IM
         let im = unsafe {
@@ -716,7 +716,7 @@ impl Window2 {
             cursor_pos: None,
         });
 
-        Ok(Window2 {
+        Ok(Window {
             window: win,
             windows: Arc::downgrade(&x_events_loop.windows),
             display: Arc::downgrade(&x_events_loop.display),
@@ -749,7 +749,7 @@ impl Window2 {
     }
 }
 
-impl Drop for Window2 {
+impl Drop for Window {
     fn drop(&mut self) {
         if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
             let mut windows = windows.lock().unwrap();
@@ -827,7 +827,7 @@ struct XExtension {
     first_error_id: c_int,
 }
 
-fn mkwid(w: ffi::Window) -> ::WindowId { ::WindowId(::platform::WindowId::X(WindowId(w))) }
+fn mkwid(w: ffi::Window2) -> ::WindowId { ::WindowId(::platform::WindowId::X(WindowId(w))) }
 fn mkdid(w: c_int) -> ::DeviceId { ::DeviceId(::platform::DeviceId::X(DeviceId(w))) }
 
 #[derive(Debug)]

@@ -38,8 +38,8 @@ lazy_static!(
     };
 );
 
-pub enum Window2 {
-    X(x11::Window2),
+pub enum Window {
+    X(x11::Window),
     Wayland(wayland::Window)
 }
 
@@ -87,7 +87,7 @@ impl MonitorId {
     }
 }
 
-impl Window2 {
+impl Window {
     #[inline]
     pub fn new(events_loop: &EventsLoop,
                window: &::WindowAttributes,
@@ -96,11 +96,11 @@ impl Window2 {
     {
         match *events_loop {
             EventsLoop::Wayland(ref evlp) => {
-                wayland::Window::new(evlp, window).map(Window2::Wayland)
+                wayland::Window::new(evlp, window).map(Window::Wayland)
             },
 
             EventsLoop::X(ref el) => {
-                x11::Window2::new(el, window, pl_attribs).map(Window2::X)
+                x11::Window::new(el, window, pl_attribs).map(Window::X)
             },
         }
     }
@@ -108,104 +108,104 @@ impl Window2 {
     #[inline]
     pub fn id(&self) -> WindowId {
         match self {
-            &Window2::X(ref w) => WindowId::X(w.id()),
-            &Window2::Wayland(ref w) => WindowId::Wayland(w.id())
+            &Window::X(ref w) => WindowId::X(w.id()),
+            &Window::Wayland(ref w) => WindowId::Wayland(w.id())
         }
     }
 
     #[inline]
     pub fn set_title(&self, title: &str) {
         match self {
-            &Window2::X(ref w) => w.set_title(title),
-            &Window2::Wayland(ref w) => w.set_title(title)
+            &Window::X(ref w) => w.set_title(title),
+            &Window::Wayland(ref w) => w.set_title(title)
         }
     }
 
     #[inline]
     pub fn show(&self) {
         match self {
-            &Window2::X(ref w) => w.show(),
-            &Window2::Wayland(ref w) => w.show()
+            &Window::X(ref w) => w.show(),
+            &Window::Wayland(ref w) => w.show()
         }
     }
 
     #[inline]
     pub fn hide(&self) {
         match self {
-            &Window2::X(ref w) => w.hide(),
-            &Window2::Wayland(ref w) => w.hide()
+            &Window::X(ref w) => w.hide(),
+            &Window::Wayland(ref w) => w.hide()
         }
     }
 
     #[inline]
     pub fn get_position(&self) -> Option<(i32, i32)> {
         match self {
-            &Window2::X(ref w) => w.get_position(),
-            &Window2::Wayland(ref w) => w.get_position()
+            &Window::X(ref w) => w.get_position(),
+            &Window::Wayland(ref w) => w.get_position()
         }
     }
 
     #[inline]
     pub fn set_position(&self, x: i32, y: i32) {
         match self {
-            &Window2::X(ref w) => w.set_position(x, y),
-            &Window2::Wayland(ref w) => w.set_position(x, y)
+            &Window::X(ref w) => w.set_position(x, y),
+            &Window::Wayland(ref w) => w.set_position(x, y)
         }
     }
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         match self {
-            &Window2::X(ref w) => w.get_inner_size(),
-            &Window2::Wayland(ref w) => w.get_inner_size()
+            &Window::X(ref w) => w.get_inner_size(),
+            &Window::Wayland(ref w) => w.get_inner_size()
         }
     }
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         match self {
-            &Window2::X(ref w) => w.get_outer_size(),
-            &Window2::Wayland(ref w) => w.get_outer_size()
+            &Window::X(ref w) => w.get_outer_size(),
+            &Window::Wayland(ref w) => w.get_outer_size()
         }
     }
 
     #[inline]
     pub fn set_inner_size(&self, x: u32, y: u32) {
         match self {
-            &Window2::X(ref w) => w.set_inner_size(x, y),
-            &Window2::Wayland(ref w) => w.set_inner_size(x, y)
+            &Window::X(ref w) => w.set_inner_size(x, y),
+            &Window::Wayland(ref w) => w.set_inner_size(x, y)
         }
     }
 
     #[inline]
     pub fn set_cursor(&self, cursor: MouseCursor) {
         match self {
-            &Window2::X(ref w) => w.set_cursor(cursor),
-            &Window2::Wayland(ref w) => w.set_cursor(cursor)
+            &Window::X(ref w) => w.set_cursor(cursor),
+            &Window::Wayland(ref w) => w.set_cursor(cursor)
         }
     }
 
     #[inline]
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
         match self {
-            &Window2::X(ref w) => w.set_cursor_state(state),
-            &Window2::Wayland(ref w) => w.set_cursor_state(state)
+            &Window::X(ref w) => w.set_cursor_state(state),
+            &Window::Wayland(ref w) => w.set_cursor_state(state)
         }
     }
 
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
        match self {
-            &Window2::X(ref w) => w.hidpi_factor(),
-            &Window2::Wayland(ref w) => w.hidpi_factor()
+            &Window::X(ref w) => w.hidpi_factor(),
+            &Window::Wayland(ref w) => w.hidpi_factor()
         }
     }
 
     #[inline]
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         match self {
-            &Window2::X(ref w) => w.set_cursor_position(x, y),
-            &Window2::Wayland(ref w) => w.set_cursor_position(x, y)
+            &Window::X(ref w) => w.set_cursor_position(x, y),
+            &Window::Wayland(ref w) => w.set_cursor_position(x, y)
         }
     }
 
@@ -213,8 +213,8 @@ impl Window2 {
     pub fn platform_display(&self) -> *mut libc::c_void {
         use wayland_client::Proxy;
         match self {
-            &Window2::X(ref w) => w.platform_display(),
-            &Window2::Wayland(ref w) => w.get_display().ptr() as *mut _
+            &Window::X(ref w) => w.platform_display(),
+            &Window::Wayland(ref w) => w.get_display().ptr() as *mut _
         }
     }
 
@@ -222,24 +222,24 @@ impl Window2 {
     pub fn platform_window(&self) -> *mut libc::c_void {
         use wayland_client::Proxy;
         match self {
-            &Window2::X(ref w) => w.platform_window(),
-            &Window2::Wayland(ref w) => w.get_surface().ptr() as *mut _
+            &Window::X(ref w) => w.platform_window(),
+            &Window::Wayland(ref w) => w.get_surface().ptr() as *mut _
         }
     }
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         match self {
-            &Window2::X(ref w) => w.set_maximized(maximized),
-            &Window2::Wayland(ref _w) => {},
+            &Window::X(ref w) => w.set_maximized(maximized),
+            &Window::Wayland(ref _w) => {},
         }
     }
 
     #[inline]
     pub fn set_fullscreen(&self, state: FullScreenState) {
         match self {
-            &Window2::X(ref w) => w.set_fullscreen(state),
-            &Window2::Wayland(ref _w) => {},
+            &Window::X(ref w) => w.set_fullscreen(state),
+            &Window::Wayland(ref _w) => {},
         }
     }
 }

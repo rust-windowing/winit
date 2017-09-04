@@ -141,7 +141,7 @@ pub mod os;
 /// });
 /// ```
 pub struct Window {
-    window: platform::Window2,
+    window: platform::Window,
 }
 
 /// Identifier of a window. Unique for each window.
