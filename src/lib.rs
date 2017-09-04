@@ -115,9 +115,6 @@ extern crate wayland_client;
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId};
 
-#[macro_use]
-mod api_transition;
-
 mod platform;
 mod events;
 mod window;
