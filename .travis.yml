@@ -6,11 +6,6 @@ rust:
 
 cache: cargo
 
-addons:
-  apt:
-    packages:
-    - libxxf86vm-dev
-
 install:
   - rustup self update
   - |
