@@ -12,6 +12,7 @@ addons:
     - libxxf86vm-dev
 
 install:
+  - rustup self update
   - |
       if [ $TRAVIS_OS_NAME = osx ]; then
         rustup target add x86_64-apple-ios
