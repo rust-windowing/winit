@@ -5,16 +5,16 @@ use super::XConnection;
 
 #[derive(Clone)]
 pub struct MonitorId {
-  /// The actual id
-  id: u32,
-  /// The name of the monitor
-  name: String,
-  /// The size of the monitor
-  dimensions: (u32, u32),
-  /// The position of the monitor in the X screen
-  position: (u32, u32),
-  /// If the monitor is the primary one
-  primary: bool,
+    /// The actual id
+    id: u32,
+    /// The name of the monitor
+    name: String,
+    /// The size of the monitor
+    dimensions: (u32, u32),
+    /// The position of the monitor in the X screen
+    position: (u32, u32),
+    /// If the monitor is the primary one
+    primary: bool,
 }
 
 pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
