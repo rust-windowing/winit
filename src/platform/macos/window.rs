@@ -637,10 +637,12 @@ impl Window2 {
 
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
+        unimplemented!()
     }
 
     #[inline]
     pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        unimplemented!()
     }
 
     #[inline]
