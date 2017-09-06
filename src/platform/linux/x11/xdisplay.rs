@@ -45,12 +45,12 @@ impl XConnection {
         };
 
         Ok(XConnection {
-            xlib,
-            xrandr,
-            xcursor,
-            xinput2,
-            xlib_xcb,
-            display,
+            xlib: xlib,
+            xrandr: xrandr,
+            xcursor: xcursor,
+            xinput2: xinput2,
+            xlib_xcb: xlib_xcb,
+            display: display,
             latest_error: Mutex::new(None),
         })
     }
