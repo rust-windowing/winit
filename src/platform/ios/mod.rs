@@ -142,7 +142,8 @@ impl MonitorId {
 
     #[inline]
     pub fn get_position(&self) -> (u32, u32) {
-        unimplemented!()
+        // iOS assumes single screen
+        (0, 0)
     }
 }
 
@@ -348,15 +349,17 @@ impl Window {
 
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
+        // iOS has single screen maximized apps so nothing to do
     }
 
     #[inline]
     pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        // iOS has single screen maximized apps so nothing to do
     }
 
     #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
-        unimplemented!()
+        RootMonitorId{inner: MonitorId}
     }
 
     #[inline]
