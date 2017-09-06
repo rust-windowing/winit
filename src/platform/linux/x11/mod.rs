@@ -1,7 +1,7 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
 pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
-pub use self::window::{Window, XWindow};
+pub use self::window::{Window2, XWindow};
 pub use self::xdisplay::{XConnection, XNotSupported, XError};
 
 pub mod ffi;
@@ -655,16 +655,16 @@ pub struct WindowId(ffi::Window);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
 
-pub struct Window2 {
-    pub window: Arc<Window>,
+pub struct Window {
+    pub window: Arc<Window2>,
     display: Weak<XConnection>,
     windows: Weak<Mutex<HashMap<WindowId, WindowData>>>,
 }
 
-impl ::std::ops::Deref for Window2 {
-    type Target = Window;
+impl ::std::ops::Deref for Window {
+    type Target = Window2;
     #[inline]
-    fn deref(&self) -> &Window {
+    fn deref(&self) -> &Window2 {
         &*self.window
     }
 }
@@ -674,13 +674,13 @@ lazy_static! {      // TODO: use a static mutex when that's possible, and put me
     static ref GLOBAL_XOPENIM_LOCK: Mutex<()> = Mutex::new(());
 }
 
-impl Window2 {
+impl Window {
     pub fn new(x_events_loop: &EventsLoop,
                window: &::WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Self, CreationError>
     {
-        let win = ::std::sync::Arc::new(try!(Window::new(&x_events_loop, window, pl_attribs)));
+        let win = ::std::sync::Arc::new(try!(Window2::new(&x_events_loop, window, pl_attribs)));
 
         // creating IM
         let im = unsafe {
@@ -716,7 +716,7 @@ impl Window2 {
             cursor_pos: None,
         });
 
-        Ok(Window2 {
+        Ok(Window {
             window: win,
             windows: Arc::downgrade(&x_events_loop.windows),
             display: Arc::downgrade(&x_events_loop.display),
@@ -749,7 +749,7 @@ impl Window2 {
     }
 }
 
-impl Drop for Window2 {
+impl Drop for Window {
     fn drop(&mut self) {
         if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
             let mut windows = windows.lock().unwrap();

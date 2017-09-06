@@ -115,9 +115,6 @@ extern crate wayland_client;
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId};
 
-#[macro_use]
-mod api_transition;
-
 mod platform;
 mod events;
 mod window;
@@ -144,7 +141,7 @@ pub mod os;
 /// });
 /// ```
 pub struct Window {
-    window: platform::Window2,
+    window: platform::Window,
 }
 
 /// Identifier of a window. Unique for each window.

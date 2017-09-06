@@ -7,7 +7,7 @@ use EventsLoop;
 use MonitorId;
 use Window;
 use platform::EventsLoop as LinuxEventsLoop;
-use platform::Window2 as LinuxWindow;
+use platform::Window as LinuxWindow;
 use WindowBuilder;
 use platform::x11::XConnection;
 use platform::x11::ffi::XVisualInfo;

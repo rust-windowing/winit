@@ -133,7 +133,7 @@ pub struct WindowId;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
 
-pub struct Window2 {
+pub struct Window {
     native_window: *const c_void,
 }
 
@@ -159,10 +159,10 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 #[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
-impl Window2 {
+impl Window {
     pub fn new(_: &EventsLoop, win_attribs: &WindowAttributes,
                _: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window2, CreationError>
+               -> Result<Window, CreationError>
     {
         // not implemented
         assert!(win_attribs.min_dimensions.is_none());
@@ -175,7 +175,7 @@ impl Window2 {
 
         android_glue::set_multitouch(win_attribs.multitouch);
 
-        Ok(Window2 {
+        Ok(Window {
             native_window: native_window as *const _,
         })
     }
@@ -269,8 +269,8 @@ impl Window2 {
     }
 }
 
-unsafe impl Send for Window2 {}
-unsafe impl Sync for Window2 {}
+unsafe impl Send for Window {}
+unsafe impl Sync for Window {}
 
 // Constant device ID, to be removed when this backend is updated to report real device IDs.
 const DEVICE_ID: ::DeviceId = ::DeviceId(DeviceId);

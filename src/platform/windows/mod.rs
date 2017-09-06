@@ -17,9 +17,6 @@ unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
 // TODO: document what this means
 pub type Cursor = *const winapi::wchar_t;
 
-// TODO: remove
-pub type Window2 = Window;
-
 // Constant device ID, to be removed when this backend is updated to report real device IDs.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;

@@ -256,16 +256,16 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
 }
 
-pub struct Window {
+pub struct Window2 {
     pub view: IdRef,
     pub window: IdRef,
     pub delegate: WindowDelegate,
 }
 
-unsafe impl Send for Window {}
-unsafe impl Sync for Window {}
+unsafe impl Send for Window2 {}
+unsafe impl Sync for Window2 {}
 
-impl Drop for Window {
+impl Drop for Window2 {
     fn drop(&mut self) {
         // Remove this window from the `EventLoop`s list of windows.
         let id = self.id();
@@ -283,7 +283,7 @@ impl Drop for Window {
     }
 }
 
-impl WindowExt for Window {
+impl WindowExt for Window2 {
     #[inline]
     fn get_nswindow(&self) -> *mut c_void {
         *self.window as *mut c_void
@@ -295,11 +295,11 @@ impl WindowExt for Window {
     }
 }
 
-impl Window {
+impl Window2 {
     pub fn new(shared: Weak<Shared>,
                win_attribs: &WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window, CreationError>
+               -> Result<Window2, CreationError>
     {
         unsafe {
             if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
@@ -307,17 +307,17 @@ impl Window {
             }
         }
 
-        let app = match Window::create_app(pl_attribs.activation_policy) {
+        let app = match Window2::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
 
-        let window = match Window::create_window(win_attribs)
+        let window = match Window2::create_window(win_attribs)
         {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
-        let view = match Window::create_view(*window) {
+        let view = match Window2::create_view(*window) {
             Some(view) => view,
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
@@ -355,7 +355,7 @@ impl Window {
             shared: shared,
         };
 
-        let window = Window {
+        let window = Window2 {
             view: view,
             window: window,
             delegate: WindowDelegate::new(ds),
@@ -422,11 +422,11 @@ impl Window {
                 appkit::NSBorderlessWindowMask | appkit::NSResizableWindowMask |
                     appkit::NSTitledWindowMask
             } else if attrs.decorations {
-                // Window with a titlebar
+                // Window2 with a titlebar
                 appkit::NSClosableWindowMask | appkit::NSMiniaturizableWindowMask |
                     appkit::NSResizableWindowMask | appkit::NSTitledWindowMask
             } else {
-                // Window without a titlebar
+                // Window2 without a titlebar
                 appkit::NSClosableWindowMask | appkit::NSMiniaturizableWindowMask |
                     appkit::NSResizableWindowMask |
                     appkit::NSFullSizeContentViewWindowMask

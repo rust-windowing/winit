@@ -118,7 +118,7 @@ impl WindowBuilder {
         }
 
         // building
-        let w = try!(platform::Window2::new(&events_loop.events_loop, &self.window, &self.platform_specific));
+        let w = try!(platform::Window::new(&events_loop.events_loop, &self.window, &self.platform_specific));
 
         Ok(Window { window: w })
     }
