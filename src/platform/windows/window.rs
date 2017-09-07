@@ -20,7 +20,6 @@ use CreationError;
 use CursorState;
 use MouseCursor;
 use WindowAttributes;
-use FullScreenState;
 use MonitorId as RootMonitorId;
 
 use dwmapi;
@@ -280,11 +279,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_maximized(&self, maximized: bool) {
+    pub fn set_maximized(&self, _maximized: bool) {
+        unimplemented!()
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, state: FullScreenState) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        unimplemented!()
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        unimplemented!()
     }
 }
 
@@ -329,7 +335,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     // switching to fullscreen if necessary
     // this means adjusting the window's position so that it overlaps the right monitor,
     //  and change the monitor's resolution if necessary
-    let fullscreen = if let FullScreenState::Exclusive(RootMonitorId { ref inner }) = window.fullscreen {
+    let fullscreen = if let Some(RootMonitorId { ref inner }) = window.fullscreen {
         try!(switch_to_fullscreen(&mut rect, inner));
         true
     } else {

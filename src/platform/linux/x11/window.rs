@@ -3,7 +3,7 @@ use CreationError;
 use CreationError::OsError;
 use libc;
 use std::borrow::Borrow;
-use std::{mem, ptr, cmp};
+use std::{mem, cmp};
 use std::sync::{Arc, Mutex};
 use std::os::raw::{c_int, c_long, c_uchar};
 use std::thread;
@@ -11,16 +11,16 @@ use std::time::Duration;
 
 use CursorState;
 use WindowAttributes;
-use FullScreenState;
 use platform::PlatformSpecificWindowBuilderAttributes;
 
 use platform::MonitorId as PlatformMonitorId;
+use platform::x11::MonitorId as X11MonitorId;
 use window::MonitorId as RootMonitorId;
+
+use platform::x11::monitor::get_available_monitors;
 
 use super::{ffi};
 use super::{XConnection, WindowId, EventsLoop};
-
-use super::MonitorId as X11MonitorId;
 
 // TODO: remove me
 fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> T {
@@ -33,8 +33,7 @@ pub struct XWindow {
     display: Arc<XConnection>,
     window: ffi::Window,
     root: ffi::Window,
-    // screen we're using, original screen mode if we've switched
-    fullscreen: Arc<Mutex<(i32, Option<ffi::XF86VidModeModeInfo>)>>,
+    screen_id: i32,
 }
 
 unsafe impl Send for XWindow {}
@@ -42,104 +41,6 @@ unsafe impl Sync for XWindow {}
 
 unsafe impl Send for Window2 {}
 unsafe impl Sync for Window2 {}
-
-impl XWindow {
-    fn switch_to_fullscreen_mode(&self, monitor: i32, width: u16, height: u16) {
-        let original_monitor = {
-            let fullscreen = self.fullscreen.lock().unwrap();
-            fullscreen.0
-        };
-        if monitor != original_monitor {
-            // We're setting fullscreen on a new screen so first revert the original screen
-            self.switch_from_fullscreen_mode();
-        }
-
-        let current_mode = unsafe {
-            let mut mode_num: libc::c_int = mem::uninitialized();
-            let mut modes: *mut *mut ffi::XF86VidModeModeInfo = mem::uninitialized();
-            if (self.display.xf86vmode.XF86VidModeGetAllModeLines)(self.display.display, monitor, &mut mode_num, &mut modes) == 0 {
-              eprintln!("[winit] Couldn't get current resolution mode");
-              return
-            }
-            ptr::read(*modes.offset(0))
-        };
-
-        let new_mode = unsafe {
-            let mut mode_num: libc::c_int = mem::uninitialized();
-            let mut modes: *mut *mut ffi::XF86VidModeModeInfo = mem::uninitialized();
-            if (self.display.xf86vmode.XF86VidModeGetAllModeLines)(self.display.display, monitor, &mut mode_num, &mut modes) == 0 {
-                // There are no modes, mighty weird
-                eprintln!("[winit] X has no valid modes");
-                return
-            } else {
-                let matching_mode = (0 .. mode_num).map(|i| {
-                    let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
-                }).find(|m| m.hdisplay == width && m.vdisplay == height);
-
-                if let Some(matching_mode) = matching_mode {
-                    matching_mode
-                } else {
-                    let m = (0 .. mode_num).map(|i| {
-                        let m: ffi::XF86VidModeModeInfo = ptr::read(*modes.offset(i as isize) as *const _); m
-                    }).find(|m| m.hdisplay >= width && m.vdisplay >= height);
-
-                    match m {
-                        Some(m) => m,
-                        None => {
-                          eprintln!("[winit] Could not find a suitable graphics mode");
-                          return
-                        }
-                    }
-                }
-            }
-        };
-
-        if new_mode != current_mode {
-            // We actually need to change modes
-            self.set_mode(monitor, new_mode);
-            let mut fullscreen = self.fullscreen.lock().unwrap();
-            if fullscreen.1.is_none() {
-                // It's our first mode switch, save the original mode
-                fullscreen.1 = Some(current_mode);
-            }
-        }
-    }
-
-    fn switch_from_fullscreen_mode(&self) {
-        let (monitor, mode) = {
-            let fullscreen = self.fullscreen.lock().unwrap();
-            (fullscreen.0, fullscreen.1)
-        };
-
-        if let Some(mode) = mode {
-            self.set_mode(monitor, mode);
-            let mut fullscreen = self.fullscreen.lock().unwrap();
-            fullscreen.1 = None;
-        }
-    }
-
-    pub fn set_mode(&self, monitor: i32, mode: ffi::XF86VidModeModeInfo) {
-        unsafe {
-            let mut mode_to_switch_to = mode;
-            (self.display.xf86vmode.XF86VidModeSwitchToMode)(
-                self.display.display,
-                monitor,
-                &mut mode_to_switch_to
-            );
-            self.display.check_errors().expect("Failed to call XF86VidModeSwitchToMode");
-
-            (self.display.xf86vmode.XF86VidModeSetViewPort)(self.display.display, monitor, 0, 0);
-            self.display.check_errors().expect("Failed to call XF86VidModeSetViewPort");
-        }
-    }
-}
-
-impl Drop for XWindow {
-    fn drop(&mut self) {
-        // Make sure we return the display to the original resolution if we've changed it
-        self.switch_from_fullscreen_mode();
-    }
-}
 
 pub struct Window2 {
     pub x: Arc<XWindow>,
@@ -172,10 +73,7 @@ impl Window2 {
 
         let screen_id = match pl_attribs.screen_id {
             Some(id) => id,
-            None => match window_attrs.fullscreen {
-                FullScreenState::Exclusive(RootMonitorId { inner: PlatformMonitorId::X(X11MonitorId(_, monitor)) }) => monitor as i32,
-                _ => unsafe { (display.xlib.XDefaultScreen)(display.display) },
-            }
+            None => unsafe { (display.xlib.XDefaultScreen)(display.display) },
         };
 
         // getting the root window
@@ -309,9 +207,9 @@ impl Window2 {
         let window = Window2 {
             x: Arc::new(XWindow {
                 display: display.clone(),
-                window: window,
-                root: root,
-                fullscreen: Arc::new(Mutex::new((screen_id, None))),
+                window,
+                root,
+                screen_id,
             }),
             cursor_state: Mutex::new(CursorState::Normal),
         };
@@ -398,31 +296,64 @@ impl Window2 {
         }
     }
 
-    pub fn set_fullscreen(&self, state: FullScreenState) {
-        match state {
-            FullScreenState::None => {
-              self.x.switch_from_fullscreen_mode();
-              Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", false);
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+        match monitor {
+            None => {
+                self.set_fullscreen_hint(false);
             },
-            FullScreenState::Windowed => {
-              self.x.switch_from_fullscreen_mode();
-              Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", true);
-            },
-            FullScreenState::Exclusive(RootMonitorId { inner: PlatformMonitorId::X(X11MonitorId(_, monitor)) }) => {
-              if let Some(dimensions) = self.get_inner_size() {
-                self.x.switch_to_fullscreen_mode(monitor as i32, dimensions.0 as u16, dimensions.1 as u16);
-                Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", true);
-              } else {
-                eprintln!("[winit] Couldn't get window dimensions to go fullscreen");
-              }
+            Some(RootMonitorId { inner: PlatformMonitorId::X(monitor) }) => {
+                let screenpos = monitor.get_position();
+                self.set_position(screenpos.0 as i32, screenpos.1 as i32);
+                self.set_fullscreen_hint(true);
             }
-            _ => (),
+            _ => {
+                eprintln!("[winit] Something's broken, got an unknown fullscreen state in X11");
+            }
         }
+    }
+
+    pub fn get_current_monitor(&self) -> X11MonitorId {
+        let monitors = get_available_monitors(&self.x.display);
+        let default = monitors[0].clone();
+
+        let (wx,wy) = match self.get_position() {
+            Some(val) => (cmp::max(0,val.0) as u32, cmp::max(0,val.1) as u32),
+            None=> return default,
+        };
+        let (ww,wh) = match self.get_outer_size() {
+            Some(val) => val,
+            None=> return default,
+        };
+        // Opposite corner coordinates
+        let (wxo, wyo) = (wx+ww-1, wy+wh-1);
+
+        // Find the monitor with the biggest overlap with the window
+        let mut overlap = 0;
+        let mut find = default;
+        for monitor in monitors {
+            let (mx, my) = monitor.get_position();
+            let (mw, mh) = monitor.get_dimensions();
+            let (mxo, myo) = (mx+mw-1, my+mh-1);
+            let (ox, oy) = (cmp::max(wx, mx), cmp::max(wy, my));
+            let (oxo, oyo) = (cmp::min(wxo, mxo), cmp::min(wyo, myo));
+            let osize = if ox <= oxo || oy <= oyo { 0 } else { (oxo-ox)*(oyo-oy) };
+
+            if osize > overlap {
+                overlap = osize;
+                find = monitor;
+            }
+        }
+
+        find
     }
 
     pub fn set_maximized(&self, maximized: bool) {
         Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_HORZ", maximized);
         Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_VERT", maximized);
+    }
+
+    fn set_fullscreen_hint(&self, fullscreen: bool) {
+        Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", fullscreen);
     }
 
     pub fn set_title(&self, title: &str) {
@@ -563,12 +494,7 @@ impl Window2 {
 
     #[inline]
     pub fn get_xlib_screen_id(&self) -> *mut libc::c_void {
-        let screen_id = {
-            let fullscreen = self.x.fullscreen.lock().unwrap();
-            fullscreen.0
-        };
-
-        screen_id as *mut libc::c_void
+        self.x.screen_id as *mut libc::c_void
     }
 
     #[inline]
@@ -775,16 +701,11 @@ impl Window2 {
     }
 
     pub fn hidpi_factor(&self) -> f32 {
-        let screen_id = {
-            let fullscreen = self.x.fullscreen.lock().unwrap();
-            fullscreen.0
-        };
-
         unsafe {
-            let x_px = (self.x.display.xlib.XDisplayWidth)(self.x.display.display, screen_id);
-            let y_px = (self.x.display.xlib.XDisplayHeight)(self.x.display.display, screen_id);
-            let x_mm = (self.x.display.xlib.XDisplayWidthMM)(self.x.display.display, screen_id);
-            let y_mm = (self.x.display.xlib.XDisplayHeightMM)(self.x.display.display, screen_id);
+            let x_px = (self.x.display.xlib.XDisplayWidth)(self.x.display.display, self.x.screen_id);
+            let y_px = (self.x.display.xlib.XDisplayHeight)(self.x.display.display, self.x.screen_id);
+            let x_mm = (self.x.display.xlib.XDisplayWidthMM)(self.x.display.display, self.x.screen_id);
+            let y_mm = (self.x.display.xlib.XDisplayHeightMM)(self.x.display.display, self.x.screen_id);
             let ppmm = ((x_px as f32 * y_px as f32) / (x_mm as f32 * y_mm as f32)).sqrt();
             ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0) // quantize with 1/12 step size.
         }

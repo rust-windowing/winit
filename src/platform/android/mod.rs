@@ -9,12 +9,12 @@ use {CreationError, Event, WindowEvent, MouseCursor};
 use CreationError::OsError;
 use WindowId as RootWindowId;
 use events::{Touch, TouchPhase};
+use window::MonitorId as RootMonitorId;
 
 use std::collections::VecDeque;
 
 use CursorState;
 use WindowAttributes;
-use FullScreenState;
 
 pub struct EventsLoop {
     event_rx: Receiver<android_glue::Event>,
@@ -152,6 +152,12 @@ impl MonitorId {
     pub fn get_dimensions(&self) -> (u32, u32) {
         unimplemented!()
     }
+
+    #[inline]
+    pub fn get_position(&self) -> (u32, u32) {
+        // Android assumes single screen
+        (0, 0)
+    }
 }
 
 #[derive(Clone, Default)]
@@ -258,10 +264,17 @@ impl Window {
 
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
+        // Android has single screen maximized apps so nothing to do
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, _state: FullScreenState) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        // Android has single screen maximized apps so nothing to do
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        RootMonitorId{inner: MonitorId}
     }
 
     pub fn id(&self) -> WindowId {

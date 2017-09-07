@@ -7,7 +7,6 @@ use MouseCursor;
 use Window;
 use WindowBuilder;
 use WindowId;
-use FullScreenState;
 
 use libc;
 use platform;
@@ -56,12 +55,11 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets the fullscreen mode.
-    ///
-    /// If you don't specify dimensions for the window, it will match the monitor's.
+    /// Sets the window fullscreen state. None means a normal window, Some(MonitorId)
+    /// means a fullscreen window on that specific monitor
     #[inline]
-    pub fn with_fullscreen(mut self, state: FullScreenState) -> WindowBuilder {
-        self.window.fullscreen = state;
+    pub fn with_fullscreen(mut self, monitor: Option<MonitorId>) -> WindowBuilder {
+        self.window.fullscreen = monitor;
         self
     }
 
@@ -107,7 +105,7 @@ impl WindowBuilder {
     pub fn build(mut self, events_loop: &EventsLoop) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
         if self.window.dimensions.is_none() {
-            if let FullScreenState::Exclusive(ref monitor) = self.window.fullscreen {
+            if let Some(ref monitor) = self.window.fullscreen {
                 self.window.dimensions = Some(monitor.get_dimensions());
             }
         }
@@ -308,8 +306,14 @@ impl Window {
 
     /// Sets the window to fullscreen or back
     #[inline]
-    pub fn set_fullscreen(&self, state: FullScreenState) {
-        self.window.set_fullscreen(state)
+    pub fn set_fullscreen(&self, monitor: Option<MonitorId>) {
+        self.window.set_fullscreen(monitor)
+    }
+
+    /// Returns the current monitor the window is on or the primary monitor is nothing
+    /// matches
+    pub fn get_current_monitor(&self) -> MonitorId {
+        self.window.get_current_monitor()
     }
 
     #[inline]
@@ -358,5 +362,12 @@ impl MonitorId {
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         self.inner.get_dimensions()
+    }
+
+    /// Returns the top-left corner position of the monitor relative to the larger full
+    /// screen area.
+    #[inline]
+    pub fn get_position(&self) -> (u32, u32) {
+        self.inner.get_position()
     }
 }

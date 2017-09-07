@@ -3,7 +3,6 @@ use CreationError::OsError;
 use libc;
 
 use WindowAttributes;
-use FullScreenState;
 use os::macos::ActivationPolicy;
 use os::macos::WindowExt;
 
@@ -25,6 +24,7 @@ use std::sync::Weak;
 
 use super::events_loop::Shared;
 
+use window::MonitorId as RootMonitorId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub usize);
@@ -384,7 +384,7 @@ impl Window2 {
     fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
         unsafe {
             let screen = match attrs.fullscreen {
-                FullScreenState::Exclusive(ref monitor_id) => {
+                Some(ref monitor_id) => {
                     let native_id = monitor_id.inner.get_native_identifier();
                     let matching_screen = {
                         let screens = appkit::NSScreen::screens(nil);
@@ -636,11 +636,18 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn set_maximized(&self, maximized: bool) {
+    pub fn set_maximized(&self, _maximized: bool) {
+        unimplemented!()
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, state: FullScreenState) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        unimplemented!()
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        unimplemented!()
     }
 }
 

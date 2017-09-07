@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::env;
 
-use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow, FullScreenState};
+use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow};
 use libc;
 
 use self::x11::XConnection;
@@ -12,6 +12,7 @@ use self::x11::XError;
 use self::x11::ffi::XVisualInfo;
 
 pub use self::x11::XNotSupported;
+use window::MonitorId as RootMonitorId;
 
 mod dlopen;
 pub mod wayland;
@@ -83,6 +84,14 @@ impl MonitorId {
         match self {
             &MonitorId::X(ref m) => m.get_dimensions(),
             &MonitorId::Wayland(ref m) => m.get_dimensions(),
+        }
+    }
+
+    #[inline]
+    pub fn get_position(&self) -> (u32, u32) {
+        match self {
+            &MonitorId::X(ref m) => m.get_position(),
+            &MonitorId::Wayland(ref m) => m.get_position(),
         }
     }
 }
@@ -236,10 +245,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, state: FullScreenState) {
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         match self {
-            &Window::X(ref w) => w.set_fullscreen(state),
+            &Window::X(ref w) => w.set_fullscreen(monitor),
             &Window::Wayland(ref _w) => {},
+        }
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        match self {
+            &Window::X(ref w) => RootMonitorId{inner: MonitorId::X(w.get_current_monitor())},
+            &Window::Wayland(ref w) => RootMonitorId{inner: MonitorId::Wayland(w.get_current_monitor())},
         }
     }
 }

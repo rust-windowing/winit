@@ -70,11 +70,12 @@ use libc::c_int;
 use objc::runtime::{Class, Object, Sel, BOOL, YES };
 use objc::declare::{ ClassDecl };
 
-use { CreationError, CursorState, MouseCursor, WindowAttributes, FullScreenState };
+use { CreationError, CursorState, MouseCursor, WindowAttributes };
 use WindowId as RootEventId;
 use WindowEvent;
 use Event;
 use events::{ Touch, TouchPhase };
+use window::MonitorId as RootMonitorId;
 
 mod ffi;
 use self::ffi::{
@@ -137,6 +138,12 @@ impl MonitorId {
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         unimplemented!()
+    }
+
+    #[inline]
+    pub fn get_position(&self) -> (u32, u32) {
+        // iOS assumes single screen
+        (0, 0)
     }
 }
 
@@ -341,11 +348,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_maximized(&self, maximized: bool) {
+    pub fn set_maximized(&self, _maximized: bool) {
+        // iOS has single screen maximized apps so nothing to do
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, state: FullScreenState) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        // iOS has single screen maximized apps so nothing to do
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        RootMonitorId{inner: MonitorId}
     }
 
     #[inline]

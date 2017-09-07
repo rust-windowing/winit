@@ -176,8 +176,6 @@ impl MonitorId {
         &self.adapter_name
     }
 
-    /// This is a Win32-only function for `MonitorId` that returns the position of the
-    ///  monitor on the desktop.
     /// A window that is positionned at these coordinates will overlap the monitor.
     #[inline]
     pub fn get_position(&self) -> (u32, u32) {

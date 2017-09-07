@@ -48,4 +48,9 @@ impl MonitorId {
         };
         dimension
     }
+
+    #[inline]
+    pub fn get_position(&self) -> (u32, u32) {
+        unimplemented!()
+    }
 }
