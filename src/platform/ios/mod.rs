@@ -108,7 +108,7 @@ pub struct WindowProxy;
 
 #[derive(Debug)]
 struct DelegateState {
-    events_queue: VecDeque<WindowEvent>,
+    events_queue: VecDeque<Event>,
     window: id,
     controller: id,
     size: (u32,u32),
@@ -196,20 +196,14 @@ impl EventsLoop {
             let state = &mut *self.delegate_state;
 
             if let Some(event) = state.events_queue.pop_front() {
-                callback(Event::WindowEvent {
-                    window_id: RootEventId(WindowId),
-                    event: event,
-                });
+                callback(event);
                 return;
             }
 
             // jump hack, so we won't quit on willTerminate event before processing it
             if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
                 if let Some(event) = state.events_queue.pop_front() {
-                    callback(Event::WindowEvent {
-                        window_id: RootEventId(WindowId),
-                        event: event,
-                    });
+                    callback(event);
                     return;
                 }
             }
@@ -219,10 +213,7 @@ impl EventsLoop {
             while CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, 1) == kCFRunLoopRunHandledSource {}
 
             if let Some(event) = state.events_queue.pop_front() {
-                callback(Event::WindowEvent {
-                    window_id: RootEventId(WindowId),
-                    event: event,
-                })
+                callback(event)
             }
         }
     }
@@ -404,7 +395,10 @@ fn create_delegate_class() {
         unsafe {
             let state: *mut c_void = *this.get_ivar("glutinState");
             let state = &mut *(state as *mut DelegateState);
-            state.events_queue.push_back(WindowEvent::Focused(true));
+            state.events_queue.push_back(Event::WindowEvent {
+                window_id: RootEventId(WindowId),
+                event: WindowEvent::Focused(true),
+            });
         }
     }
 
@@ -412,7 +406,10 @@ fn create_delegate_class() {
         unsafe {
             let state: *mut c_void = *this.get_ivar("glutinState");
             let state = &mut *(state as *mut DelegateState);
-            state.events_queue.push_back(WindowEvent::Focused(false));
+            state.events_queue.push_back(Event::WindowEvent {
+                window_id: RootEventId(WindowId),
+                event: WindowEvent::Focused(false),
+            });
         }
     }
 
@@ -420,7 +417,7 @@ fn create_delegate_class() {
         unsafe {
             let state: *mut c_void = *this.get_ivar("glutinState");
             let state = &mut *(state as *mut DelegateState);
-            state.events_queue.push_back(WindowEvent::Suspended(false));
+            state.events_queue.push_back(Event::Suspended(false));
         }
     }
 
@@ -428,7 +425,7 @@ fn create_delegate_class() {
         unsafe {
             let state: *mut c_void = *this.get_ivar("glutinState");
             let state = &mut *(state as *mut DelegateState);
-            state.events_queue.push_back(WindowEvent::Suspended(true));
+            state.events_queue.push_back(Event::Suspended(true));
         }
     }
 
@@ -438,7 +435,10 @@ fn create_delegate_class() {
             let state = &mut *(state as *mut DelegateState);
             // push event to the front to garantee that we'll process it
             // immidiatly after jump
-            state.events_queue.push_front(WindowEvent::Closed);
+            state.events_queue.push_front(Event::WindowEvent {
+                window_id: RootEventId(WindowId),
+                event: WindowEvent::Closed,
+            });
             longjmp(mem::transmute(&mut jmpbuf),1);
         }
     }
@@ -459,19 +459,22 @@ fn create_delegate_class() {
                 let touch_id = touch as u64;
                 let phase: i32 = msg_send![touch, phase];
 
-                state.events_queue.push_back(WindowEvent::Touch(Touch {
-                    device_id: DEVICE_ID,
-                    id: touch_id,
-                    location: (location.x as f64, location.y as f64),
-                    phase: match phase {
-                        0 => TouchPhase::Started,
-                        1 => TouchPhase::Moved,
-                        // 2 is UITouchPhaseStationary and is not expected here
-                        3 => TouchPhase::Ended,
-                        4 => TouchPhase::Cancelled,
-                        _ => panic!("unexpected touch phase: {:?}", phase)
-                    }
-                }));
+                state.events_queue.push_back(Event::WindowEvent {
+                    window_id: RootEventId(WindowId),
+                    event: WindowEvent::Touch(Touch {
+                        device_id: DEVICE_ID,
+                        id: touch_id,
+                        location: (location.x as f64, location.y as f64),
+                        phase: match phase {
+                            0 => TouchPhase::Started,
+                            1 => TouchPhase::Moved,
+                            // 2 is UITouchPhaseStationary and is not expected here
+                            3 => TouchPhase::Ended,
+                            4 => TouchPhase::Cancelled,
+                            _ => panic!("unexpected touch phase: {:?}", phase)
+                        }
+                    }),
+                });
             }
         }
     }
