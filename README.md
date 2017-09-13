@@ -9,7 +9,7 @@
 
 ```toml
 [dependencies]
-winit = "0.5"
+winit = "0.7"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -28,13 +28,16 @@ another library.
 extern crate winit;
 
 fn main() {
-    let window = winit::Window::new().unwrap();
+    let mut events_loop = winit::EventsLoop::new();
+    let window = winit::Window::new(&events_loop).unwrap();
 
-    for event in window.wait_events() {
+    events_loop.run_forever(|event| {
         match event {
-            winit::Event::Closed => break,
-            _ => ()
+            winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => {
+                winit::ControlFlow::Break
+            },
+            _ => winit::ControlFlow::Continue,
         }
-    }
+    });
 }
 ```

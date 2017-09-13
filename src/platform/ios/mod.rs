@@ -70,10 +70,12 @@ use libc::c_int;
 use objc::runtime::{Class, Object, Sel, BOOL, YES };
 use objc::declare::{ ClassDecl };
 
-use native_monitor::NativeMonitorId;
 use { CreationError, CursorState, MouseCursor, WindowAttributes };
-use WindowEvent as Event;
+use WindowId as RootEventId;
+use WindowEvent;
+use Event;
 use events::{ Touch, TouchPhase };
+use window::MonitorId as RootMonitorId;
 
 mod ffi;
 use self::ffi::{
@@ -104,17 +106,9 @@ pub struct Window {
 #[derive(Clone)]
 pub struct WindowProxy;
 
-pub struct PollEventsIterator<'a> {
-    window: &'a Window,
-}
-
-pub struct WaitEventsIterator<'a> {
-    window: &'a Window,
-}
-
 #[derive(Debug)]
 struct DelegateState {
-    events_queue: VecDeque<Event>,
+    events_queue: VecDeque<WindowEvent>,
     window: id,
     controller: id,
     size: (u32,u32),
@@ -135,18 +129,6 @@ impl DelegateState {
     }
 }
 
-#[inline]
-pub fn get_available_monitors() -> VecDeque<MonitorId> {
-    let mut rb = VecDeque::new();
-    rb.push_back(MonitorId);
-    rb
-}
-
-#[inline]
-pub fn get_primary_monitor() -> MonitorId {
-    MonitorId
-}
-
 impl MonitorId {
     #[inline]
     pub fn get_name(&self) -> Option<String> {
@@ -154,25 +136,25 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        NativeMonitorId::Unavailable
-    }
-
-    #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         unimplemented!()
     }
+
+    #[inline]
+    pub fn get_position(&self) -> (u32, u32) {
+        // iOS assumes single screen
+        (0, 0)
+    }
 }
 
-gen_api_transition!();
+pub struct EventsLoop {
+    delegate_state: *mut DelegateState
+}
 
-#[derive(Clone, Default)]
-pub struct PlatformSpecificWindowBuilderAttributes;
+pub struct EventsLoopProxy;
 
-impl Window {
-
-    pub fn new(_: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes) -> Result<Window, CreationError>
-    {
+impl EventsLoop {
+    pub fn new() -> EventsLoop {
         unsafe {
             if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
                 let app: id = msg_send![Class::get("UIApplication").unwrap(), sharedApplication];
@@ -180,185 +162,116 @@ impl Window {
                 let state: *mut c_void = *(&*delegate).get_ivar("glutinState");
                 let state = state as *mut DelegateState;
 
-                let window = Window {
+                let events_loop = EventsLoop {
                     delegate_state: state
                 };
 
-                return Ok(window)
+                return events_loop;
             }
         }
 
-        Window::create_delegate_class();
-        Window::create_view_class();
-        Window::start_app();
+        create_delegate_class();
+        create_view_class();
+        start_app();
 
-        Err(CreationError::OsError(format!("Couldn't create UIApplication")))
-    }
-
-    fn create_delegate_class() {
-        extern fn did_finish_launching(this: &mut Object, _: Sel, _: id, _: id) -> BOOL {
-            unsafe {
-                let main_screen: id = msg_send![Class::get("UIScreen").unwrap(), mainScreen];
-                let bounds: CGRect = msg_send![main_screen, bounds];
-                let scale: CGFloat = msg_send![main_screen, nativeScale];
-
-                let window: id = msg_send![Class::get("UIWindow").unwrap(), alloc];
-                let window: id = msg_send![window, initWithFrame:bounds.clone()];
-
-                let size = (bounds.size.width as u32, bounds.size.height as u32);
-
-                let view_controller: id = msg_send![Class::get("MainViewController").unwrap(), alloc];
-                let view_controller: id = msg_send![view_controller, init];
-
-                let _: () = msg_send![window, setRootViewController:view_controller];
-                let _: () = msg_send![window, makeKeyAndVisible];
-
-                let state = Box::new(DelegateState::new(window, view_controller, size, scale as f32));
-                let state_ptr: *mut DelegateState = mem::transmute(state);
-                this.set_ivar("glutinState", state_ptr as *mut c_void);
-
-
-                let _: () = msg_send![this, performSelector:sel!(postLaunch:) withObject:nil afterDelay:0.0];
-            }
-            YES
-        }
-
-        extern fn post_launch(_: &Object, _: Sel, _: id) {
-            unsafe { longjmp(mem::transmute(&mut jmpbuf),1); }
-        }
-
-        extern fn did_become_active(this: &Object, _: Sel, _: id) {
-            unsafe {
-                let state: *mut c_void = *this.get_ivar("glutinState");
-                let state = &mut *(state as *mut DelegateState);
-                state.events_queue.push_back(Event::Focused(true));
-            }
-        }
-
-        extern fn will_resign_active(this: &Object, _: Sel, _: id) {
-            unsafe {
-                let state: *mut c_void = *this.get_ivar("glutinState");
-                let state = &mut *(state as *mut DelegateState);
-                state.events_queue.push_back(Event::Focused(false));
-            }
-        }
-
-        extern fn will_enter_foreground(this: &Object, _: Sel, _: id) {
-            unsafe {
-                let state: *mut c_void = *this.get_ivar("glutinState");
-                let state = &mut *(state as *mut DelegateState);
-                state.events_queue.push_back(Event::Suspended(false));
-            }
-        }
-
-        extern fn did_enter_background(this: &Object, _: Sel, _: id) {
-            unsafe {
-                let state: *mut c_void = *this.get_ivar("glutinState");
-                let state = &mut *(state as *mut DelegateState);
-                state.events_queue.push_back(Event::Suspended(true));
-            }
-        }
-
-        extern fn will_terminate(this: &Object, _: Sel, _: id) {
-            unsafe {
-                let state: *mut c_void = *this.get_ivar("glutinState");
-                let state = &mut *(state as *mut DelegateState);
-                // push event to the front to garantee that we'll process it
-                // immidiatly after jump
-                state.events_queue.push_front(Event::Closed);
-                longjmp(mem::transmute(&mut jmpbuf),1);
-            }
-        }
-
-        extern fn handle_touches(this: &Object, _: Sel, touches: id, _:id) {
-            unsafe {
-                let state: *mut c_void = *this.get_ivar("glutinState");
-                let state = &mut *(state as *mut DelegateState);
-
-                let touches_enum: id = msg_send![touches, objectEnumerator];
-
-                loop {
-                    let touch: id = msg_send![touches_enum, nextObject];
-                    if touch == nil {
-                        break
-                    }
-                    let location: CGPoint = msg_send![touch, locationInView:nil];
-                    let touch_id = touch as u64;
-                    let phase: i32 = msg_send![touch, phase];
-
-                    state.events_queue.push_back(Event::Touch(Touch {
-                        id: touch_id,
-                        location: (location.x as f64, location.y as f64),
-                        phase: match phase {
-                            0 => TouchPhase::Started,
-                            1 => TouchPhase::Moved,
-                            // 2 is UITouchPhaseStationary and is not expected here
-                            3 => TouchPhase::Ended,
-                            4 => TouchPhase::Cancelled,
-                            _ => panic!("unexpected touch phase: {:?}", phase)
-                        }
-                    }));
-                }
-            }
-        }
-
-        let ui_responder = Class::get("UIResponder").unwrap();
-        let mut decl = ClassDecl::new("AppDelegate", ui_responder).unwrap();
-
-        unsafe {
-            decl.add_method(sel!(application:didFinishLaunchingWithOptions:),
-                            did_finish_launching as extern fn(&mut Object, Sel, id, id) -> BOOL);
-
-            decl.add_method(sel!(applicationDidBecomeActive:),
-                            did_become_active as extern fn(&Object, Sel, id));
-
-            decl.add_method(sel!(applicationWillResignActive:),
-                            will_resign_active as extern fn(&Object, Sel, id));
-
-            decl.add_method(sel!(applicationWillEnterForeground:),
-                            will_enter_foreground as extern fn(&Object, Sel, id));
-
-            decl.add_method(sel!(applicationDidEnterBackground:),
-                            did_enter_background as extern fn(&Object, Sel, id));
-
-            decl.add_method(sel!(applicationWillTerminate:),
-                            will_terminate as extern fn(&Object, Sel, id));
-
-
-            decl.add_method(sel!(touchesBegan:withEvent:),
-                            handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
-
-            decl.add_method(sel!(touchesMoved:withEvent:),
-                            handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
-
-            decl.add_method(sel!(touchesEnded:withEvent:),
-                            handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
-
-            decl.add_method(sel!(touchesCancelled:withEvent:),
-                            handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
-
-
-            decl.add_method(sel!(postLaunch:),
-                            post_launch as extern fn(&Object, Sel, id));
-
-            decl.add_ivar::<*mut c_void>("glutinState");
-
-            decl.register();
-        }
-    }
-
-    fn create_view_class() {
-        let ui_view_controller = Class::get("UIViewController").unwrap();
-        let decl = ClassDecl::new("MainViewController", ui_view_controller).unwrap();
-
-        decl.register();
+        panic!("Couldn't create UIApplication")
     }
 
     #[inline]
-    fn start_app() {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        let mut rb = VecDeque::new();
+        rb.push_back(MonitorId);
+        rb
+    }
+
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId
+    }
+
+    pub fn poll_events<F>(&mut self, mut callback: F)
+        where F: FnMut(::Event)
+    {
         unsafe {
-            UIApplicationMain(0, ptr::null(), nil, NSString::alloc(nil).init_str("AppDelegate"));
+            let state = &mut *self.delegate_state;
+
+            if let Some(event) = state.events_queue.pop_front() {
+                callback(Event::WindowEvent {
+                    window_id: RootEventId(WindowId),
+                    event: event,
+                });
+                return;
+            }
+
+            // jump hack, so we won't quit on willTerminate event before processing it
+            if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
+                if let Some(event) = state.events_queue.pop_front() {
+                    callback(Event::WindowEvent {
+                        window_id: RootEventId(WindowId),
+                        event: event,
+                    });
+                    return;
+                }
+            }
+
+            // run runloop
+            let seconds: CFTimeInterval = 0.000002;
+            while CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, 1) == kCFRunLoopRunHandledSource {}
+
+            if let Some(event) = state.events_queue.pop_front() {
+                callback(Event::WindowEvent {
+                    window_id: RootEventId(WindowId),
+                    event: event,
+                })
+            }
         }
+    }
+
+    pub fn run_forever<F>(&mut self, mut callback: F)
+        where F: FnMut(::Event) -> ::ControlFlow,
+    {
+        // Yeah that's a very bad implementation.
+        loop {
+            let mut control_flow = ::ControlFlow::Continue;
+            self.poll_events(|e| {
+                if let ::ControlFlow::Break = callback(e) {
+                    control_flow = ::ControlFlow::Break;
+                }
+            });
+            if let ::ControlFlow::Break = control_flow {
+                break;
+            }
+            ::std::thread::sleep(::std::time::Duration::from_millis(5));
+        }
+    }
+
+    pub fn create_proxy(&self) -> EventsLoopProxy {
+        EventsLoopProxy
+    }
+}
+
+impl EventsLoopProxy {
+    pub fn wakeup(&self) -> Result<(), ::EventsLoopClosed> {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct WindowId;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeviceId;
+
+#[derive(Clone, Default)]
+pub struct PlatformSpecificWindowBuilderAttributes;
+
+impl Window {
+    pub fn new(ev: &EventsLoop, _: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes)
+               -> Result<Window, CreationError>
+    {
+        Ok(Window {
+            delegate_state: ev.delegate_state,
+        })
     }
 
     #[inline]
@@ -394,20 +307,6 @@ impl Window {
 
     #[inline]
     pub fn set_inner_size(&self, _x: u32, _y: u32) {
-    }
-
-    #[inline]
-    pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator {
-            window: self
-        }
-    }
-
-    #[inline]
-    pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator {
-            window: self
-        }
     }
 
     #[inline]
@@ -448,50 +347,193 @@ impl Window {
         WindowProxy
     }
 
-}
-
-impl WindowProxy {
     #[inline]
-    pub fn wakeup_event_loop(&self) {
-        unimplemented!()
+    pub fn set_maximized(&self, _maximized: bool) {
+        // iOS has single screen maximized apps so nothing to do
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        // iOS has single screen maximized apps so nothing to do
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        RootMonitorId{inner: MonitorId}
+    }
+
+    #[inline]
+    pub fn id(&self) -> WindowId {
+        WindowId
     }
 }
 
-
-impl<'a> Iterator for WaitEventsIterator<'a> {
-    type Item = Event;
-
-    #[inline]
-    fn next(&mut self) -> Option<Event> {
-        loop {
-            if let Some(ev) = self.window.poll_events().next() {
-                return Some(ev);
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for PollEventsIterator<'a> {
-    type Item = Event;
-
-    fn next(&mut self) -> Option<Event> {
+fn create_delegate_class() {
+    extern fn did_finish_launching(this: &mut Object, _: Sel, _: id, _: id) -> BOOL {
         unsafe {
-            let state = &mut *self.window.delegate_state;
+            let main_screen: id = msg_send![Class::get("UIScreen").unwrap(), mainScreen];
+            let bounds: CGRect = msg_send![main_screen, bounds];
+            let scale: CGFloat = msg_send![main_screen, nativeScale];
 
-            if let Some(event) = state.events_queue.pop_front() {
-                return Some(event)
-            }
+            let window: id = msg_send![Class::get("UIWindow").unwrap(), alloc];
+            let window: id = msg_send![window, initWithFrame:bounds.clone()];
 
-            // jump hack, so we won't quit on willTerminate event before processing it
-            if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
-                return state.events_queue.pop_front()
-            }
+            let size = (bounds.size.width as u32, bounds.size.height as u32);
 
-            // run runloop
-            let seconds: CFTimeInterval = 0.000002;
-            while CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, 1) == kCFRunLoopRunHandledSource {}
+            let view_controller: id = msg_send![Class::get("MainViewController").unwrap(), alloc];
+            let view_controller: id = msg_send![view_controller, init];
 
-            state.events_queue.pop_front()
+            let _: () = msg_send![window, setRootViewController:view_controller];
+            let _: () = msg_send![window, makeKeyAndVisible];
+
+            let state = Box::new(DelegateState::new(window, view_controller, size, scale as f32));
+            let state_ptr: *mut DelegateState = mem::transmute(state);
+            this.set_ivar("glutinState", state_ptr as *mut c_void);
+
+
+            let _: () = msg_send![this, performSelector:sel!(postLaunch:) withObject:nil afterDelay:0.0];
+        }
+        YES
+    }
+
+    extern fn post_launch(_: &Object, _: Sel, _: id) {
+        unsafe { longjmp(mem::transmute(&mut jmpbuf),1); }
+    }
+
+    extern fn did_become_active(this: &Object, _: Sel, _: id) {
+        unsafe {
+            let state: *mut c_void = *this.get_ivar("glutinState");
+            let state = &mut *(state as *mut DelegateState);
+            state.events_queue.push_back(WindowEvent::Focused(true));
         }
     }
+
+    extern fn will_resign_active(this: &Object, _: Sel, _: id) {
+        unsafe {
+            let state: *mut c_void = *this.get_ivar("glutinState");
+            let state = &mut *(state as *mut DelegateState);
+            state.events_queue.push_back(WindowEvent::Focused(false));
+        }
+    }
+
+    extern fn will_enter_foreground(this: &Object, _: Sel, _: id) {
+        unsafe {
+            let state: *mut c_void = *this.get_ivar("glutinState");
+            let state = &mut *(state as *mut DelegateState);
+            state.events_queue.push_back(WindowEvent::Suspended(false));
+        }
+    }
+
+    extern fn did_enter_background(this: &Object, _: Sel, _: id) {
+        unsafe {
+            let state: *mut c_void = *this.get_ivar("glutinState");
+            let state = &mut *(state as *mut DelegateState);
+            state.events_queue.push_back(WindowEvent::Suspended(true));
+        }
+    }
+
+    extern fn will_terminate(this: &Object, _: Sel, _: id) {
+        unsafe {
+            let state: *mut c_void = *this.get_ivar("glutinState");
+            let state = &mut *(state as *mut DelegateState);
+            // push event to the front to garantee that we'll process it
+            // immidiatly after jump
+            state.events_queue.push_front(WindowEvent::Closed);
+            longjmp(mem::transmute(&mut jmpbuf),1);
+        }
+    }
+
+    extern fn handle_touches(this: &Object, _: Sel, touches: id, _:id) {
+        unsafe {
+            let state: *mut c_void = *this.get_ivar("glutinState");
+            let state = &mut *(state as *mut DelegateState);
+
+            let touches_enum: id = msg_send![touches, objectEnumerator];
+
+            loop {
+                let touch: id = msg_send![touches_enum, nextObject];
+                if touch == nil {
+                    break
+                }
+                let location: CGPoint = msg_send![touch, locationInView:nil];
+                let touch_id = touch as u64;
+                let phase: i32 = msg_send![touch, phase];
+
+                state.events_queue.push_back(WindowEvent::Touch(Touch {
+                    device_id: DEVICE_ID,
+                    id: touch_id,
+                    location: (location.x as f64, location.y as f64),
+                    phase: match phase {
+                        0 => TouchPhase::Started,
+                        1 => TouchPhase::Moved,
+                        // 2 is UITouchPhaseStationary and is not expected here
+                        3 => TouchPhase::Ended,
+                        4 => TouchPhase::Cancelled,
+                        _ => panic!("unexpected touch phase: {:?}", phase)
+                    }
+                }));
+            }
+        }
+    }
+
+    let ui_responder = Class::get("UIResponder").unwrap();
+    let mut decl = ClassDecl::new("AppDelegate", ui_responder).unwrap();
+
+    unsafe {
+        decl.add_method(sel!(application:didFinishLaunchingWithOptions:),
+                        did_finish_launching as extern fn(&mut Object, Sel, id, id) -> BOOL);
+
+        decl.add_method(sel!(applicationDidBecomeActive:),
+                        did_become_active as extern fn(&Object, Sel, id));
+
+        decl.add_method(sel!(applicationWillResignActive:),
+                        will_resign_active as extern fn(&Object, Sel, id));
+
+        decl.add_method(sel!(applicationWillEnterForeground:),
+                        will_enter_foreground as extern fn(&Object, Sel, id));
+
+        decl.add_method(sel!(applicationDidEnterBackground:),
+                        did_enter_background as extern fn(&Object, Sel, id));
+
+        decl.add_method(sel!(applicationWillTerminate:),
+                        will_terminate as extern fn(&Object, Sel, id));
+
+
+        decl.add_method(sel!(touchesBegan:withEvent:),
+                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+
+        decl.add_method(sel!(touchesMoved:withEvent:),
+                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+
+        decl.add_method(sel!(touchesEnded:withEvent:),
+                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+
+        decl.add_method(sel!(touchesCancelled:withEvent:),
+                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+
+
+        decl.add_method(sel!(postLaunch:),
+                        post_launch as extern fn(&Object, Sel, id));
+
+        decl.add_ivar::<*mut c_void>("glutinState");
+
+        decl.register();
+    }
 }
+
+fn create_view_class() {
+    let ui_view_controller = Class::get("UIViewController").unwrap();
+    let decl = ClassDecl::new("MainViewController", ui_view_controller).unwrap();
+
+    decl.register();
+}
+
+#[inline]
+fn start_app() {
+    unsafe {
+        UIApplicationMain(0, ptr::null(), nil, NSString::alloc(nil).init_str("AppDelegate"));
+    }
+}
+
+// Constant device ID, to be removed when this backend is updated to report real device IDs.
+const DEVICE_ID: ::DeviceId = ::DeviceId(DeviceId);

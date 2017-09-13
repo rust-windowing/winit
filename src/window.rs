@@ -7,7 +7,6 @@ use MouseCursor;
 use Window;
 use WindowBuilder;
 use WindowId;
-use native_monitor::NativeMonitorId;
 
 use libc;
 use platform;
@@ -30,7 +29,7 @@ impl WindowBuilder {
         self.window.dimensions = Some((width, height));
         self
     }
-    
+
     /// Sets a minimum dimension size for the window
     ///
     /// Width and height are in pixels.
@@ -56,13 +55,18 @@ impl WindowBuilder {
         self
     }
 
-    /// Requests fullscreen mode.
-    ///
-    /// If you don't specify dimensions for the window, it will match the monitor's.
+    /// Sets the window fullscreen state. None means a normal window, Some(MonitorId)
+    /// means a fullscreen window on that specific monitor
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: MonitorId) -> WindowBuilder {
-        let MonitorId(monitor) = monitor;
-        self.window.monitor = Some(monitor);
+    pub fn with_fullscreen(mut self, monitor: Option<MonitorId>) -> WindowBuilder {
+        self.window.fullscreen = monitor;
+        self
+    }
+
+    /// Requests maximized mode.
+    #[inline]
+    pub fn with_maximized(mut self, maximized: bool) -> WindowBuilder {
+        self.window.maximized = maximized;
         self
     }
 
@@ -100,8 +104,10 @@ impl WindowBuilder {
     /// out of memory, etc.
     pub fn build(mut self, events_loop: &EventsLoop) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
-        if self.window.dimensions.is_none() && self.window.monitor.is_some() {
-            self.window.dimensions = Some(self.window.monitor.as_ref().unwrap().get_dimensions())
+        if self.window.dimensions.is_none() {
+            if let Some(ref monitor) = self.window.fullscreen {
+                self.window.dimensions = Some(monitor.get_dimensions());
+            }
         }
 
         // default dimensions
@@ -110,14 +116,14 @@ impl WindowBuilder {
         }
 
         // building
-        let w = try!(platform::Window2::new(events_loop.events_loop.clone(), &self.window, &self.platform_specific));
+        let w = try!(platform::Window::new(&events_loop.events_loop, &self.window, &self.platform_specific));
 
         Ok(Window { window: w })
     }
 }
 
 impl Window {
-    /// Creates a new OpenGL context, and a Window for platforms where this is appropriate.
+    /// Creates a new Window for platforms where this is appropriate.
     ///
     /// This function is equivalent to `WindowBuilder::new().build(events_loop)`.
     ///
@@ -197,7 +203,7 @@ impl Window {
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         self.window.get_inner_size()
     }
-    
+
     /// Returns the size in points of the client area of the window.
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
@@ -284,12 +290,30 @@ impl Window {
         self.window.set_cursor_position(x, y)
     }
 
-    /// Sets how glutin handles the cursor. See the documentation of `CursorState` for details.
+    /// Sets how winit handles the cursor. See the documentation of `CursorState` for details.
     ///
     /// Has no effect on Android.
     #[inline]
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
         self.window.set_cursor_state(state)
+    }
+
+    /// Sets the window to maximized or back
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+        self.window.set_maximized(maximized)
+    }
+
+    /// Sets the window to fullscreen or back
+    #[inline]
+    pub fn set_fullscreen(&self, monitor: Option<MonitorId>) {
+        self.window.set_fullscreen(monitor)
+    }
+
+    /// Returns the current monitor the window is on or the primary monitor is nothing
+    /// matches
+    pub fn get_current_monitor(&self) -> MonitorId {
+        self.window.get_current_monitor()
     }
 
     #[inline]
@@ -302,7 +326,7 @@ impl Window {
 // Implementation note: we retreive the list once, then serve each element by one by one.
 // This may change in the future.
 pub struct AvailableMonitorsIter {
-    data: VecDequeIter<platform::MonitorId>,
+    pub(crate) data: VecDequeIter<platform::MonitorId>,
 }
 
 impl Iterator for AvailableMonitorsIter {
@@ -310,7 +334,7 @@ impl Iterator for AvailableMonitorsIter {
 
     #[inline]
     fn next(&mut self) -> Option<MonitorId> {
-        self.data.next().map(|id| MonitorId(id))
+        self.data.next().map(|id| MonitorId { inner: id })
     }
 
     #[inline]
@@ -319,41 +343,31 @@ impl Iterator for AvailableMonitorsIter {
     }
 }
 
-/// Returns the list of all available monitors.
-#[inline]
-pub fn get_available_monitors() -> AvailableMonitorsIter {
-    let data = platform::get_available_monitors();
-    AvailableMonitorsIter{ data: data.into_iter() }
-}
-
-/// Returns the primary monitor of the system.
-#[inline]
-pub fn get_primary_monitor() -> MonitorId {
-    MonitorId(platform::get_primary_monitor())
-}
-
 /// Identifier for a monitor.
-pub struct MonitorId(platform::MonitorId);
+#[derive(Clone)]
+pub struct MonitorId {
+    pub(crate) inner: platform::MonitorId
+}
 
 impl MonitorId {
     /// Returns a human-readable name of the monitor.
+    ///
+    /// Returns `None` if the monitor doesn't exist anymore.
     #[inline]
     pub fn get_name(&self) -> Option<String> {
-        let &MonitorId(ref id) = self;
-        id.get_name()
-    }
-
-    /// Returns the native platform identifier for this monitor.
-    #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        let &MonitorId(ref id) = self;
-        id.get_native_identifier()
+        self.inner.get_name()
     }
 
     /// Returns the number of pixels currently displayed on the monitor.
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
-        let &MonitorId(ref id) = self;
-        id.get_dimensions()
+        self.inner.get_dimensions()
+    }
+
+    /// Returns the top-left corner position of the monitor relative to the larger full
+    /// screen area.
+    #[inline]
+    pub fn get_position(&self) -> (u32, u32) {
+        self.inner.get_position()
     }
 }

@@ -1,19 +1,43 @@
 use events::VirtualKeyCode;
+use events::ModifiersState;
 use winapi;
 use user32;
 use ScanCode;
+use std::char;
 
+const MAPVK_VK_TO_CHAR: u32 = 2;
 const MAPVK_VSC_TO_VK_EX: u32 = 3;
 
+pub fn get_key_mods() -> ModifiersState {
+    let mut mods = ModifiersState::default();
+    unsafe {
+        if user32::GetKeyState(winapi::VK_SHIFT) & (1 << 15) == (1 << 15) {
+            mods.shift = true;
+        }
+        if user32::GetKeyState(winapi::VK_CONTROL) & (1 << 15) == (1 << 15) {
+            mods.ctrl = true;
+        }
+        if user32::GetKeyState(winapi::VK_MENU) & (1 << 15) == (1 << 15) {
+            mods.alt = true;
+        }
+        if (user32::GetKeyState(winapi::VK_LWIN) | user32::GetKeyState(winapi::VK_RWIN)) & (1 << 15) == (1 << 15) {
+            mods.logo = true;
+        }
+    }
+    mods
+}
+
 pub fn vkeycode_to_element(wparam: winapi::WPARAM, lparam: winapi::LPARAM) -> (ScanCode, Option<VirtualKeyCode>) {
-    let scancode = ((lparam >> 16) & 0xff) as u8;
+    let scancode = ((lparam >> 16) & 0xff) as u32;
     let extended = (lparam & 0x01000000) != 0;
     let vk = match wparam as i32 {
-        winapi::VK_SHIFT => unsafe { user32::MapVirtualKeyA(scancode as u32, MAPVK_VSC_TO_VK_EX) as i32 },
+        winapi::VK_SHIFT => unsafe { user32::MapVirtualKeyA(scancode, MAPVK_VSC_TO_VK_EX) as i32 },
         winapi::VK_CONTROL => if extended { winapi::VK_RCONTROL } else { winapi::VK_LCONTROL },
         winapi::VK_MENU => if extended { winapi::VK_RMENU } else { winapi::VK_LMENU },
         other => other
     };
+
+    // VK_* codes are documented here https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
     (scancode, match vk {
         //winapi::VK_LBUTTON => Some(VirtualKeyCode::Lbutton),
         //winapi::VK_RBUTTON => Some(VirtualKeyCode::Rbutton),
@@ -161,18 +185,18 @@ pub fn vkeycode_to_element(wparam: winapi::WPARAM, lparam: winapi::LPARAM) -> (S
         winapi::VK_LAUNCH_MEDIA_SELECT => Some(VirtualKeyCode::MediaSelect),
         /*winapi::VK_LAUNCH_APP1 => Some(VirtualKeyCode::Launch_app1),
         winapi::VK_LAUNCH_APP2 => Some(VirtualKeyCode::Launch_app2),*/
-	winapi::VK_OEM_PLUS => Some(VirtualKeyCode::Equals),
+        winapi::VK_OEM_PLUS => Some(VirtualKeyCode::Equals),
         winapi::VK_OEM_COMMA => Some(VirtualKeyCode::Comma),
         winapi::VK_OEM_MINUS => Some(VirtualKeyCode::Minus),
         winapi::VK_OEM_PERIOD => Some(VirtualKeyCode::Period),
-        /*winapi::VK_OEM_1 => Some(VirtualKeyCode::Oem_1),
-        winapi::VK_OEM_2 => Some(VirtualKeyCode::Oem_2), 
-        winapi::VK_OEM_3 => Some(VirtualKeyCode::Oem_3), 
-        winapi::VK_OEM_4 => Some(VirtualKeyCode::Oem_4), 
-        winapi::VK_OEM_5 => Some(VirtualKeyCode::Oem_5), 
-        winapi::VK_OEM_6 => Some(VirtualKeyCode::Oem_6), 
-        winapi::VK_OEM_7 => Some(VirtualKeyCode::Oem_7), 
-        winapi::VK_OEM_8 => Some(VirtualKeyCode::Oem_8), */
+        winapi::VK_OEM_1 => map_text_keys(vk),
+        winapi::VK_OEM_2 => map_text_keys(vk),
+        winapi::VK_OEM_3 => map_text_keys(vk),
+        winapi::VK_OEM_4 => map_text_keys(vk),
+        winapi::VK_OEM_5 => map_text_keys(vk),
+        winapi::VK_OEM_6 => map_text_keys(vk),
+        winapi::VK_OEM_7 => map_text_keys(vk),
+        /*winapi::VK_OEM_8 => Some(VirtualKeyCode::Oem_8), */
         winapi::VK_OEM_102 => Some(VirtualKeyCode::OEM102),
         /*winapi::VK_PROCESSKEY => Some(VirtualKeyCode::Processkey),
         winapi::VK_PACKET => Some(VirtualKeyCode::Packet),
@@ -187,4 +211,20 @@ pub fn vkeycode_to_element(wparam: winapi::WPARAM, lparam: winapi::LPARAM) -> (S
         winapi::VK_OEM_CLEAR => Some(VirtualKeyCode::Oem_clear),*/
         _ => None
     })
+}
+
+// This is needed as windows doesn't properly distinguish
+// some virtual key codes for different keyboard layouts
+fn map_text_keys(win_virtual_key: i32) -> Option<VirtualKeyCode> {
+    let char_key = unsafe { user32::MapVirtualKeyA(win_virtual_key as u32, MAPVK_VK_TO_CHAR) } & 0x7FFF;
+    match char::from_u32(char_key) {
+        Some(';') => Some(VirtualKeyCode::Semicolon),
+        Some('/') => Some(VirtualKeyCode::Slash),
+        Some('`') => Some(VirtualKeyCode::Grave),
+        Some('[') => Some(VirtualKeyCode::LBracket),
+        Some(']') => Some(VirtualKeyCode::RBracket),
+        Some('\'') => Some(VirtualKeyCode::Apostrophe),
+        Some('\\') => Some(VirtualKeyCode::Backslash),
+        _ => None
+    }
 }

@@ -1,13 +1,19 @@
 extern crate winit;
 
 fn main() {
-    let events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventsLoop::new();
 
     let window1 = winit::Window::new(&events_loop).unwrap();
     let window2 = winit::Window::new(&events_loop).unwrap();
     let window3 = winit::Window::new(&events_loop).unwrap();
 
     let mut num_windows = 3;
+
+    if cfg!(target_os = "linux") {
+        println!("Running this example under wayland may not display a window at all.\n\
+                  This is normal and because this example does not actually draw anything in the window,\
+                  thus the compositor does not display it.");
+    }
 
     events_loop.run_forever(|event| {
         match event {
@@ -24,10 +30,11 @@ fn main() {
 
                 num_windows -= 1;
                 if num_windows == 0 {
-                    events_loop.interrupt();
+                    return winit::ControlFlow::Break;
                 }
             },
             _ => (),
         }
+        winit::ControlFlow::Continue
     })
 }

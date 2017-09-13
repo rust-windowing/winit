@@ -3,8 +3,8 @@ use CreationError::OsError;
 use libc;
 
 use WindowAttributes;
-use native_monitor::NativeMonitorId;
 use os::macos::ActivationPolicy;
+use os::macos::WindowExt;
 
 use objc;
 use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
@@ -20,9 +20,11 @@ use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDispl
 use std;
 use std::ops::Deref;
 use std::os::raw::c_void;
+use std::sync::Weak;
 
-use os::macos::WindowExt;
+use super::events_loop::Shared;
 
+use window::MonitorId as RootMonitorId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub usize);
@@ -30,7 +32,7 @@ pub struct Id(pub usize);
 struct DelegateState {
     view: IdRef,
     window: IdRef,
-    events_loop: std::sync::Weak<super::EventsLoop>,
+    shared: Weak<Shared>,
 }
 
 pub struct WindowDelegate {
@@ -43,12 +45,7 @@ impl WindowDelegate {
     fn class() -> *const Class {
         use std::os::raw::c_void;
 
-        // Emits an event via the `EventsLoop`'s callback.
-        //
-        // The `Eventloop`'s callback should always be `Some` while the `WindowDelegate`'s methods
-        // are called as the delegate methods should only be called during a call to
-        // `nextEventMatchingMask` (called via EventsLoop::poll_events and
-        // EventsLoop::run_forever).
+        // Emits an event via the `EventsLoop`'s callback or stores it in the pending queue.
         unsafe fn emit_event(state: &mut DelegateState, window_event: WindowEvent) {
             let window_id = get_window_id(*state.window);
             let event = Event::WindowEvent {
@@ -56,9 +53,18 @@ impl WindowDelegate {
                 event: window_event,
             };
 
-            if let Some(events_loop) = state.events_loop.upgrade() {
-                events_loop.user_callback.call_with_event(event);
+            if let Some(shared) = state.shared.upgrade() {
+                shared.call_user_callback_with_event_or_store_in_pending(event);
             }
+        }
+
+        // Called when the window is resized or when the window was moved to a different screen.
+        unsafe fn emit_resize_event(state: &mut DelegateState) {
+            let rect = NSView::frame(*state.view);
+            let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
+            let width = (scale_factor * rect.size.width as f32) as u32;
+            let height = (scale_factor * rect.size.height as f32) as u32;
+            emit_event(state, WindowEvent::Resized(width, height));
         }
 
         extern fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
@@ -66,6 +72,12 @@ impl WindowDelegate {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 emit_event(state, WindowEvent::Closed);
+
+                // Remove the window from the shared state.
+                if let Some(shared) = state.shared.upgrade() {
+                    let window_id = get_window_id(*state.window);
+                    shared.find_and_remove_window(window_id);
+                }
             }
             YES
         }
@@ -74,11 +86,15 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-                let rect = NSView::frame(*state.view);
-                let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
-                let width = (scale_factor * rect.size.width as f32) as u32;
-                let height = (scale_factor * rect.size.height as f32) as u32;
-                emit_event(state, WindowEvent::Resized(width, height));
+                emit_resize_event(state);
+            }
+        }
+
+        extern fn window_did_change_screen(this: &Object, _: Sel, _: id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+                emit_resize_event(state);
             }
         }
 
@@ -100,6 +116,73 @@ impl WindowDelegate {
             }
         }
 
+        /// Invoked when the dragged image enters destination bounds or frame
+        extern fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
+            use cocoa::appkit::NSPasteboard;
+            use cocoa::foundation::NSFastEnumeration;
+            use std::path::PathBuf;
+
+            let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
+            let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+
+            for file in unsafe { filenames.iter() } {
+                use cocoa::foundation::NSString;
+                use std::ffi::CStr;
+
+                unsafe {
+                    let f = NSString::UTF8String(file);
+                    let path = CStr::from_ptr(f).to_string_lossy().into_owned();
+
+                    let state: *mut c_void = *this.get_ivar("winitState");
+                    let state = &mut *(state as *mut DelegateState);
+                    emit_event(state, WindowEvent::HoveredFile(PathBuf::from(path)));
+                }
+            };
+
+            YES
+        }
+
+        /// Invoked when the image is released
+        extern fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) {}
+
+        /// Invoked after the released image has been removed from the screen
+        extern fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
+            use cocoa::appkit::NSPasteboard;
+            use cocoa::foundation::NSFastEnumeration;
+            use std::path::PathBuf;
+
+            let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
+            let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+
+            for file in unsafe { filenames.iter() } {
+                use cocoa::foundation::NSString;
+                use std::ffi::CStr;
+
+                unsafe {
+                    let f = NSString::UTF8String(file);
+                    let path = CStr::from_ptr(f).to_string_lossy().into_owned();
+
+                    let state: *mut c_void = *this.get_ivar("winitState");
+                    let state = &mut *(state as *mut DelegateState);
+                    emit_event(state, WindowEvent::DroppedFile(PathBuf::from(path)));
+                }
+            };
+
+            YES
+        }
+
+        /// Invoked when the dragging operation is complete
+        extern fn conclude_drag_operation(_: &Object, _: Sel, _: id) {}
+
+        /// Invoked when the dragging operation is cancelled
+        extern fn dragging_exited(this: &Object, _: Sel, _: id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+                emit_event(state, WindowEvent::HoveredFileCancelled);
+            }
+        }
+
         static mut DELEGATE_CLASS: *const Class = 0 as *const Class;
         static INIT: std::sync::Once = std::sync::ONCE_INIT;
 
@@ -113,11 +196,25 @@ impl WindowDelegate {
                 window_should_close as extern fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(windowDidResize:),
                 window_did_resize as extern fn(&Object, Sel, id));
+            decl.add_method(sel!(windowDidChangeScreen:),
+                window_did_change_screen as extern fn(&Object, Sel, id));
 
             decl.add_method(sel!(windowDidBecomeKey:),
                 window_did_become_key as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidResignKey:),
                 window_did_resign_key as extern fn(&Object, Sel, id));
+
+            // callbacks for drag and drop events
+            decl.add_method(sel!(draggingEntered:),
+                dragging_entered as extern fn(&Object, Sel, id) -> BOOL);
+           decl.add_method(sel!(prepareForDragOperation:),
+                prepare_for_drag_operation as extern fn(&Object, Sel, id));
+           decl.add_method(sel!(performDragOperation:),
+                perform_drag_operation as extern fn(&Object, Sel, id) -> BOOL);
+           decl.add_method(sel!(concludeDragOperation:),
+                conclude_drag_operation as extern fn(&Object, Sel, id));
+           decl.add_method(sel!(draggingExited:),
+                dragging_exited as extern fn(&Object, Sel, id));
 
             // Store internal state as user data
             decl.add_ivar::<*mut c_void>("winitState");
@@ -159,27 +256,34 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
 }
 
-pub struct Window {
+pub struct Window2 {
     pub view: IdRef,
     pub window: IdRef,
     pub delegate: WindowDelegate,
 }
 
-unsafe impl Send for Window {}
-unsafe impl Sync for Window {}
+unsafe impl Send for Window2 {}
+unsafe impl Sync for Window2 {}
 
-impl Drop for Window {
+impl Drop for Window2 {
     fn drop(&mut self) {
         // Remove this window from the `EventLoop`s list of windows.
         let id = self.id();
-        if let Some(ev) = self.delegate.state.events_loop.upgrade() {
-            let mut windows = ev.windows.lock().unwrap();
-            windows.retain(|w| w.id() != id)
+        if let Some(shared) = self.delegate.state.shared.upgrade() {
+            shared.find_and_remove_window(id);
+        }
+
+        // Close the window if it has not yet been closed.
+        let nswindow = *self.window;
+        if nswindow != nil {
+            unsafe {
+                msg_send![nswindow, close];
+            }
         }
     }
 }
 
-impl WindowExt for Window {
+impl WindowExt for Window2 {
     #[inline]
     fn get_nswindow(&self) -> *mut c_void {
         *self.window as *mut c_void
@@ -191,11 +295,11 @@ impl WindowExt for Window {
     }
 }
 
-impl Window {
-    pub fn new(events_loop: std::sync::Weak<super::EventsLoop>,
+impl Window2 {
+    pub fn new(shared: Weak<Shared>,
                win_attribs: &WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window, CreationError>
+               -> Result<Window2, CreationError>
     {
         unsafe {
             if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
@@ -203,17 +307,17 @@ impl Window {
             }
         }
 
-        let app = match Window::create_app(pl_attribs.activation_policy) {
+        let app = match Window2::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
 
-        let window = match Window::create_window(win_attribs)
+        let window = match Window2::create_window(win_attribs)
         {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
-        let view = match Window::create_view(*window) {
+        let view = match Window2::create_view(*window) {
             Some(view) => view,
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
@@ -238,15 +342,20 @@ impl Window {
             if let Some((width, height)) = win_attribs.max_dimensions {
                 nswindow_set_max_dimensions(window.0, width.into(), height.into());
             }
+
+            use cocoa::foundation::NSArray;
+            // register for drag and drop operations.
+            msg_send![(*window as id),
+                registerForDraggedTypes:NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)];
         }
 
         let ds = DelegateState {
             view: view.clone(),
             window: window.clone(),
-            events_loop: events_loop,
+            shared: shared,
         };
 
-        let window = Window {
+        let window = Window2 {
             view: view,
             window: window,
             delegate: WindowDelegate::new(ds),
@@ -274,12 +383,9 @@ impl Window {
 
     fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
         unsafe {
-            let screen = match attrs.monitor {
+            let screen = match attrs.fullscreen {
                 Some(ref monitor_id) => {
-                    let native_id = match monitor_id.get_native_identifier() {
-                        NativeMonitorId::Numeric(num) => num,
-                        _ => panic!("OS X monitors should always have a numeric native ID")
-                    };
+                    let native_id = monitor_id.inner.get_native_identifier();
                     let matching_screen = {
                         let screens = appkit::NSScreen::screens(nil);
                         let count: NSUInteger = msg_send![screens, count];
@@ -301,7 +407,7 @@ impl Window {
                     };
                     Some(matching_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
                 },
-                None => None
+                _ => None,
             };
             let frame = match screen {
                 Some(screen) => appkit::NSScreen::frame(screen),
@@ -311,24 +417,19 @@ impl Window {
                 }
             };
 
-            let masks = if screen.is_some() || attrs.transparent {
-                // Fullscreen or transparent window
-                appkit::NSBorderlessWindowMask as NSUInteger |
-                appkit::NSResizableWindowMask as NSUInteger |
-                appkit::NSTitledWindowMask as NSUInteger
+            let masks = if screen.is_some() {
+                // Fullscreen window
+                appkit::NSBorderlessWindowMask | appkit::NSResizableWindowMask |
+                    appkit::NSTitledWindowMask
             } else if attrs.decorations {
-                // Classic opaque window with titlebar
-                appkit::NSClosableWindowMask as NSUInteger |
-                appkit::NSMiniaturizableWindowMask as NSUInteger |
-                appkit::NSResizableWindowMask as NSUInteger |
-                appkit::NSTitledWindowMask as NSUInteger
+                // Window2 with a titlebar
+                appkit::NSClosableWindowMask | appkit::NSMiniaturizableWindowMask |
+                    appkit::NSResizableWindowMask | appkit::NSTitledWindowMask
             } else {
-                // Opaque window without a titlebar
-                appkit::NSClosableWindowMask as NSUInteger |
-                appkit::NSMiniaturizableWindowMask as NSUInteger |
-                appkit::NSResizableWindowMask as NSUInteger |
-                appkit::NSTitledWindowMask as NSUInteger |
-                appkit::NSFullSizeContentViewWindowMask as NSUInteger
+                // Window2 without a titlebar
+                appkit::NSClosableWindowMask | appkit::NSMiniaturizableWindowMask |
+                    appkit::NSResizableWindowMask |
+                    appkit::NSFullSizeContentViewWindowMask
             };
 
             let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
@@ -503,6 +604,7 @@ impl Window {
                 Ok(())
             },
             CursorState::Grab => {
+                let _: () = unsafe { msg_send![cls, hide] };
                 let _: i32 = unsafe { CGAssociateMouseAndMouseCursorPosition(false) };
                 Ok(())
             }
@@ -531,6 +633,21 @@ impl Window {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn set_maximized(&self, _maximized: bool) {
+        unimplemented!()
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        unimplemented!()
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        unimplemented!()
     }
 }
 

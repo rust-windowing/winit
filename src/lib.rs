@@ -1,4 +1,4 @@
-//! Winit allows you to build a window on as many platforms as possible. 
+//! Winit allows you to build a window on as many platforms as possible.
 //!
 //! # Building a window
 //!
@@ -34,10 +34,9 @@
 //! screen, such as video games.
 //!
 //! ```no_run
-//! use winit::Event;
-//! use winit::WindowEvent;
+//! use winit::{Event, WindowEvent};
 //! # use winit::EventsLoop;
-//! # let events_loop = EventsLoop::new();
+//! # let mut events_loop = EventsLoop::new();
 //!
 //! loop {
 //!     events_loop.poll_events(|event| {
@@ -52,21 +51,20 @@
 //! ```
 //!
 //! The second way is to call `events_loop.run_forever(...)`. As its name tells, it will run
-//! forever unless it is stopped by calling `events_loop.interrupt()`.
+//! forever unless it is stopped by returning `ControlFlow::Break`.
 //!
 //! ```no_run
-//! use winit::Event;
-//! use winit::WindowEvent;
+//! use winit::{ControlFlow, Event, WindowEvent};
 //! # use winit::EventsLoop;
-//! # let events_loop = EventsLoop::new();
+//! # let mut events_loop = EventsLoop::new();
 //!
 //! events_loop.run_forever(|event| {
 //!     match event {
 //!         Event::WindowEvent { event: WindowEvent::Closed, .. } => {
 //!             println!("The window was closed ; stopping");
-//!             events_loop.interrupt();
+//!             ControlFlow::Break
 //!         },
-//!         _ => ()
+//!         _ => ControlFlow::Continue,
 //!     }
 //! });
 //! ```
@@ -85,9 +83,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-#[macro_use]
-extern crate shared_library;
-
 extern crate libc;
 
 #[cfg(target_os = "windows")]
@@ -97,16 +92,12 @@ extern crate kernel32;
 #[cfg(target_os = "windows")]
 extern crate shell32;
 #[cfg(target_os = "windows")]
-extern crate gdi32;
-#[cfg(target_os = "windows")]
 extern crate user32;
 #[cfg(target_os = "windows")]
 extern crate dwmapi;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;
-#[cfg(target_os = "macos")]
-extern crate cgl;
 #[cfg(target_os = "macos")]
 extern crate cocoa;
 #[cfg(target_os = "macos")]
@@ -116,19 +107,12 @@ extern crate core_graphics;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 extern crate x11_dl;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
-#[macro_use(wayland_env,declare_handler)]
+#[macro_use]
 extern crate wayland_client;
 
-use std::sync::Arc;
-
 pub use events::*;
-pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
-pub use native_monitor::NativeMonitorId;
+pub use window::{AvailableMonitorsIter, MonitorId};
 
-#[macro_use]
-mod api_transition;
-
-mod api;
 mod platform;
 mod events;
 mod window;
@@ -140,25 +124,22 @@ pub mod os;
 /// # Example
 ///
 /// ```no_run
-/// use winit::Event;
-/// use winit::EventsLoop;
-/// use winit::Window;
-/// use winit::WindowEvent;
+/// use winit::{Event, EventsLoop, Window, WindowEvent, ControlFlow};
 ///
-/// let events_loop = EventsLoop::new();
+/// let mut events_loop = EventsLoop::new();
 /// let window = Window::new(&events_loop).unwrap();
 ///
 /// events_loop.run_forever(|event| {
 ///     match event {
 ///         Event::WindowEvent { event: WindowEvent::Closed, .. } => {
-///             events_loop.interrupt();
+///             ControlFlow::Break
 ///         },
-///         _ => ()
+///         _ => ControlFlow::Continue,
 ///     }
 /// });
 /// ```
 pub struct Window {
-    window: platform::Window2,
+    window: platform::Window,
 }
 
 /// Identifier of a window. Unique for each window.
@@ -170,24 +151,82 @@ pub struct Window {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(platform::WindowId);
 
+/// Identifier of an input device.
+///
+/// Whenever you receive an event arising from a particular input device, this event contains a `DeviceId` which
+/// identifies its origin. Note that devices may be virtual (representing an on-screen cursor and keyboard focus) or
+/// physical. Virtual devices typically aggregate inputs from multiple physical devices.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeviceId(platform::DeviceId);
+
 /// Provides a way to retreive events from the windows that were registered to it.
-// TODO: document usage in multiple threads
+///
+/// To wake up an `EventsLoop` from a another thread, see the `EventsLoopProxy` docs.
+///
+/// Usage will result in display backend initialisation, this can be controlled on linux
+/// using an environment variable `WINIT_UNIX_BACKEND`.
+/// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
+/// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
+/// > and if it fails will fallback on x11.
+/// >
+/// > If this variable is set with any other value, winit will panic.
 pub struct EventsLoop {
-    events_loop: Arc<platform::EventsLoop>,
+    events_loop: platform::EventsLoop,
+}
+
+/// Returned by the user callback given to the `EventsLoop::run_forever` method.
+///
+/// Indicates whether the `run_forever` method should continue or complete.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ControlFlow {
+    /// Continue looping and waiting for events.
+    Continue,
+    /// Break from the event loop.
+    Break,
 }
 
 impl EventsLoop {
     /// Builds a new events loop.
     pub fn new() -> EventsLoop {
         EventsLoop {
-            events_loop: Arc::new(platform::EventsLoop::new()),
+            events_loop: platform::EventsLoop::new(),
         }
+    }
+
+    /// Returns the list of all available monitors.
+    ///
+    /// Usage will result in display backend initialisation, this can be controlled on linux
+    /// using an environment variable `WINIT_UNIX_BACKEND`.
+    /// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
+    /// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
+    /// > and if it fails will fallback on x11.
+    /// >
+    /// > If this variable is set with any other value, winit will panic.
+    // Note: should be replaced with `-> impl Iterator` once stable.
+    #[inline]
+    pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
+        let data = self.events_loop.get_available_monitors();
+        AvailableMonitorsIter{ data: data.into_iter() }
+    }
+
+    /// Returns the primary monitor of the system.
+    ///
+    /// Usage will result in display backend initialisation, this can be controlled on linux
+    /// using an environment variable `WINIT_UNIX_BACKEND`.
+    /// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
+    /// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
+    /// > and if it fails will fallback on x11.
+    /// >
+    /// > If this variable is set with any other value, winit will panic.
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId { inner: self.events_loop.get_primary_monitor() }
     }
 
     /// Fetches all the events that are pending, calls the callback function for each of them,
     /// and returns.
     #[inline]
-    pub fn poll_events<F>(&self, callback: F)
+    pub fn poll_events<F>(&mut self, callback: F)
         where F: FnMut(Event)
     {
         self.events_loop.poll_events(callback)
@@ -195,17 +234,51 @@ impl EventsLoop {
 
     /// Runs forever until `interrupt()` is called. Whenever an event happens, calls the callback.
     #[inline]
-    pub fn run_forever<F>(&self, callback: F)
-        where F: FnMut(Event)
+    pub fn run_forever<F>(&mut self, callback: F)
+        where F: FnMut(Event) -> ControlFlow
     {
         self.events_loop.run_forever(callback)
     }
 
-    /// If we called `run_forever()`, stops the process of waiting for events.
-    // TODO: what if we're waiting from multiple threads?
-    #[inline]
-    pub fn interrupt(&self) {
-        self.events_loop.interrupt()
+    /// Creates an `EventsLoopProxy` that can be used to wake up the `EventsLoop` from another
+    /// thread.
+    pub fn create_proxy(&self) -> EventsLoopProxy {
+        EventsLoopProxy {
+            events_loop_proxy: self.events_loop.create_proxy(),
+        }
+    }
+}
+
+/// Used to wake up the `EventsLoop` from another thread.
+pub struct EventsLoopProxy {
+    events_loop_proxy: platform::EventsLoopProxy,
+}
+
+impl EventsLoopProxy {
+    /// Wake up the `EventsLoop` from which this proxy was created.
+    ///
+    /// This causes the `EventsLoop` to emit an `Awakened` event.
+    ///
+    /// Returns an `Err` if the associated `EventsLoop` no longer exists.
+    pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
+        self.events_loop_proxy.wakeup()
+    }
+}
+
+/// The error that is returned when an `EventsLoopProxy` attempts to wake up an `EventsLoop` that
+/// no longer exists.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct EventsLoopClosed;
+
+impl std::fmt::Display for EventsLoopClosed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", std::error::Error::description(self))
+    }
+}
+
+impl std::error::Error for EventsLoopClosed {
+    fn description(&self) -> &str {
+        "Tried to wake up a closed `EventsLoop`"
     }
 }
 
@@ -220,7 +293,7 @@ pub struct WindowBuilder {
 }
 
 /// Error that can happen while creating a window or a headless renderer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CreationError {
     OsError(String),
     /// TODO: remove this error
@@ -304,7 +377,7 @@ pub enum MouseCursor {
     RowResize,
 }
 
-/// Describes how glutin handles the cursor.
+/// Describes how winit handles the cursor.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum CursorState {
     /// Normal cursor behavior.
@@ -340,15 +413,20 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub max_dimensions: Option<(u32, u32)>,
 
-    /// If `Some`, the window will be in fullscreen mode with the given monitor.
+    /// Whether the window should be set as fullscreen upon creation.
     ///
     /// The default is `None`.
-    pub monitor: Option<platform::MonitorId>,
+    pub fullscreen: Option<MonitorId>,
 
     /// The title of the window in the title bar.
     ///
-    /// The default is `"glutin window"`.
+    /// The default is `"winit window"`.
     pub title: String,
+
+    /// Whether the window should be maximized upon creation.
+    ///
+    /// The default is `false`.
+    pub maximized: bool,
 
     /// Whether the window should be immediately visible upon creation.
     ///
@@ -378,28 +456,13 @@ impl Default for WindowAttributes {
             dimensions: None,
             min_dimensions: None,
             max_dimensions: None,
-            monitor: None,
-            title: "glutin window".to_owned(),
+            title: "winit window".to_owned(),
+            maximized: false,
+            fullscreen: None,
             visible: true,
             transparent: false,
             decorations: true,
             multitouch: false,
         }
-    }
-}
-
-mod native_monitor {
-    /// Native platform identifier for a monitor. Different platforms use fundamentally different types
-    /// to represent a monitor ID.
-    #[derive(Clone, PartialEq, Eq)]
-    pub enum NativeMonitorId {
-        /// Cocoa and X11 use a numeric identifier to represent a monitor.
-        Numeric(u32),
-
-        /// Win32 uses a Unicode string to represent a monitor.
-        Name(String),
-
-        /// Other platforms (Android) don't support monitor identification.
-        Unavailable
     }
 }

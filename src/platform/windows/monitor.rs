@@ -4,7 +4,7 @@ use user32;
 use std::collections::VecDeque;
 use std::mem;
 
-use native_monitor::NativeMonitorId;
+use super::EventsLoop;
 
 /// Win32 implementation of the main `MonitorId` object.
 #[derive(Clone)]
@@ -92,61 +92,61 @@ fn wchar_as_string(wchar: &[winapi::WCHAR]) -> String {
         .to_string()
 }
 
-/// Win32 implementation of the main `get_available_monitors` function.
-pub fn get_available_monitors() -> VecDeque<MonitorId> {
-    // return value
-    let mut result = VecDeque::new();
+impl EventsLoop {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        // return value
+        let mut result = VecDeque::new();
 
-    for adapter in DeviceEnumerator::adapters() {
-        // getting the position
-        let (position, dimensions) = unsafe {
-            let mut dev: winapi::DEVMODEW = mem::zeroed();
-            dev.dmSize = mem::size_of::<winapi::DEVMODEW>() as winapi::WORD;
+        for adapter in DeviceEnumerator::adapters() {
+            // getting the position
+            let (position, dimensions) = unsafe {
+                let mut dev: winapi::DEVMODEW = mem::zeroed();
+                dev.dmSize = mem::size_of::<winapi::DEVMODEW>() as winapi::WORD;
 
-            if user32::EnumDisplaySettingsExW(adapter.DeviceName.as_ptr(), 
-                winapi::ENUM_CURRENT_SETTINGS,
-                &mut dev, 0) == 0
-            {
-                continue;
+                if user32::EnumDisplaySettingsExW(adapter.DeviceName.as_ptr(), 
+                    winapi::ENUM_CURRENT_SETTINGS,
+                    &mut dev, 0) == 0
+                {
+                    continue;
+                }
+
+                let point: &winapi::POINTL = mem::transmute(&dev.union1);
+                let position = (point.x as u32, point.y as u32);
+
+                let dimensions = (dev.dmPelsWidth as u32, dev.dmPelsHeight as u32);
+
+                (position, dimensions)
+            };
+
+            for (num, monitor) in DeviceEnumerator::monitors(adapter.DeviceName.as_ptr()).enumerate() {
+                // adding to the resulting list
+                result.push_back(MonitorId {
+                    adapter_name: adapter.DeviceName,
+                    monitor_name: wchar_as_string(&monitor.DeviceName),
+                    readable_name: wchar_as_string(&monitor.DeviceString),
+                    flags: monitor.StateFlags,
+                    primary: (adapter.StateFlags & winapi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 &&
+                            num == 0,
+                    position: position,
+                    dimensions: dimensions,
+                });
             }
-
-            let point: &winapi::POINTL = mem::transmute(&dev.union1);
-            let position = (point.x as u32, point.y as u32);
-
-            let dimensions = (dev.dmPelsWidth as u32, dev.dmPelsHeight as u32);
-
-            (position, dimensions)
-        };
-
-        for (num, monitor) in DeviceEnumerator::monitors(adapter.DeviceName.as_ptr()).enumerate() {
-            // adding to the resulting list
-            result.push_back(MonitorId {
-                adapter_name: adapter.DeviceName,
-                monitor_name: wchar_as_string(&monitor.DeviceName),
-                readable_name: wchar_as_string(&monitor.DeviceString),
-                flags: monitor.StateFlags,
-                primary: (adapter.StateFlags & winapi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 &&
-                         num == 0,
-                position: position,
-                dimensions: dimensions,
-            });
         }
-    }
-    result
-}
-
-/// Win32 implementation of the main `get_primary_monitor` function.
-pub fn get_primary_monitor() -> MonitorId {
-    // we simply get all available monitors and return the one with the `PRIMARY_DEVICE` flag
-    // TODO: it is possible to query the win32 API for the primary monitor, this should be done
-    //  instead
-    for monitor in get_available_monitors().into_iter() {
-        if monitor.primary {
-            return monitor;
-        }
+        result
     }
 
-    panic!("Failed to find the primary monitor")
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        // we simply get all available monitors and return the one with the `PRIMARY_DEVICE` flag
+        // TODO: it is possible to query the win32 API for the primary monitor, this should be done
+        //  instead
+        for monitor in self.get_available_monitors().into_iter() {
+            if monitor.primary {
+                return monitor;
+            }
+        }
+
+        panic!("Failed to find the primary monitor")
+    }
 }
 
 impl MonitorId {
@@ -158,8 +158,8 @@ impl MonitorId {
 
     /// See the docs of the crate root file.
     #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        NativeMonitorId::Name(self.monitor_name.clone())
+    pub fn get_native_identifier(&self) -> String {
+        self.monitor_name.clone()
     }
 
     /// See the docs if the crate root file.
@@ -176,8 +176,6 @@ impl MonitorId {
         &self.adapter_name
     }
 
-    /// This is a Win32-only function for `MonitorId` that returns the position of the
-    ///  monitor on the desktop.
     /// A window that is positionned at these coordinates will overlap the monitor.
     #[inline]
     pub fn get_position(&self) -> (u32, u32) {

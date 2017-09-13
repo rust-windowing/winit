@@ -3,77 +3,52 @@
 extern crate android_glue;
 
 use libc;
-use std::ffi::{CString};
 use std::sync::mpsc::{Receiver, channel};
 use std::os::raw::c_void;
-use {CreationError, WindowEvent as Event, MouseCursor};
+use {CreationError, Event, WindowEvent, MouseCursor};
 use CreationError::OsError;
-use events::ElementState::{Pressed, Released};
+use WindowId as RootWindowId;
 use events::{Touch, TouchPhase};
+use window::MonitorId as RootMonitorId;
 
 use std::collections::VecDeque;
 
 use CursorState;
 use WindowAttributes;
-use native_monitor::NativeMonitorId;
 
-gen_api_transition!();
-
-pub struct Window {
-    native_window: *const c_void,
+pub struct EventsLoop {
     event_rx: Receiver<android_glue::Event>,
 }
 
-#[derive(Clone)]
-pub struct MonitorId;
+pub struct EventsLoopProxy;
 
-mod ffi;
-
-#[inline]
-pub fn get_available_monitors() -> VecDeque<MonitorId> {
-    let mut rb = VecDeque::new();
-    rb.push_back(MonitorId);
-    rb
-}
-
-#[inline]
-pub fn get_primary_monitor() -> MonitorId {
-    MonitorId
-}
-
-impl MonitorId {
-    #[inline]
-    pub fn get_name(&self) -> Option<String> {
-        Some("Primary".to_string())
+impl EventsLoop {
+    pub fn new() -> EventsLoop {
+        let (tx, rx) = channel();
+        android_glue::add_sender(tx);
+        EventsLoop {
+            event_rx: rx,
+        }
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        NativeMonitorId::Unavailable
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        let mut rb = VecDeque::new();
+        rb.push_back(MonitorId);
+        rb
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> (u32, u32) {
-        unimplemented!()
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId
     }
-}
 
-#[derive(Clone, Default)]
-pub struct PlatformSpecificWindowBuilderAttributes;
-#[derive(Clone, Default)]
-pub struct PlatformSpecificHeadlessBuilderAttributes;
-
-pub struct PollEventsIterator<'a> {
-    window: &'a Window,
-}
-
-impl<'a> Iterator for PollEventsIterator<'a> {
-    type Item = Event;
-
-    fn next(&mut self) -> Option<Event> {
-        match self.window.event_rx.try_recv() {
+    pub fn poll_events<F>(&mut self, mut callback: F)
+        where F: FnMut(::Event)
+    {
+        let event = match self.event_rx.try_recv() {
             Ok(android_glue::Event::EventMotion(motion)) => {
-                Some(Event::Touch(Touch {
+                Some(WindowEvent::Touch(Touch {
                     phase: match motion.action {
                         android_glue::MotionAction::Down => TouchPhase::Started,
                         android_glue::MotionAction::Move => TouchPhase::Moved,
@@ -82,42 +57,119 @@ impl<'a> Iterator for PollEventsIterator<'a> {
                     },
                     location: (motion.x as f64, motion.y as f64),
                     id: motion.pointer_id as u64,
+                    device_id: DEVICE_ID,
                 }))
+            },
+            Ok(android_glue::Event::InitWindow) => {
+                // The activity went to foreground.
+                Some(WindowEvent::Suspended(false))
+            },
+            Ok(android_glue::Event::TermWindow) => {
+                // The activity went to background.
+                Some(WindowEvent::Suspended(true))
+            },
+            Ok(android_glue::Event::WindowResized) |
+            Ok(android_glue::Event::ConfigChanged) => {
+                // Activity Orientation changed or resized.
+                let native_window = unsafe { android_glue::get_native_window() };
+                if native_window.is_null() {
+                    None
+                } else {
+                    let w = unsafe { ffi::ANativeWindow_getWidth(native_window as *const _) } as u32;
+                    let h = unsafe { ffi::ANativeWindow_getHeight(native_window as *const _) } as u32;
+                    Some(WindowEvent::Resized(w, h))
+                }
+            },
+            Ok(android_glue::Event::WindowRedrawNeeded) => {
+                // The activity needs to be redrawn.
+                Some(WindowEvent::Refresh)
             }
             _ => {
                 None
             }
+        };
+
+        if let Some(event) = event {
+            callback(Event::WindowEvent {
+                window_id: RootWindowId(WindowId),
+                event: event
+            });
         }
+    }
+
+    pub fn run_forever<F>(&mut self, mut callback: F)
+        where F: FnMut(::Event) -> ::ControlFlow,
+    {
+        // Yeah that's a very bad implementation.
+        loop {
+            let mut control_flow = ::ControlFlow::Continue;
+            self.poll_events(|e| {
+                if let ::ControlFlow::Break = callback(e) {
+                    control_flow = ::ControlFlow::Break;
+                }
+            });
+            if let ::ControlFlow::Break = control_flow {
+                break;
+            }
+            ::std::thread::sleep(::std::time::Duration::from_millis(5));
+        }
+    }
+
+    pub fn create_proxy(&self) -> EventsLoopProxy {
+        EventsLoopProxy
     }
 }
 
-pub struct WaitEventsIterator<'a> {
-    window: &'a Window,
+impl EventsLoopProxy {
+    pub fn wakeup(&self) -> Result<(), ::EventsLoopClosed> {
+        android_glue::wake_event_loop();
+        Ok(())
+    }
 }
 
-impl<'a> Iterator for WaitEventsIterator<'a> {
-    type Item = Event;
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct WindowId;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeviceId;
+
+pub struct Window {
+    native_window: *const c_void,
+}
+
+#[derive(Clone)]
+pub struct MonitorId;
+
+mod ffi;
+
+impl MonitorId {
+    #[inline]
+    pub fn get_name(&self) -> Option<String> {
+        Some("Primary".to_string())
+    }
 
     #[inline]
-    fn next(&mut self) -> Option<Event> {
-        loop {
-            // calling poll_events()
-            if let Some(ev) = self.window.poll_events().next() {
-                return Some(ev);
-            }
+    pub fn get_dimensions(&self) -> (u32, u32) {
+        unimplemented!()
+    }
 
-            // TODO: Implement a proper way of sleeping on the event queue
-            // timer::sleep(Duration::milliseconds(16));
-        }
+    #[inline]
+    pub fn get_position(&self) -> (u32, u32) {
+        // Android assumes single screen
+        (0, 0)
     }
 }
 
+#[derive(Clone, Default)]
+pub struct PlatformSpecificWindowBuilderAttributes;
+#[derive(Clone, Default)]
+pub struct PlatformSpecificHeadlessBuilderAttributes;
+
 impl Window {
-    pub fn new(win_attribs: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes)
+    pub fn new(_: &EventsLoop, win_attribs: &WindowAttributes,
+               _: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
-        use std::{mem, ptr};
-
         // not implemented
         assert!(win_attribs.min_dimensions.is_none());
         assert!(win_attribs.max_dimensions.is_none());
@@ -127,24 +179,16 @@ impl Window {
             return Err(OsError(format!("Android's native window is null")));
         }
 
-        let (tx, rx) = channel();
-        android_glue::add_sender(tx);
         android_glue::set_multitouch(win_attribs.multitouch);
 
         Ok(Window {
             native_window: native_window as *const _,
-            event_rx: rx,
         })
     }
 
     #[inline]
     pub fn get_native_window(&self) -> *const c_void {
         self.native_window
-    }
-
-    #[inline]
-    pub fn is_closed(&self) -> bool {
-        false
     }
 
     #[inline]
@@ -170,14 +214,12 @@ impl Window {
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        let native_window = unsafe { android_glue::get_native_window() };
-
-        if native_window.is_null() {
+        if self.native_window.is_null() {
             None
         } else {
             Some((
-                unsafe { ffi::ANativeWindow_getWidth(native_window as *const _) } as u32,
-                unsafe { ffi::ANativeWindow_getHeight(native_window as *const _) } as u32
+                unsafe { ffi::ANativeWindow_getWidth(self.native_window as *const _) } as u32,
+                unsafe { ffi::ANativeWindow_getHeight(self.native_window as *const _) } as u32
             ))
         }
     }
@@ -192,25 +234,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn create_window_proxy(&self) -> WindowProxy {
-        WindowProxy
-    }
-
-    #[inline]
-    pub fn poll_events(&self) -> PollEventsIterator {
-        PollEventsIterator {
-            window: self
-        }
-    }
-
-    #[inline]
-    pub fn wait_events(&self) -> WaitEventsIterator {
-        WaitEventsIterator {
-            window: self
-        }
-    }
-
-    #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
         unimplemented!();
     }
@@ -221,15 +244,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_resize_callback(&mut self, _: Option<fn(u32, u32)>) {
-    }
-
-    #[inline]
     pub fn set_cursor(&self, _: MouseCursor) {
     }
 
     #[inline]
-    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+    pub fn set_cursor_state(&self, _state: CursorState) -> Result<(), String> {
         Ok(())
     }
 
@@ -239,20 +258,32 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
-        unimplemented!();
+    pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
+        Ok(())
+    }
+
+    #[inline]
+    pub fn set_maximized(&self, _maximized: bool) {
+        // Android has single screen maximized apps so nothing to do
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        // Android has single screen maximized apps so nothing to do
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        RootMonitorId{inner: MonitorId}
+    }
+
+    pub fn id(&self) -> WindowId {
+        WindowId
     }
 }
 
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
-#[derive(Clone)]
-pub struct WindowProxy;
-
-impl WindowProxy {
-    #[inline]
-    pub fn wakeup_event_loop(&self) {
-        unimplemented!()
-    }
-}
+// Constant device ID, to be removed when this backend is updated to report real device IDs.
+const DEVICE_ID: ::DeviceId = ::DeviceId(DeviceId);

@@ -3,23 +3,42 @@
 use std::sync::Arc;
 use std::ptr;
 use libc;
+use EventsLoop;
+use MonitorId;
 use Window;
+use platform::EventsLoop as LinuxEventsLoop;
 use platform::Window as LinuxWindow;
-use platform::{UnixBackend, UNIX_BACKEND};
 use WindowBuilder;
-use api::x11::XConnection;
-use api::x11::ffi::XVisualInfo;
+use platform::x11::XConnection;
+use platform::x11::ffi::XVisualInfo;
 
-use wayland_client::protocol::wl_display::WlDisplay;
-use wayland_client::protocol::wl_surface::WlSurface;
+pub use platform::XNotSupported;
 
-pub use api::x11;
+/// Additional methods on `EventsLoop` that are specific to Linux.
+pub trait EventsLoopExt {
+    /// Builds a new `EventsLoop` that is forced to use X11.
+    fn new_x11() -> Result<Self, XNotSupported>
+        where Self: Sized;
 
-// TODO: do not expose XConnection
-pub fn get_x11_xconnection() -> Option<Arc<XConnection>> {
-    match *UNIX_BACKEND {
-        UnixBackend::X(ref connec) => Some(connec.clone()),
-        _ => None,
+    /// Builds a new `EventsLoop` that is forced to use Wayland.
+    fn new_wayland() -> Self
+        where Self: Sized;
+}
+
+impl EventsLoopExt for EventsLoop {
+    #[inline]
+    fn new_x11() -> Result<Self, XNotSupported> {
+        LinuxEventsLoop::new_x11().map(|ev| EventsLoop { events_loop: ev })
+    }
+
+    #[inline]
+    fn new_wayland() -> Self {
+        EventsLoop {
+            events_loop: match LinuxEventsLoop::new_wayland() {
+                Ok(e) => e,
+                Err(_) => panic!()      // TODO: propagate
+            }
+        }
     }
 }
 
@@ -42,6 +61,8 @@ pub trait WindowExt {
     fn get_xlib_screen_id(&self) -> Option<*mut libc::c_void>;
 
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
+
+    fn send_xim_spot(&self, x: i16, y: i16);
     
     /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
     ///
@@ -63,30 +84,12 @@ pub trait WindowExt {
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     fn get_wayland_display(&self) -> Option<*mut libc::c_void>;
-
-    /// Returns a reference to the `WlSurface` object of wayland that is used by this window.
-    ///
-    /// For use with the `wayland-client` crate.
-    ///
-    /// **This function is not part of winit's public API.**
-    ///
-    /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
-    fn get_wayland_client_surface(&self) -> Option<&WlSurface>;
-
-    /// Returns a pointer to the `WlDisplay` object of wayland that is used by this window.
-    ///
-    /// For use with the `wayland-client` crate.
-    ///
-    /// **This function is not part of winit's public API.**
-    ///
-    /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
-    fn get_wayland_client_display(&self) -> Option<&WlDisplay>;
 }
 
 impl WindowExt for Window {
     #[inline]
     fn get_xlib_window(&self) -> Option<*mut libc::c_void> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_window()),
             _ => None
         }
@@ -94,58 +97,53 @@ impl WindowExt for Window {
 
     #[inline]
     fn get_xlib_display(&self) -> Option<*mut libc::c_void> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_display()),
             _ => None
         }
     }
 
     fn get_xlib_screen_id(&self) -> Option<*mut libc::c_void> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_screen_id()),
             _ => None
         }
     }
 
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_xconnection()),
             _ => None
         }
     }
 
     fn get_xcb_connection(&self) -> Option<*mut libc::c_void> {
-        match *self.window.window {
+        match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xcb_connection()),
             _ => None
+        }
+    }
+
+    fn send_xim_spot(&self, x: i16, y: i16) {
+        if let LinuxWindow::X(ref w) = self.window {
+            w.send_xim_spot(x, y);
         }
     }
 
     #[inline]
     fn get_wayland_surface(&self) -> Option<*mut libc::c_void> {
         use wayland_client::Proxy;
-        self.get_wayland_client_surface().map(|p| p.ptr() as *mut _)
-    }
-
-
-    #[inline]
-    fn get_wayland_display(&self) -> Option<*mut libc::c_void> {
-        use wayland_client::Proxy;
-        self.get_wayland_client_display().map(|p| p.ptr() as *mut _)
-    }
-
-    #[inline]
-    fn get_wayland_client_surface(&self) -> Option<&WlSurface> {
-        match *self.window.window {
-            LinuxWindow::Wayland(ref w) => Some(w.get_surface()),
+        match self.window {
+            LinuxWindow::Wayland(ref w) => Some(w.get_surface().ptr() as *mut _),
             _ => None
         }
     }
 
     #[inline]
-    fn get_wayland_client_display(&self) -> Option<&WlDisplay> {
-        match *self.window.window {
-            LinuxWindow::Wayland(ref w) => Some(w.get_display()),
+    fn get_wayland_display(&self) -> Option<*mut libc::c_void> {
+        use wayland_client::Proxy;
+        match self.window {
+            LinuxWindow::Wayland(ref w) => Some(w.get_display().ptr() as *mut _),
             _ => None
         }
     }
@@ -170,5 +168,18 @@ impl WindowBuilderExt for WindowBuilder {
     fn with_x11_screen(mut self, screen_id: i32) -> WindowBuilder {
         self.platform_specific.screen_id = Some(screen_id);
         self
+    }
+}
+
+/// Additional methods on `MonitorId` that are specific to Linux.
+pub trait MonitorIdExt {
+    /// Returns the inner identifier of the monitor.
+    fn native_id(&self) -> u32;
+}
+
+impl MonitorIdExt for MonitorId {
+    #[inline]
+    fn native_id(&self) -> u32 {
+        self.inner.get_native_identifier()
     }
 }

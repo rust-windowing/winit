@@ -1,18 +1,21 @@
 use std::path::PathBuf;
-use WindowId;
+use {WindowId, DeviceId};
 
 #[derive(Clone, Debug)]
 pub enum Event {
     WindowEvent {
         window_id: WindowId,
         event: WindowEvent,
-    }
+    },
+    DeviceEvent {
+        device_id: DeviceId,
+        event: DeviceEvent,
+    },
+    Awakened,
 }
 
 #[derive(Clone, Debug)]
 pub enum WindowEvent {
-    // TODO: remove ; can break the lib internally so be careful
-    Awakened,
 
     /// The size of the window has changed.
     Resized(u32, u32),
@@ -26,6 +29,12 @@ pub enum WindowEvent {
     /// A file has been dropped into the window.
     DroppedFile(PathBuf),
 
+    /// A file is being hovered over the window.
+    HoveredFile(PathBuf),
+
+    /// A file was hovered, but has exited the window.
+    HoveredFileCancelled,
+
     /// The window received a unicode character.
     ReceivedCharacter(char),
 
@@ -35,31 +44,36 @@ pub enum WindowEvent {
     Focused(bool),
 
     /// An event from the keyboard has been received.
-    KeyboardInput(ElementState, ScanCode, Option<VirtualKeyCode>),
+    KeyboardInput { device_id: DeviceId, input: KeyboardInput },
 
     /// The cursor has moved on the window.
     ///
-    /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
-    MouseMoved(i32, i32),
+    /// `position` is (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this
+    /// data is limited by the display area and it may have been transformed by the OS to implement effects such as
+    /// mouse acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
+    MouseMoved { device_id: DeviceId, position: (f64, f64) },
 
     /// The cursor has entered the window.
-    MouseEntered,
+    MouseEntered { device_id: DeviceId },
 
     /// The cursor has left the window.
-    MouseLeft,
+    MouseLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel(MouseScrollDelta, TouchPhase),
+    MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase },
 
-    /// An event from the mouse has been received.
-    MouseInput(ElementState, MouseButton),
+    /// An mouse button press has been received.
+    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton },
 
     /// Touchpad pressure event.
     ///
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
     /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
     /// is being pressed) and stage (integer representing the click level).
-    TouchpadPressure(f32, i64),
+    TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
+
+    /// Motion on some analog axis not otherwise handled. May overlap with mouse motion.
+    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
 
     /// The window needs to be redrawn.
     Refresh,
@@ -71,6 +85,48 @@ pub enum WindowEvent {
 
     /// Touch event has been received
     Touch(Touch)
+}
+
+/// Represents raw hardware events that are not associated with any particular window.
+///
+/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
+/// game controls. Many physical actions, such as mouse movement, can produce both device and window events. Because
+/// window events typically arise from virtual devices (corresponding to GUI cursors and keyboard focus) the device IDs
+/// may not match.
+///
+/// Note that these events are delivered regardless of input focus.
+#[derive(Clone, Debug)]
+pub enum DeviceEvent {
+    Added,
+    Removed,
+    Motion { axis: AxisId, value: f64 },
+    Button { button: ButtonId, state: ElementState },
+    Key(KeyboardInput),
+    Text { codepoint: char },
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct KeyboardInput {
+    /// Identifies the physical key pressed
+    ///
+    /// This should not change if the user adjusts the host's keyboard map. Use when the physical location of the
+    /// key is more important than the key's host GUI semantics, such as for movement controls in a first-person
+    /// game.
+    pub scancode: ScanCode,
+
+    pub state: ElementState,
+
+    /// Identifies the semantic meaning of the key
+    ///
+    /// Use when the semantics of the key are more important than the physical location of the key, such as when
+    /// implementing appropriate behavior for "page up."
+    pub virtual_keycode: Option<VirtualKeyCode>,
+
+    /// Modifier keys active at the time of this input.
+    ///
+    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
+    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
+    pub modifiers: ModifiersState
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -98,13 +154,20 @@ pub enum TouchPhase {
 ///
 /// Touch may be cancelled if for example window lost focus.
 pub struct Touch {
+    pub device_id: DeviceId,
     pub phase: TouchPhase,
     pub location: (f64,f64),
     /// unique identifier of a finger.
     pub id: u64
 }
 
-pub type ScanCode = u8;
+pub type ScanCode = u32;
+
+/// Identifier for a specific analog axis on some device.
+pub type AxisId = u32;
+
+/// Identifier for a specific button on some device.
+pub type ButtonId = u32;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ElementState {
@@ -138,6 +201,7 @@ pub enum MouseScrollDelta {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[repr(u32)]
 pub enum VirtualKeyCode {
     /// The '1' key over the letters.
     Key1,
@@ -319,4 +383,21 @@ pub enum VirtualKeyCode {
     WebSearch,
     WebStop,
     Yen,
+}
+
+/// Represents the current state of the keyboard modifiers
+///
+/// Each field of this struct represents a modifier and is `true` if this modifier is active.
+#[derive(Default, Debug, Clone, Copy)]
+pub struct ModifiersState {
+    /// The "shift" key
+    pub shift: bool,
+    /// The "control" key
+    pub ctrl: bool,
+    /// The "alt" key
+    pub alt: bool,
+    /// The "logo" key
+    ///
+    /// This is the "windows" key on PC and "command" key on Mac.
+    pub logo: bool
 }
