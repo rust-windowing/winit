@@ -18,23 +18,14 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
 unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeviceId;
+
 #[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 #[derive(Clone)]
 pub struct MonitorId;
-
-#[inline]
-pub fn get_available_monitors() -> VecDeque<MonitorId> {
-    let mut list = VecDeque::new();
-    list.push_back(MonitorId);
-    list
-}
-
-#[inline]
-pub fn get_primary_monitor() -> MonitorId {
-    MonitorId
-}
 
 impl MonitorId {
     #[inline]
@@ -43,8 +34,8 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> ::native_monitor::NativeMonitorId {
-        ::native_monitor::NativeMonitorId::Unavailable
+    pub fn get_position(&self) -> (u32, u32) {
+        unimplemented!()
     }
 
     #[inline]
@@ -72,8 +63,16 @@ pub fn set_main_loop_callback<F>(callback : F) where F : FnMut() {
     }
 }
 
+pub struct EventsLoopProxy;
+
+impl EventsLoopProxy {
+    pub fn wakeup(&self) -> Result<(), ::EventsLoopClosed> {
+        unimplemented!()
+    }
+}
+
 pub struct EventsLoop {
-    window: Mutex<Option<Arc<Window>>>,
+    window: Mutex<Option<Arc<Window2>>>,
     interrupted: AtomicBool,
 }
 
@@ -89,27 +88,42 @@ impl EventsLoop {
         self.interrupted.store(true, Ordering::Relaxed);
     }
 
+    pub fn create_proxy(&self) -> EventsLoopProxy {
+        unimplemented!()
+    }
+
+    #[inline]
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        let mut list = VecDeque::new();
+        list.push_back(MonitorId);
+        list
+    }
+
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId
+    }
+
     pub fn poll_events<F>(&self, mut callback: F)
         where F: FnMut(::Event)
     {
         let ref mut window = *self.window.lock().unwrap();
         if let &mut Some(ref mut window) = window {
             while let Some(event) = window.events.borrow_mut().pop_front() {
-                callback(::Event::WindowEvent {
-                    window_id: ::WindowId(WindowId(0)),
-                    event: event,
-                })
+                callback(event)
             }
         }
     }
 
     pub fn run_forever<F>(&self, mut callback: F)
-        where F: FnMut(::Event)
+        where F: FnMut(::Event) -> ::ControlFlow
     {
         self.interrupted.store(false, Ordering::Relaxed);
 
+        // TODO: handle control flow
+
         set_main_loop_callback(|| {
-            self.poll_events(|e| callback(e));
+            self.poll_events(|e| { callback(e); });
             ::std::thread::sleep(::std::time::Duration::from_millis(5));
             if self.interrupted.load(Ordering::Relaxed) {
                 unsafe { ffi::emscripten_cancel_main_loop(); }
@@ -121,15 +135,14 @@ impl EventsLoop {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(usize);
 
-pub struct Window {
+pub struct Window2 {
     cursor_state: Mutex<::CursorState>,
     is_fullscreen: bool,
-    events: Box<RefCell<VecDeque<::WindowEvent>>>,
+    events: Box<RefCell<VecDeque<::Event>>>,
 }
 
-pub struct Window2 {
-    window: Arc<Window>,
-    events_loop: Weak<EventsLoop>,
+pub struct Window {
+    window: Arc<Window2>,
 }
 
 fn show_mouse() {
@@ -157,19 +170,35 @@ extern "C" fn keyboard_callback(
     event_queue: *mut c_void) -> ffi::EM_BOOL
 {
     unsafe {
-        let queue: &RefCell<VecDeque<::WindowEvent>> = mem::transmute(event_queue);
+        let queue: &RefCell<VecDeque<::Event>> = mem::transmute(event_queue);
         match event_type {
             ffi::EMSCRIPTEN_EVENT_KEYDOWN => {
-                queue.borrow_mut().push_back(::WindowEvent::KeyboardInput(
-                        ::ElementState::Pressed,
-                        key_translate((*event).key),
-                        key_translate_virt((*event).key, (*event).location)));
+                queue.borrow_mut().push_back(::Event::WindowEvent {
+                    window_id: ::WindowId(WindowId(0)),
+                    event: ::WindowEvent::KeyboardInput {
+                        device_id: ::DeviceId(DeviceId),
+                        input: ::KeyboardInput {
+                            scancode: key_translate((*event).key) as u32,
+                            state: ::ElementState::Pressed,
+                            virtual_keycode: key_translate_virt((*event).key, (*event).location),
+                            modifiers: ::ModifiersState::default()        // TODO:
+                        },   
+                    },
+                });
             },
             ffi::EMSCRIPTEN_EVENT_KEYUP => {
-                queue.borrow_mut().push_back(::WindowEvent::KeyboardInput(
-                        ::ElementState::Released,
-                        key_translate((*event).key),
-                        key_translate_virt((*event).key, (*event).location)));
+                queue.borrow_mut().push_back(::Event::WindowEvent {
+                    window_id: ::WindowId(WindowId(0)),
+                    event: ::WindowEvent::KeyboardInput {
+                        device_id: ::DeviceId(DeviceId),
+                        input: ::KeyboardInput {
+                            scancode: key_translate((*event).key) as u32,
+                            state: ::ElementState::Released,
+                            virtual_keycode: key_translate_virt((*event).key, (*event).location),
+                            modifiers: ::ModifiersState::default()        // TODO:
+                        },
+                    },
+                });
             },
             _ => {
             }
@@ -207,24 +236,23 @@ fn em_try(res: ffi::EMSCRIPTEN_RESULT) -> Result<(), String> {
     }
 }
 
-impl Window2 {
-    pub fn new(events_loop: Arc<EventsLoop>, attribs: &::WindowAttributes,
+impl Window {
+    pub fn new(events_loop: &EventsLoop, attribs: &::WindowAttributes,
                _pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-        -> Result<Window2, ::CreationError>
+        -> Result<Window, ::CreationError>
     {
         if events_loop.window.lock().unwrap().is_some() {
             return Err(::CreationError::OsError("Cannot create another window".to_owned()));
         }
 
-        let w = Window {
+        let w = Window2 {
             cursor_state: Mutex::new(::CursorState::Normal),
             events: Box::new(RefCell::new(VecDeque::new())),
-            is_fullscreen:  attribs.monitor.is_some(),
+            is_fullscreen: attribs.fullscreen.is_some(),
         };
 
-        let window = Window2 {
+        let window = Window {
             window: Arc::new(w),
-            events_loop: Arc::downgrade(&events_loop),
         };
 
 
@@ -236,7 +264,7 @@ impl Window2 {
                 .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
         }
 
-        if attribs.monitor.is_some() {
+        if attribs.fullscreen.is_some() {
             unsafe {
                 em_try(ffi::emscripten_request_fullscreen(ptr::null(), ffi::EM_TRUE))
                     .map_err(|e| ::CreationError::OsError(e))?;
@@ -363,14 +391,30 @@ impl Window2 {
     pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
         Err(())
     }
+
+    #[inline]
+    pub fn set_maximized(&self, _maximized: bool) {
+        // iOS has single screen maximized apps so nothing to do
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, _monitor: Option<::MonitorId>) {
+        // iOS has single screen maximized apps so nothing to do
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> ::MonitorId {
+        ::MonitorId{inner: MonitorId}
+    }
 }
 
-impl Drop for Window2 {
+impl Drop for Window {
     fn drop(&mut self) {
         // Delete window from events_loop
-        if let Some(ev) = self.events_loop.upgrade() {
+        // TODO: ?
+        /*if let Some(ev) = self.events_loop.upgrade() {
             let _ = ev.window.lock().unwrap().take().unwrap();
-        }
+        }*/
 
         unsafe {
             // Return back to normal cursor state
