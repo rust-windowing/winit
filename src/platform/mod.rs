@@ -19,4 +19,4 @@ mod platform;
 #[cfg(all(not(target_os = "ios"), not(target_os = "windows"), not(target_os = "linux"),
   not(target_os = "macos"), not(target_os = "android"), not(target_os = "dragonfly"),
   not(target_os = "freebsd"), not(target_os = "openbsd")))]
-use this_platform_is_not_supported;
+compile_error!("The platform you're compiling for is not supported by winit");
