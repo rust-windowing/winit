@@ -12,6 +12,11 @@ pub enum Event {
         event: DeviceEvent,
     },
     Awakened,
+
+    /// The application has been suspended or resumed.
+    ///
+    /// The parameter is true if app was suspended, and false if it has been resumed.
+    Suspended(bool),
 }
 
 #[derive(Clone, Debug)]
@@ -78,13 +83,8 @@ pub enum WindowEvent {
     /// The window needs to be redrawn.
     Refresh,
 
-    /// App has been suspended or resumed.
-    ///
-    /// The parameter is true if app was suspended, and false if it has been resumed.
-    Suspended(bool),
-
     /// Touch event has been received
-    Touch(Touch)
+    Touch(Touch),
 }
 
 /// Represents raw hardware events that are not associated with any particular window.

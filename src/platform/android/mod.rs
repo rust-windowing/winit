@@ -48,25 +48,28 @@ impl EventsLoop {
     {
         let event = match self.event_rx.try_recv() {
             Ok(android_glue::Event::EventMotion(motion)) => {
-                Some(WindowEvent::Touch(Touch {
-                    phase: match motion.action {
-                        android_glue::MotionAction::Down => TouchPhase::Started,
-                        android_glue::MotionAction::Move => TouchPhase::Moved,
-                        android_glue::MotionAction::Up => TouchPhase::Ended,
-                        android_glue::MotionAction::Cancel => TouchPhase::Cancelled,
-                    },
-                    location: (motion.x as f64, motion.y as f64),
-                    id: motion.pointer_id as u64,
-                    device_id: DEVICE_ID,
-                }))
+                Some(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId),
+                    event: WindowEvent::Touch(Touch {
+                        phase: match motion.action {
+                            android_glue::MotionAction::Down => TouchPhase::Started,
+                            android_glue::MotionAction::Move => TouchPhase::Moved,
+                            android_glue::MotionAction::Up => TouchPhase::Ended,
+                            android_glue::MotionAction::Cancel => TouchPhase::Cancelled,
+                        },
+                        location: (motion.x as f64, motion.y as f64),
+                        id: motion.pointer_id as u64,
+                        device_id: DEVICE_ID,
+                    }),
+                })
             },
             Ok(android_glue::Event::InitWindow) => {
                 // The activity went to foreground.
-                Some(WindowEvent::Suspended(false))
+                Some(Event::Suspended(false))
             },
             Ok(android_glue::Event::TermWindow) => {
                 // The activity went to background.
-                Some(WindowEvent::Suspended(true))
+                Some(Event::Suspended(true))
             },
             Ok(android_glue::Event::WindowResized) |
             Ok(android_glue::Event::ConfigChanged) => {
@@ -77,12 +80,18 @@ impl EventsLoop {
                 } else {
                     let w = unsafe { ffi::ANativeWindow_getWidth(native_window as *const _) } as u32;
                     let h = unsafe { ffi::ANativeWindow_getHeight(native_window as *const _) } as u32;
-                    Some(WindowEvent::Resized(w, h))
+                    Some(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId),
+                        event: WindowEvent::Resized(w, h),
+                    })
                 }
             },
             Ok(android_glue::Event::WindowRedrawNeeded) => {
                 // The activity needs to be redrawn.
-                Some(WindowEvent::Refresh)
+                Some(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId),
+                    event: WindowEvent::Refresh,
+                })
             }
             _ => {
                 None
@@ -90,10 +99,7 @@ impl EventsLoop {
         };
 
         if let Some(event) = event {
-            callback(Event::WindowEvent {
-                window_id: RootWindowId(WindowId),
-                event: event
-            });
+            callback(event);
         }
     }
 
