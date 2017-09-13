@@ -8,11 +8,9 @@ use winapi;
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExt {
-    /// Returns a pointer to the `Window` object of xlib that is used by this window.
+    /// Returns the native handle that is used by this window.
     ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
-    ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the native window was destroyed.
     fn get_hwnd(&self) -> *mut libc::c_void;
 }
 
@@ -29,7 +27,7 @@ pub trait WindowBuilderExt {
 }
 
 impl WindowBuilderExt for WindowBuilder {
-    /// Sets a parent to the window to be created
+    /// Sets a parent to the window to be created.
     #[inline]
     fn with_parent_window(mut self, parent: winapi::HWND) -> WindowBuilder {
         self.platform_specific.parent = Some(parent);
