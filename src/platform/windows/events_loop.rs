@@ -44,7 +44,6 @@ use KeyboardInput;
 use WindowAttributes;
 use WindowEvent;
 use WindowId as SuperWindowId;
-use AxisId;
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Clone)]
