@@ -2,8 +2,8 @@
 
 mod ffi;
 
-use libc;
-
+use std::mem;
+use std::os::raw::{c_char, c_void, c_double, c_ulong, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, Arc, Weak};
@@ -54,12 +54,12 @@ impl MonitorId {
 }
 
 // Used to assign a callback to emscripten main loop
-thread_local!(static MAIN_LOOP_CALLBACK: RefCell<*mut libc::c_void> = RefCell::new(ptr::null_mut()));
+thread_local!(static MAIN_LOOP_CALLBACK: RefCell<*mut c_void> = RefCell::new(ptr::null_mut()));
 
 // Used to assign a callback to emscripten main loop
 pub fn set_main_loop_callback<F>(callback : F) where F : FnMut() {
     MAIN_LOOP_CALLBACK.with(|log| {
-        *log.borrow_mut() = &callback as *const _ as *mut libc::c_void;
+        *log.borrow_mut() = &callback as *const _ as *mut c_void;
     });
 
     unsafe { ffi::emscripten_set_main_loop(Some(wrapper::<F>), 0, 1); }
@@ -147,17 +147,16 @@ fn show_mouse() {
     // }
     // styleSheet.insertRule('canvas.emscripten { border: none; cursor: auto; }', 0);
     unsafe {
-            ffi::emscripten_asm_const(b"var styleSheet = document.styleSheets[0]; var rules = styleSheet.cssRules; for (var i = 0; i < rules.length; i++) { if (rules[i].cssText.substr(0, 6) == 'canvas') { styleSheet.deleteRule(i); i--; } } styleSheet.insertRule('canvas.emscripten { border: none; cursor: auto; }', 0);\0" as *const u8);
+            ffi::emscripten_asm_const(b"var styleSheet = document.styleSheets[0]; var rules = styleSheet.cssRules; for (var i = 0; i < rules.length; i++) { if (rules[i].cssText.substr(0, 6) == 'canvas') { styleSheet.deleteRule(i); i--; } } styleSheet.insertRule('canvas.emscripten { border: none; cursor: auto; }', 0);\0".as_ptr() as *const c_char);
     }
 }
 
 extern "C" fn keyboard_callback(
-    event_type: libc::c_int,
+    event_type: c_int,
     event: *const ffi::EmscriptenKeyboardEvent,
-    event_queue: *mut libc::c_void) -> ffi::EM_BOOL
+    event_queue: *mut c_void) -> ffi::EM_BOOL
 {
     unsafe {
-        use std::mem;
         let queue: &RefCell<VecDeque<::WindowEvent>> = mem::transmute(event_queue);
         match event_type {
             ffi::EMSCRIPTEN_EVENT_KEYDOWN => {
@@ -182,9 +181,9 @@ extern "C" fn keyboard_callback(
 // In case of fullscreen window this method will request fullscreen on change
 #[allow(non_snake_case)]
 unsafe extern "C" fn fullscreen_callback(
-    _eventType: libc::c_int,
+    _eventType: c_int,
     _fullscreenChangeEvent: *const ffi::EmscriptenFullscreenChangeEvent,
-    _userData: *mut libc::c_void) -> ffi::EM_BOOL
+    _userData: *mut c_void) -> ffi::EM_BOOL
 {
     ffi::emscripten_request_fullscreen(ptr::null(), ffi::EM_TRUE);
     ffi::EM_FALSE
@@ -193,9 +192,9 @@ unsafe extern "C" fn fullscreen_callback(
 // In case of pointer grabbed this method will request pointer lock on change
 #[allow(non_snake_case)]
 unsafe extern "C" fn pointerlockchange_callback(
-    _eventType: libc::c_int,
+    _eventType: c_int,
     _pointerlockChangeEvent: *const ffi::EmscriptenPointerlockChangeEvent,
-    _userData: *mut libc::c_void) -> ffi::EM_BOOL
+    _userData: *mut c_void) -> ffi::EM_BOOL
 {
     ffi::emscripten_request_pointerlock(ptr::null(), ffi::EM_TRUE);
     ffi::EM_FALSE
@@ -231,10 +230,9 @@ impl Window2 {
 
         // TODO: set up more event callbacks
         unsafe {
-            use std::mem;
-            em_try(ffi::emscripten_set_keydown_callback(DOCUMENT_NAME.as_ptr(), mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(keyboard_callback)))
+            em_try(ffi::emscripten_set_keydown_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(keyboard_callback)))
                 .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
-            em_try(ffi::emscripten_set_keyup_callback(DOCUMENT_NAME.as_ptr(), mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(keyboard_callback)))
+            em_try(ffi::emscripten_set_keyup_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(keyboard_callback)))
                 .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
         }
 
@@ -242,7 +240,7 @@ impl Window2 {
             unsafe {
                 em_try(ffi::emscripten_request_fullscreen(ptr::null(), ffi::EM_TRUE))
                     .map_err(|e| ::CreationError::OsError(e))?;
-                em_try(ffi::emscripten_set_fullscreenchange_callback(ptr::null(), 0 as *mut libc::c_void, ffi::EM_FALSE, Some(fullscreen_callback)))
+                em_try(ffi::emscripten_set_fullscreenchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, Some(fullscreen_callback)))
                     .map_err(|e| ::CreationError::OsError(e))?;
             }
         } else if let Some((w, h)) = attribs.dimensions {
@@ -296,8 +294,8 @@ impl Window2 {
     pub fn set_inner_size(&self, width: u32, height: u32) {
         unsafe {
             use std::ptr;
-            ffi::emscripten_set_element_css_size(ptr::null(), width as libc::c_double, height
-                as libc::c_double);
+            ffi::emscripten_set_element_css_size(ptr::null(), width as c_double, height
+                as c_double);
         }
     }
 
@@ -307,12 +305,12 @@ impl Window2 {
     pub fn hide(&self) {}
 
     #[inline]
-    pub fn platform_display(&self) -> *mut libc::c_void {
+    pub fn platform_display(&self) -> *mut ::libc::c_void {
         unimplemented!()
     }
 
     #[inline]
-    pub fn platform_window(&self) -> *mut libc::c_void {
+    pub fn platform_window(&self) -> *mut ::libc::c_void {
         unimplemented!()
     }
 
@@ -331,8 +329,8 @@ impl Window2 {
 
             // Set or unset grab callback
             match state {
-                Hide | Normal => em_try(ffi::emscripten_set_pointerlockchange_callback(ptr::null(), 0 as *mut libc::c_void, ffi::EM_FALSE, None))?,
-                Grab => em_try(ffi::emscripten_set_pointerlockchange_callback(ptr::null(), 0 as *mut libc::c_void, ffi::EM_FALSE, Some(pointerlockchange_callback)))?,
+                Hide | Normal => em_try(ffi::emscripten_set_pointerlockchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, None))?,
+                Grab => em_try(ffi::emscripten_set_pointerlockchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, Some(pointerlockchange_callback)))?,
             }
 
             // Go back to normal cursor state
@@ -380,13 +378,13 @@ impl Drop for Window2 {
 
             // Exit fullscreen if on
             if self.window.is_fullscreen {
-                ffi::emscripten_set_fullscreenchange_callback(ptr::null(), 0 as *mut libc::c_void, ffi::EM_FALSE, None);
+                ffi::emscripten_set_fullscreenchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, None);
                 ffi::emscripten_exit_fullscreen();
             }
 
             // Delete callbacks
-            ffi::emscripten_set_keydown_callback(DOCUMENT_NAME.as_ptr(), 0 as *mut libc::c_void, ffi::EM_FALSE,None);
-            ffi::emscripten_set_keyup_callback(DOCUMENT_NAME.as_ptr(), 0 as *mut libc::c_void, ffi::EM_FALSE,None);
+            ffi::emscripten_set_keydown_callback(DOCUMENT_NAME.as_ptr() as *const c_char, 0 as *mut c_void, ffi::EM_FALSE,None);
+            ffi::emscripten_set_keyup_callback(DOCUMENT_NAME.as_ptr() as *const c_char, 0 as *mut c_void, ffi::EM_FALSE,None);
         }
     }
 }
@@ -411,7 +409,7 @@ fn error_to_str(code: ffi::EMSCRIPTEN_RESULT) -> &'static str {
 fn key_translate(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES]) -> u8 {
     use std::str;
     let slice = &input[0..input.iter().take_while(|x| **x != 0).count()];
-    let key = str::from_utf8(&slice).unwrap();
+    let key = unsafe { str::from_utf8(mem::transmute::<&[i8], &[u8]>(slice)).unwrap() };
     if key.chars().count() == 1 {
         key.as_bytes()[0]
     } else {
@@ -420,7 +418,7 @@ fn key_translate(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES]) ->
 }
 
 fn key_translate_virt(_input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES],
-                      _location: libc::c_ulong) -> Option<::VirtualKeyCode>
+                      _location: c_ulong) -> Option<::VirtualKeyCode>
 {
     // TODO
     None
