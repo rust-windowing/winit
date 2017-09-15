@@ -2,6 +2,7 @@
 
 mod ffi;
 
+use std::mem;
 use std::os::raw::{c_char, c_void, c_double, c_ulong, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};

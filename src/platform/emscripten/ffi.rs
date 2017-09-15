@@ -2,7 +2,6 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use std::mem;
 use std::os::raw::{c_int, c_char, c_void, c_ulong, c_double};
 
 pub type EM_BOOL = c_int;
