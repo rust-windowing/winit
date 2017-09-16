@@ -7,7 +7,7 @@ jobs:
     docker:
       - image: tomaka/cargo-apk
     steps:
-      - apt-get update && apt-get install -y git
+      - run: apt-get -qq update && apt-get install -y git
       - checkout
       - restore_cache:
           key: android-test-cache-{{ checksum "Cargo.toml" }}
@@ -22,7 +22,7 @@ jobs:
     docker:
       - image: tomaka/rustc-emscripten
     steps:
-      - apt-get update && apt-get install -y git
+      - run: apt-get -qq update && apt-get install -y git
       - checkout
       - restore_cache:
           key: asmjs-test-cache-{{ checksum "Cargo.toml" }}
@@ -37,7 +37,7 @@ jobs:
     docker:
       - image: tomaka/rustc-emscripten
     steps:
-      - apt-get update && apt-get install -y git
+      - run: apt-get -qq update && apt-get install -y git
       - checkout
       - restore_cache:
           key: wasm-test-cache-{{ checksum "Cargo.toml" }}
