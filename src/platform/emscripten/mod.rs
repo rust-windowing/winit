@@ -453,7 +453,11 @@ fn error_to_str(code: ffi::EMSCRIPTEN_RESULT) -> &'static str {
 fn key_translate(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES]) -> u8 {
     use std::str;
     let slice = &input[0..input.iter().take_while(|x| **x != 0).count()];
-    let key = str::from_utf8(slice).unwrap();
+    let maybe_key = unsafe { str::from_utf8(mem::transmute::<_, &[u8]>(slice)) };
+    let key = match maybe_key {
+        Ok(key) => key,
+        Err(_) => { return 0; },
+    };
     if key.chars().count() == 1 {
         key.as_bytes()[0]
     } else {
@@ -466,7 +470,11 @@ fn key_translate_virt(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES
 {
     use std::str;
     let slice = &input[0..input.iter().take_while(|x| **x != 0).count()];
-    let key = str::from_utf8(&slice).unwrap();
+    let maybe_key = unsafe { str::from_utf8(mem::transmute::<_, &[u8]>(slice)) };
+    let key = match maybe_key {
+        Ok(key) => key,
+        Err(_) => { return None; },
+    };
     use VirtualKeyCode::*;
     match key {
         "Alt" => match location {
