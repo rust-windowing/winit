@@ -2,7 +2,6 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use std::mem;
 use std::os::raw::{c_int, c_char, c_void, c_ulong, c_double};
 
 pub type EM_BOOL = c_int;
@@ -64,6 +63,11 @@ pub const EMSCRIPTEN_EVENT_CANVASRESIZED: c_int = 37;
 pub const EMSCRIPTEN_EVENT_POINTERLOCKERROR: c_int = 38;
 
 pub const EM_HTML5_SHORT_STRING_LEN_BYTES: usize = 32;
+
+pub const DOM_KEY_LOCATION_STANDARD: c_ulong = 0x00;
+pub const DOM_KEY_LOCATION_LEFT: c_ulong = 0x01;
+pub const DOM_KEY_LOCATION_RIGHT: c_ulong = 0x02;
+pub const DOM_KEY_LOCATION_NUMPAD: c_ulong = 0x03;
 
 pub type em_callback_func = Option<unsafe extern "C" fn()>;
 
