@@ -159,17 +159,14 @@ pub struct WindowId(platform::WindowId);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(platform::DeviceId);
 
-/// Provides a way to retreive events from the windows that were registered to it.
+/// Provides a way to retreive events from the system and from the windows that were registered to
+/// the events loop.
+///
+/// An `EventsLoop` can be seen more or less as a "context". Calling `EventsLoop::new()`
+/// initializes everything that will be required to create windows. For example on Linux creating
+/// an events loop opens a connection to the X or Wayland server.
 ///
 /// To wake up an `EventsLoop` from a another thread, see the `EventsLoopProxy` docs.
-///
-/// Usage will result in display backend initialisation, this can be controlled on linux
-/// using an environment variable `WINIT_UNIX_BACKEND`.
-/// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
-/// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
-/// > and if it fails will fallback on x11.
-/// >
-/// > If this variable is set with any other value, winit will panic.
 pub struct EventsLoop {
     events_loop: platform::EventsLoop,
 }
@@ -187,21 +184,19 @@ pub enum ControlFlow {
 
 impl EventsLoop {
     /// Builds a new events loop.
+    ///
+    /// Usage will result in display backend initialisation, this can be controlled on linux
+    /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
+    /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
+    /// fallback on x11. If this variable is set with any other value, winit will panic.
     pub fn new() -> EventsLoop {
         EventsLoop {
             events_loop: platform::EventsLoop::new(),
         }
     }
 
-    /// Returns the list of all available monitors.
+    /// Returns the list of all the monitors available on the system.
     ///
-    /// Usage will result in display backend initialisation, this can be controlled on linux
-    /// using an environment variable `WINIT_UNIX_BACKEND`.
-    /// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
-    /// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
-    /// > and if it fails will fallback on x11.
-    /// >
-    /// > If this variable is set with any other value, winit will panic.
     // Note: should be replaced with `-> impl Iterator` once stable.
     #[inline]
     pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
@@ -210,14 +205,6 @@ impl EventsLoop {
     }
 
     /// Returns the primary monitor of the system.
-    ///
-    /// Usage will result in display backend initialisation, this can be controlled on linux
-    /// using an environment variable `WINIT_UNIX_BACKEND`.
-    /// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
-    /// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
-    /// > and if it fails will fallback on x11.
-    /// >
-    /// > If this variable is set with any other value, winit will panic.
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
         MonitorId { inner: self.events_loop.get_primary_monitor() }
@@ -232,7 +219,9 @@ impl EventsLoop {
         self.events_loop.poll_events(callback)
     }
 
-    /// Runs forever until `interrupt()` is called. Whenever an event happens, calls the callback.
+    /// Calls `callback` every time an event is received. If no event is available, sleeps the
+    /// current thread and waits for an event. If the callback returns `ControlFlow::Break` then
+    /// `run_forever` will immediately return.
     #[inline]
     pub fn run_forever<F>(&mut self, callback: F)
         where F: FnMut(Event) -> ControlFlow
