@@ -80,6 +80,8 @@
 //! to create an OpenGL/Vulkan/DirectX/Metal/etc. context that will draw on the window.
 //!
 
+extern crate keyboard_types;
+
 #[macro_use]
 extern crate lazy_static;
 

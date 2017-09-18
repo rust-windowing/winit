@@ -1,6 +1,8 @@
+extern crate keyboard_types;
 extern crate winit;
 
 use std::io::{self, Write};
+use keyboard_types::{Key, KeyEvent, KeyState};
 use winit::{ControlFlow, Event, WindowEvent};
 
 fn main() {
@@ -45,7 +47,7 @@ fn main() {
                 match event {
                     WindowEvent::Closed => return ControlFlow::Break,
                     WindowEvent::KeyboardInput {
-                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::Escape), .. }, ..
+                        input: KeyEvent { state: KeyState::Down, key: Key::Escape, .. }, ..
                     } => return ControlFlow::Break,
                     _ => ()
                 }

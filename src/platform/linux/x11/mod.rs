@@ -4,21 +4,24 @@ pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
 pub use self::window::{Window2, XWindow};
 pub use self::xdisplay::{XConnection, XNotSupported, XError};
 
+use keyboard_types::{CompositionEvent, CompositionState, Key, KeyEvent, KeyState};
+
 pub mod ffi;
 
 use platform::PlatformSpecificWindowBuilderAttributes;
 use {CreationError, Event, EventsLoopClosed, WindowEvent, DeviceEvent,
-     KeyboardInput, ControlFlow};
+     ControlFlow};
 
 use std::{mem, ptr, slice};
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{self, AtomicBool};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::CStr;
 
 use libc::{self, c_uchar, c_char, c_int};
 
-mod events;
+mod keyboard;
 mod monitor;
 mod window;
 mod xdisplay;
@@ -41,6 +44,8 @@ pub struct EventsLoop {
     // A dummy, `InputOnly` window that we can use to receive wakeup events and interrupt blocking
     // `XNextEvent` calls.
     wakeup_dummy_window: ffi::Window,
+    pressed_keys: Arc<RefCell<Vec<u32>>>,
+    dead_key_mode: Arc<AtomicBool>,
 }
 
 pub struct EventsLoopProxy {
@@ -99,6 +104,8 @@ impl EventsLoop {
             xi2ext: xi2ext,
             root: root,
             wakeup_dummy_window: wakeup_dummy_window,
+            pressed_keys: Arc::new(RefCell::new(Vec::new())),
+            dead_key_mode: Arc::new(AtomicBool::new(false)),
         };
 
         {
@@ -191,11 +198,6 @@ impl EventsLoop {
     {
         let xlib = &self.display.xlib;
 
-        // Handle dead keys and other input method funtimes
-        if ffi::True == unsafe { (self.display.xlib.XFilterEvent)(xev, { let xev: &ffi::XAnyEvent = xev.as_ref(); xev.window }) } {
-            return;
-        }
-
         let xwindow = { let xev: &ffi::XAnyEvent = xev.as_ref(); xev.window };
         let wid = ::WindowId(::platform::WindowId::X(WindowId(xwindow)));
         match xev.get_type() {
@@ -254,75 +256,105 @@ impl EventsLoop {
 
             // FIXME: Use XInput2 + libxkbcommon for keyboard input!
             ffi::KeyPress | ffi::KeyRelease => {
-                use events::ModifiersState;
-                use events::ElementState::{Pressed, Released};
-
-                let state;
-                if xev.get_type() == ffi::KeyPress {
-                    state = Pressed;
-                } else {
-                    state = Released;
+                let filter_event = self.filter_event(xev);           
+                let xkev: &mut ffi::XKeyEvent = xev.as_mut();
+                if filter_event && xkev.keycode == 0 {
+                    return;
                 }
 
-                let xkev: &mut ffi::XKeyEvent = xev.as_mut();
+                // Typical virtual core keyboard ID. xinput2 needs to be used to get a reliable value.
+                let device_id = mkdid(3);
+                let (mut key_event, mark) = self.lookup_key_event_information(xkev);
 
-                let ev_mods = {
-                    // Translate x event state to mods
-                    let state = xkev.state;
-                    ModifiersState {
-                        alt:   state & ffi::Mod1Mask != 0,
-                        shift: state & ffi::ShiftMask != 0,
-                        ctrl:  state & ffi::ControlMask != 0,
-                        logo:  state & ffi::Mod4Mask != 0,
+                let mut text = String::new();
+                if let Key::Character(s) = key_event.clone().key {
+                    if key_event.state == KeyState::Down {
+                        text = s;
                     }
-                };
+                }
 
-                let keysym = unsafe {
-                    (self.display.xlib.XKeycodeToKeysym)(self.display.display, xkev.keycode as ffi::KeyCode, 0)
-                };
-
-                let vkey = events::keysym_to_element(keysym as libc::c_uint);
-
-                callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
-                     // Typical virtual core keyboard ID. xinput2 needs to be used to get a reliable value.
-                    device_id: mkdid(3),
-                    input: KeyboardInput {
-                        state: state,
-                        scancode: xkev.keycode,
-                        virtual_keycode: vkey,
-                        modifiers: ev_mods,
-                    },
-                }});
-
-                if state == Pressed {
-                    let written = unsafe {
-                        use std::str;
-
-                        const INIT_BUFF_SIZE: usize = 16;
-                        let mut windows = self.windows.lock().unwrap();
-                        let window_data = windows.get_mut(&WindowId(xwindow)).unwrap();
-                        /* buffer allocated on heap instead of stack, due to the possible
-                         * reallocation */
-                        let mut buffer: Vec<u8> = vec![mem::uninitialized(); INIT_BUFF_SIZE];
-                        let mut keysym: ffi::KeySym = 0;
-                        let mut status: ffi::Status = 0;
-                        let mut count = (self.display.xlib.Xutf8LookupString)(window_data.ic, xkev,
-                                                                          mem::transmute(buffer.as_mut_ptr()),
-                                                                          buffer.len() as libc::c_int,
-                                                                          &mut keysym, &mut status);
-                        /* buffer overflowed, dynamically reallocate */
-                        if status == ffi::XBufferOverflow {
-                            buffer = vec![mem::uninitialized(); count as usize];
-                            count = (self.display.xlib.Xutf8LookupString)(window_data.ic, xkev,
-                                                                          mem::transmute(buffer.as_mut_ptr()),
-                                                                          buffer.len() as libc::c_int,
-                                                                          &mut keysym, &mut status);
+                if key_event.state == KeyState::Down && key_event.key == Key::Dead && !self.dead_key_mode.compare_and_swap(false, true, atomic::Ordering::Relaxed) {
+                    // start composition session on dead keydown
+                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
+                        device_id: mkdid(3),
+                        input: key_event,
+                        keycode: xkev.keycode,
+                    }});
+                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::CompositionInput {
+                        device_id,
+                        input: CompositionEvent {
+                            state: CompositionState::Start,
+                            data: String::new(),
                         }
+                    }});
+                    if let Some(mark) = mark {
+                        callback(Event::WindowEvent { window_id: wid, event: WindowEvent::CompositionInput {
+                            device_id,
+                            input: CompositionEvent {
+                                state: CompositionState::Update,
+                                data: mark.to_string(),
+                            }
+                        }});
+                    }
+                } else if key_event.state == KeyState::Down && self.dead_key_mode.swap(false, atomic::Ordering::Relaxed) {
+                    // end composition session on keydown
+                    key_event.is_composing = true;
+                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
+                        device_id: mkdid(3),
+                        input: key_event,
+                        keycode: xkev.keycode,
+                    }});
+                    if !filter_event {
+                        // composing character created, session successful
+                        callback(Event::WindowEvent { window_id: wid, event: WindowEvent::CompositionInput {
+                            device_id,
+                            input: CompositionEvent {
+                                state: CompositionState::Update,
+                                data: text.clone(),
+                            }
+                        }});
+                        callback(Event::WindowEvent { window_id: wid, event: WindowEvent::CompositionInput {
+                            device_id,
+                            input: CompositionEvent {
+                                state: CompositionState::End,
+                                data: text.clone(),
+                            }
+                        }});
+                    } else {
+                        // session aborted
+                        callback(Event::WindowEvent { window_id: wid, event: WindowEvent::CompositionInput {
+                            device_id,
+                            input: CompositionEvent {
+                                state: CompositionState::Update,
+                                data: String::new(),
+                            }
+                        }});
+                        callback(Event::WindowEvent { window_id: wid, event: WindowEvent::CompositionInput {
+                            device_id,
+                            input: CompositionEvent {
+                                state: CompositionState::End,
+                                data: String::new(),
+                            }
+                        }});
+                    }
+                } else if key_event.state == KeyState::Up && key_event.key == Key::Dead {
+                    key_event.is_composing = self.dead_key_mode.load(atomic::Ordering::Relaxed);
+                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
+                        device_id: mkdid(3),
+                        input: key_event,
+                        keycode: xkev.keycode,
+                    }});
+                } else {
+                    // no composing event
+                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
+                        device_id: mkdid(3),
+                        input: key_event,
+                        keycode: xkev.keycode
+                    }});
+                }
 
-                        str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
-                    };
-
-                    for chr in written.chars() {
+                if !filter_event {
+                    for chr in text.chars() {
                         let event = Event::WindowEvent {
                             window_id: wid,
                             event: WindowEvent::ReceivedCharacter(chr),
@@ -474,6 +506,7 @@ impl EventsLoop {
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
+                        self.pressed_keys.borrow_mut().clear();
                         unsafe {
                             let mut windows = self.windows.lock().unwrap();
                             let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
@@ -530,22 +563,6 @@ impl EventsLoop {
                         }
                     }
 
-                    ffi::XI_RawKeyPress | ffi::XI_RawKeyRelease => {
-                        // TODO: Use xkbcommon for keysym and text decoding
-                        let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
-                        let xkeysym = unsafe { (self.display.xlib.XKeycodeToKeysym)(self.display.display, xev.detail as ffi::KeyCode, 0) };
-                        callback(Event::DeviceEvent { device_id: mkdid(xev.deviceid), event: DeviceEvent::Key(KeyboardInput {
-                            scancode: xev.detail as u32,
-                            virtual_keycode: events::keysym_to_element(xkeysym as libc::c_uint),
-                            state: match xev.evtype {
-                                ffi::XI_RawKeyPress => Pressed,
-                                ffi::XI_RawKeyRelease => Released,
-                                _ => unreachable!(),
-                            },
-                            modifiers: ::events::ModifiersState::default(),
-                        })});
-                    }
-
                     ffi::XI_HierarchyChanged => {
                         let xev: &ffi::XIHierarchyEvent = unsafe { &*(xev.data as *const _) };
                         for info in unsafe { slice::from_raw_parts(xev.info, xev.num_info as usize) } {
@@ -573,6 +590,115 @@ impl EventsLoop {
         for info in DeviceInfo::get(&self.display, device).iter() {
             devices.insert(DeviceId(info.deviceid), Device::new(&self, info));
         }
+    }
+
+    fn filter_event(&self, xev: &mut ffi::XEvent) -> bool {
+        let window = {
+            let xev_any: &ffi::XAnyEvent = xev.as_ref();
+            xev_any.window
+        };
+        unsafe {
+            (self.display.xlib.XFilterEvent)(xev, window) == ffi::True
+        }
+    }
+
+    fn call_lookup_string(
+        &self,
+        input_context: ffi::XIC,
+        xkev: &mut ffi::XKeyEvent,
+        buffer_size: usize)
+        -> Result<(libc::c_uint, String), Option<usize>>
+    {
+        fn get_key_string(buffer: Vec<u8>, count: libc::c_int) -> String {
+            let byte_string = buffer[..count as usize].to_owned();
+            String::from_utf8(byte_string).unwrap_or(String::new())
+        }
+        let mut buffer: Vec<u8> = vec![0; buffer_size];
+        let buffer_ptr = buffer.as_mut_ptr();
+        let buffer_len = buffer.len() as libc::c_int;
+        let mut keysym_return: ffi::KeySym = 1;
+        let mut status_return: ffi::Status = 0;
+        let count = unsafe {
+            (self.display.xlib.Xutf8LookupString)(
+                input_context,
+                xkev,
+                buffer_ptr as *mut i8,
+                buffer_len,
+                &mut keysym_return,
+                &mut status_return)
+        };
+        match status_return {
+            ffi::XBufferOverflow => Err(Some(count as usize)),
+            ffi::XLookupNone => Err(None),
+            ffi::XLookupChars => Ok((0, get_key_string(buffer, count))),
+            ffi::XLookupKeySym => Ok((keysym_return as libc::c_uint, String::new())),
+            ffi::XLookupBoth => Ok((keysym_return as libc::c_uint, get_key_string(buffer, count))),
+            _ => unreachable!(),
+        }
+    }
+
+    fn lookup_key(&self, xkev: &mut ffi::XKeyEvent) -> Result<(libc::c_uint, String), ()> {
+        const INIT_BUFFER_SIZE: usize = 16;
+
+        let mut windows = self.windows.lock().unwrap();
+        let window_data = windows.get_mut(&WindowId(xkev.window)).unwrap();
+
+        self.call_lookup_string(
+            window_data.ic,
+            xkev,
+            INIT_BUFFER_SIZE,
+        ).or_else(|result| {
+            if let Some(count) = result {
+                self.call_lookup_string(
+                    window_data.ic,
+                    xkev,
+                    count,
+                )
+            } else { Err(result) }
+        }).map_err(|_| ())
+    }
+
+    fn lookup_printable_key(&self, xkev: &mut ffi::XKeyEvent) -> Result<(libc::c_uint, String), ()> {
+        let (keysym, string) = self.lookup_key(xkev)?;
+        if string.chars().all(|c| !c.is_control()) {
+            return Ok((keysym, string));
+        }
+        // Only take Shift, CapsLock and AltGr modifiers into account.
+        xkev.state = xkev.state & (ffi::ShiftMask | ffi::LockMask | ffi::Mod5Mask);
+        let (keysym, string) = self.lookup_key(xkev)?;
+        if string.chars().all(|c| !c.is_control()) {
+            return Ok((keysym, string))
+        }
+        Ok((keysym, String::new()))
+    }
+
+    fn lookup_key_event_information(&self, xkev: &mut ffi::XKeyEvent) -> (KeyEvent, Option<char>) {
+        // Get pressed/released information, key modifiers and physical location.
+        let state = keyboard::get_state(xkev.type_);
+        let modifiers = keyboard::get_key_modifiers(xkev.state);
+        let code = keyboard::get_code(xkev.keycode);
+
+        xkev.type_ = ffi::KeyPress;
+        let (keysym, string) = self.lookup_printable_key(xkev).unwrap_or((0, String::new()));
+        let key = keyboard::get_key(keysym, string.clone());
+        let location = keyboard::get_key_location(keysym);
+
+        // handle repeating keys
+        let mut repeat = false;
+        if state == KeyState::Down && self.pressed_keys.borrow().contains(&xkev.keycode) {
+            repeat = true;
+        } else if state == KeyState::Down {
+            // keys with keycode 0 are composed and do not repeat
+            if xkev.keycode != 0 {
+                self.pressed_keys.borrow_mut().push(xkev.keycode);
+            }
+        } else {
+            self.pressed_keys.borrow_mut().retain(|x| *x != xkev.keycode);
+        }
+        
+        let event = KeyEvent { state, key, code, location, modifiers, repeat, is_composing: false };
+        let mark = keyboard::get_dead_key_combining_character(keysym);
+        (event, mark)
     }
 }
 

@@ -11,6 +11,7 @@ documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [dependencies]
+keyboard-types = "0.2.0"
 lazy_static = "0.2.2"
 libc = "0.2"
 
