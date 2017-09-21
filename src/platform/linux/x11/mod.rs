@@ -278,7 +278,9 @@ impl EventsLoop {
                 };
 
                 let keysym = unsafe {
-                    (self.display.xlib.XKeycodeToKeysym)(self.display.display, xkev.keycode as ffi::KeyCode, 0)
+                    let mut keysym = 0;
+                    (self.display.xlib.XLookupString)(xkev, ptr::null_mut(), 0, &mut keysym, ptr::null_mut());
+                    keysym
                 };
 
                 let vkey = events::keysym_to_element(keysym as libc::c_uint);
