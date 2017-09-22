@@ -4,7 +4,7 @@
 
 - Added `Window::set_maximized`, `WindowAttributes::maximized` and `WindowBuilder::with_maximized`.
 - Added `Window::set_fullscreen`.
-- Changed `with_fullscreen` to take a `FullscreenState` instead of a `MonitorId`.
+- Changed `with_fullscreen` to take a `Option<MonitorId>` instead of a `MonitorId`.
 - Removed `MonitorId::get_native_identifer()` in favor of platform-specific traits in the `os`
   module.
 - Changed `get_available_monitors()` and `get_primary_monitor()` to be methods of `EventsLoop`
