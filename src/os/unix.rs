@@ -12,6 +12,10 @@ use WindowBuilder;
 use platform::x11::XConnection;
 use platform::x11::ffi::XVisualInfo;
 
+// TODO: stupid hack so that glutin can do its work
+#[doc(hidden)]
+pub use platform::x11;
+
 pub use platform::XNotSupported;
 
 /// Additional methods on `EventsLoop` that are specific to Linux.
@@ -23,6 +27,15 @@ pub trait EventsLoopExt {
     /// Builds a new `EventsLoop` that is forced to use Wayland.
     fn new_wayland() -> Self
         where Self: Sized;
+
+    /// True if the `EventsLoop` uses Wayland.
+    fn is_wayland(&self) -> bool;
+
+    /// True if the `EventsLoop` uses X11.
+    fn is_x11(&self) -> bool;
+
+    #[doc(hidden)]
+    fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 }
 
 impl EventsLoopExt for EventsLoop {
@@ -39,6 +52,21 @@ impl EventsLoopExt for EventsLoop {
                 Err(_) => panic!()      // TODO: propagate
             }
         }
+    }
+
+    #[inline]
+    fn is_wayland(&self) -> bool {
+        self.events_loop.is_wayland()
+    }
+
+    #[inline]
+    fn is_x11(&self) -> bool {
+        !self.events_loop.is_wayland()
+    }
+
+    #[inline]
+    fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>> {
+        self.events_loop.x_connection().cloned()
     }
 }
 

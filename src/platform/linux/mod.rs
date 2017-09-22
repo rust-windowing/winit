@@ -382,6 +382,22 @@ impl EventsLoop {
             EventsLoop::X(ref mut evlp) => evlp.run_forever(callback)
         }
     }
+
+    #[inline]
+    pub fn is_wayland(&self) -> bool {
+        match *self {
+            EventsLoop::Wayland(_) => true,
+            EventsLoop::X(_) => false,
+        }
+    }
+
+    #[inline]
+    pub fn x_connection(&self) -> Option<&Arc<XConnection>> {
+        match *self {
+            EventsLoop::Wayland(_) => None,
+            EventsLoop::X(ref ev) => Some(ev.x_connection()),
+        }
+    }
 }
 
 impl EventsLoopProxy {
