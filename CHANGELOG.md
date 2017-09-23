@@ -1,5 +1,10 @@
 # Unreleased
 
+# Version 0.8.1 (2017-09-22)
+
+- Added various methods to `os::linux::EventsLoopExt`, plus some hidden items necessary to make
+  glutin work.
+
 # Version 0.8.0 (2017-09-21)
 
 - Added `Window::set_maximized`, `WindowAttributes::maximized` and `WindowBuilder::with_maximized`.
