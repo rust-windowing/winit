@@ -26,19 +26,15 @@ use super::keyboard::KbdHandler;
 ///
 /// Failure to do so is unsafe™
 pub struct EventsLoopSink {
-    callback: Box<FnMut(::Event)>
+    buffer: VecDeque<::Event>
 }
 
 unsafe impl Send for EventsLoopSink { }
 
 impl EventsLoopSink {
-    pub fn new() -> (EventsLoopSink, Arc<Mutex<VecDeque<::Event>>>) {
-        let buffer = Arc::new(Mutex::new(VecDeque::new()));
-        let buffer_clone = buffer.clone();
-        let sink = EventsLoopSink {
-            callback: Box::new(move |evt| { println!("TEMP: {:?}", evt); buffer.lock().unwrap().push_back(evt)}),
-        };
-        (sink, buffer_clone)
+    pub fn new() -> EventsLoopSink{EventsLoopSink {
+            buffer: VecDeque::new()
+        }
     }
 
     pub fn send_event(&mut self, evt: ::WindowEvent, wid: WindowId) {
@@ -46,22 +42,17 @@ impl EventsLoopSink {
             event: evt,
             window_id: ::WindowId(::platform::WindowId::Wayland(wid))
         };
-        (self.callback)(evt)
+        self.buffer.push_back(evt);
     }
 
-    // This function is only safe of the set callback is unset before exclusive
-    // access to the wayland EventQueue is finished.
-    //
-    // The callback also cannot be used any longer as long as it has not been
-    // cleared from the Sink.
-    unsafe fn set_callback(&mut self, cb: Box<FnMut(::Event)>) -> Box<FnMut(::Event)> {
-        ::std::mem::replace(&mut self.callback, cb)
+    pub fn send_raw_event(&mut self, evt: ::Event) {
+        self.buffer.push_back(evt);
     }
 
-    fn with_callback<F>(&mut self, f: F)
-        where F: FnOnce(&mut FnMut(::Event)),
-    {
-        f(&mut *self.callback)
+    fn empty_with<F>(&mut self, callback: &mut F) where F: FnMut(::Event) {
+        for evt in self.buffer.drain(..) {
+            callback(evt)
+        }
     }
 }
 
@@ -70,11 +61,8 @@ pub struct EventsLoop {
     ctxt: Arc<WaylandContext>,
     // ids of the DecoratedHandlers of the surfaces we know
     decorated_ids: Mutex<Vec<(usize, Arc<wl_surface::WlSurface>)>>,
-    // our sink, receiver of callbacks, shared with some handlers
+    // our sink, shared with some handlers, buffering the events
     sink: Arc<Mutex<EventsLoopSink>>,
-    // a buffer in which events that were dispatched internally are stored
-    // until the user next dispatches events
-    buffer: Arc<Mutex<VecDeque<::Event>>>,
     // trigger cleanup of the dead surfaces
     cleanup_needed: Arc<AtomicBool>,
     // Whether or not there is a pending `Awakened` event to be emitted.
@@ -113,8 +101,7 @@ impl EventsLoopProxy {
 
 impl EventsLoop {
     pub fn new(mut ctxt: WaylandContext) -> EventsLoop {
-        let (sink, buffer) = EventsLoopSink::new();
-        let sink = Arc::new(Mutex::new(sink));
+        let sink = Arc::new(Mutex::new(EventsLoopSink::new()));
         let inputh = InputHandler::new(&ctxt, sink.clone());
         let hid = ctxt.evq.get_mut().unwrap().add_handler_with_init(inputh);
         let ctxt = Arc::new(ctxt);
@@ -123,7 +110,6 @@ impl EventsLoop {
             ctxt: ctxt,
             decorated_ids: Mutex::new(Vec::new()),
             sink: sink,
-            buffer: buffer,
             pending_wakeup: Arc::new(AtomicBool::new(false)),
             cleanup_needed: Arc::new(AtomicBool::new(false)),
             hid: hid
@@ -148,7 +134,7 @@ impl EventsLoop {
     }
 
     pub fn register_window(&self, decorated_id: usize, surface: Arc<wl_surface::WlSurface>) {
-        self.buffer.lock().unwrap().push_back(::Event::WindowEvent {
+        self.sink.lock().unwrap().buffer.push_back(::Event::WindowEvent {
             window_id: ::WindowId(::platform::WindowId::Wayland(make_wid(&surface))),
             event: ::WindowEvent::Refresh
         });
@@ -158,26 +144,22 @@ impl EventsLoop {
         state.get_mut_handler::<InputHandler>(self.hid).windows.push(surface);
     }
 
-    fn process_resize(evq: &mut EventQueue, ids: &[(usize, Arc<wl_surface::WlSurface>)], callback: &mut FnMut(::Event))
+    fn process_resize(evq: &mut EventQueue, ids: &[(usize, Arc<wl_surface::WlSurface>)], sink: &mut EventsLoopSink)
     {
         let mut state = evq.state();
         for &(decorated_id, ref window) in ids {
             let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
             if let Some((w, h)) = decorated.handler().as_mut().and_then(|h| h.take_newsize()) {
                 decorated.resize(w as i32, h as i32);
-                callback(
-                    ::Event::WindowEvent {
-                        window_id: ::WindowId(::platform::WindowId::Wayland(make_wid(&window))),
-                        event: ::WindowEvent::Resized(w,h)
-                    }
+                sink.send_event(
+                     ::WindowEvent::Resized(w,h),
+                     make_wid(&window)
                 );
             }
             if decorated.handler().as_ref().map(|h| h.is_closed()).unwrap_or(false) {
-                 callback(
-                    ::Event::WindowEvent {
-                        window_id: ::WindowId(::platform::WindowId::Wayland(make_wid(&window))),
-                        event: ::WindowEvent::Closed
-                    }
+                 sink.send_event(
+                     ::WindowEvent::Closed,
+                     make_wid(&window)
                 );
 
             }
@@ -197,11 +179,12 @@ impl EventsLoop {
         }
     }
 
-    fn empty_buffer<F>(&self, callback: &mut F) where F: FnMut(::Event) {
-        let mut guard = self.buffer.lock().unwrap();
-        for evt in guard.drain(..) {
-            callback(evt)
-        }
+    fn post_dispatch_triggers(&self) {
+        let mut evq_guard = self.ctxt.evq.lock().unwrap();
+        let mut sink_guard = self.sink.lock().unwrap();
+        let ids_guard = self.decorated_ids.lock().unwrap();
+        self.emit_pending_wakeup(&mut sink_guard);
+        Self::process_resize(&mut evq_guard, &ids_guard, &mut sink_guard);
     }
 
     pub fn poll_events<F>(&mut self, mut callback: F)
@@ -210,40 +193,15 @@ impl EventsLoop {
         // send pending requests to the server...
         self.ctxt.flush();
 
-        // first of all, get exclusive access to this event queue
-        let mut evq_guard = self.ctxt.evq.lock().unwrap();
+        // dispatch any pre-buffered events
+        self.sink.lock().unwrap().empty_with(&mut callback);
 
-        // dispatch pre-buffered events
-        self.empty_buffer(&mut callback);
+        // try dispatching events without blocking
+        self.ctxt.read_events();
+        self.ctxt.dispatch_pending();
+        self.post_dispatch_triggers();
 
-        // read some events from the socket if some are waiting & queue is empty
-        if let Some(guard) = evq_guard.prepare_read() {
-            guard.read_events().expect("Wayland connection unexpectedly lost");
-        }
-
-        // set the callback into the sink
-        // we extend the lifetime of the closure to 'static to be able to put it in
-        // the sink, but we'll explicitly drop it at the end of this function, so it's fine
-        let static_cb = unsafe { ::std::mem::transmute(Box::new(callback) as Box<FnMut(_)>) };
-        let old_cb = unsafe { self.sink.lock().unwrap().set_callback(static_cb) };
-
-        // then do the actual dispatching
-        evq_guard.dispatch_pending().expect("Wayland connection unexpectedly lost");
-
-        self.emit_pending_wakeup();
-
-        {
-            let mut sink_guard = self.sink.lock().unwrap();
-
-            // events where probably dispatched, process resize
-            let ids_guard = self.decorated_ids.lock().unwrap();
-            sink_guard.with_callback(
-                |cb| Self::process_resize(&mut evq_guard, &ids_guard, cb)
-            );
-
-            // replace the old noop callback
-            unsafe { sink_guard.set_callback(old_cb) };
-        }
+        self.sink.lock().unwrap().empty_with(&mut callback);
 
         if self.cleanup_needed.swap(false, atomic::Ordering::Relaxed) {
             self.prune_dead_windows()
@@ -256,9 +214,6 @@ impl EventsLoop {
         // send pending requests to the server...
         self.ctxt.flush();
 
-        // first of all, get exclusive access to this event queue
-        let mut evq_guard = self.ctxt.evq.lock().unwrap();
-
         // Check for control flow by wrapping the callback.
         let control_flow = ::std::cell::Cell::new(ControlFlow::Continue);
         let mut callback = |event| if let ControlFlow::Break = callback(event) {
@@ -266,23 +221,15 @@ impl EventsLoop {
         };
 
         // dispatch pre-buffered events
-        self.empty_buffer(&mut callback);
-
-        // set the callback into the sink
-        // we extend the lifetime of the closure to 'static to be able to put it in
-        // the sink, but we'll explicitly drop it at the end of this function, so it's fine
-        let static_cb = unsafe { ::std::mem::transmute(Box::new(callback) as Box<FnMut(_)>) };
-        let old_cb = unsafe { self.sink.lock().unwrap().set_callback(static_cb) };
+        self.sink.lock().unwrap().empty_with(&mut callback);
 
         loop {
-            evq_guard.dispatch_pending().expect("Wayland connection unexpectedly lost");
+            // dispatch events blocking if needed
+            self.ctxt.dispatch();
+            self.post_dispatch_triggers();
 
-            self.emit_pending_wakeup();
-
-            let ids_guard = self.decorated_ids.lock().unwrap();
-            self.sink.lock().unwrap()
-                .with_callback(|cb| Self::process_resize(&mut evq_guard, &ids_guard, cb));
-            self.ctxt.flush();
+            // empty buffer of events
+            self.sink.lock().unwrap().empty_with(&mut callback);
 
             if self.cleanup_needed.swap(false, atomic::Ordering::Relaxed) {
                 self.prune_dead_windows()
@@ -292,15 +239,12 @@ impl EventsLoop {
                 break;
             }
         }
-
-        // replace the old noop callback
-        unsafe { self.sink.lock().unwrap().set_callback(old_cb) };
     }
 
     // If an `EventsLoopProxy` has signalled a wakeup, emit an event and reset the flag.
-    fn emit_pending_wakeup(&self) {
+    fn emit_pending_wakeup(&self, sink: &mut EventsLoopSink) {
         if self.pending_wakeup.load(atomic::Ordering::Relaxed) {
-            self.sink.lock().unwrap().with_callback(|cb| cb(::Event::Awakened));
+            sink.send_raw_event(::Event::Awakened);
             self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
         }
     }

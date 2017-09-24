@@ -236,6 +236,14 @@ impl WaylandContext {
         })
     }
 
+    pub fn read_events(&self) {
+        let evq_guard = self.evq.lock().unwrap();
+        // read some events from the socket if some are waiting & queue is empty
+        if let Some(guard) = evq_guard.prepare_read() {
+            guard.read_events().expect("Wayland connection unexpectedly lost");
+        }
+    }
+
     pub fn dispatch_pending(&self) {
         let mut guard = self.evq.lock().unwrap();
         guard.dispatch_pending().expect("Wayland connection unexpectedly lost");
