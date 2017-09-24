@@ -1,5 +1,7 @@
 # Unreleased
 
+- Uniformize keyboard scancode values accross Wayland and X11 (#297).
+
 # Version 0.8.1 (2017-09-22)
 
 - Added various methods to `os::linux::EventsLoopExt`, plus some hidden items necessary to make
