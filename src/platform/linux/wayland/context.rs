@@ -300,8 +300,8 @@ impl WaylandContext {
         evq.register::<_, InitialBufferHandler>(&buffer, initial_buffer_handler_id);
     }
 
-    pub fn create_window<H: wayland_window::Handler>(&self, width: u32, height: u32)
-        -> (Arc<wl_surface::WlSurface>, wayland_window::DecoratedSurface<H>)
+    pub fn create_window<H: wayland_window::Handler>(&self, width: u32, height: u32, decorated: bool)
+        -> (Arc<wl_surface::WlSurface>, wayland_window::DecoratedSurface<H>, bool)
     {
         let mut guard = self.evq.lock().unwrap();
         let (surface, decorated, xdg) = {
@@ -315,7 +315,7 @@ impl WaylandContext {
                 &env.inner.shm,
                 env.get_shell(),
                 env.get_seat(),
-                false
+                decorated
             ).expect("Failed to create a tmpfile buffer.");
             let xdg = match env.get_shell() {
                 &Shell::Xdg(_) => true,
@@ -332,7 +332,7 @@ impl WaylandContext {
             // from the compositor
             self.blank_surface(&surface, &mut *guard, width as i32, height as i32);
         }
-        (surface, decorated)
+        (surface, decorated, xdg)
     }
 }
 

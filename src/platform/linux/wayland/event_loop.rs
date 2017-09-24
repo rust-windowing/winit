@@ -134,10 +134,6 @@ impl EventsLoop {
     }
 
     pub fn register_window(&self, decorated_id: usize, surface: Arc<wl_surface::WlSurface>) {
-        self.sink.lock().unwrap().buffer.push_back(::Event::WindowEvent {
-            window_id: ::WindowId(::platform::WindowId::Wayland(make_wid(&surface))),
-            event: ::WindowEvent::Refresh
-        });
         self.decorated_ids.lock().unwrap().push((decorated_id, surface.clone()));
         let mut guard = self.ctxt.evq.lock().unwrap();
         let mut state = guard.state();
@@ -153,6 +149,12 @@ impl EventsLoop {
                 decorated.resize(w as i32, h as i32);
                 sink.send_event(
                      ::WindowEvent::Resized(w,h),
+                     make_wid(&window)
+                );
+            }
+            if decorated.handler().as_mut().map(|h| h.take_refresh()).unwrap_or(false) {
+                sink.send_event(
+                     ::WindowEvent::Refresh,
                      make_wid(&window)
                 );
             }
