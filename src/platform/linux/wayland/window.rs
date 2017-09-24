@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicBool;
 use std::cmp;
 
-use wayland_client::{EventQueue, EventQueueHandle, Proxy};
+use wayland_client::{EventQueueHandle, Proxy};
 use wayland_client::protocol::{wl_display,wl_surface};
 
 use {CreationError, MouseCursor, CursorState, WindowAttributes};
@@ -18,8 +18,6 @@ use super::wayland_window::DecoratedSurface;
 pub struct Window {
     // the global wayland context
     ctxt: Arc<WaylandContext>,
-    // the EventQueue of our EventsLoop
-    evq: Arc<Mutex<EventQueue>>,
     // signal to advertize the EventsLoop when we are destroyed
     cleanup_signal: Arc<AtomicBool>,
     // our wayland surface
@@ -47,9 +45,9 @@ impl Window {
         let (surface, decorated) = ctxt.create_window::<DecoratedHandler>(width, height);
 
         // init DecoratedSurface
-        let (evq, cleanup_signal) = evlp.get_window_init();
+        let cleanup_signal = evlp.get_window_init();
         let decorated_id = {
-            let mut evq_guard = evq.lock().unwrap();
+            let mut evq_guard = ctxt.evq.lock().unwrap();
             // store the DecoratedSurface handler
             let decorated_id = evq_guard.add_handler_with_init(decorated);
             {
@@ -76,7 +74,6 @@ impl Window {
         };
         let me = Window {
             ctxt: ctxt,
-            evq: evq,
             cleanup_signal: cleanup_signal,
             surface: surface,
             size: Mutex::new((width, height)),
@@ -95,7 +92,7 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
-        let mut guard = self.evq.lock().unwrap();
+        let mut guard = self.ctxt.evq.lock().unwrap();
         let mut state = guard.state();
         let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
         decorated.set_title(title.into())
@@ -136,7 +133,7 @@ impl Window {
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        let mut guard = self.evq.lock().unwrap();
+        let mut guard = self.ctxt.evq.lock().unwrap();
         let mut state = guard.state();
         let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
         decorated.resize(x as i32, y as i32);

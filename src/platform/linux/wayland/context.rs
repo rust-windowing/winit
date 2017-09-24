@@ -114,7 +114,6 @@ impl wl_registry::Handler for WaylandEnv {
     {
         if interface == wl_output::WlOutput::interface_name() {
             // intercept outputs
-            // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
             let output = self.registry.bind::<wl_output::WlOutput>(1, name);
             evqh.register::<_, WaylandEnv>(&output, self.my_id);
             self.monitors.push(OutputInfo::new(output, name));
@@ -201,7 +200,7 @@ declare_handler!(WaylandEnv, wl_output::Handler, wl_output::WlOutput);
 
 pub struct WaylandContext {
     pub display: wl_display::WlDisplay,
-    evq: Mutex<EventQueue>,
+    pub evq: Mutex<EventQueue>,
     env_id: usize,
 }
 

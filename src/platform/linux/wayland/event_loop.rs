@@ -66,10 +66,8 @@ impl EventsLoopSink {
 }
 
 pub struct EventsLoop {
-    // the global wayland context
+    // the wayland context
     ctxt: Arc<WaylandContext>,
-    // our EventQueue
-    evq: Arc<Mutex<EventQueue>>,
     // ids of the DecoratedHandlers of the surfaces we know
     decorated_ids: Mutex<Vec<(usize, Arc<wl_surface::WlSurface>)>>,
     // our sink, receiver of callbacks, shared with some handlers
@@ -114,14 +112,15 @@ impl EventsLoopProxy {
 }
 
 impl EventsLoop {
-    pub fn new(ctxt: Arc<WaylandContext>) -> EventsLoop {
-        let mut evq = ctxt.display.create_event_queue();
+    pub fn new(mut ctxt: WaylandContext) -> EventsLoop {
         let (sink, buffer) = EventsLoopSink::new();
         let sink = Arc::new(Mutex::new(sink));
-        let hid = evq.add_handler_with_init(InputHandler::new(&ctxt, sink.clone()));
+        let inputh = InputHandler::new(&ctxt, sink.clone());
+        let hid = ctxt.evq.get_mut().unwrap().add_handler_with_init(inputh);
+        let ctxt = Arc::new(ctxt);
+
         EventsLoop {
             ctxt: ctxt,
-            evq: Arc::new(Mutex::new(evq)),
             decorated_ids: Mutex::new(Vec::new()),
             sink: sink,
             buffer: buffer,
@@ -144,8 +143,8 @@ impl EventsLoop {
     }
 
     // some internals that Window needs access to
-    pub fn get_window_init(&self) -> (Arc<Mutex<EventQueue>>, Arc<AtomicBool>) {
-        (self.evq.clone(), self.cleanup_needed.clone())
+    pub fn get_window_init(&self) -> Arc<AtomicBool> {
+        self.cleanup_needed.clone()
     }
 
     pub fn register_window(&self, decorated_id: usize, surface: Arc<wl_surface::WlSurface>) {
@@ -154,7 +153,7 @@ impl EventsLoop {
             event: ::WindowEvent::Refresh
         });
         self.decorated_ids.lock().unwrap().push((decorated_id, surface.clone()));
-        let mut guard = self.evq.lock().unwrap();
+        let mut guard = self.ctxt.evq.lock().unwrap();
         let mut state = guard.state();
         state.get_mut_handler::<InputHandler>(self.hid).windows.push(surface);
     }
@@ -187,7 +186,7 @@ impl EventsLoop {
 
     fn prune_dead_windows(&self) {
         self.decorated_ids.lock().unwrap().retain(|&(_, ref w)| w.status() == Liveness::Alive);
-        let mut evq_guard = self.evq.lock().unwrap();
+        let mut evq_guard = self.ctxt.evq.lock().unwrap();
         let mut state = evq_guard.state();
         let handler = state.get_mut_handler::<InputHandler>(self.hid);
         handler.windows.retain(|w| w.status() == Liveness::Alive);
@@ -212,7 +211,7 @@ impl EventsLoop {
         self.ctxt.flush();
 
         // first of all, get exclusive access to this event queue
-        let mut evq_guard = self.evq.lock().unwrap();
+        let mut evq_guard = self.ctxt.evq.lock().unwrap();
 
         // dispatch pre-buffered events
         self.empty_buffer(&mut callback);
@@ -229,7 +228,6 @@ impl EventsLoop {
         let old_cb = unsafe { self.sink.lock().unwrap().set_callback(static_cb) };
 
         // then do the actual dispatching
-        self.ctxt.dispatch_pending();
         evq_guard.dispatch_pending().expect("Wayland connection unexpectedly lost");
 
         self.emit_pending_wakeup();
@@ -259,7 +257,7 @@ impl EventsLoop {
         self.ctxt.flush();
 
         // first of all, get exclusive access to this event queue
-        let mut evq_guard = self.evq.lock().unwrap();
+        let mut evq_guard = self.ctxt.evq.lock().unwrap();
 
         // Check for control flow by wrapping the callback.
         let control_flow = ::std::cell::Cell::new(ControlFlow::Continue);
@@ -277,7 +275,6 @@ impl EventsLoop {
         let old_cb = unsafe { self.sink.lock().unwrap().set_callback(static_cb) };
 
         loop {
-            self.ctxt.dispatch();
             evq_guard.dispatch_pending().expect("Wayland connection unexpectedly lost");
 
             self.emit_pending_wakeup();
