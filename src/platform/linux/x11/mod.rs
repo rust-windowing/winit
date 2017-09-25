@@ -290,7 +290,7 @@ impl EventsLoop {
                     device_id: mkdid(3),
                     input: KeyboardInput {
                         state: state,
-                        scancode: xkev.keycode,
+                        scancode: xkev.keycode - 8,
                         virtual_keycode: vkey,
                         modifiers: ev_mods,
                     },
@@ -537,7 +537,7 @@ impl EventsLoop {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
                         let xkeysym = unsafe { (self.display.xlib.XKeycodeToKeysym)(self.display.display, xev.detail as ffi::KeyCode, 0) };
                         callback(Event::DeviceEvent { device_id: mkdid(xev.deviceid), event: DeviceEvent::Key(KeyboardInput {
-                            scancode: xev.detail as u32,
+                            scancode: (xev.detail - 8) as u32,
                             virtual_keycode: events::keysym_to_element(xkeysym as libc::c_uint),
                             state: match xev.evtype {
                                 ffi::XI_RawKeyPress => Pressed,
