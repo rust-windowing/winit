@@ -310,6 +310,7 @@ impl std::error::Error for CreationError {
     }
 }
 
+/// Describes the appearance of the mouse cursor.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum MouseCursor {
     /// The platform-dependent default cursor.
