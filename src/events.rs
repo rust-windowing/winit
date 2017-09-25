@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use {WindowId, DeviceId};
 
+/// Describes a generic event.
 #[derive(Clone, Debug)]
 pub enum Event {
     WindowEvent {
@@ -19,6 +20,7 @@ pub enum Event {
     Suspended(bool),
 }
 
+/// Describes an event from a `Window`.
 #[derive(Clone, Debug)]
 pub enum WindowEvent {
 
@@ -105,6 +107,7 @@ pub enum DeviceEvent {
     Text { codepoint: char },
 }
 
+/// Describes a keyboard input event.
 #[derive(Debug, Clone, Copy)]
 pub struct KeyboardInput {
     /// Identifies the physical key pressed
@@ -129,6 +132,7 @@ pub struct KeyboardInput {
     pub modifiers: ModifiersState
 }
 
+/// Describes touch-screen input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum TouchPhase {
     Started,
@@ -137,7 +141,6 @@ pub enum TouchPhase {
     Cancelled
 }
 
-#[derive(Debug, Clone, Copy)]
 /// Represents touch event
 ///
 /// Every time user touches screen new Start event with some finger id is generated.
@@ -153,6 +156,7 @@ pub enum TouchPhase {
 /// as previously received End event is a new finger and has nothing to do with an old one.
 ///
 /// Touch may be cancelled if for example window lost focus.
+#[derive(Debug, Clone, Copy)]
 pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
@@ -161,6 +165,7 @@ pub struct Touch {
     pub id: u64
 }
 
+/// Hardware-dependent keyboard scan code.
 pub type ScanCode = u32;
 
 /// Identifier for a specific analog axis on some device.
@@ -169,12 +174,14 @@ pub type AxisId = u32;
 /// Identifier for a specific button on some device.
 pub type ButtonId = u32;
 
+/// Describes the input state of a key.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ElementState {
     Pressed,
     Released,
 }
 
+/// Describes a button of a mouse controller.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum MouseButton {
     Left,
@@ -183,6 +190,7 @@ pub enum MouseButton {
     Other(u8),
 }
 
+/// Describes a difference in the mouse scroll wheel state.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MouseScrollDelta {
 	/// Amount in lines or rows to scroll in the horizontal
@@ -200,6 +208,7 @@ pub enum MouseScrollDelta {
 	PixelDelta(f32, f32)
 }
 
+/// Symbolic name for a keyboard key.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 pub enum VirtualKeyCode {
