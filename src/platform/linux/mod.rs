@@ -325,7 +325,7 @@ impl EventsLoop {
 
     pub fn new_wayland() -> Result<EventsLoop, ()> {
         wayland::WaylandContext::init()
-            .map(|ctx| EventsLoop::Wayland(wayland::EventsLoop::new(Arc::new(ctx))))
+            .map(|ctx| EventsLoop::Wayland(wayland::EventsLoop::new(ctx)))
             .ok_or(())
     }
 

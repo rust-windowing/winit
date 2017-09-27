@@ -112,6 +112,17 @@ pub trait WindowExt {
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     fn get_wayland_display(&self) -> Option<*mut libc::c_void>;
+
+    /// Check if the window is ready for drawing
+    ///
+    /// On wayland, drawing on a surface before the server has configured
+    /// it using a special event is illegal. As a result, you should wait
+    /// until this method returns `true`.
+    ///
+    /// Once it starts returning `true`, it can never return `false` again.
+    ///
+    /// If the window is X11-based, this will just always return `true`.
+    fn is_ready(&self) -> bool;
 }
 
 impl WindowExt for Window {
@@ -173,6 +184,14 @@ impl WindowExt for Window {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.get_display().ptr() as *mut _),
             _ => None
+        }
+    }
+
+    #[inline]
+    fn is_ready(&self) -> bool {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.is_ready(),
+            LinuxWindow::X(_) => true
         }
     }
 }

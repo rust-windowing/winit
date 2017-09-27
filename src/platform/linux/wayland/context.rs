@@ -114,7 +114,6 @@ impl wl_registry::Handler for WaylandEnv {
     {
         if interface == wl_output::WlOutput::interface_name() {
             // intercept outputs
-            // this "expect" cannot trigger (see https://github.com/vberger/wayland-client-rs/issues/69)
             let output = self.registry.bind::<wl_output::WlOutput>(1, name);
             evqh.register::<_, WaylandEnv>(&output, self.my_id);
             self.monitors.push(OutputInfo::new(output, name));
@@ -201,7 +200,7 @@ declare_handler!(WaylandEnv, wl_output::Handler, wl_output::WlOutput);
 
 pub struct WaylandContext {
     pub display: wl_display::WlDisplay,
-    evq: Mutex<EventQueue>,
+    pub evq: Mutex<EventQueue>,
     env_id: usize,
 }
 
@@ -235,6 +234,14 @@ impl WaylandContext {
             display: display,
             env_id: env_id
         })
+    }
+
+    pub fn read_events(&self) {
+        let evq_guard = self.evq.lock().unwrap();
+        // read some events from the socket if some are waiting & queue is empty
+        if let Some(guard) = evq_guard.prepare_read() {
+            guard.read_events().expect("Wayland connection unexpectedly lost");
+        }
     }
 
     pub fn dispatch_pending(&self) {
@@ -293,8 +300,8 @@ impl WaylandContext {
         evq.register::<_, InitialBufferHandler>(&buffer, initial_buffer_handler_id);
     }
 
-    pub fn create_window<H: wayland_window::Handler>(&self, width: u32, height: u32)
-        -> (Arc<wl_surface::WlSurface>, wayland_window::DecoratedSurface<H>)
+    pub fn create_window<H: wayland_window::Handler>(&self, width: u32, height: u32, decorated: bool)
+        -> (Arc<wl_surface::WlSurface>, wayland_window::DecoratedSurface<H>, bool)
     {
         let mut guard = self.evq.lock().unwrap();
         let (surface, decorated, xdg) = {
@@ -308,7 +315,7 @@ impl WaylandContext {
                 &env.inner.shm,
                 env.get_shell(),
                 env.get_seat(),
-                false
+                decorated
             ).expect("Failed to create a tmpfile buffer.");
             let xdg = match env.get_shell() {
                 &Shell::Xdg(_) => true,
@@ -325,7 +332,7 @@ impl WaylandContext {
             // from the compositor
             self.blank_surface(&surface, &mut *guard, width as i32, height as i32);
         }
-        (surface, decorated)
+        (surface, decorated, xdg)
     }
 }
 

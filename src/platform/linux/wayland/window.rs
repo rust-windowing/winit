@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{Ordering, AtomicBool};
 use std::cmp;
 
-use wayland_client::{EventQueue, EventQueueHandle, Proxy};
+use wayland_client::{EventQueueHandle, Proxy};
 use wayland_client::protocol::{wl_display,wl_surface};
 
 use {CreationError, MouseCursor, CursorState, WindowAttributes};
@@ -18,8 +18,6 @@ use super::wayland_window::DecoratedSurface;
 pub struct Window {
     // the global wayland context
     ctxt: Arc<WaylandContext>,
-    // the EventQueue of our EventsLoop
-    evq: Arc<Mutex<EventQueue>>,
     // signal to advertize the EventsLoop when we are destroyed
     cleanup_signal: Arc<AtomicBool>,
     // our wayland surface
@@ -44,27 +42,31 @@ impl Window {
         let ctxt = evlp.context().clone();
         let (width, height) = attributes.dimensions.unwrap_or((800,600));
 
-        let (surface, decorated) = ctxt.create_window::<DecoratedHandler>(width, height);
+        let (surface, decorated, xdg) = ctxt.create_window::<DecoratedHandler>(width, height, attributes.decorations);
 
         // init DecoratedSurface
-        let (evq, cleanup_signal) = evlp.get_window_init();
+        let cleanup_signal = evlp.get_window_init();
+
+        let mut fullscreen_monitor = None;
+        if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
+            ctxt.with_output(monitor_id.clone(), |output| {
+                fullscreen_monitor = output.clone();
+            });
+        }
+
         let decorated_id = {
-            let mut evq_guard = evq.lock().unwrap();
+            let mut evq_guard = ctxt.evq.lock().unwrap();
             // store the DecoratedSurface handler
             let decorated_id = evq_guard.add_handler_with_init(decorated);
             {
                 let mut state = evq_guard.state();
                 // initialize the DecoratedHandler
                 let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
-                *(decorated.handler()) = Some(DecoratedHandler::new());
+                *(decorated.handler()) = Some(DecoratedHandler::new(!xdg));
 
                 // set fullscreen if necessary
-                if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
-                    ctxt.with_output(monitor_id.clone(), |output| {
-                        decorated.set_fullscreen(Some(output))
-                    });
-                } else if attributes.decorations {
-                    decorated.set_decorate(true);
+                if let Some(output) = fullscreen_monitor {
+                    decorated.set_fullscreen(Some(&output));
                 }
                 // Finally, set the decorations size
                 decorated.resize(width as i32, height as i32);
@@ -76,7 +78,6 @@ impl Window {
         };
         let me = Window {
             ctxt: ctxt,
-            evq: evq,
             cleanup_signal: cleanup_signal,
             surface: surface,
             size: Mutex::new((width, height)),
@@ -95,7 +96,7 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
-        let mut guard = self.evq.lock().unwrap();
+        let mut guard = self.ctxt.evq.lock().unwrap();
         let mut state = guard.state();
         let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
         decorated.set_title(title.into())
@@ -136,7 +137,7 @@ impl Window {
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        let mut guard = self.evq.lock().unwrap();
+        let mut guard = self.ctxt.evq.lock().unwrap();
         let mut state = guard.state();
         let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
         decorated.resize(x as i32, y as i32);
@@ -213,30 +214,47 @@ impl Window {
 
         find
     }
+
+    pub fn is_ready(&self) -> bool {
+        let mut guard = self.ctxt.evq.lock().unwrap();
+        let mut state = guard.state();
+        let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
+        decorated.handler().as_ref().unwrap().configured
+    }
 }
 
 impl Drop for Window {
     fn drop(&mut self) {
         self.surface.destroy();
-        self.cleanup_signal.store(true, ::std::sync::atomic::Ordering::Relaxed);
+        self.cleanup_signal.store(true, Ordering::Relaxed);
     }
 }
 
 pub struct DecoratedHandler {
     newsize: Option<(u32, u32)>,
+    refresh: bool,
     closed: bool,
+    configured: bool
 }
 
 impl DecoratedHandler {
-    fn new() -> DecoratedHandler {
+    fn new(configured: bool) -> DecoratedHandler {
         DecoratedHandler {
             newsize: None,
+            refresh: false,
             closed: false,
+            configured: configured
         }
     }
 
     pub fn take_newsize(&mut self) -> Option<(u32, u32)> {
         self.newsize.take()
+    }
+
+    pub fn take_refresh(&mut self) -> bool {
+        let refresh = self.refresh;
+        self.refresh = false;
+        refresh
     }
 
     pub fn is_closed(&self) -> bool { self.closed }
@@ -248,9 +266,9 @@ impl wayland_window::Handler for DecoratedHandler {
                  _cfg: wayland_window::Configure,
                  newsize: Option<(i32, i32)>)
     {
-        if let Some((w, h)) = newsize {
-            self.newsize = Some((w as u32, h as u32));
-        }
+        self.newsize = newsize.map(|(w, h)| (w as u32, h as u32));
+        self.refresh = true;
+        self.configured = true;
     }
 
     fn close(&mut self, _: &mut EventQueueHandle) {
