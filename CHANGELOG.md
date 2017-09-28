@@ -1,5 +1,7 @@
 # Unreleased
 
+# Version 0.8.2 (2017-09-28)
+
 - Uniformize keyboard scancode values accross Wayland and X11 (#297).
 - Internal rework of the wayland event loop
 - Added method `os::linux::WindowExt::is_ready`
