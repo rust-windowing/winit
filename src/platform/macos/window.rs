@@ -280,6 +280,7 @@ impl Drop for Window2 {
                 msg_send![nswindow, close];
             }
         }
+        println!("dropping window");
     }
 }
 
