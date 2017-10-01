@@ -196,13 +196,13 @@ impl EventsLoop {
 
                 let event = self.ns_event_to_event(ns_event);
 
-                let _: () = msg_send![pool, release];
-
                 match event {
                     // Call the user's callback.
                     Some(event) => self.shared.user_callback.call_with_event(event),
                     None => break,
                 }
+
+                let _: () = msg_send![pool, release];
             }
         }
 
