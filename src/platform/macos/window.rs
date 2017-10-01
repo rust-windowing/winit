@@ -281,6 +281,7 @@ impl Drop for Window2 {
             }
         }
         println!("dropping window");
+        msg_send![nswindow, release];
     }
 }
 
