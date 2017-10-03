@@ -279,10 +279,6 @@ impl Drop for Window2 {
             unsafe {
                 msg_send![nswindow, close];
             }
-            println!("dropping window");
-            unsafe {
-                msg_send![nswindow, release];
-            }
         }
         
     }
