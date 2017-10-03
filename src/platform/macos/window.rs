@@ -31,7 +31,7 @@ pub struct Id(pub usize);
 
 struct DelegateState {
     view: IdRef,
-    window: IdRef,
+    window: NonOwningIdRef,
     shared: Weak<Shared>,
 }
 
@@ -258,7 +258,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 
 pub struct Window2 {
     pub view: IdRef,
-    pub window: IdRef,
+    pub window: NonOwningIdRef,
     pub delegate: WindowDelegate,
 }
 
@@ -386,7 +386,7 @@ impl Window2 {
         }
     }
 
-    fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
+    fn create_window(attrs: &WindowAttributes) -> Option<NonOwningIdRef> {
         unsafe {
             let screen = match attrs.fullscreen {
                 Some(ref monitor_id) => {
@@ -437,7 +437,7 @@ impl Window2 {
                     appkit::NSFullSizeContentViewWindowMask
             };
 
-            let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
+            let window = NonOwningIdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
                 frame,
                 masks,
                 appkit::NSBackingStoreBuffered,
@@ -752,5 +752,48 @@ impl Clone for IdRef {
             let _: id = unsafe { msg_send![self.0, retain] };
         }
         IdRef(self.0)
+    }
+}
+
+pub struct NonOwningIdRef(id);
+
+impl NonOwningIdRef {
+    fn new(i: id) -> NonOwningIdRef {
+        NonOwningIdRef(i)
+    }
+
+    #[allow(dead_code)]
+    fn retain(i: id) -> NonOwningIdRef {
+        if i != nil {
+            let _: id = unsafe { msg_send![i, retain] };
+        }
+        NonOwningIdRef(i)
+    }
+
+    fn non_nil(self) -> Option<NonOwningIdRef> {
+        if self.0 == nil { None } else { Some(self) }
+    }
+}
+
+
+impl Drop for NonOwningIdRef {
+    fn drop(&mut self) {
+        // intentionally do not drop
+    }
+}
+
+impl Deref for NonOwningIdRef {
+    type Target = id;
+    fn deref<'a>(&'a self) -> &'a id {
+        &self.0
+    }
+}
+
+impl Clone for NonOwningIdRef {
+    fn clone(&self) -> NonOwningIdRef {
+        if self.0 != nil {
+            let _: id = unsafe { msg_send![self.0, retain] };
+        }
+        NonOwningIdRef(self.0)
     }
 }
