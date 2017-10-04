@@ -360,7 +360,7 @@ impl Window2 {
 
         let ds = DelegateState {
             view: view.clone(),
-            window: window,
+            window: window.clone(),
             shared: shared,
         };
 
@@ -797,9 +797,6 @@ impl Deref for NonOwningIdRef {
 
 impl Clone for NonOwningIdRef {
     fn clone(&self) -> NonOwningIdRef {
-        if self.0 != nil {
-            let _: id = unsafe { msg_send![self.0, retain] };
-        }
         NonOwningIdRef(self.0)
     }
 }
