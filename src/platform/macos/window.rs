@@ -268,6 +268,9 @@ unsafe impl Sync for Window2 {}
 impl Drop for Window2 {
     fn drop(&mut self) {
         // Remove this window from the `EventLoop`s list of windows.
+        let autoreleasepool = unsafe {
+            NSAutoreleasePool::new(cocoa::base::nil)
+        };
         let id = self.id();
         if let Some(shared) = self.delegate.state.shared.upgrade() {
             shared.find_and_remove_window(id);
@@ -281,7 +284,9 @@ impl Drop for Window2 {
                 println!("window closed {:?}", nswindow);
             }
         }
-        
+        unsafe {
+            msg_send![autoreleasepool, drain];
+        }
     }
 }
 
