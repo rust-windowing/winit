@@ -31,7 +31,7 @@ pub struct Id(pub usize);
 
 struct DelegateState {
     view: IdRef,
-    window: IdRef,
+    window: NonOwningIdRef,
     shared: Weak<Shared>,
 }
 
@@ -360,7 +360,7 @@ impl Window2 {
 
         let ds = DelegateState {
             view: view.clone(),
-            window: IdRef(*window),
+            window: window,
             shared: shared,
         };
 
@@ -801,11 +801,5 @@ impl Clone for NonOwningIdRef {
             let _: id = unsafe { msg_send![self.0, retain] };
         }
         NonOwningIdRef(self.0)
-    }
-}
-
-impl Drop for DelegateState {
-    fn drop(&mut self) {
-        println!("dropping delegate state");
     }
 }
