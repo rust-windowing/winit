@@ -31,7 +31,7 @@ pub struct Id(pub usize);
 
 struct DelegateState {
     view: IdRef,
-    window: NonOwningIdRef,
+    window: IdRef,
     shared: Weak<Shared>,
 }
 
