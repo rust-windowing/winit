@@ -280,8 +280,6 @@ impl Drop for Window2 {
             unsafe {
                 msg_send![nswindow, close];
                 println!("window closed {:?}", nswindow);
-                println!("releaseing pool");
-                msg_send![self.autoreleasepool, drain];
             }
         }
         
@@ -371,8 +369,9 @@ impl Window2 {
             view: view,
             window: window,
             delegate: WindowDelegate::new(ds),
-            autoreleasepool: autoreleasepool,
         };
+
+        msg_send![autoreleasepool, drain];
         Ok(window)
     }
 
