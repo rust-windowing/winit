@@ -806,6 +806,6 @@ impl Clone for NonOwningIdRef {
 
 impl Drop for DelegateState {
     fn drop(&mut self) {
-        println("dropping delegate state");
+        println!("dropping delegate state");
     }
 }
