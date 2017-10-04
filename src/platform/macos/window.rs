@@ -369,8 +369,9 @@ impl Window2 {
             window: window,
             delegate: WindowDelegate::new(ds),
         };
-
-        msg_send![autoreleasepool, drain];
+        unsafe {
+            msg_send![autoreleasepool, drain];
+        }
         Ok(window)
     }
 
