@@ -260,7 +260,6 @@ pub struct Window2 {
     pub view: IdRef,
     pub window: NonOwningIdRef,
     pub delegate: WindowDelegate,
-    autoreleasepool: cocoa::base::id,
 }
 
 unsafe impl Send for Window2 {}
