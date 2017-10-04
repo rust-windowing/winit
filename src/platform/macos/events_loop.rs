@@ -203,8 +203,6 @@ impl EventsLoop {
                     Some(event) => self.shared.user_callback.call_with_event(event),
                     None => break,
                 }
-
-                
             }
         }
 
