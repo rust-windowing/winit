@@ -12,7 +12,7 @@ use objc::declare::ClassDecl;
 
 use cocoa;
 use cocoa::base::{id, nil};
-use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
+use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger, NSAutoreleasePool};
 use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow};
 
 use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID, CGDisplayPixelsHigh, CGWarpMouseCursorPosition};
@@ -260,6 +260,7 @@ pub struct Window2 {
     pub view: IdRef,
     pub window: NonOwningIdRef,
     pub delegate: WindowDelegate,
+    autoreleasepool: IdRef,
 }
 
 unsafe impl Send for Window2 {}
@@ -279,6 +280,8 @@ impl Drop for Window2 {
             unsafe {
                 msg_send![nswindow, close];
                 println!("window closed {:?}", nswindow);
+                println!("releaseing pool");
+                msg_send![*self.autoreleasepool, drain];
             }
         }
         
@@ -308,6 +311,10 @@ impl Window2 {
                 panic!("Windows can only be created on the main thread on macOS");
             }
         }
+
+        let autoreleasepool = unsafe {
+            IdRef::new(NSAutoreleasePool::new(cocoa::base::nil))
+        };
 
         let app = match Window2::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
@@ -364,8 +371,8 @@ impl Window2 {
             view: view,
             window: window,
             delegate: WindowDelegate::new(ds),
+            autoreleasepool: autoreleasepool,
         };
-
         Ok(window)
     }
 
