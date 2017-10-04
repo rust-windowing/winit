@@ -320,7 +320,7 @@ impl Window2 {
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
 
-        println!("window creating {:?}", window);
+        println!("window creating {:?}", *window);
 
         let view = match Window2::create_view(*window) {
             Some(view) => view,
