@@ -196,7 +196,7 @@ impl EventsLoop {
 
                 let event = self.ns_event_to_event(ns_event);
 
-                let _: () = msg_send![pool, release];
+                let _: () = msg_send![pool, drain];
 
                 match event {
                     // Call the user's callback.
