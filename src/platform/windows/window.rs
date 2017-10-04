@@ -99,7 +99,7 @@ impl Window {
     pub fn set_position(&self, x: i32, y: i32) {
         unsafe {
             user32::SetWindowPos(self.window.0, ptr::null_mut(), x as raw::c_int, y as raw::c_int,
-                                 0, 0, winapi::SWP_NOZORDER | winapi::SWP_NOSIZE);
+                                 0, 0, winapi::SWP_ASYNCWINDOWPOS | winapi::SWP_NOZORDER | winapi::SWP_NOSIZE);
             user32::UpdateWindow(self.window.0);
         }
     }
@@ -147,7 +147,7 @@ impl Window {
             let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
 
             user32::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION | winapi::SWP_NOMOVE);
+                winapi::SWP_ASYNCWINDOWPOS | winapi::SWP_NOZORDER | winapi::SWP_NOREPOSITION | winapi::SWP_NOMOVE);
             user32::UpdateWindow(self.window.0);
         }
     }

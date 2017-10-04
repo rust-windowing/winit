@@ -1,5 +1,7 @@
 # Unreleased
 
+- Fixed issue of calls to `set_inner_size` blocking on Windows.
+
 # Version 0.8.2 (2017-09-28)
 
 - Uniformize keyboard scancode values accross Wayland and X11 (#297).
