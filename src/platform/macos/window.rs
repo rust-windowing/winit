@@ -260,7 +260,7 @@ pub struct Window2 {
     pub view: IdRef,
     pub window: NonOwningIdRef,
     pub delegate: WindowDelegate,
-    autoreleasepool: IdRef,
+    autoreleasepool: cocoa::base::id,
 }
 
 unsafe impl Send for Window2 {}
@@ -281,7 +281,7 @@ impl Drop for Window2 {
                 msg_send![nswindow, close];
                 println!("window closed {:?}", nswindow);
                 println!("releaseing pool");
-                msg_send![*self.autoreleasepool, drain];
+                msg_send![self.autoreleasepool, drain];
             }
         }
         
@@ -313,7 +313,7 @@ impl Window2 {
         }
 
         let autoreleasepool = unsafe {
-            IdRef::new(NSAutoreleasePool::new(cocoa::base::nil))
+            NSAutoreleasePool::new(cocoa::base::nil)
         };
 
         let app = match Window2::create_app(pl_attribs.activation_policy) {
