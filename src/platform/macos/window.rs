@@ -281,7 +281,6 @@ impl Drop for Window2 {
         if nswindow != nil {
             unsafe {
                 msg_send![nswindow, close];
-                println!("window closed {:?}", nswindow);
             }
         }
         unsafe {
@@ -328,8 +327,6 @@ impl Window2 {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
-
-        println!("window creating {:?}", *window);
 
         let view = match Window2::create_view(*window) {
             Some(view) => view,
