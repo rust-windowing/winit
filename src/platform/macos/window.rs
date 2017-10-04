@@ -360,7 +360,7 @@ impl Window2 {
 
         let ds = DelegateState {
             view: view.clone(),
-            window: window.clone(),
+            window: IdRef(*window),
             shared: shared,
         };
 
