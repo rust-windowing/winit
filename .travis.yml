@@ -12,10 +12,15 @@ install:
       if [ $TRAVIS_OS_NAME = osx ]; then
         rustup target add x86_64-apple-ios
       fi
+  - |
+      if [ $TRAVIS_OS_NAME = linux ]; then
+        rustup target add i686-unknown-linux-gnu
+      fi
 
 script:
   - cargo build --verbose
   - if [ $TRAVIS_OS_NAME = osx ]; then cargo build --target x86_64-apple-ios --verbose; fi
+  - if [ $TRAVIS_OS_NAME = linux ]; then cargo build --target i686-unknown-linux-gnu --verbose; fi
   - cargo test --verbose
 
 os:

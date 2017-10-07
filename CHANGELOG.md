@@ -1,6 +1,7 @@
 # Unreleased
 
 - Fixed issue of calls to `set_inner_size` blocking on Windows.
+- Fixed the X11 backed on 32bit targets
 
 # Version 0.8.2 (2017-09-28)
 
