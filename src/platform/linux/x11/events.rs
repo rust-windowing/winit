@@ -171,6 +171,7 @@ pub fn keysym_to_element(keysym: libc::c_uint) -> Option<VirtualKeyCode> {
         //ffi::XK_Super_R => events::VirtualKeyCode::Super_r,
         //ffi::XK_Hyper_L => events::VirtualKeyCode::Hyper_l,
         //ffi::XK_Hyper_R => events::VirtualKeyCode::Hyper_r,
+        ffi::XK_ISO_Left_Tab => events::VirtualKeyCode::Tab,
         ffi::XK_space => events::VirtualKeyCode::Space,
         //ffi::XK_exclam => events::VirtualKeyCode::Exclam,
         //ffi::XK_quotedbl => events::VirtualKeyCode::Quotedbl,
