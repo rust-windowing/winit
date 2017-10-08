@@ -76,6 +76,10 @@ impl Window {
 
             decorated_id
         };
+        // send our configuration to the compositor
+        // if we're in xdg mode, no buffer is attached yet, so this
+        // is fine (and more or less required actually)
+        surface.commit();
         let me = Window {
             ctxt: ctxt,
             cleanup_signal: cleanup_signal,
