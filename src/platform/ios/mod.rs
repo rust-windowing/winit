@@ -145,6 +145,11 @@ impl MonitorId {
         // iOS assumes single screen
         (0, 0)
     }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        1.0
+    }
 }
 
 pub struct EventsLoop {

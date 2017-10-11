@@ -53,4 +53,9 @@ impl MonitorId {
     pub fn get_position(&self) -> (u32, u32) {
         unimplemented!()
     }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        1.0
+    }
 }

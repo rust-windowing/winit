@@ -87,6 +87,15 @@ pub enum WindowEvent {
 
     /// Touch event has been received
     Touch(Touch),
+
+    /// DPI scaling factor of the window has changed.
+    ///
+    /// The following actions cause DPI changes:
+    ///
+    /// * A user changes the resolution.
+    /// * A user changes the desktop scaling value (e.g. in Control Panel on Windows).
+    /// * A user moves the application window to a display with a different DPI.
+    HiDPIFactorChanged(f32),
 }
 
 /// Represents raw hardware events that are not associated with any particular window.

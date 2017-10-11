@@ -94,6 +94,11 @@ impl MonitorId {
             &MonitorId::Wayland(ref m) => m.get_position(),
         }
     }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        1.0
+    }
 }
 
 impl Window {
