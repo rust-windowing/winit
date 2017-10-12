@@ -5,9 +5,6 @@ pub use self::event_loop::{EventsLoop, EventsLoopProxy};
 pub use self::context::{WaylandContext, MonitorId, get_available_monitors,
                         get_primary_monitor};
 
-use self::window::{make_wid, DecoratedHandler};
-use self::event_loop::EventsLoopSink;
-
 extern crate wayland_kbd;
 extern crate wayland_window;
 extern crate wayland_protocols;
