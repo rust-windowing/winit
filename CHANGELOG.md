@@ -1,5 +1,7 @@
 # Unreleased
 
+# Version 0.8.3 (2017-10-11)
+
 - Fixed issue of calls to `set_inner_size` blocking on Windows.
 - Mapped `ISO_Left_Tab` to `VirtualKeyCode::Tab` to make the key work with modifiers
 - Fixed the X11 backed on 32bit targets

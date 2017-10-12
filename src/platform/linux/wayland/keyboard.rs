@@ -216,6 +216,7 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         // => Some(VirtualKeyCode::Subtract),
         // => Some(VirtualKeyCode::Sysrq),
         keysyms::XKB_KEY_Tab => Some(VirtualKeyCode::Tab),
+        keysyms::XKB_KEY_ISO_Left_Tab => Some(VirtualKeyCode::Tab),
         // => Some(VirtualKeyCode::Underline),
         // => Some(VirtualKeyCode::Unlabeled),
         keysyms::XKB_KEY_XF86AudioLowerVolume => Some(VirtualKeyCode::VolumeDown),
