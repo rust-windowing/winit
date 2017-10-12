@@ -11,7 +11,7 @@ use super::wayland_window::Shell;
 
 pub struct WaylandContext {
     display: wl_display::WlDisplay,
-    evqh: Mutex<EventQueue>,
+    evq: Mutex<EventQueue>,
     env_token: StateToken<EnvHandler<InnerEnv>>,
     ctxt_token: StateToken<StateContext>,
 }
@@ -46,10 +46,52 @@ impl WaylandContext {
 
         Some(WaylandContext {
             display: display,
-            evqh: Mutex::new(event_queue),
+            evq: Mutex::new(event_queue),
             env_token: env_token,
             ctxt_token: ctxt_token
         })
+    }
+
+    pub fn read_events(&self) {
+        let evq_guard = self.evq.lock().unwrap();
+        // read some events from the socket if some are waiting & queue is empty
+        if let Some(guard) = evq_guard.prepare_read() {
+            guard.read_events().expect("Wayland connection unexpectedly lost");
+        }
+    }
+
+    pub fn dispatch_pending(&self) {
+        let mut guard = self.evq.lock().unwrap();
+        guard.dispatch_pending().expect("Wayland connection unexpectedly lost");
+    }
+
+    pub fn dispatch(&self) {
+        let mut guard = self.evq.lock().unwrap();
+        guard.dispatch().expect("Wayland connection unexpectedly lost");
+    }
+
+    pub fn flush(&self) {
+        let _ = self.display.flush();
+    }
+
+    pub fn get_seat(&self) -> Option<wl_seat::WlSeat> {
+        let mut guard = self.evq.lock().unwrap();
+        guard.state()
+             .get(&self.ctxt_token)
+             .seat
+             .as_ref()
+             .and_then(|s| s.clone())
+    }
+
+    pub fn with_output_info<F, T>(&self, id: &MonitorId, f: F) -> Option<T>
+    where F: FnOnce(&OutputInfo) -> T
+    {
+        let mut guard = self.evq.lock().unwrap();
+        let ctxt = guard.state().get(&self.ctxt_token);
+        for m in ctxt.monitors.iter().filter(|m| m.id == id.id) {
+            return Some(f(m))
+        }
+        None
     }
 }
 
@@ -107,7 +149,7 @@ fn env_notify() -> EnvNotify<StateToken<StateContext>> {
             if interface == wl_output::WlOutput::interface_name() {
                 // a new output is available
                 let output = registry.bind::<wl_output::WlOutput>(1, id);
-                // evqh.register::<_, WaylandEnv>(&output, self.my_id);
+                evqh.register(&output, output_impl(), token.clone());
                 evqh.state().get_mut(&token).monitors.push(OutputInfo::new(output, id));
             } else if interface == zxdg_shell_v6::ZxdgShellV6::interface_name() {
                 // We have an xdg_shell, bind it
@@ -140,11 +182,38 @@ fn env_notify() -> EnvNotify<StateToken<StateContext>> {
  * Monitor stuff
  */
 
-struct OutputInfo {
+fn output_impl() -> wl_output::Implementation<StateToken<StateContext>> {
+    wl_output::Implementation {
+        geometry: |evqh, token, output, x, y, _, _, _, make, model, _| {
+            let ctxt = evqh.state().get_mut(token);
+            if let Some(info) = ctxt.monitors.iter_mut().find(|info| info.output.equals(output)) {
+                info.pix_pos = (x, y);
+                info.name = format!("{} - {}", make, model);
+            }
+        },
+        mode: |evqh, token, output, flags, w, h, _refresh| {
+            if flags.contains(wl_output::Mode::Current) {
+                let ctxt = evqh.state().get_mut(token);
+                if let Some(info) = ctxt.monitors.iter_mut().find(|info| info.output.equals(output)) {
+                    info.pix_size = (w as u32, h as u32);
+                }
+            }
+        },
+        done: |_, _, _| {},
+        scale: |evqh, token, output, scale| {
+            let ctxt = evqh.state().get_mut(token);
+            if let Some(info) = ctxt.monitors.iter_mut().find(|info| info.output.equals(output)) {
+                info.scale = scale as f32;
+            }
+        }
+    }
+}
+
+pub struct OutputInfo {
     output: wl_output::WlOutput,
     id: u32,
     scale: f32,
-    pix_size: (u32, u32),
+    pix_size: (i32, i32),
     pix_pos: (u32, u32),
     name: String
 }
@@ -171,24 +240,29 @@ pub fn get_available_monitors(ctxt: &Arc<WaylandContext>) -> VecDeque<MonitorId>
 }
 
 #[derive(Clone)]
-pub struct MonitorId;
+pub struct MonitorId {
+    id: u32,
+    ctxt: Arc<WaylandContext>
+}
 
 impl MonitorId {
     pub fn get_name(&self) -> Option<String> {
-        unimplemented!()
+        self.ctxt.with_output_info(self, |info| info.name.clone())
     }
 
     #[inline]
     pub fn get_native_identifier(&self) -> u32 {
-        unimplemented!()
+        self.id
     }
 
     pub fn get_dimensions(&self) -> (u32, u32) {
-        unimplemented!()
+        self.ctxt.with_output_info(self, |info| info.pix_size)
+                 .unwrap_or((0,0))
     }
 
     pub fn get_position(&self) -> (i32, i32) {
-            unimplemented!()
+        self.ctxt.with_output_info(self, |info| info.pix_pos)
+                 .unwrap_or((0,0))
     }
 
     #[inline]
