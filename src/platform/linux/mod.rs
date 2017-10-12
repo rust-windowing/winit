@@ -354,7 +354,14 @@ impl EventsLoop {
     pub fn get_primary_monitor(&self) -> MonitorId {
         match *self {
             EventsLoop::Wayland(ref evlp) => MonitorId::Wayland(wayland::get_primary_monitor(evlp.context())),
-            EventsLoop::X(ref evlp) => MonitorId::X(x11::get_primary_monitor(evlp.x_connection())),
+            EventsLoop::X(ref evlp) => {
+                let x = evlp.x_connection();
+                x11::get_primary_monitor(x)
+                    // 'no primary' case is better handled picking some existing monitor
+                    .or_else(|| x11::get_available_monitors(x).into_iter().next())
+                    .map(MonitorId::X)
+                    .expect("[winit] Failed to find any x11 monitor")
+            }
         }
     }
 
