@@ -11,6 +11,7 @@ use std::sync::Mutex;
 use std::sync::mpsc::channel;
 
 use platform::platform::events_loop;
+use platform::platform::dpi;
 use platform::platform::EventsLoop;
 use platform::platform::PlatformSpecificWindowBuilderAttributes;
 use platform::platform::MonitorId;
@@ -251,7 +252,9 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
-        1.0
+        unsafe {
+            dpi::get_window_dpi(self.window.0, self.window.1) as f32/96.0
+        }
     }
 
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
@@ -320,6 +323,8 @@ impl Drop for WindowWrapper {
 
 unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes,
                inserter: events_loop::Inserter) -> Result<Window, CreationError> {
+    dpi::become_dpi_aware();
+
     let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 

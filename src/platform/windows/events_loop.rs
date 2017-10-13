@@ -769,6 +769,29 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
+        // Only sent on Windows 8.1 or newer. On Windows 7 and older user has to log out to change DPI,
+        // therefore all applications are closed while DPI is changing.
+        winapi::WM_DPICHANGED => {
+            use events::WindowEvent::HiDPIFactorChanged;
+
+            // This message actually provides two DPI values - x and y. However MSDN says that "you only need to
+            // use either the X-axis or the Y-axis value when scaling your application since they are the same".
+            //
+            // https://msdn.microsoft.com/en-us/library/windows/desktop/dn312083(v=vs.85).aspx
+            let dpi_x = winapi::LOWORD(wparam as u32);
+
+            // Resize window to the size suggested by Windows.
+            let rect = *mem::transmute::<winapi::LPARAM, *const winapi::RECT>(lparam);
+            user32::SetWindowPos(window, ptr::null_mut(), rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, winapi::SWP_NOZORDER | winapi::SWP_NOACTIVATE);
+
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: HiDPIFactorChanged(dpi_x as f32/96.0) // 96 is the standard DPI value used when there is no scaling
+            });
+
+            0
+        },
+
         _ => {
             user32::DefWindowProcW(window, msg, wparam, lparam)
         }
