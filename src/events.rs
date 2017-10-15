@@ -101,11 +101,11 @@ pub enum WindowEvent {
 pub enum DeviceEvent {
     Added,
     Removed,
-
     /// In the case of mouse motion, the axis is 0 (in x) or 1 (in y), and the value is the distance delta.
-    /// For example, repeatedly moving the mouse 5 pixels to the left will generate a sequence of
+    /// For example, repeatedly moving the mouse 5 pixels to the right will generate a sequence of
     /// `Motion { axis: 0, value: 5.0 }` events.
     Motion { axis: AxisId, value: f64 },
+
     Button { button: ButtonId, state: ElementState },
     Key(KeyboardInput),
     Text { codepoint: char },
