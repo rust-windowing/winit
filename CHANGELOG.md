@@ -1,5 +1,10 @@
 # Unreleased
 
+- Added event `WindowEvent::HiDPIFactorChanged`.
+- Added method `MonitorId::get_hidpi_factor`.
+- Deprecated `get_inner_size_pixels` and `get_inner_size_points` methods of `Window` in favor of
+`get_inner_size`.
+
 # Version 0.8.3 (2017-10-11)
 
 - Fixed issue of calls to `set_inner_size` blocking on Windows.
