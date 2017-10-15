@@ -1,4 +1,7 @@
 use std::collections::VecDeque;
+use std::fs::File;
+use std::io::Write;
+use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 
 use wayland_client::{EnvHandler, EnvNotify, default_connect, EventQueue, EventQueueHandle, Proxy, StateToken};
@@ -7,11 +10,13 @@ use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subc
 
 use super::wayland_protocols::unstable::xdg_shell::client::zxdg_shell_v6;
 
-use super::wayland_window::Shell;
+use super::wayland_window::{self, Shell};
+
+use super::tempfile;
 
 pub struct WaylandContext {
-    display: wl_display::WlDisplay,
-    evq: Mutex<EventQueue>,
+    pub display: wl_display::WlDisplay,
+    pub evq: Mutex<EventQueue>,
     env_token: StateToken<EnvHandler<InnerEnv>>,
     ctxt_token: StateToken<StateContext>,
 }
@@ -93,6 +98,74 @@ impl WaylandContext {
         }
         None
     }
+
+    /// Creates a buffer of given size and assign it to the surface
+    ///
+    /// This buffer only contains white pixels, and is needed when using wl_shell
+    /// to make sure the window actually exists and can receive events before the
+    /// use starts its event loop
+    fn blank_surface(&self, surface: &wl_surface::WlSurface, width: i32, height: i32) {
+        let mut tmp = tempfile::tempfile().expect("Failed to create a tmpfile buffer.");
+        for _ in 0..(width*height) {
+            tmp.write_all(&[0xff,0xff,0xff,0xff]).unwrap();
+        }
+        tmp.flush().unwrap();
+        let mut evq = self.evq.lock().unwrap();
+        let pool = evq.state()
+                      .get(&self.env_token)
+                      .shm
+                      .create_pool(tmp.as_raw_fd(), width*height*4);
+        let buffer = pool.create_buffer(0, width, height, width, wl_shm::Format::Argb8888)
+                         .expect("Pool cannot be already dead");
+        surface.attach(Some(&buffer), 0, 0);
+        surface.commit();
+        // the buffer will keep the contents alive as needed
+        pool.destroy();
+        // register the buffer for freeing
+        evq.register(&buffer, free_buffer(), Some(tmp));
+    }
+
+    /// Create a new window with given dimensions
+    ///
+    /// Grabs a lock on the event queue in the process
+    pub fn create_window<ID: 'static>(&self, width: u32, height: u32, decorated: bool, implem: wayland_window::DecoratedSurfaceImplementation<ID>, idata: ID)
+        -> (Arc<wl_surface::WlSurface>, wayland_window::DecoratedSurface, bool)
+    {
+        let (surface, decorated, xdg) = {
+            let mut guard = self.evq.lock().unwrap();
+            let env = guard.state().get(&self.env_token).clone_inner().unwrap();
+            let (shell, xdg) = match guard.state().get(&self.ctxt_token).shell {
+                Some(Shell::Wl(ref wl_shell)) => (Shell::Wl(wl_shell.clone().unwrap()), false),
+                Some(Shell::Xdg(ref xdg_shell)) => (Shell::Xdg(xdg_shell.clone().unwrap()), true),
+                None => unreachable!()
+            };
+            let seat = guard.state().get(&self.ctxt_token).seat.as_ref().and_then(|s| s.clone());
+            let surface = Arc::new(env.compositor.create_surface());
+            let decorated = wayland_window::init_decorated_surface(
+                &mut guard,
+                implem,
+                idata,
+                &*surface, width as i32, height as i32,
+                &env.compositor,
+                &env.subcompositor,
+                &env.shm,
+                &shell,
+                seat,
+                decorated
+            ).expect("Failed to create a tmpfile buffer.");
+            (surface, decorated, xdg)
+        };
+
+        if !xdg {
+            // if using wl_shell, we need to draw something in order to kickstart
+            // the event loop
+            // if using xdg_shell, it is an error to do it now, and the events loop will not
+            // be stuck. We cannot draw anything before having received an appropriate event
+            // from the compositor
+            self.blank_surface(&surface, width as i32, height as i32);
+        }
+        (surface, decorated, xdg)
+    }
 }
 
 /*
@@ -154,8 +227,7 @@ fn env_notify() -> EnvNotify<StateToken<StateContext>> {
             } else if interface == zxdg_shell_v6::ZxdgShellV6::interface_name() {
                 // We have an xdg_shell, bind it
                 let xdg_shell = registry.bind::<zxdg_shell_v6::ZxdgShellV6>(1, id);
-                //let xdg_ping_hid = evqh.add_handler(XdgShellPingHandler);
-                //evqh.register::<_, XdgShellPingHandler>(&xdg_shell, xdg_ping_hid);
+                evqh.register(&xdg_shell, xdg_ping_implementation(), ());
                 evqh.state().get_mut(&token).shell = Some(Shell::Xdg(xdg_shell));
             } else if interface == wl_seat::WlSeat::interface_name() {
                 // FIXME: currently we only take first seat, what to do when
@@ -175,6 +247,23 @@ fn env_notify() -> EnvNotify<StateToken<StateContext>> {
             evqh.state().get_mut(&token).monitors.retain(|m| m.id != id);
         },
         ready: |_, _, _| {}
+    }
+}
+
+fn xdg_ping_implementation() -> zxdg_shell_v6::Implementation<()> {
+    zxdg_shell_v6::Implementation {
+        ping: |_, _, shell, serial| {
+            shell.pong(serial);
+        }
+    }
+}
+
+fn free_buffer() -> wl_buffer::Implementation<Option<File>> {
+    wl_buffer::Implementation {
+        release: |_, data, buffer| {
+            buffer.destroy();
+            *data = None;
+        }
     }
 }
 
@@ -210,12 +299,12 @@ fn output_impl() -> wl_output::Implementation<StateToken<StateContext>> {
 }
 
 pub struct OutputInfo {
-    output: wl_output::WlOutput,
-    id: u32,
-    scale: f32,
-    pix_size: (i32, i32),
-    pix_pos: (u32, u32),
-    name: String
+    pub output: wl_output::WlOutput,
+    pub id: u32,
+    pub scale: f32,
+    pub pix_size: (u32, u32),
+    pub pix_pos: (i32, i32),
+    pub name: String
 }
 
 impl OutputInfo {
@@ -232,11 +321,26 @@ impl OutputInfo {
 }
 
 pub fn get_primary_monitor(ctxt: &Arc<WaylandContext>) -> MonitorId {
-    unimplemented!()
+    let mut guard = ctxt.evq.lock().unwrap();
+    let state = guard.state();
+    let state_ctxt = state.get(&ctxt.ctxt_token);
+    if let Some(ref monitor) = state_ctxt.monitors.iter().next() {
+        MonitorId {
+            id: monitor.id,
+            ctxt: ctxt.clone()
+        }
+    } else {
+        panic!("No monitor is available.")
+    }
 }
 
 pub fn get_available_monitors(ctxt: &Arc<WaylandContext>) -> VecDeque<MonitorId> {
-    unimplemented!()
+    let mut guard = ctxt.evq.lock().unwrap();
+    let state = guard.state();
+    let state_ctxt = state.get(&ctxt.ctxt_token);
+    state_ctxt.monitors.iter()
+       .map(|m| MonitorId { id: m.id, ctxt: ctxt.clone() })
+       .collect()
 }
 
 #[derive(Clone)]

@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use wayland_client::protocol::{wl_display,wl_surface};
+use wayland_client::{Proxy, StateToken};
 
 use {CreationError, MouseCursor, CursorState, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
@@ -8,7 +11,10 @@ use platform::wayland::context::get_available_monitors;
 
 use super::{WaylandContext, EventsLoop};
 
-pub struct Window;
+pub struct Window {
+    ctxt: Arc<WaylandContext>,
+    store: StateToken<WindowStore>
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId;
@@ -16,6 +22,22 @@ pub struct WindowId;
 impl Window {
     pub fn new(evlp: &EventsLoop, attributes: &WindowAttributes) -> Result<Window, CreationError>
     {
+        let ctxt = evlp.context().clone();
+        let (width, height) = attributes.dimensions.unwrap_or((800,600));
+
+        let (surface, decorated, xdg) = ctxt.create_window(
+            width, height, attributes.decorations, decorated_impl(), ());
+
+        // init DecoratedSurface
+        let window_store = evlp.store();
+
+        let mut fullscreen_monitor = None;
+        if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
+            ctxt.with_output_info(monitor_id, |info| {
+                fullscreen_monitor = info.output.clone();
+            });
+        }
+
         unimplemented!()
     }
 
@@ -106,5 +128,34 @@ impl Window {
 
     pub fn is_ready(&self) -> bool {
         unimplemented!()
+    }
+}
+
+/*
+ * Internal store for windows
+ */
+
+struct InternalWindow {
+
+}
+
+pub struct WindowStore {
+    windows: Vec<InternalWindow>
+}
+
+impl WindowStore {
+    pub fn new() -> WindowStore {
+        WindowStore { windows: Vec::new() }
+    }
+}
+
+/*
+ * Protocol implementation
+ */
+
+fn decorated_impl() -> super::wayland_window::DecoratedSurfaceImplementation<()> {
+    super::wayland_window::DecoratedSurfaceImplementation {
+        configure: |_, _, _, _| {},
+        close: |_, _| {}
     }
 }
