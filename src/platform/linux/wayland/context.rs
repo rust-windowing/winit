@@ -407,6 +407,11 @@ impl MonitorId {
         // if we reach here, this monitor does not exist any more
         (0,0)
     }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        1.0
+    }
 }
 
 // a handler to release the ressources acquired to draw the initial white screen as soon as

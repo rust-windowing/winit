@@ -91,7 +91,7 @@ impl WindowBuilder {
         self
     }
 
-    /// Enables multitouch
+    /// Enables multitouch.
     #[inline]
     pub fn with_multitouch(mut self) -> WindowBuilder {
         self.window.multitouch = true;
@@ -183,7 +183,7 @@ impl Window {
 
     /// Modifies the position of the window.
     ///
-    /// See `get_position` for more informations about the coordinates.
+    /// See `get_position` for more information about the coordinates.
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
@@ -191,14 +191,12 @@ impl Window {
         self.window.set_position(x, y)
     }
 
-    /// Returns the size in points of the client area of the window.
+    /// Returns the size in pixels of the client area of the window.
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
-    /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
+    /// These are the dimensions that need to be supplied to `glViewport`.
     ///
     /// Returns `None` if the window no longer exists.
-    ///
-    /// DEPRECATED
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         self.window.get_inner_size()
@@ -210,11 +208,16 @@ impl Window {
     /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
     ///
     /// Returns `None` if the window no longer exists.
+    ///
+    /// DEPRECATED
     #[inline]
+    #[deprecated]
     pub fn get_inner_size_points(&self) -> Option<(u32, u32)> {
-        self.window.get_inner_size()
+        self.window.get_inner_size().map(|(x, y)| {
+            let hidpi = self.hidpi_factor();
+            ((x as f32 / hidpi) as u32, (y as f32 / hidpi) as u32)
+        })
     }
-
 
     /// Returns the size in pixels of the client area of the window.
     ///
@@ -223,12 +226,12 @@ impl Window {
     ///  when you call `glViewport`.
     ///
     /// Returns `None` if the window no longer exists.
+    ///
+    /// DEPRECATED
     #[inline]
+    #[deprecated]
     pub fn get_inner_size_pixels(&self) -> Option<(u32, u32)> {
-        self.window.get_inner_size().map(|(x, y)| {
-            let hidpi = self.hidpi_factor();
-            ((x as f32 * hidpi) as u32, (y as f32 * hidpi) as u32)
-        })
+        self.window.get_inner_size()
     }
 
     /// Returns the size in pixels of the window.
@@ -244,7 +247,7 @@ impl Window {
 
     /// Modifies the inner size of the window.
     ///
-    /// See `get_inner_size` for more informations about the values.
+    /// See `get_inner_size` for more information about the values.
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
@@ -323,7 +326,7 @@ impl Window {
 }
 
 /// An iterator for the list of available monitors.
-// Implementation note: we retreive the list once, then serve each element by one by one.
+// Implementation note: we retrieve the list once, then serve each element by one by one.
 // This may change in the future.
 pub struct AvailableMonitorsIter {
     pub(crate) data: VecDequeIter<platform::MonitorId>,
@@ -369,5 +372,11 @@ impl MonitorId {
     #[inline]
     pub fn get_position(&self) -> (u32, u32) {
         self.inner.get_position()
+    }
+
+    /// Returns the ratio between the monitor's physical pixels and logical pixels.
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        self.inner.get_hidpi_factor()
     }
 }

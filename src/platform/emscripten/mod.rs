@@ -42,6 +42,11 @@ impl MonitorId {
     pub fn get_dimensions(&self) -> (u32, u32) {
         (0, 0)
     }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        1.0
+    }
 }
 
 // Used to assign a callback to emscripten main loop
