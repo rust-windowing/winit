@@ -57,6 +57,33 @@ impl WaylandContext {
         })
     }
 
+    pub fn init_seat<F>(&mut self, f: F)
+    where F: FnOnce(&mut EventQueueHandle, &wl_seat::WlSeat)
+    {
+        let guard = self.evq.get_mut().unwrap();
+        if guard.state().get(&self.ctxt_token).seat.is_some() {
+            // seat has already been init
+            return;
+        }
+
+        // clone the token to make borrow checker happy
+        let ctxt_token = self.ctxt_token.clone();
+        let mut seat = guard.state().with_value(&self.env_token, |proxy, env| {
+            let ctxt = proxy.get(&ctxt_token);
+            for &(name, ref interface, _) in env.globals() {
+                if interface == wl_seat::WlSeat::interface_name() {
+                    return Some(ctxt.registry.bind::<wl_seat::WlSeat>(5, name));
+                }
+            }
+            None
+        });
+
+        if let Some(seat) = seat {
+            f(&mut *guard, &seat);
+            guard.state().get_mut(&self.ctxt_token).seat = Some(seat)
+        }
+    }
+
     pub fn read_events(&self) {
         let evq_guard = self.evq.lock().unwrap();
         // read some events from the socket if some are waiting & queue is empty
@@ -229,17 +256,6 @@ fn env_notify() -> EnvNotify<StateToken<StateContext>> {
                 let xdg_shell = registry.bind::<zxdg_shell_v6::ZxdgShellV6>(1, id);
                 evqh.register(&xdg_shell, xdg_ping_implementation(), ());
                 evqh.state().get_mut(&token).shell = Some(Shell::Xdg(xdg_shell));
-            } else if interface == wl_seat::WlSeat::interface_name() {
-                // FIXME: currently we only take first seat, what to do when
-                // multiple seats ?
-                if evqh.state().get_mut(&token).seat.is_none() {
-                    if version < 5 {
-                        panic!("Winit requires at least version 5 of the wl_seat global.");
-                    }
-                    let seat = registry.bind::<wl_seat::WlSeat>(5, id);
-                    // TODO: register
-                    evqh.state().get_mut(&token).seat = Some(seat);
-                }
             }
         },
         del_global: |evqh, token, _, id| {

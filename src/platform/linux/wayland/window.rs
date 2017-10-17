@@ -9,15 +9,12 @@ use window::MonitorId as RootMonitorId;
 use platform::wayland::MonitorId as WaylandMonitorId;
 use platform::wayland::context::get_available_monitors;
 
-use super::{WaylandContext, EventsLoop};
+use super::{WaylandContext, EventsLoop, WindowId};
 
 pub struct Window {
     ctxt: Arc<WaylandContext>,
     store: StateToken<WindowStore>
 }
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId;
 
 impl Window {
     pub fn new(evlp: &EventsLoop, attributes: &WindowAttributes) -> Result<Window, CreationError>

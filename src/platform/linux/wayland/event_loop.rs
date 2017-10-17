@@ -6,8 +6,10 @@ use {EventsLoopClosed, ControlFlow};
 
 use super::{WaylandContext, WindowId};
 use super::window::WindowStore;
+use super::keyboard::init_keyboard;
 
 use wayland_client::StateToken;
+use wayland_client::protocol::{wl_seat, wl_pointer, wl_keyboard};
 
 pub struct EventsLoopSink {
     buffer: VecDeque<::Event>
@@ -82,14 +84,23 @@ impl EventsLoopProxy {
 }
 
 impl EventsLoop {
-    pub fn new(ctxt: WaylandContext) -> EventsLoop {
+    pub fn new(mut ctxt: WaylandContext) -> EventsLoop {
         let sink = Arc::new(Mutex::new(EventsLoopSink::new()));
-        let ctxt = Arc::new(ctxt);
 
         let store = ctxt.evq.lock().unwrap().state().insert(WindowStore::new());
 
+        let seat_idata = SeatIData {
+            sink: sink.clone(),
+            keyboard: None,
+            pointer: None
+        };
+
+        ctxt.init_seat(|evqh, seat| {
+            evqh.register(seat, seat_implementation(), seat_idata);
+        });
+
         EventsLoop {
-            ctxt: ctxt,
+            ctxt: Arc::new(ctxt),
             sink: sink,
             pending_wakeup: Arc::new(AtomicBool::new(false)),
             store: store
@@ -123,5 +134,47 @@ impl EventsLoop {
         where F: FnMut(::Event) -> ControlFlow,
     {
         unimplemented!()
+    }
+}
+
+/*
+ * Wayland protocol implementations
+ */
+
+struct SeatIData {
+    sink: Arc<Mutex<EventsLoopSink>>,
+    pointer: Option<wl_pointer::WlPointer>,
+    keyboard: Option<wl_keyboard::WlKeyboard>
+}
+
+fn seat_implementation() -> wl_seat::Implementation<SeatIData> {
+    wl_seat::Implementation {
+        name: |_, _, _, _| {},
+        capabilities: |evqh, idata, seat, capabilities| {
+            // create pointer if applicable
+            if capabilities.contains(wl_seat::Capability::Pointer) && idata.pointer.is_none() {
+                let pointer = seat.get_pointer().expect("Seat is not dead");
+                // FIXME: register pointer
+                idata.pointer = Some(pointer);
+            }
+            // destroy pointer if applicable
+            if !capabilities.contains(wl_seat::Capability::Pointer) {
+                if let Some(pointer) = idata.pointer.take() {
+                    pointer.release();
+                }
+            }
+            // create keyboard if applicable
+            if capabilities.contains(wl_seat::Capability::Keyboard) && idata.keyboard.is_none() {
+                let kbd = seat.get_keyboard().expect("Seat is not dead");
+                init_keyboard(evqh, &kbd, &idata.sink);
+                idata.keyboard = Some(kbd);
+            }
+            // destroy keyboard if applicable
+            if !capabilities.contains(wl_seat::Capability::Keyboard) {
+                if let Some(kbd) = idata.keyboard.take() {
+                    kbd.release();
+                }
+            }
+        }
     }
 }
