@@ -27,8 +27,8 @@ pub struct MonitorId {
 
     /// The position of the monitor in pixels on the desktop.
     ///
-    /// A window that is positionned at these coordinates will overlap the monitor.
-    position: (u32, u32),
+    /// A window that is positioned at these coordinates will overlap the monitor.
+    position: (i32, i32),
 
     /// The current resolution in pixels on the monitor.
     dimensions: (u32, u32),
@@ -111,7 +111,7 @@ impl EventsLoop {
                 }
 
                 let point: &winapi::POINTL = mem::transmute(&dev.union1);
-                let position = (point.x as u32, point.y as u32);
+                let position = (point.x as i32, point.y as i32);
 
                 let dimensions = (dev.dmPelsWidth as u32, dev.dmPelsHeight as u32);
 
@@ -176,9 +176,9 @@ impl MonitorId {
         &self.adapter_name
     }
 
-    /// A window that is positionned at these coordinates will overlap the monitor.
+    /// A window that is positioned at these coordinates will overlap the monitor.
     #[inline]
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         self.position
     }
 

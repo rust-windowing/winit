@@ -204,6 +204,8 @@ impl Window {
         let mut find = default;
         for monitor in monitors {
             let (mx, my) = monitor.get_position();
+            let mx = mx as u32;
+            let my = my as u32;
             let (mw, mh) = monitor.get_dimensions();
             let (mxo, myo) = (mx+mw-1, my+mh-1);
             let (ox, oy) = (cmp::max(wx, mx), cmp::max(wy, my));
