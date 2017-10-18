@@ -7,32 +7,34 @@ use {CreationError, MouseCursor, CursorState, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
 use platform::wayland::MonitorId as WaylandMonitorId;
-use platform::wayland::context::get_available_monitors;
 
-use super::{WaylandContext, EventsLoop, WindowId, make_wid};
+use super::{EventsLoop, WindowId, make_wid};
+use super::wayland_window::{DecoratedSurface, DecoratedSurfaceImplementation};
 
 pub struct Window {
-    ctxt: Arc<WaylandContext>,
-    store: StateToken<WindowStore>
+    surface: wl_surface::WlSurface,
+    decorated: DecoratedSurface,
 }
 
 impl Window {
     pub fn new(evlp: &EventsLoop, attributes: &WindowAttributes) -> Result<Window, CreationError>
     {
-        let ctxt = evlp.context().clone();
         let (width, height) = attributes.dimensions.unwrap_or((800,600));
 
-        let (surface, decorated, xdg) = ctxt.create_window(
+        let (surface, decorated, xdg) = evlp.create_window(
             width, height, attributes.decorations, decorated_impl(), ());
 
-        let mut fullscreen_monitor = None;
+        let mut fullscreen_monitor =
         if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
-            ctxt.with_output_info(monitor_id, |info| {
-                fullscreen_monitor = info.output.clone();
-            });
-        }
+            monitor_id.info.lock().unwrap().output.clone()
+        } else {
+            None
+        };
 
-        unimplemented!()
+        Ok(Window {
+            surface: surface,
+            decorated: decorated
+        })
     }
 
     #[inline]
@@ -156,8 +158,8 @@ impl WindowStore {
  * Protocol implementation
  */
 
-fn decorated_impl() -> super::wayland_window::DecoratedSurfaceImplementation<()> {
-    super::wayland_window::DecoratedSurfaceImplementation {
+fn decorated_impl() -> DecoratedSurfaceImplementation<()> {
+    DecoratedSurfaceImplementation {
         configure: |_, _, _, _| {},
         close: |_, _| {}
     }

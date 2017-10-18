@@ -1,9 +1,7 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
 pub use self::window::Window;
-pub use self::event_loop::{EventsLoop, EventsLoopProxy, EventsLoopSink};
-pub use self::context::{WaylandContext, MonitorId, get_available_monitors,
-                        get_primary_monitor};
+pub use self::event_loop::{EventsLoop, EventsLoopProxy, EventsLoopSink, MonitorId};
 
 extern crate wayland_kbd;
 extern crate wayland_window;
@@ -13,7 +11,6 @@ extern crate tempfile;
 use wayland_client::protocol::wl_surface;
 use wayland_client::Proxy;
 
-mod context;
 mod event_loop;
 mod keyboard;
 mod window;
