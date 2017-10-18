@@ -57,19 +57,19 @@ impl EventsLoopSink {
 
 pub struct EventsLoop {
     // The wayland display
-    display: Arc<wl_display::WlDisplay>,
+    pub display: Arc<wl_display::WlDisplay>,
     // The Event Queue
-    evq: RefCell<EventQueue>,
+    pub evq: RefCell<EventQueue>,
     // our sink, shared with some handlers, buffering the events
     sink: Arc<Mutex<EventsLoopSink>>,
     // Whether or not there is a pending `Awakened` event to be emitted.
     pending_wakeup: Arc<AtomicBool>,
     // The window store
-    store: StateToken<WindowStore>,
+    pub store: StateToken<WindowStore>,
     // the env
     env_token: StateToken<EnvHandler<InnerEnv>>,
     // the ctxt
-    ctxt_token: StateToken<StateContext>,
+    pub ctxt_token: StateToken<StateContext>,
 }
 
 // A handle that can be sent across threads and used to wake up the `EventsLoop`.
@@ -207,7 +207,7 @@ wayland_env!(InnerEnv,
     subcompositor: wl_subcompositor::WlSubcompositor
 );
 
-struct StateContext {
+pub struct StateContext {
     registry: wl_registry::WlRegistry,
     seat: Option<wl_seat::WlSeat>,
     shell: Option<Shell>,
@@ -242,6 +242,18 @@ impl StateContext {
         }
         // This is a compositor bug, it _must_ at least support wl_shell
         panic!("Compositor didi not advertize xdg_shell not wl_shell.");
+    }
+
+    pub fn monitor_id_for(&self, output: &wl_output::WlOutput) -> MonitorId {
+        for info in &self.monitors {
+            let guard = info.lock().unwrap();
+            if guard.output.equals(output) {
+                return MonitorId {
+                    info: info.clone()
+                };
+            }
+        }
+        panic!("Received an inexistent wl_output?!");
     }
 }
 
@@ -302,8 +314,9 @@ impl EventsLoop {
     /// Create a new window with given dimensions
     ///
     /// Grabs a lock on the event queue in the process
-    pub fn create_window<ID: 'static>(&self, width: u32, height: u32, decorated: bool, implem: DecoratedSurfaceImplementation<ID>, idata: ID)
+    pub fn create_window<ID: 'static, F>(&self, width: u32, height: u32, decorated: bool, implem: DecoratedSurfaceImplementation<ID>, idata: F)
         -> (wl_surface::WlSurface, DecoratedSurface, bool)
+    where F: FnOnce(&wl_surface::WlSurface) -> ID
     {
         let (surface, decorated, xdg) = {
             let mut guard = self.evq.borrow_mut();
@@ -318,7 +331,7 @@ impl EventsLoop {
             let decorated = init_decorated_surface(
                 &mut guard,
                 implem,
-                idata,
+                idata(&surface),
                 &surface, width as i32, height as i32,
                 &env.compositor,
                 &env.subcompositor,
