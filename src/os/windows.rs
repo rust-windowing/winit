@@ -37,13 +37,21 @@ impl WindowBuilderExt for WindowBuilder {
 
 /// Additional methods on `MonitorId` that are specific to Windows.
 pub trait MonitorIdExt {
-    /// Returns the name of the monitor specific to the Win32 API.
+    /// Returns the name of the monitor adapter specific to the Win32 API.
     fn native_id(&self) -> String;
+
+    /// Returns the handle of the monitor specific to the Win32 API.
+    fn hmonitor(&self) -> winapi::HMONITOR;
 }
 
 impl MonitorIdExt for MonitorId {
     #[inline]
     fn native_id(&self) -> String {
         self.inner.get_native_identifier()
+    }
+
+    #[inline]
+    fn hmonitor(&self) -> winapi::HMONITOR {
+        self.inner.get_hmonitor()
     }
 }
