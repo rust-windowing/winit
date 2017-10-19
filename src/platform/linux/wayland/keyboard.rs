@@ -36,7 +36,7 @@ fn mapped_keyboard_impl() -> MappedKeyboardImplementation<KeyboardIData> {
             idata.sink.lock().unwrap().send_event(Event::Focused(true), wid);
             idata.target = Some(wid);
         },
-        leave: |_, idata, _, serial, surface| {
+        leave: |_, idata, _, _, surface| {
             let wid = make_wid(surface);
             idata.sink.lock().unwrap().send_event(Event::Focused(false), wid);
             idata.target = None;

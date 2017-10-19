@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use wayland_client::protocol::{wl_display,wl_surface};
 use wayland_client::{Proxy, StateToken};
@@ -14,10 +14,11 @@ use super::event_loop::StateContext;
 pub struct Window {
     display: Arc<wl_display::WlDisplay>,
     surface: wl_surface::WlSurface,
-    decorated: Mutex<DecoratedSurface>,
+    decorated: Arc<Mutex<DecoratedSurface>>,
     monitors: Arc<Mutex<MonitorList>>,
     ready: Arc<Mutex<bool>>,
-    size: Arc<Mutex<(u32, u32)>>
+    size: Arc<Mutex<(u32, u32)>>,
+    kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
 }
 
 impl Window {
@@ -43,8 +44,6 @@ impl Window {
         if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
             let info = monitor_id.info.lock().unwrap();
             decorated.set_fullscreen(Some(&info.output));
-        } else if !attributes.decorations {
-            decorated.set_decorate(false);
         }
         // setup the monitor tracking
         let monitor_list = Arc::new(Mutex::new(MonitorList::default()));
@@ -57,12 +56,18 @@ impl Window {
         // forget to configure us
         surface.commit();
 
+        let kill_switch = Arc::new(Mutex::new(false));
+        let decorated = Arc::new(Mutex::new(decorated));
+
         {
             let mut evq = evlp.evq.borrow_mut();
             evq.state().get_mut(&store_token).windows.push(InternalWindow {
                 closed: false,
                 newsize: None,
-                surface: surface.clone().unwrap()
+                need_refresh: false,
+                surface: surface.clone().unwrap(),
+                kill_switch: kill_switch.clone(),
+                decorated: Arc::downgrade(&decorated)
             });
             evq.sync_roundtrip().unwrap();
         }
@@ -70,10 +75,11 @@ impl Window {
         Ok(Window {
             display: evlp.display.clone(),
             surface: surface,
-            decorated: Mutex::new(decorated),
+            decorated: decorated,
             monitors: monitor_list,
             ready: ready,
-            size: size
+            size: size,
+            kill_switch: (kill_switch, evlp.cleanup_needed.clone())
         })
     }
 
@@ -178,6 +184,13 @@ impl Window {
     }
 }
 
+impl Drop for Window {
+    fn drop(&mut self) {
+        *(self.kill_switch.0.lock().unwrap()) = true;
+        *(self.kill_switch.1.lock().unwrap()) = true;
+    }
+}
+
 /*
  * Internal store for windows
  */
@@ -185,7 +198,10 @@ impl Window {
 struct InternalWindow {
     surface: wl_surface::WlSurface,
     newsize: Option<(i32, i32)>,
-    closed: bool
+    need_refresh: bool,
+    closed: bool,
+    kill_switch: Arc<Mutex<bool>>,
+    decorated: Weak<Mutex<DecoratedSurface>>
 }
 
 pub struct WindowStore {
@@ -205,6 +221,37 @@ impl WindowStore {
         }
         None
     }
+
+    pub fn cleanup(&mut self) {
+        self.windows.retain(|w| {
+            if *w.kill_switch.lock().unwrap() {
+                // window is dead, cleanup
+                w.surface.destroy();
+                false
+            } else {
+                true
+            }
+        });
+    }
+
+    pub fn for_each<F>(&mut self, mut f: F)
+    where F: FnMut(Option<(i32, i32)>, bool, bool, WindowId, Option<&mut DecoratedSurface>)
+    {
+        for window in &mut self.windows {
+            let opt_arc = window.decorated.upgrade();
+            let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
+            f(
+                window.newsize.take(),
+                window.need_refresh,
+                window.closed,
+                make_wid(&window.surface),
+                opt_mutex_lock.as_mut().map(|m| &mut **m)
+            );
+            window.need_refresh = false;
+            // avoid re-spamming the event
+            window.closed = false;
+        }
+    }
 }
 
 /*
@@ -221,13 +268,12 @@ fn decorated_impl() -> DecoratedSurfaceImplementation<DecoratedIData> {
     DecoratedSurfaceImplementation {
         configure: |evqh, idata, _, newsize| {
             *idata.ready.lock().unwrap() = true;
-            if let Some(newsize) = newsize {
-                let store = evqh.state().get_mut(&idata.store_token);
-                for window in &mut store.windows {
-                    if window.surface.equals(&idata.surface) {
-                        window.newsize = Some(newsize);
-                        return;
-                    }
+            let store = evqh.state().get_mut(&idata.store_token);
+            for window in &mut store.windows {
+                if window.surface.equals(&idata.surface) {
+                    window.newsize = newsize;
+                    window.need_refresh = true;
+                    return;
                 }
             }
         },

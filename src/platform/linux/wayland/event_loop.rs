@@ -6,8 +6,7 @@ use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase, ModifiersState,
-     KeyboardInput, EventsLoopClosed, ControlFlow};
+use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase, EventsLoopClosed, ControlFlow};
 
 use super::{WindowId, DeviceId};
 use super::window::WindowStore;
@@ -70,6 +69,8 @@ pub struct EventsLoop {
     env_token: StateToken<EnvHandler<InnerEnv>>,
     // the ctxt
     pub ctxt_token: StateToken<StateContext>,
+    // a cleanup switch to prune dead windows
+    pub cleanup_needed: Arc<Mutex<bool>>
 }
 
 // A handle that can be sent across threads and used to wake up the `EventsLoop`.
@@ -145,7 +146,8 @@ impl EventsLoop {
             pending_wakeup: Arc::new(AtomicBool::new(false)),
             store: store,
             ctxt_token: ctxt_token,
-            env_token: env_token
+            env_token: env_token,
+            cleanup_needed: Arc::new(Mutex::new(false))
         };
 
         me.init_seat(|evqh, seat| {
@@ -165,13 +167,52 @@ impl EventsLoop {
     pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(::Event)
     {
-        unimplemented!()
+        // send pending events to the server
+        self.display.flush().expect("Wayland connection lost.");
+
+        // dispatch any pre-buffered events
+        self.sink.lock().unwrap().empty_with(&mut callback);
+
+        // try to read pending events
+        if let Some(h) = self.evq.get_mut().prepare_read() {
+            h.read_events().expect("Wayland connection lost.");
+        }
+        // dispatch wayland events
+        self.evq.get_mut().dispatch_pending().expect("Wayland connection lost.");
+        self.post_dispatch_triggers();
+
+        // dispatch buffered events to client
+        self.sink.lock().unwrap().empty_with(&mut callback);
     }
 
     pub fn run_forever<F>(&mut self, mut callback: F)
         where F: FnMut(::Event) -> ControlFlow,
     {
-        unimplemented!()
+        // send pending events to the server
+        self.display.flush().expect("Wayland connection lost.");
+
+        // Check for control flow by wrapping the callback.
+        let control_flow = ::std::cell::Cell::new(ControlFlow::Continue);
+        let mut callback = |event| if let ControlFlow::Break = callback(event) {
+            control_flow.set(ControlFlow::Break);
+        };
+
+        // dispatch any pre-buffered events
+        self.post_dispatch_triggers();
+        self.sink.lock().unwrap().empty_with(&mut callback);
+
+        loop {
+            // dispatch events blocking if needed
+            self.evq.get_mut().dispatch().expect("Wayland connection lost.");
+            self.post_dispatch_triggers();
+
+            // empty buffer of events
+            self.sink.lock().unwrap().empty_with(&mut callback);
+
+            if let ControlFlow::Break = control_flow.get() {
+                break;
+            }
+        }
     }
 
     pub fn get_primary_monitor(&self) -> MonitorId {
@@ -269,7 +310,7 @@ impl EventsLoop {
 
         // clone the token to make borrow checker happy
         let ctxt_token = self.ctxt_token.clone();
-        let mut seat = guard.state().with_value(&self.env_token, |proxy, env| {
+        let seat = guard.state().with_value(&self.env_token, |proxy, env| {
             let ctxt = proxy.get(&ctxt_token);
             for &(name, ref interface, _) in env.globals() {
                 if interface == wl_seat::WlSeat::interface_name() {
@@ -283,6 +324,39 @@ impl EventsLoop {
             f(&mut *guard, &seat);
             guard.state().get_mut(&self.ctxt_token).seat = Some(seat)
         }
+    }
+
+    fn post_dispatch_triggers(&mut self) {
+        let mut sink = self.sink.lock().unwrap();
+        let evq = self.evq.get_mut();
+        // process a possible pending wakeup call
+        if self.pending_wakeup.load(Ordering::Relaxed) {
+            sink.send_raw_event(::Event::Awakened);
+            self.pending_wakeup.store(false, Ordering::Relaxed);
+        }
+        // prune possible dead windows
+        {
+            let mut cleanup_needed = self.cleanup_needed.lock().unwrap();
+            if *cleanup_needed {
+                evq.state().get_mut(&self.store).cleanup();
+                *cleanup_needed = false;
+            }
+        }
+        // process pending resize/refresh
+        evq.state().get_mut(&self.store).for_each(
+            |newsize, refresh, closed, wid, decorated| {
+                if let (Some((w, h)), Some(decorated)) = (newsize, decorated) {
+                    decorated.resize(w as i32, h as i32);
+                    sink.send_event(::WindowEvent::Resized(w as u32, h as u32), wid);
+                }
+                if refresh {
+                    sink.send_event(::WindowEvent::Refresh, wid);
+                }
+                if closed {
+                    sink.send_event(::WindowEvent::Closed, wid);
+                }
+            }
+        )
     }
 
     /// Creates a buffer of given size and assign it to the surface
@@ -362,9 +436,10 @@ impl EventsLoop {
 fn env_notify() -> EnvNotify<StateToken<StateContext>> {
     EnvNotify {
         new_global: |evqh, token, registry, id, interface, version| {
+            use std::cmp::min;
             if interface == wl_output::WlOutput::interface_name() {
                 // a new output is available
-                let output = registry.bind::<wl_output::WlOutput>(1, id);
+                let output = registry.bind::<wl_output::WlOutput>(min(version, 3), id);
                 evqh.register(&output, output_impl(), token.clone());
                 evqh.state().get_mut(&token).monitors.push(
                     Arc::new(Mutex::new(OutputInfo::new(output, id)))
