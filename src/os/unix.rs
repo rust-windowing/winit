@@ -41,7 +41,12 @@ pub trait EventsLoopExt {
 impl EventsLoopExt for EventsLoop {
     #[inline]
     fn new_x11() -> Result<Self, XNotSupported> {
-        LinuxEventsLoop::new_x11().map(|ev| EventsLoop { events_loop: ev })
+        LinuxEventsLoop::new_x11().map(|ev|
+            EventsLoop {
+                events_loop: ev,
+                _marker: ::std::marker::PhantomData,
+            }
+        )
     }
 
     #[inline]
@@ -50,7 +55,8 @@ impl EventsLoopExt for EventsLoop {
             events_loop: match LinuxEventsLoop::new_wayland() {
                 Ok(e) => e,
                 Err(_) => panic!()      // TODO: propagate
-            }
+            },
+            _marker: ::std::marker::PhantomData,
         }
     }
 

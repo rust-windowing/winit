@@ -4,6 +4,8 @@
 - Added method `MonitorId::get_hidpi_factor`.
 - Deprecated `get_inner_size_pixels` and `get_inner_size_points` methods of `Window` in favor of
 `get_inner_size`.
+- **Breaking:** `EventsLoop` is `!Send` and `!Sync` because of platform-dependant constraints,
+  but `Window`, `WindowId`, `DeviceId` and `MonitorId` guaranteed to be `Send`.
 - `MonitorId::get_position` now returns `(i32, i32)` instead of `(u32, u32)`.
 
 # Version 0.8.3 (2017-10-11)
