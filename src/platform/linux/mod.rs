@@ -88,7 +88,7 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         match self {
             &MonitorId::X(ref m) => m.get_position(),
             &MonitorId::Wayland(ref m) => m.get_position(),
@@ -97,7 +97,10 @@ impl MonitorId {
 
     #[inline]
     pub fn get_hidpi_factor(&self) -> f32 {
-        1.0
+        match self {
+            &MonitorId::X(ref m) => m.get_hidpi_factor(),
+            &MonitorId::Wayland(ref m) => m.get_hidpi_factor(),
+        }
     }
 }
 

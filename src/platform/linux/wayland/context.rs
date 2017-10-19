@@ -37,7 +37,7 @@ struct OutputInfo {
     id: u32,
     scale: f32,
     pix_size: (u32, u32),
-    pix_pos: (u32, u32),
+    pix_pos: (i32, i32),
     name: String
 }
 
@@ -162,7 +162,7 @@ impl wl_output::Handler for WaylandEnv {
     {
         for m in self.monitors.iter_mut().filter(|m| m.output.equals(proxy)) {
             m.name = format!("{} ({})", model, make);
-            m.pix_pos = (x as u32, y as u32);
+            m.pix_pos = (x, y);
             break;
         }
     }
@@ -397,7 +397,7 @@ impl MonitorId {
         (0,0)
     }
 
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         let mut guard = self.ctxt.evq.lock().unwrap();
         let state = guard.state();
         let env = state.get_handler::<WaylandEnv>(self.ctxt.env_id);

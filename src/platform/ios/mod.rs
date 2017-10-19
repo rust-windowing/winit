@@ -141,7 +141,7 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         // iOS assumes single screen
         (0, 0)
     }

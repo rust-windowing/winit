@@ -370,7 +370,7 @@ impl MonitorId {
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
     #[inline]
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         self.inner.get_position()
     }
 
