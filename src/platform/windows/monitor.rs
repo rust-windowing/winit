@@ -78,11 +78,11 @@ unsafe extern "system" fn monitor_enum_proc(hmonitor: winapi::HMONITOR, _: winap
 
 impl EventsLoop {
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
-        let mut result: VecDeque<MonitorId> = VecDeque::new();
         unsafe {
+            let mut result: VecDeque<MonitorId> = VecDeque::new();
             user32::EnumDisplayMonitors(ptr::null_mut(), ptr::null_mut(), Some(monitor_enum_proc), &mut result as *mut _ as winapi::LPARAM);
+            result
         }
-        result
     }
 
     pub fn get_primary_monitor(&self) -> MonitorId {
