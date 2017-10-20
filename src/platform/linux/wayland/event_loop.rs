@@ -55,8 +55,6 @@ impl EventsLoopSink {
 }
 
 pub struct EventsLoop {
-    // The wayland display
-    pub display: Arc<wl_display::WlDisplay>,
     // The Event Queue
     pub evq: RefCell<EventQueue>,
     // our sink, shared with some handlers, buffering the events
@@ -70,7 +68,9 @@ pub struct EventsLoop {
     // the ctxt
     pub ctxt_token: StateToken<StateContext>,
     // a cleanup switch to prune dead windows
-    pub cleanup_needed: Arc<Mutex<bool>>
+    pub cleanup_needed: Arc<Mutex<bool>>,
+    // The wayland display
+    pub display: Arc<wl_display::WlDisplay>,
 }
 
 // A handle that can be sent across threads and used to wake up the `EventsLoop`.
