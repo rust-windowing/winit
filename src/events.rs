@@ -61,6 +61,7 @@ pub enum WindowEvent {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: (f64, f64),
+        modifiers: ModifiersState
     },
 
     /// The cursor has entered the window.
@@ -70,10 +71,11 @@ pub enum WindowEvent {
     CursorLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase },
+    MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase, modifiers: ModifiersState },
 
     /// An mouse button press has been received.
-    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton },
+    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton, modifiers: ModifiersState },
+  
 
     /// Touchpad pressure event.
     ///

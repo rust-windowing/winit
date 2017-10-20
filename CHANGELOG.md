@@ -4,6 +4,7 @@
 - Added support for `DroppedFile`, `HoveredFile`, and `HoveredFileCancelled` to X11 backend.
 - **Breaking:** `unix::WindowExt` no longer returns pointers for things that aren't actually pointers; `get_xlib_window` now returns `Option<std::os::raw::c_ulong>` and `get_xlib_screen_id` returns `Option<std::os::raw::c_int>`. Additionally, methods that previously returned `libc::c_void` have been changed to return `std::os::raw::c_void`, which are not interchangeable types, so users wanting the former will need to explicitly cast.
 - Added `set_decorations` method to `Window` to allow decorations to be toggled after the window is built. Presently only implemented on X11.
+- Added `modifiers` field to `MouseInput`, `MouseWheel`, and `CursorMoved` events to track the modifiers state (`ModifiersState`).
 
 # Version 0.9.0 (2017-12-01)
 
