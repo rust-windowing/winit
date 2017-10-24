@@ -297,6 +297,7 @@ pub enum EventsLoop {
     X(x11::EventsLoop)
 }
 
+#[derive(Clone)]
 pub enum EventsLoopProxy {
     X(x11::EventsLoopProxy),
     Wayland(wayland::EventsLoopProxy),

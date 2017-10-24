@@ -20,6 +20,7 @@ pub struct EventsLoop {
     event_rx: Receiver<android_glue::Event>,
 }
 
+#[derive(Clone)]
 pub struct EventsLoopProxy;
 
 impl EventsLoop {

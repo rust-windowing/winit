@@ -246,6 +246,7 @@ impl EventsLoop {
 }
 
 /// Used to wake up the `EventsLoop` from another thread.
+#[derive(Clone)]
 pub struct EventsLoopProxy {
     events_loop_proxy: platform::EventsLoopProxy,
 }

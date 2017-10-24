@@ -68,6 +68,7 @@ pub fn set_main_loop_callback<F>(callback : F) where F : FnMut() {
     }
 }
 
+#[derive(Clone)]
 pub struct EventsLoopProxy;
 
 impl EventsLoopProxy {

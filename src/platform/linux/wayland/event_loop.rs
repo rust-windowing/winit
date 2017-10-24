@@ -76,6 +76,7 @@ pub struct EventsLoop {
 // A handle that can be sent across threads and used to wake up the `EventsLoop`.
 //
 // We should only try and wake up the `EventsLoop` if it still exists, so we hold Weak ptrs.
+#[derive(Clone)]
 pub struct EventsLoopProxy {
     display: Weak<wl_display::WlDisplay>,
     pending_wakeup: Weak<AtomicBool>,
