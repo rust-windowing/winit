@@ -12,13 +12,13 @@ use super::wayland_window::{DecoratedSurface, DecoratedSurfaceImplementation};
 use super::event_loop::StateContext;
 
 pub struct Window {
-    display: Arc<wl_display::WlDisplay>,
     surface: wl_surface::WlSurface,
     decorated: Arc<Mutex<DecoratedSurface>>,
     monitors: Arc<Mutex<MonitorList>>,
     ready: Arc<Mutex<bool>>,
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
+    display: Arc<wl_display::WlDisplay>,
 }
 
 impl Window {
