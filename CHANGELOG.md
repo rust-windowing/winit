@@ -9,6 +9,9 @@
 - `MonitorId::get_position` now returns `(i32, i32)` instead of `(u32, u32)`.
 - Rewrite of the wayland backend to use wayland-client-0.11
 - Support for dead keys on wayland for keyboard utf8 input
+- Monitor enumeration on Windows is now implemented using `EnumDisplayMonitors` instead of
+`EnumDisplayDevices`. This changes the value returned by `MonitorId::get_name()`.
+- On Windows added `MonitorIdExt::hmonitor` method
 
 # Version 0.8.3 (2017-10-11)
 
