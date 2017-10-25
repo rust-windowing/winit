@@ -43,6 +43,7 @@ pub struct EventsLoop {
     wakeup_dummy_window: ffi::Window,
 }
 
+#[derive(Clone)]
 pub struct EventsLoopProxy {
     pending_wakeup: Weak<AtomicBool>,
     display: Weak<XConnection>,

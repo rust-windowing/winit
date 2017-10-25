@@ -156,6 +156,7 @@ pub struct EventsLoop {
     delegate_state: *mut DelegateState
 }
 
+#[derive(Clone)]
 pub struct EventsLoopProxy;
 
 impl EventsLoop {

@@ -12,6 +12,7 @@
 - Monitor enumeration on Windows is now implemented using `EnumDisplayMonitors` instead of
 `EnumDisplayDevices`. This changes the value returned by `MonitorId::get_name()`.
 - On Windows added `MonitorIdExt::hmonitor` method
+- Impl `Clone` for `EventsLoopProxy`
 
 # Version 0.8.3 (2017-10-11)
 
