@@ -75,13 +75,10 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
 
 #[inline]
 pub fn get_primary_monitor(x: &Arc<XConnection>) -> MonitorId {
-    for monitor in get_available_monitors(x) {
-        if monitor.primary {
-            return monitor.clone()
-        }
-    }
-
-    panic!("[winit] Failed to find the primary monitor")
+    get_available_monitors(x).into_iter().find(|m| m.primary)
+        // 'no primary' case is better handled picking some existing monitor
+        .or_else(|| get_available_monitors(x).into_iter().next())
+        .expect("[winit] Failed to find any x11 monitor")
 }
 
 impl MonitorId {
