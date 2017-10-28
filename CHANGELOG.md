@@ -13,6 +13,7 @@
 `EnumDisplayDevices`. This changes the value returned by `MonitorId::get_name()`.
 - On Windows added `MonitorIdExt::hmonitor` method
 - Impl `Clone` for `EventsLoopProxy`
+- `EventsLoop::get_primary_monitor()` on X11 will fallback to any available monitor if no primary is found
 
 # Version 0.8.3 (2017-10-11)
 
