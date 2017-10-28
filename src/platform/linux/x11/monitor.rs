@@ -12,7 +12,7 @@ pub struct MonitorId {
     /// The size of the monitor
     dimensions: (u32, u32),
     /// The position of the monitor in the X screen
-    position: (u32, u32),
+    position: (i32, i32),
     /// If the monitor is the primary one
     primary: bool,
 }
@@ -40,7 +40,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                     id: i as u32,
                     name,
                     dimensions: (monitor.width as u32, monitor.height as u32),
-                    position: (monitor.x as u32, monitor.y as u32),
+                    position: (monitor.x as i32, monitor.y as i32),
                     primary: (monitor.primary != 0),
                 });
             }
@@ -61,7 +61,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                         id: crtcid as u32,
                         name,
                         dimensions: ((*crtc).width as u32, (*crtc).height as u32),
-                        position: ((*crtc).x as u32, (*crtc).y as u32),
+                        position: ((*crtc).x as i32, (*crtc).y as i32),
                         primary: true,
                     });
                 }
@@ -98,7 +98,12 @@ impl MonitorId {
         self.dimensions
     }
 
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         self.position
+    }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        1.0
     }
 }

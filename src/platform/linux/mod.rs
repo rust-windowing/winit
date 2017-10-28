@@ -88,10 +88,18 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         match self {
             &MonitorId::X(ref m) => m.get_position(),
             &MonitorId::Wayland(ref m) => m.get_position(),
+        }
+    }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        match self {
+            &MonitorId::X(ref m) => m.get_hidpi_factor(),
+            &MonitorId::Wayland(ref m) => m.get_hidpi_factor(),
         }
     }
 }
@@ -289,6 +297,7 @@ pub enum EventsLoop {
     X(x11::EventsLoop)
 }
 
+#[derive(Clone)]
 pub enum EventsLoopProxy {
     X(x11::EventsLoopProxy),
     Wayland(wayland::EventsLoopProxy),
@@ -324,8 +333,8 @@ impl EventsLoop {
     }
 
     pub fn new_wayland() -> Result<EventsLoop, ()> {
-        wayland::WaylandContext::init()
-            .map(|ctx| EventsLoop::Wayland(wayland::EventsLoop::new(ctx)))
+        wayland::EventsLoop::new()
+            .map(EventsLoop::Wayland)
             .ok_or(())
     }
 
@@ -339,7 +348,7 @@ impl EventsLoop {
     #[inline]
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
         match *self {
-            EventsLoop::Wayland(ref evlp) => wayland::get_available_monitors(evlp.context())
+            EventsLoop::Wayland(ref evlp) => evlp.get_available_monitors()
                                     .into_iter()
                                     .map(MonitorId::Wayland)
                                     .collect(),
@@ -353,7 +362,7 @@ impl EventsLoop {
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
         match *self {
-            EventsLoop::Wayland(ref evlp) => MonitorId::Wayland(wayland::get_primary_monitor(evlp.context())),
+            EventsLoop::Wayland(ref evlp) => MonitorId::Wayland(evlp.get_primary_monitor()),
             EventsLoop::X(ref evlp) => MonitorId::X(x11::get_primary_monitor(evlp.x_connection())),
         }
     }

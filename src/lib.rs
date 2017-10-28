@@ -167,8 +167,14 @@ pub struct DeviceId(platform::DeviceId);
 /// an events loop opens a connection to the X or Wayland server.
 ///
 /// To wake up an `EventsLoop` from a another thread, see the `EventsLoopProxy` docs.
+///
+/// Note that the `EventsLoop` cannot be shared accross threads (due to platform-dependant logic
+/// forbiding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
+/// `Window` created from this `EventsLoop` _can_ be sent to an other thread, and the
+/// `EventsLoopProxy` allows you to wakeup an `EventsLoop` from an other thread.
 pub struct EventsLoop {
     events_loop: platform::EventsLoop,
+    _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
 }
 
 /// Returned by the user callback given to the `EventsLoop::run_forever` method.
@@ -192,6 +198,7 @@ impl EventsLoop {
     pub fn new() -> EventsLoop {
         EventsLoop {
             events_loop: platform::EventsLoop::new(),
+            _marker: ::std::marker::PhantomData,
         }
     }
 
@@ -239,6 +246,7 @@ impl EventsLoop {
 }
 
 /// Used to wake up the `EventsLoop` from another thread.
+#[derive(Clone)]
 pub struct EventsLoopProxy {
     events_loop_proxy: platform::EventsLoopProxy,
 }

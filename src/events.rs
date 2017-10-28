@@ -87,6 +87,15 @@ pub enum WindowEvent {
 
     /// Touch event has been received
     Touch(Touch),
+
+    /// DPI scaling factor of the window has changed.
+    ///
+    /// The following actions cause DPI changes:
+    ///
+    /// * A user changes the resolution.
+    /// * A user changes the desktop scaling value (e.g. in Control Panel on Windows).
+    /// * A user moves the application window to a display with a different DPI.
+    HiDPIFactorChanged(f32),
 }
 
 /// Represents raw hardware events that are not associated with any particular window.
@@ -101,6 +110,9 @@ pub enum WindowEvent {
 pub enum DeviceEvent {
     Added,
     Removed,
+    /// Mouse devices yield `Motion` events where axis `0` is horizontal and axis `1` is vertical.
+    /// A positive value means a movement to the right or the bottom, depending on the axis.
+    /// Such events will be sent even if the mouse is in a corner of the screen.
     Motion { axis: AxisId, value: f64 },
     Button { button: ButtonId, state: ElementState },
     Key(KeyboardInput),

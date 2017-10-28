@@ -243,6 +243,7 @@ impl Drop for EventsLoop {
     }
 }
 
+#[derive(Clone)]
 pub struct EventsLoopProxy {
     thread_id: winapi::DWORD,
 }

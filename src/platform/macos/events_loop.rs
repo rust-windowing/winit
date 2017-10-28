@@ -29,6 +29,7 @@ pub struct Shared {
     user_callback: UserCallback,
 }
 
+#[derive(Clone)]
 pub struct Proxy {}
 
 struct Modifiers {

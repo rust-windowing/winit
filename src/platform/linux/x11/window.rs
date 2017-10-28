@@ -251,7 +251,7 @@ impl Window2 {
         Ok(window)
     }
 
-    fn set_netwm(display: &Arc<XConnection>, window: u64, root: u64, property: &str, val: bool) {
+    fn set_netwm(display: &Arc<XConnection>, window: ffi::Window, root: ffi::Window, property: &str, val: bool) {
         let state_atom = unsafe {
             with_c_str("_NET_WM_STATE", |state|
                 (display.xlib.XInternAtom)(display.display, state, 0)
@@ -276,7 +276,7 @@ impl Window2 {
             data: {
                 let mut data = ffi::ClientMessageData::new();
                 // This first `long` is the action; `1` means add/set following property.
-                data.set_long(0, val as i64);
+                data.set_long(0, val as c_long);
                 // This second `long` is the property to set (fullscreen)
                 data.set_long(1, atom as c_long);
                 data
@@ -332,6 +332,8 @@ impl Window2 {
         let mut find = default;
         for monitor in monitors {
             let (mx, my) = monitor.get_position();
+            let mx = mx as u32;
+            let my = my as u32;
             let (mw, mh) = monitor.get_dimensions();
             let (mxo, myo) = (mx+mw-1, my+mh-1);
             let (ox, oy) = (cmp::max(wx, mx), cmp::max(wy, my));
@@ -473,7 +475,7 @@ impl Window2 {
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        self.get_geometry().map(|(_, _, w, h, _)| ((w as f32 / self.hidpi_factor()) as u32, (h as f32 / self.hidpi_factor()) as u32))
+        self.get_geometry().map(|(_, _, w, h, _)| (w, h))
     }
 
     #[inline]

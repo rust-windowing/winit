@@ -1,5 +1,6 @@
 #![cfg(target_os = "windows")]
 
+use std::os::raw::c_void;
 use libc;
 use MonitorId;
 use Window;
@@ -37,13 +38,21 @@ impl WindowBuilderExt for WindowBuilder {
 
 /// Additional methods on `MonitorId` that are specific to Windows.
 pub trait MonitorIdExt {
-    /// Returns the name of the monitor specific to the Win32 API.
+    /// Returns the name of the monitor adapter specific to the Win32 API.
     fn native_id(&self) -> String;
+
+    /// Returns the handle of the monitor - `HMONITOR`.
+    fn hmonitor(&self) -> *mut c_void;
 }
 
 impl MonitorIdExt for MonitorId {
     #[inline]
     fn native_id(&self) -> String {
         self.inner.get_native_identifier()
+    }
+
+    #[inline]
+    fn hmonitor(&self) -> *mut c_void {
+        self.inner.get_hmonitor() as *mut _
     }
 }
