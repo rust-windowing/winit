@@ -102,9 +102,9 @@ pub enum DeviceEvent {
     Added,
     Removed,
     /// Mouse devices yield `Motion` events where axis `0` is horizontal and axis `1` is vertical.
+    /// A positive value means a movement to the right or the bottom, depending on the axis.
     /// Such events will be sent even if the mouse is in a corner of the screen.
     Motion { axis: AxisId, value: f64 },
-
     Button { button: ButtonId, state: ElementState },
     Key(KeyboardInput),
     Text { codepoint: char },
