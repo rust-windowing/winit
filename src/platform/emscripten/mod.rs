@@ -34,13 +34,18 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         unimplemented!()
     }
 
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         (0, 0)
+    }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        1.0
     }
 }
 
@@ -63,6 +68,7 @@ pub fn set_main_loop_callback<F>(callback : F) where F : FnMut() {
     }
 }
 
+#[derive(Clone)]
 pub struct EventsLoopProxy;
 
 impl EventsLoopProxy {

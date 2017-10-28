@@ -20,6 +20,7 @@ pub struct EventsLoop {
     event_rx: Receiver<android_glue::Event>,
 }
 
+#[derive(Clone)]
 pub struct EventsLoopProxy;
 
 impl EventsLoop {
@@ -160,9 +161,14 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         // Android assumes single screen
         (0, 0)
+    }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        1.0
     }
 }
 

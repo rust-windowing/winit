@@ -1,97 +1,86 @@
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{Ordering, AtomicBool};
-use std::cmp;
+use std::sync::{Arc, Mutex, Weak};
 
-use wayland_client::{EventQueueHandle, Proxy};
 use wayland_client::protocol::{wl_display,wl_surface};
+use wayland_client::{Proxy, StateToken};
 
 use {CreationError, MouseCursor, CursorState, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
-use platform::wayland::MonitorId as WaylandMonitorId;
-use platform::wayland::context::get_available_monitors;
 
-use super::{WaylandContext, EventsLoop};
-use super::wayland_window;
-use super::wayland_window::DecoratedSurface;
+use super::{EventsLoop, WindowId, make_wid, MonitorId};
+use super::wayland_window::{DecoratedSurface, DecoratedSurfaceImplementation};
+use super::event_loop::StateContext;
 
 pub struct Window {
-    // the global wayland context
-    ctxt: Arc<WaylandContext>,
-    // signal to advertize the EventsLoop when we are destroyed
-    cleanup_signal: Arc<AtomicBool>,
-    // our wayland surface
-    surface: Arc<wl_surface::WlSurface>,
-    // our current inner dimensions
-    size: Mutex<(u32, u32)>,
-    // the id of our DecoratedHandler in the EventQueue
-    decorated_id: usize
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(usize);
-
-#[inline]
-pub fn make_wid(s: &wl_surface::WlSurface) -> WindowId {
-    WindowId(s.ptr() as usize)
+    surface: wl_surface::WlSurface,
+    decorated: Arc<Mutex<DecoratedSurface>>,
+    monitors: Arc<Mutex<MonitorList>>,
+    ready: Arc<Mutex<bool>>,
+    size: Arc<Mutex<(u32, u32)>>,
+    kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
+    display: Arc<wl_display::WlDisplay>,
 }
 
 impl Window {
     pub fn new(evlp: &EventsLoop, attributes: &WindowAttributes) -> Result<Window, CreationError>
     {
-        let ctxt = evlp.context().clone();
         let (width, height) = attributes.dimensions.unwrap_or((800,600));
 
-        let (surface, decorated, xdg) = ctxt.create_window::<DecoratedHandler>(width, height, attributes.decorations);
-
-        // init DecoratedSurface
-        let cleanup_signal = evlp.get_window_init();
-
-        let mut fullscreen_monitor = None;
+        // Create the decorated surface
+        let ready = Arc::new(Mutex::new(false));
+        let size = Arc::new(Mutex::new((width, height)));
+        let store_token = evlp.store.clone();
+        let (surface, mut decorated, xdg) = evlp.create_window(
+            width, height, attributes.decorations, decorated_impl(),
+            |surface| DecoratedIData {
+                ready: ready.clone(),
+                surface: surface.clone().unwrap(),
+                store_token: store_token.clone()
+            }
+        );
+        // If we are using xdg, we are not ready yet
+        { *ready.lock().unwrap() = !xdg; }
+        // Check for fullscreen requirements
         if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
-            ctxt.with_output(monitor_id.clone(), |output| {
-                fullscreen_monitor = output.clone();
+            let info = monitor_id.info.lock().unwrap();
+            decorated.set_fullscreen(Some(&info.output));
+        }
+        // setup the monitor tracking
+        let monitor_list = Arc::new(Mutex::new(MonitorList::default()));
+        {
+            let mut evq = evlp.evq.borrow_mut();
+            let idata = (evlp.ctxt_token.clone(), monitor_list.clone());
+            evq.register(&surface, surface_impl(), idata);
+        }
+        // a surface commit with no buffer so that the compositor don't
+        // forget to configure us
+        surface.commit();
+
+        let kill_switch = Arc::new(Mutex::new(false));
+        let decorated = Arc::new(Mutex::new(decorated));
+
+        {
+            let mut evq = evlp.evq.borrow_mut();
+            evq.state().get_mut(&store_token).windows.push(InternalWindow {
+                closed: false,
+                newsize: None,
+                need_refresh: false,
+                surface: surface.clone().unwrap(),
+                kill_switch: kill_switch.clone(),
+                decorated: Arc::downgrade(&decorated)
             });
+            evq.sync_roundtrip().unwrap();
         }
 
-        let decorated_id = {
-            let mut evq_guard = ctxt.evq.lock().unwrap();
-            // store the DecoratedSurface handler
-            let decorated_id = evq_guard.add_handler_with_init(decorated);
-            {
-                let mut state = evq_guard.state();
-                // initialize the DecoratedHandler
-                let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(decorated_id);
-                *(decorated.handler()) = Some(DecoratedHandler::new(!xdg));
-
-                // set fullscreen if necessary
-                if let Some(output) = fullscreen_monitor {
-                    decorated.set_fullscreen(Some(&output));
-                }
-                // Finally, set the decorations size
-                decorated.resize(width as i32, height as i32);
-            }
-
-            evq_guard.sync_roundtrip().unwrap();
-
-            decorated_id
-        };
-        // send our configuration to the compositor
-        // if we're in xdg mode, no buffer is attached yet, so this
-        // is fine (and more or less required actually)
-        surface.commit();
-        let me = Window {
-            ctxt: ctxt,
-            cleanup_signal: cleanup_signal,
+        Ok(Window {
+            display: evlp.display.clone(),
             surface: surface,
-            size: Mutex::new((width, height)),
-            decorated_id: decorated_id
-        };
-
-        // register ourselves to the EventsLoop
-        evlp.register_window(me.decorated_id, me.surface.clone());
-
-        Ok(me)
+            decorated: decorated,
+            monitors: monitor_list,
+            ready: ready,
+            size: size,
+            kill_switch: (kill_switch, evlp.cleanup_needed.clone())
+        })
     }
 
     #[inline]
@@ -100,10 +89,7 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
-        let mut guard = self.ctxt.evq.lock().unwrap();
-        let mut state = guard.state();
-        let decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
-        decorated.set_title(title.into())
+        self.decorated.lock().unwrap().set_title(title.into());
     }
 
     #[inline]
@@ -141,10 +127,7 @@ impl Window {
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        let mut guard = self.ctxt.evq.lock().unwrap();
-        let mut state = guard.state();
-        let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
-        decorated.resize(x as i32, y as i32);
+        self.decorated.lock().unwrap().resize(x as i32, y as i32);
         *(self.size.lock().unwrap()) = (x, y);
     }
 
@@ -166,8 +149,13 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
-        // TODO
-        1.0
+        let mut factor = 1.0;
+        let guard = self.monitors.lock().unwrap();
+        for monitor_id in &guard.monitors {
+            let info = monitor_id.info.lock().unwrap();
+            if info.scale > factor { factor = info.scale; }
+        }
+        factor
     }
 
     #[inline]
@@ -177,107 +165,148 @@ impl Window {
     }
     
     pub fn get_display(&self) -> &wl_display::WlDisplay {
-        &self.ctxt.display
+        &*self.display
     }
     
     pub fn get_surface(&self) -> &wl_surface::WlSurface {
         &self.surface
     }
 
-    pub fn get_current_monitor(&self) -> WaylandMonitorId {
-        let monitors = get_available_monitors(&self.ctxt);
-        let default = monitors[0].clone();
-
-        let (wx,wy) = match self.get_position() {
-            Some(val) => (cmp::max(0,val.0) as u32, cmp::max(0,val.1) as u32),
-            None=> return default,
-        };
-        let (ww,wh) = match self.get_outer_size() {
-            Some(val) => val,
-            None=> return default,
-        };
-        // Opposite corner coordinates
-        let (wxo, wyo) = (wx+ww-1, wy+wh-1);
-
-        // Find the monitor with the biggest overlap with the window
-        let mut overlap = 0;
-        let mut find = default;
-        for monitor in monitors {
-            let (mx, my) = monitor.get_position();
-            let (mw, mh) = monitor.get_dimensions();
-            let (mxo, myo) = (mx+mw-1, my+mh-1);
-            let (ox, oy) = (cmp::max(wx, mx), cmp::max(wy, my));
-            let (oxo, oyo) = (cmp::min(wxo, mxo), cmp::min(wyo, myo));
-            let osize = if ox <= oxo || oy <= oyo { 0 } else { (oxo-ox)*(oyo-oy) };
-
-            if osize > overlap {
-                overlap = osize;
-                find = monitor;
-            }
-        }
-
-        find
+    pub fn get_current_monitor(&self) -> MonitorId {
+        // we don't know how much each monitor sees us so...
+        // just return the most recent one ?
+        let guard = self.monitors.lock().unwrap();
+        guard.monitors.last().unwrap().clone()
     }
 
     pub fn is_ready(&self) -> bool {
-        let mut guard = self.ctxt.evq.lock().unwrap();
-        let mut state = guard.state();
-        let mut decorated = state.get_mut_handler::<DecoratedSurface<DecoratedHandler>>(self.decorated_id);
-        decorated.handler().as_ref().unwrap().configured
+        *self.ready.lock().unwrap()
     }
 }
 
 impl Drop for Window {
     fn drop(&mut self) {
-        self.surface.destroy();
-        self.cleanup_signal.store(true, Ordering::Relaxed);
+        *(self.kill_switch.0.lock().unwrap()) = true;
+        *(self.kill_switch.1.lock().unwrap()) = true;
     }
 }
 
-pub struct DecoratedHandler {
-    newsize: Option<(u32, u32)>,
-    refresh: bool,
+/*
+ * Internal store for windows
+ */
+
+struct InternalWindow {
+    surface: wl_surface::WlSurface,
+    newsize: Option<(i32, i32)>,
+    need_refresh: bool,
     closed: bool,
-    configured: bool
+    kill_switch: Arc<Mutex<bool>>,
+    decorated: Weak<Mutex<DecoratedSurface>>
 }
 
-impl DecoratedHandler {
-    fn new(configured: bool) -> DecoratedHandler {
-        DecoratedHandler {
-            newsize: None,
-            refresh: false,
-            closed: false,
-            configured: configured
+pub struct WindowStore {
+    windows: Vec<InternalWindow>
+}
+
+impl WindowStore {
+    pub fn new() -> WindowStore {
+        WindowStore { windows: Vec::new() }
+    }
+
+    pub fn find_wid(&self, surface: &wl_surface::WlSurface) -> Option<WindowId> {
+        for window in &self.windows {
+            if surface.equals(&window.surface) {
+                return Some(make_wid(surface));
+            }
+        }
+        None
+    }
+
+    pub fn cleanup(&mut self) {
+        self.windows.retain(|w| {
+            if *w.kill_switch.lock().unwrap() {
+                // window is dead, cleanup
+                w.surface.destroy();
+                false
+            } else {
+                true
+            }
+        });
+    }
+
+    pub fn for_each<F>(&mut self, mut f: F)
+    where F: FnMut(Option<(i32, i32)>, bool, bool, WindowId, Option<&mut DecoratedSurface>)
+    {
+        for window in &mut self.windows {
+            let opt_arc = window.decorated.upgrade();
+            let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
+            f(
+                window.newsize.take(),
+                window.need_refresh,
+                window.closed,
+                make_wid(&window.surface),
+                opt_mutex_lock.as_mut().map(|m| &mut **m)
+            );
+            window.need_refresh = false;
+            // avoid re-spamming the event
+            window.closed = false;
         }
     }
-
-    pub fn take_newsize(&mut self) -> Option<(u32, u32)> {
-        self.newsize.take()
-    }
-
-    pub fn take_refresh(&mut self) -> bool {
-        let refresh = self.refresh;
-        self.refresh = false;
-        refresh
-    }
-
-    pub fn is_closed(&self) -> bool { self.closed }
 }
 
-impl wayland_window::Handler for DecoratedHandler {
-    fn configure(&mut self,
-                 _: &mut EventQueueHandle,
-                 _cfg: wayland_window::Configure,
-                 newsize: Option<(i32, i32)>)
-    {
-        self.newsize = newsize.map(|(w, h)| (w as u32, h as u32));
-        self.refresh = true;
-        self.configured = true;
-    }
+/*
+ * Protocol implementation
+ */
 
-    fn close(&mut self, _: &mut EventQueueHandle) {
-        self.closed = true;
+struct DecoratedIData {
+    ready: Arc<Mutex<bool>>,
+    store_token: StateToken<WindowStore>,
+    surface: wl_surface::WlSurface
+}
+
+fn decorated_impl() -> DecoratedSurfaceImplementation<DecoratedIData> {
+    DecoratedSurfaceImplementation {
+        configure: |evqh, idata, _, newsize| {
+            *idata.ready.lock().unwrap() = true;
+            let store = evqh.state().get_mut(&idata.store_token);
+            for window in &mut store.windows {
+                if window.surface.equals(&idata.surface) {
+                    window.newsize = newsize;
+                    window.need_refresh = true;
+                    return;
+                }
+            }
+        },
+        close: |evqh, idata| {
+            let store = evqh.state().get_mut(&idata.store_token);
+            for window in &mut store.windows {
+                if window.surface.equals(&idata.surface) {
+                    window.closed = true;
+                    return;
+                }
+            }
+        }
     }
 }
 
+#[derive(Default)]
+struct MonitorList {
+    monitors: Vec<MonitorId>
+}
 
+fn surface_impl() -> wl_surface::Implementation<(StateToken<StateContext>, Arc<Mutex<MonitorList>>)> {
+    wl_surface::Implementation {
+        enter: |evqh, &mut (ref token, ref list), _, output| {
+            let mut guard = list.lock().unwrap();
+            let ctxt = evqh.state().get(token);
+            let monitor = ctxt.monitor_id_for(output);
+            guard.monitors.push(monitor);
+        },
+        leave: |evqh, &mut (ref token, ref list), _, output| {
+            let mut guard = list.lock().unwrap();
+            let ctxt = evqh.state().get(token);
+            let monitor = ctxt.monitor_id_for(output);
+            guard.monitors.retain(|m| !Arc::ptr_eq(&m.info, &monitor.info));
+        }
+    }
+}

@@ -141,9 +141,14 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         // iOS assumes single screen
         (0, 0)
+    }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        1.0
     }
 }
 
@@ -151,6 +156,7 @@ pub struct EventsLoop {
     delegate_state: *mut DelegateState
 }
 
+#[derive(Clone)]
 pub struct EventsLoopProxy;
 
 impl EventsLoop {
