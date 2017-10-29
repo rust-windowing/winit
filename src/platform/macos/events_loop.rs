@@ -1,6 +1,6 @@
 use {ControlFlow, EventsLoopClosed};
 use cocoa::{self, appkit, foundation};
-use cocoa::appkit::{NSApplication, NSEvent, NSView, NSWindow};
+use cocoa::appkit::{NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventPhase, NSView, NSWindow};
 use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, DeviceEvent, ModifiersState, KeyboardInput};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
@@ -190,7 +190,7 @@ impl EventsLoop {
 
                 // Poll for the next event, returning `nil` if there are none.
                 let ns_event = appkit::NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                    appkit::NSAnyEventMask.bits() | appkit::NSEventMaskPressure.bits(),
+                    NSEventMask::NSAnyEventMask.bits() | NSEventMask::NSEventMaskPressure.bits(),
                     foundation::NSDate::distantPast(cocoa::base::nil),
                     foundation::NSDefaultRunLoopMode,
                     cocoa::base::YES);
@@ -242,7 +242,7 @@ impl EventsLoop {
 
                 // Wait for the next event. Note that this function blocks during resize.
                 let ns_event = appkit::NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                    appkit::NSAnyEventMask.bits() | appkit::NSEventMaskPressure.bits(),
+                    NSEventMask::NSAnyEventMask.bits() | NSEventMask::NSEventMaskPressure.bits(),
                     foundation::NSDate::distantFuture(cocoa::base::nil),
                     foundation::NSDefaultRunLoopMode,
                     cocoa::base::YES);
@@ -356,7 +356,7 @@ impl EventsLoop {
 
             appkit::NSFlagsChanged => {
                 unsafe fn modifier_event(event: cocoa::base::id,
-                                         keymask: appkit::NSEventModifierFlags,
+                                         keymask: NSEventModifierFlags,
                                          key: events::VirtualKeyCode,
                                          key_pressed: bool) -> Option<WindowEvent>
                 {
@@ -395,7 +395,7 @@ impl EventsLoop {
 
                 let mut events = std::collections::VecDeque::new();
                 if let Some(window_event) = modifier_event(ns_event,
-                                                           appkit::NSShiftKeyMask,
+                                                           NSEventModifierFlags::NSShiftKeyMask,
                                                            events::VirtualKeyCode::LShift,
                                                            self.modifiers.shift_pressed)
                 {
@@ -404,7 +404,7 @@ impl EventsLoop {
                 }
 
                 if let Some(window_event) = modifier_event(ns_event,
-                                                           appkit::NSControlKeyMask,
+                                                           NSEventModifierFlags::NSControlKeyMask,
                                                            events::VirtualKeyCode::LControl,
                                                            self.modifiers.ctrl_pressed)
                 {
@@ -413,7 +413,7 @@ impl EventsLoop {
                 }
 
                 if let Some(window_event) = modifier_event(ns_event,
-                                                           appkit::NSCommandKeyMask,
+                                                           NSEventModifierFlags::NSCommandKeyMask,
                                                            events::VirtualKeyCode::LWin,
                                                            self.modifiers.win_pressed)
                 {
@@ -422,7 +422,7 @@ impl EventsLoop {
                 }
 
                 if let Some(window_event) = modifier_event(ns_event,
-                                                           appkit::NSAlternateKeyMask,
+                                                           NSEventModifierFlags::NSAlternateKeyMask,
                                                            events::VirtualKeyCode::LAlt,
                                                            self.modifiers.alt_pressed)
                 {
@@ -515,8 +515,8 @@ impl EventsLoop {
                               scale_factor * ns_event.scrollingDeltaY() as f32)
                 };
                 let phase = match ns_event.phase() {
-                    appkit::NSEventPhaseMayBegin | appkit::NSEventPhaseBegan => TouchPhase::Started,
-                    appkit::NSEventPhaseEnded => TouchPhase::Ended,
+                    NSEventPhase::NSEventPhaseMayBegin | NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
+                    NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
                 };
                 let window_event = WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: delta, phase: phase };
@@ -712,10 +712,10 @@ fn event_mods(event: cocoa::base::id) -> ModifiersState {
         NSEvent::modifierFlags(event)
     };
     ModifiersState {
-        shift: flags.contains(appkit::NSShiftKeyMask),
-        ctrl: flags.contains(appkit::NSControlKeyMask),
-        alt: flags.contains(appkit::NSAlternateKeyMask),
-        logo: flags.contains(appkit::NSCommandKeyMask),
+        shift: flags.contains(NSEventModifierFlags::NSShiftKeyMask),
+        ctrl: flags.contains(NSEventModifierFlags::NSControlKeyMask),
+        alt: flags.contains(NSEventModifierFlags::NSAlternateKeyMask),
+        logo: flags.contains(NSEventModifierFlags::NSCommandKeyMask),
     }
 }
 
