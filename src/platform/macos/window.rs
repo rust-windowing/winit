@@ -13,9 +13,9 @@ use objc::declare::ClassDecl;
 use cocoa;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
-use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow};
+use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask};
 
-use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID, CGDisplayPixelsHigh, CGWarpMouseCursorPosition};
+use core_graphics::display::CGDisplay;
 
 use std;
 use std::ops::Deref;
@@ -419,17 +419,17 @@ impl Window2 {
 
             let masks = if screen.is_some() {
                 // Fullscreen window
-                appkit::NSBorderlessWindowMask | appkit::NSResizableWindowMask |
-                    appkit::NSTitledWindowMask
+                NSWindowStyleMask::NSBorderlessWindowMask | NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
             } else if attrs.decorations {
                 // Window2 with a titlebar
-                appkit::NSClosableWindowMask | appkit::NSMiniaturizableWindowMask |
-                    appkit::NSResizableWindowMask | appkit::NSTitledWindowMask
+                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask | NSWindowStyleMask::NSTitledWindowMask
             } else {
                 // Window2 without a titlebar
-                appkit::NSClosableWindowMask | appkit::NSMiniaturizableWindowMask |
-                    appkit::NSResizableWindowMask |
-                    appkit::NSFullSizeContentViewWindowMask
+                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSFullSizeContentViewWindowMask
             };
 
             let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
@@ -494,7 +494,7 @@ impl Window2 {
 
             // TODO: consider extrapolating the calculations for the y axis to
             // a private method
-            Some((content_rect.origin.x as i32, (CGDisplayPixelsHigh(CGMainDisplayID()) as f64 - (content_rect.origin.y + content_rect.size.height)) as i32))
+            Some((content_rect.origin.x as i32, (CGDisplay::main().pixels_high() as f64 - (content_rect.origin.y + content_rect.size.height)) as i32))
         }
     }
 
@@ -510,7 +510,7 @@ impl Window2 {
 
             // TODO: consider extrapolating the calculations for the y axis to
             // a private method
-            let dummy = NSRect::new(NSPoint::new(x as f64, CGDisplayPixelsHigh(CGMainDisplayID()) as f64 - (frame.size.height + y as f64)), NSSize::new(0f64, 0f64));
+            let dummy = NSRect::new(NSPoint::new(x as f64, CGDisplay::main().pixels_high() as f64 - (frame.size.height + y as f64)), NSSize::new(0f64, 0f64));
             let conv = NSWindow::frameRectForContentRect_(*self.window, dummy);
 
             // NSWindow::setFrameTopLeftPoint_(*self.window, conv.origin);
@@ -570,7 +570,7 @@ impl Window2 {
             MouseCursor::EwResize | MouseCursor::ColResize => "resizeLeftRightCursor",
             MouseCursor::NsResize | MouseCursor::RowResize => "resizeUpDownCursor",
 
-            /// TODO: Find appropriate OSX cursors
+            // TODO: Find appropriate OSX cursors
             MouseCursor::NeResize | MouseCursor::NwResize |
             MouseCursor::SeResize | MouseCursor::SwResize |
             MouseCursor::NwseResize | MouseCursor::NeswResize |
@@ -596,7 +596,7 @@ impl Window2 {
         match state {
             CursorState::Normal => {
                 let _: () = unsafe { msg_send![cls, unhide] };
-                let _: i32 = unsafe { CGAssociateMouseAndMouseCursorPosition(true) };
+                let _ = CGDisplay::associate_mouse_and_mouse_cursor_position(true);
                 Ok(())
             },
             CursorState::Hide => {
@@ -605,7 +605,7 @@ impl Window2 {
             },
             CursorState::Grab => {
                 let _: () = unsafe { msg_send![cls, hide] };
-                let _: i32 = unsafe { CGAssociateMouseAndMouseCursorPosition(false) };
+                let _ = CGDisplay::associate_mouse_and_mouse_cursor_position(false);
                 Ok(())
             }
         }
@@ -623,14 +623,12 @@ impl Window2 {
         let (window_x, window_y) = self.get_position().unwrap_or((0, 0));
         let (cursor_x, cursor_y) = (window_x + x, window_y + y);
 
-        unsafe {
-            // TODO: Check for errors.
-            let _ = CGWarpMouseCursorPosition(appkit::CGPoint {
-                x: cursor_x as appkit::CGFloat,
-                y: cursor_y as appkit::CGFloat,
-            });
-            let _ = CGAssociateMouseAndMouseCursorPosition(true);
-        }
+        // TODO: Check for errors.
+        let _ = CGDisplay::warp_mouse_cursor_position(appkit::CGPoint {
+            x: cursor_x as appkit::CGFloat,
+            y: cursor_y as appkit::CGFloat,
+        });
+        let _ = CGDisplay::associate_mouse_and_mouse_cursor_position(true);
 
         Ok(())
     }
