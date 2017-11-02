@@ -82,11 +82,17 @@ pub struct EventsLoop {
     // Variable that contains the block state of the win32 event loop thread during a WM_SIZE event.
     // The mutex's value is `true` when it's blocked, and should be set to false when it's done
     // blocking. That's done by the parent thread when it receives a Resized event.
-    win32_block_loop: Arc<(Mutex<bool>, Condvar)>
+    win32_block_loop: Arc<(Mutex<bool>, Condvar)>,
+    // Whether to enable process-global DPI awareness.
+    pub(super) dpi_aware: bool,
 }
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
+        Self::with_dpi_awareness(true)
+    }
+
+    pub fn with_dpi_awareness(dpi_aware: bool) -> EventsLoop {
         // The main events transfer channel.
         let (tx, rx) = mpsc::channel();
         let win32_block_loop = Arc::new((Mutex::new(false), Condvar::new()));
@@ -149,7 +155,8 @@ impl EventsLoop {
         EventsLoop {
             thread_id: unsafe { kernel32::GetThreadId(thread.as_raw_handle()) },
             receiver: rx,
-            win32_block_loop
+            win32_block_loop,
+            dpi_aware
         }
     }
 

@@ -83,7 +83,7 @@ impl EventsLoop {
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
         unsafe {
             // We need to enable DPI awareness to get correct resolution and DPI of each monitor.
-            dpi::become_dpi_aware();
+            dpi::become_dpi_aware(self.dpi_aware);
 
             let mut result: VecDeque<MonitorId> = VecDeque::new();
             user32::EnumDisplayMonitors(ptr::null_mut(), ptr::null_mut(), Some(monitor_enum_proc), &mut result as *mut _ as winapi::LPARAM);
@@ -93,7 +93,7 @@ impl EventsLoop {
 
     pub fn get_primary_monitor(&self) -> MonitorId {
         // We need to enable DPI awareness to get correct resolution and DPI of the primary monitor.
-        dpi::become_dpi_aware();
+        dpi::become_dpi_aware(self.dpi_aware);
 
         // we simply get all available monitors and return the one with the `MONITORINFOF_PRIMARY` flag
         // TODO: it is possible to query the win32 API for the primary monitor, this should be done

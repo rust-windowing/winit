@@ -49,6 +49,8 @@ impl Window {
         
         let (tx, rx) = channel();
 
+        dpi::become_dpi_aware(events_loop.dpi_aware);
+
         events_loop.execute_in_thread(move |inserter| {
             // We dispatch an `init` function because of code style.
             let win = unsafe { init(w_attr.take().unwrap(), pl_attr.take().unwrap(), inserter) };
@@ -323,7 +325,6 @@ impl Drop for WindowWrapper {
 
 unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes,
                inserter: events_loop::Inserter) -> Result<Window, CreationError> {
-    dpi::become_dpi_aware();
 
     let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
         .collect::<Vec<_>>();

@@ -10,13 +10,6 @@ repository = "https://github.com/tomaka/winit"
 documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
-[features]
-default = []
-
-# On Windows winit will attempt to enable process-wide DPI awareness. This may be
-# undesireable in some circumstances and can be disabled by enabling this feature.
-windows-dont-enable-dpi-awareness = []
-
 [dependencies]
 lazy_static = "0.2.2"
 libc = "0.2"

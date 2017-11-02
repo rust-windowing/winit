@@ -1,10 +1,21 @@
 #![allow(non_camel_case_types, non_snake_case)]
 use std::mem;
 use std::os::raw::c_void;
+use std::sync::{Once, ONCE_INIT};
 use winapi;
 use user32;
 use gdi32;
 use kernel32;
+
+type DPI_AWARENESS_CONTEXT = isize;
+
+const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE: DPI_AWARENESS_CONTEXT = -3;
+
+type SetProcessDPIAware = unsafe extern "system" fn () -> winapi::BOOL;
+type SetProcessDpiAwareness = unsafe extern "system" fn (value: winapi::PROCESS_DPI_AWARENESS) -> winapi::HRESULT;
+type SetProcessDpiAwarenessContext = unsafe extern "system" fn (value: DPI_AWARENESS_CONTEXT) -> winapi::BOOL;
+type GetDpiForWindow = unsafe extern "system" fn (hwnd: winapi::HWND) -> winapi::UINT;
+type GetDpiForMonitor = unsafe extern "system" fn (hmonitor: winapi::HMONITOR, dpi_type: winapi::MONITOR_DPI_TYPE, dpi_x: *mut winapi::UINT, dpi_y: *mut winapi::UINT) -> winapi::HRESULT;
 
 // Helper function to dynamically load function pointer.
 // `library` and `function` must be zero-terminated.
@@ -31,28 +42,15 @@ macro_rules! get_function {
     }
 }
 
-type GetDpiForWindow = unsafe extern "system" fn (hwnd: winapi::HWND) -> winapi::UINT;
-type GetDpiForMonitor = unsafe extern "system" fn (hmonitor: winapi::HMONITOR, dpi_type: winapi::MONITOR_DPI_TYPE, dpi_x: *mut winapi::UINT, dpi_y: *mut winapi::UINT) -> winapi::HRESULT;
-
 lazy_static! {
     static ref GET_DPI_FOR_WINDOW: Option<GetDpiForWindow> = get_function!("user32.dll", GetDpiForWindow);
     static ref GET_DPI_FOR_MONITOR: Option<GetDpiForMonitor> = get_function!("shcore.dll", GetDpiForMonitor);
 }
 
-#[cfg(feature = "windows-dont-enable-dpi-awareness")]
-pub fn become_dpi_aware() {}
-
-#[cfg(not(feature = "windows-dont-enable-dpi-awareness"))]
-pub fn become_dpi_aware() {
-    use std::sync::{Once, ONCE_INIT};
-
-    type DPI_AWARENESS_CONTEXT = isize;
-
-    const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE: DPI_AWARENESS_CONTEXT = -3;
-
-    type SetProcessDPIAware = unsafe extern "system" fn () -> winapi::BOOL;
-    type SetProcessDpiAwareness = unsafe extern "system" fn (value: winapi::PROCESS_DPI_AWARENESS) -> winapi::HRESULT;
-    type SetProcessDpiAwarenessContext = unsafe extern "system" fn (value: DPI_AWARENESS_CONTEXT) -> winapi::BOOL;
+pub fn become_dpi_aware(enable: bool) {
+    if !enable {
+        return;
+    }
 
     static ENABLE_DPI_AWARENESS: Once = ONCE_INIT;
     ENABLE_DPI_AWARENESS.call_once(|| {
