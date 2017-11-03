@@ -70,6 +70,16 @@ impl WindowBuilder {
         self
     }
 
+    /// Sets whether the window should be maximizable.
+    ///
+    /// Setting this to `false` means the maximize button is disabled, and the window is not
+    /// resizable.
+    #[inline]
+    pub fn with_maximizable(mut self, maximizable: bool) -> WindowBuilder {
+        self.window.maximizable = maximizable;
+        self
+    }
+
     /// Sets whether the window will be initially hidden or visible.
     #[inline]
     pub fn with_visibility(mut self, visible: bool) -> WindowBuilder {

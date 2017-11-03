@@ -427,6 +427,13 @@ pub struct WindowAttributes {
     /// The default is `false`.
     pub maximized: bool,
 
+    /// Whether the window's maximize button should be enabled.
+    ///
+    /// Setting this to `false` also causes the window not to be resizable.
+    ///
+    /// The default is `true`.
+    pub maximizable: bool,
+
     /// Whether the window should be immediately visible upon creation.
     ///
     /// The default is `true`.
@@ -457,6 +464,7 @@ impl Default for WindowAttributes {
             max_dimensions: None,
             title: "winit window".to_owned(),
             maximized: false,
+            maximizable: true,
             fullscreen: None,
             visible: true,
             transparent: false,

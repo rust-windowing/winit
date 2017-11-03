@@ -343,7 +343,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     };
 
     // computing the style and extended style of the window
-    let (ex_style, style) = if fullscreen || !window.decorations {
+    let (ex_style, mut style) = if fullscreen || !window.decorations {
         (winapi::WS_EX_APPWINDOW,
             //winapi::WS_POPUP is incompatible with winapi::WS_CHILD
             if pl_attribs.parent.is_some() {
@@ -357,6 +357,11 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
         (winapi::WS_EX_APPWINDOW | winapi::WS_EX_WINDOWEDGE,
             winapi::WS_OVERLAPPEDWINDOW | winapi::WS_CLIPSIBLINGS | winapi::WS_CLIPCHILDREN)
     };
+
+    // disable maximize button if indicated
+    if !window.maximizable {
+        style &= !(winapi::WS_SIZEBOX | winapi::WS_MAXIMIZEBOX);
+    }
 
     // adjusting the window coordinates using the style
     user32::AdjustWindowRectEx(&mut rect, style, 0, ex_style);
