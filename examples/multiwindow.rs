@@ -9,12 +9,6 @@ fn main() {
 
     let mut num_windows = 3;
 
-    if cfg!(target_os = "linux") {
-        println!("Running this example under wayland may not display a window at all.\n\
-                  This is normal and because this example does not actually draw anything in the window,\
-                  thus the compositor does not display it.");
-    }
-
     events_loop.run_forever(|event| {
         match event {
             winit::Event::WindowEvent { event: winit::WindowEvent::Closed, window_id } => {

@@ -6,7 +6,6 @@ pub use self::event_loop::{EventsLoop, EventsLoopProxy, EventsLoopSink, MonitorI
 extern crate wayland_kbd;
 extern crate wayland_window;
 extern crate wayland_protocols;
-extern crate tempfile;
 
 use wayland_client::protocol::wl_surface;
 use wayland_client::Proxy;
