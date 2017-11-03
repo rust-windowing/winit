@@ -18,7 +18,7 @@ use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subc
                                wl_pointer, wl_keyboard};
 
 use super::wayland_window::{DecoratedSurface, Shell, init_decorated_surface, DecoratedSurfaceImplementation};
-use super::wayland_protocols::unstable::xdg_shell::client::zxdg_shell_v6;
+use super::wayland_protocols::unstable::xdg_shell::v6::client::zxdg_shell_v6;
 
 use super::tempfile;
 

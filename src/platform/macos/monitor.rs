@@ -1,20 +1,16 @@
-use core_graphics::display;
+use core_graphics::display::{CGDirectDisplayID, CGDisplay};
 use std::collections::VecDeque;
 use super::EventsLoop;
 
 #[derive(Clone)]
-pub struct MonitorId(u32);
+pub struct MonitorId(CGDirectDisplayID);
 
 impl EventsLoop {
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
         let mut monitors = VecDeque::new();
-        unsafe {
-            let max_displays = 10u32;
-            let mut active_displays = [0u32; 10];
-            let mut display_count = 0;
-            display::CGGetActiveDisplayList(max_displays, &mut active_displays[0], &mut display_count);
-            for i in 0..display_count as usize {
-                monitors.push_back(MonitorId(active_displays[i]));
+        if let Ok(displays) = CGDisplay::active_displays() {
+            for d in displays {
+                monitors.push_back(MonitorId(d));
             }
         }
         monitors
@@ -22,7 +18,7 @@ impl EventsLoop {
 
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
-        let id = unsafe { MonitorId(display::CGMainDisplayID()) };
+        let id = MonitorId(CGDisplay::main().id);
         id
     }
 }
@@ -30,7 +26,7 @@ impl EventsLoop {
 impl MonitorId {
     pub fn get_name(&self) -> Option<String> {
         let MonitorId(display_id) = *self;
-        let screen_num = unsafe { display::CGDisplayModelNumber(display_id) };
+        let screen_num = CGDisplay::new(display_id).model_number();
         Some(format!("Monitor #{}", screen_num))
     }
 
@@ -41,9 +37,10 @@ impl MonitorId {
 
     pub fn get_dimensions(&self) -> (u32, u32) {
         let MonitorId(display_id) = *self;
-        let dimension = unsafe {
-            let height = display::CGDisplayPixelsHigh(display_id);
-            let width = display::CGDisplayPixelsWide(display_id);
+        let display = CGDisplay::new(display_id);
+        let dimension = {
+            let height = display.pixels_high();
+            let width = display.pixels_wide();
             (width as u32, height as u32)
         };
         dimension
