@@ -17,7 +17,7 @@ use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subc
                                wl_display, wl_registry, wl_output, wl_surface, wl_buffer,
                                wl_pointer, wl_keyboard};
 
-use super::wayland_window::{DecoratedSurface, Shell, init_decorated_surface, DecoratedSurfaceImplementation};
+use super::wayland_window::{Frame, Shell, create_frame, FrameImplementation};
 use super::wayland_protocols::unstable::xdg_shell::v6::client::zxdg_shell_v6;
 
 use super::tempfile;
@@ -345,10 +345,15 @@ impl EventsLoop {
         }
         // process pending resize/refresh
         evq.state().get_mut(&self.store).for_each(
-            |newsize, refresh, closed, wid, decorated| {
-                if let (Some((w, h)), Some(decorated)) = (newsize, decorated) {
-                    decorated.resize(w as i32, h as i32);
-                    sink.send_event(::WindowEvent::Resized(w as u32, h as u32), wid);
+            |newsize, refresh, frame_refresh, closed, wid, frame| {
+                if let Some(frame) = frame {
+                    if let Some((w, h)) = newsize {
+                        frame.resize(w as i32, h as i32);
+                        frame.refresh();
+                        sink.send_event(::WindowEvent::Resized(w as u32, h as u32), wid);
+                    } else if frame_refresh {
+                        frame.refresh();
+                    }
                 }
                 if refresh {
                     sink.send_event(::WindowEvent::Refresh, wid);
@@ -360,50 +365,24 @@ impl EventsLoop {
         )
     }
 
-    /// Creates a buffer of given size and assign it to the surface
-    ///
-    /// This buffer only contains white pixels, and is needed when using wl_shell
-    /// to make sure the window actually exists and can receive events before the
-    /// use starts its event loop
-    fn blank_surface(&self, surface: &wl_surface::WlSurface, width: i32, height: i32) {
-        let mut tmp = tempfile::tempfile().expect("Failed to create a tmpfile buffer.");
-        for _ in 0..(width*height) {
-            tmp.write_all(&[0xff,0xff,0xff,0xff]).unwrap();
-        }
-        tmp.flush().unwrap();
-        let mut evq = self.evq.borrow_mut();
-        let pool = evq.state()
-                      .get(&self.env_token)
-                      .shm
-                      .create_pool(tmp.as_raw_fd(), width*height*4);
-        let buffer = pool.create_buffer(0, width, height, width, wl_shm::Format::Argb8888)
-                         .expect("Pool cannot be already dead");
-        surface.attach(Some(&buffer), 0, 0);
-        surface.commit();
-        // the buffer will keep the contents alive as needed
-        pool.destroy();
-        // register the buffer for freeing
-        evq.register(&buffer, free_buffer(), Some(tmp));
-    }
-
     /// Create a new window with given dimensions
     ///
     /// Grabs a lock on the event queue in the process
-    pub fn create_window<ID: 'static, F>(&self, width: u32, height: u32, decorated: bool, implem: DecoratedSurfaceImplementation<ID>, idata: F)
-        -> (wl_surface::WlSurface, DecoratedSurface, bool)
+    pub fn create_window<ID: 'static, F>(&self, width: u32, height: u32, implem: FrameImplementation<ID>, idata: F)
+        -> (wl_surface::WlSurface, Frame)
     where F: FnOnce(&wl_surface::WlSurface) -> ID
     {
-        let (surface, decorated, xdg) = {
+        let (surface, frame) = {
             let mut guard = self.evq.borrow_mut();
             let env = guard.state().get(&self.env_token).clone_inner().unwrap();
-            let (shell, xdg) = match guard.state().get(&self.ctxt_token).shell {
-                Some(Shell::Wl(ref wl_shell)) => (Shell::Wl(wl_shell.clone().unwrap()), false),
-                Some(Shell::Xdg(ref xdg_shell)) => (Shell::Xdg(xdg_shell.clone().unwrap()), true),
+            let shell = match guard.state().get(&self.ctxt_token).shell {
+                Some(Shell::Wl(ref wl_shell)) => Shell::Wl(wl_shell.clone().unwrap()),
+                Some(Shell::Xdg(ref xdg_shell)) => Shell::Xdg(xdg_shell.clone().unwrap()),
                 None => unreachable!()
             };
             let seat = guard.state().get(&self.ctxt_token).seat.as_ref().and_then(|s| s.clone());
             let surface = env.compositor.create_surface();
-            let decorated = init_decorated_surface(
+            let frame = create_frame(
                 &mut guard,
                 implem,
                 idata(&surface),
@@ -412,21 +391,12 @@ impl EventsLoop {
                 &env.subcompositor,
                 &env.shm,
                 &shell,
-                seat,
-                decorated
+                seat
             ).expect("Failed to create a tmpfile buffer.");
-            (surface, decorated, xdg)
+            (surface, frame)
         };
 
-        if !xdg {
-            // if using wl_shell, we need to draw something in order to kickstart
-            // the event loop
-            // if using xdg_shell, it is an error to do it now, and the events loop will not
-            // be stuck. We cannot draw anything before having received an appropriate event
-            // from the compositor
-            self.blank_surface(&surface, width as i32, height as i32);
-        }
-        (surface, decorated, xdg)
+        (surface, frame)
     }
 }
 
@@ -466,15 +436,6 @@ fn xdg_ping_implementation() -> zxdg_shell_v6::Implementation<()> {
     zxdg_shell_v6::Implementation {
         ping: |_, _, shell, serial| {
             shell.pong(serial);
-        }
-    }
-}
-
-fn free_buffer() -> wl_buffer::Implementation<Option<File>> {
-    wl_buffer::Implementation {
-        release: |_, data, buffer| {
-            buffer.destroy();
-            *data = None;
         }
     }
 }
