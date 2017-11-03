@@ -10,12 +10,14 @@ use kernel32;
 type DPI_AWARENESS_CONTEXT = isize;
 
 const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE: DPI_AWARENESS_CONTEXT = -3;
+const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: DPI_AWARENESS_CONTEXT = -4;
 
 type SetProcessDPIAware = unsafe extern "system" fn () -> winapi::BOOL;
 type SetProcessDpiAwareness = unsafe extern "system" fn (value: winapi::PROCESS_DPI_AWARENESS) -> winapi::HRESULT;
 type SetProcessDpiAwarenessContext = unsafe extern "system" fn (value: DPI_AWARENESS_CONTEXT) -> winapi::BOOL;
 type GetDpiForWindow = unsafe extern "system" fn (hwnd: winapi::HWND) -> winapi::UINT;
 type GetDpiForMonitor = unsafe extern "system" fn (hmonitor: winapi::HMONITOR, dpi_type: winapi::MONITOR_DPI_TYPE, dpi_x: *mut winapi::UINT, dpi_y: *mut winapi::UINT) -> winapi::HRESULT;
+type EnableNonClientDpiScaling = unsafe extern "system" fn (hwnd: winapi::HWND) -> winapi::BOOL;
 
 // Helper function to dynamically load function pointer.
 // `library` and `function` must be zero-terminated.
@@ -45,6 +47,7 @@ macro_rules! get_function {
 lazy_static! {
     static ref GET_DPI_FOR_WINDOW: Option<GetDpiForWindow> = get_function!("user32.dll", GetDpiForWindow);
     static ref GET_DPI_FOR_MONITOR: Option<GetDpiForMonitor> = get_function!("shcore.dll", GetDpiForMonitor);
+    static ref ENABLE_NON_CLIENT_DPI_SCALING: Option<EnableNonClientDpiScaling> = get_function!("user32.dll", EnableNonClientDpiScaling);
 }
 
 pub fn become_dpi_aware(enable: bool) {
@@ -57,11 +60,10 @@ pub fn become_dpi_aware(enable: bool) {
         unsafe {
             if let Some(SetProcessDpiAwarenessContext) = get_function!("user32.dll", SetProcessDpiAwarenessContext) {
                 // We are on Windows 10 Anniversary Update (1607) or later.
-
-                // Note that there is also newer DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 which will also enable scaling
-                // of the window title, but if we use it then glViewort will not work correctly. Until this issue is
-                // investigated we are using older DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE.
-                SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+                if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == winapi::FALSE {
+                    // V2 only works with Windows 10 Creators Update (1703). Try using the older V1 if we can't set V2.
+                    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+                }
             } else if let Some(SetProcessDpiAwareness) = get_function!("shcore.dll", SetProcessDpiAwareness) {
                 // We are on Windows 8.1 or later.
                 SetProcessDpiAwareness(winapi::Process_Per_Monitor_DPI_Aware);
@@ -71,6 +73,12 @@ pub fn become_dpi_aware(enable: bool) {
             }
         }
     });
+}
+
+pub unsafe fn enable_non_client_dpi_scaling(hwnd: winapi::HWND) {
+    if let Some(EnableNonClientDpiScaling) = *ENABLE_NON_CLIENT_DPI_SCALING {
+        EnableNonClientDpiScaling(hwnd);
+    }
 }
 
 pub unsafe fn get_monitor_dpi(hmonitor: winapi::HMONITOR) -> Option<u32> {

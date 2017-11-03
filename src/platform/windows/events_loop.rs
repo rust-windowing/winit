@@ -32,6 +32,7 @@ use user32;
 use winapi;
 
 use platform::platform::event;
+use platform::platform::dpi;
 use platform::platform::Cursor;
 use platform::platform::WindowId;
 use platform::platform::DEVICE_ID;
@@ -322,6 +323,11 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                                        -> winapi::LRESULT
 {
     match msg {
+        winapi::WM_NCCREATE => {
+            dpi::enable_non_client_dpi_scaling(window);
+            user32::DefWindowProcW(window, msg, wparam, lparam)
+        },
+
         winapi::WM_CLOSE => {
             use events::WindowEvent::Closed;
             send_event(Event::WindowEvent {
