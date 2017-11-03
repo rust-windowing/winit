@@ -1,8 +1,5 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::fs::File;
-use std::io::Write;
-use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -14,13 +11,11 @@ use super::keyboard::init_keyboard;
 
 use wayland_client::{EnvHandler, EnvNotify, default_connect, EventQueue, EventQueueHandle, Proxy, StateToken};
 use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subcompositor,
-                               wl_display, wl_registry, wl_output, wl_surface, wl_buffer,
+                               wl_display, wl_registry, wl_output, wl_surface,
                                wl_pointer, wl_keyboard};
 
 use super::wayland_window::{Frame, Shell, create_frame, FrameImplementation};
 use super::wayland_protocols::unstable::xdg_shell::v6::client::zxdg_shell_v6;
-
-use super::tempfile;
 
 pub struct EventsLoopSink {
     buffer: VecDeque<::Event>
