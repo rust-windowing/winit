@@ -32,6 +32,7 @@ use user32;
 use winapi;
 
 use platform::platform::event;
+use platform::platform::dpi;
 use platform::platform::Cursor;
 use platform::platform::WindowId;
 use platform::platform::DEVICE_ID;
@@ -82,11 +83,17 @@ pub struct EventsLoop {
     // Variable that contains the block state of the win32 event loop thread during a WM_SIZE event.
     // The mutex's value is `true` when it's blocked, and should be set to false when it's done
     // blocking. That's done by the parent thread when it receives a Resized event.
-    win32_block_loop: Arc<(Mutex<bool>, Condvar)>
+    win32_block_loop: Arc<(Mutex<bool>, Condvar)>,
+    // Whether to enable process-global DPI awareness.
+    pub(super) dpi_aware: bool,
 }
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
+        Self::with_dpi_awareness(true)
+    }
+
+    pub fn with_dpi_awareness(dpi_aware: bool) -> EventsLoop {
         // The main events transfer channel.
         let (tx, rx) = mpsc::channel();
         let win32_block_loop = Arc::new((Mutex::new(false), Condvar::new()));
@@ -149,7 +156,8 @@ impl EventsLoop {
         EventsLoop {
             thread_id: unsafe { kernel32::GetThreadId(thread.as_raw_handle()) },
             receiver: rx,
-            win32_block_loop
+            win32_block_loop,
+            dpi_aware
         }
     }
 
@@ -315,6 +323,11 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                                        -> winapi::LRESULT
 {
     match msg {
+        winapi::WM_NCCREATE => {
+            dpi::enable_non_client_dpi_scaling(window);
+            user32::DefWindowProcW(window, msg, wparam, lparam)
+        },
+
         winapi::WM_CLOSE => {
             use events::WindowEvent::Closed;
             send_event(Event::WindowEvent {
@@ -764,6 +777,29 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                         }
                     }
                 }
+            });
+
+            0
+        },
+
+        // Only sent on Windows 8.1 or newer. On Windows 7 and older user has to log out to change DPI,
+        // therefore all applications are closed while DPI is changing.
+        winapi::WM_DPICHANGED => {
+            use events::WindowEvent::HiDPIFactorChanged;
+
+            // This message actually provides two DPI values - x and y. However MSDN says that "you only need to
+            // use either the X-axis or the Y-axis value when scaling your application since they are the same".
+            //
+            // https://msdn.microsoft.com/en-us/library/windows/desktop/dn312083(v=vs.85).aspx
+            let dpi_x = winapi::LOWORD(wparam as u32);
+
+            // Resize window to the size suggested by Windows.
+            let rect = *mem::transmute::<winapi::LPARAM, *const winapi::RECT>(lparam);
+            user32::SetWindowPos(window, ptr::null_mut(), rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, winapi::SWP_NOZORDER | winapi::SWP_NOACTIVATE);
+
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: HiDPIFactorChanged(dpi_x as f32/96.0) // 96 is the standard DPI value used when there is no scaling
             });
 
             0

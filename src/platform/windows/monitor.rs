@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::{mem, ptr};
 
 use super::EventsLoop;
+use super::dpi;
 
 /// Win32 implementation of the main `MonitorId` object.
 #[derive(Clone)]
@@ -62,6 +63,8 @@ unsafe extern "system" fn monitor_enum_proc(hmonitor: winapi::HMONITOR, _: winap
         return winapi::TRUE;
     }
 
+    let dpi = dpi::get_monitor_dpi(hmonitor).unwrap_or(96);
+
     (*monitors).push_back(MonitorId {
         adapter_name: monitor_info.szDevice,
         hmonitor: HMonitor(hmonitor),
@@ -69,7 +72,7 @@ unsafe extern "system" fn monitor_enum_proc(hmonitor: winapi::HMONITOR, _: winap
         primary: monitor_info.dwFlags & winapi::MONITORINFOF_PRIMARY != 0,
         position,
         dimensions,
-        hidpi_factor: 1.0,
+        hidpi_factor: dpi as f32/96.0,
     });
 
     // TRUE means continue enumeration.
@@ -79,6 +82,9 @@ unsafe extern "system" fn monitor_enum_proc(hmonitor: winapi::HMONITOR, _: winap
 impl EventsLoop {
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
         unsafe {
+            // We need to enable DPI awareness to get correct resolution and DPI of each monitor.
+            dpi::become_dpi_aware(self.dpi_aware);
+
             let mut result: VecDeque<MonitorId> = VecDeque::new();
             user32::EnumDisplayMonitors(ptr::null_mut(), ptr::null_mut(), Some(monitor_enum_proc), &mut result as *mut _ as winapi::LPARAM);
             result
@@ -86,6 +92,9 @@ impl EventsLoop {
     }
 
     pub fn get_primary_monitor(&self) -> MonitorId {
+        // We need to enable DPI awareness to get correct resolution and DPI of the primary monitor.
+        dpi::become_dpi_aware(self.dpi_aware);
+
         // we simply get all available monitors and return the one with the `MONITORINFOF_PRIMARY` flag
         // TODO: it is possible to query the win32 API for the primary monitor, this should be done
         //  instead
