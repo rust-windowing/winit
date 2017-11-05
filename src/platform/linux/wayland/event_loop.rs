@@ -12,7 +12,7 @@ use super::keyboard::init_keyboard;
 use wayland_client::{EnvHandler, EnvNotify, default_connect, EventQueue, EventQueueHandle, Proxy, StateToken};
 use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subcompositor,
                                wl_display, wl_registry, wl_output, wl_surface,
-                               wl_pointer, wl_keyboard};
+                               wl_pointer, wl_keyboard, wl_touch};
 
 use super::wayland_window::{Frame, Shell, create_frame, FrameImplementation};
 use super::wayland_protocols::unstable::xdg_shell::v6::client::zxdg_shell_v6;
@@ -132,6 +132,7 @@ impl EventsLoop {
             sink: sink.clone(),
             keyboard: None,
             pointer: None,
+            touch: None,
             windows_token: store.clone()
         };
 
@@ -439,6 +440,7 @@ struct SeatIData {
     sink: Arc<Mutex<EventsLoopSink>>,
     pointer: Option<wl_pointer::WlPointer>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
+    touch: Option<wl_touch::WlTouch>,
     windows_token: StateToken<WindowStore>
 }
 
@@ -474,7 +476,22 @@ fn seat_implementation() -> wl_seat::Implementation<SeatIData> {
                     kbd.release();
                 }
             }
-            // TODO: Handle touch
+            // create touch if applicable
+            if capabilities.contains(wl_seat::Capability::Touch) && idata.touch.is_none() {
+                let touch = seat.get_touch().expect("Seat is not dead");
+                let t_idata = super::touch::TouchIData::new(
+                    &idata.sink,
+                    idata.windows_token.clone()
+                );
+                evqh.register(&touch, super::touch::touch_implementation(), t_idata);
+                idata.touch = Some(touch);
+            }
+            // destroy touch if applicable
+            if !capabilities.contains(wl_seat::Capability::Touch) {
+                if let Some(touch) = idata.touch.take() {
+                    touch.release();
+                }
+            }
         }
     }
 }

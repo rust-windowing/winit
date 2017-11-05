@@ -12,6 +12,7 @@ use wayland_client::Proxy;
 
 mod event_loop;
 mod pointer;
+mod touch;
 mod keyboard;
 mod window;
 
