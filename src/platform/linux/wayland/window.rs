@@ -8,14 +8,13 @@ use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
 
 use super::{EventsLoop, WindowId, make_wid, MonitorId};
-use super::wayland_window::{DecoratedSurface, DecoratedSurfaceImplementation};
+use super::wayland_window::{Frame, FrameImplementation, State as FrameState};
 use super::event_loop::StateContext;
 
 pub struct Window {
     surface: wl_surface::WlSurface,
-    decorated: Arc<Mutex<DecoratedSurface>>,
+    frame: Arc<Mutex<Frame>>,
     monitors: Arc<Mutex<MonitorList>>,
-    ready: Arc<Mutex<bool>>,
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
     display: Arc<wl_display::WlDisplay>,
@@ -27,24 +26,30 @@ impl Window {
         let (width, height) = attributes.dimensions.unwrap_or((800,600));
 
         // Create the decorated surface
-        let ready = Arc::new(Mutex::new(false));
         let size = Arc::new(Mutex::new((width, height)));
         let store_token = evlp.store.clone();
-        let (surface, mut decorated, xdg) = evlp.create_window(
-            width, height, attributes.decorations, decorated_impl(),
-            |surface| DecoratedIData {
-                ready: ready.clone(),
+        let (surface, mut frame) = evlp.create_window(
+            width, height, decorated_impl(),
+            |surface| FrameIData {
                 surface: surface.clone().unwrap(),
                 store_token: store_token.clone()
             }
         );
-        // If we are using xdg, we are not ready yet
-        { *ready.lock().unwrap() = !xdg; }
         // Check for fullscreen requirements
         if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
             let info = monitor_id.info.lock().unwrap();
-            decorated.set_fullscreen(Some(&info.output));
+            frame.set_state(FrameState::Fullscreen(Some(&info.output)));
+        } else if attributes.maximized {
+            frame.set_state(FrameState::Maximized);
         }
+
+        // set decorations
+        frame.set_decorate(attributes.decorations);
+
+        // min-max dimensions
+        frame.set_min_size(attributes.min_dimensions.map(|(w, h)| (w as i32, h as i32)));
+        frame.set_max_size(attributes.max_dimensions.map(|(w, h)| (w as i32, h as i32)));
+
         // setup the monitor tracking
         let monitor_list = Arc::new(Mutex::new(MonitorList::default()));
         {
@@ -52,12 +57,9 @@ impl Window {
             let idata = (evlp.ctxt_token.clone(), monitor_list.clone());
             evq.register(&surface, surface_impl(), idata);
         }
-        // a surface commit with no buffer so that the compositor don't
-        // forget to configure us
-        surface.commit();
 
         let kill_switch = Arc::new(Mutex::new(false));
-        let decorated = Arc::new(Mutex::new(decorated));
+        let frame = Arc::new(Mutex::new(frame));
 
         {
             let mut evq = evlp.evq.borrow_mut();
@@ -65,9 +67,10 @@ impl Window {
                 closed: false,
                 newsize: None,
                 need_refresh: false,
+                need_frame_refresh: true,
                 surface: surface.clone().unwrap(),
                 kill_switch: kill_switch.clone(),
-                decorated: Arc::downgrade(&decorated)
+                frame: Arc::downgrade(&frame)
             });
             evq.sync_roundtrip().unwrap();
         }
@@ -75,9 +78,8 @@ impl Window {
         Ok(Window {
             display: evlp.display.clone(),
             surface: surface,
-            decorated: decorated,
+            frame: frame,
             monitors: monitor_list,
-            ready: ready,
             size: size,
             kill_switch: (kill_switch, evlp.cleanup_needed.clone())
         })
@@ -89,7 +91,7 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
-        self.decorated.lock().unwrap().set_title(title.into());
+        self.frame.lock().unwrap().set_title(title.into());
     }
 
     #[inline]
@@ -127,7 +129,7 @@ impl Window {
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        self.decorated.lock().unwrap().resize(x as i32, y as i32);
+        self.frame.lock().unwrap().resize(x as i32, y as i32);
         *(self.size.lock().unwrap()) = (x, y);
     }
 
@@ -178,10 +180,6 @@ impl Window {
         let guard = self.monitors.lock().unwrap();
         guard.monitors.last().unwrap().clone()
     }
-
-    pub fn is_ready(&self) -> bool {
-        *self.ready.lock().unwrap()
-    }
 }
 
 impl Drop for Window {
@@ -199,9 +197,10 @@ struct InternalWindow {
     surface: wl_surface::WlSurface,
     newsize: Option<(i32, i32)>,
     need_refresh: bool,
+    need_frame_refresh: bool,
     closed: bool,
     kill_switch: Arc<Mutex<bool>>,
-    decorated: Weak<Mutex<DecoratedSurface>>
+    frame: Weak<Mutex<Frame>>
 }
 
 pub struct WindowStore {
@@ -235,14 +234,15 @@ impl WindowStore {
     }
 
     pub fn for_each<F>(&mut self, mut f: F)
-    where F: FnMut(Option<(i32, i32)>, bool, bool, WindowId, Option<&mut DecoratedSurface>)
+    where F: FnMut(Option<(i32, i32)>, bool, bool, bool, WindowId, Option<&mut Frame>)
     {
         for window in &mut self.windows {
-            let opt_arc = window.decorated.upgrade();
+            let opt_arc = window.frame.upgrade();
             let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
             f(
                 window.newsize.take(),
                 window.need_refresh,
+                window.need_frame_refresh,
                 window.closed,
                 make_wid(&window.surface),
                 opt_mutex_lock.as_mut().map(|m| &mut **m)
@@ -258,21 +258,20 @@ impl WindowStore {
  * Protocol implementation
  */
 
-struct DecoratedIData {
-    ready: Arc<Mutex<bool>>,
+struct FrameIData {
     store_token: StateToken<WindowStore>,
     surface: wl_surface::WlSurface
 }
 
-fn decorated_impl() -> DecoratedSurfaceImplementation<DecoratedIData> {
-    DecoratedSurfaceImplementation {
+fn decorated_impl() -> FrameImplementation<FrameIData> {
+    FrameImplementation {
         configure: |evqh, idata, _, newsize| {
-            *idata.ready.lock().unwrap() = true;
             let store = evqh.state().get_mut(&idata.store_token);
             for window in &mut store.windows {
                 if window.surface.equals(&idata.surface) {
                     window.newsize = newsize;
                     window.need_refresh = true;
+                    window.need_frame_refresh = true;
                     return;
                 }
             }
@@ -282,6 +281,15 @@ fn decorated_impl() -> DecoratedSurfaceImplementation<DecoratedIData> {
             for window in &mut store.windows {
                 if window.surface.equals(&idata.surface) {
                     window.closed = true;
+                    return;
+                }
+            }
+        },
+        refresh: |evqh, idata| {
+            let store = evqh.state().get_mut(&idata.store_token);
+            for window in &mut store.windows {
+                if window.surface.equals(&idata.surface) {
+                    window.need_frame_refresh = true;
                     return;
                 }
             }

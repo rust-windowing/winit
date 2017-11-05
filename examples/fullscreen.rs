@@ -36,12 +36,6 @@ fn main() {
 
     let mut fullscreen = true;
 
-    if cfg!(target_os = "linux") {
-        println!("Running this example under wayland may not display a window at all.\n\
-                  This is normal and because this example does not actually draw anything in the window,\
-                  thus the compositor does not display it.");
-    }
-
     start_loop(|| {
         let mut control_flow: ControlFlow = ControlFlow::Continue;
         let mut enter_pressed = false;

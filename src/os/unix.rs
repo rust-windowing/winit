@@ -121,13 +121,11 @@ pub trait WindowExt {
 
     /// Check if the window is ready for drawing
     ///
-    /// On wayland, drawing on a surface before the server has configured
-    /// it using a special event is illegal. As a result, you should wait
-    /// until this method returns `true`.
+    /// It is a remnant of a previous implementation detail for the
+    /// wayland backend, and is no longer relevant.
     ///
-    /// Once it starts returning `true`, it can never return `false` again.
-    ///
-    /// If the window is X11-based, this will just always return `true`.
+    /// Always return true.
+    #[deprecated]
     fn is_ready(&self) -> bool;
 }
 
@@ -195,10 +193,7 @@ impl WindowExt for Window {
 
     #[inline]
     fn is_ready(&self) -> bool {
-        match self.window {
-            LinuxWindow::Wayland(ref w) => w.is_ready(),
-            LinuxWindow::X(_) => true
-        }
+        true
     }
 }
 
