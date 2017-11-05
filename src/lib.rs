@@ -443,8 +443,8 @@ pub struct WindowAttributes {
     /// The default is `true`.
     pub decorations: bool,
 
-    /// [iOS only] Enable multitouch, see [UIView#multipleTouchEnabled]
-    /// (https://developer.apple.com/library/ios/documentation/UIKit/Reference/UIView_Class/#//apple_ref/occ/instp/UIView/multipleTouchEnabled)
+    /// [iOS only] Enable multitouch,
+    /// see [multipleTouchEnabled](https://developer.apple.com/documentation/uikit/uiview/1622519-multipletouchenabled)
     pub multitouch: bool,
 }
 
