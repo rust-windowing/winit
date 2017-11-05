@@ -11,6 +11,7 @@ use wayland_client::protocol::wl_surface;
 use wayland_client::Proxy;
 
 mod event_loop;
+mod pointer;
 mod keyboard;
 mod window;
 
