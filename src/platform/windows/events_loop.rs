@@ -471,7 +471,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         winapi::WM_MOUSEWHEEL => {
-            use events::WindowEvent::MouseWheel;
+            use events::{DeviceEvent, WindowEvent};
             use events::MouseScrollDelta::LineDelta;
             use events::TouchPhase;
 
@@ -481,7 +481,12 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseWheel { device_id: DEVICE_ID, delta: LineDelta(0.0, value), phase: TouchPhase::Moved },
+                event: WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: LineDelta(0.0, value), phase: TouchPhase::Moved },
+            });
+
+            send_event(Event::DeviceEvent {
+                device_id: DEVICE_ID,
+                event: DeviceEvent::MouseWheel { delta: LineDelta(0.0, value) },
             });
 
             0

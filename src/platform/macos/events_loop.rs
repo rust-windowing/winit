@@ -525,7 +525,19 @@ impl EventsLoop {
                     NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
                 };
-                let window_event = WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: delta, phase: phase };
+                self.shared.pending_events.lock().unwrap().push(Event::DeviceEvent {
+                    device_id: DEVICE_ID,
+                    event: DeviceEvent::MouseWheel {
+                        delta: if ns_event.hasPreciseScrollingDeltas() == cocoa::base::YES {
+                            PixelDelta(ns_event.scrollingDeltaX() as f32,
+                                       ns_event.scrollingDeltaY() as f32)
+                        } else {
+                            LineDelta(ns_event.scrollingDeltaX() as f32,
+                                      ns_event.scrollingDeltaY() as f32)
+                        },
+                    }
+                });
+                let window_event = WindowEvent::MouseWheel { device_id: DEVICE_ID, delta, phase };
                 Some(into_event(window_event))
             },
 
