@@ -342,7 +342,7 @@ impl EventsLoop {
                     return;
                 }
 
-                use events::WindowEvent::{Focused, CursorEntered, MouseInput, CursorLeft, CursorMoved, MouseWheel, AxisMoved};
+                use events::WindowEvent::{Focused, CursorEntered, MouseInput, CursorLeft, CursorMoved, MouseWheel, Motion};
                 use events::ElementState::{Pressed, Released};
                 use events::MouseButton::{Left, Right, Middle, Other};
                 use events::MouseScrollDelta::LineDelta;
@@ -435,7 +435,7 @@ impl EventsLoop {
                                             phase: TouchPhase::Moved,
                                         }});
                                     } else {
-                                        events.push(Event::WindowEvent { window_id: wid, event: AxisMoved {
+                                        events.push(Event::WindowEvent { window_id: wid, event: AxisMotion {
                                             device_id: did,
                                             axis: i as u32,
                                             value: unsafe { *value },
@@ -535,7 +535,7 @@ impl EventsLoop {
                                     1 => mouse_delta.1 = x,
                                     2 => scroll_delta.0 = x as f32,
                                     3 => scroll_delta.1 = x as f32,
-                                    _ => callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::AxisMoved {
+                                    _ => callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::Motion {
                                         axis: i as u32,
                                         value: x,
                                     }}),

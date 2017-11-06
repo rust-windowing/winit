@@ -83,7 +83,7 @@ pub enum WindowEvent {
     TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
 
     /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMoved { device_id: DeviceId, axis: AxisId, value: f64 },
+    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
 
     /// The window needs to be redrawn.
     Refresh,
@@ -130,7 +130,7 @@ pub enum DeviceEvent {
     },
 
     /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMoved { axis: AxisId, value: f64 },
+    Motion { axis: AxisId, value: f64 },
 
     Button { button: ButtonId, state: ElementState },
     Key(KeyboardInput),
