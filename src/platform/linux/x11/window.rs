@@ -559,7 +559,7 @@ impl Window2 {
                 MouseCursor::NotAllowed => load("crossed_circle"),
 
 
-                /// Resize cursors
+                // Resize cursors
                 MouseCursor::EResize => load("right_side"),
                 MouseCursor::NResize => load("top_side"),
                 MouseCursor::NeResize => load("top_right_corner"),
