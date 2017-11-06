@@ -30,7 +30,7 @@ fn main() {
 
                     WindowEvent::Closed => return ControlFlow::Break,
 
-                    a @ WindowEvent::MouseMoved { .. } => {
+                    a @ WindowEvent::CursorMoved { .. } => {
                         println!("{:?}", a);
                     },
 

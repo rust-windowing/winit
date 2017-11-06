@@ -442,8 +442,8 @@ impl EventsLoop {
             appkit::NSOtherMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Middle })) },
             appkit::NSOtherMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Middle })) },
 
-            appkit::NSMouseEntered => { Some(into_event(WindowEvent::MouseEntered { device_id: DEVICE_ID })) },
-            appkit::NSMouseExited => { Some(into_event(WindowEvent::MouseLeft { device_id: DEVICE_ID })) },
+            appkit::NSMouseEntered => { Some(into_event(WindowEvent::CursorEntered { device_id: DEVICE_ID })) },
+            appkit::NSMouseExited => { Some(into_event(WindowEvent::CursorLeft { device_id: DEVICE_ID })) },
 
             appkit::NSMouseMoved |
             appkit::NSLeftMouseDragged |
@@ -474,21 +474,21 @@ impl EventsLoop {
                 {
                     let x = (scale_factor * view_point.x as f32) as f64;
                     let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
-                    let window_event = WindowEvent::MouseMoved { device_id: DEVICE_ID, position: (x, y) };
+                    let window_event = WindowEvent::CursorMoved { device_id: DEVICE_ID, position: (x, y) };
                     let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
                     events.push_back(event);
                 }
 
                 let delta_x = (scale_factor * ns_event.deltaX() as f32) as f64;
                 if delta_x != 0.0 {
-                    let motion_event = DeviceEvent::Motion { axis: 0, value: delta_x };
+                    let motion_event = DeviceEvent::AxisMoved { axis: 0, value: delta_x };
                     let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
                     events.push_back(event);
                 }
 
                 let delta_y = (scale_factor * ns_event.deltaY() as f32) as f64;
                 if delta_y != 0.0 {
-                    let motion_event = DeviceEvent::Motion { axis: 1, value: delta_y };
+                    let motion_event = DeviceEvent::AxisMoved { axis: 1, value: delta_y };
                     let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
                     events.push_back(event);
                 }

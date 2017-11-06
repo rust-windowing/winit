@@ -401,7 +401,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         }
 
         winapi::WM_MOUSEMOVE => {
-            use events::WindowEvent::{MouseEntered, MouseMoved};
+            use events::WindowEvent::{CursorEntered, CursorMoved};
             let mouse_outside_window = CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
                 if let Some(context_stash) = context_stash.as_mut() {
@@ -420,7 +420,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             if mouse_outside_window {
                 send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
-                    event: MouseEntered { device_id: DEVICE_ID },
+                    event: CursorEntered { device_id: DEVICE_ID },
                 });
 
                 // Calling TrackMouseEvent in order to receive mouse leave events.
@@ -437,14 +437,14 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseMoved { device_id: DEVICE_ID, position: (x, y) },
+                event: CursorMoved { device_id: DEVICE_ID, position: (x, y) },
             });
 
             0
         },
 
         winapi::WM_MOUSELEAVE => {
-            use events::WindowEvent::MouseLeft;
+            use events::WindowEvent::CursorLeft;
             let mouse_in_window = CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
                 if let Some(context_stash) = context_stash.as_mut() {
@@ -463,7 +463,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             if mouse_in_window {
                 send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
-                    event: MouseLeft { device_id: DEVICE_ID }
+                    event: CursorLeft { device_id: DEVICE_ID }
                 });
             }
 
@@ -618,7 +618,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         winapi::WM_INPUT => {
-            use events::DeviceEvent::Motion;
+            use events::DeviceEvent::AxisMoved;
             let mut data: winapi::RAWINPUT = mem::uninitialized();
             let mut data_size = mem::size_of::<winapi::RAWINPUT>() as winapi::UINT;
             user32::GetRawInputData(mem::transmute(lparam), winapi::RID_INPUT,
@@ -633,14 +633,14 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                     if x != 0.0 {
                         send_event(Event::DeviceEvent {
                             device_id: DEVICE_ID,
-                            event: Motion { axis: 0, value: x }
+                            event: AxisMoved { axis: 0, value: x }
                         });
                     }
 
                     if y != 0.0 {
                         send_event(Event::DeviceEvent {
                             device_id: DEVICE_ID,
-                            event: Motion { axis: 1, value: y }
+                            event: AxisMoved { axis: 1, value: y }
                         });
                     }
                 }
