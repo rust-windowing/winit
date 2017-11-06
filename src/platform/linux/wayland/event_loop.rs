@@ -399,62 +399,6 @@ impl EventsLoop {
  * Wayland protocol implementations
  */
 
- impl wl_pointer::Handler for InputHandler {
-     fn enter(&mut self,
-              _evqh: &mut EventQueueHandle,
-              _proxy: &wl_pointer::WlPointer,
-              _serial: u32,
-              surface: &wl_surface::WlSurface,
-              surface_x: f64,
-              surface_y: f64)
-     {
-         self.mouse_location = (surface_x, surface_y);
-         for window in &self.windows {
-             if window.equals(surface) {
-                 self.mouse_focus = Some(window.clone());
-                 let (w, h) = self.mouse_location;
-                 let mut guard = self.callback.lock().unwrap();
-                 guard.send_event(Event::CursorEntered { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)) },
-                                  make_wid(window));
-                 guard.send_event(Event::CursorMoved { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                                                       position: (w, h) },
-                                  make_wid(window));
-                 break;
-             }
-         }
-     }
-
-     fn leave(&mut self,
-              _evqh: &mut EventQueueHandle,
-              _proxy: &wl_pointer::WlPointer,
-              _serial: u32,
-              surface: &wl_surface::WlSurface)
-     {
-         self.mouse_focus = None;
-         for window in &self.windows {
-             if window.equals(surface) {
-                 self.callback.lock().unwrap().send_event(Event::CursorLeft { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)) },
-                                                          make_wid(window));
-             }
-         }
-     }
-
-     fn motion(&mut self,
-               _evqh: &mut EventQueueHandle,
-               _proxy: &wl_pointer::WlPointer,
-               _time: u32,
-               surface_x: f64,
-               surface_y: f64)
-     {
-         self.mouse_location = (surface_x, surface_y);
-         if let Some(ref window) = self.mouse_focus {
-             let (w,h) = self.mouse_location;
-             self.callback.lock().unwrap().send_event(Event::CursorMoved { device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                                                                           position: (w, h) }, make_wid(window));
-         }
-     }
- }
-
 fn env_notify() -> EnvNotify<StateToken<StateContext>> {
     EnvNotify {
         new_global: |evqh, token, registry, id, interface, version| {
@@ -564,13 +508,13 @@ fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
                 idata.mouse_focus = Some(wid);
                 let mut guard = idata.sink.lock().unwrap();
                 guard.send_event(
-                    Event::MouseEntered {
+                    Event::CursorEntered {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                     },
                     wid,
                 );
                 guard.send_event(
-                    Event::MouseMoved {
+                    Event::CursorMoved {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                         position: (x, y),
                     },
@@ -584,7 +528,7 @@ fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
             if let Some(wid) = wid {
                 let mut guard = idata.sink.lock().unwrap();
                 guard.send_event(
-                    Event::MouseLeft {
+                    Event::CursorLeft {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                     },
                     wid,
@@ -594,7 +538,7 @@ fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
         motion: |_, idata, _, _, x, y| {
             if let Some(wid) = idata.mouse_focus {
                 idata.sink.lock().unwrap().send_event(
-                    Event::MouseMoved {
+                    Event::CursorMoved {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                         position: (x, y)
                     },

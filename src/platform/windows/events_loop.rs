@@ -618,7 +618,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         winapi::WM_INPUT => {
-            use events::DeviceEvent::AxisMoved;
+            use events::DeviceEvent::{AxisMoved, MouseMoved};
             let mut data: winapi::RAWINPUT = mem::uninitialized();
             let mut data_size = mem::size_of::<winapi::RAWINPUT>() as winapi::UINT;
             user32::GetRawInputData(mem::transmute(lparam), winapi::RID_INPUT,
@@ -641,6 +641,13 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                         send_event(Event::DeviceEvent {
                             device_id: DEVICE_ID,
                             event: AxisMoved { axis: 1, value: y }
+                        });
+                    }
+
+                    if x != 0.0 || y != 0.0 {
+                        send_event(Event::DeviceEvent {
+                            device_id: DEVICE_ID,
+                            event: MouseMoved { delta: (x, y) }
                         });
                     }
                 }

@@ -493,6 +493,12 @@ impl EventsLoop {
                     events.push_back(event);
                 }
 
+                if delta_x != 0.0 || delta_y != 0.0 {
+                    let motion_event = DeviceEvent::MouseMoved { delta: (delta_x, delta_y) };
+                    let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
+                    events.push_back(event);
+                }
+
                 let event = events.pop_front();
                 self.shared.pending_events.lock().unwrap().extend(events.into_iter());
                 event

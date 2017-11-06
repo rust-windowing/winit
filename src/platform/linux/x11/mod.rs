@@ -527,10 +527,19 @@ impl EventsLoop {
                         let mut scroll_delta = (0.0, 0.0);
                         for i in 0..xev.valuators.mask_len*8 {
                             if ffi::XIMaskIsSet(mask, i) {
-                                callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::AxisMoved {
-                                    axis: i as u32,
-                                    value: unsafe { *value },
-                                }});
+                                let x = unsafe { *value };
+                                // We assume that every XInput2 device with analog axes is a pointing device emitting
+                                // relative coordinates.
+                                match i {
+                                    0 => mouse_delta.0 = x,
+                                    1 => mouse_delta.1 = x,
+                                    2 => scroll_delta.0 = x as f32,
+                                    3 => scroll_delta.1 = x as f32,
+                                    _ => callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::AxisMoved {
+                                        axis: AxisId(i as u32),
+                                        value: x,
+                                    }}),
+                                }
                                 value = unsafe { value.offset(1) };
                             }
                         }
