@@ -494,7 +494,7 @@ impl EventsLoop {
                 }
 
                 if delta_x != 0.0 || delta_y != 0.0 {
-                    let motion_event = DeviceEvent::MouseMoved { delta: (delta_x, delta_y) };
+                    let motion_event = DeviceEvent::MouseMotion { delta: (delta_x, delta_y) };
                     let event = Event::DeviceEvent{ device_id: DEVICE_ID, event: motion_event };
                     events.push_back(event);
                 }

@@ -117,7 +117,7 @@ pub enum DeviceEvent {
     /// Change in physical position of a pointing device.
     ///
     /// This represents raw, unfiltered physical motion. Not to be confused with `WindowEvent::CursorMoved`.
-    MouseMoved {
+    MouseMotion {
         /// (x, y) change in position in unspecified units.
         ///
         /// Different devices may use different units.
@@ -129,7 +129,9 @@ pub enum DeviceEvent {
         delta: MouseScrollDelta,
     },
 
-    /// Motion on some analog axis. May report data redundant to other, more specific events.
+    /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
+    /// that winit supports on this platform, including mouse devices.  If the device is a mouse
+    /// device then this will be reported alongside the MouseMotion event.
     Motion { axis: AxisId, value: f64 },
 
     Button { button: ButtonId, state: ElementState },

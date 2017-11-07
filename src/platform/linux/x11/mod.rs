@@ -535,16 +535,17 @@ impl EventsLoop {
                                     1 => mouse_delta.1 = x,
                                     2 => scroll_delta.0 = x as f32,
                                     3 => scroll_delta.1 = x as f32,
-                                    _ => callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::Motion {
-                                        axis: i as u32,
-                                        value: x,
-                                    }}),
+                                    _ => {},
                                 }
+                                callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::Motion {
+                                    axis: i as u32,
+                                    value: x,
+                                }});
                                 value = unsafe { value.offset(1) };
                             }
                         }
                         if mouse_delta != (0.0, 0.0) {
-                            callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::MouseMoved {
+                            callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::MouseMotion {
                                 delta: mouse_delta,
                             }});
                         }
