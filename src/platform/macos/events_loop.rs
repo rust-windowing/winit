@@ -525,7 +525,7 @@ impl EventsLoop {
                     NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
                 };
-                self.shared.pending_events.lock().unwrap().push(Event::DeviceEvent {
+                self.shared.pending_events.lock().unwrap().push_back(Event::DeviceEvent {
                     device_id: DEVICE_ID,
                     event: DeviceEvent::MouseWheel {
                         delta: if ns_event.hasPreciseScrollingDeltas() == cocoa::base::YES {
