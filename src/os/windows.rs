@@ -5,7 +5,7 @@ use libc;
 use MonitorId;
 use Window;
 use WindowBuilder;
-use winapi;
+use winapi::shared::windef::HWND;
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExt {
@@ -24,13 +24,13 @@ impl WindowExt for Window {
 
 /// Additional methods on `WindowBuilder` that are specific to Windows.
 pub trait WindowBuilderExt {
-    fn with_parent_window(self, parent: winapi::HWND) -> WindowBuilder;
+    fn with_parent_window(self, parent: HWND) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
     /// Sets a parent to the window to be created.
     #[inline]
-    fn with_parent_window(mut self, parent: winapi::HWND) -> WindowBuilder {
+    fn with_parent_window(mut self, parent: HWND) -> WindowBuilder {
         self.platform_specific.parent = Some(parent);
         self
     }

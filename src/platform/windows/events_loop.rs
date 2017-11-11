@@ -26,10 +26,10 @@ use std::sync::Mutex;
 use std::sync::Condvar;
 use std::thread;
 
-use kernel32;
-use shell32;
-use user32;
-use winapi;
+use winapi::shared::minwindef::{LOWORD, HIWORD, DWORD, WPARAM, LPARAM, UINT, LRESULT, MAX_PATH};
+use winapi::shared::windef::{HWND, POINT};
+use winapi::shared::windowsx;
+use winapi::um::{winuser, shellapi, processthreadsapi};
 
 use platform::platform::event;
 use platform::platform::Cursor;
@@ -65,7 +65,7 @@ pub struct Inserter(*mut u8);
 impl Inserter {
     /// Inserts a window's state for the callback to use. The state is removed automatically if the
     /// callback receives a `WM_CLOSE` message for the window.
-    pub fn insert(&self, window: winapi::HWND, state: Arc<Mutex<WindowState>>) {
+    pub fn insert(&self, window: HWND, state: Arc<Mutex<WindowState>>) {
         CONTEXT_STASH.with(|context_stash| {
             let mut context_stash = context_stash.borrow_mut();
             let was_in = context_stash.as_mut().unwrap().windows.insert(window, state);
@@ -76,7 +76,7 @@ impl Inserter {
 
 pub struct EventsLoop {
     // Id of the background thread from the Win32 API.
-    thread_id: winapi::DWORD,
+    thread_id: DWORD,
     // Receiver for the events. The sender is in the background thread.
     receiver: mpsc::Receiver<Event>,
     // Variable that contains the block state of the win32 event loop thread during a WM_SIZE event.
@@ -110,7 +110,7 @@ impl EventsLoop {
                 // Calling `PostThreadMessageA` on a thread that does not have an events queue yet
                 // will fail. In order to avoid this situation, we call `IsGuiThread` to initialize
                 // it.
-                user32::IsGUIThread(1);
+                winuser::IsGUIThread(1);
                 // Then only we unblock the `new()` function. We are sure that we don't call
                 // `PostThreadMessageA()` before `new()` returns.
                 barrier_clone.wait();
@@ -119,9 +119,9 @@ impl EventsLoop {
                 let mut msg = mem::uninitialized();
 
                 loop {
-                    if user32::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
+                    if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
                         // Only happens if the message is `WM_QUIT`.
-                        debug_assert_eq!(msg.message, winapi::WM_QUIT);
+                        debug_assert_eq!(msg.message, winuser::WM_QUIT);
                         break;
                     }
 
@@ -135,8 +135,8 @@ impl EventsLoop {
                         },
                         _ => {
                             // Calls `callback` below.
-                            user32::TranslateMessage(&msg);
-                            user32::DispatchMessageW(&msg);
+                            winuser::TranslateMessage(&msg);
+                            winuser::DispatchMessageW(&msg);
                         }
                     }
                 }
@@ -146,8 +146,13 @@ impl EventsLoop {
         // Blocks this function until the background thread has an events loop. See other comments.
         barrier.wait();
 
+        let thread_id = unsafe {
+            let handle = mem::transmute(thread.as_raw_handle());
+            processthreadsapi::GetThreadId(handle)
+        };
+
         EventsLoop {
-            thread_id: unsafe { kernel32::GetThreadId(thread.as_raw_handle()) },
+            thread_id,
             receiver: rx,
             win32_block_loop
         }
@@ -225,8 +230,8 @@ impl EventsLoop {
 
             let raw = Box::into_raw(boxed2);
 
-            let res = user32::PostThreadMessageA(self.thread_id, *EXEC_MSG_ID,
-                                                 raw as *mut () as usize as winapi::WPARAM, 0);
+            let res = winuser::PostThreadMessageA(self.thread_id, *EXEC_MSG_ID,
+                                                 raw as *mut () as usize as WPARAM, 0);
             // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
             // as the events loop is still alive) or if the queue is full.
             assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
@@ -238,20 +243,20 @@ impl Drop for EventsLoop {
     fn drop(&mut self) {
         unsafe {
             // Posting `WM_QUIT` will cause `GetMessage` to stop.
-            user32::PostThreadMessageA(self.thread_id, winapi::WM_QUIT, 0, 0);
+            winuser::PostThreadMessageA(self.thread_id, winuser::WM_QUIT, 0, 0);
         }
     }
 }
 
 #[derive(Clone)]
 pub struct EventsLoopProxy {
-    thread_id: winapi::DWORD,
+    thread_id: DWORD,
 }
 
 impl EventsLoopProxy {
     pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
         unsafe {
-            if user32::PostThreadMessageA(self.thread_id, *WAKEUP_MSG_ID, 0, 0) != 0 {
+            if winuser::PostThreadMessageA(self.thread_id, *WAKEUP_MSG_ID, 0, 0) != 0 {
                 Ok(())
             } else {
                 // https://msdn.microsoft.com/fr-fr/library/windows/desktop/ms644946(v=vs.85).aspx
@@ -272,7 +277,7 @@ lazy_static! {
     // WPARAM and LPARAM are unused.
     static ref WAKEUP_MSG_ID: u32 = {
         unsafe {
-            user32::RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr() as *const i8)
+            winuser::RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr() as *const i8)
         }
     };
     // Message sent when we want to execute a closure in the thread.
@@ -280,7 +285,7 @@ lazy_static! {
     // and LPARAM is unused.
     static ref EXEC_MSG_ID: u32 = {
         unsafe {
-            user32::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as *const i8)
+            winuser::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as *const i8)
         }
     };
 }
@@ -290,7 +295,7 @@ lazy_static! {
 thread_local!(static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::new(None));
 struct ThreadLocalData {
     sender: mpsc::Sender<Event>,
-    windows: HashMap<winapi::HWND, Arc<Mutex<WindowState>>>,
+    windows: HashMap<HWND, Arc<Mutex<WindowState>>>,
     win32_block_loop: Arc<(Mutex<bool>, Condvar)>
 }
 
@@ -310,12 +315,12 @@ fn send_event(event: Event) {
 //
 // Returning 0 tells the Win32 API that the message has been processed.
 // FIXME: detect WM_DWMCOMPOSITIONCHANGED and call DwmEnableBlurBehindWindow if necessary
-pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
-                                       wparam: winapi::WPARAM, lparam: winapi::LPARAM)
-                                       -> winapi::LRESULT
+pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
+                                       wparam: WPARAM, lparam: LPARAM)
+                                       -> LRESULT
 {
     match msg {
-        winapi::WM_CLOSE => {
+        winuser::WM_CLOSE => {
             use events::WindowEvent::Closed;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
@@ -325,17 +330,17 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 let mut context_stash = context_stash.borrow_mut();
                 context_stash.as_mut().unwrap().windows.remove(&window);
             });
-            user32::DefWindowProcW(window, msg, wparam, lparam)
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
         },
 
-        winapi::WM_ERASEBKGND => {
+        winuser::WM_ERASEBKGND => {
             1
         },
 
-        winapi::WM_SIZE => {
+        winuser::WM_SIZE => {
             use events::WindowEvent::Resized;
-            let w = winapi::LOWORD(lparam as winapi::DWORD) as u32;
-            let h = winapi::HIWORD(lparam as winapi::DWORD) as u32;
+            let w = LOWORD(lparam as DWORD) as u32;
+            let h = HIWORD(lparam as DWORD) as u32;
 
             // Wait for the parent thread to process the resize event before returning from the
             // callback.
@@ -370,10 +375,10 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_MOVE => {
+        winuser::WM_MOVE => {
             use events::WindowEvent::Moved;
-            let x = winapi::LOWORD(lparam as winapi::DWORD) as i32;
-            let y = winapi::HIWORD(lparam as winapi::DWORD) as i32;
+            let x = LOWORD(lparam as DWORD) as i32;
+            let y = HIWORD(lparam as DWORD) as i32;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Moved(x, y),
@@ -381,7 +386,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_CHAR => {
+        winuser::WM_CHAR => {
             use std::mem;
             use events::WindowEvent::ReceivedCharacter;
             let chr: char = mem::transmute(wparam as u32);
@@ -396,11 +401,11 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         // "ding" sounds. Alternatively could check for WM_SYSCOMMAND
         // with wparam being SC_KEYMENU, but this may prevent some
         // other unwanted default hotkeys as well.
-        winapi::WM_SYSCHAR => {
+        winuser::WM_SYSCHAR => {
             0
         }
 
-        winapi::WM_MOUSEMOVE => {
+        winuser::WM_MOUSEMOVE => {
             use events::WindowEvent::{MouseEntered, MouseMoved};
             let mouse_outside_window = CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
@@ -424,16 +429,16 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 });
 
                 // Calling TrackMouseEvent in order to receive mouse leave events.
-                user32::TrackMouseEvent(&mut winapi::TRACKMOUSEEVENT {
-                    cbSize: mem::size_of::<winapi::TRACKMOUSEEVENT>() as winapi::DWORD,
-                    dwFlags: winapi::TME_LEAVE,
+                winuser::TrackMouseEvent(&mut winuser::TRACKMOUSEEVENT {
+                    cbSize: mem::size_of::<winuser::TRACKMOUSEEVENT>() as DWORD,
+                    dwFlags: winuser::TME_LEAVE,
                     hwndTrack: window,
-                    dwHoverTime: winapi::HOVER_DEFAULT,
+                    dwHoverTime: winuser::HOVER_DEFAULT,
                 });
             }
 
-            let x = winapi::GET_X_LPARAM(lparam) as f64;
-            let y = winapi::GET_Y_LPARAM(lparam) as f64;
+            let x = windowsx::GET_X_LPARAM(lparam) as f64;
+            let y = windowsx::GET_Y_LPARAM(lparam) as f64;
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
@@ -443,7 +448,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_MOUSELEAVE => {
+        winuser::WM_MOUSELEAVE => {
             use events::WindowEvent::MouseLeft;
             let mouse_in_window = CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
@@ -470,14 +475,14 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_MOUSEWHEEL => {
+        winuser::WM_MOUSEWHEEL => {
             use events::WindowEvent::MouseWheel;
             use events::MouseScrollDelta::LineDelta;
             use events::TouchPhase;
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
-            let value = value as f32 / winapi::WHEEL_DELTA as f32;
+            let value = value as f32 / winuser::WHEEL_DELTA as f32;
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
@@ -487,10 +492,10 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_KEYDOWN | winapi::WM_SYSKEYDOWN => {
+        winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
             use events::ElementState::Pressed;
-            if msg == winapi::WM_SYSKEYDOWN && wparam as i32 == winapi::VK_F4 {
-                user32::DefWindowProcW(window, msg, wparam, lparam)
+            if msg == winuser::WM_SYSKEYDOWN && wparam as i32 == winuser::VK_F4 {
+                winuser::DefWindowProcW(window, msg, wparam, lparam)
             } else {
                 let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
                 send_event(Event::WindowEvent {
@@ -509,7 +514,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             }
         },
 
-        winapi::WM_KEYUP | winapi::WM_SYSKEYUP => {
+        winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
             use events::ElementState::Released;
             let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
             send_event(Event::WindowEvent {
@@ -527,7 +532,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_LBUTTONDOWN => {
+        winuser::WM_LBUTTONDOWN => {
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Left;
             use events::ElementState::Pressed;
@@ -538,7 +543,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_LBUTTONUP => {
+        winuser::WM_LBUTTONUP => {
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Left;
             use events::ElementState::Released;
@@ -549,7 +554,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_RBUTTONDOWN => {
+        winuser::WM_RBUTTONDOWN => {
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Right;
             use events::ElementState::Pressed;
@@ -560,7 +565,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_RBUTTONUP => {
+        winuser::WM_RBUTTONUP => {
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Right;
             use events::ElementState::Released;
@@ -571,7 +576,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_MBUTTONDOWN => {
+        winuser::WM_MBUTTONDOWN => {
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Middle;
             use events::ElementState::Pressed;
@@ -582,7 +587,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_MBUTTONUP => {
+        winuser::WM_MBUTTONUP => {
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Middle;
             use events::ElementState::Released;
@@ -593,11 +598,11 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_XBUTTONDOWN => {
+        winuser::WM_XBUTTONDOWN => {
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Other;
             use events::ElementState::Pressed;
-            let xbutton = winapi::HIWORD(wparam as winapi::DWORD) as winapi::c_int; // waiting on PR for winapi to add GET_XBUTTON_WPARAM
+            let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Other(xbutton as u8) }
@@ -605,11 +610,11 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_XBUTTONUP => {
+        winuser::WM_XBUTTONUP => {
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Other;
             use events::ElementState::Released;
-            let xbutton = winapi::HIWORD(wparam as winapi::DWORD) as winapi::c_int;
+            let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Other(xbutton as u8) }
@@ -617,18 +622,19 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_INPUT => {
+        winuser::WM_INPUT => {
             use events::DeviceEvent::Motion;
-            let mut data: winapi::RAWINPUT = mem::uninitialized();
-            let mut data_size = mem::size_of::<winapi::RAWINPUT>() as winapi::UINT;
-            user32::GetRawInputData(mem::transmute(lparam), winapi::RID_INPUT,
+            let mut data: winuser::RAWINPUT = mem::uninitialized();
+            let mut data_size = mem::size_of::<winuser::RAWINPUT>() as UINT;
+            winuser::GetRawInputData(mem::transmute(lparam), winuser::RID_INPUT,
                                     mem::transmute(&mut data), &mut data_size,
-                                    mem::size_of::<winapi::RAWINPUTHEADER>() as winapi::UINT);
+                                    mem::size_of::<winuser::RAWINPUTHEADER>() as UINT);
 
-            if data.header.dwType == winapi::RIM_TYPEMOUSE {
-                if data.mouse.usFlags & winapi::MOUSE_MOVE_RELATIVE == winapi::MOUSE_MOVE_RELATIVE {
-                    let x = data.mouse.lLastX as f64;
-                    let y = data.mouse.lLastY as f64;
+            if data.header.dwType == winuser::RIM_TYPEMOUSE {
+                let mouse = data.data.mouse();
+                if mouse.usFlags & winuser::MOUSE_MOVE_RELATIVE == winuser::MOUSE_MOVE_RELATIVE {
+                    let x = mouse.lLastX as f64;
+                    let y = mouse.lLastY as f64;
 
                     if x != 0.0 {
                         send_event(Event::DeviceEvent {
@@ -647,11 +653,11 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
                 0
             } else {
-                user32::DefWindowProcW(window, msg, wparam, lparam)
+                winuser::DefWindowProcW(window, msg, wparam, lparam)
             }
         },
 
-        winapi::WM_SETFOCUS => {
+        winuser::WM_SETFOCUS => {
             use events::WindowEvent::Focused;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
@@ -660,7 +666,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_KILLFOCUS => {
+        winuser::WM_KILLFOCUS => {
             use events::WindowEvent::Focused;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
@@ -669,7 +675,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             0
         },
 
-        winapi::WM_SETCURSOR => {
+        winuser::WM_SETCURSOR => {
             let call_def_window_proc = CONTEXT_STASH.with(|context_stash| {
                 let cstash = context_stash.borrow();
                 let mut call_def_window_proc = false;
@@ -679,12 +685,12 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                             if window_state.mouse_in_window {
                                 match window_state.cursor_state {
                                     CursorState::Normal => {
-                                        user32::SetCursor(user32::LoadCursorW(
+                                        winuser::SetCursor(winuser::LoadCursorW(
                                                 ptr::null_mut(),
                                                 window_state.cursor));
                                     },
                                     CursorState::Grab | CursorState::Hide => {
-                                        user32::SetCursor(ptr::null_mut());
+                                        winuser::SetCursor(ptr::null_mut());
                                     }
                                 }
                             } else {
@@ -698,22 +704,22 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
             });
 
             if call_def_window_proc {
-                user32::DefWindowProcW(window, msg, wparam, lparam)
+                winuser::DefWindowProcW(window, msg, wparam, lparam)
             } else {
                 0
             }
         },
 
-        winapi::WM_DROPFILES => {
+        winuser::WM_DROPFILES => {
             use events::WindowEvent::DroppedFile;
 
-            let hdrop = wparam as winapi::HDROP;
-            let mut pathbuf: [u16; winapi::MAX_PATH] = mem::uninitialized();
-            let num_drops = shell32::DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0);
+            let hdrop = wparam as shellapi::HDROP;
+            let mut pathbuf: [u16; MAX_PATH] = mem::uninitialized();
+            let num_drops = shellapi::DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0);
 
             for i in 0..num_drops {
-                let nch = shell32::DragQueryFileW(hdrop, i, pathbuf.as_mut_ptr(),
-                                                  winapi::MAX_PATH as u32) as usize;
+                let nch = shellapi::DragQueryFileW(hdrop, i, pathbuf.as_mut_ptr(),
+                                                  MAX_PATH as u32) as usize;
                 if nch > 0 {
                     send_event(Event::WindowEvent {
                         window_id: SuperWindowId(WindowId(window)),
@@ -722,11 +728,12 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 }
             }
 
-            shell32::DragFinish(hdrop);
+            shellapi::DragFinish(hdrop);
             0
         },
 
-        winapi::WM_GETMINMAXINFO => {
+        winuser::WM_GETMINMAXINFO => {
+            /*
             // Equivalent to the windows api [MINMAXINFO](https://msdn.microsoft.com/en-us/library/windows/desktop/ms632605%28v=vs.85%29.aspx)
             // struct. Used because winapi-rs doesn't have this declared.
             // TODO: replace with struct from winapi-rs
@@ -739,8 +746,9 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 min_track: winapi::POINT,
                 max_track: winapi::POINT
             }
+            */
 
-            let mmi = lparam as *mut MinMaxInfo;
+            let mmi = lparam as *mut winuser::MINMAXINFO;
             //(*mmi).max_position = winapi::POINT { x: -8, y: -8 }; // The upper left corner of the window if it were maximized on the primary monitor.
             //(*mmi).max_size = winapi::POINT { x: .., y: .. }; // The dimensions of the primary monitor.
 
@@ -751,14 +759,14 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
                         match window_state.attributes.min_dimensions {
                             Some((width, height)) => {
-                                (*mmi).min_track = winapi::POINT { x: width as i32, y: height as i32 };
+                                (*mmi).ptMinTrackSize = POINT { x: width as i32, y: height as i32 };
                             },
                             None => { }
                         }
 
                         match window_state.attributes.max_dimensions {
                             Some((width, height)) => {
-                                (*mmi).max_track = winapi::POINT { x: width as i32, y: height as i32 };
+                                (*mmi).ptMaxTrackSize = POINT { x: width as i32, y: height as i32 };
                             },
                             None => { }
                         }
@@ -770,7 +778,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         _ => {
-            user32::DefWindowProcW(window, msg, wparam, lparam)
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
         }
     }
 }
