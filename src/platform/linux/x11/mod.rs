@@ -464,7 +464,7 @@ impl EventsLoop {
 
                         let new_cursor_pos = (xev.event_x, xev.event_y);
                         callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
-                            device_id: did,
+                            device_id: mkdid(xev.deviceid),
                             position: new_cursor_pos
                         }})
                     }
