@@ -177,7 +177,7 @@ impl EventsLoop {
                         control_flow = ControlFlow::Break;
                     }
                 };
-                    
+
                 self.process_event(&mut xev, &mut cb);
             }
 
@@ -342,7 +342,7 @@ impl EventsLoop {
                     return;
                 }
 
-                use events::WindowEvent::{Focused, MouseEntered, MouseInput, MouseLeft, MouseMoved, MouseWheel, AxisMotion};
+                use events::WindowEvent::{Focused, CursorEntered, MouseInput, CursorLeft, CursorMoved, MouseWheel, AxisMotion};
                 use events::ElementState::{Pressed, Released};
                 use events::MouseButton::{Left, Right, Middle, Other};
                 use events::MouseScrollDelta::LineDelta;
@@ -405,7 +405,7 @@ impl EventsLoop {
                                 true
                             } else { false }
                         } {
-                            callback(Event::WindowEvent { window_id: wid, event: MouseMoved {
+                            callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
                                 device_id: did,
                                 position: new_cursor_pos
                             }});
@@ -421,9 +421,10 @@ impl EventsLoop {
                             let mut value = xev.valuators.values;
                             for i in 0..xev.valuators.mask_len*8 {
                                 if ffi::XIMaskIsSet(mask, i) {
+                                    let x = unsafe { *value };
                                     if let Some(&mut (_, ref mut info)) = physical_device.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == i) {
-                                        let delta = (unsafe { *value } - info.position) / info.increment;
-                                        info.position = unsafe { *value };
+                                        let delta = (x - info.position) / info.increment;
+                                        info.position = x;
                                         events.push(Event::WindowEvent { window_id: wid, event: MouseWheel {
                                             device_id: did,
                                             delta: match info.orientation {
@@ -460,11 +461,11 @@ impl EventsLoop {
                             }
                         }
 
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: MouseEntered { device_id: mkdid(xev.deviceid) } })
+                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorEntered { device_id: mkdid(xev.deviceid) } })
                     }
                     ffi::XI_Leave => {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: MouseLeft { device_id: mkdid(xev.deviceid) } })
+                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorLeft { device_id: mkdid(xev.deviceid) } })
                     }
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
@@ -521,15 +522,37 @@ impl EventsLoop {
                         let did = mkdid(xev.deviceid);
 
                         let mask = unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
-                        let mut value = xev.valuators.values;
+                        let mut value = xev.raw_values;
+                        let mut mouse_delta = (0.0, 0.0);
+                        let mut scroll_delta = (0.0, 0.0);
                         for i in 0..xev.valuators.mask_len*8 {
                             if ffi::XIMaskIsSet(mask, i) {
+                                let x = unsafe { *value };
+                                // We assume that every XInput2 device with analog axes is a pointing device emitting
+                                // relative coordinates.
+                                match i {
+                                    0 => mouse_delta.0 = x,
+                                    1 => mouse_delta.1 = x,
+                                    2 => scroll_delta.0 = x as f32,
+                                    3 => scroll_delta.1 = x as f32,
+                                    _ => {},
+                                }
                                 callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::Motion {
                                     axis: i as u32,
-                                    value: unsafe { *value },
+                                    value: x,
                                 }});
                                 value = unsafe { value.offset(1) };
                             }
+                        }
+                        if mouse_delta != (0.0, 0.0) {
+                            callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::MouseMotion {
+                                delta: mouse_delta,
+                            }});
+                        }
+                        if scroll_delta != (0.0, 0.0) {
+                            callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::MouseWheel {
+                                delta: LineDelta(scroll_delta.0, scroll_delta.1),
+                            }});
                         }
                     }
 
@@ -709,7 +732,7 @@ impl Window {
             x_events_loop.display.check_errors().expect("Failed to call XSetICFocus");
             ic
         };
-        
+
         x_events_loop.windows.lock().unwrap().insert(win.id(), WindowData {
             im: im,
             ic: ic,
@@ -736,7 +759,7 @@ impl Window {
         if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
             let nspot = ffi::XPoint{x: x, y: y};
             let mut windows = windows.lock().unwrap();
-            let mut w = windows.get_mut(&self.window.id()).unwrap();
+            let w = windows.get_mut(&self.window.id()).unwrap();
             if w.ic_spot.x == x && w.ic_spot.y == y {
                 return
             }

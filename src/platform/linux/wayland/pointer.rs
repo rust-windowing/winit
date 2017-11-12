@@ -41,13 +41,13 @@ pub fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
                 idata.mouse_focus = Some(wid);
                 let mut guard = idata.sink.lock().unwrap();
                 guard.send_event(
-                    Event::MouseEntered {
+                    Event::CursorEntered {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                     },
                     wid,
                 );
                 guard.send_event(
-                    Event::MouseMoved {
+                    Event::CursorMoved {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                         position: (x, y),
                     },
@@ -61,7 +61,7 @@ pub fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
             if let Some(wid) = wid {
                 let mut guard = idata.sink.lock().unwrap();
                 guard.send_event(
-                    Event::MouseLeft {
+                    Event::CursorLeft {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                     },
                     wid,
@@ -71,7 +71,7 @@ pub fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
         motion: |_, idata, _, _, x, y| {
             if let Some(wid) = idata.mouse_focus {
                 idata.sink.lock().unwrap().send_event(
-                    Event::MouseMoved {
+                    Event::CursorMoved {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                         position: (x, y)
                     },

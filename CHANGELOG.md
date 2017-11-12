@@ -15,6 +15,9 @@
 - Impl `Clone` for `EventsLoopProxy`
 - `EventsLoop::get_primary_monitor()` on X11 will fallback to any available monitor if no primary is found
 - Support for touch event on wayland
+- `WindowEvent`s `MouseMoved`, `MouseEntered`, and `MouseLeft` have been renamed to
+`CursorMoved`, `CursorEntered`, and `CursorLeft`.
+- New `DeviceEvent`s added, `MouseMotion` and `MouseWheel`.
 
 # Version 0.8.3 (2017-10-11)
 
