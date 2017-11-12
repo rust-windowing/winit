@@ -759,7 +759,7 @@ impl Window {
         if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
             let nspot = ffi::XPoint{x: x, y: y};
             let mut windows = windows.lock().unwrap();
-            let mut w = windows.get_mut(&self.window.id()).unwrap();
+            let w = windows.get_mut(&self.window.id()).unwrap();
             if w.ic_spot.x == x && w.ic_spot.y == y {
                 return
             }
