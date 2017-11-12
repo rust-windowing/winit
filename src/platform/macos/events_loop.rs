@@ -442,7 +442,37 @@ impl EventsLoop {
             appkit::NSOtherMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Middle })) },
             appkit::NSOtherMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Middle })) },
 
-            appkit::NSMouseEntered => { Some(into_event(WindowEvent::CursorEntered { device_id: DEVICE_ID })) },
+            appkit::NSMouseEntered => {
+                let window = match maybe_window.or_else(maybe_key_window) {
+                    Some(window) => window,
+                    None => return None,
+                };
+
+                let window_point = ns_event.locationInWindow();
+                let view_point = if ns_window == cocoa::base::nil {
+                    let ns_size = foundation::NSSize::new(0.0, 0.0);
+                    let ns_rect = foundation::NSRect::new(window_point, ns_size);
+                    let window_rect = window.window.convertRectFromScreen_(ns_rect);
+                    window.view.convertPoint_fromView_(window_rect.origin, cocoa::base::nil)
+                } else {
+                    window.view.convertPoint_fromView_(window_point, cocoa::base::nil)
+                };
+                let view_rect = NSView::frame(*window.view);
+                let scale_factor = window.hidpi_factor();
+
+                let mut events = std::collections::VecDeque::new();
+
+                {
+                    let x = (scale_factor * view_point.x as f32) as f64;
+                    let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
+                    let window_event = WindowEvent::CursorMoved { device_id: DEVICE_ID, position: (x, y) };
+                    let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
+                    events.push_back(event);
+                }
+
+                self.shared.pending_events.lock().unwrap().extend(events.into_iter());
+                Some(into_event(WindowEvent::CursorEntered { device_id: DEVICE_ID }))
+            },
             appkit::NSMouseExited => { Some(into_event(WindowEvent::CursorLeft { device_id: DEVICE_ID })) },
 
             appkit::NSMouseMoved |
