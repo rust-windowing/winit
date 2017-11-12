@@ -669,6 +669,14 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                 window_id: SuperWindowId(WindowId(window)),
                 event: Focused(true)
             });
+
+            let x = winapi::GET_X_LPARAM(lparam) as f64;
+            let y = winapi::GET_Y_LPARAM(lparam) as f64;
+
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: CursorMoved { device_id: DEVICE_ID, position: (x, y) },
+            });
             0
         },
 
