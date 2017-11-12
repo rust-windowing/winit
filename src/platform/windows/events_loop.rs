@@ -664,7 +664,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
         },
 
         winapi::WM_SETFOCUS => {
-            use events::WindowEvent::Focused;
+            use events::WindowEvent::{Focused, CursorMoved};
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Focused(true)
