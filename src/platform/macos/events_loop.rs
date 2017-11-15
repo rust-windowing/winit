@@ -460,15 +460,10 @@ impl EventsLoop {
                 let view_rect = NSView::frame(*window.view);
                 let scale_factor = window.hidpi_factor();
 
-                let mut events = std::collections::VecDeque::new();
-
-                {
-                    let x = (scale_factor * view_point.x as f32) as f64;
-                    let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
-                    let window_event = WindowEvent::CursorMoved { device_id: DEVICE_ID, position: (x, y) };
-                    let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
-                    events.push_back(event);
-                }
+                let x = (scale_factor * view_point.x as f32) as f64;
+                let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
+                let window_event = WindowEvent::CursorMoved { device_id: DEVICE_ID, position: (x, y) };
+                let events = vec![Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event }];
 
                 self.shared.pending_events.lock().unwrap().extend(events.into_iter());
                 Some(into_event(WindowEvent::CursorEntered { device_id: DEVICE_ID }))
