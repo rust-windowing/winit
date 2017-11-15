@@ -463,9 +463,8 @@ impl EventsLoop {
                 let x = (scale_factor * view_point.x as f32) as f64;
                 let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
                 let window_event = WindowEvent::CursorMoved { device_id: DEVICE_ID, position: (x, y) };
-                let events = vec![Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event }];
 
-                self.shared.pending_events.lock().unwrap().extend(events.into_iter());
+                self.shared.pending_events.lock().unwrap().extend(window_event);
                 Some(into_event(WindowEvent::CursorEntered { device_id: DEVICE_ID }))
             },
             appkit::NSMouseExited => { Some(into_event(WindowEvent::CursorLeft { device_id: DEVICE_ID })) },
