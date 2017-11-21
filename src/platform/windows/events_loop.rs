@@ -494,6 +494,7 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
 
         winapi::WM_KEYDOWN | winapi::WM_SYSKEYDOWN => {
             use events::ElementState::Pressed;
+            use events::VirtualKeyCode;
             if msg == winapi::WM_SYSKEYDOWN && wparam as i32 == winapi::VK_F4 {
                 user32::DefWindowProcW(window, msg, wparam, lparam)
             } else {
@@ -510,6 +511,14 @@ pub unsafe extern "system" fn callback(window: winapi::HWND, msg: winapi::UINT,
                         }
                     }
                 });
+                // Windows doesn't emit a delete character by default, but in order to make it
+                // consistent with the other platforms we'll emit a delete character here.
+                if vkey == Some(VirtualKeyCode::Delete) {
+                    send_event(Event::WindowEvent {
+                        window_id: SuperWindowId(WindowId(window)),
+                        event: WindowEvent::ReceivedCharacter('\u{7F}'),
+                    });
+                }
                 0
             }
         },
