@@ -460,8 +460,13 @@ impl EventsLoop {
                                 physical_device.reset_scroll_position(info);
                             }
                         }
+                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorEntered { device_id: mkdid(xev.deviceid) } });
 
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorEntered { device_id: mkdid(xev.deviceid) } })
+                        let new_cursor_pos = (xev.event_x, xev.event_y);
+                        callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
+                            device_id: mkdid(xev.deviceid),
+                            position: new_cursor_pos
+                        }})
                     }
                     ffi::XI_Leave => {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
@@ -474,7 +479,13 @@ impl EventsLoop {
                             let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
                             (self.display.xlib.XSetICFocus)(window_data.ic);
                         }
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: Focused(true) })
+                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: Focused(true) });
+
+                        let new_cursor_pos = (xev.event_x, xev.event_y);
+                        callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
+                            device_id: mkdid(xev.deviceid),
+                            position: new_cursor_pos
+                        }})
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
