@@ -1,4 +1,4 @@
-# Unreleased
+# Version 0.9.0 (2017-11-26)
 
 - Added event `WindowEvent::HiDPIFactorChanged`.
 - Added method `MonitorId::get_hidpi_factor`.
@@ -18,6 +18,7 @@
 - `WindowEvent`s `MouseMoved`, `MouseEntered`, and `MouseLeft` have been renamed to
 `CursorMoved`, `CursorEntered`, and `CursorLeft`.
 - New `DeviceEvent`s added, `MouseMotion` and `MouseWheel`.
+- Send `CursorMoved` event after `CursorEntered` and `Focused` events.
 
 # Version 0.8.3 (2017-10-11)
 
