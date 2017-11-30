@@ -186,7 +186,13 @@ extern "C" fn mouse_callback(
                         device_id: ::DeviceId(DeviceId),
                         position: ((*event).canvasX as f64, (*event).canvasY as f64),
                     }
-                })
+                });
+                queue.borrow_mut().push_back(::Event::DeviceEvent {
+                    device_id: ::DeviceId(DeviceId),
+                    event: ::DeviceEvent::MouseMotion {
+                        delta: ((*event).movementX as f64, (*event).movementY as f64),
+                    }
+                });
             },
             mouse_input @ ffi::EMSCRIPTEN_EVENT_MOUSEDOWN |
             mouse_input @ ffi::EMSCRIPTEN_EVENT_MOUSEUP => {
