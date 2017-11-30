@@ -177,6 +177,14 @@ extern "C" fn keyboard_callback(
 {
     unsafe {
         let queue: &RefCell<VecDeque<::Event>> = mem::transmute(event_queue);
+
+        let modifiers = ::ModifiersState {
+            shift: (*event).shiftKey == ffi::EM_TRUE,
+            ctrl: (*event).ctrlKey == ffi::EM_TRUE,
+            alt: (*event).altKey == ffi::EM_TRUE,
+            logo: (*event).metaKey == ffi::EM_TRUE,
+        };
+
         match event_type {
             ffi::EMSCRIPTEN_EVENT_KEYDOWN => {
                 queue.borrow_mut().push_back(::Event::WindowEvent {
@@ -187,8 +195,8 @@ extern "C" fn keyboard_callback(
                             scancode: key_translate((*event).key) as u32,
                             state: ::ElementState::Pressed,
                             virtual_keycode: key_translate_virt((*event).key, (*event).location),
-                            modifiers: ::ModifiersState::default()        // TODO:
-                        },   
+                            modifiers,
+                        },
                     },
                 });
             },
@@ -201,7 +209,7 @@ extern "C" fn keyboard_callback(
                             scancode: key_translate((*event).key) as u32,
                             state: ::ElementState::Released,
                             virtual_keycode: key_translate_virt((*event).key, (*event).location),
-                            modifiers: ::ModifiersState::default()        // TODO:
+                            modifiers,
                         },
                     },
                 });
