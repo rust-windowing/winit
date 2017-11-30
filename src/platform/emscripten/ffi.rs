@@ -2,7 +2,7 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use std::os::raw::{c_int, c_char, c_void, c_ulong, c_double};
+use std::os::raw::{c_int, c_char, c_void, c_ulong, c_double, c_long, c_ushort};
 
 pub type EM_BOOL = c_int;
 pub type EM_UTF8 = c_char;
@@ -76,6 +76,11 @@ pub type em_key_callback_func = Option<unsafe extern "C" fn(
     keyEvent: *const EmscriptenKeyboardEvent,
     userData: *mut c_void) -> EM_BOOL>;
 
+pub type em_mouse_callback_func = Option<unsafe extern "C" fn(
+    eventType: c_int,
+    mouseEvent: *const EmscriptenMouseEvent,
+    userData: *mut c_void) -> EM_BOOL>;
+
 pub type em_pointerlockchange_callback_func = Option<unsafe extern "C" fn(
     eventType: c_int,
     pointerlockChangeEvent: *const EmscriptenPointerlockChangeEvent,
@@ -130,6 +135,34 @@ impl Clone for EmscriptenKeyboardEvent {
 }
 
 #[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct EmscriptenMouseEvent {
+    pub timestamp: f64,
+    pub screenX: c_long,
+    pub screenY: c_long,
+    pub clientX: c_long,
+    pub clientY: c_long,
+    pub ctrlKey: c_int,
+    pub shiftKey: c_int,
+    pub altKey: c_int,
+    pub metaKey: c_int,
+    pub button: c_ushort,
+    pub buttons: c_ushort,
+    pub movementX: c_long,
+    pub movementY: c_long,
+    pub targetX: c_long,
+    pub targetY: c_long,
+    pub canvasX: c_long,
+    pub canvasY: c_long,
+    pub padding: c_long,
+}
+#[test]
+fn bindgen_test_layout_EmscriptenMouseEvent() {
+    assert_eq!(mem::size_of::<EmscriptenMouseEvent>(), 120usize);
+    assert_eq!(mem::align_of::<EmscriptenMouseEvent>(), 8usize);
+}
+
+#[repr(C)]
 pub struct EmscriptenPointerlockChangeEvent {
     pub isActive: c_int,
     pub nodeName: [c_char; 128usize],
@@ -170,6 +203,21 @@ extern "C" {
     pub fn emscripten_set_keyup_callback(
         target: *const c_char, userData: *mut c_void,
         useCapture: EM_BOOL, callback: em_key_callback_func)
+        -> EMSCRIPTEN_RESULT;
+
+    pub fn emscripten_set_mousemove_callback(
+        target: *const c_char, user_data: *mut c_void,
+        use_capture: EM_BOOL, callback: em_mouse_callback_func)
+        -> EMSCRIPTEN_RESULT;
+
+    pub fn emscripten_set_mousedown_callback(
+        target: *const c_char, user_data: *mut c_void,
+        use_capture: EM_BOOL, callback: em_mouse_callback_func)
+        -> EMSCRIPTEN_RESULT;
+
+    pub fn emscripten_set_mouseup_callback(
+        target: *const c_char, user_data: *mut c_void,
+        use_capture: EM_BOOL, callback: em_mouse_callback_func)
         -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_hide_mouse();
