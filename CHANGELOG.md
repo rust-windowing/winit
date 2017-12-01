@@ -1,3 +1,7 @@
+# Unreleased
+
+- Add support for `Touch` for emscripten backend.
+
 # Version 0.9.0 (2017-12-01)
 
 - Added event `WindowEvent::HiDPIFactorChanged`.

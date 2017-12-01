@@ -274,6 +274,40 @@ extern "C" fn keyboard_callback(
     ffi::EM_FALSE
 }
 
+extern fn touch_callback(
+    event_type: c_int,
+    event: *const ffi::EmscriptenTouchEvent,
+    event_queue: *mut c_void) -> ffi::EM_BOOL
+{
+    unsafe {
+        let queue: &RefCell<VecDeque<::Event>> = mem::transmute(event_queue);
+
+        let phase = match event_type {
+            ffi::EMSCRIPTEN_EVENT_TOUCHSTART => ::TouchPhase::Started,
+            ffi::EMSCRIPTEN_EVENT_TOUCHEND => ::TouchPhase::Ended,
+            ffi::EMSCRIPTEN_EVENT_TOUCHMOVE => ::TouchPhase::Moved,
+            ffi::EMSCRIPTEN_EVENT_TOUCHCANCEL => ::TouchPhase::Cancelled,
+            _ => return ffi::EM_FALSE,
+        };
+
+        for touch in 0..(*event).numTouches as usize {
+            let touch = (*event).touches[touch];
+            if touch.isChanged == ffi::EM_TRUE {
+                queue.borrow_mut().push_back(::Event::WindowEvent {
+                    window_id: ::WindowId(WindowId(0)),
+                    event: ::WindowEvent::Touch(::Touch {
+                        device_id: ::DeviceId(DeviceId),
+                        phase,
+                        id: touch.identifier as u64,
+                        location: (touch.canvasX as f64, touch.canvasY as f64),
+                    }),
+                });
+            }
+        }
+    }
+    ffi::EM_FALSE
+}
+
 // In case of fullscreen window this method will request fullscreen on change
 #[allow(non_snake_case)]
 unsafe extern "C" fn fullscreen_callback(
@@ -334,6 +368,14 @@ impl Window {
             em_try(ffi::emscripten_set_keydown_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(keyboard_callback)))
                 .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
             em_try(ffi::emscripten_set_keyup_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(keyboard_callback)))
+                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_touchstart_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(touch_callback)))
+                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_touchend_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(touch_callback)))
+                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_touchmove_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(touch_callback)))
+                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_touchcancel_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(touch_callback)))
                 .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
         }
 
