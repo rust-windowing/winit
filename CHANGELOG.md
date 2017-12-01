@@ -1,4 +1,4 @@
-# Version 0.9.0 (2017-11-26)
+# Version 0.9.0 (2017-12-01)
 
 - Added event `WindowEvent::HiDPIFactorChanged`.
 - Added method `MonitorId::get_hidpi_factor`.
@@ -19,6 +19,7 @@
 `CursorMoved`, `CursorEntered`, and `CursorLeft`.
 - New `DeviceEvent`s added, `MouseMotion` and `MouseWheel`.
 - Send `CursorMoved` event after `CursorEntered` and `Focused` events.
+- Add support for `ModifiersState`, `MouseMove`, `MouseInput`, `MouseMotion` for emscripten backend.
 
 # Version 0.8.3 (2017-10-11)
 
