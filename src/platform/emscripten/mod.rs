@@ -170,6 +170,59 @@ fn show_mouse() {
     }
 }
 
+extern "C" fn mouse_callback(
+    event_type: c_int,
+    event: *const ffi::EmscriptenMouseEvent,
+    event_queue: *mut c_void) -> ffi::EM_BOOL
+{
+    unsafe {
+        let queue: &RefCell<VecDeque<::Event>> = mem::transmute(event_queue);
+
+        match event_type {
+            ffi::EMSCRIPTEN_EVENT_MOUSEMOVE => {
+                queue.borrow_mut().push_back(::Event::WindowEvent {
+                    window_id: ::WindowId(WindowId(0)),
+                    event: ::WindowEvent::CursorMoved {
+                        device_id: ::DeviceId(DeviceId),
+                        position: ((*event).canvasX as f64, (*event).canvasY as f64),
+                    }
+                });
+                queue.borrow_mut().push_back(::Event::DeviceEvent {
+                    device_id: ::DeviceId(DeviceId),
+                    event: ::DeviceEvent::MouseMotion {
+                        delta: ((*event).movementX as f64, (*event).movementY as f64),
+                    }
+                });
+            },
+            mouse_input @ ffi::EMSCRIPTEN_EVENT_MOUSEDOWN |
+            mouse_input @ ffi::EMSCRIPTEN_EVENT_MOUSEUP => {
+                let button = match (*event).button {
+                    0 => ::MouseButton::Left,
+                    1 => ::MouseButton::Middle,
+                    2 => ::MouseButton::Right,
+                    other => ::MouseButton::Other(other as u8),
+                };
+                let state = match mouse_input {
+                    ffi::EMSCRIPTEN_EVENT_MOUSEDOWN => ::ElementState::Pressed,
+                    ffi::EMSCRIPTEN_EVENT_MOUSEUP => ::ElementState::Released,
+                    _ => unreachable!(),
+                };
+                queue.borrow_mut().push_back(::Event::WindowEvent {
+                    window_id: ::WindowId(WindowId(0)),
+                    event: ::WindowEvent::MouseInput {
+                        device_id: ::DeviceId(DeviceId),
+                        state,
+                        button,
+                    }
+                })
+            },
+            _ => {
+            }
+        }
+    }
+    ffi::EM_FALSE
+}
+
 extern "C" fn keyboard_callback(
     event_type: c_int,
     event: *const ffi::EmscriptenKeyboardEvent,
@@ -177,6 +230,14 @@ extern "C" fn keyboard_callback(
 {
     unsafe {
         let queue: &RefCell<VecDeque<::Event>> = mem::transmute(event_queue);
+
+        let modifiers = ::ModifiersState {
+            shift: (*event).shiftKey == ffi::EM_TRUE,
+            ctrl: (*event).ctrlKey == ffi::EM_TRUE,
+            alt: (*event).altKey == ffi::EM_TRUE,
+            logo: (*event).metaKey == ffi::EM_TRUE,
+        };
+
         match event_type {
             ffi::EMSCRIPTEN_EVENT_KEYDOWN => {
                 queue.borrow_mut().push_back(::Event::WindowEvent {
@@ -187,8 +248,8 @@ extern "C" fn keyboard_callback(
                             scancode: key_translate((*event).key) as u32,
                             state: ::ElementState::Pressed,
                             virtual_keycode: key_translate_virt((*event).key, (*event).location),
-                            modifiers: ::ModifiersState::default()        // TODO:
-                        },   
+                            modifiers,
+                        },
                     },
                 });
             },
@@ -201,7 +262,7 @@ extern "C" fn keyboard_callback(
                             scancode: key_translate((*event).key) as u32,
                             state: ::ElementState::Released,
                             virtual_keycode: key_translate_virt((*event).key, (*event).location),
-                            modifiers: ::ModifiersState::default()        // TODO:
+                            modifiers,
                         },
                     },
                 });
@@ -264,6 +325,12 @@ impl Window {
 
         // TODO: set up more event callbacks
         unsafe {
+            em_try(ffi::emscripten_set_mousemove_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(mouse_callback)))
+                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_mousedown_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(mouse_callback)))
+                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_mouseup_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(mouse_callback)))
+                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
             em_try(ffi::emscripten_set_keydown_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(keyboard_callback)))
                 .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
             em_try(ffi::emscripten_set_keyup_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(keyboard_callback)))

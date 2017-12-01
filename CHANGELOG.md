@@ -18,6 +18,7 @@
 - `WindowEvent`s `MouseMoved`, `MouseEntered`, and `MouseLeft` have been renamed to
 `CursorMoved`, `CursorEntered`, and `CursorLeft`.
 - New `DeviceEvent`s added, `MouseMotion` and `MouseWheel`.
+- Impl `ModifiersState`, `MouseMove`, `MouseInput`, `MouseMotion` for emscripten backend.
 
 # Version 0.8.3 (2017-10-11)
 
