@@ -522,22 +522,25 @@ impl Window2 {
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         unsafe {
             let view_frame = NSView::frame(*self.view);
-            Some((view_frame.size.width as u32, view_frame.size.height as u32))
+            let factor = self.hidpi_factor() as f64; // API convention is that size is in physical pixels
+            Some(((view_frame.size.width*factor) as u32, (view_frame.size.height*factor) as u32))
         }
     }
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
+        let factor = self.hidpi_factor() as f64; // API convention is that size is in physical pixels
         unsafe {
             let window_frame = NSWindow::frame(*self.window);
-            Some((window_frame.size.width as u32, window_frame.size.height as u32))
+            Some(((window_frame.size.width*factor) as u32, (window_frame.size.height*factor) as u32))
         }
     }
 
     #[inline]
     pub fn set_inner_size(&self, width: u32, height: u32) {
+        let factor = self.hidpi_factor() as f64; // API convention is that size is in physical pixels
         unsafe {
-            NSWindow::setContentSize_(*self.window, NSSize::new(width as f64, height as f64));
+            NSWindow::setContentSize_(*self.window, NSSize::new((width as f64)/factor, (height as f64)/factor));
         }
     }
 
