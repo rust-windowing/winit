@@ -1,6 +1,7 @@
 # Unreleased
 
 - Add support for `Touch` for emscripten backend.
+- Added support for `DroppedFile`, `HoveredFile`, and `HoveredFileCancelled` to X11 backend.
 
 # Version 0.9.0 (2017-12-01)
 

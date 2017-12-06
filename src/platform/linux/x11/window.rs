@@ -125,6 +125,24 @@ impl Window2 {
             win
         };
 
+        // Enable drag and drop
+        unsafe {
+            let atom_name: *const libc::c_char = b"XdndAware\0".as_ptr() as _;
+            let atom = (display.xlib.XInternAtom)(display.display, atom_name, ffi::False);
+            let version = &5; // Latest version; hasn't changed since 2002
+            (display.xlib.XChangeProperty)(
+                display.display,
+                window,
+                atom,
+                ffi::XA_ATOM,
+                32,
+                ffi::PropModeReplace,
+                version,
+                1
+            );
+            display.check_errors().expect("Failed to set drag and drop properties");
+        }
+
         // Set ICCCM WM_CLASS property based on initial window title
         // Must be done *before* mapping the window by ICCCM 4.1.2.5
         unsafe {
