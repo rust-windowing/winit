@@ -81,7 +81,7 @@ pub enum DndState {
 
 #[derive(Debug)]
 pub enum DndDataParseError {
-    EmtpyData,
+    EmptyData,
     InvalidUtf8(Utf8Error),
     HostnameSpecified(String),
     UnexpectedProtocol(String),
@@ -228,7 +228,7 @@ impl Dnd {
             }
             Ok(path_list)
         } else {
-            Err(DndDataParseError::EmtpyData)
+            Err(DndDataParseError::EmptyData)
         }
     }
 }
