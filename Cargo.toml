@@ -11,7 +11,7 @@ documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [dependencies]
-lazy_static = "0.2.2"
+lazy_static = "1"
 libc = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
