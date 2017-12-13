@@ -16,12 +16,16 @@ use std::sync::atomic::{self, AtomicBool};
 use std::collections::HashMap;
 use std::ffi::CStr;
 
-use libc::{self, c_uchar, c_char, c_int};
+use libc::{self, c_uchar, c_char, c_int, c_ulong, c_long};
 
 mod events;
 mod monitor;
 mod window;
 mod xdisplay;
+mod dnd;
+mod util;
+
+use self::dnd::{Dnd, DndState};
 
 // API TRANSITION
 //
@@ -33,6 +37,7 @@ mod xdisplay;
 pub struct EventsLoop {
     display: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
+    dnd: Dnd,
     windows: Arc<Mutex<HashMap<WindowId, WindowData>>>,
     devices: Mutex<HashMap<DeviceId, Device>>,
     xi2ext: XExtension,
@@ -54,6 +59,9 @@ impl EventsLoop {
     pub fn new(display: Arc<XConnection>) -> EventsLoop {
         let wm_delete_window = unsafe { (display.xlib.XInternAtom)(display.display, b"WM_DELETE_WINDOW\0".as_ptr() as *const c_char, 0) };
         display.check_errors().expect("Failed to call XInternAtom");
+
+        let dnd = Dnd::new(Arc::clone(&display))
+            .expect("Failed to call XInternAtoms when initializing drag and drop");
 
         let xi2ext = unsafe {
             let mut result = XExtension {
@@ -93,13 +101,14 @@ impl EventsLoop {
 
         let result = EventsLoop {
             pending_wakeup: Arc::new(AtomicBool::new(false)),
-            display: display,
-            wm_delete_window: wm_delete_window,
+            display,
+            wm_delete_window,
+            dnd,
             windows: Arc::new(Mutex::new(HashMap::new())),
             devices: Mutex::new(HashMap::new()),
-            xi2ext: xi2ext,
-            root: root,
-            wakeup_dummy_window: wakeup_dummy_window,
+            xi2ext,
+            root,
+            wakeup_dummy_window,
         };
 
         {
@@ -138,19 +147,17 @@ impl EventsLoop {
     pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(Event)
     {
-        let xlib = &self.display.xlib;
-
         let mut xev = unsafe { mem::uninitialized() };
         loop {
             // Get next event
             unsafe {
                 // Ensure XNextEvent won't block
-                let count = (xlib.XPending)(self.display.display);
+                let count = (self.display.xlib.XPending)(self.display.display);
                 if count == 0 {
                     break;
                 }
 
-                (xlib.XNextEvent)(self.display.display, &mut xev);
+                (self.display.xlib.XNextEvent)(self.display.display, &mut xev);
             }
             self.process_event(&mut xev, &mut callback);
         }
@@ -161,12 +168,10 @@ impl EventsLoop {
     {
         self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
 
-        let xlib = &self.display.xlib;
-
         let mut xev = unsafe { mem::uninitialized() };
 
         loop {
-            unsafe { (xlib.XNextEvent)(self.display.display, &mut xev) }; // Blocks as necessary
+            unsafe { (self.display.xlib.XNextEvent)(self.display.display, &mut xev) }; // Blocks as necessary
 
             let mut control_flow = ControlFlow::Continue;
 
@@ -187,7 +192,7 @@ impl EventsLoop {
         }
     }
 
-    fn process_event<F>(&self, xev: &mut ffi::XEvent, mut callback: F)
+    fn process_event<F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
         where F: FnMut(Event)
     {
         let xlib = &self.display.xlib;
@@ -210,11 +215,123 @@ impl EventsLoop {
 
                 if client_msg.data.get_long(0) as ffi::Atom == self.wm_delete_window {
                     callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Closed })
-                } else {
-                    if self.pending_wakeup.load(atomic::Ordering::Relaxed) {
-                        self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
-                        callback(Event::Awakened);
+                } else if client_msg.message_type == self.dnd.atoms.enter {
+                    let source_window = client_msg.data.get_long(0) as c_ulong;
+                    let flags = client_msg.data.get_long(1);
+                    let version = flags >> 24;
+                    self.dnd.version = Some(version);
+                    let has_more_types = flags - (flags & (c_long::max_value() - 1)) == 1;
+                    if !has_more_types {
+                        let type_list = vec![
+                            client_msg.data.get_long(2) as c_ulong,
+                            client_msg.data.get_long(3) as c_ulong,
+                            client_msg.data.get_long(4) as c_ulong
+                        ];
+                        self.dnd.type_list = Some(type_list);
+                    } else if let Ok(more_types) = unsafe { self.dnd.get_type_list(source_window) } {
+                        self.dnd.type_list = Some(more_types);
                     }
+                } else if client_msg.message_type == self.dnd.atoms.position {
+                    // This event occurs every time the mouse moves while a file's being dragged
+                    // over our window. We emit HoveredFile in response; while the Mac OS X backend
+                    // does that upon a drag entering, XDnD doesn't have access to the actual drop
+                    // data until this event. For parity with other platforms, we only emit
+                    // HoveredFile the first time, though if winit's API is later extended to
+                    // supply position updates with HoveredFile or another event, implementing
+                    // that here would be trivial.
+
+                    let source_window = client_msg.data.get_long(0) as c_ulong;
+
+                    // Equivalent to (x << shift) | y
+                    // where shift = mem::size_of::<c_short>() * 8
+                    // Note that coordinates are in "desktop space", not "window space"
+                    // (in x11 parlance, they're root window coordinates)
+                    //let packed_coordinates = client_msg.data.get_long(2);
+                    //let shift = mem::size_of::<libc::c_short>() * 8;
+                    //let x = packed_coordinates >> shift;
+                    //let y = packed_coordinates & !(x << shift);
+
+                    // By our own state flow, version should never be None at this point.
+                    let version = self.dnd.version.unwrap_or(5);
+
+                    // Action is specified in versions 2 and up, though we don't need it anyway.
+                    //let action = client_msg.data.get_long(4);
+
+                    let accepted = if let Some(ref type_list) = self.dnd.type_list {
+                        type_list.contains(&self.dnd.atoms.uri_list)
+                    } else {
+                        false
+                    };
+
+                    if accepted {
+                        self.dnd.source_window = Some(source_window);
+                        unsafe {
+                            if self.dnd.result.is_none() {
+                                let time = if version >= 1 {
+                                    client_msg.data.get_long(3) as c_ulong
+                                } else {
+                                    // In version 0, time isn't specified
+                                    ffi::CurrentTime
+                                };
+                                // This results in the SelectionNotify event below
+                                self.dnd.convert_selection(xwindow, time);
+                            }
+                            self.dnd.send_status(xwindow, source_window, DndState::Accepted);
+                        }
+                    } else {
+                        unsafe {
+                            self.dnd.send_status(xwindow, source_window, DndState::Rejected);
+                            self.dnd.send_finished(xwindow, source_window, DndState::Rejected);
+                        }
+                        self.dnd.reset();
+                    }
+                } else if client_msg.message_type == self.dnd.atoms.drop {
+                    if let Some(source_window) = self.dnd.source_window {
+                        if let Some(Ok(ref path_list)) = self.dnd.result {
+                            for path in path_list {
+                                callback(Event::WindowEvent {
+                                    window_id: wid,
+                                    event: WindowEvent::DroppedFile(path.clone()),
+                                });
+                            }
+                        }
+                        unsafe {
+                            self.dnd.send_finished(xwindow, source_window, DndState::Accepted);
+                        }
+                    }
+                    self.dnd.reset();
+                } else if client_msg.message_type == self.dnd.atoms.leave {
+                    self.dnd.reset();
+                    callback(Event::WindowEvent {
+                        window_id: wid,
+                        event: WindowEvent::HoveredFileCancelled,
+                    });
+                } else if self.pending_wakeup.load(atomic::Ordering::Relaxed) {
+                    self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
+                    callback(Event::Awakened);
+                }
+            }
+
+            ffi::SelectionNotify => {
+                let xsel: &ffi::XSelectionEvent = xev.as_ref();
+                if xsel.property == self.dnd.atoms.selection {
+                    let mut result = None;
+
+                    // This is where we receive data from drag and drop
+                    if let Ok(mut data) = unsafe { self.dnd.read_data(xwindow) } {
+                        let parse_result = self.dnd.parse_data(&mut data);
+                        if let Ok(ref path_list) = parse_result {
+                            for path in path_list {
+                                callback(Event::WindowEvent {
+                                    window_id: wid,
+                                    event: WindowEvent::HoveredFile(path.clone()),
+                                });
+                            }
+                        }
+                        result = Some(parse_result);
+                    }
+
+                    self.dnd.result = result;
                 }
             }
 
