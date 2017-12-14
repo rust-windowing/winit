@@ -6,16 +6,24 @@ use libc::{c_char, c_int, c_long, c_short, c_uchar, c_ulong};
 
 use super::{ffi, XConnection, XError};
 
+pub unsafe fn get_atom(xconn: &Arc<XConnection>, name: &[u8]) -> Result<ffi::Atom, XError> {
+    let atom_name: *const c_char = name.as_ptr() as _;
+    let atom = (xconn.xlib.XInternAtom)(xconn.display, atom_name, ffi::False);
+    xconn.check_errors().map(|_| atom)
+}
+
 pub unsafe fn send_client_msg(
     xconn: &Arc<XConnection>,
-    target_window: c_ulong,
+    window: c_ulong,        // the window this is "about"; not necessarily this window
+    target_window: c_ulong, // the window we're sending to
     message_type: ffi::Atom,
+    event_mask: Option<c_long>,
     data: (c_long, c_long, c_long, c_long, c_long),
-) {
+) -> Result<(), XError> {
     let mut event: ffi::XClientMessageEvent = mem::uninitialized();
     event.type_ = ffi::ClientMessage;
     event.display = xconn.display;
-    event.window = target_window;
+    event.window = window;
     event.message_type = message_type;
     event.format = 32;
     event.data = ffi::ClientMessageData::new();
@@ -25,13 +33,17 @@ pub unsafe fn send_client_msg(
     event.data.set_long(3, data.3);
     event.data.set_long(4, data.4);
 
+    let event_mask = event_mask.unwrap_or(ffi::NoEventMask);
+
     (xconn.xlib.XSendEvent)(
         xconn.display,
         target_window,
         ffi::False,
-        ffi::NoEventMask,
+        event_mask,
         &mut event.into(),
     );
+
+    xconn.check_errors().map(|_| ())
 }
 
 #[derive(Debug)]

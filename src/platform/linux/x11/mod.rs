@@ -276,12 +276,15 @@ impl EventsLoop {
                                 // This results in the SelectionNotify event below
                                 self.dnd.convert_selection(xwindow, time);
                             }
-                            self.dnd.send_status(xwindow, source_window, DndState::Accepted);
+                            self.dnd.send_status(xwindow, source_window, DndState::Accepted)
+                                .expect("Failed to send XDnD status message.");
                         }
                     } else {
                         unsafe {
-                            self.dnd.send_status(xwindow, source_window, DndState::Rejected);
-                            self.dnd.send_finished(xwindow, source_window, DndState::Rejected);
+                            self.dnd.send_status(xwindow, source_window, DndState::Rejected)
+                                .expect("Failed to send XDnD status message.");
+                            self.dnd.send_finished(xwindow, source_window, DndState::Rejected)
+                                .expect("Failed to send XDnD finished message.");
                         }
                         self.dnd.reset();
                     }
@@ -296,7 +299,8 @@ impl EventsLoop {
                             }
                         }
                         unsafe {
-                            self.dnd.send_finished(xwindow, source_window, DndState::Accepted);
+                            self.dnd.send_finished(xwindow, source_window, DndState::Accepted)
+                                .expect("Failed to send XDnD finished message.");
                         }
                     }
                     self.dnd.reset();
