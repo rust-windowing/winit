@@ -355,6 +355,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_decorations(&self, _decorations: bool) {
+        // N/A
+    }
+
+    #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         RootMonitorId{inner: MonitorId}
     }

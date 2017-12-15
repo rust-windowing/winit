@@ -518,6 +518,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_decorations(&self, _decorations: bool) {
+        // N/A
+    }
+
+    #[inline]
     pub fn get_current_monitor(&self) -> ::MonitorId {
         ::MonitorId{inner: MonitorId}
     }
@@ -693,7 +698,7 @@ fn key_translate_virt(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES
         "PreviousCandidate" => None,
         "Process" => None,
         "SingleCandidate" => None,
-        
+
         "HangulMode" => None,
         "HanjaMode" => None,
         "JunjaMode" => None,

@@ -45,7 +45,7 @@ impl Window {
     {
         let mut w_attr = Some(w_attr.clone());
         let mut pl_attr = Some(pl_attr.clone());
-        
+
         let (tx, rx) = channel();
 
         events_loop.execute_in_thread(move |inserter| {
@@ -289,6 +289,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_decorations(&self, _decorations: bool) {
+        unimplemented!()
+    }
+
+    #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         unimplemented!()
     }
@@ -298,7 +303,7 @@ impl Drop for Window {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            // We are sending WM_CLOSE, and our callback will process this by calling DefWindowProcW, 
+            // We are sending WM_CLOSE, and our callback will process this by calling DefWindowProcW,
             // which in turn will send a WM_DESTROY.
             user32::PostMessageW(self.window.0, winapi::WM_CLOSE, 0, 0);
         }

@@ -44,7 +44,7 @@ impl EventsLoop {
         MonitorId
     }
 
-  
+
     pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(::Event)
     {
@@ -101,7 +101,7 @@ impl EventsLoop {
                     None
                 }
             };
-            
+
             if let Some(event) = e {
                 callback(event);
             }
@@ -286,6 +286,11 @@ impl Window {
     #[inline]
     pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
         // Android has single screen maximized apps so nothing to do
+    }
+
+    #[inline]
+    pub fn set_decorations(&self, _decorations: bool) {
+        // N/A
     }
 
     #[inline]

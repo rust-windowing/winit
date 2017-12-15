@@ -313,6 +313,12 @@ impl Window {
         self.window.set_fullscreen(monitor)
     }
 
+    /// Turn window decorations on or off.
+    #[inline]
+    pub fn set_decorations(&self, decorations: bool) {
+        self.window.set_decorations(decorations)
+    }
+
     /// Returns the current monitor the window is on or the primary monitor is nothing
     /// matches
     pub fn get_current_monitor(&self) -> MonitorId {
