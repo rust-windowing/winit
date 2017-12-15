@@ -55,7 +55,9 @@ impl DndAtoms {
             );
         }
         xconn.check_errors()?;
-        unsafe { atoms.set_len(DND_ATOMS_LEN); }
+        unsafe {
+            atoms.set_len(DND_ATOMS_LEN);
+        }
         Ok(DndAtoms {
             aware: atoms[0],
             enter: atoms[1],
@@ -137,7 +139,7 @@ impl Dnd {
         this_window: c_ulong,
         target_window: c_ulong,
         state: DndState,
-    ) {
+    ) -> Result<(), XError> {
         let (accepted, action) = match state {
             DndState::Accepted => (1, self.atoms.action_private as c_long),
             DndState::Rejected => (0, self.atoms.none as c_long),
@@ -145,9 +147,11 @@ impl Dnd {
         util::send_client_msg(
             &self.xconn,
             target_window,
+            target_window,
             self.atoms.status,
+            None,
             (this_window as c_long, accepted, 0, 0, action),
-        );
+        )
     }
 
     pub unsafe fn send_finished(
@@ -155,7 +159,7 @@ impl Dnd {
         this_window: c_ulong,
         target_window: c_ulong,
         state: DndState,
-    ) {
+    ) -> Result<(), XError> {
         let (accepted, action) = match state {
             DndState::Accepted => (1, self.atoms.action_private as c_long),
             DndState::Rejected => (0, self.atoms.none as c_long),
@@ -163,9 +167,11 @@ impl Dnd {
         util::send_client_msg(
             &self.xconn,
             target_window,
+            target_window,
             self.atoms.finished,
+            None,
             (this_window as c_long, accepted, action, 0, 0),
-        );
+        )
     }
 
     pub unsafe fn get_type_list(

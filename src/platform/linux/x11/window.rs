@@ -19,14 +19,31 @@ use window::MonitorId as RootMonitorId;
 
 use platform::x11::monitor::get_available_monitors;
 
-use super::{ffi};
-use super::{XConnection, WindowId, EventsLoop};
+use super::{ffi, util, XConnection, WindowId, EventsLoop};
 
 // TODO: remove me
 fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> T {
     use std::ffi::CString;
     let c_str = CString::new(s.as_bytes().to_vec()).unwrap();
     f(c_str.as_ptr())
+}
+
+#[derive(Debug)]
+enum StateOperation {
+    Remove = 0, // _NET_WM_STATE_REMOVE
+    Add = 1, // _NET_WM_STATE_ADD
+    #[allow(dead_code)]
+    Toggle = 2, // _NET_WM_STATE_TOGGLE
+}
+
+impl From<bool> for StateOperation {
+    fn from(b: bool) -> Self {
+        if b {
+            StateOperation::Add
+        } else {
+            StateOperation::Remove
+        }
+    }
 }
 
 pub struct XWindow {
@@ -145,8 +162,8 @@ impl Window2 {
 
             // Enable drag and drop
             unsafe {
-                let atom_name: *const libc::c_char = b"XdndAware\0".as_ptr() as _;
-                let atom = (display.xlib.XInternAtom)(display.display, atom_name, ffi::False);
+                let atom = util::get_atom(display, b"XdndAware\0")
+                    .expect("Failed to call XInternAtom (XdndAware)");
                 let version = &5; // Latest version; hasn't changed since 2002
                 (display.xlib.XChangeProperty)(
                     display.display,
@@ -275,49 +292,32 @@ impl Window2 {
         Ok(window)
     }
 
-    fn set_netwm(display: &Arc<XConnection>, window: ffi::Window, root: ffi::Window, property: &str, val: bool) {
-        let state_atom = unsafe {
-            with_c_str("_NET_WM_STATE", |state|
-                (display.xlib.XInternAtom)(display.display, state, 0)
-            )
-        };
-        display.check_errors().expect("Failed to call XInternAtom");
-        let atom = unsafe {
-            with_c_str(property, |state|
-                (display.xlib.XInternAtom)(display.display, state, 0)
-            )
-        };
-        display.check_errors().expect("Failed to call XInternAtom");
-
-        let client_message_event = ffi::XClientMessageEvent {
-            type_: ffi::ClientMessage,
-            serial: 0,
-            send_event: 1,            // true because we are sending this through `XSendEvent`
-            display: display.display,
-            window: window,
-            message_type: state_atom, // the _NET_WM_STATE atom is sent to change the state of a window
-            format: 32,               // view `data` as `c_long`s
-            data: {
-                let mut data = ffi::ClientMessageData::new();
-                // This first `long` is the action; `1` means add/set following property.
-                data.set_long(0, val as c_long);
-                // This second `long` is the property to set (fullscreen)
-                data.set_long(1, atom as c_long);
-                data
-            }
-        };
-        let mut x_event = ffi::XEvent::from(client_message_event);
+    fn set_netwm(
+        xconn: &Arc<XConnection>,
+        window: ffi::Window,
+        root: ffi::Window,
+        properties: (c_long, c_long, c_long, c_long),
+        operation: StateOperation
+    ) {
+        let state_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_STATE)");
 
         unsafe {
-            (display.xlib.XSendEvent)(
-                display.display,
+            util::send_client_msg(
+                xconn,
+                window,
                 root,
-                0,
-                ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask,
-                &mut x_event as *mut _
-            );
-            display.check_errors().expect("Failed to call XSendEvent");
-        }
+                state_atom,
+                Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
+                (
+                    operation as c_long,
+                    properties.0,
+                    properties.1,
+                    properties.2,
+                    properties.3,
+                )
+            )
+        }.expect("Failed to send NET_WM hint.");
     }
 
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
@@ -374,12 +374,35 @@ impl Window2 {
     }
 
     pub fn set_maximized(&self, maximized: bool) {
-        Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_HORZ", maximized);
-        Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_VERT", maximized);
+        let xconn = &self.x.display;
+
+        let horz_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_MAXIMIZED_HORZ\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_STATE_MAXIMIZED_HORZ)");
+        let vert_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_MAXIMIZED_VERT\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_STATE_MAXIMIZED_VERT)");
+
+        Window2::set_netwm(
+            xconn,
+            self.x.window,
+            self.x.root,
+            (horz_atom as c_long, vert_atom as c_long, 0, 0),
+            maximized.into()
+        );
     }
 
     fn set_fullscreen_hint(&self, fullscreen: bool) {
-        Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", fullscreen);
+        let xconn = &self.x.display;
+
+        let fullscreen_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_FULLSCREEN\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_STATE_FULLSCREEN)");
+
+        Window2::set_netwm(
+            xconn,
+            self.x.window,
+            self.x.root,
+            (fullscreen_atom as c_long, 0, 0, 0),
+            fullscreen.into()
+        );
     }
 
     pub fn set_title(&self, title: &str) {
