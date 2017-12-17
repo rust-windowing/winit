@@ -17,7 +17,7 @@ winit = "0.7"
 ## Usage
 
 Winit is a window creation and management library. It can create windows and lets you handle
-events (for example: the window being resized, a key being pressed, a mouse mouvement, etc.)
+events (for example: the window being resized, a key being pressed, a mouse movement, etc.)
 produced by window.
 
 Winit is designed to be a low-level brick in a hierarchy of libraries. Consequently, in order to
