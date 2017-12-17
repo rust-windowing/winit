@@ -5,7 +5,7 @@ use libc;
 use std::borrow::Borrow;
 use std::{mem, cmp};
 use std::sync::{Arc, Mutex};
-use std::os::raw::{c_int, c_long, c_uchar};
+use std::os::raw::{c_int, c_long, c_uchar, c_ulong, c_void};
 use std::thread;
 use std::time::Duration;
 
@@ -537,13 +537,13 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn get_xlib_display(&self) -> *mut libc::c_void {
-        self.x.display.display as *mut libc::c_void
+    pub fn get_xlib_display(&self) -> *mut c_void {
+        self.x.display.display as _
     }
 
     #[inline]
-    pub fn get_xlib_screen_id(&self) -> *mut libc::c_void {
-        self.x.screen_id as *mut libc::c_void
+    pub fn get_xlib_screen_id(&self) -> c_int {
+        self.x.screen_id
     }
 
     #[inline]
@@ -553,20 +553,20 @@ impl Window2 {
 
     #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
-        self.x.display.display as *mut libc::c_void
+        self.x.display.display as _
     }
 
     #[inline]
-    pub fn get_xlib_window(&self) -> *mut libc::c_void {
-        self.x.window as *mut libc::c_void
+    pub fn get_xlib_window(&self) -> c_ulong {
+        self.x.window
     }
 
     #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
-        self.x.window as *mut libc::c_void
+        self.x.window as _
     }
 
-    pub fn get_xcb_connection(&self) -> *mut libc::c_void {
+    pub fn get_xcb_connection(&self) -> *mut c_void {
         unsafe {
             (self.x.display.xlib_xcb.XGetXCBConnection)(self.get_xlib_display() as *mut _) as *mut _
         }
