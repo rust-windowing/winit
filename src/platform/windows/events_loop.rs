@@ -685,8 +685,8 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                 event: Focused(true)
             });
 
-            let x = winapi::GET_X_LPARAM(lparam) as f64;
-            let y = winapi::GET_Y_LPARAM(lparam) as f64;
+            let x = winapi::shared::windowsx::GET_X_LPARAM(lparam) as f64;
+            let y = winapi::shared::windowsx::GET_Y_LPARAM(lparam) as f64;
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
