@@ -762,24 +762,9 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
         },
 
         winuser::WM_GETMINMAXINFO => {
-            /*
-            // Equivalent to the windows api [MINMAXINFO](https://msdn.microsoft.com/en-us/library/windows/desktop/ms632605%28v=vs.85%29.aspx)
-            // struct. Used because winapi-rs doesn't have this declared.
-            // TODO: replace with struct from winapi-rs
-            #[repr(C)]
-            #[allow(dead_code)]
-            struct MinMaxInfo {
-                reserved: winapi::POINT, // Do not use/change
-                max_size: winapi::POINT,
-                max_position: winapi::POINT,
-                min_track: winapi::POINT,
-                max_track: winapi::POINT
-            }
-            */
-
             let mmi = lparam as *mut winuser::MINMAXINFO;
-            //(*mmi).max_position = winapi::POINT { x: -8, y: -8 }; // The upper left corner of the window if it were maximized on the primary monitor.
-            //(*mmi).max_size = winapi::POINT { x: .., y: .. }; // The dimensions of the primary monitor.
+            //(*mmi).max_position = winapi::shared::windef::POINT { x: -8, y: -8 }; // The upper left corner of the window if it were maximized on the primary monitor.
+            //(*mmi).max_size = winapi::shared::windef::POINT { x: .., y: .. }; // The dimensions of the primary monitor.
 
             CONTEXT_STASH.with(|context_stash| {
                 if let Some(cstash) = context_stash.borrow().as_ref() {
