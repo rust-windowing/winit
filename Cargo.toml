@@ -27,7 +27,7 @@ core-foundation = "0.4"
 core-graphics = "0.10"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
-git = "https://github.com/retep998/winapi-rs"
+version = "0.3"
 features = [
     "winnt",
     "winuser",
