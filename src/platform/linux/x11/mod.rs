@@ -16,12 +16,16 @@ use std::sync::atomic::{self, AtomicBool};
 use std::collections::HashMap;
 use std::ffi::CStr;
 
-use libc::{self, c_uchar, c_char, c_int};
+use libc::{self, c_uchar, c_char, c_int, c_ulong, c_long};
 
 mod events;
 mod monitor;
 mod window;
 mod xdisplay;
+mod dnd;
+mod util;
+
+use self::dnd::{Dnd, DndState};
 
 // API TRANSITION
 //
@@ -33,6 +37,7 @@ mod xdisplay;
 pub struct EventsLoop {
     display: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
+    dnd: Dnd,
     windows: Arc<Mutex<HashMap<WindowId, WindowData>>>,
     devices: Mutex<HashMap<DeviceId, Device>>,
     xi2ext: XExtension,
@@ -54,6 +59,9 @@ impl EventsLoop {
     pub fn new(display: Arc<XConnection>) -> EventsLoop {
         let wm_delete_window = unsafe { (display.xlib.XInternAtom)(display.display, b"WM_DELETE_WINDOW\0".as_ptr() as *const c_char, 0) };
         display.check_errors().expect("Failed to call XInternAtom");
+
+        let dnd = Dnd::new(Arc::clone(&display))
+            .expect("Failed to call XInternAtoms when initializing drag and drop");
 
         let xi2ext = unsafe {
             let mut result = XExtension {
@@ -93,13 +101,14 @@ impl EventsLoop {
 
         let result = EventsLoop {
             pending_wakeup: Arc::new(AtomicBool::new(false)),
-            display: display,
-            wm_delete_window: wm_delete_window,
+            display,
+            wm_delete_window,
+            dnd,
             windows: Arc::new(Mutex::new(HashMap::new())),
             devices: Mutex::new(HashMap::new()),
-            xi2ext: xi2ext,
-            root: root,
-            wakeup_dummy_window: wakeup_dummy_window,
+            xi2ext,
+            root,
+            wakeup_dummy_window,
         };
 
         {
@@ -138,19 +147,17 @@ impl EventsLoop {
     pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(Event)
     {
-        let xlib = &self.display.xlib;
-
         let mut xev = unsafe { mem::uninitialized() };
         loop {
             // Get next event
             unsafe {
                 // Ensure XNextEvent won't block
-                let count = (xlib.XPending)(self.display.display);
+                let count = (self.display.xlib.XPending)(self.display.display);
                 if count == 0 {
                     break;
                 }
 
-                (xlib.XNextEvent)(self.display.display, &mut xev);
+                (self.display.xlib.XNextEvent)(self.display.display, &mut xev);
             }
             self.process_event(&mut xev, &mut callback);
         }
@@ -161,12 +168,10 @@ impl EventsLoop {
     {
         self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
 
-        let xlib = &self.display.xlib;
-
         let mut xev = unsafe { mem::uninitialized() };
 
         loop {
-            unsafe { (xlib.XNextEvent)(self.display.display, &mut xev) }; // Blocks as necessary
+            unsafe { (self.display.xlib.XNextEvent)(self.display.display, &mut xev) }; // Blocks as necessary
 
             let mut control_flow = ControlFlow::Continue;
 
@@ -177,7 +182,7 @@ impl EventsLoop {
                         control_flow = ControlFlow::Break;
                     }
                 };
-                    
+
                 self.process_event(&mut xev, &mut cb);
             }
 
@@ -187,7 +192,7 @@ impl EventsLoop {
         }
     }
 
-    fn process_event<F>(&self, xev: &mut ffi::XEvent, mut callback: F)
+    fn process_event<F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
         where F: FnMut(Event)
     {
         let xlib = &self.display.xlib;
@@ -210,11 +215,127 @@ impl EventsLoop {
 
                 if client_msg.data.get_long(0) as ffi::Atom == self.wm_delete_window {
                     callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Closed })
-                } else {
-                    if self.pending_wakeup.load(atomic::Ordering::Relaxed) {
-                        self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
-                        callback(Event::Awakened);
+                } else if client_msg.message_type == self.dnd.atoms.enter {
+                    let source_window = client_msg.data.get_long(0) as c_ulong;
+                    let flags = client_msg.data.get_long(1);
+                    let version = flags >> 24;
+                    self.dnd.version = Some(version);
+                    let has_more_types = flags - (flags & (c_long::max_value() - 1)) == 1;
+                    if !has_more_types {
+                        let type_list = vec![
+                            client_msg.data.get_long(2) as c_ulong,
+                            client_msg.data.get_long(3) as c_ulong,
+                            client_msg.data.get_long(4) as c_ulong
+                        ];
+                        self.dnd.type_list = Some(type_list);
+                    } else if let Ok(more_types) = unsafe { self.dnd.get_type_list(source_window) } {
+                        self.dnd.type_list = Some(more_types);
                     }
+                } else if client_msg.message_type == self.dnd.atoms.position {
+                    // This event occurs every time the mouse moves while a file's being dragged
+                    // over our window. We emit HoveredFile in response; while the Mac OS X backend
+                    // does that upon a drag entering, XDnD doesn't have access to the actual drop
+                    // data until this event. For parity with other platforms, we only emit
+                    // HoveredFile the first time, though if winit's API is later extended to
+                    // supply position updates with HoveredFile or another event, implementing
+                    // that here would be trivial.
+
+                    let source_window = client_msg.data.get_long(0) as c_ulong;
+
+                    // Equivalent to (x << shift) | y
+                    // where shift = mem::size_of::<c_short>() * 8
+                    // Note that coordinates are in "desktop space", not "window space"
+                    // (in x11 parlance, they're root window coordinates)
+                    //let packed_coordinates = client_msg.data.get_long(2);
+                    //let shift = mem::size_of::<libc::c_short>() * 8;
+                    //let x = packed_coordinates >> shift;
+                    //let y = packed_coordinates & !(x << shift);
+
+                    // By our own state flow, version should never be None at this point.
+                    let version = self.dnd.version.unwrap_or(5);
+
+                    // Action is specified in versions 2 and up, though we don't need it anyway.
+                    //let action = client_msg.data.get_long(4);
+
+                    let accepted = if let Some(ref type_list) = self.dnd.type_list {
+                        type_list.contains(&self.dnd.atoms.uri_list)
+                    } else {
+                        false
+                    };
+
+                    if accepted {
+                        self.dnd.source_window = Some(source_window);
+                        unsafe {
+                            if self.dnd.result.is_none() {
+                                let time = if version >= 1 {
+                                    client_msg.data.get_long(3) as c_ulong
+                                } else {
+                                    // In version 0, time isn't specified
+                                    ffi::CurrentTime
+                                };
+                                // This results in the SelectionNotify event below
+                                self.dnd.convert_selection(xwindow, time);
+                            }
+                            self.dnd.send_status(xwindow, source_window, DndState::Accepted)
+                                .expect("Failed to send XDnD status message.");
+                        }
+                    } else {
+                        unsafe {
+                            self.dnd.send_status(xwindow, source_window, DndState::Rejected)
+                                .expect("Failed to send XDnD status message.");
+                            self.dnd.send_finished(xwindow, source_window, DndState::Rejected)
+                                .expect("Failed to send XDnD finished message.");
+                        }
+                        self.dnd.reset();
+                    }
+                } else if client_msg.message_type == self.dnd.atoms.drop {
+                    if let Some(source_window) = self.dnd.source_window {
+                        if let Some(Ok(ref path_list)) = self.dnd.result {
+                            for path in path_list {
+                                callback(Event::WindowEvent {
+                                    window_id: wid,
+                                    event: WindowEvent::DroppedFile(path.clone()),
+                                });
+                            }
+                        }
+                        unsafe {
+                            self.dnd.send_finished(xwindow, source_window, DndState::Accepted)
+                                .expect("Failed to send XDnD finished message.");
+                        }
+                    }
+                    self.dnd.reset();
+                } else if client_msg.message_type == self.dnd.atoms.leave {
+                    self.dnd.reset();
+                    callback(Event::WindowEvent {
+                        window_id: wid,
+                        event: WindowEvent::HoveredFileCancelled,
+                    });
+                } else if self.pending_wakeup.load(atomic::Ordering::Relaxed) {
+                    self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
+                    callback(Event::Awakened);
+                }
+            }
+
+            ffi::SelectionNotify => {
+                let xsel: &ffi::XSelectionEvent = xev.as_ref();
+                if xsel.property == self.dnd.atoms.selection {
+                    let mut result = None;
+
+                    // This is where we receive data from drag and drop
+                    if let Ok(mut data) = unsafe { self.dnd.read_data(xwindow) } {
+                        let parse_result = self.dnd.parse_data(&mut data);
+                        if let Ok(ref path_list) = parse_result {
+                            for path in path_list {
+                                callback(Event::WindowEvent {
+                                    window_id: wid,
+                                    event: WindowEvent::HoveredFile(path.clone()),
+                                });
+                            }
+                        }
+                        result = Some(parse_result);
+                    }
+
+                    self.dnd.result = result;
                 }
             }
 
@@ -342,7 +463,7 @@ impl EventsLoop {
                     return;
                 }
 
-                use events::WindowEvent::{Focused, MouseEntered, MouseInput, MouseLeft, MouseMoved, MouseWheel, AxisMotion};
+                use events::WindowEvent::{Focused, CursorEntered, MouseInput, CursorLeft, CursorMoved, MouseWheel, AxisMotion};
                 use events::ElementState::{Pressed, Released};
                 use events::MouseButton::{Left, Right, Middle, Other};
                 use events::MouseScrollDelta::LineDelta;
@@ -405,7 +526,7 @@ impl EventsLoop {
                                 true
                             } else { false }
                         } {
-                            callback(Event::WindowEvent { window_id: wid, event: MouseMoved {
+                            callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
                                 device_id: did,
                                 position: new_cursor_pos
                             }});
@@ -421,9 +542,10 @@ impl EventsLoop {
                             let mut value = xev.valuators.values;
                             for i in 0..xev.valuators.mask_len*8 {
                                 if ffi::XIMaskIsSet(mask, i) {
+                                    let x = unsafe { *value };
                                     if let Some(&mut (_, ref mut info)) = physical_device.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == i) {
-                                        let delta = (unsafe { *value } - info.position) / info.increment;
-                                        info.position = unsafe { *value };
+                                        let delta = (x - info.position) / info.increment;
+                                        info.position = x;
                                         events.push(Event::WindowEvent { window_id: wid, event: MouseWheel {
                                             device_id: did,
                                             delta: match info.orientation {
@@ -459,12 +581,17 @@ impl EventsLoop {
                                 physical_device.reset_scroll_position(info);
                             }
                         }
+                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorEntered { device_id: mkdid(xev.deviceid) } });
 
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: MouseEntered { device_id: mkdid(xev.deviceid) } })
+                        let new_cursor_pos = (xev.event_x, xev.event_y);
+                        callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
+                            device_id: mkdid(xev.deviceid),
+                            position: new_cursor_pos
+                        }})
                     }
                     ffi::XI_Leave => {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: MouseLeft { device_id: mkdid(xev.deviceid) } })
+                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorLeft { device_id: mkdid(xev.deviceid) } })
                     }
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
@@ -473,7 +600,13 @@ impl EventsLoop {
                             let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
                             (self.display.xlib.XSetICFocus)(window_data.ic);
                         }
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: Focused(true) })
+                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: Focused(true) });
+
+                        let new_cursor_pos = (xev.event_x, xev.event_y);
+                        callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
+                            device_id: mkdid(xev.deviceid),
+                            position: new_cursor_pos
+                        }})
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
@@ -521,15 +654,37 @@ impl EventsLoop {
                         let did = mkdid(xev.deviceid);
 
                         let mask = unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
-                        let mut value = xev.valuators.values;
+                        let mut value = xev.raw_values;
+                        let mut mouse_delta = (0.0, 0.0);
+                        let mut scroll_delta = (0.0, 0.0);
                         for i in 0..xev.valuators.mask_len*8 {
                             if ffi::XIMaskIsSet(mask, i) {
+                                let x = unsafe { *value };
+                                // We assume that every XInput2 device with analog axes is a pointing device emitting
+                                // relative coordinates.
+                                match i {
+                                    0 => mouse_delta.0 = x,
+                                    1 => mouse_delta.1 = x,
+                                    2 => scroll_delta.0 = x as f32,
+                                    3 => scroll_delta.1 = x as f32,
+                                    _ => {},
+                                }
                                 callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::Motion {
                                     axis: i as u32,
-                                    value: unsafe { *value },
+                                    value: x,
                                 }});
                                 value = unsafe { value.offset(1) };
                             }
+                        }
+                        if mouse_delta != (0.0, 0.0) {
+                            callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::MouseMotion {
+                                delta: mouse_delta,
+                            }});
+                        }
+                        if scroll_delta != (0.0, 0.0) {
+                            callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::MouseWheel {
+                                delta: LineDelta(scroll_delta.0, scroll_delta.1),
+                            }});
                         }
                     }
 
@@ -709,7 +864,7 @@ impl Window {
             x_events_loop.display.check_errors().expect("Failed to call XSetICFocus");
             ic
         };
-        
+
         x_events_loop.windows.lock().unwrap().insert(win.id(), WindowData {
             im: im,
             ic: ic,
@@ -736,7 +891,7 @@ impl Window {
         if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
             let nspot = ffi::XPoint{x: x, y: y};
             let mut windows = windows.lock().unwrap();
-            let mut w = windows.get_mut(&self.window.id()).unwrap();
+            let w = windows.get_mut(&self.window.id()).unwrap();
             if w.ic_spot.x == x && w.ic_spot.y == y {
                 return
             }

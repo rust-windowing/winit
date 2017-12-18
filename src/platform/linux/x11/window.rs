@@ -5,7 +5,7 @@ use libc;
 use std::borrow::Borrow;
 use std::{mem, cmp};
 use std::sync::{Arc, Mutex};
-use std::os::raw::{c_int, c_long, c_uchar};
+use std::os::raw::{c_int, c_long, c_uchar, c_ulong, c_void};
 use std::thread;
 use std::time::Duration;
 
@@ -19,14 +19,31 @@ use window::MonitorId as RootMonitorId;
 
 use platform::x11::monitor::get_available_monitors;
 
-use super::{ffi};
-use super::{XConnection, WindowId, EventsLoop};
+use super::{ffi, util, XConnection, WindowId, EventsLoop};
 
 // TODO: remove me
 fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> T {
     use std::ffi::CString;
     let c_str = CString::new(s.as_bytes().to_vec()).unwrap();
     f(c_str.as_ptr())
+}
+
+#[derive(Debug)]
+enum StateOperation {
+    Remove = 0, // _NET_WM_STATE_REMOVE
+    Add = 1, // _NET_WM_STATE_ADD
+    #[allow(dead_code)]
+    Toggle = 2, // _NET_WM_STATE_TOGGLE
+}
+
+impl From<bool> for StateOperation {
+    fn from(b: bool) -> Self {
+        if b {
+            StateOperation::Add
+        } else {
+            StateOperation::Remove
+        }
+    }
 }
 
 pub struct XWindow {
@@ -125,85 +142,6 @@ impl Window2 {
             win
         };
 
-        // Set ICCCM WM_CLASS property based on initial window title
-        // Must be done *before* mapping the window by ICCCM 4.1.2.5
-        unsafe {
-            with_c_str(&*window_attrs.title, |c_name| {
-                let hint = (display.xlib.XAllocClassHint)();
-                (*hint).res_name = c_name as *mut libc::c_char;
-                (*hint).res_class = c_name as *mut libc::c_char;
-                (display.xlib.XSetClassHint)(display.display, window, hint);
-                display.check_errors().expect("Failed to call XSetClassHint");
-                (display.xlib.XFree)(hint as *mut _);
-            });
-        }
-
-        // set visibility
-        if window_attrs.visible {
-            unsafe {
-                (display.xlib.XMapRaised)(display.display, window);
-                (display.xlib.XFlush)(display.display);
-            }
-
-            display.check_errors().expect("Failed to set window visibility");
-        }
-
-        // Opt into handling window close
-        unsafe {
-            (display.xlib.XSetWMProtocols)(display.display, window, &ctx.wm_delete_window as *const _ as *mut _, 1);
-            display.check_errors().expect("Failed to call XSetWMProtocols");
-            (display.xlib.XFlush)(display.display);
-            display.check_errors().expect("Failed to call XFlush");
-        }
-
-        // Attempt to make keyboard input repeat detectable
-        unsafe {
-            let mut supported_ptr = ffi::False;
-            (display.xlib.XkbSetDetectableAutoRepeat)(display.display, ffi::True, &mut supported_ptr);
-            if supported_ptr == ffi::False {
-                return Err(OsError(format!("XkbSetDetectableAutoRepeat failed")));
-            }
-        }
-
-        // set size hints
-        let mut size_hints: ffi::XSizeHints = unsafe { mem::zeroed() };
-        size_hints.flags = ffi::PSize;
-        size_hints.width = dimensions.0 as i32;
-        size_hints.height = dimensions.1 as i32;
-        if let Some(dimensions) = window_attrs.min_dimensions {
-            size_hints.flags |= ffi::PMinSize;
-            size_hints.min_width = dimensions.0 as i32;
-            size_hints.min_height = dimensions.1 as i32;
-        }
-        if let Some(dimensions) = window_attrs.max_dimensions {
-            size_hints.flags |= ffi::PMaxSize;
-            size_hints.max_width = dimensions.0 as i32;
-            size_hints.max_height = dimensions.1 as i32;
-        }
-        unsafe {
-            (display.xlib.XSetNormalHints)(display.display, window, &mut size_hints);
-            display.check_errors().expect("Failed to call XSetNormalHints");
-        }
-
-        // Select XInput2 events
-        {
-            let mask = ffi::XI_MotionMask
-                | ffi::XI_ButtonPressMask | ffi::XI_ButtonReleaseMask
-                // | ffi::XI_KeyPressMask | ffi::XI_KeyReleaseMask
-                | ffi::XI_EnterMask | ffi::XI_LeaveMask
-                | ffi::XI_FocusInMask | ffi::XI_FocusOutMask
-                | if window_attrs.multitouch { ffi::XI_TouchBeginMask | ffi::XI_TouchUpdateMask | ffi::XI_TouchEndMask } else { 0 };
-            unsafe {
-                let mut event_mask = ffi::XIEventMask{
-                    deviceid: ffi::XIAllMasterDevices,
-                    mask: mem::transmute::<*const i32, *mut c_uchar>(&mask as *const i32),
-                    mask_len: mem::size_of_val(&mask) as c_int,
-                };
-                (display.xinput2.XISelectEvents)(display.display, window,
-                                                 &mut event_mask as *mut ffi::XIEventMask, 1);
-            };
-        }
-
         let window = Window2 {
             x: Arc::new(XWindow {
                 display: display.clone(),
@@ -214,35 +152,138 @@ impl Window2 {
             cursor_state: Mutex::new(CursorState::Normal),
         };
 
+        // Title must be set before mapping, lest some tiling window managers briefly pick up on
+        // the initial un-titled window state
         window.set_title(&window_attrs.title);
         window.set_decorations(window_attrs.decorations);
-        window.set_maximized(window_attrs.maximized);
-        window.set_fullscreen(window_attrs.fullscreen.clone());
 
-        if window_attrs.visible {
+        {
+            let ref x_window: &XWindow = window.x.borrow();
+
+            // Enable drag and drop
             unsafe {
-                let ref x_window: &XWindow = window.x.borrow();
+                let atom = util::get_atom(display, b"XdndAware\0")
+                    .expect("Failed to call XInternAtom (XdndAware)");
+                let version = &5; // Latest version; hasn't changed since 2002
+                (display.xlib.XChangeProperty)(
+                    display.display,
+                    x_window.window,
+                    atom,
+                    ffi::XA_ATOM,
+                    32,
+                    ffi::PropModeReplace,
+                    version,
+                    1
+                );
+                display.check_errors().expect("Failed to set drag and drop properties");
+            }
 
-                // XSetInputFocus generates an error if the window is not visible,
-                // therefore we wait until it's the case.
-                loop {
-                    let mut window_attributes = mem::uninitialized();
-                    (display.xlib.XGetWindowAttributes)(display.display, x_window.window, &mut window_attributes);
-                    display.check_errors().expect("Failed to call XGetWindowAttributes");
+            // Set ICCCM WM_CLASS property based on initial window title
+            // Must be done *before* mapping the window by ICCCM 4.1.2.5
+            unsafe {
+                with_c_str(&*window_attrs.title, |c_name| {
+                    let hint = (display.xlib.XAllocClassHint)();
+                    (*hint).res_name = c_name as *mut libc::c_char;
+                    (*hint).res_class = c_name as *mut libc::c_char;
+                    (display.xlib.XSetClassHint)(display.display, x_window.window, hint);
+                    display.check_errors().expect("Failed to call XSetClassHint");
+                    (display.xlib.XFree)(hint as *mut _);
+                });
+            }
 
-                    if window_attributes.map_state == ffi::IsViewable {
-                        (display.xlib.XSetInputFocus)(
-                            display.display,
-                            x_window.window,
-                            ffi::RevertToParent,
-                            ffi::CurrentTime
-                        );
-                        display.check_errors().expect("Failed to call XSetInputFocus");
-                        break;
+            // set size hints
+            let mut size_hints: ffi::XSizeHints = unsafe { mem::zeroed() };
+            size_hints.flags = ffi::PSize;
+            size_hints.width = dimensions.0 as i32;
+            size_hints.height = dimensions.1 as i32;
+            if let Some(dimensions) = window_attrs.min_dimensions {
+                size_hints.flags |= ffi::PMinSize;
+                size_hints.min_width = dimensions.0 as i32;
+                size_hints.min_height = dimensions.1 as i32;
+            }
+            if let Some(dimensions) = window_attrs.max_dimensions {
+                size_hints.flags |= ffi::PMaxSize;
+                size_hints.max_width = dimensions.0 as i32;
+                size_hints.max_height = dimensions.1 as i32;
+            }
+            unsafe {
+                (display.xlib.XSetNormalHints)(display.display, x_window.window, &mut size_hints);
+                display.check_errors().expect("Failed to call XSetNormalHints");
+            }
+
+            // Opt into handling window close
+            unsafe {
+                (display.xlib.XSetWMProtocols)(display.display, x_window.window, &ctx.wm_delete_window as *const _ as *mut _, 1);
+                display.check_errors().expect("Failed to call XSetWMProtocols");
+                (display.xlib.XFlush)(display.display);
+                display.check_errors().expect("Failed to call XFlush");
+            }
+
+            // Set visibility (map window)
+            if window_attrs.visible {
+                unsafe {
+                    (display.xlib.XMapRaised)(display.display, x_window.window);
+                    (display.xlib.XFlush)(display.display);
+                }
+
+                display.check_errors().expect("Failed to set window visibility");
+            }
+
+            // Attempt to make keyboard input repeat detectable
+            unsafe {
+                let mut supported_ptr = ffi::False;
+                (display.xlib.XkbSetDetectableAutoRepeat)(display.display, ffi::True, &mut supported_ptr);
+                if supported_ptr == ffi::False {
+                    return Err(OsError(format!("XkbSetDetectableAutoRepeat failed")));
+                }
+            }
+
+            // Select XInput2 events
+            {
+                let mask = ffi::XI_MotionMask
+                    | ffi::XI_ButtonPressMask | ffi::XI_ButtonReleaseMask
+                    // | ffi::XI_KeyPressMask | ffi::XI_KeyReleaseMask
+                    | ffi::XI_EnterMask | ffi::XI_LeaveMask
+                    | ffi::XI_FocusInMask | ffi::XI_FocusOutMask
+                    | if window_attrs.multitouch { ffi::XI_TouchBeginMask | ffi::XI_TouchUpdateMask | ffi::XI_TouchEndMask } else { 0 };
+                unsafe {
+                    let mut event_mask = ffi::XIEventMask{
+                        deviceid: ffi::XIAllMasterDevices,
+                        mask: mem::transmute::<*const i32, *mut c_uchar>(&mask as *const i32),
+                        mask_len: mem::size_of_val(&mask) as c_int,
+                    };
+                    (display.xinput2.XISelectEvents)(display.display, x_window.window,
+                                                     &mut event_mask as *mut ffi::XIEventMask, 1);
+                };
+            }
+
+            // These properties must be set after mapping
+            window.set_maximized(window_attrs.maximized);
+            window.set_fullscreen(window_attrs.fullscreen.clone());
+
+            if window_attrs.visible {
+                unsafe {
+                    // XSetInputFocus generates an error if the window is not visible,
+                    // therefore we wait until it's the case.
+                    loop {
+                        let mut window_attributes = mem::uninitialized();
+                        (display.xlib.XGetWindowAttributes)(display.display, x_window.window, &mut window_attributes);
+                        display.check_errors().expect("Failed to call XGetWindowAttributes");
+
+                        if window_attributes.map_state == ffi::IsViewable {
+                            (display.xlib.XSetInputFocus)(
+                                display.display,
+                                x_window.window,
+                                ffi::RevertToParent,
+                                ffi::CurrentTime
+                            );
+                            display.check_errors().expect("Failed to call XSetInputFocus");
+                            break;
+                        }
+
+                        // Wait about a frame to avoid too-busy waiting
+                        thread::sleep(Duration::from_millis(16));
                     }
-
-                    // Wait about a frame to avoid too-busy waiting
-                    thread::sleep(Duration::from_millis(16));
                 }
             }
         }
@@ -251,49 +292,32 @@ impl Window2 {
         Ok(window)
     }
 
-    fn set_netwm(display: &Arc<XConnection>, window: ffi::Window, root: ffi::Window, property: &str, val: bool) {
-        let state_atom = unsafe {
-            with_c_str("_NET_WM_STATE", |state|
-                (display.xlib.XInternAtom)(display.display, state, 0)
-            )
-        };
-        display.check_errors().expect("Failed to call XInternAtom");
-        let atom = unsafe {
-            with_c_str(property, |state|
-                (display.xlib.XInternAtom)(display.display, state, 0)
-            )
-        };
-        display.check_errors().expect("Failed to call XInternAtom");
-
-        let client_message_event = ffi::XClientMessageEvent {
-            type_: ffi::ClientMessage,
-            serial: 0,
-            send_event: 1,            // true because we are sending this through `XSendEvent`
-            display: display.display,
-            window: window,
-            message_type: state_atom, // the _NET_WM_STATE atom is sent to change the state of a window
-            format: 32,               // view `data` as `c_long`s
-            data: {
-                let mut data = ffi::ClientMessageData::new();
-                // This first `long` is the action; `1` means add/set following property.
-                data.set_long(0, val as c_long);
-                // This second `long` is the property to set (fullscreen)
-                data.set_long(1, atom as c_long);
-                data
-            }
-        };
-        let mut x_event = ffi::XEvent::from(client_message_event);
+    fn set_netwm(
+        xconn: &Arc<XConnection>,
+        window: ffi::Window,
+        root: ffi::Window,
+        properties: (c_long, c_long, c_long, c_long),
+        operation: StateOperation
+    ) {
+        let state_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_STATE)");
 
         unsafe {
-            (display.xlib.XSendEvent)(
-                display.display,
+            util::send_client_msg(
+                xconn,
+                window,
                 root,
-                0,
-                ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask,
-                &mut x_event as *mut _
-            );
-            display.check_errors().expect("Failed to call XSendEvent");
-        }
+                state_atom,
+                Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
+                (
+                    operation as c_long,
+                    properties.0,
+                    properties.1,
+                    properties.2,
+                    properties.3,
+                )
+            )
+        }.expect("Failed to send NET_WM hint.");
     }
 
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
@@ -350,12 +374,35 @@ impl Window2 {
     }
 
     pub fn set_maximized(&self, maximized: bool) {
-        Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_HORZ", maximized);
-        Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_MAXIMIZED_VERT", maximized);
+        let xconn = &self.x.display;
+
+        let horz_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_MAXIMIZED_HORZ\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_STATE_MAXIMIZED_HORZ)");
+        let vert_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_MAXIMIZED_VERT\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_STATE_MAXIMIZED_VERT)");
+
+        Window2::set_netwm(
+            xconn,
+            self.x.window,
+            self.x.root,
+            (horz_atom as c_long, vert_atom as c_long, 0, 0),
+            maximized.into()
+        );
     }
 
     fn set_fullscreen_hint(&self, fullscreen: bool) {
-        Window2::set_netwm(&self.x.display, self.x.window, self.x.root, "_NET_WM_STATE_FULLSCREEN", fullscreen);
+        let xconn = &self.x.display;
+
+        let fullscreen_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_FULLSCREEN\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_STATE_FULLSCREEN)");
+
+        Window2::set_netwm(
+            xconn,
+            self.x.window,
+            self.x.root,
+            (fullscreen_atom as c_long, 0, 0, 0),
+            fullscreen.into()
+        );
     }
 
     pub fn set_title(&self, title: &str) {
@@ -490,13 +537,13 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn get_xlib_display(&self) -> *mut libc::c_void {
-        self.x.display.display as *mut libc::c_void
+    pub fn get_xlib_display(&self) -> *mut c_void {
+        self.x.display.display as _
     }
 
     #[inline]
-    pub fn get_xlib_screen_id(&self) -> *mut libc::c_void {
-        self.x.screen_id as *mut libc::c_void
+    pub fn get_xlib_screen_id(&self) -> c_int {
+        self.x.screen_id
     }
 
     #[inline]
@@ -506,20 +553,20 @@ impl Window2 {
 
     #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
-        self.x.display.display as *mut libc::c_void
+        self.x.display.display as _
     }
 
     #[inline]
-    pub fn get_xlib_window(&self) -> *mut libc::c_void {
-        self.x.window as *mut libc::c_void
+    pub fn get_xlib_window(&self) -> c_ulong {
+        self.x.window
     }
 
     #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
-        self.x.window as *mut libc::c_void
+        self.x.window as _
     }
 
-    pub fn get_xcb_connection(&self) -> *mut libc::c_void {
+    pub fn get_xcb_connection(&self) -> *mut c_void {
         unsafe {
             (self.x.display.xlib_xcb.XGetXCBConnection)(self.get_xlib_display() as *mut _) as *mut _
         }
@@ -559,7 +606,7 @@ impl Window2 {
                 MouseCursor::NotAllowed => load("crossed_circle"),
 
 
-                /// Resize cursors
+                // Resize cursors
                 MouseCursor::EResize => load("right_side"),
                 MouseCursor::NResize => load("top_side"),
                 MouseCursor::NeResize => load("top_right_corner"),

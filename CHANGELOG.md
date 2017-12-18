@@ -1,5 +1,11 @@
 # Unreleased
 
+- Add support for `Touch` for emscripten backend.
+- Added support for `DroppedFile`, `HoveredFile`, and `HoveredFileCancelled` to X11 backend.
+- **Breaking:** `unix::WindowExt` no longer returns pointers for things that aren't actually pointers; `get_xlib_window` now returns `Option<std::os::raw::c_ulong>` and `get_xlib_screen_id` returns `Option<std::os::raw::c_int>`. Additionally, methods that previously returned `libc::c_void` have been changed to return `std::os::raw::c_void`, which are not interchangeable types, so users wanting the former will need to explicitly cast.
+
+# Version 0.9.0 (2017-12-01)
+
 - Added event `WindowEvent::HiDPIFactorChanged`.
 - Added method `MonitorId::get_hidpi_factor`.
 - Deprecated `get_inner_size_pixels` and `get_inner_size_points` methods of `Window` in favor of
@@ -14,6 +20,12 @@
 - On Windows added `MonitorIdExt::hmonitor` method
 - Impl `Clone` for `EventsLoopProxy`
 - `EventsLoop::get_primary_monitor()` on X11 will fallback to any available monitor if no primary is found
+- Support for touch event on wayland
+- `WindowEvent`s `MouseMoved`, `MouseEntered`, and `MouseLeft` have been renamed to
+`CursorMoved`, `CursorEntered`, and `CursorLeft`.
+- New `DeviceEvent`s added, `MouseMotion` and `MouseWheel`.
+- Send `CursorMoved` event after `CursorEntered` and `Focused` events.
+- Add support for `ModifiersState`, `MouseMove`, `MouseInput`, `MouseMotion` for emscripten backend.
 
 # Version 0.8.3 (2017-10-11)
 

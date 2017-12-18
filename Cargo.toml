@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.8.3"
+version = "0.9.0"
 authors = ["The winit contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
@@ -46,3 +46,4 @@ wayland-protocols = { version = "0.12.0", features = ["unstable_protocols"] }
 wayland-kbd = "0.13.0"
 wayland-window = "0.13.0"
 x11-dl = "2.8"
+percent-encoding = "1.0"

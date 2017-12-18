@@ -406,7 +406,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
         }
 
         winuser::WM_MOUSEMOVE => {
-            use events::WindowEvent::{MouseEntered, MouseMoved};
+            use events::WindowEvent::{CursorEntered, CursorMoved};
             let mouse_outside_window = CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
                 if let Some(context_stash) = context_stash.as_mut() {
@@ -425,7 +425,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             if mouse_outside_window {
                 send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
-                    event: MouseEntered { device_id: DEVICE_ID },
+                    event: CursorEntered { device_id: DEVICE_ID },
                 });
 
                 // Calling TrackMouseEvent in order to receive mouse leave events.
@@ -442,14 +442,14 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseMoved { device_id: DEVICE_ID, position: (x, y) },
+                event: CursorMoved { device_id: DEVICE_ID, position: (x, y) },
             });
 
             0
         },
 
         winuser::WM_MOUSELEAVE => {
-            use events::WindowEvent::MouseLeft;
+            use events::WindowEvent::CursorLeft;
             let mouse_in_window = CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
                 if let Some(context_stash) = context_stash.as_mut() {
@@ -468,7 +468,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             if mouse_in_window {
                 send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
-                    event: MouseLeft { device_id: DEVICE_ID }
+                    event: CursorLeft { device_id: DEVICE_ID }
                 });
             }
 
@@ -476,7 +476,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
         },
 
         winuser::WM_MOUSEWHEEL => {
-            use events::WindowEvent::MouseWheel;
+            use events::{DeviceEvent, WindowEvent};
             use events::MouseScrollDelta::LineDelta;
             use events::TouchPhase;
 
@@ -486,7 +486,12 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseWheel { device_id: DEVICE_ID, delta: LineDelta(0.0, value), phase: TouchPhase::Moved },
+                event: WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: LineDelta(0.0, value), phase: TouchPhase::Moved },
+            });
+
+            send_event(Event::DeviceEvent {
+                device_id: DEVICE_ID,
+                event: DeviceEvent::MouseWheel { delta: LineDelta(0.0, value) },
             });
 
             0
@@ -494,6 +499,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 
         winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
             use events::ElementState::Pressed;
+            use events::VirtualKeyCode;
             if msg == winuser::WM_SYSKEYDOWN && wparam as i32 == winuser::VK_F4 {
                 winuser::DefWindowProcW(window, msg, wparam, lparam)
             } else {
@@ -510,6 +516,14 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                         }
                     }
                 });
+                // Windows doesn't emit a delete character by default, but in order to make it
+                // consistent with the other platforms we'll emit a delete character here.
+                if vkey == Some(VirtualKeyCode::Delete) {
+                    send_event(Event::WindowEvent {
+                        window_id: SuperWindowId(WindowId(window)),
+                        event: WindowEvent::ReceivedCharacter('\u{7F}'),
+                    });
+                }
                 0
             }
         },
@@ -623,7 +637,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
         },
 
         winuser::WM_INPUT => {
-            use events::DeviceEvent::Motion;
+            use events::DeviceEvent::{Motion, MouseMotion};
             let mut data: winuser::RAWINPUT = mem::uninitialized();
             let mut data_size = mem::size_of::<winuser::RAWINPUT>() as UINT;
             winuser::GetRawInputData(mem::transmute(lparam), winuser::RID_INPUT,
@@ -649,6 +663,13 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                             event: Motion { axis: 1, value: y }
                         });
                     }
+
+                    if x != 0.0 || y != 0.0 {
+                        send_event(Event::DeviceEvent {
+                            device_id: DEVICE_ID,
+                            event: MouseMotion { delta: (x, y) }
+                        });
+                    }
                 }
 
                 0
@@ -658,10 +679,18 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
         },
 
         winuser::WM_SETFOCUS => {
-            use events::WindowEvent::Focused;
+            use events::WindowEvent::{Focused, CursorMoved};
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Focused(true)
+            });
+
+            let x = winapi::GET_X_LPARAM(lparam) as f64;
+            let y = winapi::GET_Y_LPARAM(lparam) as f64;
+
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: CursorMoved { device_id: DEVICE_ID, position: (x, y) },
             });
             0
         },

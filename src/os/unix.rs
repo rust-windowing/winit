@@ -1,8 +1,8 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
+use std::os::raw;
 use std::sync::Arc;
 use std::ptr;
-use libc;
 use EventsLoop;
 use MonitorId;
 use Window;
@@ -78,46 +78,44 @@ impl EventsLoopExt for EventsLoop {
 
 /// Additional methods on `Window` that are specific to Unix.
 pub trait WindowExt {
-    /// Returns a pointer to the `Window` object of xlib that is used by this window.
+    /// Returns the ID of the `Window` xlib object that is used by this window.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
-    ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_xlib_window(&self) -> Option<*mut libc::c_void>;
+    fn get_xlib_window(&self) -> Option<raw::c_ulong>;
 
     /// Returns a pointer to the `Display` object of xlib that is used by this window.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_xlib_display(&self) -> Option<*mut libc::c_void>;
+    fn get_xlib_display(&self) -> Option<*mut raw::c_void>;
 
-    fn get_xlib_screen_id(&self) -> Option<*mut libc::c_void>;
+    fn get_xlib_screen_id(&self) -> Option<raw::c_int>;
 
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
     fn send_xim_spot(&self, x: i16, y: i16);
-    
+
     /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_xcb_connection(&self) -> Option<*mut libc::c_void>;
+    fn get_xcb_connection(&self) -> Option<*mut raw::c_void>;
 
     /// Returns a pointer to the `wl_surface` object of wayland that is used by this window.
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_wayland_surface(&self) -> Option<*mut libc::c_void>;
+    fn get_wayland_surface(&self) -> Option<*mut raw::c_void>;
 
     /// Returns a pointer to the `wl_display` object of wayland that is used by this window.
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_wayland_display(&self) -> Option<*mut libc::c_void>;
+    fn get_wayland_display(&self) -> Option<*mut raw::c_void>;
 
     /// Check if the window is ready for drawing
     ///
@@ -131,7 +129,7 @@ pub trait WindowExt {
 
 impl WindowExt for Window {
     #[inline]
-    fn get_xlib_window(&self) -> Option<*mut libc::c_void> {
+    fn get_xlib_window(&self) -> Option<raw::c_ulong> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_window()),
             _ => None
@@ -139,14 +137,14 @@ impl WindowExt for Window {
     }
 
     #[inline]
-    fn get_xlib_display(&self) -> Option<*mut libc::c_void> {
+    fn get_xlib_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_display()),
             _ => None
         }
     }
 
-    fn get_xlib_screen_id(&self) -> Option<*mut libc::c_void> {
+    fn get_xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_screen_id()),
             _ => None
@@ -160,7 +158,7 @@ impl WindowExt for Window {
         }
     }
 
-    fn get_xcb_connection(&self) -> Option<*mut libc::c_void> {
+    fn get_xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xcb_connection()),
             _ => None
@@ -174,7 +172,7 @@ impl WindowExt for Window {
     }
 
     #[inline]
-    fn get_wayland_surface(&self) -> Option<*mut libc::c_void> {
+    fn get_wayland_surface(&self) -> Option<*mut raw::c_void> {
         use wayland_client::Proxy;
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.get_surface().ptr() as *mut _),
@@ -183,7 +181,7 @@ impl WindowExt for Window {
     }
 
     #[inline]
-    fn get_wayland_display(&self) -> Option<*mut libc::c_void> {
+    fn get_wayland_display(&self) -> Option<*mut raw::c_void> {
         use wayland_client::Proxy;
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.get_display().ptr() as *mut _),

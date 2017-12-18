@@ -2,7 +2,7 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use std::os::raw::{c_int, c_char, c_void, c_ulong, c_double};
+use std::os::raw::{c_int, c_char, c_void, c_ulong, c_double, c_long, c_ushort};
 
 pub type EM_BOOL = c_int;
 pub type EM_UTF8 = c_char;
@@ -76,6 +76,11 @@ pub type em_key_callback_func = Option<unsafe extern "C" fn(
     keyEvent: *const EmscriptenKeyboardEvent,
     userData: *mut c_void) -> EM_BOOL>;
 
+pub type em_mouse_callback_func = Option<unsafe extern "C" fn(
+    eventType: c_int,
+    mouseEvent: *const EmscriptenMouseEvent,
+    userData: *mut c_void) -> EM_BOOL>;
+
 pub type em_pointerlockchange_callback_func = Option<unsafe extern "C" fn(
     eventType: c_int,
     pointerlockChangeEvent: *const EmscriptenPointerlockChangeEvent,
@@ -84,6 +89,11 @@ pub type em_pointerlockchange_callback_func = Option<unsafe extern "C" fn(
 pub type em_fullscreenchange_callback_func = Option<unsafe extern "C" fn(
     eventType: c_int,
     fullscreenChangeEvent: *const EmscriptenFullscreenChangeEvent,
+    userData: *mut c_void) -> EM_BOOL>;
+
+pub type em_touch_callback_func = Option<unsafe extern "C" fn(
+    eventType: c_int,
+    touchEvent: *const EmscriptenTouchEvent,
     userData: *mut c_void) -> EM_BOOL>;
 
 #[repr(C)]
@@ -130,6 +140,73 @@ impl Clone for EmscriptenKeyboardEvent {
 }
 
 #[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct EmscriptenMouseEvent {
+    pub timestamp: f64,
+    pub screenX: c_long,
+    pub screenY: c_long,
+    pub clientX: c_long,
+    pub clientY: c_long,
+    pub ctrlKey: c_int,
+    pub shiftKey: c_int,
+    pub altKey: c_int,
+    pub metaKey: c_int,
+    pub button: c_ushort,
+    pub buttons: c_ushort,
+    pub movementX: c_long,
+    pub movementY: c_long,
+    pub targetX: c_long,
+    pub targetY: c_long,
+    pub canvasX: c_long,
+    pub canvasY: c_long,
+    pub padding: c_long,
+}
+#[test]
+fn bindgen_test_layout_EmscriptenMouseEvent() {
+    assert_eq!(mem::size_of::<EmscriptenMouseEvent>(), 120usize);
+    assert_eq!(mem::align_of::<EmscriptenMouseEvent>(), 8usize);
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct EmscriptenTouchPoint {
+    pub identifier: c_long,
+    pub screenX: c_long,
+    pub screenY: c_long,
+    pub clientX: c_long,
+    pub clientY: c_long,
+    pub pageX: c_long,
+    pub pageY: c_long,
+    pub isChanged: c_int,
+    pub onTarget: c_int,
+    pub targetX: c_long,
+    pub targetY: c_long,
+    pub canvasX: c_long,
+    pub canvasY: c_long,
+}
+#[test]
+fn bindgen_test_layout_EmscriptenTouchPoint() {
+    assert_eq!(mem::size_of::<EmscriptenTouchPoint>(), 96usize);
+    assert_eq!(mem::align_of::<EmscriptenTouchPoint>(), 8usize);
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct EmscriptenTouchEvent {
+    pub numTouches: c_int,
+    pub ctrlKey: c_int,
+    pub shiftKey: c_int,
+    pub altKey: c_int,
+    pub metaKey: c_int,
+    pub touches: [EmscriptenTouchPoint; 32usize],
+}
+#[test]
+fn bindgen_test_layout_EmscriptenTouchEvent() {
+    assert_eq!(mem::size_of::<EmscriptenTouchEvent>(), 3096usize);
+    assert_eq!(mem::align_of::<EmscriptenTouchEvent>(), 8usize);
+}
+
+#[repr(C)]
 pub struct EmscriptenPointerlockChangeEvent {
     pub isActive: c_int,
     pub nodeName: [c_char; 128usize],
@@ -172,6 +249,21 @@ extern "C" {
         useCapture: EM_BOOL, callback: em_key_callback_func)
         -> EMSCRIPTEN_RESULT;
 
+    pub fn emscripten_set_mousemove_callback(
+        target: *const c_char, user_data: *mut c_void,
+        use_capture: EM_BOOL, callback: em_mouse_callback_func)
+        -> EMSCRIPTEN_RESULT;
+
+    pub fn emscripten_set_mousedown_callback(
+        target: *const c_char, user_data: *mut c_void,
+        use_capture: EM_BOOL, callback: em_mouse_callback_func)
+        -> EMSCRIPTEN_RESULT;
+
+    pub fn emscripten_set_mouseup_callback(
+        target: *const c_char, user_data: *mut c_void,
+        use_capture: EM_BOOL, callback: em_mouse_callback_func)
+        -> EMSCRIPTEN_RESULT;
+
     pub fn emscripten_hide_mouse();
 
     pub fn emscripten_get_device_pixel_ratio() -> f64;
@@ -190,4 +282,24 @@ extern "C" {
         func: em_callback_func, fps: c_int, simulate_infinite_loop: EM_BOOL);
 
     pub fn emscripten_cancel_main_loop();
+
+    pub fn emscripten_set_touchstart_callback(
+        target: *const c_char, userData: *mut c_void,
+        useCapture: c_int, callback: em_touch_callback_func)
+        -> EMSCRIPTEN_RESULT;
+
+    pub fn emscripten_set_touchend_callback(
+        target: *const c_char, userData: *mut c_void,
+        useCapture: c_int, callback: em_touch_callback_func)
+        -> EMSCRIPTEN_RESULT;
+
+    pub fn emscripten_set_touchmove_callback(
+        target: *const c_char, userData: *mut c_void,
+        useCapture: c_int, callback: em_touch_callback_func)
+        -> EMSCRIPTEN_RESULT;
+
+    pub fn emscripten_set_touchcancel_callback(
+        target: *const c_char, userData: *mut c_void,
+        useCapture: c_int, callback: em_touch_callback_func)
+        -> EMSCRIPTEN_RESULT;
 }
