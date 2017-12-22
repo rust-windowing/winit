@@ -1,7 +1,6 @@
 use futures::{ self, Future, Stream };
 use futures::sync::mpsc;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
@@ -100,31 +99,25 @@ impl KeyboardIData {
             let timer = Rc::new(timer);
             let mut core = Core::new().unwrap();
             let handle = core.handle();
-            let pressed_keys = Rc::new(RefCell::new(HashMap::new()));
+            let pressed_key = RefCell::new(None);
             let events = recv
                 .filter_map(|(evt, wid, utf8)| match evt {
                     Event::KeyboardInput { input, .. } => Some((input, wid, utf8)),
                     Event::Focused(_) => {
-                        let mut pressed_keys = pressed_keys.borrow_mut();
-                        pressed_keys.clear();
+                        let mut pressed_key = pressed_key.borrow_mut();
+                        pressed_key.take();
                         None
                     },
                     _ => None
                 })
                 .filter_map(|(input, wid, utf8)| {
-                    let mut pressed_keys = pressed_keys.borrow_mut();
+                    let mut pressed_key = pressed_key.borrow_mut();
+                    pressed_key.take();
                     match input.state {
                         ElementState::Pressed => {
-                            let k = (input.scancode, wid);
-                            if !pressed_keys.is_empty() {
-                                pressed_keys.clear();
-                            }
-                            pressed_keys.insert(k, (input.modifiers, Rc::new(RefCell::new(None))));
                             Some((input, wid, utf8))
                         },
                         ElementState::Released => {
-                            let k = (input.scancode, wid);
-                            pressed_keys.remove(&k);
                             None
                         },
                     }
@@ -140,11 +133,11 @@ impl KeyboardIData {
                         *repeat_info
                     };
                     let (send, recv) = mpsc::channel(512);
-                    let real_send = Rc::new(RefCell::new(Some(send)));
+                    let real_send = Rc::new(RefCell::new(send));
                     let send = Rc::downgrade(&real_send);
-                    if let Some(&mut (_, ref mut old_sender)) = pressed_keys.borrow_mut().get_mut(&(v.0.scancode, v.1)) {
-                        old_sender.borrow_mut().take();
-                        *old_sender = real_send;
+                    {
+                        let mut pressed_key = pressed_key.borrow_mut();
+                        *pressed_key = Some(real_send);
                     }
                     let f = timer.sleep(repeat_info.delay)
                         .map_err(|_| ())
@@ -155,7 +148,7 @@ impl KeyboardIData {
                                 .take_while(|o| Ok(o.is_some()))
                                 .filter_map(|m| m)
                                 .for_each(move |send| {
-                                    send.borrow_mut().as_mut().unwrap().try_send(v).map(|_| ()).map_err(|_| ())
+                                    send.borrow_mut().try_send(v).map(|_| ()).map_err(|_| ())
                                 });
                             interval_handle.spawn(f);
                             futures::future::ok(())
