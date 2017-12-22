@@ -644,6 +644,11 @@ impl Window2 {
     }
 
     #[inline]
+    pub fn set_decorations(&self, _decorations: bool) {
+        unimplemented!()
+    }
+
+    #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         unimplemented!()
     }

@@ -432,40 +432,36 @@ impl Window2 {
     pub fn set_decorations(&self, decorations: bool) {
         #[repr(C)]
         struct MotifWindowHints {
-            flags: u32,
-            functions: u32,
-            decorations: u32,
-            input_mode: i32,
-            status: u32,
+            flags: c_ulong,
+            functions: c_ulong,
+            decorations: c_ulong,
+            input_mode: c_long,
+            status: c_ulong,
         }
 
-        let wm_hints = unsafe {
-            (self.x.display.xlib.XInternAtom)(self.x.display.display, b"_MOTIF_WM_HINTS\0".as_ptr() as *const _, 0)
+        let wm_hints = unsafe { util::get_atom(&self.x.display, b"_MOTIF_WM_HINTS\0") }
+            .expect("Failed to call XInternAtom (_MOTIF_WM_HINTS)");
+
+        let hints = MotifWindowHints {
+            flags: 2, // MWM_HINTS_DECORATIONS
+            functions: 0,
+            decorations: decorations as _,
+            input_mode: 0,
+            status: 0,
         };
-        self.x.display.check_errors().expect("Failed to call XInternAtom");
 
-        if !decorations {
-            let hints = MotifWindowHints {
-                flags: 2, // MWM_HINTS_DECORATIONS
-                functions: 0,
-                decorations: 0,
-                input_mode: 0,
-                status: 0,
-            };
-
-            unsafe {
-                (self.x.display.xlib.XChangeProperty)(
-                    self.x.display.display, self.x.window,
-                    wm_hints, wm_hints, 32 /* Size of elements in struct */,
-                    ffi::PropModeReplace, &hints as *const MotifWindowHints as *const u8,
-                    5 /* Number of elements in struct */);
-                (self.x.display.xlib.XFlush)(self.x.display.display);
-            }
-        } else {
-            unsafe {
-                (self.x.display.xlib.XDeleteProperty)(self.x.display.display, self.x.window, wm_hints);
-                (self.x.display.xlib.XFlush)(self.x.display.display);
-            }
+        unsafe {
+            (self.x.display.xlib.XChangeProperty)(
+                self.x.display.display,
+                self.x.window,
+                wm_hints,
+                wm_hints,
+                32, // struct members are longs
+                ffi::PropModeReplace,
+                &hints as *const _ as *const u8,
+                5 // struct has 5 members
+            );
+            (self.x.display.xlib.XFlush)(self.x.display.display);
         }
 
         self.x.display.check_errors().expect("Failed to set decorations");
