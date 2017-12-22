@@ -128,23 +128,24 @@ impl EventsLoop {
 
         let store = event_queue.state().insert(WindowStore::new());
 
-        let seat_idata = SeatIData {
-            sink: sink.clone(),
-            keyboard: None,
-            pointer: None,
-            touch: None,
-            windows_token: store.clone()
-        };
-
         let mut me = EventsLoop {
             display: Arc::new(display),
             evq: RefCell::new(event_queue),
-            sink: sink,
+            sink: sink.clone(),
             pending_wakeup: Arc::new(AtomicBool::new(false)),
-            store: store,
+            store: store.clone(),
             ctxt_token: ctxt_token,
             env_token: env_token,
             cleanup_needed: Arc::new(Mutex::new(false))
+        };
+
+        let seat_idata = SeatIData {
+            sink: sink,
+            keyboard: None,
+            pointer: None,
+            touch: None,
+            windows_token: store,
+            events_loop_proxy: me.create_proxy(),
         };
 
         me.init_seat(|evqh, seat| {
@@ -441,7 +442,8 @@ struct SeatIData {
     pointer: Option<wl_pointer::WlPointer>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
-    windows_token: StateToken<WindowStore>
+    windows_token: StateToken<WindowStore>,
+    events_loop_proxy: EventsLoopProxy,
 }
 
 fn seat_implementation() -> wl_seat::Implementation<SeatIData> {
@@ -467,7 +469,7 @@ fn seat_implementation() -> wl_seat::Implementation<SeatIData> {
             // create keyboard if applicable
             if capabilities.contains(wl_seat::Capability::Keyboard) && idata.keyboard.is_none() {
                 let kbd = seat.get_keyboard().expect("Seat is not dead");
-                init_keyboard(evqh, &kbd, &idata.sink);
+                init_keyboard(evqh, idata.events_loop_proxy.clone(), &kbd, &idata.sink);
                 idata.keyboard = Some(kbd);
             }
             // destroy keyboard if applicable

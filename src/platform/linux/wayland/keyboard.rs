@@ -1,32 +1,194 @@
-use std::sync::{Arc, Mutex};
+use futures::{ self, Future, Stream };
+use futures::sync::mpsc;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex, RwLock};
+use std::thread;
+use std::time::Duration;
 
 use {VirtualKeyCode, ElementState, WindowEvent as Event, KeyboardInput, ModifiersState};
 
-use super::{EventsLoopSink, WindowId, make_wid, DeviceId};
+use super::{EventsLoopSink, EventsLoopProxy, WindowId, make_wid, DeviceId};
 use super::wayland_kbd::{MappedKeyboardImplementation, register_kbd};
+use tokio_core::reactor::Core;
+use tokio_timer;
 use wayland_client::protocol::wl_keyboard;
 use wayland_client::EventQueueHandle;
 
-pub fn init_keyboard(evq: &mut EventQueueHandle, keyboard: &wl_keyboard::WlKeyboard, sink: &Arc<Mutex<EventsLoopSink>>) {
-    let idata = KeyboardIData {
-        sink: sink.clone(),
-        target: None
-    };
+pub fn init_keyboard(evq: &mut EventQueueHandle, proxy: EventsLoopProxy, keyboard: &wl_keyboard::WlKeyboard, sink: &Arc<Mutex<EventsLoopSink>>) {
+    let idata = KeyboardIData::new(sink.clone(), proxy.clone());
 
     if register_kbd(evq, keyboard, mapped_keyboard_impl(), idata).is_err() {
         // initializing libxkbcommon failed :(
         // fallback implementation
-        let idata = KeyboardIData {
-            sink: sink.clone(),
-            target: None
-        };
+        let idata = KeyboardIData::new(sink.clone(), proxy);
         evq.register(keyboard, raw_keyboard_impl(), idata);
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct RepeatInfo {
+    pub delay: Duration,
+    pub frequency: u64,
+}
+
+impl RepeatInfo {
+    fn from_wayland(delay: i32, rate: i32) -> RepeatInfo {
+        RepeatInfo {
+            delay: Duration::from_millis(delay as u64),
+            frequency: rate as u64,
+        }
+    }
+
+    fn interval(&self) -> Duration {
+        Duration::from_millis(1000u64 / self.frequency as u64)
+    }
+}
+
+impl Default for RepeatInfo {
+    fn default() -> RepeatInfo {
+        // These are just sensible defaults for type purposes. We are actually guaranteed to get
+        // the information from wayland before any key events, so this is largely unnecessary, but
+        // having defaults lets us avoid using Option<RepeatInfo> and upwrap()'ing everwhere
+        RepeatInfo {
+            delay: Duration::from_millis(500),
+            frequency: 20,
+        }
     }
 }
 
 struct KeyboardIData {
     sink: Arc<Mutex<EventsLoopSink>>,
-    target: Option<WindowId>
+    target: Option<WindowId>,
+    repeat_info: Arc<RwLock<RepeatInfo>>,
+    sender: mpsc::Sender<(Event, WindowId, Option<String>)>,
+}
+
+trait EventsLoopSinkExt {
+    fn send_event_with_characters<It: Iterator<Item=char>>(&mut self, evt: Event, wid: WindowId, chars: It);
+}
+
+impl EventsLoopSinkExt for EventsLoopSink {
+    fn send_event_with_characters<It: Iterator<Item=char>>(&mut self, evt: Event, wid: WindowId, chars: It) {
+        self.send_event(evt, wid);
+        let char_events = chars.map(|c| Event::ReceivedCharacter(c));
+        for evt in char_events {
+            self.send_event(evt, wid);
+        }
+    }
+}
+
+impl KeyboardIData {
+    fn new(sink: Arc<Mutex<EventsLoopSink>>, proxy: EventsLoopProxy) -> KeyboardIData {
+        let (send, recv) = mpsc::channel(512);
+        let ret = KeyboardIData {
+            sink: sink,
+            target: None,
+            repeat_info: Arc::new(RwLock::new(Default::default())),
+            sender: send,
+        };
+        let repeat_info = ret.repeat_info.clone();
+        let sink = ret.sink.clone();
+        thread::spawn(move || {
+            let proxy = proxy;
+            let sink = sink;
+            let timer = tokio_timer::wheel()
+                .tick_duration(Duration::from_millis(10))
+                .thread_name("keyboard-timer")
+                .build();
+            let timer = Rc::new(timer);
+            let mut core = Core::new().unwrap();
+            let handle = core.handle();
+            let pressed_keys = Rc::new(RefCell::new(HashMap::new()));
+            let events = recv
+                .filter_map(|(evt, wid, utf8)| match evt {
+                    Event::KeyboardInput { input, .. } => Some((input, wid, utf8)),
+                    Event::Focused(_) => {
+                        let mut pressed_keys = pressed_keys.borrow_mut();
+                        pressed_keys.clear();
+                        None
+                    },
+                    _ => None
+                })
+                .filter_map(|(input, wid, utf8)| {
+                    let mut pressed_keys = pressed_keys.borrow_mut();
+                    match input.state {
+                        ElementState::Pressed => {
+                            let k = (input.scancode, wid);
+                            if !pressed_keys.is_empty() {
+                                pressed_keys.clear();
+                            }
+                            pressed_keys.insert(k, (input.modifiers, Rc::new(RefCell::new(None))));
+                            Some((input, wid, utf8))
+                        },
+                        ElementState::Released => {
+                            let k = (input.scancode, wid);
+                            pressed_keys.remove(&k);
+                            None
+                        },
+                    }
+                })
+                .for_each(|(input, wid, utf8)| {
+                    let proxy = proxy.clone();
+                    let v = (input, wid);
+                    let sink = sink.clone();
+                    let timer_ref = timer.clone();
+                    let interval_handle = handle.clone();
+                    let repeat_info: RepeatInfo = {
+                        let repeat_info = repeat_info.read().unwrap();
+                        *repeat_info
+                    };
+                    let (send, recv) = mpsc::channel(512);
+                    let real_send = Rc::new(RefCell::new(Some(send)));
+                    let send = Rc::downgrade(&real_send);
+                    if let Some(&mut (_, ref mut old_sender)) = pressed_keys.borrow_mut().get_mut(&(v.0.scancode, v.1)) {
+                        old_sender.borrow_mut().take();
+                        *old_sender = real_send;
+                    }
+                    let f = timer.sleep(repeat_info.delay)
+                        .map_err(|_| ())
+                        .and_then(move |_| {
+                            let f = timer_ref.interval(repeat_info.interval())
+                                .map_err(|_| ())
+                                .map(move |_| send.upgrade())
+                                .take_while(|o| Ok(o.is_some()))
+                                .filter_map(|m| m)
+                                .for_each(move |send| {
+                                    send.borrow_mut().as_mut().unwrap().try_send(v).map(|_| ()).map_err(|_| ())
+                                });
+                            interval_handle.spawn(f);
+                            futures::future::ok(())
+                        });
+                    let ff = recv
+                        .map_err(|_| ())
+                        .map(|(input, wid)| {
+                            let evt = Event::KeyboardInput {
+                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                input: input,
+                            };
+                            (evt, wid)
+                        })
+                        .for_each(move |(evt, wid)| {
+                            if let Some(chars) = utf8.as_ref().map(|s| s.chars()) {
+                                sink.lock().unwrap().send_event_with_characters(evt, wid, chars);
+                            } else {
+                                sink.lock().unwrap().send_event(evt, wid);
+                            }
+                            proxy.wakeup().map(|_| ()).map_err(|_| ())
+                        });
+                    handle.spawn(f);
+                    handle.spawn(ff);
+                    futures::future::ok(())
+                });
+            core.run(events).unwrap();
+        });
+        ret
+    }
+
+    fn update_repeat_info(&mut self, delay: i32, rate: i32) {
+        *self.repeat_info.write().unwrap() = RepeatInfo::from_wayland(delay, rate);
+    }
 }
 
 fn mapped_keyboard_impl() -> MappedKeyboardImplementation<KeyboardIData> {
@@ -43,41 +205,34 @@ fn mapped_keyboard_impl() -> MappedKeyboardImplementation<KeyboardIData> {
         },
         key: |_, idata, _, _, _, mods, rawkey, keysym, state, utf8| {
             if let Some(wid) = idata.target {
-                let state = match state {
-                    wl_keyboard::KeyState::Pressed => ElementState::Pressed,
-                    wl_keyboard::KeyState::Released => ElementState::Released,
-                };
+                let state: ElementState = state.into();
                 let vkcode = key_to_vkey(rawkey, keysym);
                 let mut guard = idata.sink.lock().unwrap();
-                guard.send_event(
-                    Event::KeyboardInput {
-                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                        input: KeyboardInput {
-                            state: state,
-                            scancode: rawkey,
-                            virtual_keycode: vkcode,
-                            modifiers: ModifiersState {
-                                shift: mods.shift,
-                                ctrl: mods.ctrl,
-                                alt: mods.alt,
-                                logo: mods.logo
-                            },
+                let evt = Event::KeyboardInput {
+                    device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                    input: KeyboardInput {
+                        state: state,
+                        scancode: rawkey,
+                        virtual_keycode: vkcode,
+                        modifiers: ModifiersState {
+                            shift: mods.shift,
+                            ctrl: mods.ctrl,
+                            alt: mods.alt,
+                            logo: mods.logo
                         },
                     },
-                    wid
-                );
+                };
+                let evt2 = evt.clone();
                 // send char event only on key press, not release
-                if let ElementState::Released = state { return }
-                if let Some(txt) = utf8 {
-                    for chr in txt.chars() {
-                        guard.send_event(Event::ReceivedCharacter(chr), wid);
-                    }
+                if let (ElementState::Pressed, Some(txt)) = (state, utf8.as_ref()) {
+                    guard.send_event_with_characters(evt, wid, txt.chars());
+                } else {
+                    guard.send_event(evt, wid);
                 }
+                idata.sender.try_send((evt2, wid, utf8)).unwrap();
             }
         },
-        repeat_info: |_, _idata, _, _rate, _delay| {
-            // TODO: handle repeat info
-        }
+        repeat_info: |_, idata, _, rate, delay| idata.update_repeat_info(delay, rate),
     }
 }
 
@@ -102,10 +257,7 @@ fn raw_keyboard_impl() -> wl_keyboard::Implementation<KeyboardIData> {
         },
         key: |_, idata, _, _, _, key, state| {
             if let Some(wid) = idata.target {
-                let state = match state {
-                    wl_keyboard::KeyState::Pressed => ElementState::Pressed,
-                    wl_keyboard::KeyState::Released => ElementState::Released,
-                };
+                let state: ElementState = state.into();
                 idata.sink.lock().unwrap().send_event(
                     Event::KeyboardInput {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
@@ -120,7 +272,7 @@ fn raw_keyboard_impl() -> wl_keyboard::Implementation<KeyboardIData> {
                 );
             }
         },
-        repeat_info: |_, _idata, _, _rate, _delay| {},
+        repeat_info: |_, idata, _, rate, delay| idata.update_repeat_info(delay, rate),
         keymap: |_, _, _, _, _, _| {},
         modifiers: |_, _, _, _, _, _, _, _| {}
     }

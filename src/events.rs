@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 use {WindowId, DeviceId};
 
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
+use wayland_client::protocol::wl_keyboard;
+
 /// Describes a generic event.
 #[derive(Clone, Debug)]
 pub enum Event {
@@ -211,6 +214,17 @@ pub type ButtonId = u32;
 pub enum ElementState {
     Pressed,
     Released,
+}
+
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
+impl From<wl_keyboard::KeyState> for ElementState {
+    #[inline(always)]
+    fn from(state: wl_keyboard::KeyState) -> ElementState {
+        match state {
+            wl_keyboard::KeyState::Pressed => ElementState::Pressed,
+            wl_keyboard::KeyState::Released => ElementState::Released,
+        }
+    }
 }
 
 /// Describes a button of a mouse controller.
