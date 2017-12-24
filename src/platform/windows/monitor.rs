@@ -1,5 +1,7 @@
-use winapi;
-use user32;
+use winapi::ctypes::wchar_t;
+use winapi::shared::minwindef::{DWORD, LPARAM, BOOL, TRUE};
+use winapi::shared::windef::{HMONITOR, HDC, LPRECT};
+use winapi::um::winuser;
 
 use std::collections::VecDeque;
 use std::{mem, ptr};
@@ -10,7 +12,7 @@ use super::EventsLoop;
 #[derive(Clone)]
 pub struct MonitorId {
     /// The system name of the adapter.
-    adapter_name: [winapi::WCHAR; 32],
+    adapter_name: [wchar_t; 32],
 
     /// Monitor handle.
     hmonitor: HMonitor,
@@ -38,49 +40,49 @@ pub struct MonitorId {
 // https://github.com/retep998/winapi-rs/issues/360
 // https://github.com/retep998/winapi-rs/issues/396
 #[derive(Clone)]
-struct HMonitor(winapi::HMONITOR);
+struct HMonitor(HMONITOR);
 
 unsafe impl Send for HMonitor {}
 
-fn wchar_as_string(wchar: &[winapi::WCHAR]) -> String {
+fn wchar_as_string(wchar: &[wchar_t]) -> String {
     String::from_utf16_lossy(wchar)
         .trim_right_matches(0 as char)
         .to_string()
 }
 
-unsafe extern "system" fn monitor_enum_proc(hmonitor: winapi::HMONITOR, _: winapi::HDC, place: winapi::LPRECT, data: winapi::LPARAM) -> winapi::BOOL {
+unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, _: HDC, place: LPRECT, data: LPARAM) -> BOOL {
     let monitors = data as *mut VecDeque<MonitorId>;
 
     let place = *place;
     let position = (place.left as i32, place.top as i32);
     let dimensions = ((place.right - place.left) as u32, (place.bottom - place.top) as u32);
 
-    let mut monitor_info: winapi::MONITORINFOEXW = mem::zeroed();
-    monitor_info.cbSize = mem::size_of::<winapi::MONITORINFOEXW>() as winapi::DWORD;
-    if user32::GetMonitorInfoW(hmonitor, &mut monitor_info as *mut winapi::MONITORINFOEXW as *mut winapi::MONITORINFO) == 0 {
+    let mut monitor_info: winuser::MONITORINFOEXW = mem::zeroed();
+    monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
+    if winuser::GetMonitorInfoW(hmonitor, &mut monitor_info as *mut winuser::MONITORINFOEXW as *mut winuser::MONITORINFO) == 0 {
         // Some error occurred, just skip this monitor and go on.
-        return winapi::TRUE;
+        return TRUE;
     }
 
     (*monitors).push_back(MonitorId {
         adapter_name: monitor_info.szDevice,
         hmonitor: HMonitor(hmonitor),
         monitor_name: wchar_as_string(&monitor_info.szDevice),
-        primary: monitor_info.dwFlags & winapi::MONITORINFOF_PRIMARY != 0,
+        primary: monitor_info.dwFlags & winuser::MONITORINFOF_PRIMARY != 0,
         position,
         dimensions,
         hidpi_factor: 1.0,
     });
 
     // TRUE means continue enumeration.
-    winapi::TRUE
+    TRUE
 }
 
 impl EventsLoop {
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
         unsafe {
             let mut result: VecDeque<MonitorId> = VecDeque::new();
-            user32::EnumDisplayMonitors(ptr::null_mut(), ptr::null_mut(), Some(monitor_enum_proc), &mut result as *mut _ as winapi::LPARAM);
+            winuser::EnumDisplayMonitors(ptr::null_mut(), ptr::null_mut(), Some(monitor_enum_proc), &mut result as *mut _ as LPARAM);
             result
         }
     }
@@ -114,7 +116,7 @@ impl MonitorId {
 
     /// See the docs of the crate root file.
     #[inline]
-    pub fn get_hmonitor(&self) -> winapi::HMONITOR {
+    pub fn get_hmonitor(&self) -> HMONITOR {
         self.hmonitor.0
     }
 
@@ -128,7 +130,7 @@ impl MonitorId {
     /// This is a Win32-only function for `MonitorId` that returns the system name of the adapter
     /// device.
     #[inline]
-    pub fn get_adapter_name(&self) -> &[winapi::WCHAR] {
+    pub fn get_adapter_name(&self) -> &[wchar_t] {
         &self.adapter_name
     }
 
