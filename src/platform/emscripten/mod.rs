@@ -178,6 +178,13 @@ extern "C" fn mouse_callback(
     unsafe {
         let queue: &RefCell<VecDeque<::Event>> = mem::transmute(event_queue);
 
+        let modifiers = ::ModifiersState {
+            shift: (*event).shiftKey == ffi::EM_TRUE,
+            ctrl: (*event).ctrlKey == ffi::EM_TRUE,
+            alt: (*event).altKey == ffi::EM_TRUE,
+            logo: (*event).metaKey == ffi::EM_TRUE,
+        };
+
         match event_type {
             ffi::EMSCRIPTEN_EVENT_MOUSEMOVE => {
                 queue.borrow_mut().push_back(::Event::WindowEvent {
@@ -185,6 +192,7 @@ extern "C" fn mouse_callback(
                     event: ::WindowEvent::CursorMoved {
                         device_id: ::DeviceId(DeviceId),
                         position: ((*event).canvasX as f64, (*event).canvasY as f64),
+                        modifiers: modifiers,
                     }
                 });
                 queue.borrow_mut().push_back(::Event::DeviceEvent {
@@ -211,8 +219,9 @@ extern "C" fn mouse_callback(
                     window_id: ::WindowId(WindowId(0)),
                     event: ::WindowEvent::MouseInput {
                         device_id: ::DeviceId(DeviceId),
-                        state,
-                        button,
+                        state: state,
+                        button: button,
+                        modifiers: modifiers,
                     }
                 })
             },

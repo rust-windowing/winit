@@ -442,7 +442,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: CursorMoved { device_id: DEVICE_ID, position: (x, y) },
+                event: CursorMoved { device_id: DEVICE_ID, position: (x, y), modifiers: event::get_key_mods() },
             });
 
             0
@@ -486,7 +486,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: LineDelta(0.0, value), phase: TouchPhase::Moved },
+                event: WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: LineDelta(0.0, value), phase: TouchPhase::Moved, modifiers: event::get_key_mods() },
             });
 
             send_event(Event::DeviceEvent {
@@ -552,7 +552,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::ElementState::Pressed;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Left }
+                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Left, modifiers: event::get_key_mods() }
             });
             0
         },
@@ -563,7 +563,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::ElementState::Released;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Left }
+                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Left, modifiers: event::get_key_mods() }
             });
             0
         },
@@ -574,7 +574,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::ElementState::Pressed;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Right }
+                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Right, modifiers: event::get_key_mods() }
             });
             0
         },
@@ -585,7 +585,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::ElementState::Released;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Right }
+                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Right, modifiers: event::get_key_mods() }
             });
             0
         },
@@ -596,7 +596,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::ElementState::Pressed;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Middle }
+                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Middle, modifiers: event::get_key_mods() }
             });
             0
         },
@@ -607,7 +607,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::ElementState::Released;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Middle }
+                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Middle, modifiers: event::get_key_mods() }
             });
             0
         },
@@ -619,7 +619,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Other(xbutton as u8) }
+                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Other(xbutton as u8), modifiers: event::get_key_mods() }
             });
             0
         },
@@ -631,7 +631,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Other(xbutton as u8) }
+                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Other(xbutton as u8), modifiers: event::get_key_mods() }
             });
             0
         },
@@ -690,7 +690,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: CursorMoved { device_id: DEVICE_ID, position: (x, y) },
+                event: CursorMoved { device_id: DEVICE_ID, position: (x, y), modifiers: event::get_key_mods() },
             });
             0
         },
