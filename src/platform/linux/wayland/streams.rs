@@ -2,6 +2,7 @@ use futures::{ Async, Poll, Stream };
 use std::cell::RefCell;
 use std::rc::Weak;
 
+/// Stream that will end when the internal `Weak` reference is no longer upgradable
 pub struct WhileExists<S: Stream>(pub Weak<RefCell<S>>);
 
 impl<S: Stream> Stream for WhileExists<S> {

@@ -78,6 +78,14 @@ impl EventsLoopSinkExt for EventsLoopSink {
     }
 }
 
+#[inline]
+fn make_keyboard_event(input: KeyboardInput) -> Event {
+    Event::KeyboardInput {
+        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+        input: input,
+    }
+}
+
 const REPEAT_INTERNAL_CHANNEL_SIZE: usize = 512;
 
 impl KeyboardIData {
@@ -125,6 +133,8 @@ impl KeyboardIData {
                     }
                 })
                 .for_each(|(input, wid, utf8)| {
+                    // These all need to be cloned at this point because they may out-live this
+                    // function (once we call handle.spawn(...) on the generated future
                     let proxy = proxy.clone();
                     let sink = sink.clone();
                     let timer_ref = timer.clone();
@@ -142,18 +152,15 @@ impl KeyboardIData {
                         *pressed_key = Some(recv);
                         // This stream will end once ret no longer exists
                         streams::WhileExists(ret)
-                            .map(|(input, wid)| {
-                                let evt = Event::KeyboardInput {
-                                    device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                                    input: input,
-                                };
-                                (evt, wid)
-                            })
+                            .map(|(input, wid)| (make_keyboard_event(input), wid))
                             .map(move |(evt, wid)| {
+                                let mut sink = sink.lock().unwrap();
+                                // We add in the utf8 in the receiver stream to avoid cloning it
+                                // for every event
                                 if let Some(chars) = utf8.as_ref().map(|s| s.chars()) {
-                                    sink.lock().unwrap().send_event_with_characters(evt, wid, chars);
+                                    sink.send_event_with_characters(evt, wid, chars);
                                 } else {
-                                    sink.lock().unwrap().send_event(evt, wid);
+                                    sink.send_event(evt, wid);
                                 }
                             })
                             .take_while(move |_| Ok(proxy.wakeup().is_ok()))
@@ -175,7 +182,7 @@ impl KeyboardIData {
                         });
                     // Run the initial timer delay
                     handle.spawn(f);
-                    // Run the receiver stream
+                    // Run the receiver stream handling key presses for this key press
                     handle.spawn(recv.for_each(Ok));
                     futures::future::ok(())
                 });
@@ -206,20 +213,17 @@ fn mapped_keyboard_impl() -> MappedKeyboardImplementation<KeyboardIData> {
                 let state: ElementState = state.into();
                 let vkcode = key_to_vkey(rawkey, keysym);
                 let mut guard = idata.sink.lock().unwrap();
-                let evt = Event::KeyboardInput {
-                    device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                    input: KeyboardInput {
-                        state: state,
-                        scancode: rawkey,
-                        virtual_keycode: vkcode,
-                        modifiers: ModifiersState {
-                            shift: mods.shift,
-                            ctrl: mods.ctrl,
-                            alt: mods.alt,
-                            logo: mods.logo
-                        },
+                let evt = make_keyboard_event(KeyboardInput {
+                    state: state,
+                    scancode: rawkey,
+                    virtual_keycode: vkcode,
+                    modifiers: ModifiersState {
+                        shift: mods.shift,
+                        ctrl: mods.ctrl,
+                        alt: mods.alt,
+                        logo: mods.logo
                     },
-                };
+                });
                 let evt2 = evt.clone();
                 // send char event only on key press, not release
                 if let (ElementState::Pressed, Some(txt)) = (state, utf8.as_ref()) {
@@ -227,6 +231,7 @@ fn mapped_keyboard_impl() -> MappedKeyboardImplementation<KeyboardIData> {
                 } else {
                     guard.send_event(evt, wid);
                 }
+                // The asynchronous repeat handler wants to hear about every event
                 idata.sender.try_send((evt2, wid, utf8)).unwrap();
             }
         },
