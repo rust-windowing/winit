@@ -86,6 +86,21 @@ fn make_keyboard_event(input: KeyboardInput) -> Event {
     }
 }
 
+trait FilterOpt<T> {
+    fn filter_opt<F: FnOnce(&T) -> bool>(self, f: F) -> Option<T>;
+}
+
+impl<T> FilterOpt<T> for Option<T> {
+    #[inline]
+    fn filter_opt<F: FnOnce(&T) -> bool>(self, f: F) -> Option<T> {
+        self.and_then(|v| if f(&v) {
+            Some(v)
+        } else {
+            None
+        })
+    }
+}
+
 const REPEAT_INTERNAL_CHANNEL_SIZE: usize = 512;
 
 impl KeyboardIData {
@@ -109,7 +124,7 @@ impl KeyboardIData {
             let timer = Rc::new(timer);
             let mut core = Core::new().unwrap();
             let handle = core.handle();
-            let pressed_key = RefCell::new(None);
+            let pressed_key: RefCell<Option<(KeyboardInput, Rc<RefCell<mpsc::Receiver<(KeyboardInput, WindowId)>>>)>> = RefCell::new(None);
             let events = recv
                 .filter_map(|(evt, wid, utf8)| match evt {
                     Event::KeyboardInput { input, .. } => Some((input, wid, utf8)),
@@ -122,12 +137,15 @@ impl KeyboardIData {
                 })
                 .filter_map(|(input, wid, utf8)| {
                     let mut pressed_key = pressed_key.borrow_mut();
-                    pressed_key.take();
                     match input.state {
                         ElementState::Pressed => {
+                            pressed_key.take();
                             Some((input, wid, utf8))
                         },
                         ElementState::Released => {
+                            *pressed_key = pressed_key
+                                .take()
+                                .filter_opt(|&(pressed_input, _)| input.scancode != pressed_input.scancode);
                             None
                         },
                     }
@@ -149,7 +167,7 @@ impl KeyboardIData {
                         let mut pressed_key = pressed_key.borrow_mut();
                         let recv = Rc::new(RefCell::new(recv));
                         let ret = Rc::downgrade(&recv);
-                        *pressed_key = Some(recv);
+                        *pressed_key = Some((input, recv));
                         // This stream will end once ret no longer exists
                         streams::WhileExists(ret)
                             .map(|(input, wid)| (make_keyboard_event(input), wid))
