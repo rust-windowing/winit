@@ -1,4 +1,4 @@
-use futures::{ self, Future, Stream };
+use futures::{ self, Future, Sink, Stream };
 use futures::sync::mpsc;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use {VirtualKeyCode, ElementState, WindowEvent as Event, KeyboardInput, ModifiersState};
 
-use super::{EventsLoopSink, EventsLoopProxy, WindowId, make_wid, DeviceId};
+use super::{EventsLoopSink, EventsLoopProxy, WindowId, make_wid, DeviceId, streams};
 use super::wayland_kbd::{MappedKeyboardImplementation, register_kbd};
 use tokio_core::reactor::Core;
 use tokio_timer;
@@ -78,9 +78,11 @@ impl EventsLoopSinkExt for EventsLoopSink {
     }
 }
 
+const REPEAT_INTERNAL_CHANNEL_SIZE: usize = 512;
+
 impl KeyboardIData {
     fn new(sink: Arc<Mutex<EventsLoopSink>>, proxy: EventsLoopProxy) -> KeyboardIData {
-        let (send, recv) = mpsc::channel(512);
+        let (send, recv) = mpsc::channel(REPEAT_INTERNAL_CHANNEL_SIZE);
         let ret = KeyboardIData {
             sink: sink,
             target: None,
@@ -124,7 +126,6 @@ impl KeyboardIData {
                 })
                 .for_each(|(input, wid, utf8)| {
                     let proxy = proxy.clone();
-                    let v = (input, wid);
                     let sink = sink.clone();
                     let timer_ref = timer.clone();
                     let interval_handle = handle.clone();
@@ -132,46 +133,50 @@ impl KeyboardIData {
                         let repeat_info = repeat_info.read().unwrap();
                         *repeat_info
                     };
-                    let (send, recv) = mpsc::channel(512);
-                    let real_send = Rc::new(RefCell::new(send));
-                    let send = Rc::downgrade(&real_send);
-                    {
+                    let (send, recv) = mpsc::channel(REPEAT_INTERNAL_CHANNEL_SIZE);
+                    // Build the receiver stream
+                    let recv = {
                         let mut pressed_key = pressed_key.borrow_mut();
-                        *pressed_key = Some(real_send);
-                    }
+                        let recv = Rc::new(RefCell::new(recv));
+                        let ret = Rc::downgrade(&recv);
+                        *pressed_key = Some(recv);
+                        // This stream will end once ret no longer exists
+                        streams::WhileExists(ret)
+                            .map(|(input, wid)| {
+                                let evt = Event::KeyboardInput {
+                                    device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                    input: input,
+                                };
+                                (evt, wid)
+                            })
+                            .map(move |(evt, wid)| {
+                                if let Some(chars) = utf8.as_ref().map(|s| s.chars()) {
+                                    sink.lock().unwrap().send_event_with_characters(evt, wid, chars);
+                                } else {
+                                    sink.lock().unwrap().send_event(evt, wid);
+                                }
+                            })
+                            .take_while(move |_| Ok(proxy.wakeup().is_ok()))
+                    };
+                    // Build the sink to which we send events
+                    let send = send.sink_map_err(|_| ()); // Sender errors just mean that we're done
                     let f = timer.sleep(repeat_info.delay)
-                        .map_err(|_| ())
+                        .map_err(|timer_error| panic!(timer_error))
                         .and_then(move |_| {
                             let f = timer_ref.interval(repeat_info.interval())
-                                .map_err(|_| ())
-                                .map(move |_| send.upgrade())
-                                .take_while(|o| Ok(o.is_some()))
-                                .filter_map(|m| m)
-                                .for_each(move |send| {
-                                    send.borrow_mut().try_send(v).map(|_| ()).map_err(|_| ())
-                                });
+                                .map_err(|timer_error| panic!(timer_error))
+                                .map(move |_| (input, wid))
+                                .forward(send)
+                                .map(|_| ());
+                            // Run the interval timer, until it encounters an error,
+                            // which will happen once there is a change in pressed_key
                             interval_handle.spawn(f);
                             futures::future::ok(())
                         });
-                    let ff = recv
-                        .map_err(|_| ())
-                        .map(|(input, wid)| {
-                            let evt = Event::KeyboardInput {
-                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                                input: input,
-                            };
-                            (evt, wid)
-                        })
-                        .for_each(move |(evt, wid)| {
-                            if let Some(chars) = utf8.as_ref().map(|s| s.chars()) {
-                                sink.lock().unwrap().send_event_with_characters(evt, wid, chars);
-                            } else {
-                                sink.lock().unwrap().send_event(evt, wid);
-                            }
-                            proxy.wakeup().map(|_| ()).map_err(|_| ())
-                        });
+                    // Run the initial timer delay
                     handle.spawn(f);
-                    handle.spawn(ff);
+                    // Run the receiver stream
+                    handle.spawn(recv.for_each(Ok));
                     futures::future::ok(())
                 });
             core.run(events).unwrap();
