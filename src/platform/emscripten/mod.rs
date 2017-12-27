@@ -6,7 +6,7 @@ use std::mem;
 use std::os::raw::{c_char, c_void, c_double, c_ulong, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, Arc, Weak};
+use std::sync::{Mutex, Arc};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 
@@ -424,10 +424,11 @@ impl Window {
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         unsafe {
             use std::{mem, ptr};
-            let mut width = mem::uninitialized();
-            let mut height = mem::uninitialized();
+            let mut width = 0;
+            let mut height = 0;
+            let mut fullscreen = 0;
 
-            if ffi::emscripten_get_element_css_size(ptr::null(), &mut width, &mut height)
+            if ffi::emscripten_get_canvas_size(&mut width, &mut height, &mut fullscreen)
                 != ffi::EMSCRIPTEN_RESULT_SUCCESS
             {
                 None

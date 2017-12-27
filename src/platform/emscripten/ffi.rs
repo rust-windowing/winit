@@ -3,6 +3,8 @@
 #![allow(non_camel_case_types)]
 
 use std::os::raw::{c_int, c_char, c_void, c_ulong, c_double, c_long, c_ushort};
+#[cfg(test)]
+use std::mem;
 
 pub type EM_BOOL = c_int;
 pub type EM_UTF8 = c_char;
@@ -219,6 +221,15 @@ fn bindgen_test_layout_EmscriptenPointerlockChangeEvent() {
 }
 
 extern "C" {
+    pub fn emscripten_set_canvas_size(
+        width: c_int, height: c_int)
+        -> EMSCRIPTEN_RESULT;
+
+    pub fn emscripten_get_canvas_size(
+        width: *mut c_int, height: *mut c_int,
+        is_fullscreen: *mut c_int)
+        -> EMSCRIPTEN_RESULT;
+
     pub fn emscripten_set_element_css_size(
         target: *const c_char, width: c_double,
         height: c_double) -> EMSCRIPTEN_RESULT;
