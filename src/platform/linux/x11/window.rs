@@ -61,6 +61,7 @@ unsafe impl Sync for Window2 {}
 
 pub struct Window2 {
     pub x: Arc<XWindow>,
+    cursor: Mutex<MouseCursor>,
     cursor_state: Mutex<CursorState>,
 }
 
@@ -149,6 +150,7 @@ impl Window2 {
                 root,
                 screen_id,
             }),
+            cursor: Mutex::new(MouseCursor::Default),
             cursor_state: Mutex::new(CursorState::Normal),
         };
 
@@ -568,75 +570,6 @@ impl Window2 {
         }
     }
 
-    pub fn set_cursor(&self, cursor: MouseCursor) {
-        unsafe {
-            let load = |name: &str| {
-                self.load_cursor(name)
-            };
-
-            let loadn = |names: &[&str]| {
-                self.load_first_existing_cursor(names)
-            };
-
-            // Try multiple names in some cases where the name
-            // differs on the desktop environments or themes.
-            //
-            // Try the better looking (or more suiting) names first.
-            let xcursor = match cursor {
-                MouseCursor::Alias => load("link"),
-                MouseCursor::Arrow => load("arrow"),
-                MouseCursor::Cell => load("plus"),
-                MouseCursor::Copy => load("copy"),
-                MouseCursor::Crosshair => load("crosshair"),
-                MouseCursor::Default => load("left_ptr"),
-                MouseCursor::Hand => loadn(&["hand2", "hand1"]),
-                MouseCursor::Help => load("question_arrow"),
-                MouseCursor::Move => load("move"),
-                MouseCursor::Grab => loadn(&["openhand", "grab"]),
-                MouseCursor::Grabbing => loadn(&["closedhand", "grabbing"]),
-                MouseCursor::Progress => load("left_ptr_watch"),
-                MouseCursor::AllScroll => load("all-scroll"),
-                MouseCursor::ContextMenu => load("context-menu"),
-
-                MouseCursor::NoDrop => loadn(&["no-drop", "circle"]),
-                MouseCursor::NotAllowed => load("crossed_circle"),
-
-
-                // Resize cursors
-                MouseCursor::EResize => load("right_side"),
-                MouseCursor::NResize => load("top_side"),
-                MouseCursor::NeResize => load("top_right_corner"),
-                MouseCursor::NwResize => load("top_left_corner"),
-                MouseCursor::SResize => load("bottom_side"),
-                MouseCursor::SeResize => load("bottom_right_corner"),
-                MouseCursor::SwResize => load("bottom_left_corner"),
-                MouseCursor::WResize => load("left_side"),
-                MouseCursor::EwResize => load("h_double_arrow"),
-                MouseCursor::NsResize => load("v_double_arrow"),
-                MouseCursor::NwseResize => loadn(&["bd_double_arrow", "size_bdiag"]),
-                MouseCursor::NeswResize => loadn(&["fd_double_arrow", "size_fdiag"]),
-                MouseCursor::ColResize => loadn(&["split_h", "h_double_arrow"]),
-                MouseCursor::RowResize => loadn(&["split_v", "v_double_arrow"]),
-
-                MouseCursor::Text => loadn(&["text", "xterm"]),
-                MouseCursor::VerticalText => load("vertical-text"),
-
-                MouseCursor::Wait => load("watch"),
-
-                MouseCursor::ZoomIn => load("zoom-in"),
-                MouseCursor::ZoomOut => load("zoom-out"),
-
-                MouseCursor::NoneCursor => self.create_empty_cursor(),
-            };
-
-            (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, xcursor);
-            if xcursor != 0 {
-                (self.x.display.xlib.XFreeCursor)(self.x.display.display, xcursor);
-            }
-            self.x.display.check_errors().expect("Failed to set or free the cursor");
-        }
-    }
-
     fn load_cursor(&self, name: &str) -> ffi::Cursor {
         use std::ffi::CString;
         unsafe {
@@ -653,6 +586,85 @@ impl Window2 {
             }
         }
         0
+    }
+
+    fn get_cursor(&self, cursor: MouseCursor) -> ffi::Cursor {
+        let load = |name: &str| {
+            self.load_cursor(name)
+        };
+
+        let loadn = |names: &[&str]| {
+            self.load_first_existing_cursor(names)
+        };
+
+        // Try multiple names in some cases where the name
+        // differs on the desktop environments or themes.
+        //
+        // Try the better looking (or more suiting) names first.
+        match cursor {
+            MouseCursor::Alias => load("link"),
+            MouseCursor::Arrow => load("arrow"),
+            MouseCursor::Cell => load("plus"),
+            MouseCursor::Copy => load("copy"),
+            MouseCursor::Crosshair => load("crosshair"),
+            MouseCursor::Default => load("left_ptr"),
+            MouseCursor::Hand => loadn(&["hand2", "hand1"]),
+            MouseCursor::Help => load("question_arrow"),
+            MouseCursor::Move => load("move"),
+            MouseCursor::Grab => loadn(&["openhand", "grab"]),
+            MouseCursor::Grabbing => loadn(&["closedhand", "grabbing"]),
+            MouseCursor::Progress => load("left_ptr_watch"),
+            MouseCursor::AllScroll => load("all-scroll"),
+            MouseCursor::ContextMenu => load("context-menu"),
+
+            MouseCursor::NoDrop => loadn(&["no-drop", "circle"]),
+            MouseCursor::NotAllowed => load("crossed_circle"),
+
+
+            // Resize cursors
+            MouseCursor::EResize => load("right_side"),
+            MouseCursor::NResize => load("top_side"),
+            MouseCursor::NeResize => load("top_right_corner"),
+            MouseCursor::NwResize => load("top_left_corner"),
+            MouseCursor::SResize => load("bottom_side"),
+            MouseCursor::SeResize => load("bottom_right_corner"),
+            MouseCursor::SwResize => load("bottom_left_corner"),
+            MouseCursor::WResize => load("left_side"),
+            MouseCursor::EwResize => load("h_double_arrow"),
+            MouseCursor::NsResize => load("v_double_arrow"),
+            MouseCursor::NwseResize => loadn(&["bd_double_arrow", "size_bdiag"]),
+            MouseCursor::NeswResize => loadn(&["fd_double_arrow", "size_fdiag"]),
+            MouseCursor::ColResize => loadn(&["split_h", "h_double_arrow"]),
+            MouseCursor::RowResize => loadn(&["split_v", "v_double_arrow"]),
+
+            MouseCursor::Text => loadn(&["text", "xterm"]),
+            MouseCursor::VerticalText => load("vertical-text"),
+
+            MouseCursor::Wait => load("watch"),
+
+            MouseCursor::ZoomIn => load("zoom-in"),
+            MouseCursor::ZoomOut => load("zoom-out"),
+
+            MouseCursor::NoneCursor => self.create_empty_cursor(),
+        }
+    }
+
+    fn update_cursor(&self, cursor: ffi::Cursor) {
+        unsafe {
+            (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, cursor);
+            if cursor != 0 {
+                (self.x.display.xlib.XFreeCursor)(self.x.display.display, cursor);
+            }
+            self.x.display.check_errors().expect("Failed to set or free the cursor");
+        }
+    }
+
+    pub fn set_cursor(&self, cursor: MouseCursor) {
+        let mut current_cursor = self.cursor.lock().unwrap();
+        *current_cursor = cursor;
+        if *self.cursor_state.lock().unwrap() != CursorState::Hide {
+            self.update_cursor(self.get_cursor(*current_cursor));
+        }
     }
 
     // TODO: This could maybe be cached. I don't think it's worth
@@ -699,27 +711,14 @@ impl Window2 {
                 }
             },
             Normal => {},
-            Hide => {
-                // NB: Calling XDefineCursor with None (aka 0)
-                // as a value resets the cursor to the default.
-                unsafe {
-                    (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, 0);
-                }
-            },
+            Hide => self.update_cursor(self.get_cursor(*self.cursor.lock().unwrap())),
         }
 
         *cursor_state = state;
         match state {
             Normal => Ok(()),
             Hide => {
-                unsafe {
-                    let cursor = self.create_empty_cursor();
-                    (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, cursor);
-                    if cursor != 0 {
-                        (self.x.display.xlib.XFreeCursor)(self.x.display.display, cursor);
-                    }
-                    self.x.display.check_errors().expect("Failed to call XDefineCursor or free the empty cursor");
-                }
+                self.update_cursor(self.create_empty_cursor());
                 Ok(())
             },
             Grab => {
