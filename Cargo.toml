@@ -26,12 +26,19 @@ cocoa = "0.13"
 core-foundation = "0.4"
 core-graphics = "0.12"
 
-[target.'cfg(target_os = "windows")'.dependencies]
-winapi = "0.2"
-shell32-sys = "0.1"
-user32-sys = "~0.1.2"
-kernel32-sys = "0.2"
-dwmapi-sys = "0.1"
+[target.'cfg(target_os = "windows")'.dependencies.winapi]
+version = "0.3"
+features = [
+    "winnt",
+    "winuser",
+    "wingdi",
+    "shellapi",
+    "dwmapi",
+    "processthreadsapi",
+    "libloaderapi",
+    "windowsx",
+    "hidusage",
+]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
 wayland-client = { version = "0.12.0", features = ["dlopen"] }

@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use {WindowEvent as Event, ElementState, MouseButton, MouseScrollDelta, TouchPhase};
+use events::ModifiersState;
 
 use super::{WindowId, DeviceId};
 use super::event_loop::EventsLoopSink;
@@ -50,6 +51,8 @@ pub fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
                     Event::CursorMoved {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                         position: (x, y),
+                        // TODO: replace dummy value with actual modifier state
+                        modifiers: ModifiersState::default(),
                     },
                     wid,
                 );
@@ -73,7 +76,9 @@ pub fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
                 idata.sink.lock().unwrap().send_event(
                     Event::CursorMoved {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                        position: (x, y)
+                        position: (x, y),
+                        // TODO: replace dummy value with actual modifier state
+                        modifiers: ModifiersState::default(),
                     },
                     wid
                 );
@@ -97,6 +102,8 @@ pub fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                         state: state,
                         button: button,
+                        // TODO: replace dummy value with actual modifier state
+                        modifiers: ModifiersState::default(),
                     },
                     wid
                 );
@@ -117,6 +124,8 @@ pub fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
                             device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                             delta: MouseScrollDelta::PixelDelta(x as f32, y as f32),
                             phase: TouchPhase::Moved,
+                            // TODO: replace dummy value with actual modifier state
+                            modifiers: ModifiersState::default(),
                         },
                         wid
                     );
@@ -145,6 +154,8 @@ pub fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
                             device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                             delta: MouseScrollDelta::LineDelta(x as f32, y as f32),
                             phase: idata.axis_state,
+                            // TODO: replace dummy value with actual modifier state
+                            modifiers: ModifiersState::default(),
                         },
                         wid
                     );
@@ -154,6 +165,8 @@ pub fn pointer_implementation() -> wl_pointer::Implementation<PointerIData> {
                             device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                             delta: MouseScrollDelta::PixelDelta(x as f32, y as f32),
                             phase: idata.axis_state,
+                            // TODO: replace dummy value with actual modifier state
+                            modifiers: ModifiersState::default(),
                         },
                         wid
                     );

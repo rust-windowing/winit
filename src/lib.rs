@@ -88,14 +88,6 @@ extern crate libc;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
-#[cfg(target_os = "windows")]
-extern crate kernel32;
-#[cfg(target_os = "windows")]
-extern crate shell32;
-#[cfg(target_os = "windows")]
-extern crate user32;
-#[cfg(target_os = "windows")]
-extern crate dwmapi;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;

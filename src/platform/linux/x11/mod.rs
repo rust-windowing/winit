@@ -471,6 +471,8 @@ impl EventsLoop {
 
                 match xev.evtype {
                     ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
+                        use events::ModifiersState;
+
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
                         let wid = mkwid(xev.event);
                         let did = mkdid(xev.deviceid);
@@ -478,6 +480,18 @@ impl EventsLoop {
                             // Deliver multi-touch events instead of emulated mouse events.
                             return;
                         }
+
+                        let ev_mods = {
+                          // Translate x mod state to mods
+                          let state = xev.mods.effective as u32;
+                          ModifiersState {
+                            alt:   state & ffi::Mod1Mask != 0,
+                            shift: state & ffi::ShiftMask != 0,
+                            ctrl:  state & ffi::ControlMask != 0,
+                            logo:  state & ffi::Mod4Mask != 0,
+                          }
+                        };
+
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
                         } else {
@@ -485,11 +499,11 @@ impl EventsLoop {
                         };
                         match xev.detail as u32 {
                             ffi::Button1 => callback(Event::WindowEvent { window_id: wid, event:
-                                                                          MouseInput { device_id: did, state: state, button: Left } }),
+                                                                          MouseInput { device_id: did, state: state, button: Left, modifiers: ev_mods } }),
                             ffi::Button2 => callback(Event::WindowEvent { window_id: wid, event:
-                                                                          MouseInput { device_id: did, state: state, button: Middle } }),
+                                                                          MouseInput { device_id: did, state: state, button: Middle, modifiers: ev_mods} }),
                             ffi::Button3 => callback(Event::WindowEvent { window_id: wid, event:
-                                                                          MouseInput { device_id: did, state: state, button: Right } }),
+                                                                          MouseInput { device_id: did, state: state, button: Right, modifiers: ev_mods } }),
 
                             // Suppress emulated scroll wheel clicks, since we handle the real motion events for those.
                             // In practice, even clicky scroll wheels appear to be reported by evdev (and XInput2 in
@@ -505,18 +519,33 @@ impl EventsLoop {
                                         _ => unreachable!()
                                     },
                                     phase: TouchPhase::Moved,
+                                    modifiers: ev_mods,
                                 }});
                             },
 
-                            x => callback(Event::WindowEvent { window_id: wid, event: MouseInput { device_id: did, state: state, button: Other(x as u8) } })
+                            x => callback(Event::WindowEvent { window_id: wid,
+                                                               event: MouseInput { device_id: did, state: state, button: Other(x as u8), modifiers: ev_mods } })
                         }
                     }
                     ffi::XI_Motion => {
+                        use events::ModifiersState;
+
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
                         let did = mkdid(xev.deviceid);
                         let wid = mkwid(xev.event);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
-
+                        
+                        let ev_mods = {
+                          // Translate x event state to mods
+                          let state = xev.mods.effective as u32;
+                          ModifiersState {
+                            alt:   state & ffi::Mod1Mask != 0,
+                            shift: state & ffi::ShiftMask != 0,
+                            ctrl:  state & ffi::ControlMask != 0,
+                            logo:  state & ffi::Mod4Mask != 0,
+                          }
+                        };
+  
                         // Gymnastics to ensure self.windows isn't locked when we invoke callback
                         if {
                             let mut windows = self.windows.lock().unwrap();
@@ -528,7 +557,8 @@ impl EventsLoop {
                         } {
                             callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
                                 device_id: did,
-                                position: new_cursor_pos
+                                position: new_cursor_pos,
+                                modifiers: ev_mods,
                             }});
                         }
 
@@ -554,6 +584,7 @@ impl EventsLoop {
                                                 ScrollOrientation::Vertical => LineDelta(0.0, -delta as f32),
                                             },
                                             phase: TouchPhase::Moved,
+                                            modifiers: ev_mods,
                                         }});
                                     } else {
                                         events.push(Event::WindowEvent { window_id: wid, event: AxisMotion {
@@ -572,7 +603,19 @@ impl EventsLoop {
                     }
 
                     ffi::XI_Enter => {
+                        use events::ModifiersState;
                         let xev: &ffi::XIEnterEvent = unsafe { &*(xev.data as *const _) };
+
+                        let ev_mods = {
+                            // Translate x event state to mods
+                            let state = xev.mods.effective as u32;
+                            ModifiersState {
+                                alt:   state & ffi::Mod1Mask != 0,
+                                shift: state & ffi::ShiftMask != 0,
+                                ctrl:  state & ffi::ControlMask != 0,
+                                logo:  state & ffi::Mod4Mask != 0,
+                            }
+                        };
 
                         let mut devices = self.devices.lock().unwrap();
                         let physical_device = devices.get_mut(&DeviceId(xev.sourceid)).unwrap();
@@ -586,7 +629,8 @@ impl EventsLoop {
                         let new_cursor_pos = (xev.event_x, xev.event_y);
                         callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
                             device_id: mkdid(xev.deviceid),
-                            position: new_cursor_pos
+                            position: new_cursor_pos,
+                            modifiers: ev_mods,
                         }})
                     }
                     ffi::XI_Leave => {
@@ -594,7 +638,20 @@ impl EventsLoop {
                         callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorLeft { device_id: mkdid(xev.deviceid) } })
                     }
                     ffi::XI_FocusIn => {
+                        use events::ModifiersState;
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
+
+                        let ev_mods = {
+                            // Translate x event state to mods
+                            let state = xev.mods.effective as u32;
+                            ModifiersState {
+                                alt:   state & ffi::Mod1Mask != 0,
+                                shift: state & ffi::ShiftMask != 0,
+                                ctrl:  state & ffi::ControlMask != 0,
+                                logo:  state & ffi::Mod4Mask != 0,
+                            }
+                        };
+
                         unsafe {
                             let mut windows = self.windows.lock().unwrap();
                             let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
@@ -605,7 +662,8 @@ impl EventsLoop {
                         let new_cursor_pos = (xev.event_x, xev.event_y);
                         callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
                             device_id: mkdid(xev.deviceid),
-                            position: new_cursor_pos
+                            position: new_cursor_pos,
+                            modifiers: ev_mods,
                         }})
                     }
                     ffi::XI_FocusOut => {
