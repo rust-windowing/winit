@@ -104,6 +104,12 @@ extern crate percent_encoding;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
 #[macro_use]
 extern crate wayland_client;
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
+extern crate tokio_core;
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
+extern crate tokio_timer;
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
+extern crate futures;
 
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId};

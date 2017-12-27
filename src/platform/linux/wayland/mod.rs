@@ -14,6 +14,7 @@ mod event_loop;
 mod pointer;
 mod touch;
 mod keyboard;
+mod streams;
 mod window;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

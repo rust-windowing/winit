@@ -44,6 +44,9 @@ features = [
 wayland-client = { version = "0.12.0", features = ["dlopen"] }
 wayland-protocols = { version = "0.12.0", features = ["unstable_protocols"] }
 wayland-kbd = "0.13.0"
-wayland-window = "0.13.0"
+wayland-window = "0.13.2"
 x11-dl = "2.8"
 percent-encoding = "1.0"
+tokio-core = "0.1"
+tokio-timer = "0.1"
+futures = "0.1"
