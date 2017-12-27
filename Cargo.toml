@@ -11,7 +11,7 @@ documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [dependencies]
-lazy_static = "0.2.2"
+lazy_static = "1"
 libc = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
@@ -22,9 +22,9 @@ objc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"
-cocoa = "0.11"
+cocoa = "0.13"
 core-foundation = "0.4"
-core-graphics = "0.10"
+core-graphics = "0.12"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
 version = "0.3"
