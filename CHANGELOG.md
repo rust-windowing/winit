@@ -1,5 +1,7 @@
 # Unreleased
 
+- Add support for `Touch` for win32 backend.
+
 # Version 0.10.0 (2017-12-27)
 
 - Add support for `Touch` for emscripten backend.
