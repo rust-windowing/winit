@@ -447,6 +447,7 @@ impl Window2 {
                 if !attrs.decorations {
                     window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
                     window.setTitlebarAppearsTransparent_(YES);
+                    window.setMovableByWindowBackground_(YES);
                 }
 
                 if screen.is_some() {
