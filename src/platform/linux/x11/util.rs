@@ -1,10 +1,10 @@
 use std::mem;
 use std::ptr;
 use std::sync::Arc;
-
-use libc::{c_char, c_int, c_long, c_short, c_uchar, c_ulong};
+use std::os::raw::{c_char, c_double, c_int, c_long, c_short, c_uchar, c_uint, c_ulong};
 
 use super::{ffi, XConnection, XError};
+use events::ModifiersState;
 
 pub unsafe fn get_atom(xconn: &Arc<XConnection>, name: &[u8]) -> Result<ffi::Atom, XError> {
     let atom_name: *const c_char = name.as_ptr() as _;
@@ -116,4 +116,91 @@ pub unsafe fn get_property<T>(
     }
 
     Ok(data)
+}
+
+impl From<ffi::XIModifierState> for ModifiersState {
+    fn from(mods: ffi::XIModifierState) -> Self {
+        let state = mods.effective as c_uint;
+        ModifiersState {
+            alt: state & ffi::Mod1Mask != 0,
+            shift: state & ffi::ShiftMask != 0,
+            ctrl: state & ffi::ControlMask != 0,
+            logo: state & ffi::Mod4Mask != 0,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct PointerState {
+    #[allow(dead_code)]
+    root: ffi::Window,
+    #[allow(dead_code)]
+    child: ffi::Window,
+    #[allow(dead_code)]
+    root_x: c_double,
+    #[allow(dead_code)]
+    root_y: c_double,
+    #[allow(dead_code)]
+    win_x: c_double,
+    #[allow(dead_code)]
+    win_y: c_double,
+    #[allow(dead_code)]
+    buttons: ffi::XIButtonState,
+    modifiers: ffi::XIModifierState,
+    #[allow(dead_code)]
+    group: ffi::XIGroupState,
+    #[allow(dead_code)]
+    relative_to_window: bool,
+}
+
+impl PointerState {
+    pub fn get_modifier_state(&self) -> ModifiersState {
+        self.modifiers.into()
+    }
+}
+
+pub unsafe fn query_pointer(
+    xconn: &Arc<XConnection>,
+    window: ffi::Window,
+    device_id: c_int,
+) -> Result<PointerState, XError> {
+    let mut root_return = mem::uninitialized();
+    let mut child_return = mem::uninitialized();
+    let mut root_x_return = mem::uninitialized();
+    let mut root_y_return = mem::uninitialized();
+    let mut win_x_return = mem::uninitialized();
+    let mut win_y_return = mem::uninitialized();
+    let mut buttons_return = mem::uninitialized();
+    let mut modifiers_return = mem::uninitialized();
+    let mut group_return = mem::uninitialized();
+
+    let relative_to_window = (xconn.xinput2.XIQueryPointer)(
+        xconn.display,
+        device_id,
+        window,
+        &mut root_return,
+        &mut child_return,
+        &mut root_x_return,
+        &mut root_y_return,
+        &mut win_x_return,
+        &mut win_y_return,
+        &mut buttons_return,
+        &mut modifiers_return,
+        &mut group_return,
+    ) == ffi::True;
+
+    xconn.check_errors()?;
+
+    Ok(PointerState {
+        root: root_return,
+        child: child_return,
+        root_x: root_x_return,
+        root_y: root_y_return,
+        win_x: win_x_return,
+        win_y: win_y_return,
+        buttons: buttons_return,
+        modifiers: modifiers_return,
+        group: group_return,
+        relative_to_window,
+    })
 }
