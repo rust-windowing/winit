@@ -2,6 +2,7 @@
 
 - Added method `os::macos::WindowBuilderExt::with_movable_by_window_background(bool)` that allows to move a window without a titlebar - `with_decorations(false)`
 - Implement `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for Wayland.
+- Added `Caret` as VirtualKeyCode and support OSX ^-Key with german input.
 
 # Version 0.10.0 (2017-12-27)
 
