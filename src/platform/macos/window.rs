@@ -255,6 +255,7 @@ impl Drop for WindowDelegate {
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,
+    pub titlebar_transparent: bool,
     pub title_hidden: bool,
 }
 
@@ -408,15 +409,24 @@ impl Window2 {
                 NSWindowStyleMask::NSBorderlessWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSTitledWindowMask
-            } else if attrs.decorations {
-                // Window2 with a titlebar
-                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
-                    NSWindowStyleMask::NSResizableWindowMask | NSWindowStyleMask::NSTitledWindowMask
-            } else {
+            } else if !attrs.decorations {
                 // Window2 without a titlebar
                 NSWindowStyleMask::NSClosableWindowMask |
                     NSWindowStyleMask::NSMiniaturizableWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSFullSizeContentViewWindowMask
+            } else if !pl_attrs.titlebar_transparent {
+                // Window2 with a titlebar
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
+            } else {
+                // Window2 with a transparent titlebar
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask |
                     NSWindowStyleMask::NSFullSizeContentViewWindowMask
             };
 
@@ -432,6 +442,9 @@ impl Window2 {
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
 
+                if pl_attrs.titlebar_transparent {
+                    window.setTitlebarAppearsTransparent_(YES);
+                }
                 if pl_attrs.title_hidden {
                     window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
                 }
