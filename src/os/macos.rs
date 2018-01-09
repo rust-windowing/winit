@@ -64,6 +64,7 @@ impl From<ActivationPolicy> for NSApplicationActivationPolicy {
 pub trait WindowBuilderExt {
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     fn with_movable_by_window_background(self, movable_by_window_background: bool) -> WindowBuilder;
+    fn with_title_hidden(self, title_hidden: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -78,6 +79,13 @@ impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> WindowBuilder {
         self.platform_specific.movable_by_window_background = movable_by_window_background;
+        self
+    }
+
+    /// Hides the window title
+    #[inline]
+    fn with_title_hidden(mut self, title_hidden: bool) -> WindowBuilder {
+        self.platform_specific.title_hidden = title_hidden;
         self
     }
 }
