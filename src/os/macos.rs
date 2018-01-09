@@ -63,6 +63,7 @@ impl From<ActivationPolicy> for NSApplicationActivationPolicy {
 /// Additional methods on `WindowBuilder` that are specific to MacOS.
 pub trait WindowBuilderExt {
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
+    fn with_movable_by_window_background(self, movable_by_window_background: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -70,6 +71,13 @@ impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_activation_policy(mut self, activation_policy: ActivationPolicy) -> WindowBuilder {
         self.platform_specific.activation_policy = activation_policy;
+        self
+    }
+
+    /// Enables click-and-drag behavior for the entire window, not just the titlebar
+    #[inline]
+    fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> WindowBuilder {
+        self.platform_specific.movable_by_window_background = movable_by_window_background;
         self
     }
 }
