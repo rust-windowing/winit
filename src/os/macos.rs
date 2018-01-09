@@ -67,11 +67,13 @@ impl From<ActivationPolicy> for NSApplicationActivationPolicy {
 ///
 ///  - `with_titlebar_transparent`
 ///  - `with_title_hidden`
+///  - `with_fullsize_content_view`
 pub trait WindowBuilderExt {
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     fn with_movable_by_window_background(self, movable_by_window_background: bool) -> WindowBuilder;
     fn with_titlebar_transparent(self, titlebar_transparent: bool) -> WindowBuilder;
     fn with_title_hidden(self, title_hidden: bool) -> WindowBuilder;
+    fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -100,6 +102,13 @@ impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_title_hidden(mut self, title_hidden: bool) -> WindowBuilder {
         self.platform_specific.title_hidden = title_hidden;
+        self
+    }
+
+    /// Makes the window content appear behind the titlebar
+    #[inline]
+    fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> WindowBuilder {
+        self.platform_specific.fullsize_content_view = fullsize_content_view;
         self
     }
 }

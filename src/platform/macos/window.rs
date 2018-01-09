@@ -257,6 +257,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
     pub title_hidden: bool,
+    pub fullsize_content_view: bool,
 }
 
 pub struct Window2 {
@@ -421,13 +422,19 @@ impl Window2 {
                     NSWindowStyleMask::NSMiniaturizableWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSTitledWindowMask
-            } else {
-                // Window2 with a transparent titlebar
+            } else if pl_attrs.fullsize_content_view {
+                // Window2 with a transparent titlebar and fullsize content view
                 NSWindowStyleMask::NSClosableWindowMask |
                     NSWindowStyleMask::NSMiniaturizableWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSTitledWindowMask |
                     NSWindowStyleMask::NSFullSizeContentViewWindowMask
+            } else {
+                // Window2 with a transparent titlebar and regular content view
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
             };
 
             let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
