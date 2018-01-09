@@ -255,6 +255,7 @@ impl Drop for WindowDelegate {
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,
+    pub title_hidden: bool,
 }
 
 pub struct Window2 {
@@ -423,7 +424,8 @@ impl Window2 {
 
             let masks = if screen.is_some() {
                 // Fullscreen window
-                NSWindowStyleMask::NSBorderlessWindowMask | NSWindowStyleMask::NSResizableWindowMask |
+                NSWindowStyleMask::NSBorderlessWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSTitledWindowMask
             } else if attrs.decorations {
                 // Window2 with a titlebar
@@ -431,7 +433,8 @@ impl Window2 {
                     NSWindowStyleMask::NSResizableWindowMask | NSWindowStyleMask::NSTitledWindowMask
             } else {
                 // Window2 without a titlebar
-                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSFullSizeContentViewWindowMask
             };
@@ -448,13 +451,16 @@ impl Window2 {
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
 
+                if pl_attrs.title_hidden {
+                    window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
+                }
+                if pl_attrs.movable_by_window_background {
+                    window.setMovableByWindowBackground_(YES);
+                }
+
                 if !attrs.decorations {
                     window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
                     window.setTitlebarAppearsTransparent_(YES);
-                }
-
-                if pl_attrs.movable_by_window_background {
-                    window.setMovableByWindowBackground_(YES);
                 }
 
                 if screen.is_some() {
