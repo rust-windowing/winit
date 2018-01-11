@@ -1,5 +1,7 @@
 # Unreleased
 
+- Added method `os::macos::WindowBuilderExt::with_movable_by_window_background(bool)` that allows to move a window without a titlebar - `with_decorations(false)`
+
 # Version 0.10.0 (2017-12-27)
 
 - Add support for `Touch` for emscripten backend.
