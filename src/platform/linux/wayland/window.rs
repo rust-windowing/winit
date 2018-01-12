@@ -168,6 +168,14 @@ impl Window {
         *(self.need_frame_refresh.lock().unwrap()) = true;
     }
 
+    pub fn set_maximized(&self, maximized: bool) {
+        if maximized {
+            self.frame.lock().unwrap().set_state(FrameState::Maximized);
+        } else {
+            self.frame.lock().unwrap().set_state(FrameState::Regular);
+        }
+    }
+
     #[inline]
     pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
         // TODO: not yet possible on wayland

@@ -248,9 +248,7 @@ impl Window {
     pub fn set_maximized(&self, maximized: bool) {
         match self {
             &Window::X(ref w) => w.set_maximized(maximized),
-            &Window::Wayland(ref _w) => {
-                unimplemented!();
-            }
+            &Window::Wayland(ref w) => w.set_maximized(maximized),
         }
     }
 
