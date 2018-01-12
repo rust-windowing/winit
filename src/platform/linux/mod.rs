@@ -268,9 +268,7 @@ impl Window {
     pub fn set_decorations(&self, decorations: bool) {
         match self {
             &Window::X(ref w) => w.set_decorations(decorations),
-            &Window::Wayland(ref _w) => {
-                unimplemented!();
-            }
+            &Window::Wayland(ref w) => w.set_decorations(decorations)
         }
     }
 
