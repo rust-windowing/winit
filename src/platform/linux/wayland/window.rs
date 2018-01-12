@@ -176,6 +176,15 @@ impl Window {
         }
     }
 
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+        if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = monitor {
+            let info = monitor_id.info.lock().unwrap();
+            self.frame.lock().unwrap().set_state(FrameState::Fullscreen(Some(&info.output)));
+        } else {
+            self.frame.lock().unwrap().set_state(FrameState::Regular);
+        }
+    }
+
     #[inline]
     pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
         // TODO: not yet possible on wayland

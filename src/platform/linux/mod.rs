@@ -256,9 +256,7 @@ impl Window {
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         match self {
             &Window::X(ref w) => w.set_fullscreen(monitor),
-            &Window::Wayland(ref _w) => {
-                unimplemented!();
-            }
+            &Window::Wayland(ref w) => w.set_fullscreen(monitor)
         }
     }
 
