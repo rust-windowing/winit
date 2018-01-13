@@ -248,9 +248,7 @@ impl Window {
     pub fn set_maximized(&self, maximized: bool) {
         match self {
             &Window::X(ref w) => w.set_maximized(maximized),
-            &Window::Wayland(ref _w) => {
-                unimplemented!();
-            }
+            &Window::Wayland(ref w) => w.set_maximized(maximized),
         }
     }
 
@@ -258,9 +256,7 @@ impl Window {
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         match self {
             &Window::X(ref w) => w.set_fullscreen(monitor),
-            &Window::Wayland(ref _w) => {
-                unimplemented!();
-            }
+            &Window::Wayland(ref w) => w.set_fullscreen(monitor)
         }
     }
 
@@ -268,9 +264,7 @@ impl Window {
     pub fn set_decorations(&self, decorations: bool) {
         match self {
             &Window::X(ref w) => w.set_decorations(decorations),
-            &Window::Wayland(ref _w) => {
-                unimplemented!();
-            }
+            &Window::Wayland(ref w) => w.set_decorations(decorations)
         }
     }
 

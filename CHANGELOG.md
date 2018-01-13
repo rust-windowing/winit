@@ -1,5 +1,7 @@
 # Unreleased
 
+- Implement `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for Wayland.
+
 # Version 0.10.0 (2017-12-27)
 
 - Add support for `Touch` for emscripten backend.
