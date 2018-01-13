@@ -12,7 +12,7 @@ use objc::declare::ClassDecl;
 
 use cocoa;
 use cocoa::base::{id, nil};
-use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
+use cocoa::foundation::{NSAutoreleasePool, NSPoint, NSRect, NSSize, NSString, NSUInteger};
 use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask};
 
 use core_graphics::display::CGDisplay;
@@ -258,7 +258,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 
 pub struct Window2 {
     pub view: IdRef,
-    pub window: IdRef,
+    pub window: NonOwningIdRef,
     pub delegate: WindowDelegate,
 }
 
@@ -268,6 +268,9 @@ unsafe impl Sync for Window2 {}
 impl Drop for Window2 {
     fn drop(&mut self) {
         // Remove this window from the `EventLoop`s list of windows.
+        let autoreleasepool = unsafe {
+            NSAutoreleasePool::new(cocoa::base::nil)
+        };
         let id = self.id();
         if let Some(shared) = self.delegate.state.shared.upgrade() {
             shared.find_and_remove_window(id);
@@ -279,6 +282,9 @@ impl Drop for Window2 {
             unsafe {
                 msg_send![nswindow, close];
             }
+        }
+        unsafe {
+            msg_send![autoreleasepool, drain];
         }
     }
 }
@@ -307,6 +313,10 @@ impl Window2 {
             }
         }
 
+        let autoreleasepool = unsafe {
+            NSAutoreleasePool::new(cocoa::base::nil)
+        };
+
         let app = match Window2::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
@@ -317,6 +327,7 @@ impl Window2 {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
+
         let view = match Window2::create_view(*window) {
             Some(view) => view,
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
@@ -351,7 +362,7 @@ impl Window2 {
 
         let ds = DelegateState {
             view: view.clone(),
-            window: window.clone(),
+            window: IdRef::new(*window.clone()),
             shared: shared,
         };
 
@@ -360,7 +371,9 @@ impl Window2 {
             window: window,
             delegate: WindowDelegate::new(ds),
         };
-
+        unsafe {
+            msg_send![autoreleasepool, drain];
+        }
         Ok(window)
     }
 
@@ -381,7 +394,7 @@ impl Window2 {
         }
     }
 
-    fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
+    fn create_window(attrs: &WindowAttributes) -> Option<NonOwningIdRef> {
         unsafe {
             let screen = match attrs.fullscreen {
                 Some(ref monitor_id) => {
@@ -432,7 +445,7 @@ impl Window2 {
                     NSWindowStyleMask::NSFullSizeContentViewWindowMask
             };
 
-            let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
+            let window = NonOwningIdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
                 frame,
                 masks,
                 appkit::NSBackingStoreBuffered,
@@ -440,7 +453,7 @@ impl Window2 {
             ));
             window.non_nil().map(|window| {
                 let title = IdRef::new(NSString::alloc(nil).init_str(&attrs.title));
-                window.setReleasedWhenClosed_(NO);
+                window.setReleasedWhenClosed_(YES);
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
 
@@ -750,5 +763,48 @@ impl Clone for IdRef {
             let _: id = unsafe { msg_send![self.0, retain] };
         }
         IdRef(self.0)
+    }
+}
+
+pub struct NonOwningIdRef(id);
+
+impl NonOwningIdRef {
+    fn new(i: id) -> NonOwningIdRef {
+        NonOwningIdRef(i)
+    }
+
+    #[allow(dead_code)]
+    fn retain(i: id) -> NonOwningIdRef {
+        if i != nil {
+            let _: id = unsafe { msg_send![i, retain] };
+        }
+        NonOwningIdRef(i)
+    }
+
+    fn non_nil(self) -> Option<NonOwningIdRef> {
+        if self.0 == nil { None } else { Some(self) }
+    }
+}
+
+
+impl Drop for NonOwningIdRef {
+    fn drop(&mut self) {
+        // intentionally do not drop
+    }
+}
+
+impl Deref for NonOwningIdRef {
+    type Target = id;
+    fn deref<'a>(&'a self) -> &'a id {
+        &self.0
+    }
+}
+
+impl Clone for NonOwningIdRef {
+    fn clone(&self) -> NonOwningIdRef {
+        if self.0 != nil {
+            let _: id = unsafe { msg_send![self.0, retain] };
+        }
+        NonOwningIdRef(self.0)
     }
 }
