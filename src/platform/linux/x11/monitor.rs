@@ -15,6 +15,8 @@ pub struct MonitorId {
     position: (i32, i32),
     /// If the monitor is the primary one
     primary: bool,
+    /// The DPI scaling factor
+    hidpi_factor: f32,
 }
 
 pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
@@ -35,10 +37,21 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                 let output = (x.xrandr.XRRGetOutputInfo)(x.display, resources, *(monitor.outputs.offset(0)));
                 let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
                 let name = String::from_utf8_lossy(nameslice).into_owned();
+                let hidpi_factor = {
+                    let x_mm = (*output).mm_width as f32;
+                    let y_mm = (*output).mm_height as f32;
+                    let x_px = monitor.width as f32;
+                    let y_px = monitor.height as f32;
+                    let ppmm = ((x_px * y_px) / (x_mm * y_mm)).sqrt();
+
+                    // Quantize 1/12 step size
+                    ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0)
+                };
                 (x.xrandr.XRRFreeOutputInfo)(output);
                 available.push(MonitorId{
                     id: i as u32,
                     name,
+                    hidpi_factor,
                     dimensions: (monitor.width as u32, monitor.height as u32),
                     position: (monitor.x as i32, monitor.y as i32),
                     primary: (monitor.primary != 0),
@@ -56,10 +69,23 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                     let output = (x.xrandr.XRRGetOutputInfo)(x.display, resources, *((*crtc).outputs.offset(0)));
                     let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
                     let name = String::from_utf8_lossy(nameslice).into_owned();
+
+                    let hidpi_factor = {
+                        let x_mm = (*output).mm_width as f32;
+                        let y_mm = (*output).mm_height as f32;
+                        let x_px = (*crtc).width as f32;
+                        let y_px = (*crtc).height as f32;
+                        let ppmm = ((x_px * y_px) / (x_mm * y_mm)).sqrt();
+
+                        // Quantize 1/12 step size
+                        ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0)
+                    };
+
                     (x.xrandr.XRRFreeOutputInfo)(output);
                     available.push(MonitorId{
                         id: crtcid as u32,
                         name,
+                        hidpi_factor,
                         dimensions: ((*crtc).width as u32, (*crtc).height as u32),
                         position: ((*crtc).x as i32, (*crtc).y as i32),
                         primary: true,
@@ -101,6 +127,6 @@ impl MonitorId {
 
     #[inline]
     pub fn get_hidpi_factor(&self) -> f32 {
-        1.0
+        self.hidpi_factor
     }
 }
