@@ -254,6 +254,7 @@ impl Drop for WindowDelegate {
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
+    pub movable_by_window_background: bool,
 }
 
 pub struct Window2 {
@@ -312,7 +313,7 @@ impl Window2 {
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
 
-        let window = match Window2::create_window(win_attribs)
+        let window = match Window2::create_window(win_attribs, pl_attribs)
         {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
@@ -381,7 +382,10 @@ impl Window2 {
         }
     }
 
-    fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
+    fn create_window(
+        attrs: &WindowAttributes,
+        pl_attrs: &PlatformSpecificWindowBuilderAttributes)
+        -> Option<IdRef> {
         unsafe {
             let screen = match attrs.fullscreen {
                 Some(ref monitor_id) => {
@@ -447,6 +451,10 @@ impl Window2 {
                 if !attrs.decorations {
                     window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
                     window.setTitlebarAppearsTransparent_(YES);
+                }
+
+                if pl_attrs.movable_by_window_background {
+                    window.setMovableByWindowBackground_(YES);
                 }
 
                 if screen.is_some() {
