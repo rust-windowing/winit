@@ -311,18 +311,9 @@ impl Drop for Window {
     }
 }
 
-/// A simple wrapper that destroys the window when it is destroyed.
+/// A simple non-owning wrapper around a window.
 #[doc(hidden)]
 pub struct WindowWrapper(HWND, HDC);
-
-impl Drop for WindowWrapper {
-    #[inline]
-    fn drop(&mut self) {
-        unsafe {
-            winuser::DestroyWindow(self.0);
-        }
-    }
-}
 
 unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes,
                inserter: events_loop::Inserter) -> Result<Window, CreationError> {
