@@ -746,6 +746,7 @@ fn to_virtual_key_code(code: u16) -> Option<events::VirtualKeyCode> {
         0x7e => events::VirtualKeyCode::Up,
         //0x7f =>  unkown,
 
+        0xa => events::VirtualKeyCode::Caret,
         _ => return None,
     })
 }

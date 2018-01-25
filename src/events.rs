@@ -344,6 +344,8 @@ pub enum VirtualKeyCode {
     /// The "Compose" key on Linux.
     Compose,
 
+    Caret,
+
     Numlock,
     Numpad0,
     Numpad1,
