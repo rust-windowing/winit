@@ -714,15 +714,22 @@ impl Window2 {
             Hide => self.update_cursor(self.get_cursor(*self.cursor.lock().unwrap())),
         }
 
-        *cursor_state = state;
         match state {
-            Normal => Ok(()),
+            Normal => {
+                *cursor_state = state;
+                Ok(())
+            },
             Hide => {
+                *cursor_state = state;
                 self.update_cursor(self.create_empty_cursor());
                 Ok(())
             },
             Grab => {
                 unsafe {
+                    // Ungrab before grabbing to prevent passive grabs
+                    // from causing AlreadyGrabbed
+                    (self.x.display.xlib.XUngrabPointer)(self.x.display.display, ffi::CurrentTime);
+
                     match (self.x.display.xlib.XGrabPointer)(
                         self.x.display.display, self.x.window, ffi::True,
                         (ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
@@ -733,7 +740,10 @@ impl Window2 {
                         ffi::GrabModeAsync, ffi::GrabModeAsync,
                         self.x.window, 0, ffi::CurrentTime
                     ) {
-                        ffi::GrabSuccess => Ok(()),
+                        ffi::GrabSuccess => {
+                            *cursor_state = state;
+                            Ok(())
+                        },
                         ffi::AlreadyGrabbed | ffi::GrabInvalidTime |
                         ffi::GrabNotViewable | ffi::GrabFrozen
                             => Err("cursor could not be grabbed".to_string()),
