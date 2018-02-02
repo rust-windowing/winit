@@ -10,7 +10,9 @@ use super::ffi;
 /// A connection to an X server.
 pub struct XConnection {
     pub xlib: ffi::Xlib,
+    /// Exposes XRandR functions from version < 1.5
     pub xrandr: ffi::Xrandr_2_2_0,
+    /// Exposes XRandR functions from version = 1.5
     pub xrandr_1_5: Option<ffi::Xrandr>,
     pub xcursor: ffi::Xcursor,
     pub xinput2: ffi::XInput2,
