@@ -1,5 +1,7 @@
 # Unreleased
 
+- Mapped X11 numpad keycodes (arrows, Home, End, PageUp, PageDown, Insert and Delete) to corresponding virtual keycodes
+
 # Version 0.11.2 (2018-03-06)
 
 - Impl `Hash`, `PartialEq`, and `Eq` for `events::ModifiersState`.
