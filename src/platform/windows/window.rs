@@ -153,6 +153,20 @@ impl Window {
         }
     }
 
+    /// See the docs in the crate root file.
+    #[inline]
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        let mut window_state = self.window_state.lock().unwrap();
+        window_state.attributes.min_dimensions = dimensions;
+    }
+
+    /// See the docs in the crate root file.
+    #[inline]
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        let mut window_state = self.window_state.lock().unwrap();
+        window_state.attributes.max_dimensions = dimensions;
+    }
+
     // TODO: remove
     pub fn platform_display(&self) -> *mut ::libc::c_void {
         panic!()        // Deprecated function ; we don't care anymore

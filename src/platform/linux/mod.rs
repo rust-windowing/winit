@@ -189,8 +189,24 @@ impl Window {
     #[inline]
     pub fn set_inner_size(&self, x: u32, y: u32) {
         match self {
-            &Window::X(ref w) => w.set_inner_size(x, y),
+            &Window::X(_) => w.set_inner_size(x, y),
             &Window::Wayland(ref w) => w.set_inner_size(x, y)
+        }
+    }
+
+    #[inline]
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        match self {
+            &Window::X(ref w) => unimplemented!(),
+            &Window::Wayland(ref w) => w.set_min_dimensions(dimensions)
+        }
+    }
+
+    #[inline]
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        match self {
+            &Window::X(ref w) => unimplemented!(),
+            &Window::Wayland(ref w) => w.set_max_dimensions(dimensions)
         }
     }
 
