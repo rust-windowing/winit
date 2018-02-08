@@ -533,6 +533,17 @@ impl Window2 {
             let mut border: libc::c_uint = mem::uninitialized();
             let mut depth: libc::c_uint = mem::uninitialized();
 
+            // Get non-positioning data from winit window
+            if (self.x.display.xlib.XGetGeometry)(self.x.display.display, self.x.window,
+                &mut root, &mut x, &mut y, &mut width, &mut height,
+                &mut border, &mut depth) == 0
+            {
+                return None;
+            }
+
+            let width_out = width;
+            let height_out = height;
+            let border_out = border;
 
             // Some window managers like i3wm will actually nest application
             // windows (like those opened by winit) within other windows to, for
@@ -562,7 +573,7 @@ impl Window2 {
                 return None;
             }
 
-            Some((x as i32, y as i32, width as u32, height as u32, border as u32))
+            Some((x as i32, y as i32, width_out as u32, height_out as u32, border_out as u32))
         }
     }
 
