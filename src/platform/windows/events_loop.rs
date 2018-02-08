@@ -296,13 +296,9 @@ lazy_static! {
 thread_local!(static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::new(None));
 struct ThreadLocalData {
     sender: mpsc::Sender<Event>,
-// <<<<<<< HEAD
     windows: HashMap<HWND, Arc<Mutex<WindowState>>>,
-//     win32_block_loop: Arc<(Mutex<bool>, Condvar)>
-// =======
     win32_block_loop: Arc<(Mutex<bool>, Condvar)>,
     mouse_buttons_down: u32
-// >>>>>>> Add mouse event capturing when click-dragging out of a win32 window
 }
 
 // Utility function that dispatches an event on the current thread.
