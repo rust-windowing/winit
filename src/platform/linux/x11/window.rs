@@ -603,6 +603,32 @@ impl Window2 {
         self.x.display.check_errors().expect("Failed to call XResizeWindow");
     }
 
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        // set size hints
+        let mut size_hints: ffi::XSizeHints = unsafe { mem::zeroed() };
+        size_hints.flags |= ffi::PMinSize;
+        let (width, height) = dimensions.map(|(w, h)| (w as i32, h as i32)).unwrap_or((0, 0));
+        size_hints.min_width = width;
+        size_hints.min_height = height;
+        unsafe {
+            (self.x.display.xlib.XSetNormalHints)(self.x.display.display, self.x.window, &mut size_hints);
+            self.x.display.check_errors().expect("Failed to call XSetNormalHints");
+        }
+    }
+
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        // set size hints
+        let mut size_hints: ffi::XSizeHints = unsafe { mem::zeroed() };
+        size_hints.flags |= ffi::PMaxSize;
+        let (width, height) = dimensions.map(|(w, h)| (w as i32, h as i32)).unwrap_or((i32::max_value(), i32::max_value()));
+        size_hints.min_width = width;
+        size_hints.min_height = height;
+        unsafe {
+            (self.x.display.xlib.XSetNormalHints)(self.x.display.display, self.x.window, &mut size_hints);
+            self.x.display.check_errors().expect("Failed to call XSetNormalHints");
+        }
+    }
+
     #[inline]
     pub fn get_xlib_display(&self) -> *mut c_void {
         self.x.display.display as _
