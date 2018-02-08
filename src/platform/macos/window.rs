@@ -549,6 +549,20 @@ impl Window2 {
         }
     }
 
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        unsafe {
+            let (width, height) = dimensions.unwrap_or((0, 0));
+            nswindow_set_min_dimensions(self.window.0, width.into(), height.into());
+        }
+    }
+
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        unsafe {
+            let (width, height) = dimensions.unwrap_or((!0, !0));
+            nswindow_set_max_dimensions(self.window.0, width.into(), height.into());
+        }
+    }
+
     #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
         unimplemented!()
