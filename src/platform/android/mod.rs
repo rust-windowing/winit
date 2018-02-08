@@ -161,7 +161,10 @@ impl MonitorId {
 
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
-        unimplemented!()
+        unsafe {
+            let window = android_glue::get_native_window();
+            (ffi::ANativeWindow_getWidth(window) as u32, ffi::ANativeWindow_getHeight(window) as u32)
+        }
     }
 
     #[inline]
