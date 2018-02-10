@@ -19,7 +19,7 @@ use window::MonitorId as RootMonitorId;
 
 use platform::x11::monitor::get_available_monitors;
 
-use super::{ffi, util, XConnection, WindowId, EventsLoop};
+use super::{ffi, util, XConnection, XError, WindowId, EventsLoop};
 
 // TODO: remove me
 fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> T {
@@ -230,23 +230,33 @@ impl Window2 {
             }
 
             // set size hints
-            let mut size_hints: ffi::XSizeHints = unsafe { mem::zeroed() };
-            size_hints.flags = ffi::PSize;
-            size_hints.width = dimensions.0 as i32;
-            size_hints.height = dimensions.1 as i32;
-            if let Some(dimensions) = window_attrs.min_dimensions {
-                size_hints.flags |= ffi::PMinSize;
-                size_hints.min_width = dimensions.0 as i32;
-                size_hints.min_height = dimensions.1 as i32;
-            }
-            if let Some(dimensions) = window_attrs.max_dimensions {
-                size_hints.flags |= ffi::PMaxSize;
-                size_hints.max_width = dimensions.0 as i32;
-                size_hints.max_height = dimensions.1 as i32;
-            }
-            unsafe {
-                (display.xlib.XSetNormalHints)(display.display, x_window.window, &mut size_hints);
-                display.check_errors().expect("Failed to call XSetNormalHints");
+            {
+                let mut size_hints = {
+                    let size_hints = unsafe { (display.xlib.XAllocSizeHints)() };
+                    util::XSmartPointer::new(&display, size_hints)
+                        .expect("XAllocSizeHints returned null; out of memory")
+                };
+                (*size_hints).flags = ffi::PSize;
+                (*size_hints).width = dimensions.0 as c_int;
+                (*size_hints).height = dimensions.1 as c_int;
+                if let Some(dimensions) = window_attrs.min_dimensions {
+                    (*size_hints).flags |= ffi::PMinSize;
+                    (*size_hints).min_width = dimensions.0 as c_int;
+                    (*size_hints).min_height = dimensions.1 as c_int;
+                }
+                if let Some(dimensions) = window_attrs.max_dimensions {
+                    (*size_hints).flags |= ffi::PMaxSize;
+                    (*size_hints).max_width = dimensions.0 as c_int;
+                    (*size_hints).max_height = dimensions.1 as c_int;
+                }
+                unsafe {
+                    (display.xlib.XSetWMNormalHints)(
+                        display.display,
+                        x_window.window,
+                        size_hints.ptr,
+                    );
+                }
+                display.check_errors().expect("Failed to call XSetWMNormalHints");
             }
 
             // Opt into handling window close
@@ -603,30 +613,65 @@ impl Window2 {
         self.x.display.check_errors().expect("Failed to call XResizeWindow");
     }
 
+    unsafe fn update_normal_hints<F>(&self, callback: F) -> Result<(), XError>
+        where F: FnOnce(*mut ffi::XSizeHints) -> ()
+    {
+        let xconn = &self.x.display;
+
+        let size_hints = {
+            let size_hints = (xconn.xlib.XAllocSizeHints)();
+            util::XSmartPointer::new(&xconn, size_hints)
+                .expect("XAllocSizeHints returned null; out of memory")
+        };
+
+        let mut flags: c_long = mem::uninitialized();
+
+        (xconn.xlib.XGetWMNormalHints)(
+            xconn.display,
+            self.x.window,
+            size_hints.ptr,
+            &mut flags,
+        );
+        xconn.check_errors()?;
+
+        callback(size_hints.ptr);
+
+        (xconn.xlib.XSetWMNormalHints)(
+            xconn.display,
+            self.x.window,
+            size_hints.ptr,
+        );
+        xconn.check_errors()?;
+
+        Ok(())
+    }
+
     pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
-        // set size hints
-        let mut size_hints: ffi::XSizeHints = unsafe { mem::zeroed() };
-        size_hints.flags |= ffi::PMinSize;
-        let (width, height) = dimensions.map(|(w, h)| (w as i32, h as i32)).unwrap_or((0, 0));
-        size_hints.min_width = width;
-        size_hints.min_height = height;
         unsafe {
-            (self.x.display.xlib.XSetNormalHints)(self.x.display.display, self.x.window, &mut size_hints);
-            self.x.display.check_errors().expect("Failed to call XSetNormalHints");
-        }
+            self.update_normal_hints(|size_hints| {
+                if let Some((width, height)) = dimensions {
+                    (*size_hints).flags |= ffi::PMinSize;
+                    (*size_hints).min_width = width as c_int;
+                    (*size_hints).min_height = height as c_int;
+                } else {
+                    (*size_hints).flags &= !ffi::PMinSize;
+                }
+            })
+        }.expect("Failed to call XSetWMNormalHints");
     }
 
     pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
-        // set size hints
-        let mut size_hints: ffi::XSizeHints = unsafe { mem::zeroed() };
-        size_hints.flags |= ffi::PMaxSize;
-        let (width, height) = dimensions.map(|(w, h)| (w as i32, h as i32)).unwrap_or((i32::max_value(), i32::max_value()));
-        size_hints.min_width = width;
-        size_hints.min_height = height;
         unsafe {
-            (self.x.display.xlib.XSetNormalHints)(self.x.display.display, self.x.window, &mut size_hints);
-            self.x.display.check_errors().expect("Failed to call XSetNormalHints");
-        }
+            self.update_normal_hints(|size_hints| {
+                if let Some((width, height)) = dimensions {
+                    (*size_hints).flags |= ffi::PMaxSize;
+                    (*size_hints).max_width = width as c_int;
+                    (*size_hints).max_height = height as c_int;
+                } else {
+                    (*size_hints).flags &= !ffi::PMaxSize;
+                }
+            })
+        }.expect("Failed to call XSetWMNormalHints");
     }
 
     #[inline]
