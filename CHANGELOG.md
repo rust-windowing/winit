@@ -1,5 +1,7 @@
 # Unreleased
 
+- Added `set_min_dimensions` and `set_max_dimensions` methods to `Window`, and implemented on Windows, X11, Wayland, and OSX.
+
 # Version 0.11.0 (2018-02-09)
 
 - Implement `MonitorId::get_dimensions` for Android.
