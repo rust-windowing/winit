@@ -255,11 +255,17 @@ impl Window {
         self.window.set_inner_size(x, y)
     }
 
+    /// Sets a minimum dimension size for the window.
+    ///
+    /// Width and height are in pixels.
     #[inline]
     pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
         self.window.set_min_dimensions(dimensions)
     }
 
+    /// Sets a maximum dimension size for the window.
+    ///
+    /// Width and height are in pixels.
     #[inline]
     pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
         self.window.set_max_dimensions(dimensions)
