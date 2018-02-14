@@ -1,5 +1,9 @@
 # Unreleased
 
+- Implement `MonitorId::get_dimensions` for Android.
+- Fixed windows not receiving mouse events when click-dragging the mouse outside the client area of a window, on Windows platforms.
+
+=======
 # Version 0.11.0 (2018-02-09)
 
 - Implement `MonitorId::get_dimensions` for Android.
