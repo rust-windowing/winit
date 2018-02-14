@@ -384,7 +384,17 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
         let (width, height) = if fullscreen || window.dimensions.is_some() {
-            (Some(rect.right - rect.left), Some(rect.bottom - rect.top))
+            let min_dimensions = window.min_dimensions
+                .map(|d| (d.0 as raw::c_int, d.1 as raw::c_int))
+                .unwrap_or((0, 0));
+            let max_dimensions = window.max_dimensions
+                .map(|d| (d.0 as raw::c_int, d.1 as raw::c_int))
+                .unwrap_or((raw::c_int::max_value(), raw::c_int::max_value()));
+
+            (
+                Some((rect.right - rect.left).min(max_dimensions.0).max(min_dimensions.0)),
+                Some((rect.bottom - rect.top).min(max_dimensions.1).max(min_dimensions.1))
+            )
         } else {
             (None, None)
         };
