@@ -158,6 +158,11 @@ impl Window {
     pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
         let mut window_state = self.window_state.lock().unwrap();
         window_state.attributes.min_dimensions = dimensions;
+
+        // Make windows re-check the window size bounds.
+        if let Some(inner_size) = self.get_inner_size() {
+            self.set_inner_size(inner_size.0, inner_size.1);
+        }
     }
 
     /// See the docs in the crate root file.
@@ -165,6 +170,11 @@ impl Window {
     pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
         let mut window_state = self.window_state.lock().unwrap();
         window_state.attributes.max_dimensions = dimensions;
+
+        // Make windows re-check the window size bounds.
+        if let Some(inner_size) = self.get_inner_size() {
+            self.set_inner_size(inner_size.0, inner_size.1);
+        }
     }
 
     // TODO: remove
