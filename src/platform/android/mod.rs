@@ -12,12 +12,14 @@ use events::{Touch, TouchPhase};
 use window::MonitorId as RootMonitorId;
 
 use std::collections::VecDeque;
+use std::cell::RefCell;
 
 use CursorState;
 use WindowAttributes;
 
 pub struct EventsLoop {
     event_rx: Receiver<android_glue::Event>,
+    suspend_callback: RefCell<Option<Box<Fn(bool) -> ()>>>
 }
 
 #[derive(Clone)]
@@ -29,6 +31,7 @@ impl EventsLoop {
         android_glue::add_sender(tx);
         EventsLoop {
             event_rx: rx,
+            suspend_callback: RefCell::new(None),
         }
     }
 
@@ -69,10 +72,16 @@ impl EventsLoop {
                 },
                 android_glue::Event::InitWindow => {
                     // The activity went to foreground.
+                    if let Some(cb) = self.suspend_callback.borrow().as_ref() {
+                        (*cb)(false);
+                    }
                     Some(Event::Suspended(false))
                 },
                 android_glue::Event::TermWindow => {
                     // The activity went to background.
+                    if let Some(cb) = self.suspend_callback.borrow().as_ref() {
+                        (*cb)(true);
+                    }
                     Some(Event::Suspended(true))
                 },
                 android_glue::Event::WindowResized |
@@ -106,6 +115,10 @@ impl EventsLoop {
                 callback(event);
             }
         };
+    }
+
+    pub fn set_suspend_callback(&self, cb: Option<Box<Fn(bool) -> ()>>) {
+        *self.suspend_callback.borrow_mut() = cb;
     }
 
     pub fn run_forever<F>(&mut self, mut callback: F)
