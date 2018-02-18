@@ -255,13 +255,18 @@ impl Window {
             MouseCursor::Crosshair => winuser::IDC_CROSS,
             MouseCursor::Text | MouseCursor::VerticalText => winuser::IDC_IBEAM,
             MouseCursor::NotAllowed | MouseCursor::NoDrop => winuser::IDC_NO,
-            MouseCursor::EResize => winuser::IDC_SIZEWE,
-            MouseCursor::NResize => winuser::IDC_SIZENS,
-            MouseCursor::WResize => winuser::IDC_SIZEWE,
-            MouseCursor::SResize => winuser::IDC_SIZENS,
+            MouseCursor::Grab | MouseCursor::Grabbing |
+            MouseCursor::Move | MouseCursor::AllScroll => winuser::IDC_SIZEALL,
+            MouseCursor::EResize | MouseCursor::WResize |
             MouseCursor::EwResize | MouseCursor::ColResize => winuser::IDC_SIZEWE,
+            MouseCursor::NResize | MouseCursor::SResize |
             MouseCursor::NsResize | MouseCursor::RowResize => winuser::IDC_SIZENS,
-            MouseCursor::Wait | MouseCursor::Progress => winuser::IDC_WAIT,
+            MouseCursor::NeResize | MouseCursor::SwResize |
+            MouseCursor::NeswResize => winuser::IDC_SIZENESW,
+            MouseCursor::NwResize | MouseCursor::SeResize |
+            MouseCursor::NwseResize => winuser::IDC_SIZENWSE,
+            MouseCursor::Wait => winuser::IDC_WAIT,
+            MouseCursor::Progress => winuser::IDC_APPSTARTING,
             MouseCursor::Help => winuser::IDC_HELP,
             _ => winuser::IDC_ARROW, // use arrow for the missing cases.
         };
