@@ -1,12 +1,10 @@
 extern crate winit;
-use winit::os::macos::WindowBuilderExt;
 
 fn main() {
     let mut events_loop = winit::EventsLoop::new();
 
     let _window = winit::WindowBuilder::new()
         .with_title("A fantastic window!")
-        .with_decorations(false)
         .build(&events_loop)
         .unwrap();
 
