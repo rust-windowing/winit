@@ -439,8 +439,6 @@ impl Window2 {
             let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
             decl.add_method(sel!(canBecomeMainWindow), yes as extern fn(&Object, Sel) -> BOOL);
             decl.add_method(sel!(canBecomeKeyWindow), yes as extern fn(&Object, Sel) -> BOOL);
-            decl.add_method(sel!(mouseDownCanMoveWindow), yes as extern fn(&Object, Sel) -> BOOL);
-            decl.add_method(sel!(isMovableByWindowBackground), yes as extern fn(&Object, Sel) -> BOOL);
             decl.register();
 
             let window: id = msg_send![Class::get("WinitWindow").unwrap(), alloc];
