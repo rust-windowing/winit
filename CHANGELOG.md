@@ -1,5 +1,8 @@
 # Unreleased
 
+- Implement `MonitorId::get_hidpi_factor` for MacOS.
+- Added method `os::macos::MonitorIdExt::get_nsscreen() -> *mut c_void` that gets a `NSScreen` object matching the monitor ID.
+
 # Version 0.11.1 (2018-02-19)
 
 - Fixed windows not receiving mouse events when click-dragging the mouse outside the client area of a window, on Windows platforms.
