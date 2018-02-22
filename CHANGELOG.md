@@ -1,5 +1,7 @@
 # Unreleased
 
+- Impl `Hash`, `PartialEq`, and `Eq` for `events::ModifiersState`.
+
 # Version 0.11.1 (2018-02-19)
 
 - Fixed windows not receiving mouse events when click-dragging the mouse outside the client area of a window, on Windows platforms.

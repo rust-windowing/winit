@@ -433,7 +433,7 @@ pub enum VirtualKeyCode {
 /// Represents the current state of the keyboard modifiers
 ///
 /// Each field of this struct represents a modifier and is `true` if this modifier is active.
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ModifiersState {
     /// The "shift" key
     pub shift: bool,
