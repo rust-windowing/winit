@@ -371,8 +371,12 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
 
     // building a RECT object with coordinates
     let mut rect = RECT {
-        left: 0, right: window.dimensions.unwrap_or((1024, 768)).0 as LONG,
-        top: 0, bottom: window.dimensions.unwrap_or((1024, 768)).1 as LONG,
+        left: 0, right: window.dimensions.unwrap_or((1024, 768)).0
+            .max(window.min_dimensions.map(|m| m.0).unwrap_or(0))
+            .min(window.max_dimensions.map(|m| m.0).unwrap_or(u32::max_value())) as LONG,
+        top: 0, bottom: window.dimensions.unwrap_or((1024, 768)).1
+            .max(window.min_dimensions.map(|m| m.1).unwrap_or(0))
+            .min(window.max_dimensions.map(|m| m.1).unwrap_or(u32::max_value())) as LONG,
     };
 
     // switching to fullscreen if necessary
