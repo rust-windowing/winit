@@ -3,7 +3,6 @@ use CreationError::OsError;
 use libc;
 
 use WindowAttributes;
-use native_monitor::NativeMonitorId;
 use os::macos::ActivationPolicy;
 use os::macos::WindowExt;
 
@@ -14,9 +13,9 @@ use objc::declare::ClassDecl;
 use cocoa;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
-use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow};
+use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask};
 
-use core_graphics::display::{CGAssociateMouseAndMouseCursorPosition, CGMainDisplayID, CGDisplayPixelsHigh, CGWarpMouseCursorPosition};
+use core_graphics::display::CGDisplay;
 
 use std;
 use std::ops::Deref;
@@ -25,6 +24,7 @@ use std::sync::Weak;
 
 use super::events_loop::Shared;
 
+use window::MonitorId as RootMonitorId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub usize);
@@ -116,6 +116,73 @@ impl WindowDelegate {
             }
         }
 
+        /// Invoked when the dragged image enters destination bounds or frame
+        extern fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
+            use cocoa::appkit::NSPasteboard;
+            use cocoa::foundation::NSFastEnumeration;
+            use std::path::PathBuf;
+
+            let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
+            let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+
+            for file in unsafe { filenames.iter() } {
+                use cocoa::foundation::NSString;
+                use std::ffi::CStr;
+
+                unsafe {
+                    let f = NSString::UTF8String(file);
+                    let path = CStr::from_ptr(f).to_string_lossy().into_owned();
+
+                    let state: *mut c_void = *this.get_ivar("winitState");
+                    let state = &mut *(state as *mut DelegateState);
+                    emit_event(state, WindowEvent::HoveredFile(PathBuf::from(path)));
+                }
+            };
+
+            YES
+        }
+
+        /// Invoked when the image is released
+        extern fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) {}
+
+        /// Invoked after the released image has been removed from the screen
+        extern fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
+            use cocoa::appkit::NSPasteboard;
+            use cocoa::foundation::NSFastEnumeration;
+            use std::path::PathBuf;
+
+            let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
+            let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+
+            for file in unsafe { filenames.iter() } {
+                use cocoa::foundation::NSString;
+                use std::ffi::CStr;
+
+                unsafe {
+                    let f = NSString::UTF8String(file);
+                    let path = CStr::from_ptr(f).to_string_lossy().into_owned();
+
+                    let state: *mut c_void = *this.get_ivar("winitState");
+                    let state = &mut *(state as *mut DelegateState);
+                    emit_event(state, WindowEvent::DroppedFile(PathBuf::from(path)));
+                }
+            };
+
+            YES
+        }
+
+        /// Invoked when the dragging operation is complete
+        extern fn conclude_drag_operation(_: &Object, _: Sel, _: id) {}
+
+        /// Invoked when the dragging operation is cancelled
+        extern fn dragging_exited(this: &Object, _: Sel, _: id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+                emit_event(state, WindowEvent::HoveredFileCancelled);
+            }
+        }
+
         static mut DELEGATE_CLASS: *const Class = 0 as *const Class;
         static INIT: std::sync::Once = std::sync::ONCE_INIT;
 
@@ -136,6 +203,18 @@ impl WindowDelegate {
                 window_did_become_key as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidResignKey:),
                 window_did_resign_key as extern fn(&Object, Sel, id));
+
+            // callbacks for drag and drop events
+            decl.add_method(sel!(draggingEntered:),
+                dragging_entered as extern fn(&Object, Sel, id) -> BOOL);
+           decl.add_method(sel!(prepareForDragOperation:),
+                prepare_for_drag_operation as extern fn(&Object, Sel, id));
+           decl.add_method(sel!(performDragOperation:),
+                perform_drag_operation as extern fn(&Object, Sel, id) -> BOOL);
+           decl.add_method(sel!(concludeDragOperation:),
+                conclude_drag_operation as extern fn(&Object, Sel, id));
+           decl.add_method(sel!(draggingExited:),
+                dragging_exited as extern fn(&Object, Sel, id));
 
             // Store internal state as user data
             decl.add_ivar::<*mut c_void>("winitState");
@@ -175,18 +254,19 @@ impl Drop for WindowDelegate {
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
+    pub movable_by_window_background: bool,
 }
 
-pub struct Window {
+pub struct Window2 {
     pub view: IdRef,
     pub window: IdRef,
     pub delegate: WindowDelegate,
 }
 
-unsafe impl Send for Window {}
-unsafe impl Sync for Window {}
+unsafe impl Send for Window2 {}
+unsafe impl Sync for Window2 {}
 
-impl Drop for Window {
+impl Drop for Window2 {
     fn drop(&mut self) {
         // Remove this window from the `EventLoop`s list of windows.
         let id = self.id();
@@ -204,7 +284,7 @@ impl Drop for Window {
     }
 }
 
-impl WindowExt for Window {
+impl WindowExt for Window2 {
     #[inline]
     fn get_nswindow(&self) -> *mut c_void {
         *self.window as *mut c_void
@@ -216,11 +296,11 @@ impl WindowExt for Window {
     }
 }
 
-impl Window {
+impl Window2 {
     pub fn new(shared: Weak<Shared>,
                win_attribs: &WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window, CreationError>
+               -> Result<Window2, CreationError>
     {
         unsafe {
             if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
@@ -228,17 +308,17 @@ impl Window {
             }
         }
 
-        let app = match Window::create_app(pl_attribs.activation_policy) {
+        let app = match Window2::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
             None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
 
-        let window = match Window::create_window(win_attribs)
+        let window = match Window2::create_window(win_attribs, pl_attribs)
         {
             Some(window) => window,
             None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
-        let view = match Window::create_view(*window) {
+        let view = match Window2::create_view(*window) {
             Some(view) => view,
             None       => { return Err(OsError(format!("Couldn't create NSView"))); },
         };
@@ -263,6 +343,11 @@ impl Window {
             if let Some((width, height)) = win_attribs.max_dimensions {
                 nswindow_set_max_dimensions(window.0, width.into(), height.into());
             }
+
+            use cocoa::foundation::NSArray;
+            // register for drag and drop operations.
+            msg_send![(*window as id),
+                registerForDraggedTypes:NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)];
         }
 
         let ds = DelegateState {
@@ -271,7 +356,7 @@ impl Window {
             shared: shared,
         };
 
-        let window = Window {
+        let window = Window2 {
             view: view,
             window: window,
             delegate: WindowDelegate::new(ds),
@@ -297,14 +382,14 @@ impl Window {
         }
     }
 
-    fn create_window(attrs: &WindowAttributes) -> Option<IdRef> {
+    fn create_window(
+        attrs: &WindowAttributes,
+        pl_attrs: &PlatformSpecificWindowBuilderAttributes)
+        -> Option<IdRef> {
         unsafe {
-            let screen = match attrs.monitor {
+            let screen = match attrs.fullscreen {
                 Some(ref monitor_id) => {
-                    let native_id = match monitor_id.get_native_identifier() {
-                        NativeMonitorId::Numeric(num) => num,
-                        _ => panic!("OS X monitors should always have a numeric native ID")
-                    };
+                    let native_id = monitor_id.inner.get_native_identifier();
                     let matching_screen = {
                         let screens = appkit::NSScreen::screens(nil);
                         let count: NSUInteger = msg_send![screens, count];
@@ -326,7 +411,7 @@ impl Window {
                     };
                     Some(matching_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
                 },
-                None => None
+                _ => None,
             };
             let frame = match screen {
                 Some(screen) => appkit::NSScreen::frame(screen),
@@ -338,17 +423,17 @@ impl Window {
 
             let masks = if screen.is_some() {
                 // Fullscreen window
-                appkit::NSBorderlessWindowMask | appkit::NSResizableWindowMask |
-                    appkit::NSTitledWindowMask
+                NSWindowStyleMask::NSBorderlessWindowMask | NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
             } else if attrs.decorations {
-                // Window with a titlebar
-                appkit::NSClosableWindowMask | appkit::NSMiniaturizableWindowMask |
-                    appkit::NSResizableWindowMask | appkit::NSTitledWindowMask
+                // Window2 with a titlebar
+                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask | NSWindowStyleMask::NSTitledWindowMask
             } else {
-                // Window without a titlebar
-                appkit::NSClosableWindowMask | appkit::NSMiniaturizableWindowMask |
-                    appkit::NSResizableWindowMask |
-                    appkit::NSFullSizeContentViewWindowMask
+                // Window2 without a titlebar
+                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSFullSizeContentViewWindowMask
             };
 
             let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
@@ -366,6 +451,10 @@ impl Window {
                 if !attrs.decorations {
                     window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
                     window.setTitlebarAppearsTransparent_(YES);
+                }
+
+                if pl_attrs.movable_by_window_background {
+                    window.setMovableByWindowBackground_(YES);
                 }
 
                 if screen.is_some() {
@@ -413,7 +502,7 @@ impl Window {
 
             // TODO: consider extrapolating the calculations for the y axis to
             // a private method
-            Some((content_rect.origin.x as i32, (CGDisplayPixelsHigh(CGMainDisplayID()) as f64 - (content_rect.origin.y + content_rect.size.height)) as i32))
+            Some((content_rect.origin.x as i32, (CGDisplay::main().pixels_high() as f64 - (content_rect.origin.y + content_rect.size.height)) as i32))
         }
     }
 
@@ -429,7 +518,7 @@ impl Window {
 
             // TODO: consider extrapolating the calculations for the y axis to
             // a private method
-            let dummy = NSRect::new(NSPoint::new(x as f64, CGDisplayPixelsHigh(CGMainDisplayID()) as f64 - (frame.size.height + y as f64)), NSSize::new(0f64, 0f64));
+            let dummy = NSRect::new(NSPoint::new(x as f64, CGDisplay::main().pixels_high() as f64 - (frame.size.height + y as f64)), NSSize::new(0f64, 0f64));
             let conv = NSWindow::frameRectForContentRect_(*self.window, dummy);
 
             // NSWindow::setFrameTopLeftPoint_(*self.window, conv.origin);
@@ -489,7 +578,7 @@ impl Window {
             MouseCursor::EwResize | MouseCursor::ColResize => "resizeLeftRightCursor",
             MouseCursor::NsResize | MouseCursor::RowResize => "resizeUpDownCursor",
 
-            /// TODO: Find appropriate OSX cursors
+            // TODO: Find appropriate OSX cursors
             MouseCursor::NeResize | MouseCursor::NwResize |
             MouseCursor::SeResize | MouseCursor::SwResize |
             MouseCursor::NwseResize | MouseCursor::NeswResize |
@@ -515,7 +604,7 @@ impl Window {
         match state {
             CursorState::Normal => {
                 let _: () = unsafe { msg_send![cls, unhide] };
-                let _: i32 = unsafe { CGAssociateMouseAndMouseCursorPosition(true) };
+                let _ = CGDisplay::associate_mouse_and_mouse_cursor_position(true);
                 Ok(())
             },
             CursorState::Hide => {
@@ -524,7 +613,7 @@ impl Window {
             },
             CursorState::Grab => {
                 let _: () = unsafe { msg_send![cls, hide] };
-                let _: i32 = unsafe { CGAssociateMouseAndMouseCursorPosition(false) };
+                let _ = CGDisplay::associate_mouse_and_mouse_cursor_position(false);
                 Ok(())
             }
         }
@@ -542,16 +631,34 @@ impl Window {
         let (window_x, window_y) = self.get_position().unwrap_or((0, 0));
         let (cursor_x, cursor_y) = (window_x + x, window_y + y);
 
-        unsafe {
-            // TODO: Check for errors.
-            let _ = CGWarpMouseCursorPosition(appkit::CGPoint {
-                x: cursor_x as appkit::CGFloat,
-                y: cursor_y as appkit::CGFloat,
-            });
-            let _ = CGAssociateMouseAndMouseCursorPosition(true);
-        }
+        // TODO: Check for errors.
+        let _ = CGDisplay::warp_mouse_cursor_position(appkit::CGPoint {
+            x: cursor_x as appkit::CGFloat,
+            y: cursor_y as appkit::CGFloat,
+        });
+        let _ = CGDisplay::associate_mouse_and_mouse_cursor_position(true);
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn set_maximized(&self, _maximized: bool) {
+        unimplemented!()
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        unimplemented!()
+    }
+
+    #[inline]
+    pub fn set_decorations(&self, _decorations: bool) {
+        unimplemented!()
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        unimplemented!()
     }
 }
 

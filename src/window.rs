@@ -7,7 +7,6 @@ use MouseCursor;
 use Window;
 use WindowBuilder;
 use WindowId;
-use native_monitor::NativeMonitorId;
 
 use libc;
 use platform;
@@ -56,13 +55,18 @@ impl WindowBuilder {
         self
     }
 
-    /// Requests fullscreen mode.
-    ///
-    /// If you don't specify dimensions for the window, it will match the monitor's.
+    /// Sets the window fullscreen state. None means a normal window, Some(MonitorId)
+    /// means a fullscreen window on that specific monitor
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: MonitorId) -> WindowBuilder {
-        let MonitorId(monitor) = monitor;
-        self.window.monitor = Some(monitor);
+    pub fn with_fullscreen(mut self, monitor: Option<MonitorId>) -> WindowBuilder {
+        self.window.fullscreen = monitor;
+        self
+    }
+
+    /// Requests maximized mode.
+    #[inline]
+    pub fn with_maximized(mut self, maximized: bool) -> WindowBuilder {
+        self.window.maximized = maximized;
         self
     }
 
@@ -87,7 +91,7 @@ impl WindowBuilder {
         self
     }
 
-    /// Enables multitouch
+    /// Enables multitouch.
     #[inline]
     pub fn with_multitouch(mut self) -> WindowBuilder {
         self.window.multitouch = true;
@@ -100,8 +104,10 @@ impl WindowBuilder {
     /// out of memory, etc.
     pub fn build(mut self, events_loop: &EventsLoop) -> Result<Window, CreationError> {
         // resizing the window to the dimensions of the monitor when fullscreen
-        if self.window.dimensions.is_none() && self.window.monitor.is_some() {
-            self.window.dimensions = Some(self.window.monitor.as_ref().unwrap().get_dimensions())
+        if self.window.dimensions.is_none() {
+            if let Some(ref monitor) = self.window.fullscreen {
+                self.window.dimensions = Some(monitor.get_dimensions());
+            }
         }
 
         // default dimensions
@@ -110,7 +116,7 @@ impl WindowBuilder {
         }
 
         // building
-        let w = try!(platform::Window2::new(&events_loop.events_loop, &self.window, &self.platform_specific));
+        let w = try!(platform::Window::new(&events_loop.events_loop, &self.window, &self.platform_specific));
 
         Ok(Window { window: w })
     }
@@ -177,7 +183,7 @@ impl Window {
 
     /// Modifies the position of the window.
     ///
-    /// See `get_position` for more informations about the coordinates.
+    /// See `get_position` for more information about the coordinates.
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
@@ -185,14 +191,12 @@ impl Window {
         self.window.set_position(x, y)
     }
 
-    /// Returns the size in points of the client area of the window.
+    /// Returns the size in pixels of the client area of the window.
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
-    /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
+    /// These are the dimensions that need to be supplied to `glViewport`.
     ///
     /// Returns `None` if the window no longer exists.
-    ///
-    /// DEPRECATED
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         self.window.get_inner_size()
@@ -204,11 +208,16 @@ impl Window {
     /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
     ///
     /// Returns `None` if the window no longer exists.
+    ///
+    /// DEPRECATED
     #[inline]
+    #[deprecated]
     pub fn get_inner_size_points(&self) -> Option<(u32, u32)> {
-        self.window.get_inner_size()
+        self.window.get_inner_size().map(|(x, y)| {
+            let hidpi = self.hidpi_factor();
+            ((x as f32 / hidpi) as u32, (y as f32 / hidpi) as u32)
+        })
     }
-
 
     /// Returns the size in pixels of the client area of the window.
     ///
@@ -217,12 +226,12 @@ impl Window {
     ///  when you call `glViewport`.
     ///
     /// Returns `None` if the window no longer exists.
+    ///
+    /// DEPRECATED
     #[inline]
+    #[deprecated]
     pub fn get_inner_size_pixels(&self) -> Option<(u32, u32)> {
-        self.window.get_inner_size().map(|(x, y)| {
-            let hidpi = self.hidpi_factor();
-            ((x as f32 * hidpi) as u32, (y as f32 * hidpi) as u32)
-        })
+        self.window.get_inner_size()
     }
 
     /// Returns the size in pixels of the window.
@@ -238,7 +247,7 @@ impl Window {
 
     /// Modifies the inner size of the window.
     ///
-    /// See `get_inner_size` for more informations about the values.
+    /// See `get_inner_size` for more information about the values.
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
@@ -292,6 +301,30 @@ impl Window {
         self.window.set_cursor_state(state)
     }
 
+    /// Sets the window to maximized or back
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+        self.window.set_maximized(maximized)
+    }
+
+    /// Sets the window to fullscreen or back
+    #[inline]
+    pub fn set_fullscreen(&self, monitor: Option<MonitorId>) {
+        self.window.set_fullscreen(monitor)
+    }
+
+    /// Turn window decorations on or off.
+    #[inline]
+    pub fn set_decorations(&self, decorations: bool) {
+        self.window.set_decorations(decorations)
+    }
+
+    /// Returns the current monitor the window is on or the primary monitor is nothing
+    /// matches
+    pub fn get_current_monitor(&self) -> MonitorId {
+        self.window.get_current_monitor()
+    }
+
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.id())
@@ -299,10 +332,10 @@ impl Window {
 }
 
 /// An iterator for the list of available monitors.
-// Implementation note: we retreive the list once, then serve each element by one by one.
+// Implementation note: we retrieve the list once, then serve each element by one by one.
 // This may change in the future.
 pub struct AvailableMonitorsIter {
-    data: VecDequeIter<platform::MonitorId>,
+    pub(crate) data: VecDequeIter<platform::MonitorId>,
 }
 
 impl Iterator for AvailableMonitorsIter {
@@ -310,7 +343,7 @@ impl Iterator for AvailableMonitorsIter {
 
     #[inline]
     fn next(&mut self) -> Option<MonitorId> {
-        self.data.next().map(|id| MonitorId(id))
+        self.data.next().map(|id| MonitorId { inner: id })
     }
 
     #[inline]
@@ -319,58 +352,37 @@ impl Iterator for AvailableMonitorsIter {
     }
 }
 
-/// Returns the list of all available monitors.
-///
-/// Usage will result in display backend initialisation, this can be controlled on linux
-/// using an environment variable `WINIT_UNIX_BACKEND`.
-/// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
-/// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
-/// > and if it fails will fallback on x11.
-/// >
-/// > If this variable is set with any other value, winit will panic.
-#[inline]
-pub fn get_available_monitors() -> AvailableMonitorsIter {
-    let data = platform::get_available_monitors();
-    AvailableMonitorsIter{ data: data.into_iter() }
-}
-
-/// Returns the primary monitor of the system.
-///
-/// Usage will result in display backend initialisation, this can be controlled on linux
-/// using an environment variable `WINIT_UNIX_BACKEND`.
-/// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
-/// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
-/// > and if it fails will fallback on x11.
-/// >
-/// > If this variable is set with any other value, winit will panic.
-#[inline]
-pub fn get_primary_monitor() -> MonitorId {
-    MonitorId(platform::get_primary_monitor())
-}
-
 /// Identifier for a monitor.
 #[derive(Clone)]
-pub struct MonitorId(platform::MonitorId);
+pub struct MonitorId {
+    pub(crate) inner: platform::MonitorId
+}
 
 impl MonitorId {
     /// Returns a human-readable name of the monitor.
+    ///
+    /// Returns `None` if the monitor doesn't exist anymore.
     #[inline]
     pub fn get_name(&self) -> Option<String> {
-        let &MonitorId(ref id) = self;
-        id.get_name()
-    }
-
-    /// Returns the native platform identifier for this monitor.
-    #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        let &MonitorId(ref id) = self;
-        id.get_native_identifier()
+        self.inner.get_name()
     }
 
     /// Returns the number of pixels currently displayed on the monitor.
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
-        let &MonitorId(ref id) = self;
-        id.get_dimensions()
+        self.inner.get_dimensions()
+    }
+
+    /// Returns the top-left corner position of the monitor relative to the larger full
+    /// screen area.
+    #[inline]
+    pub fn get_position(&self) -> (i32, i32) {
+        self.inner.get_position()
+    }
+
+    /// Returns the ratio between the monitor's physical pixels and logical pixels.
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        self.inner.get_hidpi_factor()
     }
 }

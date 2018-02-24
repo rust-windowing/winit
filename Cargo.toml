@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.7.5"
+version = "0.11.1"
 authors = ["The winit contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
@@ -11,9 +11,8 @@ documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [dependencies]
-lazy_static = "0.2.2"
+lazy_static = "1"
 libc = "0.2"
-shared_library = "0.1.5"
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
 version = "0.2"
@@ -23,24 +22,30 @@ objc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"
-cocoa = "0.9"
 dispatch = "0.1"
-core-foundation = "0.4"
-core-graphics = "0.8"
 context = { version = "2.0", optional = true }
+cocoa = "0.14"
+core-foundation = "0.5"
+core-graphics = "0.13"
 
-[target.'cfg(target_os = "windows")'.dependencies]
-winapi = "0.2"
-shell32-sys = "0.1"
-gdi32-sys = "0.1"
-user32-sys = "~0.1.2"
-kernel32-sys = "0.2"
-dwmapi-sys = "0.1"
+[target.'cfg(target_os = "windows")'.dependencies.winapi]
+version = "0.3"
+features = [
+    "winnt",
+    "winuser",
+    "wingdi",
+    "shellapi",
+    "dwmapi",
+    "processthreadsapi",
+    "libloaderapi",
+    "windowsx",
+    "hidusage",
+]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
-wayland-client = { version = "0.9.9", features = ["dlopen"] }
-wayland-protocols = { version = "0.9.9", features = ["unstable_protocols"] }
-wayland-kbd = "0.9.1"
-wayland-window = "0.7.0"
-tempfile = "2.1"
-x11-dl = "2.8"
+wayland-client = { version = "0.12.0", features = ["dlopen"] }
+wayland-protocols = { version = "0.12.0", features = ["unstable_protocols"] }
+wayland-kbd = "0.13.0"
+wayland-window = "0.13.0"
+x11-dl = "2.17"
+percent-encoding = "1.0"

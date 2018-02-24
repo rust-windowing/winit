@@ -1,186 +1,147 @@
-use winapi;
-use user32;
+use winapi::ctypes::wchar_t;
+use winapi::shared::minwindef::{DWORD, LPARAM, BOOL, TRUE};
+use winapi::shared::windef::{HMONITOR, HDC, LPRECT};
+use winapi::um::winuser;
 
 use std::collections::VecDeque;
-use std::mem;
+use std::{mem, ptr};
 
-use native_monitor::NativeMonitorId;
+use super::EventsLoop;
 
 /// Win32 implementation of the main `MonitorId` object.
 #[derive(Clone)]
 pub struct MonitorId {
     /// The system name of the adapter.
-    adapter_name: [winapi::WCHAR; 32],
+    adapter_name: [wchar_t; 32],
+
+    /// Monitor handle.
+    hmonitor: HMonitor,
 
     /// The system name of the monitor.
     monitor_name: String,
-
-    /// Name to give to the user.
-    readable_name: String,
-
-    /// See the `StateFlags` element here:
-    /// http://msdn.microsoft.com/en-us/library/dd183569(v=vs.85).aspx
-    flags: winapi::DWORD,
 
     /// True if this is the primary monitor.
     primary: bool,
 
     /// The position of the monitor in pixels on the desktop.
     ///
-    /// A window that is positionned at these coordinates will overlap the monitor.
-    position: (u32, u32),
+    /// A window that is positioned at these coordinates will overlap the monitor.
+    position: (i32, i32),
 
     /// The current resolution in pixels on the monitor.
     dimensions: (u32, u32),
+
+    /// DPI scaling factor.
+    hidpi_factor: f32,
 }
 
-struct DeviceEnumerator {
-    parent_device: *const winapi::WCHAR,
-    current_index: u32,
-}
+// Send is not implemented for HMONITOR, we have to wrap it and implement it manually.
+// For more info see:
+// https://github.com/retep998/winapi-rs/issues/360
+// https://github.com/retep998/winapi-rs/issues/396
+#[derive(Clone)]
+struct HMonitor(HMONITOR);
 
-impl DeviceEnumerator {
-    fn adapters() -> DeviceEnumerator {
-        use std::ptr;
-        DeviceEnumerator {
-            parent_device: ptr::null(),
-            current_index: 0
-        }
-    }
+unsafe impl Send for HMonitor {}
 
-    fn monitors(adapter_name: *const winapi::WCHAR) -> DeviceEnumerator {
-        DeviceEnumerator {
-            parent_device: adapter_name,
-            current_index: 0
-        }
-    }
-}
-
-impl Iterator for DeviceEnumerator {
-    type Item = winapi::DISPLAY_DEVICEW;
-    fn next(&mut self) -> Option<winapi::DISPLAY_DEVICEW> {
-        use std::mem;
-        loop {
-            let mut output: winapi::DISPLAY_DEVICEW = unsafe { mem::zeroed() };
-            output.cb = mem::size_of::<winapi::DISPLAY_DEVICEW>() as winapi::DWORD;
-
-            if unsafe { user32::EnumDisplayDevicesW(self.parent_device,
-                self.current_index as winapi::DWORD, &mut output, 0) } == 0
-            {
-                // the device doesn't exist, which means we have finished enumerating
-                break;
-            }
-            self.current_index += 1;
-
-            if  (output.StateFlags & winapi::DISPLAY_DEVICE_ACTIVE) == 0 ||
-                (output.StateFlags & winapi::DISPLAY_DEVICE_MIRRORING_DRIVER) != 0
-            {
-                // the device is not active
-                // the Win32 api usually returns a lot of inactive devices
-                continue;
-            }
-
-            return Some(output);
-        }
-        None
-    }
-}
-
-fn wchar_as_string(wchar: &[winapi::WCHAR]) -> String {
+fn wchar_as_string(wchar: &[wchar_t]) -> String {
     String::from_utf16_lossy(wchar)
         .trim_right_matches(0 as char)
         .to_string()
 }
 
-/// Win32 implementation of the main `get_available_monitors` function.
-pub fn get_available_monitors() -> VecDeque<MonitorId> {
-    // return value
-    let mut result = VecDeque::new();
+unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, _: HDC, place: LPRECT, data: LPARAM) -> BOOL {
+    let monitors = data as *mut VecDeque<MonitorId>;
 
-    for adapter in DeviceEnumerator::adapters() {
-        // getting the position
-        let (position, dimensions) = unsafe {
-            let mut dev: winapi::DEVMODEW = mem::zeroed();
-            dev.dmSize = mem::size_of::<winapi::DEVMODEW>() as winapi::WORD;
+    let place = *place;
+    let position = (place.left as i32, place.top as i32);
+    let dimensions = ((place.right - place.left) as u32, (place.bottom - place.top) as u32);
 
-            if user32::EnumDisplaySettingsExW(adapter.DeviceName.as_ptr(), 
-                winapi::ENUM_CURRENT_SETTINGS,
-                &mut dev, 0) == 0
-            {
-                continue;
-            }
-
-            let point: &winapi::POINTL = mem::transmute(&dev.union1);
-            let position = (point.x as u32, point.y as u32);
-
-            let dimensions = (dev.dmPelsWidth as u32, dev.dmPelsHeight as u32);
-
-            (position, dimensions)
-        };
-
-        for (num, monitor) in DeviceEnumerator::monitors(adapter.DeviceName.as_ptr()).enumerate() {
-            // adding to the resulting list
-            result.push_back(MonitorId {
-                adapter_name: adapter.DeviceName,
-                monitor_name: wchar_as_string(&monitor.DeviceName),
-                readable_name: wchar_as_string(&monitor.DeviceString),
-                flags: monitor.StateFlags,
-                primary: (adapter.StateFlags & winapi::DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 &&
-                         num == 0,
-                position: position,
-                dimensions: dimensions,
-            });
-        }
+    let mut monitor_info: winuser::MONITORINFOEXW = mem::zeroed();
+    monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
+    if winuser::GetMonitorInfoW(hmonitor, &mut monitor_info as *mut winuser::MONITORINFOEXW as *mut winuser::MONITORINFO) == 0 {
+        // Some error occurred, just skip this monitor and go on.
+        return TRUE;
     }
-    result
+
+    (*monitors).push_back(MonitorId {
+        adapter_name: monitor_info.szDevice,
+        hmonitor: HMonitor(hmonitor),
+        monitor_name: wchar_as_string(&monitor_info.szDevice),
+        primary: monitor_info.dwFlags & winuser::MONITORINFOF_PRIMARY != 0,
+        position,
+        dimensions,
+        hidpi_factor: 1.0,
+    });
+
+    // TRUE means continue enumeration.
+    TRUE
 }
 
-/// Win32 implementation of the main `get_primary_monitor` function.
-pub fn get_primary_monitor() -> MonitorId {
-    // we simply get all available monitors and return the one with the `PRIMARY_DEVICE` flag
-    // TODO: it is possible to query the win32 API for the primary monitor, this should be done
-    //  instead
-    for monitor in get_available_monitors().into_iter() {
-        if monitor.primary {
-            return monitor;
+impl EventsLoop {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        unsafe {
+            let mut result: VecDeque<MonitorId> = VecDeque::new();
+            winuser::EnumDisplayMonitors(ptr::null_mut(), ptr::null_mut(), Some(monitor_enum_proc), &mut result as *mut _ as LPARAM);
+            result
         }
     }
 
-    panic!("Failed to find the primary monitor")
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        // we simply get all available monitors and return the one with the `MONITORINFOF_PRIMARY` flag
+        // TODO: it is possible to query the win32 API for the primary monitor, this should be done
+        //  instead
+        for monitor in self.get_available_monitors().into_iter() {
+            if monitor.primary {
+                return monitor;
+            }
+        }
+
+        panic!("Failed to find the primary monitor")
+    }
 }
 
 impl MonitorId {
     /// See the docs if the crate root file.
     #[inline]
     pub fn get_name(&self) -> Option<String> {
-        Some(self.readable_name.clone())
+        Some(self.monitor_name.clone())
     }
 
     /// See the docs of the crate root file.
     #[inline]
-    pub fn get_native_identifier(&self) -> NativeMonitorId {
-        NativeMonitorId::Name(self.monitor_name.clone())
+    pub fn get_native_identifier(&self) -> String {
+        self.monitor_name.clone()
     }
 
-    /// See the docs if the crate root file.
+    /// See the docs of the crate root file.
+    #[inline]
+    pub fn get_hmonitor(&self) -> HMONITOR {
+        self.hmonitor.0
+    }
+
+    /// See the docs of the crate root file.
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
-        // TODO: retreive the dimensions every time this is called
+        // TODO: retrieve the dimensions every time this is called
         self.dimensions
     }
 
     /// This is a Win32-only function for `MonitorId` that returns the system name of the adapter
     /// device.
     #[inline]
-    pub fn get_adapter_name(&self) -> &[winapi::WCHAR] {
+    pub fn get_adapter_name(&self) -> &[wchar_t] {
         &self.adapter_name
     }
 
-    /// This is a Win32-only function for `MonitorId` that returns the position of the
-    ///  monitor on the desktop.
-    /// A window that is positionned at these coordinates will overlap the monitor.
+    /// A window that is positioned at these coordinates will overlap the monitor.
     #[inline]
-    pub fn get_position(&self) -> (u32, u32) {
+    pub fn get_position(&self) -> (i32, i32) {
         self.position
+    }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        self.hidpi_factor
     }
 }

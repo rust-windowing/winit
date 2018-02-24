@@ -9,8 +9,10 @@ use libc;
 
 use self::x11::XConnection;
 use self::x11::XError;
-use self::x11::XNotSupported;
 use self::x11::ffi::XVisualInfo;
+
+pub use self::x11::XNotSupported;
+use window::MonitorId as RootMonitorId;
 
 mod dlopen;
 pub mod wayland;
@@ -31,104 +33,33 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub screen_id: Option<i32>,
 }
 
-pub enum UnixBackend {
-    X(Arc<XConnection>),
-    Wayland(Arc<wayland::WaylandContext>),
-    Error(Option<XNotSupported>, Option<String>),
-}
-
 lazy_static!(
-    pub static ref UNIX_BACKEND: UnixBackend = {
-        #[inline]
-        fn x_backend() -> Result<UnixBackend, XNotSupported> {
-            match XConnection::new(Some(x_error_callback)) {
-                Ok(x) => Ok(UnixBackend::X(Arc::new(x))),
-                Err(e) => Err(e),
-            }
-        }
-        #[inline]
-        fn wayland_backend() -> Result<UnixBackend, ()> {
-             wayland::WaylandContext::init()
-                .map(|ctx| UnixBackend::Wayland(Arc::new(ctx)))
-                .ok_or(())
-        }
-        match env::var(BACKEND_PREFERENCE_ENV_VAR) {
-            Ok(s) => match s.as_str() {
-                "x11" => x_backend().unwrap_or_else(|e| UnixBackend::Error(Some(e), None)),
-                "wayland" => wayland_backend().unwrap_or_else(|_| {
-                    UnixBackend::Error(None, Some("Wayland not available".into()))
-                }),
-                _ => panic!("Unknown environment variable value for {}, try one of `x11`,`wayland`",
-                            BACKEND_PREFERENCE_ENV_VAR),
-            },
-            Err(_) => {
-                // Try wayland, fallback to X11
-                wayland_backend().unwrap_or_else(|_| {
-                    x_backend().unwrap_or_else(|x_err| {
-                        UnixBackend::Error(Some(x_err), Some("Wayland not available".into()))
-                    })
-                })
-            },
-        }
+    pub static ref X11_BACKEND: Result<Arc<XConnection>, XNotSupported> = {
+        XConnection::new(Some(x_error_callback)).map(Arc::new)
     };
 );
 
-
-pub enum Window2 {
-    #[doc(hidden)]
-    X(x11::Window2),
-    #[doc(hidden)]
+pub enum Window {
+    X(x11::Window),
     Wayland(wayland::Window)
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WindowId {
-    #[doc(hidden)]
     X(x11::WindowId),
-    #[doc(hidden)]
     Wayland(wayland::WindowId)
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceId {
-    #[doc(hidden)]
     X(x11::DeviceId),
-    #[doc(hidden)]
     Wayland(wayland::DeviceId)
 }
 
 #[derive(Clone)]
 pub enum MonitorId {
-    #[doc(hidden)]
     X(x11::MonitorId),
-    #[doc(hidden)]
     Wayland(wayland::MonitorId),
-    #[doc(hidden)]
-    None,
-}
-
-#[inline]
-pub fn get_available_monitors() -> VecDeque<MonitorId> {
-    match *UNIX_BACKEND {
-        UnixBackend::Wayland(ref ctxt) => wayland::get_available_monitors(ctxt)
-                                .into_iter()
-                                .map(MonitorId::Wayland)
-                                .collect(),
-        UnixBackend::X(ref connec) => x11::get_available_monitors(connec)
-                                    .into_iter()
-                                    .map(MonitorId::X)
-                                    .collect(),
-        UnixBackend::Error(..) => { let mut d = VecDeque::new(); d.push_back(MonitorId::None); d},
-    }
-}
-
-#[inline]
-pub fn get_primary_monitor() -> MonitorId {
-    match *UNIX_BACKEND {
-        UnixBackend::Wayland(ref ctxt) => MonitorId::Wayland(wayland::get_primary_monitor(ctxt)),
-        UnixBackend::X(ref connec) => MonitorId::X(x11::get_primary_monitor(connec)),
-        UnixBackend::Error(..) => MonitorId::None,
-    }
 }
 
 impl MonitorId {
@@ -137,16 +68,14 @@ impl MonitorId {
         match self {
             &MonitorId::X(ref m) => m.get_name(),
             &MonitorId::Wayland(ref m) => m.get_name(),
-            &MonitorId::None => None,
         }
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> ::native_monitor::NativeMonitorId {
+    pub fn get_native_identifier(&self) -> u32 {
         match self {
             &MonitorId::X(ref m) => m.get_native_identifier(),
             &MonitorId::Wayland(ref m) => m.get_native_identifier(),
-            &MonitorId::None => unimplemented!()        // FIXME:
         }
     }
 
@@ -155,140 +84,145 @@ impl MonitorId {
         match self {
             &MonitorId::X(ref m) => m.get_dimensions(),
             &MonitorId::Wayland(ref m) => m.get_dimensions(),
-            &MonitorId::None => (800, 600),     // FIXME:
+        }
+    }
+
+    #[inline]
+    pub fn get_position(&self) -> (i32, i32) {
+        match self {
+            &MonitorId::X(ref m) => m.get_position(),
+            &MonitorId::Wayland(ref m) => m.get_position(),
+        }
+    }
+
+    #[inline]
+    pub fn get_hidpi_factor(&self) -> f32 {
+        match self {
+            &MonitorId::X(ref m) => m.get_hidpi_factor(),
+            &MonitorId::Wayland(ref m) => m.get_hidpi_factor(),
         }
     }
 }
 
-impl Window2 {
+impl Window {
     #[inline]
     pub fn new(events_loop: &EventsLoop,
                window: &::WindowAttributes,
                pl_attribs: &PlatformSpecificWindowBuilderAttributes)
                -> Result<Self, CreationError>
     {
-        match *UNIX_BACKEND {
-            UnixBackend::Wayland(ref ctxt) => {
-                if let EventsLoop::Wayland(ref evlp) = *events_loop {
-                    wayland::Window::new(evlp, ctxt.clone(), window).map(Window2::Wayland)
-                } else {
-                    // It is not possible to instanciate an EventsLoop not matching its backend
-                    unreachable!()
-                }
+        match *events_loop {
+            EventsLoop::Wayland(ref evlp) => {
+                wayland::Window::new(evlp, window).map(Window::Wayland)
             },
 
-            UnixBackend::X(_) => {
-                x11::Window2::new(events_loop, window, pl_attribs).map(Window2::X)
+            EventsLoop::X(ref el) => {
+                x11::Window::new(el, window, pl_attribs).map(Window::X)
             },
-            UnixBackend::Error(..) => {
-                // If the Backend is Error(), it is not possible to instanciate an EventsLoop at all,
-                // thus this function cannot be called!
-                unreachable!()
-            }
         }
     }
 
     #[inline]
     pub fn id(&self) -> WindowId {
         match self {
-            &Window2::X(ref w) => WindowId::X(w.id()),
-            &Window2::Wayland(ref w) => WindowId::Wayland(w.id())
+            &Window::X(ref w) => WindowId::X(w.id()),
+            &Window::Wayland(ref w) => WindowId::Wayland(w.id())
         }
     }
 
     #[inline]
     pub fn set_title(&self, title: &str) {
         match self {
-            &Window2::X(ref w) => w.set_title(title),
-            &Window2::Wayland(ref w) => w.set_title(title)
+            &Window::X(ref w) => w.set_title(title),
+            &Window::Wayland(ref w) => w.set_title(title)
         }
     }
 
     #[inline]
     pub fn show(&self) {
         match self {
-            &Window2::X(ref w) => w.show(),
-            &Window2::Wayland(ref w) => w.show()
+            &Window::X(ref w) => w.show(),
+            &Window::Wayland(ref w) => w.show()
         }
     }
 
     #[inline]
     pub fn hide(&self) {
         match self {
-            &Window2::X(ref w) => w.hide(),
-            &Window2::Wayland(ref w) => w.hide()
+            &Window::X(ref w) => w.hide(),
+            &Window::Wayland(ref w) => w.hide()
         }
     }
 
     #[inline]
     pub fn get_position(&self) -> Option<(i32, i32)> {
         match self {
-            &Window2::X(ref w) => w.get_position(),
-            &Window2::Wayland(ref w) => w.get_position()
+            &Window::X(ref w) => w.get_position(),
+            &Window::Wayland(ref w) => w.get_position()
         }
     }
 
     #[inline]
     pub fn set_position(&self, x: i32, y: i32) {
         match self {
-            &Window2::X(ref w) => w.set_position(x, y),
-            &Window2::Wayland(ref w) => w.set_position(x, y)
+            &Window::X(ref w) => w.set_position(x, y),
+            &Window::Wayland(ref w) => w.set_position(x, y)
         }
     }
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         match self {
-            &Window2::X(ref w) => w.get_inner_size(),
-            &Window2::Wayland(ref w) => w.get_inner_size()
+            &Window::X(ref w) => w.get_inner_size(),
+            &Window::Wayland(ref w) => w.get_inner_size()
         }
     }
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         match self {
-            &Window2::X(ref w) => w.get_outer_size(),
-            &Window2::Wayland(ref w) => w.get_outer_size()
+            &Window::X(ref w) => w.get_outer_size(),
+            &Window::Wayland(ref w) => w.get_outer_size()
         }
     }
 
     #[inline]
     pub fn set_inner_size(&self, x: u32, y: u32) {
         match self {
-            &Window2::X(ref w) => w.set_inner_size(x, y),
-            &Window2::Wayland(ref w) => w.set_inner_size(x, y)
+            &Window::X(ref w) => w.set_inner_size(x, y),
+            &Window::Wayland(ref w) => w.set_inner_size(x, y)
         }
     }
 
     #[inline]
     pub fn set_cursor(&self, cursor: MouseCursor) {
         match self {
-            &Window2::X(ref w) => w.set_cursor(cursor),
-            &Window2::Wayland(ref w) => w.set_cursor(cursor)
+            &Window::X(ref w) => w.set_cursor(cursor),
+            &Window::Wayland(ref w) => w.set_cursor(cursor)
         }
     }
 
     #[inline]
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
         match self {
-            &Window2::X(ref w) => w.set_cursor_state(state),
-            &Window2::Wayland(ref w) => w.set_cursor_state(state)
+            &Window::X(ref w) => w.set_cursor_state(state),
+            &Window::Wayland(ref w) => w.set_cursor_state(state)
         }
     }
 
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
        match self {
-            &Window2::X(ref w) => w.hidpi_factor(),
-            &Window2::Wayland(ref w) => w.hidpi_factor()
+            &Window::X(ref w) => w.hidpi_factor(),
+            &Window::Wayland(ref w) => w.hidpi_factor()
         }
     }
 
     #[inline]
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         match self {
-            &Window2::X(ref w) => w.set_cursor_position(x, y),
-            &Window2::Wayland(ref w) => w.set_cursor_position(x, y)
+            &Window::X(ref w) => w.set_cursor_position(x, y),
+            &Window::Wayland(ref w) => w.set_cursor_position(x, y)
         }
     }
 
@@ -296,8 +230,8 @@ impl Window2 {
     pub fn platform_display(&self) -> *mut libc::c_void {
         use wayland_client::Proxy;
         match self {
-            &Window2::X(ref w) => w.platform_display(),
-            &Window2::Wayland(ref w) => w.get_display().ptr() as *mut _
+            &Window::X(ref w) => w.platform_display(),
+            &Window::Wayland(ref w) => w.get_display().ptr() as *mut _
         }
     }
 
@@ -305,8 +239,40 @@ impl Window2 {
     pub fn platform_window(&self) -> *mut libc::c_void {
         use wayland_client::Proxy;
         match self {
-            &Window2::X(ref w) => w.platform_window(),
-            &Window2::Wayland(ref w) => w.get_surface().ptr() as *mut _
+            &Window::X(ref w) => w.platform_window(),
+            &Window::Wayland(ref w) => w.get_surface().ptr() as *mut _
+        }
+    }
+
+    #[inline]
+    pub fn set_maximized(&self, maximized: bool) {
+        match self {
+            &Window::X(ref w) => w.set_maximized(maximized),
+            &Window::Wayland(ref w) => w.set_maximized(maximized),
+        }
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+        match self {
+            &Window::X(ref w) => w.set_fullscreen(monitor),
+            &Window::Wayland(ref w) => w.set_fullscreen(monitor)
+        }
+    }
+
+    #[inline]
+    pub fn set_decorations(&self, decorations: bool) {
+        match self {
+            &Window::X(ref w) => w.set_decorations(decorations),
+            &Window::Wayland(ref w) => w.set_decorations(decorations)
+        }
+    }
+
+    #[inline]
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        match self {
+            &Window::X(ref w) => RootMonitorId{inner: MonitorId::X(w.get_current_monitor())},
+            &Window::Wayland(ref w) => RootMonitorId{inner: MonitorId::Wayland(w.get_current_monitor())},
         }
     }
 }
@@ -316,7 +282,7 @@ unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x
 {
     use std::ffi::CStr;
 
-    if let UnixBackend::X(ref x) = *UNIX_BACKEND {
+    if let Ok(ref x) = *X11_BACKEND {
         let mut buff: Vec<u8> = Vec::with_capacity(1024);
         (x.xlib.XGetErrorText)(dpy, (*event).error_code as i32, buff.as_mut_ptr() as *mut libc::c_char, buff.capacity() as i32);
         let description = CStr::from_ptr(buff.as_mut_ptr() as *const libc::c_char).to_string_lossy();
@@ -335,12 +301,11 @@ unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x
 }
 
 pub enum EventsLoop {
-    #[doc(hidden)]
     Wayland(wayland::EventsLoop),
-    #[doc(hidden)]
     X(x11::EventsLoop)
 }
 
+#[derive(Clone)]
 pub enum EventsLoopProxy {
     X(x11::EventsLoopProxy),
     Wayland(wayland::EventsLoopProxy),
@@ -348,18 +313,65 @@ pub enum EventsLoopProxy {
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
-        match *UNIX_BACKEND {
-            UnixBackend::Wayland(ref ctxt) => {
-                EventsLoop::Wayland(wayland::EventsLoop::new(ctxt.clone()))
-            },
-
-            UnixBackend::X(ref ctxt) => {
-                EventsLoop::X(x11::EventsLoop::new(ctxt.clone()))
-            },
-
-            UnixBackend::Error(..) => {
-                panic!("Attempted to create an EventsLoop while no backend was available.")
+        if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
+            match env_var.as_str() {
+                "x11" => {
+                    return EventsLoop::new_x11().unwrap();      // TODO: propagate
+                },
+                "wayland" => {
+                    match EventsLoop::new_wayland() {
+                        Ok(e) => return e,
+                        Err(_) => panic!()      // TODO: propagate
+                    }
+                },
+                _ => panic!("Unknown environment variable value for {}, try one of `x11`,`wayland`",
+                            BACKEND_PREFERENCE_ENV_VAR),
             }
+        }
+
+        if let Ok(el) = EventsLoop::new_wayland() {
+            return el;
+        }
+
+        if let Ok(el) = EventsLoop::new_x11() {
+            return el;
+        }
+
+        panic!("No backend is available")
+    }
+
+    pub fn new_wayland() -> Result<EventsLoop, ()> {
+        wayland::EventsLoop::new()
+            .map(EventsLoop::Wayland)
+            .ok_or(())
+    }
+
+    pub fn new_x11() -> Result<EventsLoop, XNotSupported> {
+        match *X11_BACKEND {
+            Ok(ref x) => Ok(EventsLoop::X(x11::EventsLoop::new(x.clone()))),
+            Err(ref err) => Err(err.clone()),
+        }
+    }
+
+    #[inline]
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        match *self {
+            EventsLoop::Wayland(ref evlp) => evlp.get_available_monitors()
+                                    .into_iter()
+                                    .map(MonitorId::Wayland)
+                                    .collect(),
+            EventsLoop::X(ref evlp) => x11::get_available_monitors(evlp.x_connection())
+                                        .into_iter()
+                                        .map(MonitorId::X)
+                                        .collect(),
+        }
+    }
+
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        match *self {
+            EventsLoop::Wayland(ref evlp) => MonitorId::Wayland(evlp.get_primary_monitor()),
+            EventsLoop::X(ref evlp) => MonitorId::X(x11::get_primary_monitor(evlp.x_connection())),
         }
     }
 
@@ -385,6 +397,22 @@ impl EventsLoop {
         match *self {
             EventsLoop::Wayland(ref mut evlp) => evlp.run_forever(callback),
             EventsLoop::X(ref mut evlp) => evlp.run_forever(callback)
+        }
+    }
+
+    #[inline]
+    pub fn is_wayland(&self) -> bool {
+        match *self {
+            EventsLoop::Wayland(_) => true,
+            EventsLoop::X(_) => false,
+        }
+    }
+
+    #[inline]
+    pub fn x_connection(&self) -> Option<&Arc<XConnection>> {
+        match *self {
+            EventsLoop::Wayland(_) => None,
+            EventsLoop::X(ref ev) => Some(ev.x_connection()),
         }
     }
 }

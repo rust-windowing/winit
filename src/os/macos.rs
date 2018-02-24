@@ -3,7 +3,7 @@
 use std::convert::From;
 use std::os::raw::c_void;
 use cocoa::appkit::NSApplicationActivationPolicy;
-use {Window, WindowBuilder};
+use {MonitorId, Window, WindowBuilder};
 
 /// Additional methods on `Window` that are specific to MacOS.
 pub trait WindowExt {
@@ -63,6 +63,7 @@ impl From<ActivationPolicy> for NSApplicationActivationPolicy {
 /// Additional methods on `WindowBuilder` that are specific to MacOS.
 pub trait WindowBuilderExt {
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
+    fn with_movable_by_window_background(self, movable_by_window_background: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -71,5 +72,25 @@ impl WindowBuilderExt for WindowBuilder {
     fn with_activation_policy(mut self, activation_policy: ActivationPolicy) -> WindowBuilder {
         self.platform_specific.activation_policy = activation_policy;
         self
+    }
+
+    /// Enables click-and-drag behavior for the entire window, not just the titlebar
+    #[inline]
+    fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> WindowBuilder {
+        self.platform_specific.movable_by_window_background = movable_by_window_background;
+        self
+    }
+}
+
+/// Additional methods on `MonitorId` that are specific to MacOS.
+pub trait MonitorIdExt {
+    /// Returns the identifier of the monitor for Cocoa.
+    fn native_id(&self) -> u32;
+}
+
+impl MonitorIdExt for MonitorId {
+    #[inline]
+    fn native_id(&self) -> u32 {
+        self.inner.get_native_identifier()
     }
 }

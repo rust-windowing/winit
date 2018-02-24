@@ -80,26 +80,14 @@
 //! to create an OpenGL/Vulkan/DirectX/Metal/etc. context that will draw on the window.
 //!
 
+#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "windows"))]
 #[macro_use]
 extern crate lazy_static;
-
-#[macro_use]
-extern crate shared_library;
 
 extern crate libc;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
-#[cfg(target_os = "windows")]
-extern crate kernel32;
-#[cfg(target_os = "windows")]
-extern crate shell32;
-#[cfg(target_os = "windows")]
-extern crate gdi32;
-#[cfg(target_os = "windows")]
-extern crate user32;
-#[cfg(target_os = "windows")]
-extern crate dwmapi;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;
@@ -113,6 +101,8 @@ extern crate core_graphics;
 extern crate dispatch;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 extern crate x11_dl;
+#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
+extern crate percent_encoding;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
 #[macro_use]
 extern crate wayland_client;
@@ -121,11 +111,7 @@ extern crate wayland_client;
 extern crate context;
 
 pub use events::*;
-pub use window::{AvailableMonitorsIter, MonitorId, get_available_monitors, get_primary_monitor};
-pub use native_monitor::NativeMonitorId;
-
-#[macro_use]
-mod api_transition;
+pub use window::{AvailableMonitorsIter, MonitorId};
 
 mod platform;
 mod events;
@@ -153,7 +139,7 @@ pub mod os;
 /// });
 /// ```
 pub struct Window {
-    window: platform::Window2,
+    window: platform::Window,
 }
 
 /// Identifier of a window. Unique for each window.
@@ -173,19 +159,22 @@ pub struct WindowId(platform::WindowId);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(platform::DeviceId);
 
-/// Provides a way to retreive events from the windows that were registered to it.
+/// Provides a way to retreive events from the system and from the windows that were registered to
+/// the events loop.
+///
+/// An `EventsLoop` can be seen more or less as a "context". Calling `EventsLoop::new()`
+/// initializes everything that will be required to create windows. For example on Linux creating
+/// an events loop opens a connection to the X or Wayland server.
 ///
 /// To wake up an `EventsLoop` from a another thread, see the `EventsLoopProxy` docs.
 ///
-/// Usage will result in display backend initialisation, this can be controlled on linux
-/// using an environment variable `WINIT_UNIX_BACKEND`.
-/// > Legal values are `x11` and `wayland`. If this variable is set only the named backend
-/// > will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
-/// > and if it fails will fallback on x11.
-/// >
-/// > If this variable is set with any other value, winit will panic.
+/// Note that the `EventsLoop` cannot be shared accross threads (due to platform-dependant logic
+/// forbiding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
+/// `Window` created from this `EventsLoop` _can_ be sent to an other thread, and the
+/// `EventsLoopProxy` allows you to wakeup an `EventsLoop` from an other thread.
 pub struct EventsLoop {
     events_loop: platform::EventsLoop,
+    _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
 }
 
 /// Returned by the user callback given to the `EventsLoop::run_forever` method.
@@ -201,10 +190,31 @@ pub enum ControlFlow {
 
 impl EventsLoop {
     /// Builds a new events loop.
+    ///
+    /// Usage will result in display backend initialisation, this can be controlled on linux
+    /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
+    /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
+    /// fallback on x11. If this variable is set with any other value, winit will panic.
     pub fn new() -> EventsLoop {
         EventsLoop {
             events_loop: platform::EventsLoop::new(),
+            _marker: ::std::marker::PhantomData,
         }
+    }
+
+    /// Returns the list of all the monitors available on the system.
+    ///
+    // Note: should be replaced with `-> impl Iterator` once stable.
+    #[inline]
+    pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
+        let data = self.events_loop.get_available_monitors();
+        AvailableMonitorsIter{ data: data.into_iter() }
+    }
+
+    /// Returns the primary monitor of the system.
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId { inner: self.events_loop.get_primary_monitor() }
     }
 
     /// Fetches all the events that are pending, calls the callback function for each of them,
@@ -216,7 +226,9 @@ impl EventsLoop {
         self.events_loop.poll_events(callback)
     }
 
-    /// Runs forever until `interrupt()` is called. Whenever an event happens, calls the callback.
+    /// Calls `callback` every time an event is received. If no event is available, sleeps the
+    /// current thread and waits for an event. If the callback returns `ControlFlow::Break` then
+    /// `run_forever` will immediately return.
     #[inline]
     pub fn run_forever<F>(&mut self, callback: F)
         where F: FnMut(Event) -> ControlFlow
@@ -234,6 +246,7 @@ impl EventsLoop {
 }
 
 /// Used to wake up the `EventsLoop` from another thread.
+#[derive(Clone)]
 pub struct EventsLoopProxy {
     events_loop_proxy: platform::EventsLoopProxy,
 }
@@ -277,7 +290,7 @@ pub struct WindowBuilder {
 }
 
 /// Error that can happen while creating a window or a headless renderer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CreationError {
     OsError(String),
     /// TODO: remove this error
@@ -305,6 +318,7 @@ impl std::error::Error for CreationError {
     }
 }
 
+/// Describes the appearance of the mouse cursor.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum MouseCursor {
     /// The platform-dependent default cursor.
@@ -397,15 +411,20 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub max_dimensions: Option<(u32, u32)>,
 
-    /// If `Some`, the window will be in fullscreen mode with the given monitor.
+    /// Whether the window should be set as fullscreen upon creation.
     ///
     /// The default is `None`.
-    pub monitor: Option<platform::MonitorId>,
+    pub fullscreen: Option<MonitorId>,
 
     /// The title of the window in the title bar.
     ///
     /// The default is `"winit window"`.
     pub title: String,
+
+    /// Whether the window should be maximized upon creation.
+    ///
+    /// The default is `false`.
+    pub maximized: bool,
 
     /// Whether the window should be immediately visible upon creation.
     ///
@@ -423,8 +442,8 @@ pub struct WindowAttributes {
     /// The default is `true`.
     pub decorations: bool,
 
-    /// [iOS only] Enable multitouch, see [UIView#multipleTouchEnabled]
-    /// (https://developer.apple.com/library/ios/documentation/UIKit/Reference/UIView_Class/#//apple_ref/occ/instp/UIView/multipleTouchEnabled)
+    /// [iOS only] Enable multitouch,
+    /// see [multipleTouchEnabled](https://developer.apple.com/documentation/uikit/uiview/1622519-multipletouchenabled)
     pub multitouch: bool,
 }
 
@@ -435,28 +454,13 @@ impl Default for WindowAttributes {
             dimensions: None,
             min_dimensions: None,
             max_dimensions: None,
-            monitor: None,
             title: "winit window".to_owned(),
+            maximized: false,
+            fullscreen: None,
             visible: true,
             transparent: false,
             decorations: true,
             multitouch: false,
         }
-    }
-}
-
-mod native_monitor {
-    /// Native platform identifier for a monitor. Different platforms use fundamentally different types
-    /// to represent a monitor ID.
-    #[derive(Clone, PartialEq, Eq)]
-    pub enum NativeMonitorId {
-        /// Cocoa and X11 use a numeric identifier to represent a monitor.
-        Numeric(u32),
-
-        /// Win32 uses a Unicode string to represent a monitor.
-        Name(String),
-
-        /// Other platforms (Android) don't support monitor identification.
-        Unavailable
     }
 }

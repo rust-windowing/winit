@@ -10,12 +10,6 @@ fn main() {
 
     let mut grabbed = false;
 
-    if cfg!(target_os = "linux") {
-        println!("Running this example under wayland may not display a window at all.\n\
-                  This is normal and because this example does not actually draw anything in the window,\
-                  thus the compositor does not display it.");
-    }
-
     events_loop.run_forever(|event| {
         println!("{:?}", event);
 
@@ -36,7 +30,7 @@ fn main() {
 
                     WindowEvent::Closed => return ControlFlow::Break,
 
-                    a @ WindowEvent::MouseMoved { .. } => {
+                    a @ WindowEvent::CursorMoved { .. } => {
                         println!("{:?}", a);
                     },
 

@@ -10,7 +10,10 @@ use super::ffi;
 /// A connection to an X server.
 pub struct XConnection {
     pub xlib: ffi::Xlib,
-    pub xf86vmode: ffi::Xf86vmode,
+    /// Exposes XRandR functions from version < 1.5
+    pub xrandr: ffi::Xrandr_2_2_0,
+    /// Exposes XRandR functions from version = 1.5
+    pub xrandr_1_5: Option<ffi::Xrandr>,
     pub xcursor: ffi::Xcursor,
     pub xinput2: ffi::XInput2,
     pub xlib_xcb: ffi::Xlib_xcb,
@@ -28,7 +31,8 @@ impl XConnection {
         // opening the libraries
         let xlib = try!(ffi::Xlib::open());
         let xcursor = try!(ffi::Xcursor::open());
-        let xf86vmode = try!(ffi::Xf86vmode::open());
+        let xrandr = try!(ffi::Xrandr_2_2_0::open());
+        let xrandr_1_5 = ffi::Xrandr::open().ok();
         let xinput2 = try!(ffi::XInput2::open());
         let xlib_xcb = try!(ffi::Xlib_xcb::open());
 
@@ -46,7 +50,8 @@ impl XConnection {
 
         Ok(XConnection {
             xlib: xlib,
-            xf86vmode: xf86vmode,
+            xrandr: xrandr,
+            xrandr_1_5: xrandr_1_5,
             xcursor: xcursor,
             xinput2: xinput2,
             xlib_xcb: xlib_xcb,

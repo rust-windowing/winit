@@ -1,31 +1,57 @@
 language: rust
 
-rust:
-  - nightly
-  - stable
-
 cache: cargo
 
-addons:
-  apt:
-    packages:
-    - libxxf86vm-dev
+matrix:
+  include:
+    # Linux 32bit
+    - env: TARGET=i686-unknown-linux-gnu
+      os: linux
+      rust: nightly
+      addons:
+        apt:
+          # Cross compiler and cross compiled C libraries
+          packages: &i686_packages
+            - gcc-multilib
+    - env: TARGET=i686-unknown-linux-gnu
+      os: linux
+      rust: stable
+      addons:
+        apt:
+          packages: *i686_packages
+
+    # Linux 64bit
+    - env: TARGET=x86_64-unknown-linux-gnu
+      os: linux
+      rust: nightly
+    - env: TARGET=x86_64-unknown-linux-gnu
+      os: linux
+      rust: stable
+
+    # macOS
+    - env: TARGET=x86_64-apple-darwin
+      os: osx
+      rust: nightly
+    - env: TARGET=x86_64-apple-darwin
+      os: osx
+      rust: stable
+
+    # iOS
+    - env: TARGET=x86_64-apple-ios
+      os: osx
+      rust: nightly
+    - env: TARGET=x86_64-apple-ios
+      os: osx
+      rust: stable
 
 install:
-  - |
-      if [ $TRAVIS_OS_NAME = osx ]; then
-        rustup target add x86_64-apple-ios
-      fi
+  - rustup self update
+  - rustup target add $TARGET; true
 
 script:
-  - cargo build --verbose
-  - if [ $TRAVIS_OS_NAME = osx ]; then cargo build --target x86_64-apple-ios --verbose; fi
-  - cargo test --verbose
-  - if [ $TRAVIS_OS_NAME = osx ]; then cargo test --features context --verbose; fi
-
-os:
-  - linux
-  - osx
+  - cargo build --target $TARGET --verbose
+  # Running iOS apps on OSX requires the simulator so we skip that for now
+  - if [ "$TARGET" != "x86_64-apple-ios" ]; then cargo test --target $TARGET --verbose; fi
 
 after_success:
   - |
