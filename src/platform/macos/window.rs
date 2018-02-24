@@ -54,7 +54,7 @@ impl WindowDelegate {
             };
 
             if let Some(shared) = state.shared.upgrade() {
-                shared.call_user_callback_with_event_or_store_in_pending(event);
+                shared.enqueue_event(event);
             }
         }
 
