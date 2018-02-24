@@ -96,6 +96,17 @@ impl Window {
         Some((rect.left as i32, rect.top as i32))
     }
 
+    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+        use std::mem;
+
+        let mut position: POINT = unsafe{ mem::zeroed() };
+        if unsafe{ winuser::ClientToScreen(self.window.0, &mut position) } == 0 {
+            return None;
+        }
+
+        Some((position.x, position.y))
+    }
+
     /// See the docs in the crate root file.
     pub fn set_position(&self, x: i32, y: i32) {
         unsafe {

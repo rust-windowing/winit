@@ -536,6 +536,10 @@ impl Window2 {
         }
     }
 
+    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+        unimplemented!()
+    }
+
     pub fn set_position(&self, x: i32, y: i32) {
         unsafe {
             let frame = NSWindow::frame(*self.view);
