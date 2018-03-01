@@ -12,24 +12,20 @@
 //! The closure passed to the `execute_in_thread` method takes an `Inserter` that you can use to
 //! add a `WindowState` entry to a list of window to be used by the callback.
 
+use std::{ptr, mem};
+use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::mem;
 use std::os::windows::ffi::OsStringExt;
 use std::os::windows::io::AsRawHandle;
-use std::ptr;
 use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Barrier;
-use std::sync::Mutex;
-use std::sync::Condvar;
-use std::thread;
 
 use winapi::shared::minwindef::{LOWORD, HIWORD, DWORD, WPARAM, LPARAM, UINT, LRESULT, MAX_PATH};
 use winapi::shared::windef::{HWND, POINT};
+use winapi::shared::basetsd::{UINT_PTR, DWORD_PTR};
 use winapi::shared::windowsx;
-use winapi::um::{winuser, shellapi, processthreadsapi};
+use winapi::um::{winuser, shellapi, processthreadsapi, commctrl};
 
 use platform::platform::event;
 use platform::platform::Cursor;
@@ -58,153 +54,91 @@ pub struct WindowState {
     pub mouse_in_window: bool,
 }
 
-/// Dummy object that allows inserting a window's state.
-// We store a pointer in order to !impl Send and Sync.
-pub struct Inserter(*mut u8);
-
-impl Inserter {
-    /// Inserts a window's state for the callback to use. The state is removed automatically if the
-    /// callback receives a `WM_CLOSE` message for the window.
-    pub fn insert(&self, window: HWND, state: Arc<Mutex<WindowState>>) {
-        CONTEXT_STASH.with(|context_stash| {
-            let mut context_stash = context_stash.borrow_mut();
-            let was_in = context_stash.as_mut().unwrap().windows.insert(window, state);
-            assert!(was_in.is_none());
-        });
-    }
+pub(crate) struct SubclassInput {
+    pub window_state: Rc<WindowState>
 }
 
 pub struct EventsLoop {
     // Id of the background thread from the Win32 API.
     thread_id: DWORD,
     // Receiver for the events. The sender is in the background thread.
-    receiver: mpsc::Receiver<Event>,
-    // Variable that contains the block state of the win32 event loop thread during a WM_SIZE event.
-    // The mutex's value is `true` when it's blocked, and should be set to false when it's done
-    // blocking. That's done by the parent thread when it receives a Resized event.
-    win32_block_loop: Arc<(Mutex<bool>, Condvar)>
+    receiver: mpsc::Receiver<Event>
 }
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
         // The main events transfer channel.
         let (tx, rx) = mpsc::channel();
-        let win32_block_loop = Arc::new((Mutex::new(false), Condvar::new()));
-        let win32_block_loop_child = win32_block_loop.clone();
 
-        // Local barrier in order to block the `new()` function until the background thread has
-        // an events queue.
-        let barrier = Arc::new(Barrier::new(2));
-        let barrier_clone = barrier.clone();
-
-        let thread = thread::spawn(move || {
-            CONTEXT_STASH.with(|context_stash| {
-                *context_stash.borrow_mut() = Some(ThreadLocalData {
-                    sender: tx,
-                    windows: HashMap::with_capacity(4),
-                    win32_block_loop: win32_block_loop_child,
-                    mouse_buttons_down: 0
-                });
-            });
-
-            unsafe {
-                // Calling `PostThreadMessageA` on a thread that does not have an events queue yet
-                // will fail. In order to avoid this situation, we call `IsGuiThread` to initialize
-                // it.
-                winuser::IsGUIThread(1);
-                // Then only we unblock the `new()` function. We are sure that we don't call
-                // `PostThreadMessageA()` before `new()` returns.
-                barrier_clone.wait();
-                drop(barrier_clone);
-
-                let mut msg = mem::uninitialized();
-
-                loop {
-                    if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
-                        // Only happens if the message is `WM_QUIT`.
-                        debug_assert_eq!(msg.message, winuser::WM_QUIT);
-                        break;
-                    }
-
-                    match msg.message {
-                        x if x == *EXEC_MSG_ID => {
-                            let mut function: Box<Box<FnMut(Inserter)>> = Box::from_raw(msg.wParam as usize as *mut _);
-                            function(Inserter(ptr::null_mut()));
-                        },
-                        x if x == *WAKEUP_MSG_ID => {
-                            send_event(Event::Awakened);
-                        },
-                        _ => {
-                            // Calls `callback` below.
-                            winuser::TranslateMessage(&msg);
-                            winuser::DispatchMessageW(&msg);
-                        }
-                    }
-                }
-            }
-        });
-
-        // Blocks this function until the background thread has an events loop. See other comments.
-        barrier.wait();
-
-        let thread_id = unsafe {
-            let handle = mem::transmute(thread.as_raw_handle());
-            processthreadsapi::GetThreadId(handle)
-        };
+        let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
 
         EventsLoop {
             thread_id,
-            receiver: rx,
-            win32_block_loop
+            receiver: rx
         }
     }
 
     pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(Event)
     {
-        loop {
-            let event = match self.receiver.try_recv() {
-                Ok(e) => e,
-                Err(_) => return
-            };
-            let is_resize = match event {
-                Event::WindowEvent{ event: WindowEvent::Resized(..), .. } => true,
-                _ => false
-            };
+        unimplemented!()
+        // unsafe {
+        //     // Calling `PostThreadMessageA` on a thread that does not have an events queue yet
+        //     // will fail. In order to avoid this situation, we call `IsGuiThread` to initialize
+        //     // it.
+        //     winuser::IsGUIThread(1);
 
-            callback(event);
-            if is_resize {
-                let (ref mutex, ref cvar) = *self.win32_block_loop;
-                let mut block_thread = mutex.lock().unwrap();
-                *block_thread = false;
-                cvar.notify_all();
-            }
-        }
+        //     let mut msg = mem::uninitialized();
+
+        //     loop {
+        //         if winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) == 0 {
+        //             // Only happens if the message is `WM_QUIT`.
+        //             debug_assert_eq!(msg.message, winuser::WM_QUIT);
+        //             break;
+        //         }
+
+        //         match msg.message {
+        //             x if x == *WAKEUP_MSG_ID => {
+        //                 callback(Event::Awakened);
+        //             },
+        //             _ => {
+        //                 // Calls `callback` below.
+        //                 winuser::TranslateMessage(&msg);
+        //                 winuser::DispatchMessageW(&msg);
+        //             }
+        //         }
+        //     }
+        // }
     }
 
     pub fn run_forever<F>(&mut self, mut callback: F)
         where F: FnMut(Event) -> ControlFlow
     {
-        loop {
-            let event = match self.receiver.recv() {
-                Ok(e) => e,
-                Err(_) => return
-            };
-            let is_resize = match event {
-                Event::WindowEvent{ event: WindowEvent::Resized(..), .. } => true,
-                _ => false
-            };
+        unsafe {
+            // Calling `PostThreadMessageA` on a thread that does not have an events queue yet
+            // will fail. In order to avoid this situation, we call `IsGuiThread` to initialize
+            // it.
+            winuser::IsGUIThread(1);
 
-            let flow = callback(event);
-            if is_resize {
-                let (ref mutex, ref cvar) = *self.win32_block_loop;
-                let mut block_thread = mutex.lock().unwrap();
-                *block_thread = false;
-                cvar.notify_all();
-            }
-            match flow {
-                ControlFlow::Continue => continue,
-                ControlFlow::Break => break,
+            let mut msg = mem::uninitialized();
+
+            loop {
+                if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
+                    // Only happens if the message is `WM_QUIT`.
+                    debug_assert_eq!(msg.message, winuser::WM_QUIT);
+                    break;
+                }
+
+                match msg.message {
+                    x if x == *WAKEUP_MSG_ID => {
+                        callback(Event::Awakened);
+                    },
+                    _ => {
+                        // Calls `callback` below.
+                        winuser::TranslateMessage(&msg);
+                        winuser::DispatchMessageW(&msg);
+                    }
+                }
             }
         }
     }
@@ -212,39 +146,6 @@ impl EventsLoop {
     pub fn create_proxy(&self) -> EventsLoopProxy {
         EventsLoopProxy {
             thread_id: self.thread_id,
-        }
-    }
-
-    /// Executes a function in the background thread.
-    ///
-    /// Note that we use a FnMut instead of a FnOnce because we're too lazy to create an equivalent
-    /// to the unstable FnBox.
-    ///
-    /// The `Inserted` can be used to inject a `WindowState` for the callback to use. The state is
-    /// removed automatically if the callback receives a `WM_CLOSE` message for the window.
-    pub(super) fn execute_in_thread<F>(&self, function: F)
-        where F: FnMut(Inserter) + Send + 'static
-    {
-        unsafe {
-            let boxed = Box::new(function) as Box<FnMut(_)>;
-            let boxed2 = Box::new(boxed);
-
-            let raw = Box::into_raw(boxed2);
-
-            let res = winuser::PostThreadMessageA(self.thread_id, *EXEC_MSG_ID,
-                                                 raw as *mut () as usize as WPARAM, 0);
-            // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
-            // as the events loop is still alive) or if the queue is full.
-            assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
-        }
-    }
-}
-
-impl Drop for EventsLoop {
-    fn drop(&mut self) {
-        unsafe {
-            // Posting `WM_QUIT` will cause `GetMessage` to stop.
-            winuser::PostThreadMessageA(self.thread_id, winuser::WM_QUIT, 0, 0);
         }
     }
 }
@@ -281,23 +182,22 @@ lazy_static! {
             winuser::RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr() as *const i8)
         }
     };
-    // Message sent when we want to execute a closure in the thread.
-    // WPARAM contains a Box<Box<FnMut()>> that must be retreived with `Box::from_raw`,
-    // and LPARAM is unused.
-    static ref EXEC_MSG_ID: u32 = {
-        unsafe {
-            winuser::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as *const i8)
-        }
-    };
 }
 
-// There's no parameters passed to the callback function, so it needs to get its context stashed
-// in a thread-local variable.
-thread_local!(static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::new(None));
+const WINDOW_SUBCLASS_ID: UINT_PTR = 0;
+pub(crate) fn subclass_window(window: HWND, subclass_input: SubclassInput) {
+    let input_ptr = Box::into_raw(Box::new(subclass_input));
+    let subclass_result = commctrl::SetWindowSubclass(
+        window,
+        Some(callback),
+        WINDOW_SUBCLASS_ID,
+        input_ptr as DWORD_PTR
+    );
+    assert_eq!(subclass_result, 1);
+}
 struct ThreadLocalData {
     sender: mpsc::Sender<Event>,
-    windows: HashMap<HWND, Arc<Mutex<WindowState>>>,
-    win32_block_loop: Arc<(Mutex<bool>, Condvar)>,
+    windows: HashMap<HWND, Rc<RefCell<WindowState>>>,
     mouse_buttons_down: u32
 }
 
@@ -343,10 +243,12 @@ unsafe fn release_mouse() {
 //
 // Returning 0 tells the Win32 API that the message has been processed.
 // FIXME: detect WM_DWMCOMPOSITIONCHANGED and call DwmEnableBlurBehindWindow if necessary
-pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
-                                       wparam: WPARAM, lparam: LPARAM)
-                                       -> LRESULT
-{
+pub unsafe extern "system" fn callback(
+    window: HWND, msg: UINT,
+    wparam: WPARAM, lparam: LPARAM,
+    _: UINT_PTR, subclass_input_ptr: DWORD_PTR
+) -> LRESULT {
+    let subclass_input = unsafe{ &mut*(subclass_input_ptr as *mut SubclassInput) };
     match msg {
         winuser::WM_CLOSE => {
             use events::WindowEvent::Closed;
@@ -360,6 +262,11 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             });
             winuser::DefWindowProcW(window, msg, wparam, lparam)
         },
+        winuser::WM_DESTROY => {
+            Box::from_raw(subclass_input);
+            drop(subclass_input);
+            0
+        }
 
         winuser::WM_ERASEBKGND => {
             1
@@ -381,24 +288,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                     event: Resized(w, h),
                 };
 
-                // If this window has been inserted into the window map, the resize event happened
-                // during the event loop. If it hasn't, the event happened on window creation and
-                // should be ignored.
-                if cstash.windows.get(&window).is_some() {
-                    let (ref mutex, ref cvar) = *cstash.win32_block_loop;
-                    let mut block_thread = mutex.lock().unwrap();
-                    *block_thread = true;
-
-                    // The event needs to be sent after the lock to ensure that `notify_all` is
-                    // called after `wait`.
-                    cstash.sender.send(event).ok();
-
-                    while *block_thread {
-                        block_thread = cvar.wait(block_thread).unwrap();
-                    }
-                } else {
-                    cstash.sender.send(event).ok();
-                }
+                cstash.sender.send(event).ok();
             });
             0
         },

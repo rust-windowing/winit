@@ -6,9 +6,9 @@ use std::mem;
 use std::os::raw;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
-use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::mpsc::channel;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use platform::platform::events_loop;
 use platform::platform::EventsLoop;
@@ -34,7 +34,7 @@ pub struct Window {
     window: WindowWrapper,
 
     /// The current window state.
-    window_state: Arc<Mutex<events_loop::WindowState>>,
+    window_state: Rc<RefCell<events_loop::WindowState>>,
 }
 
 unsafe impl Send for Window {}
@@ -49,13 +49,7 @@ impl Window {
 
         let (tx, rx) = channel();
 
-        events_loop.execute_in_thread(move |inserter| {
-            // We dispatch an `init` function because of code style.
-            let win = unsafe { init(w_attr.take().unwrap(), pl_attr.take().unwrap(), inserter) };
-            let _ = tx.send(win);
-        });
-
-        rx.recv().unwrap()
+        unsafe { init(w_attr.take().unwrap(), pl_attr.take().unwrap()) }
     }
 
     pub fn set_title(&self, text: &str) {
@@ -346,13 +340,11 @@ impl Window {
     }
 }
 
-impl Drop for Window {
+impl Drop for WindowWrapper {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            // We are sending WM_CLOSE, and our callback will process this by calling DefWindowProcW,
-            // which in turn will send a WM_DESTROY.
-            winuser::PostMessageW(self.window.0, winuser::WM_CLOSE, 0, 0);
+            winuser::DestroyWindow(self.0);
         }
     }
 }
@@ -361,8 +353,10 @@ impl Drop for Window {
 #[doc(hidden)]
 pub struct WindowWrapper(HWND, HDC);
 
-unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes,
-               inserter: events_loop::Inserter) -> Result<Window, CreationError> {
+unsafe fn init(
+    window: WindowAttributes,
+    pl_attribs: PlatformSpecificWindowBuilderAttributes,
+) -> Result<Window, CreationError> {
     let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 
@@ -478,14 +472,12 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     }
 
     // Creating a mutex to track the current window state
-    let window_state = Arc::new(Mutex::new(events_loop::WindowState {
+    let window_state = Rc::new(RefCell::new(events_loop::WindowState {
         cursor: winuser::IDC_ARROW, // use arrow by default
         cursor_state: CursorState::Normal,
         attributes: window.clone(),
         mouse_in_window: false,
     }));
-
-    inserter.insert(real_window.0, window_state.clone());
 
     // making the window transparent
     if window.transparent {
@@ -518,7 +510,7 @@ unsafe fn register_window_class() -> Vec<u16> {
     let class = winuser::WNDCLASSEXW {
         cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
         style: winuser::CS_HREDRAW | winuser::CS_VREDRAW | winuser::CS_OWNDC,
-        lpfnWndProc: Some(events_loop::callback),
+        lpfnWndProc: Some(winuser::DefWindowProcW),
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: libloaderapi::GetModuleHandleW(ptr::null()),
