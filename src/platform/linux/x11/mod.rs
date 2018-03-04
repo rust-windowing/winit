@@ -217,7 +217,22 @@ impl EventsLoop {
                 let window_id = mkwid(window);
 
                 if client_msg.data.get_long(0) as ffi::Atom == self.wm_delete_window {
-                    callback(Event::WindowEvent { window_id, event: WindowEvent::Closed })
+                    callback(Event::WindowEvent { window_id, event: WindowEvent::Closed });
+
+                    let mut windows = self.windows.lock().unwrap();
+                    let window_data = windows.remove(&WindowId(window));
+                    let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
+                    unsafe {
+                        if let Some(window_data) = window_data {
+                            (self.display.xlib.XDestroyIC)(window_data.ic);
+                            (self.display.xlib.XCloseIM)(window_data.im);
+                            self.display.check_errors()
+                                .expect("Failed to close XIM");
+                        }
+                        (self.display.xlib.XDestroyWindow)(self.display.display, window);
+                        self.display.check_errors()
+                            .expect("Failed to destroy window");
+                    }
                 } else if client_msg.message_type == self.dnd.atoms.enter {
                     let source_window = client_msg.data.get_long(0) as c_ulong;
                     let flags = client_msg.data.get_long(1);
@@ -357,20 +372,23 @@ impl EventsLoop {
                 // Gymnastics to ensure self.windows isn't locked when we invoke callback
                 let (resized, moved) = {
                     let mut windows = self.windows.lock().unwrap();
-                    let window_data = windows.get_mut(&WindowId(window)).unwrap();
-                    if window_data.config.is_none() {
-                        window_data.config = Some(WindowConfig::new(xev));
-                        (true, true)
+                    if let Some(window_data) = windows.get_mut(&WindowId(window)) {
+                        if window_data.config.is_none() {
+                            window_data.config = Some(WindowConfig::new(xev));
+                            (true, true)
+                        } else {
+                            let window_state = window_data.config.as_mut().unwrap();
+                            (if window_state.size != new_size {
+                                window_state.size = new_size;
+                                true
+                            } else { false },
+                            if window_state.position != new_position {
+                                window_state.position = new_position;
+                                true
+                            } else { false })
+                        }
                     } else {
-                        let window_state = window_data.config.as_mut().unwrap();
-                        (if window_state.size != new_size {
-                            window_state.size = new_size;
-                            true
-                        } else { false },
-                        if window_state.position != new_position {
-                            window_state.position = new_position;
-                            true
-                        } else { false })
+                        return;
                     }
                 };
                 if resized {
@@ -444,7 +462,13 @@ impl EventsLoop {
 
                         const INIT_BUFF_SIZE: usize = 16;
                         let mut windows = self.windows.lock().unwrap();
-                        let window_data = windows.get_mut(&WindowId(window)).unwrap();
+                        let window_data = {
+                            if let Some(window_data) = windows.get_mut(&WindowId(window)) {
+                                window_data
+                            } else {
+                                return;
+                            }
+                        };
                         /* buffer allocated on heap instead of stack, due to the possible
                          * reallocation */
                         let mut buffer: Vec<u8> = vec![mem::uninitialized(); INIT_BUFF_SIZE];
@@ -494,9 +518,16 @@ impl EventsLoop {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
                         let window_id = mkwid(xev.event);
                         let device_id = mkdid(xev.deviceid);
-                        if (xev.flags & ffi::XIPointerEmulated) != 0 && self.windows.lock().unwrap().get(&WindowId(xev.event)).unwrap().multitouch {
-                            // Deliver multi-touch events instead of emulated mouse events.
-                            return;
+                        if (xev.flags & ffi::XIPointerEmulated) != 0 {
+                            let windows = self.windows.lock().unwrap();
+                            if let Some(window_data) = windows.get(&WindowId(xev.event)) {
+                                if window_data.multitouch {
+                                    // Deliver multi-touch events instead of emulated mouse events.
+                                    return;
+                                }
+                            } else {
+                                return;
+                            }
                         }
 
                         let modifiers = ModifiersState::from(xev.mods);
@@ -578,7 +609,13 @@ impl EventsLoop {
                         // Gymnastics to ensure self.windows isn't locked when we invoke callback
                         if {
                             let mut windows = self.windows.lock().unwrap();
-                            let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
+                            let window_data = {
+                                if let Some(window_data) = windows.get_mut(&WindowId(xev.event)) {
+                                    window_data
+                                } else {
+                                    return;
+                                }
+                            };
                             if Some(new_cursor_pos) != window_data.cursor_pos {
                                 window_data.cursor_pos = Some(new_cursor_pos);
                                 true
@@ -678,29 +715,43 @@ impl EventsLoop {
                     ffi::XI_Leave => {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
 
-                        callback(Event::WindowEvent {
-                            window_id: mkwid(xev.event),
-                            event: CursorLeft { device_id: mkdid(xev.deviceid) },
-                        });
+                        // Leave, FocusIn, and FocusOut can be received by a window that's already
+                        // been destroyed, which the user presumably doesn't want to deal with.
+                        let window_closed = self.windows
+                            .lock()
+                            .unwrap()
+                            .get(&WindowId(xev.event))
+                            .is_none();
+
+                        if !window_closed {
+                            callback(Event::WindowEvent {
+                                window_id: mkwid(xev.event),
+                                event: CursorLeft { device_id: mkdid(xev.deviceid) },
+                            });
+                        }
                     }
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
                         let window_id = mkwid(xev.event);
 
-                        unsafe {
-                            let mut windows = self.windows.lock().unwrap();
-                            let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
-                            (self.display.xlib.XSetICFocus)(window_data.ic);
+                        let mut windows = self.windows.lock().unwrap();
+                        if let Some(window_data) = windows.get_mut(&WindowId(xev.event)) {
+                            unsafe {
+                                (self.display.xlib.XSetICFocus)(window_data.ic);
+                            }
+                        } else {
+                            return;
                         }
+
                         callback(Event::WindowEvent { window_id, event: Focused(true) });
 
-                        // The deviceid for this event is for a keyboard instead of a pointer, so
-                        // we have to do a little extra work.
+                        // The deviceid for this event is for a keyboard instead of a pointer,
+                        // so we have to do a little extra work.
                         let device_info = DeviceInfo::get(&self.display, xev.deviceid);
-                        // For master devices, the attachment field contains the ID of the paired
-                        // master device; for the master keyboard, the attachment is the master
-                        // pointer, and vice versa.
+                        // For master devices, the attachment field contains the ID of the
+                        // paired master device; for the master keyboard, the attachment is
+                        // the master pointer, and vice versa.
                         let pointer_id = unsafe { (*device_info.info) }.attachment;
 
                         callback(Event::WindowEvent {
@@ -714,11 +765,16 @@ impl EventsLoop {
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
-                        unsafe {
-                            let mut windows = self.windows.lock().unwrap();
-                            let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
-                            (self.display.xlib.XUnsetICFocus)(window_data.ic);
+
+                        let mut windows = self.windows.lock().unwrap();
+                        if let Some(window_data) = windows.get_mut(&WindowId(xev.event)) {
+                            unsafe {
+                                (self.display.xlib.XUnsetICFocus)(window_data.ic);
+                            }
+                        } else {
+                            return;
                         }
+
                         callback(Event::WindowEvent {
                             window_id: mkwid(xev.event),
                             event: Focused(false),
@@ -1020,13 +1076,27 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
-            let mut windows = windows.lock().unwrap();
-            let w = windows.remove(&self.window.id()).unwrap();
-            let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
-            unsafe {
-                (display.xlib.XDestroyIC)(w.ic);
-                (display.xlib.XCloseIM)(w.im);
-            }
+            // It's possible for the Window object to outlive the actual window, so we need to
+            // check for that, lest the program explode with BadWindow errors soon after this.
+            let window_closed = windows
+                .lock()
+                .unwrap()
+                .get(&self.window.id())
+                .is_none();
+            if !window_closed { unsafe {
+                let wm_protocols_atom = util::get_atom(&display, b"WM_PROTOCOLS\0")
+                    .expect("Failed to call XInternAtom (WM_PROTOCOLS)");
+                let wm_delete_atom = util::get_atom(&display, b"WM_DELETE_WINDOW\0")
+                    .expect("Failed to call XInternAtom (WM_DELETE_WINDOW)");
+                util::send_client_msg(
+                    &display,
+                    self.window.id().0,
+                    self.window.id().0,
+                    wm_protocols_atom,
+                    None,
+                    (wm_delete_atom as _, ffi::CurrentTime as _, 0, 0, 0),
+                ).expect("Failed to send window deletion message");
+            } }
         }
     }
 }

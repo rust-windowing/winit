@@ -1,5 +1,7 @@
 # Unreleased
 
+- On X11, dropping a `Window` actually closes it now, and clicking the window's × button (or otherwise having the WM signal to close it) will result in the window closing.
+
 # Version 0.11.2 (2018-03-06)
 
 - Impl `Hash`, `PartialEq`, and `Eq` for `events::ModifiersState`.
