@@ -106,6 +106,9 @@ impl EventsLoop {
                         event: WindowEvent::Refresh,
                     })
                 }
+                android_glue::Event::Wake => {
+                    Some(Event::Awakened)
+                }
                 _ => {
                     None
                 }
