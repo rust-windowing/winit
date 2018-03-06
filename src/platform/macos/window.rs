@@ -12,7 +12,7 @@ use objc::declare::ClassDecl;
 
 use cocoa;
 use cocoa::base::{id, nil};
-use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
+use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString};
 use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask};
 
 use core_graphics::display::CGDisplay;
@@ -389,27 +389,8 @@ impl Window2 {
         unsafe {
             let screen = match attrs.fullscreen {
                 Some(ref monitor_id) => {
-                    let native_id = monitor_id.inner.get_native_identifier();
-                    let matching_screen = {
-                        let screens = appkit::NSScreen::screens(nil);
-                        let count: NSUInteger = msg_send![screens, count];
-                        let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
-                        let mut matching_screen: Option<id> = None;
-                        for i in 0..count {
-                            let screen = msg_send![screens, objectAtIndex:i as NSUInteger];
-                            let device_description = appkit::NSScreen::deviceDescription(screen);
-                            let value: id = msg_send![device_description, objectForKey:*key];
-                            if value != nil {
-                                let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
-                                if screen_number as u32 == native_id {
-                                    matching_screen = Some(screen);
-                                    break;
-                                }
-                            }
-                        }
-                        matching_screen
-                    };
-                    Some(matching_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
+                    let monitor_screen = monitor_id.inner.get_nsscreen();
+                    Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
                 },
                 _ => None,
             };
@@ -720,19 +701,19 @@ unsafe fn nswindow_set_max_dimensions<V: NSWindow + Copy>(
 pub struct IdRef(id);
 
 impl IdRef {
-    fn new(i: id) -> IdRef {
+    pub fn new(i: id) -> IdRef {
         IdRef(i)
     }
 
     #[allow(dead_code)]
-    fn retain(i: id) -> IdRef {
+    pub fn retain(i: id) -> IdRef {
         if i != nil {
             let _: id = unsafe { msg_send![i, retain] };
         }
         IdRef(i)
     }
 
-    fn non_nil(self) -> Option<IdRef> {
+    pub fn non_nil(self) -> Option<IdRef> {
         if self.0 == nil { None } else { Some(self) }
     }
 }

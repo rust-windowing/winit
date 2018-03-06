@@ -86,11 +86,17 @@ impl WindowBuilderExt for WindowBuilder {
 pub trait MonitorIdExt {
     /// Returns the identifier of the monitor for Cocoa.
     fn native_id(&self) -> u32;
+    /// Returns a pointer to the NSScreen representing this monitor.
+    fn get_nsscreen(&self) -> Option<*mut c_void>;
 }
 
 impl MonitorIdExt for MonitorId {
     #[inline]
     fn native_id(&self) -> u32 {
         self.inner.get_native_identifier()
+    }
+
+    fn get_nsscreen(&self) -> Option<*mut c_void> {
+        self.inner.get_nsscreen().map(|s| s as *mut c_void)
     }
 }
