@@ -431,8 +431,7 @@ impl Window2 {
                     NSWindowStyleMask::NSResizableWindowMask | NSWindowStyleMask::NSTitledWindowMask
             } else {
                 // Window2 without a titlebar
-                NSWindowStyleMask::NSBorderlessWindowMask |
-                    NSWindowStyleMask::NSResizableWindowMask
+                NSWindowStyleMask::NSBorderlessWindowMask
             };
 
             let window_superclass = Class::get("NSWindow").unwrap();
