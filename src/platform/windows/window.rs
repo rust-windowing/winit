@@ -201,22 +201,11 @@ impl Window {
 
         unsafe { winuser::AttachThreadInput(foreground_thread_id, current_thread_id, 1) };
 
-        let res = match (state, current_state.cursor_state) {
-            (CursorState::Normal, CursorState::Normal) => Ok(()),
-            (CursorState::Hide, CursorState::Hide) => Ok(()),
-            (CursorState::Grab, CursorState::Grab) => Ok(()),
+        // Grab/ungrab cursor
+        match (state, current_state.cursor_state) {
+            (CursorState::Grab, CursorState::Grab) => (),
 
-            (CursorState::Hide, CursorState::Normal) => {
-                current_state.cursor_state = CursorState::Hide;
-                Ok(())
-            },
-
-            (CursorState::Normal, CursorState::Hide) => {
-                current_state.cursor_state = CursorState::Normal;
-                Ok(())
-            },
-
-            (CursorState::Grab, CursorState::Normal) | (CursorState::Grab, CursorState::Hide) => {
+            (CursorState::Grab, _) => {
                 unsafe {
                     let mut rect = mem::uninitialized();
                     if winuser::GetClientRect(self.window.0, &mut rect) == 0 {
@@ -227,27 +216,25 @@ impl Window {
                     if winuser::ClipCursor(&rect) == 0 {
                         return Err(format!("ClipCursor failed"));
                     }
-                    current_state.cursor_state = CursorState::Grab;
-                    Ok(())
                 }
             },
 
-            (CursorState::Normal, CursorState::Grab) => {
+            (_, CursorState::Grab) => {
                 unsafe {
                     if winuser::ClipCursor(ptr::null()) == 0 {
                         return Err(format!("ClipCursor failed"));
                     }
-                    current_state.cursor_state = CursorState::Normal;
-                    Ok(())
                 }
             },
 
-            _ => unimplemented!(),
+            _ => (),
         };
+
+        current_state.cursor_state = state;
 
         unsafe { winuser::AttachThreadInput(foreground_thread_id, current_thread_id, 0) };
 
-        res
+        Ok(())
     }
 
     #[inline]
