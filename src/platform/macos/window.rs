@@ -257,6 +257,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
     pub title_hidden: bool,
+    pub titlebar_hidden: bool,
     pub fullsize_content_view: bool,
 }
 
@@ -416,6 +417,9 @@ impl Window2 {
                     NSWindowStyleMask::NSMiniaturizableWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSFullSizeContentViewWindowMask
+            } else if pl_attrs.titlebar_hidden {
+                NSWindowStyleMask::NSBorderlessWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask
             } else if !pl_attrs.titlebar_transparent {
                 // Window2 with a titlebar
                 NSWindowStyleMask::NSClosableWindowMask |
