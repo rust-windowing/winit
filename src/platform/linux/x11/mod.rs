@@ -1010,10 +1010,28 @@ impl Window {
         let im = unsafe {
             let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
 
-            let im = (x_events_loop.display.xlib.XOpenIM)(x_events_loop.display.display, ptr::null_mut(), ptr::null_mut(), ptr::null_mut());
+            let open_im = || (x_events_loop.display.xlib.XOpenIM)(
+                x_events_loop.display.display,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            );
+
+            let mut im = open_im();
+
+            for modifiers in &["@im=local", "@im="] {
+                if !im.is_null() {
+                    break;
+                }
+
+                (x_events_loop.display.xlib.XSetLocaleModifiers)(modifiers.as_ptr() as *const i8);
+                im = open_im();
+            }
+
             if im.is_null() {
                 panic!("XOpenIM failed");
             }
+
             im
         };
 
