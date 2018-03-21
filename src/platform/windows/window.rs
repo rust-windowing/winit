@@ -161,7 +161,18 @@ impl Window {
 
         // Make windows re-check the window size bounds.
         if let Some(inner_size) = self.get_inner_size() {
-            self.set_inner_size(inner_size.0, inner_size.1);
+            unsafe {
+                let mut rect = RECT { top: 0, left: 0, bottom: inner_size.1 as LONG, right: inner_size.0 as LONG };
+                let dw_style = winuser::GetWindowLongA(self.window.0, winuser::GWL_STYLE) as DWORD;
+                let b_menu = !winuser::GetMenu(self.window.0).is_null() as BOOL;
+                let dw_style_ex = winuser::GetWindowLongA(self.window.0, winuser::GWL_EXSTYLE) as DWORD;
+                winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
+                let outer_x = (rect.right - rect.left).abs() as raw::c_int;
+                let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
+
+                winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
+                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+            }
         }
     }
 
@@ -173,7 +184,18 @@ impl Window {
 
         // Make windows re-check the window size bounds.
         if let Some(inner_size) = self.get_inner_size() {
-            self.set_inner_size(inner_size.0, inner_size.1);
+            unsafe {
+                let mut rect = RECT { top: 0, left: 0, bottom: inner_size.1 as LONG, right: inner_size.0 as LONG };
+                let dw_style = winuser::GetWindowLongA(self.window.0, winuser::GWL_STYLE) as DWORD;
+                let b_menu = !winuser::GetMenu(self.window.0).is_null() as BOOL;
+                let dw_style_ex = winuser::GetWindowLongA(self.window.0, winuser::GWL_EXSTYLE) as DWORD;
+                winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
+                let outer_x = (rect.right - rect.left).abs() as raw::c_int;
+                let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
+
+                winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
+                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+            }
         }
     }
 
