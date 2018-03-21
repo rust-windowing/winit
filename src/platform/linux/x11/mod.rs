@@ -1010,22 +1010,20 @@ impl Window {
         let im = unsafe {
             let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
 
-            let open_im = || (x_events_loop.display.xlib.XOpenIM)(
-                x_events_loop.display.display,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
+            let mut im: ffi::XIM = ptr::null_mut();
 
-            let mut im = open_im();
-
-            for modifiers in &["@im=local", "@im="] {
+            for modifiers in &[b"\0" as &[u8], b"@im=local\0", b"@im=\0"] {
                 if !im.is_null() {
                     break;
                 }
 
                 (x_events_loop.display.xlib.XSetLocaleModifiers)(modifiers.as_ptr() as *const i8);
-                im = open_im();
+                im = (x_events_loop.display.xlib.XOpenIM)(
+                    x_events_loop.display.display,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                );
             }
 
             if im.is_null() {
