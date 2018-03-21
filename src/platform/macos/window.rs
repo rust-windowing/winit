@@ -537,7 +537,12 @@ impl Window2 {
     }
 
     pub fn get_inner_position(&self) -> Option<(i32, i32)> {
-        unimplemented!()
+        unsafe {
+            let inner_size = self.get_inner_size().unwrap();
+            let window_rect = NSRect::new(NSPoint::new(0., 0.), NSSize::new(inner_size.0 as f64, inner_size.1 as f64));
+            let screen_rect = self.window.convertRectToScreen_(window_rect);
+            Some((screen_rect.origin.x as i32, (CGDisplay::main().pixels_high() as f64 - (screen_rect.origin.y + screen_rect.size.height)) as i32))
+        }
     }
 
     pub fn set_position(&self, x: i32, y: i32) {
