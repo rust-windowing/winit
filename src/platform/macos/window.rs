@@ -278,7 +278,7 @@ impl Drop for Window2 {
         let nswindow = *self.window;
         if nswindow != nil {
             unsafe {
-                msg_send![nswindow, close];
+                let () = msg_send![nswindow, close];
             }
         }
     }
@@ -346,7 +346,7 @@ impl Window2 {
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
-            msg_send![(*window as id),
+            let () = msg_send![(*window as id),
                 registerForDraggedTypes:NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)];
         }
 
