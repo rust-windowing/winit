@@ -61,9 +61,23 @@ impl From<ActivationPolicy> for NSApplicationActivationPolicy {
 }
 
 /// Additional methods on `WindowBuilder` that are specific to MacOS.
+///
+/// **Note:** Properties dealing with the titlebar will be overwritten by the `with_decorations` method
+/// on the base `WindowBuilder`:
+///
+///  - `with_titlebar_transparent`
+///  - `with_title_hidden`
+///  - `with_titlebar_hidden`
+///  - `with_titlebar_buttons_hidden`
+///  - `with_fullsize_content_view`
 pub trait WindowBuilderExt {
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     fn with_movable_by_window_background(self, movable_by_window_background: bool) -> WindowBuilder;
+    fn with_titlebar_transparent(self, titlebar_transparent: bool) -> WindowBuilder;
+    fn with_title_hidden(self, title_hidden: bool) -> WindowBuilder;
+    fn with_titlebar_hidden(self, titlebar_hidden: bool) -> WindowBuilder;
+    fn with_titlebar_buttons_hidden(self, titlebar_buttons_hidden: bool) -> WindowBuilder;
+    fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -78,6 +92,41 @@ impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> WindowBuilder {
         self.platform_specific.movable_by_window_background = movable_by_window_background;
+        self
+    }
+
+    /// Makes the titlebar transparent and allows the content to appear behind it
+    #[inline]
+    fn with_titlebar_transparent(mut self, titlebar_transparent: bool) -> WindowBuilder {
+        self.platform_specific.titlebar_transparent = titlebar_transparent;
+        self
+    }
+
+    /// Hides the window titlebar
+    #[inline]
+    fn with_titlebar_hidden(mut self, titlebar_hidden: bool) -> WindowBuilder {
+        self.platform_specific.titlebar_hidden = titlebar_hidden;
+        self
+    }
+
+    /// Hides the window titlebar buttons
+    #[inline]
+    fn with_titlebar_buttons_hidden(mut self, titlebar_buttons_hidden: bool) -> WindowBuilder {
+        self.platform_specific.titlebar_buttons_hidden = titlebar_buttons_hidden;
+        self
+    }
+
+    /// Hides the window title
+    #[inline]
+    fn with_title_hidden(mut self, title_hidden: bool) -> WindowBuilder {
+        self.platform_specific.title_hidden = title_hidden;
+        self
+    }
+
+    /// Makes the window content appear behind the titlebar
+    #[inline]
+    fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> WindowBuilder {
+        self.platform_specific.fullsize_content_view = fullsize_content_view;
         self
     }
 }
