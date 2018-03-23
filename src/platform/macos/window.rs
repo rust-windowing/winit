@@ -12,8 +12,8 @@ use objc::declare::ClassDecl;
 
 use cocoa;
 use cocoa::base::{id, nil};
-use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
-use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask};
+use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString};
+use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask, NSWindowButton};
 
 use core_graphics::display::CGDisplay;
 
@@ -255,6 +255,11 @@ impl Drop for WindowDelegate {
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,
+    pub titlebar_transparent: bool,
+    pub title_hidden: bool,
+    pub titlebar_hidden: bool,
+    pub titlebar_buttons_hidden: bool,
+    pub fullsize_content_view: bool,
 }
 
 pub struct Window2 {
@@ -278,7 +283,7 @@ impl Drop for Window2 {
         let nswindow = *self.window;
         if nswindow != nil {
             unsafe {
-                msg_send![nswindow, close];
+                let () = msg_send![nswindow, close];
             }
         }
     }
@@ -346,7 +351,7 @@ impl Window2 {
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
-            msg_send![(*window as id),
+            let () = msg_send![(*window as id),
                 registerForDraggedTypes:NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)];
         }
 
@@ -389,27 +394,8 @@ impl Window2 {
         unsafe {
             let screen = match attrs.fullscreen {
                 Some(ref monitor_id) => {
-                    let native_id = monitor_id.inner.get_native_identifier();
-                    let matching_screen = {
-                        let screens = appkit::NSScreen::screens(nil);
-                        let count: NSUInteger = msg_send![screens, count];
-                        let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
-                        let mut matching_screen: Option<id> = None;
-                        for i in 0..count {
-                            let screen = msg_send![screens, objectAtIndex:i as NSUInteger];
-                            let device_description = appkit::NSScreen::deviceDescription(screen);
-                            let value: id = msg_send![device_description, objectForKey:*key];
-                            if value != nil {
-                                let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
-                                if screen_number as u32 == native_id {
-                                    matching_screen = Some(screen);
-                                    break;
-                                }
-                            }
-                        }
-                        matching_screen
-                    };
-                    Some(matching_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
+                    let monitor_screen = monitor_id.inner.get_nsscreen();
+                    Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
                 },
                 _ => None,
             };
@@ -423,15 +409,34 @@ impl Window2 {
 
             let masks = if screen.is_some() {
                 // Fullscreen window
-                NSWindowStyleMask::NSBorderlessWindowMask | NSWindowStyleMask::NSResizableWindowMask |
+                NSWindowStyleMask::NSBorderlessWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSTitledWindowMask
-            } else if attrs.decorations {
-                // Window2 with a titlebar
-                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
-                    NSWindowStyleMask::NSResizableWindowMask | NSWindowStyleMask::NSTitledWindowMask
-            } else {
+            } else if !attrs.decorations {
                 // Window2 without a titlebar
                 NSWindowStyleMask::NSBorderlessWindowMask
+            } else if pl_attrs.titlebar_hidden {
+                NSWindowStyleMask::NSBorderlessWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask
+            } else if !pl_attrs.titlebar_transparent {
+                // Window2 with a titlebar
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
+            } else if pl_attrs.fullsize_content_view {
+                // Window2 with a transparent titlebar and fullsize content view
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask |
+                    NSWindowStyleMask::NSFullSizeContentViewWindowMask
+            } else {
+                // Window2 with a transparent titlebar and regular content view
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
             };
 
             let window_superclass = Class::get("NSWindow").unwrap();
@@ -454,13 +459,29 @@ impl Window2 {
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
 
+                if pl_attrs.titlebar_transparent {
+                    window.setTitlebarAppearsTransparent_(YES);
+                }
+                if pl_attrs.title_hidden {
+                    window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
+                }
+                if pl_attrs.titlebar_buttons_hidden {
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowFullScreenButton);
+                    msg_send![button, setHidden:YES];
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowMiniaturizeButton);
+                    msg_send![button, setHidden:YES];
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowCloseButton);
+                    msg_send![button, setHidden:YES];
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowZoomButton);
+                    msg_send![button, setHidden:YES];
+                }
+                if pl_attrs.movable_by_window_background {
+                    window.setMovableByWindowBackground_(YES);
+                }
+
                 if !attrs.decorations {
                     window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
                     window.setTitlebarAppearsTransparent_(YES);
-                }
-
-                if pl_attrs.movable_by_window_background {
-                    window.setMovableByWindowBackground_(YES);
                 }
 
                 if screen.is_some() {
@@ -552,6 +573,20 @@ impl Window2 {
     pub fn set_inner_size(&self, width: u32, height: u32) {
         unsafe {
             NSWindow::setContentSize_(*self.window, NSSize::new(width as f64, height as f64));
+        }
+    }
+
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        unsafe {
+            let (width, height) = dimensions.unwrap_or((0, 0));
+            nswindow_set_min_dimensions(self.window.0, width.into(), height.into());
+        }
+    }
+
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        unsafe {
+            let (width, height) = dimensions.unwrap_or((!0, !0));
+            nswindow_set_max_dimensions(self.window.0, width.into(), height.into());
         }
     }
 
@@ -726,19 +761,19 @@ unsafe fn nswindow_set_max_dimensions<V: NSWindow + Copy>(
 pub struct IdRef(id);
 
 impl IdRef {
-    fn new(i: id) -> IdRef {
+    pub fn new(i: id) -> IdRef {
         IdRef(i)
     }
 
     #[allow(dead_code)]
-    fn retain(i: id) -> IdRef {
+    pub fn retain(i: id) -> IdRef {
         if i != nil {
             let _: id = unsafe { msg_send![i, retain] };
         }
         IdRef(i)
     }
 
-    fn non_nil(self) -> Option<IdRef> {
+    pub fn non_nil(self) -> Option<IdRef> {
         if self.0 == nil { None } else { Some(self) }
     }
 }

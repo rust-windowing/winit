@@ -1,9 +1,25 @@
 # Unreleased
+- Added `set_min_dimensions` and `set_max_dimensions` methods to `Window`, and implemented on Windows, X11, Wayland, and OSX.
 
-- Implement `MonitorId::get_dimensions` for Android.
+- On X11, dropping a `Window` actually closes it now, and clicking the window's × button (or otherwise having the WM signal to close it) will result in the window closing.
+- Added `WindowBuilderExt` methods for macos: `with_titlebar_transparent`,
+  `with_title_hidden`, `with_titlebar_buttons_hidden`,
+  `with_fullsize_content_view`.
+
+- Mapped X11 numpad keycodes (arrows, Home, End, PageUp, PageDown, Insert and Delete) to corresponding virtual keycodes
+
+# Version 0.11.2 (2018-03-06)
+
+- Impl `Hash`, `PartialEq`, and `Eq` for `events::ModifiersState`.
+- Implement `MonitorId::get_hidpi_factor` for MacOS.
+- Added method `os::macos::MonitorIdExt::get_nsscreen() -> *mut c_void` that gets a `NSScreen` object matching the monitor ID.
+- Send `Awakened` event on Android when event loop is woken up.
+
+# Version 0.11.1 (2018-02-19)
+
 - Fixed windows not receiving mouse events when click-dragging the mouse outside the client area of a window, on Windows platforms.
+- Added method `os::android::EventsLoopExt:set_suspend_callback(Option<Box<Fn(bool) -> ()>>)` that allows glutin to register a callback when a suspend event happens
 
-=======
 # Version 0.11.0 (2018-02-09)
 
 - Implement `MonitorId::get_dimensions` for Android.

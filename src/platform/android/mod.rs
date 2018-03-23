@@ -106,6 +106,9 @@ impl EventsLoop {
                         event: WindowEvent::Refresh,
                     })
                 }
+                android_glue::Event::Wake => {
+                    Some(Event::Awakened)
+                }
                 _ => {
                     None
                 }
@@ -243,6 +246,12 @@ impl Window {
     #[inline]
     pub fn set_position(&self, _x: i32, _y: i32) {
     }
+
+    #[inline]
+    pub fn set_min_dimensions(&self, _dimensions: Option<(u32, u32)>) { }
+
+    #[inline]
+    pub fn set_max_dimensions(&self, _dimensions: Option<(u32, u32)>) { }
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
