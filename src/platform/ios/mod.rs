@@ -307,6 +307,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_min_dimensions(&self, _dimensions: Option<(u32, u32)>) { }
+
+    #[inline]
+    pub fn set_max_dimensions(&self, _dimensions: Option<(u32, u32)>) { }
+
+    #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
         unimplemented!();
     }

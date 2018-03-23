@@ -153,6 +153,52 @@ impl Window {
         }
     }
 
+    /// See the docs in the crate root file.
+    #[inline]
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        let mut window_state = self.window_state.lock().unwrap();
+        window_state.attributes.min_dimensions = dimensions;
+
+        // Make windows re-check the window size bounds.
+        if let Some(inner_size) = self.get_inner_size() {
+            unsafe {
+                let mut rect = RECT { top: 0, left: 0, bottom: inner_size.1 as LONG, right: inner_size.0 as LONG };
+                let dw_style = winuser::GetWindowLongA(self.window.0, winuser::GWL_STYLE) as DWORD;
+                let b_menu = !winuser::GetMenu(self.window.0).is_null() as BOOL;
+                let dw_style_ex = winuser::GetWindowLongA(self.window.0, winuser::GWL_EXSTYLE) as DWORD;
+                winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
+                let outer_x = (rect.right - rect.left).abs() as raw::c_int;
+                let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
+
+                winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
+                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+            }
+        }
+    }
+
+    /// See the docs in the crate root file.
+    #[inline]
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        let mut window_state = self.window_state.lock().unwrap();
+        window_state.attributes.max_dimensions = dimensions;
+
+        // Make windows re-check the window size bounds.
+        if let Some(inner_size) = self.get_inner_size() {
+            unsafe {
+                let mut rect = RECT { top: 0, left: 0, bottom: inner_size.1 as LONG, right: inner_size.0 as LONG };
+                let dw_style = winuser::GetWindowLongA(self.window.0, winuser::GWL_STYLE) as DWORD;
+                let b_menu = !winuser::GetMenu(self.window.0).is_null() as BOOL;
+                let dw_style_ex = winuser::GetWindowLongA(self.window.0, winuser::GWL_EXSTYLE) as DWORD;
+                winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
+                let outer_x = (rect.right - rect.left).abs() as raw::c_int;
+                let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
+
+                winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
+                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+            }
+        }
+    }
+
     // TODO: remove
     pub fn platform_display(&self) -> *mut ::libc::c_void {
         panic!()        // Deprecated function ; we don't care anymore
@@ -370,7 +416,17 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
         let (width, height) = if fullscreen || window.dimensions.is_some() {
-            (Some(rect.right - rect.left), Some(rect.bottom - rect.top))
+            let min_dimensions = window.min_dimensions
+                .map(|d| (d.0 as raw::c_int, d.1 as raw::c_int))
+                .unwrap_or((0, 0));
+            let max_dimensions = window.max_dimensions
+                .map(|d| (d.0 as raw::c_int, d.1 as raw::c_int))
+                .unwrap_or((raw::c_int::max_value(), raw::c_int::max_value()));
+
+            (
+                Some((rect.right - rect.left).min(max_dimensions.0).max(min_dimensions.0)),
+                Some((rect.bottom - rect.top).min(max_dimensions.1).max(min_dimensions.1))
+            )
         } else {
             (None, None)
         };

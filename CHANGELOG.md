@@ -1,4 +1,5 @@
 # Unreleased
+- Added `set_min_dimensions` and `set_max_dimensions` methods to `Window`, and implemented on Windows, X11, Wayland, and OSX.
 
 - On X11, dropping a `Window` actually closes it now, and clicking the window's × button (or otherwise having the WM signal to close it) will result in the window closing.
 - Added `WindowBuilderExt` methods for macos: `with_titlebar_transparent`,
