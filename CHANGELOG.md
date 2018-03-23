@@ -1,6 +1,7 @@
 # Unreleased
 
 - Added subclass to macos windows so they can be made resizable even with no decorations.
+- Dead keys now work properly on X11, no longer resulting in a panic.
 
 # Version 0.11.3 (2018-03-28)
 
