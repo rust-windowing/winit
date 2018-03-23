@@ -1,5 +1,6 @@
 # Unreleased
 
+- On X11, dropping a `Window` actually closes it now, and clicking the window's × button (or otherwise having the WM signal to close it) will result in the window closing.
 - Added `WindowBuilderExt` methods for macos: `with_titlebar_transparent`,
   `with_title_hidden`, `with_titlebar_buttons_hidden`,
   `with_fullsize_content_view`.
