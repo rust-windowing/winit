@@ -13,7 +13,7 @@ use objc::declare::ClassDecl;
 use cocoa;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString};
-use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask};
+use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask, NSWindowButton};
 
 use core_graphics::display::CGDisplay;
 
@@ -255,6 +255,11 @@ impl Drop for WindowDelegate {
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,
+    pub titlebar_transparent: bool,
+    pub title_hidden: bool,
+    pub titlebar_hidden: bool,
+    pub titlebar_buttons_hidden: bool,
+    pub fullsize_content_view: bool,
 }
 
 pub struct Window2 {
@@ -278,7 +283,7 @@ impl Drop for Window2 {
         let nswindow = *self.window;
         if nswindow != nil {
             unsafe {
-                msg_send![nswindow, close];
+                let () = msg_send![nswindow, close];
             }
         }
     }
@@ -346,7 +351,7 @@ impl Window2 {
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
-            msg_send![(*window as id),
+            let () = msg_send![(*window as id),
                 registerForDraggedTypes:NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)];
         }
 
@@ -404,17 +409,37 @@ impl Window2 {
 
             let masks = if screen.is_some() {
                 // Fullscreen window
-                NSWindowStyleMask::NSBorderlessWindowMask | NSWindowStyleMask::NSResizableWindowMask |
+                NSWindowStyleMask::NSBorderlessWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSTitledWindowMask
-            } else if attrs.decorations {
-                // Window2 with a titlebar
-                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
-                    NSWindowStyleMask::NSResizableWindowMask | NSWindowStyleMask::NSTitledWindowMask
-            } else {
+            } else if !attrs.decorations {
                 // Window2 without a titlebar
-                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSFullSizeContentViewWindowMask
+            } else if pl_attrs.titlebar_hidden {
+                NSWindowStyleMask::NSBorderlessWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask
+            } else if !pl_attrs.titlebar_transparent {
+                // Window2 with a titlebar
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
+            } else if pl_attrs.fullsize_content_view {
+                // Window2 with a transparent titlebar and fullsize content view
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask |
+                    NSWindowStyleMask::NSFullSizeContentViewWindowMask
+            } else {
+                // Window2 with a transparent titlebar and regular content view
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
             };
 
             let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
@@ -429,13 +454,29 @@ impl Window2 {
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
 
+                if pl_attrs.titlebar_transparent {
+                    window.setTitlebarAppearsTransparent_(YES);
+                }
+                if pl_attrs.title_hidden {
+                    window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
+                }
+                if pl_attrs.titlebar_buttons_hidden {
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowFullScreenButton);
+                    msg_send![button, setHidden:YES];
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowMiniaturizeButton);
+                    msg_send![button, setHidden:YES];
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowCloseButton);
+                    msg_send![button, setHidden:YES];
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowZoomButton);
+                    msg_send![button, setHidden:YES];
+                }
+                if pl_attrs.movable_by_window_background {
+                    window.setMovableByWindowBackground_(YES);
+                }
+
                 if !attrs.decorations {
                     window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
                     window.setTitlebarAppearsTransparent_(YES);
-                }
-
-                if pl_attrs.movable_by_window_background {
-                    window.setMovableByWindowBackground_(YES);
                 }
 
                 if screen.is_some() {
