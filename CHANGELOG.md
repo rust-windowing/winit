@@ -14,6 +14,7 @@
   `with_title_hidden`, `with_titlebar_buttons_hidden`,
   `with_fullsize_content_view`.
 - Mapped X11 numpad keycodes (arrows, Home, End, PageUp, PageDown, Insert and Delete) to corresponding virtual keycodes
+- Fixed `Window::get_inner_size` and friends to return the size in pixels instead of points when using HIDPI displays on OSX.
 
 # Version 0.11.2 (2018-03-06)
 
