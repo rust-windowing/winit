@@ -14,6 +14,8 @@ use events::ModifiersState;
 use std::{mem, ptr, slice};
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{self, AtomicBool};
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int, c_long, c_uchar, c_uint, c_ulong};
@@ -40,6 +42,9 @@ pub struct EventsLoop {
     display: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
     dnd: Dnd,
+    ime_receiver: Receiver<(WindowId, i16, i16)>,
+    ime_sender: Sender<(WindowId, i16, i16)>,
+    ime: RefCell<HashMap<WindowId, util::Ime>>,
     windows: Arc<Mutex<HashMap<WindowId, WindowData>>>,
     devices: Mutex<HashMap<DeviceId, Device>>,
     xi2ext: XExtension,
@@ -64,6 +69,8 @@ impl EventsLoop {
 
         let dnd = Dnd::new(Arc::clone(&display))
             .expect("Failed to call XInternAtoms when initializing drag and drop");
+
+        let (ime_sender, ime_receiver) = channel();
 
         let xi2ext = unsafe {
             let mut result = XExtension {
@@ -106,6 +113,9 @@ impl EventsLoop {
             display,
             wm_delete_window,
             dnd,
+            ime_receiver,
+            ime_sender,
+            ime: RefCell::new(HashMap::new()),
             windows: Arc::new(Mutex::new(HashMap::new())),
             devices: Mutex::new(HashMap::new()),
             xi2ext,
@@ -225,17 +235,10 @@ impl EventsLoop {
                 if client_msg.data.get_long(0) as ffi::Atom == self.wm_delete_window {
                     callback(Event::WindowEvent { window_id, event: WindowEvent::Closed });
 
-                    let mut windows = self.windows.lock().unwrap();
-                    let window_data = windows.remove(&WindowId(window));
-                    let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
-                    unsafe {
-                        if let Some(window_data) = window_data {
-                            (self.display.xlib.XDestroyIC)(window_data.ic);
-                            (self.display.xlib.XCloseIM)(window_data.im);
-                            self.display.check_errors()
-                                .expect("Failed to close XIM");
+                    if let Some(_) = self.windows.lock().unwrap().remove(&WindowId(window)) {
+                        unsafe {
+                            (self.display.xlib.XDestroyWindow)(self.display.display, window);
                         }
-                        (self.display.xlib.XDestroyWindow)(self.display.display, window);
                         self.display.check_errors()
                             .expect("Failed to destroy window");
                     }
@@ -411,6 +414,14 @@ impl EventsLoop {
                 }
             }
 
+            ffi::DestroyNotify => {
+                let xev: &ffi::XDestroyWindowEvent = xev.as_ref();
+
+                let window = xev.window;
+
+                self.ime.borrow_mut().remove(&WindowId(window));
+            }
+
             ffi::Expose => {
                 let xev: &ffi::XExposeEvent = xev.as_ref();
 
@@ -474,20 +485,10 @@ impl EventsLoop {
                 }
 
                 if state == Pressed {
-                    let written = {
-                        let windows = self.windows.lock().unwrap();
-
-                        let window_data = {
-                            if let Some(window_data) = windows.get(&WindowId(window)) {
-                                window_data
-                            } else {
-                                return;
-                            }
-                        };
-
-                        unsafe {
-                            util::lookup_utf8(&self.display, window_data.ic, xkev)
-                        }
+                    let written = if let Some(ime) = self.ime.borrow().get(&WindowId(window)) {
+                        unsafe { util::lookup_utf8(&self.display, ime.ic, xkev) }
+                    } else {
+                        return;
                     };
 
                     for chr in written.chars() {
@@ -735,11 +736,8 @@ impl EventsLoop {
 
                         let window_id = mkwid(xev.event);
 
-                        let mut windows = self.windows.lock().unwrap();
-                        if let Some(window_data) = windows.get_mut(&WindowId(xev.event)) {
-                            unsafe {
-                                (self.display.xlib.XSetICFocus)(window_data.ic);
-                            }
+                        if let Some(ime) = self.ime.borrow().get(&WindowId(xev.event)) {
+                            ime.focus().expect("Failed to focus input context");
                         } else {
                             return;
                         }
@@ -766,11 +764,8 @@ impl EventsLoop {
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
 
-                        let mut windows = self.windows.lock().unwrap();
-                        if let Some(window_data) = windows.get_mut(&WindowId(xev.event)) {
-                            unsafe {
-                                (self.display.xlib.XUnsetICFocus)(window_data.ic);
-                            }
+                        if let Some(ime) = self.ime.borrow().get(&WindowId(xev.event)) {
+                            ime.unfocus().expect("Failed to unfocus input context");
                         } else {
                             return;
                         }
@@ -890,6 +885,15 @@ impl EventsLoop {
 
             _ => {}
         }
+
+        match self.ime_receiver.try_recv() {
+            Ok((window_id, x, y)) => {
+                if let Some(ime) = self.ime.borrow_mut().get_mut(&window_id) {
+                    ime.send_xim_spot(x, y);
+                }
+            }
+            Err(_) => ()
+        }
     }
 
     fn init_device(&self, device: c_int) {
@@ -983,6 +987,7 @@ pub struct Window {
     pub window: Arc<Window2>,
     display: Weak<XConnection>,
     windows: Weak<Mutex<HashMap<WindowId, WindowData>>>,
+    ime_sender: Sender<(WindowId, i16, i16)>,
 }
 
 impl ::std::ops::Deref for Window {
@@ -993,72 +998,19 @@ impl ::std::ops::Deref for Window {
     }
 }
 
-// XOpenIM doesn't seem to be thread-safe
-lazy_static! {      // TODO: use a static mutex when that's possible, and put me back in my function
-    static ref GLOBAL_XOPENIM_LOCK: Mutex<()> = Mutex::new(());
-}
-
 impl Window {
-    pub fn new(x_events_loop: &EventsLoop,
-               window: &::WindowAttributes,
-               pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Self, CreationError>
-    {
-        let win = ::std::sync::Arc::new(try!(Window2::new(&x_events_loop, window, pl_attribs)));
+    pub fn new(
+        x_events_loop: &EventsLoop,
+        window: &::WindowAttributes,
+        pl_attribs: &PlatformSpecificWindowBuilderAttributes
+    ) -> Result<Self, CreationError> {
+        let win = Arc::new(try!(Window2::new(&x_events_loop, window, pl_attribs)));
 
-        // creating IM
-        let im = unsafe {
-            let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
-
-            let mut im: ffi::XIM = ptr::null_mut();
-
-            // Setting an empty locale results in the user's XMODIFIERS environment variable being
-            // read, which should result in the user's configured input method (ibus, fcitx, etc.)
-            // being used. If that fails, we fall back to internal input methods which should
-            // always be available.
-            for modifiers in &[b"\0" as &[u8], b"@im=local\0", b"@im=\0"] {
-                if !im.is_null() {
-                    break;
-                }
-
-                (x_events_loop.display.xlib.XSetLocaleModifiers)(modifiers.as_ptr() as *const i8);
-                im = (x_events_loop.display.xlib.XOpenIM)(
-                    x_events_loop.display.display,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                );
-            }
-
-            if im.is_null() {
-                // While it's possible to make IME optional and handle this more gracefully, it's
-                // not clear in what situations the fallbacks wouldn't work. Therefore, this panic
-                // is left here so that if it ever fails, someone will hopefully tell us about it,
-                // and we'd have a better grasp of what's necessary.
-                panic!("XOpenIM failed");
-            }
-
-            im
-        };
-
-        // creating input context
-        let ic = unsafe {
-            let ic = (x_events_loop.display.xlib.XCreateIC)(im,
-                                              b"inputStyle\0".as_ptr() as *const _,
-                                              ffi::XIMPreeditNothing | ffi::XIMStatusNothing, b"clientWindow\0".as_ptr() as *const _,
-                                              win.id().0, ptr::null::<()>());
-            if ic.is_null() {
-                panic!("XCreateIC failed");
-            }
-            (x_events_loop.display.xlib.XSetICFocus)(ic);
-            x_events_loop.display.check_errors().expect("Failed to call XSetICFocus");
-            ic
-        };
+        let ime = util::Ime::new(Arc::clone(&x_events_loop.display), win.id().0)
+            .expect("Failed to initialize IME");
+        x_events_loop.ime.borrow_mut().insert(win.id(), ime);
 
         x_events_loop.windows.lock().unwrap().insert(win.id(), WindowData {
-            im: im,
-            ic: ic,
-            ic_spot: ffi::XPoint {x: 0, y: 0},
             config: None,
             multitouch: window.multitouch,
             cursor_pos: None,
@@ -1068,6 +1020,7 @@ impl Window {
             window: win,
             windows: Arc::downgrade(&x_events_loop.windows),
             display: Arc::downgrade(&x_events_loop.display),
+            ime_sender: x_events_loop.ime_sender.clone(),
         })
     }
 
@@ -1078,22 +1031,7 @@ impl Window {
 
     #[inline]
     pub fn send_xim_spot(&self, x: i16, y: i16) {
-        if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
-            let nspot = ffi::XPoint{x: x, y: y};
-            let mut windows = windows.lock().unwrap();
-            let w = windows.get_mut(&self.window.id()).unwrap();
-            if w.ic_spot.x == x && w.ic_spot.y == y {
-                return
-            }
-            w.ic_spot = nspot;
-            unsafe {
-                let preedit_attr = (display.xlib.XVaCreateNestedList)
-                    (0, b"spotLocation\0", &nspot, ptr::null::<()>());
-                (display.xlib.XSetICValues)(w.ic, b"preeditAttributes\0",
-                                            preedit_attr, ptr::null::<()>());
-                (display.xlib.XFree)(preedit_attr);
-            }
-        }
+        let _ = self.ime_sender.send((self.window.id(), x, y));
     }
 }
 
@@ -1128,9 +1066,6 @@ impl Drop for Window {
 /// State maintained for translating window-related events
 struct WindowData {
     config: Option<WindowConfig>,
-    im: ffi::XIM,
-    ic: ffi::XIC,
-    ic_spot: ffi::XPoint,
     multitouch: bool,
     cursor_pos: Option<(f64, f64)>,
 }
