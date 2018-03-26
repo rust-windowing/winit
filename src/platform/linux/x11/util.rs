@@ -98,6 +98,16 @@ pub enum GetPropertyError {
     NothingAllocated,
 }
 
+impl GetPropertyError {
+    pub fn is_actual_property_type(&self, t: ffi::Atom) -> bool {
+        if let GetPropertyError::TypeMismatch(actual_type) = *self {
+            actual_type == t
+        } else {
+            false
+        }
+    }
+}
+
 pub unsafe fn get_property<T>(
     xconn: &Arc<XConnection>,
     window: c_ulong,
@@ -297,6 +307,62 @@ pub unsafe fn lookup_utf8(
     }
 
     str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
+}
+
+
+#[derive(Debug)]
+pub struct FrameExtents {
+    pub left: c_ulong,
+    pub right: c_ulong,
+    pub top: c_ulong,
+    pub bottom: c_ulong,
+}
+
+impl FrameExtents {
+    pub fn new(left: c_ulong, right: c_ulong, top: c_ulong, bottom: c_ulong) -> Self {
+        FrameExtents { left, right, top, bottom }
+    }
+
+    pub fn from_border(border: c_ulong) -> Self {
+        Self::new(border, border, border, border)
+    }
+}
+
+#[derive(Debug)]
+pub struct WindowGeometry {
+    pub x: c_int,
+    pub y: c_int,
+    pub width: c_uint,
+    pub height: c_uint,
+    pub frame: FrameExtents,
+}
+
+impl WindowGeometry {
+    pub fn get_position(&self) -> (i32, i32) {
+        (self.x as _, self.y as _)
+    }
+
+    pub fn get_inner_position(&self) -> (i32, i32) {
+        (
+            self.x.saturating_add(self.frame.left as c_int) as _,
+            self.y.saturating_add(self.frame.top as c_int) as _,
+        )
+    }
+
+    pub fn get_inner_size(&self) -> (u32, u32) {
+        (self.width as _, self.height as _)
+    }
+
+    pub fn get_outer_size(&self) -> (u32, u32) {
+        (
+            self.width.saturating_add(
+                self.frame.left.saturating_add(self.frame.right) as c_uint
+            ) as _,
+            self.height.saturating_add(
+                self.frame.top.saturating_add(self.frame.bottom) as c_uint
+            ) as _,
+        )
+    }
 }
 
 // Important: all XIM calls need to happen from the same thread!
