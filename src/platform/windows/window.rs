@@ -11,7 +11,7 @@ use std::sync::Mutex;
 use std::sync::mpsc::channel;
 use std::cell::Cell;
 
-use platform::platform::events_loop;
+use platform::platform::events_loop::{self, DESTROY_MSG_ID};
 use platform::platform::EventsLoop;
 use platform::platform::PlatformSpecificWindowBuilderAttributes;
 use platform::platform::WindowId;
@@ -47,14 +47,14 @@ unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
 // https://blogs.msdn.microsoft.com/oldnewthing/20131017-00/?p=2903
-// The idea here is that we use the Adjust­Window­Rect­Ex function to calculate how much additional 
-// non-client area gets added due to the styles we passed. To make the math simple, 
-// we ask for a zero client rectangle, so that the resulting window is all non-client. 
-// And then we pass in the empty rectangle represented by the dot in the middle, 
-// and the Adjust­Window­Rect­Ex expands the rectangle in all dimensions. 
-// We see that it added ten pixels to the left, right, and bottom, 
+// The idea here is that we use the Adjust­Window­Rect­Ex function to calculate how much additional
+// non-client area gets added due to the styles we passed. To make the math simple,
+// we ask for a zero client rectangle, so that the resulting window is all non-client.
+// And then we pass in the empty rectangle represented by the dot in the middle,
+// and the Adjust­Window­Rect­Ex expands the rectangle in all dimensions.
+// We see that it added ten pixels to the left, right, and bottom,
 // and it added fifty pixels to the top.
-// From this we can perform the reverse calculation: Instead of expanding the rectangle, we shrink it. 
+// From this we can perform the reverse calculation: Instead of expanding the rectangle, we shrink it.
 unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> BOOL {
     let mut rc: RECT = mem::zeroed();
 
@@ -67,7 +67,7 @@ unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> B
         prc.right -= rc.right;
         prc.bottom -= rc.bottom;
     }
-    
+
     frc
 }
 
@@ -378,13 +378,13 @@ impl Window {
     pub fn set_maximized(&self, maximized: bool) {
         let mut window_state = self.window_state.lock().unwrap();
 
-        window_state.attributes.maximized = maximized;       
+        window_state.attributes.maximized = maximized;
         // we only maximized if we are not in fullscreen
         if window_state.attributes.fullscreen.is_some() {
             return;
         }
-        
-        let window = self.window.clone();        
+
+        let window = self.window.clone();
         unsafe {
             // And because ShowWindow will resize the window
             // We call it in the main thread
@@ -620,9 +620,9 @@ impl Drop for Window {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            // We are sending WM_CLOSE, and our callback will process this by calling DefWindowProcW,
-            // which in turn will send a WM_DESTROY.
-            winuser::PostMessageW(self.window.0, winuser::WM_CLOSE, 0, 0);
+            // The window must be destroyed from the same thread that created it, so we send a
+            // custom message to be handled by our callback to do the actual work.
+            winuser::PostMessageW(self.window.0, *DESTROY_MSG_ID, 0, 0);
         }
     }
 }
@@ -770,7 +770,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
 
         dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
     }
-    
+
     let win = Window {
         window: real_window,
         window_state: window_state,
@@ -784,7 +784,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     }
 
     inserter.insert(win.window.0, win.window_state.clone());
-    
+
     Ok(win)
 }
 
@@ -824,7 +824,7 @@ impl Drop for ComInitialized {
     }
 }
 
-thread_local!{    
+thread_local!{
     static COM_INITIALIZED: ComInitialized = {
         unsafe {
             combaseapi::CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED);
@@ -871,7 +871,7 @@ mod taskbar {
         fn MarkFullscreenWindow(
             hwnd: HWND,
             fFullscreen: BOOL,
-        ) -> HRESULT,    
+        ) -> HRESULT,
     });
 }
 

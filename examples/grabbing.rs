@@ -28,7 +28,7 @@ fn main() {
                         }
                     },
 
-                    WindowEvent::Closed => return ControlFlow::Break,
+                    WindowEvent::CloseRequested => return ControlFlow::Break,
 
                     a @ WindowEvent::CursorMoved { .. } => {
                         println!("{:?}", a);

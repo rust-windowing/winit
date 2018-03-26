@@ -51,12 +51,12 @@
 //!  - applicationWillResignActive is Focused(false)
 //!  - applicationDidEnterBackground is Suspended(true)
 //!  - applicationWillEnterForeground is Suspended(false)
-//!  - applicationWillTerminate is Closed
+//!  - applicationWillTerminate is Destroyed
 //!
-//! Keep in mind that after Closed event is received every attempt to draw with
+//! Keep in mind that after Destroyed event is received every attempt to draw with
 //! opengl will result in segfault.
 //!
-//! Also note that app will not receive Closed event if suspended, it will be SIGKILL'ed
+//! Also note that app will not receive Destroyed event if suspended, it will be SIGKILL'ed
 
 #![cfg(target_os = "ios")]
 
@@ -459,7 +459,7 @@ fn create_delegate_class() {
             // immidiatly after jump
             state.events_queue.push_front(Event::WindowEvent {
                 window_id: RootEventId(WindowId),
-                event: WindowEvent::Closed,
+                event: WindowEvent::Destroyed,
             });
             longjmp(mem::transmute(&mut jmpbuf),1);
         }

@@ -165,7 +165,17 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-                emit_event(state, WindowEvent::Closed);
+                emit_event(state, WindowEvent::CloseRequested);
+            }
+            NO
+        }
+
+        extern fn window_will_close(this: &Object, _: Sel, _: id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+
+                emit_event(state, WindowEvent::Destroyed);
 
                 // Remove the window from the shared state.
                 if let Some(shared) = state.shared.upgrade() {
@@ -173,7 +183,6 @@ impl WindowDelegate {
                     shared.find_and_remove_window(window_id);
                 }
             }
-            YES
         }
 
         extern fn window_did_resize(this: &Object, _: Sel, _: id) {
@@ -294,7 +303,7 @@ impl WindowDelegate {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 state.win_attribs.borrow_mut().fullscreen = Some(get_current_monitor());
-                
+
                 state.handle_with_fullscreen = false;
             }
         }
@@ -323,7 +332,7 @@ impl WindowDelegate {
         /// Invoked when fail to enter fullscreen
         ///
         /// When this window launch from a fullscreen app (e.g. launch from VS Code
-        /// terminal), it creates a new virtual destkop and a transition animation. 
+        /// terminal), it creates a new virtual destkop and a transition animation.
         /// This animation takes one second and cannot be disable without
         /// elevated privileges. In this animation time, all toggleFullscreen events
         /// will be failed. In this implementation, we will try again by using
@@ -342,10 +351,10 @@ impl WindowDelegate {
                 let state = &mut *(state as *mut DelegateState);
 
                 if state.handle_with_fullscreen {
-                    let _: () = msg_send![*state.window, 
+                    let _: () = msg_send![*state.window,
                         performSelector:sel!(toggleFullScreen:)
                         withObject:nil
-                        afterDelay: 0.5                        
+                        afterDelay: 0.5
                     ];
                 } else {
                     state.restore_state_from_fullscreen();
@@ -364,6 +373,8 @@ impl WindowDelegate {
             // Add callback methods
             decl.add_method(sel!(windowShouldClose:),
                 window_should_close as extern fn(&Object, Sel, id) -> BOOL);
+            decl.add_method(sel!(windowWillClose:),
+                window_will_close as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidResize:),
                 window_did_resize as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidChangeScreen:),
@@ -396,7 +407,7 @@ impl WindowDelegate {
                 window_did_exit_fullscreen as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidFailToEnterFullScreen:),
                 window_did_fail_to_enter_fullscreen as extern fn(&Object, Sel, id));
-            
+
             // Store internal state as user data
             decl.add_ivar::<*mut c_void>("winitState");
 
@@ -468,12 +479,6 @@ unsafe fn get_current_monitor() -> RootMonitorId {
 
 impl Drop for Window2 {
     fn drop(&mut self) {
-        // Remove this window from the `EventLoop`s list of windows.
-        let id = self.id();
-        if let Some(shared) = self.delegate.state.shared.upgrade() {
-            shared.find_and_remove_window(id);
-        }
-
         // Close the window if it has not yet been closed.
         let nswindow = *self.window;
         if nswindow != nil {
@@ -652,7 +657,7 @@ impl Window2 {
                         NSWindowStyleMask::NSMiniaturizableWindowMask |
                         NSWindowStyleMask::NSResizableWindowMask |
                         NSWindowStyleMask::NSTitledWindowMask
-                }    
+                }
             };
 
             let winit_window = Class::get("WinitWindow").unwrap_or_else(|| {
@@ -966,14 +971,14 @@ impl Window2 {
     pub fn set_decorations(&self, decorations: bool) {
         let state = &self.delegate.state;
         let mut win_attribs = state.win_attribs.borrow_mut();
-        
+
         if win_attribs.decorations == decorations {
             return;
         }
 
         win_attribs.decorations = decorations;
 
-        // Skip modifiy if we are in fullscreen mode, 
+        // Skip modifiy if we are in fullscreen mode,
         // window_did_exit_fullscreen will handle it
         if win_attribs.fullscreen.is_some() {
             return;

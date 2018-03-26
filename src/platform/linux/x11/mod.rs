@@ -245,15 +245,7 @@ impl EventsLoop {
                 let window_id = mkwid(window);
 
                 if client_msg.data.get_long(0) as ffi::Atom == self.wm_delete_window {
-                    callback(Event::WindowEvent { window_id, event: WindowEvent::Closed });
-
-                    if let Some(_) = self.windows.lock().unwrap().remove(&WindowId(window)) {
-                        unsafe {
-                            (self.display.xlib.XDestroyWindow)(self.display.display, window);
-                        }
-                        self.display.check_errors()
-                            .expect("Failed to destroy window");
-                    }
+                    callback(Event::WindowEvent { window_id, event: WindowEvent::CloseRequested });
                 } else if client_msg.message_type == self.dnd.atoms.enter {
                     let source_window = client_msg.data.get_long(0) as c_ulong;
                     let flags = client_msg.data.get_long(1);
@@ -430,11 +422,20 @@ impl EventsLoop {
                 let xev: &ffi::XDestroyWindowEvent = xev.as_ref();
 
                 let window = xev.window;
+                let window_id = mkwid(window);
 
+                // In the event that the window's been destroyed without being dropped first, we
+                // cleanup again here.
+                self.windows.lock().unwrap().remove(&WindowId(window));
+
+                // Since all XIM stuff needs to happen from the same thread, we destroy the input
+                // context here instead of when dropping the window.
                 self.ime
                     .borrow_mut()
                     .remove_context(window)
                     .expect("Failed to destroy input context");
+
+                callback(Event::WindowEvent { window_id, event: WindowEvent::Destroyed });
             }
 
             ffi::Expose => {
@@ -1056,27 +1057,12 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
-            // It's possible for the Window object to outlive the actual window, so we need to
-            // check for that, lest the program explode with BadWindow errors soon after this.
-            let window_closed = windows
-                .lock()
-                .unwrap()
-                .get(&self.window.id())
-                .is_none();
-            if !window_closed { unsafe {
-                let wm_protocols_atom = util::get_atom(&display, b"WM_PROTOCOLS\0")
-                    .expect("Failed to call XInternAtom (WM_PROTOCOLS)");
-                let wm_delete_atom = util::get_atom(&display, b"WM_DELETE_WINDOW\0")
-                    .expect("Failed to call XInternAtom (WM_DELETE_WINDOW)");
-                util::send_client_msg(
-                    &display,
-                    self.window.id().0,
-                    self.window.id().0,
-                    wm_protocols_atom,
-                    None,
-                    (wm_delete_atom as _, ffi::CurrentTime as _, 0, 0, 0),
-                ).expect("Failed to send window deletion message");
-            } }
+            if let Some(_) = windows.lock().unwrap().remove(&self.window.id()) {
+                unsafe {
+                    (display.xlib.XDestroyWindow)(display.display, self.window.id().0);
+                    display.check_errors().expect("Failed to destroy window");
+                }
+            }
         }
     }
 }

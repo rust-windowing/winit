@@ -335,8 +335,11 @@ impl EventsLoop {
         {
             let mut cleanup_needed = self.cleanup_needed.lock().unwrap();
             if *cleanup_needed {
-                evq.state().get_mut(&self.store).cleanup();
+                let pruned = evq.state().get_mut(&self.store).cleanup();
                 *cleanup_needed = false;
+                for wid in pruned {
+                    sink.send_event(::WindowEvent::Destroyed, wid);
+                }
             }
         }
         // process pending resize/refresh
@@ -355,7 +358,7 @@ impl EventsLoop {
                     sink.send_event(::WindowEvent::Refresh, wid);
                 }
                 if closed {
-                    sink.send_event(::WindowEvent::Closed, wid);
+                    sink.send_event(::WindowEvent::CloseRequested, wid);
                 }
             }
         )

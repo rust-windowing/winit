@@ -22,7 +22,7 @@ fn main() {
                     cursor_idx = 0;
                 }
             },
-            Event::WindowEvent { event: WindowEvent::Closed, .. } => {
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 return ControlFlow::Break;
             },
             _ => ()
