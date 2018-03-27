@@ -439,13 +439,16 @@ impl Window2 {
                     NSWindowStyleMask::NSTitledWindowMask
             };
 
-            let window_superclass = Class::get("NSWindow").unwrap();
-            let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
-            decl.add_method(sel!(canBecomeMainWindow), yes as extern fn(&Object, Sel) -> BOOL);
-            decl.add_method(sel!(canBecomeKeyWindow), yes as extern fn(&Object, Sel) -> BOOL);
-            decl.register();
+            let winit_window = Class::get("WinitWindow").unwrap_or_else(|| {
+                let window_superclass = Class::get("NSWindow").unwrap();
+                let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
+                decl.add_method(sel!(canBecomeMainWindow), yes as extern fn(&Object, Sel) -> BOOL);
+                decl.add_method(sel!(canBecomeKeyWindow), yes as extern fn(&Object, Sel) -> BOOL);
+                decl.register();
+                Class::get("WinitWindow").unwrap()
+            });
 
-            let window: id = msg_send![Class::get("WinitWindow").unwrap(), alloc];
+            let window: id = msg_send![winit_window, alloc];
 
             let window = IdRef::new(window.initWithContentRect_styleMask_backing_defer_(
                 frame,
