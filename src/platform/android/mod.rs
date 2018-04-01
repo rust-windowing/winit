@@ -3,7 +3,10 @@
 extern crate android_glue;
 extern crate jni;
 
-use libc::c_void;
+use platform::platform::android_glue;
+use platform::platform::jni;
+
+use std::os::raw::c_void;
 
 use {CreationError, Event, WindowEvent, MouseCursor};
 use CreationError::OsError;
@@ -14,7 +17,6 @@ use window::MonitorId as RootMonitorId;
 use std::collections::VecDeque;
 use std::cell::RefCell;
 use std::sync::mpsc::{Receiver, channel};
-use std::os::raw::c_void;
 
 use jni::errors::Error as JNIError;
 
@@ -107,8 +109,8 @@ impl EventsLoop {
                     if native_window.is_null() {
                         None
                     } else {
-                        let w = unsafe { ffi::ANativeWindow_getWidth(native_window as *const _) } as u32;
-                        let h = unsafe { ffi::ANativeWindow_getHeight(native_window as *const _) } as u32;
+                        let w = unsafe { ANativeWindow_getWidth(native_window as *const _) } as u32;
+                        let h = unsafe { ANativeWindow_getHeight(native_window as *const _) } as u32;
                         Some(Event::WindowEvent {
                             window_id: RootWindowId(WindowId),
                             event: WindowEvent::Resized(w, h),
@@ -218,11 +220,14 @@ impl MonitorId {
 
     fn get_physical_extents_inner(&self) -> Result<(u64, u64), JNIError> {
 
+        use jni::signature::TypeSignature;
+        use jni::JavaVM;
+        use jni::objects::JValue;
+
         // Java code: DisplayMetrics metrics = new DisplayMetrics();
         // getWindowManager().getDefaultDisplay().getMetrics(metrics);
-
-        let env = jni::JavaVM::get_env()?;
-        let env_guard = env.attach_current_thread()?;
+        let app = get_app();
+        let env_guard = unsafe { app.activity.vm.attach_current_thread()? };
 
         let activity_class = env_guard.find_class("android/app/NativeActivity")?;
         let window_manager_class = env_guard.find_class("android/view/WindowManager")?;
@@ -233,7 +238,7 @@ impl MonitorId {
         let get_window_manager = env_guard.get_method_id(activity_class, "getWindowManager", "()Landroid/view/WindowManager;")?;
         let get_window_manager_type_signature = TypeSignature::from_str("()Landroid/view/WindowManager;")?;
         let wm = unsafe { env_guard.call_method_unsafe(
-            get_app().clazz, 
+            app.clazz, 
             get_window_manager, 
             get_window_manager_type_signature.ret, 
             get_window_manager_type_signature.args)?
@@ -346,8 +351,8 @@ impl Window {
             None
         } else {
             Some((
-                unsafe { ffi::ANativeWindow_getWidth(self.native_window as *const _) } as u32,
-                unsafe { ffi::ANativeWindow_getHeight(self.native_window as *const _) } as u32
+                unsafe { ANativeWindow_getWidth(self.native_window as *const _) } as u32,
+                unsafe { ANativeWindow_getHeight(self.native_window as *const _) } as u32
             ))
         }
     }
