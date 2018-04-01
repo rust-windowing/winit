@@ -47,6 +47,11 @@ impl MonitorId {
     pub fn get_hidpi_factor(&self) -> f32 {
         1.0
     }
+
+    #[inline]
+    pub fn get_physical_extents(&self) -> (u64, u64) {
+        (0, 0)
+    }
 }
 
 // Used to assign a callback to emscripten main loop

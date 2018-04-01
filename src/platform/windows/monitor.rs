@@ -33,6 +33,9 @@ pub struct MonitorId {
 
     /// DPI scaling factor.
     hidpi_factor: f32,
+
+    /// The physical extents of the screen, in millimeter
+    extents_mm: (u64, u64),
 }
 
 // Send is not implemented for HMONITOR, we have to wrap it and implement it manually.
@@ -50,12 +53,13 @@ fn wchar_as_string(wchar: &[wchar_t]) -> String {
         .to_string()
 }
 
-unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, _: HDC, place: LPRECT, data: LPARAM) -> BOOL {
+unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, hdc: HDC, place: LPRECT, data: LPARAM) -> BOOL {
     let monitors = data as *mut VecDeque<MonitorId>;
 
     let place = *place;
     let position = (place.left as i32, place.top as i32);
     let dimensions = ((place.right - place.left) as u32, (place.bottom - place.top) as u32);
+    let physical_size = get_monitor_width_height(hdc).unwrap_or(0, 0);
 
     let mut monitor_info: winuser::MONITORINFOEXW = mem::zeroed();
     monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
@@ -72,10 +76,21 @@ unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, _: HDC, place: L
         position,
         dimensions,
         hidpi_factor: 1.0,
+        extents_mm: physical_size,
     });
 
     // TRUE means continue enumeration.
     TRUE
+}
+
+fn get_monitor_width_height(hdc: HDC) -> Option<(u64, u64)> {
+    if winuser::SetProcessDPIAware() == 0 {
+        return None;
+    }
+
+    let x_dpi = winuser::GetDeviceCaps(hdc, winuser::LOGPIXELSX);
+    let y_dpi = winuser::GetDeviceCaps(hdc, winuser::LOGPIXELSY);
+    Some(((screen_res as f32 / dpi_x as f32) as u64, (screen_res as f32 / dpi_y as f32) as u64))
 }
 
 impl EventsLoop {
@@ -143,5 +158,10 @@ impl MonitorId {
     #[inline]
     pub fn get_hidpi_factor(&self) -> f32 {
         self.hidpi_factor
+    }
+
+    #[inline]
+    pub fn get_physical_extents(&self) -> (u64, u64) {
+        self.extents_mm
     }
 }
