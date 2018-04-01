@@ -159,8 +159,8 @@ impl MonitorId {
                 let state: *mut c_void = *(&*delegate).get_ivar("glutinState");
                 let state = state as *mut DelegateState;
                 let scale = (*state).scale;
-                let width = (*state).width;
-                let height = (*state).height;
+                let width = (*state).size.0;
+                let height = (*state).size.1;
                 ((width as f32 * scale) as u64, (height as f32 * scale) as u64)
             } else {
                 (0, 0)

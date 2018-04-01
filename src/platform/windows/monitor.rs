@@ -59,7 +59,7 @@ unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, hdc: HDC, place:
     let place = *place;
     let position = (place.left as i32, place.top as i32);
     let dimensions = ((place.right - place.left) as u32, (place.bottom - place.top) as u32);
-    let physical_size = get_monitor_width_height(hdc, dimensions).unwrap_or(0, 0);
+    let physical_size = get_monitor_width_height(hdc, dimensions).unwrap_or((0, 0));
 
     let mut monitor_info: winuser::MONITORINFOEXW = mem::zeroed();
     monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
@@ -90,6 +90,7 @@ fn get_monitor_width_height(hdc: HDC, dimensions: (u32, u32)) -> Option<(u64, u6
     use winapi::shared::winerror::S_OK;
     use winapi::um::wingdi::GetDeviceCaps;
     use winapi::um::wingdi::{LOGPIXELSX, LOGPIXELSY};
+    use std::os::windows::raw::HANDLE;
     use std::ptr;
 
     let mut dpi_awareness = PROCESS_DPI_UNAWARE;
@@ -111,7 +112,7 @@ fn get_monitor_width_height(hdc: HDC, dimensions: (u32, u32)) -> Option<(u64, u6
         if SetProcessDpiAwareness(dpi_awareness) != S_OK {
             return None;
         }
-        
+
         let screen_width = dimensions.0 as f32;
         let screen_height = dimensions.1  as f32;
 
