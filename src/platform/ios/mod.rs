@@ -152,17 +152,19 @@ impl MonitorId {
     }
 
     pub fn get_physical_extents(&self) -> (u64, u64) {
-        if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
-            let app: id = msg_send![Class::get("UIApplication").unwrap(), sharedApplication];
-            let delegate: id = msg_send![app, delegate];
-            let state: *mut c_void = *(&*delegate).get_ivar("glutinState");
-            let state = state as *mut DelegateState;
-            let scale = state.scale;
-            let width = state.width;
-            let height = state.height;
-            ((width as f32 * scale) as u64, (height as f32 * scale) as u64)
-        } else {
-            (0, 0)
+        unsafe {
+            if setjmp(mem::transmute(&mut jmpbuf)) != 0 {
+                let app: id = msg_send![Class::get("UIApplication").unwrap(), sharedApplication];
+                let delegate: id = msg_send![app, delegate];
+                let state: *mut c_void = *(&*delegate).get_ivar("glutinState");
+                let state = state as *mut DelegateState;
+                let scale = (*state).scale;
+                let width = (*state).width;
+                let height = (*state).height;
+                ((width as f32 * scale) as u64, (height as f32 * scale) as u64)
+            } else {
+                (0, 0)
+            }
         }
     }
 }

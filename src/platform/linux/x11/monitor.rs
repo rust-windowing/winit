@@ -54,7 +54,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                     dimensions: (monitor.width as u32, monitor.height as u32),
                     position: (monitor.x as i32, monitor.y as i32),
                     primary: (monitor.primary != 0),
-                    extents_mm: (x_mm, y_mm),
+                    extents_mm: (x_mm as u64, y_mm as u64),
                 });
             }
             (xrandr_1_5.XRRFreeMonitors)(monitors);
@@ -89,7 +89,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                         dimensions: ((*crtc).width as u32, (*crtc).height as u32),
                         position: ((*crtc).x as i32, (*crtc).y as i32),
                         primary: true,
-                        extents_mm: (x_mm, y_mm),
+                        extents_mm: (x_mm as u64, y_mm as u64),
                     });
                 }
                 (x.xrandr.XRRFreeCrtcInfo)(crtc);
