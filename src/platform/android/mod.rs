@@ -3,10 +3,7 @@
 extern crate android_glue;
 extern crate jni;
 
-use platform::platform::android_glue;
-use platform::platform::jni;
-
-use std::os::raw::c_void;
+use libc::c_void;
 
 use {CreationError, Event, WindowEvent, MouseCursor};
 use CreationError::OsError;
@@ -18,12 +15,12 @@ use std::collections::VecDeque;
 use std::cell::RefCell;
 use std::sync::mpsc::{Receiver, channel};
 
-use jni::errors::Error as JNIError;
+use platform::platform::jni::errors::Error as JNIError;
 
 use CursorState;
 use WindowAttributes;
 
-use android_glue::ffi::{ 
+use platform::platform::android_glue::ffi::{ 
     ANativeWindow_getHeight, 
     ANativeWindow_getWidth,
     get_native_window,
@@ -220,9 +217,9 @@ impl MonitorId {
 
     fn get_physical_extents_inner(&self) -> Result<(u64, u64), JNIError> {
 
-        use jni::signature::TypeSignature;
-        use jni::JavaVM;
-        use jni::objects::JValue;
+        use platform::platform::jni::signature::TypeSignature;
+        use platform::platform::jni::JavaVM;
+        use platform::platform::jni::objects::JValue;
 
         // Java code: DisplayMetrics metrics = new DisplayMetrics();
         // getWindowManager().getDefaultDisplay().getMetrics(metrics);
