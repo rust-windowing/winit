@@ -509,7 +509,7 @@ fn output_impl() -> wl_output::Implementation<StateToken<StateContext>> {
                 if guard.output.equals(output) {
                     guard.pix_pos = (x, y);
                     guard.name = format!("{} - {}", make, model);
-                    guard.extents_mm = (physical_width as u64, physical_height as u64);
+                    guard.extents_mm = Some((physical_width as u64, physical_height as u64));
                     return;
                 }
             }
@@ -547,7 +547,7 @@ pub struct OutputInfo {
     pub pix_size: (u32, u32),
     pub pix_pos: (i32, i32),
     pub name: String,
-    pub extents_mm: (u64, u64),
+    pub extents_mm: Option<(u64, u64)>,
 }
 
 impl OutputInfo {
@@ -559,7 +559,7 @@ impl OutputInfo {
             pix_size: (0, 0),
             pix_pos: (0, 0),
             name: "".into(),
-            extents_mm: (0, 0),
+            extents_mm: None,
         }
     }
 }
@@ -596,7 +596,7 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_physical_extents(&self) -> (u64, u64) {
+    pub fn get_physical_extents(&self) -> Option<(u64, u64)> {
         self.info.lock().unwrap().extents_mm
     }
 }

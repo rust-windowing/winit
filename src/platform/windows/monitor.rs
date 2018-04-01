@@ -35,7 +35,7 @@ pub struct MonitorId {
     hidpi_factor: f32,
 
     /// The physical extents of the screen, in millimeter
-    extents_mm: (u64, u64),
+    extents_mm: Option<(u64, u64)>,
 }
 
 // Send is not implemented for HMONITOR, we have to wrap it and implement it manually.
@@ -59,7 +59,7 @@ unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, hdc: HDC, place:
     let place = *place;
     let position = (place.left as i32, place.top as i32);
     let dimensions = ((place.right - place.left) as u32, (place.bottom - place.top) as u32);
-    let physical_size = get_monitor_width_height(hdc, dimensions).unwrap_or((0, 0));
+    let physical_size = get_monitor_width_height(hdc, dimensions);
 
     let mut monitor_info: winuser::MONITORINFOEXW = mem::zeroed();
     monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
@@ -102,6 +102,8 @@ fn get_monitor_width_height(hdc: HDC, dimensions: (u32, u32)) -> Option<(u64, u6
         }
 
         if SetProcessDpiAwareness(PROCESS_SYSTEM_DPI_AWARE) != S_OK {
+            // couldn't set to the required DPI awareness, reset and quit
+            let _ = SetProcessDpiAwareness(dpi_awareness);
             return None;
         }
 
@@ -188,7 +190,7 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_physical_extents(&self) -> (u64, u64) {
+    pub fn get_physical_extents(&self) -> Option<(u64, u64)> {
         self.extents_mm
     }
 }

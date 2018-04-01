@@ -403,8 +403,13 @@ impl MonitorId {
     }
 
     /// Returns the physical extents of the monitor in millimeter `(x_mm, y_mm)`
+    /// Always returns `None` on the emscripten target. 
+    /// Currently untested on android, it may even result in compile failures
+    ///
+    /// **NOTE:** While you can calculate the monitors real DPI from this, you 
+    /// shouldn't do this and rather respect what the window manager gives you.
     #[inline]
-    pub fn get_physical_extents(&self) -> (u64, u64) {
+    pub fn get_physical_extents(&self) -> Option<(u64, u64)> {
         self.inner.get_physical_extents()
     }
 }

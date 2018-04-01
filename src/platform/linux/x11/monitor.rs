@@ -135,7 +135,7 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_physical_extents(&self) -> (u64, u64) {
-        self.extents_mm
+    pub fn get_physical_extents(&self) -> Option<(u64, u64)> {
+        Some(self.extents_mm)
     }
 }
