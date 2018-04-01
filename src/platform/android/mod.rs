@@ -1,9 +1,10 @@
 #![cfg(target_os = "android")]
 
 extern crate android_glue;
-extern crate jni;
+// extern crate jni;
 
 use libc::c_void;
+use std::os::raw::c_void as rawc_void;
 
 use {CreationError, Event, WindowEvent, MouseCursor};
 use CreationError::OsError;
@@ -15,22 +16,16 @@ use std::collections::VecDeque;
 use std::cell::RefCell;
 use std::sync::mpsc::{Receiver, channel};
 
-use platform::platform::jni::errors::Error as JNIError;
+// use platform::platform::jni::errors::Error as JNIError;
 
 use CursorState;
 use WindowAttributes;
 
-use platform::platform::android_glue::ffi::{ 
+mod ffi;
+use self::ffi::{ 
     ANativeWindow_getHeight, 
     ANativeWindow_getWidth,
-    get_native_window,
-    get_app,
 };
-
-#[link(name = "android")]
-#[link(name = "EGL")]
-#[link(name = "GLESv2")]
-extern {}
 
 pub struct EventsLoop {
     event_rx: Receiver<android_glue::Event>,
@@ -102,7 +97,7 @@ impl EventsLoop {
                 android_glue::Event::WindowResized |
                 android_glue::Event::ConfigChanged => {
                     // Activity Orientation changed or resized.
-                    let native_window = unsafe { get_native_window() };
+                    let native_window = unsafe { android_glue::get_native_window() };
                     if native_window.is_null() {
                         None
                     } else {
@@ -176,7 +171,7 @@ pub struct WindowId;
 pub struct DeviceId;
 
 pub struct Window {
-    native_window: *const c_void,
+    native_window: *const rawc_void,
 }
 
 #[derive(Clone)]
@@ -191,7 +186,7 @@ impl MonitorId {
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         unsafe {
-            let window = get_native_window();
+            let window = android_glue::get_native_window();
             (ANativeWindow_getWidth(window) as u32, ANativeWindow_getHeight(window) as u32)
         }
     }
@@ -208,17 +203,23 @@ impl MonitorId {
     }
 
     pub fn get_physical_extents(&self) -> Option<(u64, u64)> {
+        // The android_glue crate does not yet allow any interaction with the JNI.
+        // Once https://github.com/tomaka/android-rs-glue/pull/116 has landed, just uncomment 
+        // the code below.
+        None
+
+        /*
         self.get_physical_extents_inner().map_err(|e| {            
             println!("[ERROR] [winit::android::get_physical_extents] - {}:\r\nbacktrace:\r\n{:?}", 
                 e.description(), e.backtrace()); 
             e
         }).ok()
+        */
     }
-
+/*
     fn get_physical_extents_inner(&self) -> Result<(u64, u64), JNIError> {
 
         use platform::platform::jni::signature::TypeSignature;
-        use platform::platform::jni::JavaVM;
         use platform::platform::jni::objects::JValue;
 
         // Java code: DisplayMetrics metrics = new DisplayMetrics();
@@ -282,6 +283,7 @@ impl MonitorId {
         // pixels per inch = pixel per 25.4 mm
         Ok(((width_pixels as f32 / xdpi) as u64, (height_pixels as f32 / ydpi) as u64))
     }
+*/
 }
 
 #[derive(Clone, Default)]
@@ -298,7 +300,7 @@ impl Window {
         assert!(win_attribs.min_dimensions.is_none());
         assert!(win_attribs.max_dimensions.is_none());
 
-        let native_window = unsafe { get_native_window() };
+        let native_window = unsafe { android_glue::get_native_window() };
         if native_window.is_null() {
             return Err(OsError(format!("Android's native window is null")));
         }
@@ -311,7 +313,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_native_window(&self) -> *const c_void {
+    pub fn get_native_window(&self) -> *const rawc_void {
         self.native_window
     }
 
