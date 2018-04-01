@@ -1,10 +1,10 @@
 #![cfg(target_os = "android")]
 
 extern crate android_glue;
+extern crate jni;
 
-use libc;
-use std::sync::mpsc::{Receiver, channel};
-use std::os::raw::c_void;
+use libc::c_void;
+
 use {CreationError, Event, WindowEvent, MouseCursor};
 use CreationError::OsError;
 use WindowId as RootWindowId;
@@ -13,9 +13,23 @@ use window::MonitorId as RootMonitorId;
 
 use std::collections::VecDeque;
 use std::cell::RefCell;
+use std::sync::mpsc::{Receiver, channel};
+use std::os::raw::c_void;
 
 use CursorState;
 use WindowAttributes;
+
+use android_glue::ffi::{ 
+    ANativeWindow_getHeight, 
+    ANativeWindow_getWidth,
+    get_native_window,
+    get_app,
+};
+
+#[link(name = "android")]
+#[link(name = "EGL")]
+#[link(name = "GLESv2")]
+extern {}
 
 pub struct EventsLoop {
     event_rx: Receiver<android_glue::Event>,
@@ -87,7 +101,7 @@ impl EventsLoop {
                 android_glue::Event::WindowResized |
                 android_glue::Event::ConfigChanged => {
                     // Activity Orientation changed or resized.
-                    let native_window = unsafe { android_glue::get_native_window() };
+                    let native_window = unsafe { get_native_window() };
                     if native_window.is_null() {
                         None
                     } else {
@@ -167,8 +181,6 @@ pub struct Window {
 #[derive(Clone)]
 pub struct MonitorId;
 
-mod ffi;
-
 impl MonitorId {
     #[inline]
     pub fn get_name(&self) -> Option<String> {
@@ -178,8 +190,8 @@ impl MonitorId {
     #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         unsafe {
-            let window = android_glue::get_native_window();
-            (ffi::ANativeWindow_getWidth(window) as u32, ffi::ANativeWindow_getHeight(window) as u32)
+            let window = get_native_window();
+            (ANativeWindow_getWidth(window) as u32, ANativeWindow_getHeight(window) as u32)
         }
     }
 
@@ -192,6 +204,71 @@ impl MonitorId {
     #[inline]
     pub fn get_hidpi_factor(&self) -> f32 {
         1.0
+    }
+
+    pub fn get_physical_extents(&self) -> (u64, u64) {
+
+        // Java code: DisplayMetrics metrics = new DisplayMetrics();
+        // getWindowManager().getDefaultDisplay().getMetrics(metrics);
+
+        let env = jni::JavaVM::get_env().unwrap();
+        let env_guard = env.attach_current_thread().unwrap();
+
+        let activity_class = env_guard.find_class("android/app/NativeActivity").unwrap();
+        let window_manager_class = env_guard.find_class("android/view/WindowManager").unwrap();
+        let display_class = env_guard.find_class("android/view/Display").unwrap();
+        let display_metrics_class = env_guard.find_class("android/util/DisplayMetrics").unwrap();
+
+        // getWindowManager();
+        let get_window_manager = env_guard.get_method_id(activity_class, "getWindowManager", "()Landroid/view/WindowManager;").unwrap();
+        let get_window_manager_type_signature = TypeSignature::from_str("()Landroid/view/WindowManager;").unwrap();
+        let wm = unsafe { env_guard.call_method_unsafe(
+            get_app().clazz, 
+            get_window_manager, 
+            get_window_manager_type_signature.ret, 
+            get_window_manager_type_signature.args).unwrap()
+        };
+
+        // getDefaultDisplay();
+        let get_default_display = env_guard.get_method_id(window_manager_class, "getDefaultDisplay", "()Landroid/view/Display;").unwrap();
+        let get_default_display_type_signature = TypeSignature::from_str("()Landroid/view/Display;").unwrap();
+        let display = unsafe { env_guard.call_method_unsafe(
+            wm, 
+            get_default_display, 
+            get_default_display_type_signature.ret, 
+            get_default_display_type_signature.args).unwrap()
+        };
+
+        // DisplayMetrics metrics = new DisplayMetrics();
+        let display_metrics_constructor = env_guard.get_method_id(display_metrics_class, "<init>", "()V").unwrap();
+        let display_metrics = env_guard.new_object(display_metrics_class, display_metrics_constructor, &[]).unwrap();
+
+        // getMetrics(metrics);
+        let get_metrics = env_guard.get_method_id(display_class, "getMetrics", "(Landroid/util/DisplayMetrics;)V").unwrap();
+        let get_metrics_signature = TypeSignature::from_str("(Landroid/util/DisplayMetrics;)V").unwrap();
+        unsafe { env_guard.call_method_unsafe(
+                    display, 
+                    get_metrics, 
+                    get_metrics_signature.ret, 
+                    &[JValue::Object(display_metrics)]).unwrap()
+        };
+
+        // display_metrics.heightPixels <int>
+        let height_pixels = env_guard.get_field(display_metrics, "heightPixels", "I").unwrap();
+        // display_metrics.widthPixels  <int>
+        let width_pixels = env_guard.get_field(display_metrics, "widthPixels", "I").unwrap();
+        // display_metrics.xdpi         <float>
+        let xdpi = env_guard.get_field(display_metrics, "xdpi", "F").unwrap();
+        // display_metrics.ydpi         <float>
+        let ydpi = env_guard.get_field(display_metrics, "ydpi", "F").unwrap();
+
+        let height_pixels = height_pixels.i().unwrap();
+        let width_pixels = width_pixels.i().unwrap();
+        let xdpi = xdpi.f().unwrap();
+        let ydpi = ydpi.f().unwrap();
+        
+        // pixels per inch = pixel per 25.4 mm
+        ((width_pixels as f32 / xdpi) as u64, (height_pixels as f32 / ydpi) as u64)
     }
 }
 
@@ -209,7 +286,7 @@ impl Window {
         assert!(win_attribs.min_dimensions.is_none());
         assert!(win_attribs.max_dimensions.is_none());
 
-        let native_window = unsafe { android_glue::get_native_window() };
+        let native_window = unsafe { get_native_window() };
         if native_window.is_null() {
             return Err(OsError(format!("Android's native window is null")));
         }
@@ -275,12 +352,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn platform_display(&self) -> *mut libc::c_void {
+    pub fn platform_display(&self) -> *mut c_void {
         unimplemented!();
     }
 
     #[inline]
-    pub fn platform_window(&self) -> *mut libc::c_void {
+    pub fn platform_window(&self) -> *mut c_void {
         unimplemented!()
     }
 

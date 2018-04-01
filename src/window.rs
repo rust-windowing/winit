@@ -401,4 +401,10 @@ impl MonitorId {
     pub fn get_hidpi_factor(&self) -> f32 {
         self.inner.get_hidpi_factor()
     }
+
+    /// Returns the physical extents of the monitor in millimeter `(x_mm, y_mm)`
+    #[inline]
+    pub fn get_physical_extents(&self) -> (u64, u64) {
+        self.inner.get_physical_extents()
+    }
 }

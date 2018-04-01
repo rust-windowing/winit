@@ -102,6 +102,14 @@ impl MonitorId {
             &MonitorId::Wayland(ref m) => m.get_hidpi_factor(),
         }
     }
+
+    #[inline]
+    pub fn get_physical_extents(&self) -> (u64, u64) {
+        match self {
+            &MonitorId::X(ref m) => m.get_physical_extents(),
+            &MonitorId::Wayland(ref m) => m.get_physical_extents(),
+        }
+    }
 }
 
 impl Window {

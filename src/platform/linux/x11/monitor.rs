@@ -17,6 +17,8 @@ pub struct MonitorId {
     primary: bool,
     /// The DPI scaling factor
     hidpi_factor: f32,
+    /// The physical extents of the monitor, in millimeter
+    extents_mm: (u64, u64),
 }
 
 pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
@@ -34,12 +36,12 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                 let output = (xrandr_1_5.XRRGetOutputInfo)(x.display, resources, *(monitor.outputs.offset(0)));
                 let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
                 let name = String::from_utf8_lossy(nameslice).into_owned();
+                let x_mm = (*output).mm_width;
+                let y_mm = (*output).mm_height;
                 let hidpi_factor = {
-                    let x_mm = (*output).mm_width as f32;
-                    let y_mm = (*output).mm_height as f32;
                     let x_px = monitor.width as f32;
                     let y_px = monitor.height as f32;
-                    let ppmm = ((x_px * y_px) / (x_mm * y_mm)).sqrt();
+                    let ppmm = ((x_px * y_px) / (x_mm as f32 * y_mm as f32)).sqrt();
 
                     // Quantize 1/12 step size
                     ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0)
@@ -52,6 +54,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                     dimensions: (monitor.width as u32, monitor.height as u32),
                     position: (monitor.x as i32, monitor.y as i32),
                     primary: (monitor.primary != 0),
+                    extents_mm: (x_mm, y_mm),
                 });
             }
             (xrandr_1_5.XRRFreeMonitors)(monitors);
@@ -66,13 +69,13 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                     let output = (x.xrandr.XRRGetOutputInfo)(x.display, resources, *((*crtc).outputs.offset(0)));
                     let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
                     let name = String::from_utf8_lossy(nameslice).into_owned();
+                    let x_mm = (*output).mm_width;
+                    let y_mm = (*output).mm_height;
 
                     let hidpi_factor = {
-                        let x_mm = (*output).mm_width as f32;
-                        let y_mm = (*output).mm_height as f32;
                         let x_px = (*crtc).width as f32;
                         let y_px = (*crtc).height as f32;
-                        let ppmm = ((x_px * y_px) / (x_mm * y_mm)).sqrt();
+                        let ppmm = ((x_px * y_px) / (x_mm as f32 * y_mm as f32)).sqrt();
 
                         // Quantize 1/12 step size
                         ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0)
@@ -86,6 +89,7 @@ pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
                         dimensions: ((*crtc).width as u32, (*crtc).height as u32),
                         position: ((*crtc).x as i32, (*crtc).y as i32),
                         primary: true,
+                        extents_mm: (x_mm, y_mm),
                     });
                 }
                 (x.xrandr.XRRFreeCrtcInfo)(crtc);
@@ -105,6 +109,7 @@ pub fn get_primary_monitor(x: &Arc<XConnection>) -> MonitorId {
 }
 
 impl MonitorId {
+    #[inline]
     pub fn get_name(&self) -> Option<String> {
         Some(self.name.clone())
     }
@@ -114,10 +119,12 @@ impl MonitorId {
         self.id as u32
     }
 
+    #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         self.dimensions
     }
 
+    #[inline]
     pub fn get_position(&self) -> (i32, i32) {
         self.position
     }
@@ -125,5 +132,10 @@ impl MonitorId {
     #[inline]
     pub fn get_hidpi_factor(&self) -> f32 {
         self.hidpi_factor
+    }
+
+    #[inline]
+    pub fn get_physical_extents(&self) -> (u64, u64) {
+        self.extents_mm
     }
 }

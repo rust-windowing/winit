@@ -502,13 +502,14 @@ fn seat_implementation() -> wl_seat::Implementation<SeatIData> {
 
 fn output_impl() -> wl_output::Implementation<StateToken<StateContext>> {
     wl_output::Implementation {
-        geometry: |evqh, token, output, x, y, _, _, _, make, model, _| {
+        geometry: |evqh, token, output, x, y, physical_width, physical_height, _, make, model, _| {
             let ctxt = evqh.state().get_mut(token);
             for info in &ctxt.monitors {
                 let mut guard = info.lock().unwrap();
                 if guard.output.equals(output) {
                     guard.pix_pos = (x, y);
                     guard.name = format!("{} - {}", make, model);
+                    guard.extents_mm = (physical_width as u64, physical_height as u64);
                     return;
                 }
             }
@@ -545,7 +546,8 @@ pub struct OutputInfo {
     pub scale: f32,
     pub pix_size: (u32, u32),
     pub pix_pos: (i32, i32),
-    pub name: String
+    pub name: String,
+    pub extents_mm: (u64, u64),
 }
 
 impl OutputInfo {
@@ -556,7 +558,8 @@ impl OutputInfo {
             scale: 1.0,
             pix_size: (0, 0),
             pix_pos: (0, 0),
-            name: "".into()
+            name: "".into(),
+            extents_mm: (0, 0),
         }
     }
 }
@@ -567,6 +570,7 @@ pub struct MonitorId {
 }
 
 impl MonitorId {
+    #[inline]
     pub fn get_name(&self) -> Option<String> {
         Some(self.info.lock().unwrap().name.clone())
     }
@@ -576,10 +580,12 @@ impl MonitorId {
         self.info.lock().unwrap().id
     }
 
+    #[inline]
     pub fn get_dimensions(&self) -> (u32, u32) {
         self.info.lock().unwrap().pix_size
     }
 
+    #[inline]
     pub fn get_position(&self) -> (i32, i32) {
         self.info.lock().unwrap().pix_pos
     }
@@ -587,5 +593,10 @@ impl MonitorId {
     #[inline]
     pub fn get_hidpi_factor(&self) -> f32 {
         self.info.lock().unwrap().scale
+    }
+
+    #[inline]
+    pub fn get_physical_extents(&self) -> (u64, u64) {
+        self.info.lock().unwrap().extents_mm
     }
 }
