@@ -64,6 +64,13 @@ impl MonitorId {
         unsafe { NSScreen::backingScaleFactor(screen) as f32 }
     }
 
+    pub fn get_physical_extents(&self) -> (u64, u64) {
+        let MonitorId(display_id) = *self;
+        let display = CGDisplay::new(display_id);
+        let screen_size = display.screen_size();
+        (screen_size.width as u64, screen_size.height as u64)
+    }
+    
     pub(crate) fn get_nsscreen(&self) -> Option<id> {
         unsafe {
             let native_id = self.get_native_identifier();
