@@ -59,7 +59,7 @@ unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, hdc: HDC, place:
     let place = *place;
     let position = (place.left as i32, place.top as i32);
     let dimensions = ((place.right - place.left) as u32, (place.bottom - place.top) as u32);
-    let physical_size = get_monitor_width_height(hdc).unwrap_or(0, 0);
+    let physical_size = get_monitor_width_height(hdc, dimensions).unwrap_or(0, 0);
 
     let mut monitor_info: winuser::MONITORINFOEXW = mem::zeroed();
     monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
@@ -83,14 +83,40 @@ unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, hdc: HDC, place:
     TRUE
 }
 
-fn get_monitor_width_height(hdc: HDC) -> Option<(u64, u64)> {
-    if winuser::SetProcessDPIAware() == 0 {
-        return None;
-    }
+fn get_monitor_width_height(hdc: HDC, dimensions: (u32, u32)) -> Option<(u64, u64)> {
 
-    let x_dpi = winuser::GetDeviceCaps(hdc, winuser::LOGPIXELSX);
-    let y_dpi = winuser::GetDeviceCaps(hdc, winuser::LOGPIXELSY);
-    Some(((screen_res as f32 / dpi_x as f32) as u64, (screen_res as f32 / dpi_y as f32) as u64))
+    use winapi::um::shellscalingapi::{SetProcessDpiAwareness, GetProcessDpiAwareness};
+    use winapi::um::shellscalingapi::{PROCESS_SYSTEM_DPI_AWARE, PROCESS_DPI_UNAWARE};
+    use winapi::shared::winerror::S_OK;
+    use winapi::um::wingdi::GetDeviceCaps;
+    use winapi::um::wingdi::{LOGPIXELSX, LOGPIXELSY};
+    use std::ptr;
+
+    let mut dpi_awareness = PROCESS_DPI_UNAWARE;
+    let null_handle: HANDLE = ptr::null_mut();
+
+    unsafe {    
+        if GetProcessDpiAwareness(null_handle, &mut dpi_awareness) != S_OK {
+            return None;
+        }
+
+        if SetProcessDpiAwareness(PROCESS_SYSTEM_DPI_AWARE) != S_OK {
+            return None;
+        }
+
+        let x_dpi = GetDeviceCaps(hdc, LOGPIXELSX);
+        let y_dpi = GetDeviceCaps(hdc, LOGPIXELSY);
+
+        // reset to whatever DPI awareness was set before
+        if SetProcessDpiAwareness(dpi_awareness) != S_OK {
+            return None;
+        }
+        
+        let screen_width = dimensions.0 as f32;
+        let screen_height = dimensions.1  as f32;
+
+        Some(((screen_width / x_dpi as f32) as u64, (screen_height / y_dpi as f32) as u64))
+    }
 }
 
 impl EventsLoop {
