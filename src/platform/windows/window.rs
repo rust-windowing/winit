@@ -99,7 +99,7 @@ impl Window {
     pub fn set_position(&self, x: i32, y: i32) {
         unsafe {
             winuser::SetWindowPos(self.window.0, ptr::null_mut(), x as raw::c_int, y as raw::c_int,
-                                 0, 0, winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOSIZE);
+                                 0, 0, winuser::SWP_NOZORDER | winuser::SWP_NOSIZE);
             winuser::UpdateWindow(self.window.0);
         }
     }
@@ -147,7 +147,7 @@ impl Window {
             let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
 
             winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+                winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
             winuser::UpdateWindow(self.window.0);
         }
     }
@@ -155,8 +155,7 @@ impl Window {
     /// See the docs in the crate root file.
     #[inline]
     pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
-        let mut window_state = self.window_state.lock().unwrap();
-        window_state.attributes.min_dimensions = dimensions;
+        self.window_state.borrow_mut().attributes.min_dimensions = dimensions;
 
         // Make windows re-check the window size bounds.
         if let Some(inner_size) = self.get_inner_size() {
@@ -170,7 +169,7 @@ impl Window {
                 let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
 
                 winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+                    winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
             }
         }
     }
@@ -178,8 +177,7 @@ impl Window {
     /// See the docs in the crate root file.
     #[inline]
     pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
-        let mut window_state = self.window_state.lock().unwrap();
-        window_state.attributes.max_dimensions = dimensions;
+        self.window_state.borrow_mut().attributes.max_dimensions = dimensions;
 
         // Make windows re-check the window size bounds.
         if let Some(inner_size) = self.get_inner_size() {
@@ -193,7 +191,7 @@ impl Window {
                 let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
 
                 winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+                    winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
             }
         }
     }
