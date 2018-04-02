@@ -6,11 +6,10 @@ use std::mem;
 use std::os::raw;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
-use std::sync::mpsc::channel;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use platform::platform::events_loop;
+use platform::platform::events_loop::{self, SubclassInput};
 use platform::platform::EventsLoop;
 use platform::platform::PlatformSpecificWindowBuilderAttributes;
 use platform::platform::MonitorId;
@@ -47,9 +46,15 @@ impl Window {
         let mut w_attr = Some(w_attr.clone());
         let mut pl_attr = Some(pl_attr.clone());
 
-        let (tx, rx) = channel();
+        let window = unsafe { init(w_attr.take().unwrap(), pl_attr.take().unwrap()) };
+        if let Ok(ref window) = window {
+            events_loop::subclass_window(window.window.0, SubclassInput {
+                window_state: window.window_state.clone(),
+                event_queue: events_loop.event_queue.clone()
+            });
+        }
 
-        unsafe { init(w_attr.take().unwrap(), pl_attr.take().unwrap()) }
+        window
     }
 
     pub fn set_title(&self, text: &str) {
@@ -227,14 +232,13 @@ impl Window {
             _ => winuser::IDC_ARROW, // use arrow for the missing cases.
         };
 
-        let mut cur = self.window_state.lock().unwrap();
-        cur.cursor = cursor_id;
+        self.window_state.borrow_mut().cursor = cursor_id;
     }
 
     // TODO: it should be possible to rework this function by using the `execute_in_thread` method
     // of the events loop.
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        let mut current_state = self.window_state.lock().unwrap();
+        let mut current_state = self.window_state.borrow_mut();
 
         let foreground_thread_id = unsafe { winuser::GetWindowThreadProcessId(self.window.0, ptr::null_mut()) };
         let current_thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
@@ -477,6 +481,7 @@ unsafe fn init(
         cursor_state: CursorState::Normal,
         attributes: window.clone(),
         mouse_in_window: false,
+        mouse_buttons_down: 0
     }));
 
     // making the window transparent
