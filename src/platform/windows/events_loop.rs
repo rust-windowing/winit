@@ -224,7 +224,7 @@ pub unsafe extern "system" fn callback(
                 window_id: SuperWindowId(WindowId(window)),
                 event: Closed
             });
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
         winuser::WM_DESTROY => {
             Box::from_raw(subclass_input);
@@ -364,7 +364,7 @@ pub unsafe extern "system" fn callback(
             use events::ElementState::Pressed;
             use events::VirtualKeyCode;
             if msg == winuser::WM_SYSKEYDOWN && wparam as i32 == winuser::VK_F4 {
-                winuser::DefWindowProcW(window, msg, wparam, lparam)
+                commctrl::DefSubclassProc(window, msg, wparam, lparam)
             } else {
                 let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
                 subclass_input.event_queue.borrow_mut().push_back(Event::WindowEvent {
@@ -561,7 +561,7 @@ pub unsafe extern "system" fn callback(
 
                 0
             } else {
-                winuser::DefWindowProcW(window, msg, wparam, lparam)
+                commctrl::DefSubclassProc(window, msg, wparam, lparam)
             }
         },
 
@@ -612,7 +612,7 @@ pub unsafe extern "system" fn callback(
             };
 
             if call_def_window_proc {
-                winuser::DefWindowProcW(window, msg, wparam, lparam)
+                commctrl::DefSubclassProc(window, msg, wparam, lparam)
             } else {
                 0
             }
@@ -665,7 +665,7 @@ pub unsafe extern "system" fn callback(
         },
 
         _ => {
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
     }
 }
