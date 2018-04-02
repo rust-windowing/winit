@@ -622,6 +622,14 @@ pub struct WindowWrapper(HWND, HDC);
 // https://github.com/retep998/winapi-rs/issues/396
 unsafe impl Send for WindowWrapper {}
 
+pub unsafe fn adjust_size(
+    (x, y): (u32, u32), style: DWORD, ex_style: DWORD,
+) -> (LONG, LONG) {
+    let mut rect = RECT { left: 0, right: x as LONG, top: 0, bottom: y as LONG };
+    winuser::AdjustWindowRectEx(&mut rect, style, 0, ex_style);
+    (rect.right - rect.left, rect.bottom - rect.top)
+}
+
 unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes,
                inserter: events_loop::Inserter, events_loop_proxy: events_loop::EventsLoopProxy) -> Result<Window, CreationError> {
     let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
@@ -659,10 +667,10 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     let real_window = {
         let (width, height) = if window.dimensions.is_some() {
             let min_dimensions = window.min_dimensions
-                .map(|d| (d.0 as raw::c_int, d.1 as raw::c_int))
+                .map(|d| adjust_size(d, style, ex_style))
                 .unwrap_or((0, 0));
             let max_dimensions = window.max_dimensions
-                .map(|d| (d.0 as raw::c_int, d.1 as raw::c_int))
+                .map(|d| adjust_size(d, style, ex_style))
                 .unwrap_or((raw::c_int::max_value(), raw::c_int::max_value()));
 
             (
