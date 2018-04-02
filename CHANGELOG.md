@@ -9,7 +9,6 @@
 - Added `WindowBuilderExt` methods for macos: `with_titlebar_transparent`,
   `with_title_hidden`, `with_titlebar_buttons_hidden`,
   `with_fullsize_content_view`.
-
 - Mapped X11 numpad keycodes (arrows, Home, End, PageUp, PageDown, Insert and Delete) to corresponding virtual keycodes
 
 # Version 0.11.2 (2018-03-06)
