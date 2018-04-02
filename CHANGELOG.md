@@ -1,5 +1,7 @@
 # Unreleased
 
+- Added subclass to macos windows so they can be made resizable even with no decorations.
+
 # Version 0.11.3 (2018-03-28)
 
 - Added `set_min_dimensions` and `set_max_dimensions` methods to `Window`, and implemented on Windows, X11, Wayland, and OSX.
@@ -7,8 +9,6 @@
 - Added `WindowBuilderExt` methods for macos: `with_titlebar_transparent`,
   `with_title_hidden`, `with_titlebar_buttons_hidden`,
   `with_fullsize_content_view`.
-
-- [macos] subclass windows so they can be made resizable even with no decorations
 
 - Mapped X11 numpad keycodes (arrows, Home, End, PageUp, PageDown, Insert and Delete) to corresponding virtual keycodes
 
