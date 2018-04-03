@@ -426,10 +426,7 @@ impl Window2 {
                     NSWindowStyleMask::NSTitledWindowMask
             } else if !attrs.decorations {
                 // Window2 without a titlebar
-                NSWindowStyleMask::NSClosableWindowMask |
-                    NSWindowStyleMask::NSMiniaturizableWindowMask |
-                    NSWindowStyleMask::NSResizableWindowMask |
-                    NSWindowStyleMask::NSFullSizeContentViewWindowMask
+                NSWindowStyleMask::NSBorderlessWindowMask
             } else if pl_attrs.titlebar_hidden {
                 NSWindowStyleMask::NSBorderlessWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask
@@ -454,7 +451,18 @@ impl Window2 {
                     NSWindowStyleMask::NSTitledWindowMask
             };
 
-            let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
+            let winit_window = Class::get("WinitWindow").unwrap_or_else(|| {
+                let window_superclass = Class::get("NSWindow").unwrap();
+                let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
+                decl.add_method(sel!(canBecomeMainWindow), yes as extern fn(&Object, Sel) -> BOOL);
+                decl.add_method(sel!(canBecomeKeyWindow), yes as extern fn(&Object, Sel) -> BOOL);
+                decl.register();
+                Class::get("WinitWindow").unwrap()
+            });
+
+            let window: id = msg_send![winit_window, alloc];
+
+            let window = IdRef::new(window.initWithContentRect_styleMask_backing_defer_(
                 frame,
                 masks,
                 appkit::NSBackingStoreBuffered,
@@ -807,4 +815,8 @@ impl Clone for IdRef {
         }
         IdRef(self.0)
     }
+}
+
+extern fn yes(_: &Object, _: Sel) -> BOOL {
+    YES
 }

@@ -1,6 +1,7 @@
 # Unreleased
 
 - Implement `WindowEvent::HiDPIFactorChanged` for macOS
+- Added subclass to macos windows so they can be made resizable even with no decorations.
 
 # Version 0.11.3 (2018-03-28)
 
