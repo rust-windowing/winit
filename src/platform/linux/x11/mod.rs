@@ -1010,10 +1010,34 @@ impl Window {
         let im = unsafe {
             let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
 
-            let im = (x_events_loop.display.xlib.XOpenIM)(x_events_loop.display.display, ptr::null_mut(), ptr::null_mut(), ptr::null_mut());
+            let mut im: ffi::XIM = ptr::null_mut();
+
+            // Setting an empty locale results in the user's XMODIFIERS environment variable being
+            // read, which should result in the user's configured input method (ibus, fcitx, etc.)
+            // being used. If that fails, we fall back to internal input methods which should
+            // always be available.
+            for modifiers in &[b"\0" as &[u8], b"@im=local\0", b"@im=\0"] {
+                if !im.is_null() {
+                    break;
+                }
+
+                (x_events_loop.display.xlib.XSetLocaleModifiers)(modifiers.as_ptr() as *const i8);
+                im = (x_events_loop.display.xlib.XOpenIM)(
+                    x_events_loop.display.display,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                );
+            }
+
             if im.is_null() {
+                // While it's possible to make IME optional and handle this more gracefully, it's
+                // not clear in what situations the fallbacks wouldn't work. Therefore, this panic
+                // is left here so that if it ever fails, someone will hopefully tell us about it,
+                // and we'd have a better grasp of what's necessary.
                 panic!("XOpenIM failed");
             }
+
             im
         };
 
