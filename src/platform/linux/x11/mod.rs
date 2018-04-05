@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{self, AtomicBool};
 use std::collections::HashMap;
 use std::ffi::CStr;
-use std::os::raw::{c_char, c_int, c_long, c_uchar, c_ulong};
+use std::os::raw::{c_char, c_int, c_long, c_uchar, c_uint, c_ulong};
 
 use libc;
 
@@ -199,8 +199,14 @@ impl EventsLoop {
     {
         let xlib = &self.display.xlib;
 
-        // Handle dead keys and other input method funtimes
-        if ffi::True == unsafe { (self.display.xlib.XFilterEvent)(xev, { let xev: &ffi::XAnyEvent = xev.as_ref(); xev.window }) } {
+        // XFilterEvent tells us when an event has been discarded by the input method.
+        // Specifically, this involves all of the KeyPress events in compose/pre-edit sequences,
+        // along with an extra copy of the KeyRelease events. This also prevents backspace and
+        // arrow keys from being detected twice.
+        if ffi::True == unsafe { (self.display.xlib.XFilterEvent)(
+            xev,
+            { let xev: &ffi::XAnyEvent = xev.as_ref(); xev.window }
+        ) } {
             return;
         }
 
@@ -414,16 +420,15 @@ impl EventsLoop {
                 callback(Event::WindowEvent { window_id, event: WindowEvent::Refresh });
             }
 
-            // FIXME: Use XInput2 + libxkbcommon for keyboard input!
             ffi::KeyPress | ffi::KeyRelease => {
                 use events::ElementState::{Pressed, Released};
 
-                let state;
-                if xev.get_type() == ffi::KeyPress {
-                    state = Pressed;
+                // Note that in compose/pre-edit sequences, this will always be Released.
+                let state = if xev.get_type() == ffi::KeyPress {
+                    Pressed
                 } else {
-                    state = Released;
-                }
+                    Released
+                };
 
                 let xkev: &mut ffi::XKeyEvent = xev.as_mut();
 
@@ -439,55 +444,50 @@ impl EventsLoop {
 
                 let keysym = unsafe {
                     let mut keysym = 0;
-                    (self.display.xlib.XLookupString)(xkev, ptr::null_mut(), 0, &mut keysym, ptr::null_mut());
+                    (self.display.xlib.XLookupString)(
+                        xkev,
+                        ptr::null_mut(),
+                        0,
+                        &mut keysym,
+                        ptr::null_mut(),
+                    );
                     keysym
                 };
 
-                let vkey = events::keysym_to_element(keysym as libc::c_uint);
+                let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
-                callback(Event::WindowEvent { window_id, event: WindowEvent::KeyboardInput {
-                     // Typical virtual core keyboard ID. xinput2 needs to be used to get a reliable value.
-                    device_id: mkdid(3),
-                    input: KeyboardInput {
-                        state: state,
-                        scancode: xkev.keycode - 8,
-                        virtual_keycode: vkey,
-                        modifiers,
-                    },
-                }});
+                // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
+                // a keycode of 0.
+                if xkev.keycode != 0 {
+                    callback(Event::WindowEvent { window_id, event: WindowEvent::KeyboardInput {
+                        // Standard virtual core keyboard ID. XInput2 needs to be used to get a
+                        // reliable value, though this should only be an issue under multiseat
+                        // configurations.
+                        device_id: mkdid(3),
+                        input: KeyboardInput {
+                            state,
+                            scancode: xkev.keycode - 8,
+                            virtual_keycode,
+                            modifiers,
+                        },
+                    }});
+                }
 
                 if state == Pressed {
-                    let written = unsafe {
-                        use std::str;
+                    let written = {
+                        let windows = self.windows.lock().unwrap();
 
-                        const INIT_BUFF_SIZE: usize = 16;
-                        let mut windows = self.windows.lock().unwrap();
                         let window_data = {
-                            if let Some(window_data) = windows.get_mut(&WindowId(window)) {
+                            if let Some(window_data) = windows.get(&WindowId(window)) {
                                 window_data
                             } else {
                                 return;
                             }
                         };
-                        /* buffer allocated on heap instead of stack, due to the possible
-                         * reallocation */
-                        let mut buffer: Vec<u8> = vec![mem::uninitialized(); INIT_BUFF_SIZE];
-                        let mut keysym: ffi::KeySym = 0;
-                        let mut status: ffi::Status = 0;
-                        let mut count = (self.display.xlib.Xutf8LookupString)(window_data.ic, xkev,
-                                                                          mem::transmute(buffer.as_mut_ptr()),
-                                                                          buffer.len() as libc::c_int,
-                                                                          &mut keysym, &mut status);
-                        /* buffer overflowed, dynamically reallocate */
-                        if status == ffi::XBufferOverflow {
-                            buffer = vec![mem::uninitialized(); count as usize];
-                            count = (self.display.xlib.Xutf8LookupString)(window_data.ic, xkev,
-                                                                          mem::transmute(buffer.as_mut_ptr()),
-                                                                          buffer.len() as libc::c_int,
-                                                                          &mut keysym, &mut status);
-                        }
 
-                        str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
+                        unsafe {
+                            util::lookup_utf8(&self.display, window_data.ic, xkev)
+                        }
                     };
 
                     for chr in written.chars() {

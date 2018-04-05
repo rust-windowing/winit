@@ -1,5 +1,6 @@
 use std::mem;
 use std::ptr;
+use std::str;
 use std::sync::Arc;
 use std::ops::{Deref, DerefMut};
 use std::os::raw::{c_char, c_double, c_int, c_long, c_short, c_uchar, c_uint, c_ulong};
@@ -246,4 +247,54 @@ pub unsafe fn query_pointer(
         group: group_return,
         relative_to_window,
     })
+}
+
+unsafe fn lookup_utf8_inner(
+    xconn: &Arc<XConnection>,
+    ic: ffi::XIC,
+    key_event: &mut ffi::XKeyEvent,
+    buffer: &mut [u8],
+) -> (ffi::KeySym, ffi::Status, c_int) {
+    let mut keysym: ffi::KeySym = 0;
+    let mut status: ffi::Status = 0;
+    let count = (xconn.xlib.Xutf8LookupString)(
+        ic,
+        key_event,
+        buffer.as_mut_ptr() as *mut c_char,
+        buffer.len() as c_int,
+        &mut keysym,
+        &mut status,
+    );
+    (keysym, status, count)
+}
+
+pub unsafe fn lookup_utf8(
+    xconn: &Arc<XConnection>,
+    ic: ffi::XIC,
+    key_event: &mut ffi::XKeyEvent,
+) -> String {
+    const INIT_BUFF_SIZE: usize = 16;
+
+    // Buffer allocated on heap instead of stack, due to the possible reallocation
+    let mut buffer: Vec<u8> = vec![mem::uninitialized(); INIT_BUFF_SIZE];
+    let (_, status, mut count) = lookup_utf8_inner(
+        xconn,
+        ic,
+        key_event,
+        &mut buffer,
+    );
+
+    // Buffer overflowed, dynamically reallocate
+    if status == ffi::XBufferOverflow {
+        buffer = vec![mem::uninitialized(); count as usize];
+        let (_, _, new_count) = lookup_utf8_inner(
+            xconn,
+            ic,
+            key_event,
+            &mut buffer,
+        );
+        count = new_count;
+    }
+
+    str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
 }
