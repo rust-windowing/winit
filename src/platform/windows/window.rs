@@ -473,6 +473,15 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
         winuser::RegisterRawInputDevices(&rid, 1, mem::size_of::<winuser::RAWINPUTDEVICE>() as u32);
     }
 
+    // Register for touch events if applicable
+    {
+        let digitizer = winuser::GetSystemMetrics( winuser::SM_DIGITIZER ) as u32;
+        if digitizer & winuser::NID_READY != 0 {
+            winuser::RegisterTouchWindow( real_window.0, winuser::TWF_WANTPALM );
+        }
+    }
+    
+
     // Creating a mutex to track the current window state
     let window_state = Arc::new(Mutex::new(events_loop::WindowState {
         cursor: winuser::IDC_ARROW, // use arrow by default

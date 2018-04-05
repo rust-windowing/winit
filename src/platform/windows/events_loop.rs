@@ -26,7 +26,7 @@ use std::sync::Mutex;
 use std::sync::Condvar;
 use std::thread;
 
-use winapi::shared::minwindef::{LOWORD, HIWORD, DWORD, WPARAM, LPARAM, UINT, LRESULT, MAX_PATH};
+use winapi::shared::minwindef::{LOWORD, HIWORD, DWORD, WPARAM, LPARAM, INT, UINT, LRESULT, MAX_PATH};
 use winapi::shared::windef::{HWND, POINT};
 use winapi::shared::windowsx;
 use winapi::um::{winuser, shellapi, processthreadsapi};
@@ -44,6 +44,8 @@ use KeyboardInput;
 use WindowAttributes;
 use WindowEvent;
 use WindowId as SuperWindowId;
+use events::{Touch, TouchPhase};
+
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Clone)]
@@ -729,6 +731,40 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                 winuser::DefWindowProcW(window, msg, wparam, lparam)
             }
         },
+
+        winuser::WM_TOUCH => {
+            let pcount = LOWORD( wparam as DWORD ) as usize;
+            let mut inputs = Vec::with_capacity( pcount );
+            inputs.set_len( pcount );
+            let htouch = lparam as winuser::HTOUCHINPUT;
+            if winuser::GetTouchInputInfo( htouch, pcount as UINT,
+                                           inputs.as_mut_ptr(),
+                                           mem::size_of::<winuser::TOUCHINPUT>() as INT ) > 0 {
+                for input in &inputs {
+                    send_event( Event::WindowEvent {
+                        window_id: SuperWindowId(WindowId(window)),
+                        event: WindowEvent::Touch(Touch {
+                            phase:
+                            if input.dwFlags & winuser::TOUCHEVENTF_DOWN != 0 {
+                                TouchPhase::Started
+                            } else if input.dwFlags & winuser::TOUCHEVENTF_UP != 0 {
+                                TouchPhase::Ended
+                            } else if input.dwFlags & winuser::TOUCHEVENTF_MOVE != 0 {
+                                TouchPhase::Moved
+                            } else {
+                                continue;
+                            },
+                            location: ((input.x as f64) / 100f64,
+                                       (input.y as f64) / 100f64),
+                            id: input.dwID as u64,
+                            device_id: DEVICE_ID,
+                        })
+                    });
+                }
+            }
+            winuser::CloseTouchInputHandle( htouch );
+            0
+        }
 
         winuser::WM_SETFOCUS => {
             use events::WindowEvent::{Focused, CursorMoved};

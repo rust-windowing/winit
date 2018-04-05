@@ -4,6 +4,7 @@
 - Dead keys now work properly on X11, no longer resulting in a panic.
 - On X11, input method creation first tries to use the value from the user's `XMODIFIERS` environment variable, so application developers should no longer need to manually call `XSetLocaleModifiers`. If that fails, fallbacks are tried, which should prevent input method initialization from ever outright failing.
 - Fixed thread safety issues with input methods on X11.
+- Add support for `Touch` for win32 backend.
 
 # Version 0.11.3 (2018-03-28)
 
