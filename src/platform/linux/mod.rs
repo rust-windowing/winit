@@ -195,6 +195,22 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        match self {
+            &Window::X(ref w) => w.set_min_dimensions(dimensions),
+            &Window::Wayland(ref w) => w.set_min_dimensions(dimensions)
+        }
+    }
+
+    #[inline]
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        match self {
+            &Window::X(ref w) => w.set_max_dimensions(dimensions),
+            &Window::Wayland(ref w) => w.set_max_dimensions(dimensions)
+        }
+    }
+
+    #[inline]
     pub fn set_cursor(&self, cursor: MouseCursor) {
         match self {
             &Window::X(ref w) => w.set_cursor(cursor),
@@ -248,9 +264,7 @@ impl Window {
     pub fn set_maximized(&self, maximized: bool) {
         match self {
             &Window::X(ref w) => w.set_maximized(maximized),
-            &Window::Wayland(ref _w) => {
-                unimplemented!();
-            }
+            &Window::Wayland(ref w) => w.set_maximized(maximized),
         }
     }
 
@@ -258,9 +272,7 @@ impl Window {
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         match self {
             &Window::X(ref w) => w.set_fullscreen(monitor),
-            &Window::Wayland(ref _w) => {
-                unimplemented!();
-            }
+            &Window::Wayland(ref w) => w.set_fullscreen(monitor)
         }
     }
 
@@ -268,9 +280,7 @@ impl Window {
     pub fn set_decorations(&self, decorations: bool) {
         match self {
             &Window::X(ref w) => w.set_decorations(decorations),
-            &Window::Wayland(ref _w) => {
-                unimplemented!();
-            }
+            &Window::Wayland(ref w) => w.set_decorations(decorations)
         }
     }
 

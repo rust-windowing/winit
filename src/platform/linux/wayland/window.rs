@@ -18,6 +18,7 @@ pub struct Window {
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
     display: Arc<wl_display::WlDisplay>,
+    need_frame_refresh: Arc<Mutex<bool>>
 }
 
 impl Window {
@@ -59,6 +60,7 @@ impl Window {
         }
 
         let kill_switch = Arc::new(Mutex::new(false));
+        let need_frame_refresh = Arc::new(Mutex::new(true));
         let frame = Arc::new(Mutex::new(frame));
 
         {
@@ -67,7 +69,7 @@ impl Window {
                 closed: false,
                 newsize: None,
                 need_refresh: false,
-                need_frame_refresh: true,
+                need_frame_refresh: need_frame_refresh.clone(),
                 surface: surface.clone().unwrap(),
                 kill_switch: kill_switch.clone(),
                 frame: Arc::downgrade(&frame)
@@ -81,7 +83,8 @@ impl Window {
             frame: frame,
             monitors: monitor_list,
             size: size,
-            kill_switch: (kill_switch, evlp.cleanup_needed.clone())
+            kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
+            need_frame_refresh: need_frame_refresh
         })
     }
 
@@ -134,6 +137,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        self.frame.lock().unwrap().set_min_size(dimensions.map(|(w, h)| (w as i32, h as i32)));
+    }
+
+    #[inline]
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        self.frame.lock().unwrap().set_max_size(dimensions.map(|(w, h)| (w as i32, h as i32)));
+    }
+
+    #[inline]
     pub fn set_cursor(&self, _cursor: MouseCursor) {
         // TODO
     }
@@ -160,16 +173,38 @@ impl Window {
         factor
     }
 
+    pub fn set_decorations(&self, decorate: bool) {
+        self.frame.lock().unwrap().set_decorate(decorate);
+        *(self.need_frame_refresh.lock().unwrap()) = true;
+    }
+
+    pub fn set_maximized(&self, maximized: bool) {
+        if maximized {
+            self.frame.lock().unwrap().set_state(FrameState::Maximized);
+        } else {
+            self.frame.lock().unwrap().set_state(FrameState::Regular);
+        }
+    }
+
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+        if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = monitor {
+            let info = monitor_id.info.lock().unwrap();
+            self.frame.lock().unwrap().set_state(FrameState::Fullscreen(Some(&info.output)));
+        } else {
+            self.frame.lock().unwrap().set_state(FrameState::Regular);
+        }
+    }
+
     #[inline]
     pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
         // TODO: not yet possible on wayland
         Err(())
     }
-    
+
     pub fn get_display(&self) -> &wl_display::WlDisplay {
         &*self.display
     }
-    
+
     pub fn get_surface(&self) -> &wl_surface::WlSurface {
         &self.surface
     }
@@ -197,7 +232,7 @@ struct InternalWindow {
     surface: wl_surface::WlSurface,
     newsize: Option<(i32, i32)>,
     need_refresh: bool,
-    need_frame_refresh: bool,
+    need_frame_refresh: Arc<Mutex<bool>>,
     closed: bool,
     kill_switch: Arc<Mutex<bool>>,
     frame: Weak<Mutex<Frame>>
@@ -242,7 +277,7 @@ impl WindowStore {
             f(
                 window.newsize.take(),
                 window.need_refresh,
-                window.need_frame_refresh,
+                ::std::mem::replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
                 make_wid(&window.surface),
                 opt_mutex_lock.as_mut().map(|m| &mut **m)
@@ -271,7 +306,7 @@ fn decorated_impl() -> FrameImplementation<FrameIData> {
                 if window.surface.equals(&idata.surface) {
                     window.newsize = newsize;
                     window.need_refresh = true;
-                    window.need_frame_refresh = true;
+                    *(window.need_frame_refresh.lock().unwrap()) = true;
                     return;
                 }
             }
@@ -289,7 +324,7 @@ fn decorated_impl() -> FrameImplementation<FrameIData> {
             let store = evqh.state().get_mut(&idata.store_token);
             for window in &mut store.windows {
                 if window.surface.equals(&idata.surface) {
-                    window.need_frame_refresh = true;
+                    *(window.need_frame_refresh.lock().unwrap()) = true;
                     return;
                 }
             }

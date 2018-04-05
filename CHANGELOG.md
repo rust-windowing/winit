@@ -1,6 +1,42 @@
 # Unreleased
 
+- Added subclass to macos windows so they can be made resizable even with no decorations.
+- Dead keys now work properly on X11, no longer resulting in a panic.
+- On X11, input method creation first tries to use the value from the user's `XMODIFIERS` environment variable, so application developers should no longer need to manually call `XSetLocaleModifiers`. If that fails, fallbacks are tried, which should prevent input method initialization from ever outright failing.
+- Fixed thread safety issues with input methods on X11.
 - Add support for `Touch` for win32 backend.
+
+# Version 0.11.3 (2018-03-28)
+
+- Added `set_min_dimensions` and `set_max_dimensions` methods to `Window`, and implemented on Windows, X11, Wayland, and OSX.
+- On X11, dropping a `Window` actually closes it now, and clicking the window's × button (or otherwise having the WM signal to close it) will result in the window closing.
+- Added `WindowBuilderExt` methods for macos: `with_titlebar_transparent`,
+  `with_title_hidden`, `with_titlebar_buttons_hidden`,
+  `with_fullsize_content_view`.
+- Mapped X11 numpad keycodes (arrows, Home, End, PageUp, PageDown, Insert and Delete) to corresponding virtual keycodes
+
+# Version 0.11.2 (2018-03-06)
+
+- Impl `Hash`, `PartialEq`, and `Eq` for `events::ModifiersState`.
+- Implement `MonitorId::get_hidpi_factor` for MacOS.
+- Added method `os::macos::MonitorIdExt::get_nsscreen() -> *mut c_void` that gets a `NSScreen` object matching the monitor ID.
+- Send `Awakened` event on Android when event loop is woken up.
+
+# Version 0.11.1 (2018-02-19)
+
+- Fixed windows not receiving mouse events when click-dragging the mouse outside the client area of a window, on Windows platforms.
+- Added method `os::android::EventsLoopExt:set_suspend_callback(Option<Box<Fn(bool) -> ()>>)` that allows glutin to register a callback when a suspend event happens
+
+# Version 0.11.0 (2018-02-09)
+
+- Implement `MonitorId::get_dimensions` for Android.
+- Added method `os::macos::WindowBuilderExt::with_movable_by_window_background(bool)` that allows to move a window without a titlebar - `with_decorations(false)`
+- Implement `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for Wayland.
+- Added `Caret` as VirtualKeyCode and support OSX ^-Key with german input.
+
+# Version 0.10.1 (2018-02-05)
+
+*Yanked*
 
 # Version 0.10.0 (2017-12-27)
 

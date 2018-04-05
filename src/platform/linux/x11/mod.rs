@@ -9,14 +9,18 @@ pub mod ffi;
 use platform::PlatformSpecificWindowBuilderAttributes;
 use {CreationError, Event, EventsLoopClosed, WindowEvent, DeviceEvent,
      KeyboardInput, ControlFlow};
+use events::ModifiersState;
 
 use std::{mem, ptr, slice};
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{self, AtomicBool};
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::CStr;
+use std::os::raw::{c_char, c_int, c_long, c_uchar, c_uint, c_ulong};
 
-use libc::{self, c_uchar, c_char, c_int, c_ulong, c_long};
+use libc;
 
 mod events;
 mod monitor;
@@ -38,6 +42,9 @@ pub struct EventsLoop {
     display: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
     dnd: Dnd,
+    ime_receiver: Receiver<(WindowId, i16, i16)>,
+    ime_sender: Sender<(WindowId, i16, i16)>,
+    ime: RefCell<HashMap<WindowId, util::Ime>>,
     windows: Arc<Mutex<HashMap<WindowId, WindowData>>>,
     devices: Mutex<HashMap<DeviceId, Device>>,
     xi2ext: XExtension,
@@ -62,6 +69,8 @@ impl EventsLoop {
 
         let dnd = Dnd::new(Arc::clone(&display))
             .expect("Failed to call XInternAtoms when initializing drag and drop");
+
+        let (ime_sender, ime_receiver) = channel();
 
         let xi2ext = unsafe {
             let mut result = XExtension {
@@ -104,6 +113,9 @@ impl EventsLoop {
             display,
             wm_delete_window,
             dnd,
+            ime_receiver,
+            ime_sender,
+            ime: RefCell::new(HashMap::new()),
             windows: Arc::new(Mutex::new(HashMap::new())),
             devices: Mutex::new(HashMap::new()),
             xi2ext,
@@ -197,13 +209,17 @@ impl EventsLoop {
     {
         let xlib = &self.display.xlib;
 
-        // Handle dead keys and other input method funtimes
-        if ffi::True == unsafe { (self.display.xlib.XFilterEvent)(xev, { let xev: &ffi::XAnyEvent = xev.as_ref(); xev.window }) } {
+        // XFilterEvent tells us when an event has been discarded by the input method.
+        // Specifically, this involves all of the KeyPress events in compose/pre-edit sequences,
+        // along with an extra copy of the KeyRelease events. This also prevents backspace and
+        // arrow keys from being detected twice.
+        if ffi::True == unsafe { (self.display.xlib.XFilterEvent)(
+            xev,
+            { let xev: &ffi::XAnyEvent = xev.as_ref(); xev.window }
+        ) } {
             return;
         }
 
-        let xwindow = { let xev: &ffi::XAnyEvent = xev.as_ref(); xev.window };
-        let wid = ::WindowId(::platform::WindowId::X(WindowId(xwindow)));
         match xev.get_type() {
             ffi::MappingNotify => {
                 unsafe { (xlib.XRefreshKeyboardMapping)(xev.as_mut()); }
@@ -213,8 +229,19 @@ impl EventsLoop {
             ffi::ClientMessage => {
                 let client_msg: &ffi::XClientMessageEvent = xev.as_ref();
 
+                let window = client_msg.window;
+                let window_id = mkwid(window);
+
                 if client_msg.data.get_long(0) as ffi::Atom == self.wm_delete_window {
-                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Closed })
+                    callback(Event::WindowEvent { window_id, event: WindowEvent::Closed });
+
+                    if let Some(_) = self.windows.lock().unwrap().remove(&WindowId(window)) {
+                        unsafe {
+                            (self.display.xlib.XDestroyWindow)(self.display.display, window);
+                        }
+                        self.display.check_errors()
+                            .expect("Failed to destroy window");
+                    }
                 } else if client_msg.message_type == self.dnd.atoms.enter {
                     let source_window = client_msg.data.get_long(0) as c_ulong;
                     let flags = client_msg.data.get_long(1);
@@ -274,16 +301,16 @@ impl EventsLoop {
                                     ffi::CurrentTime
                                 };
                                 // This results in the SelectionNotify event below
-                                self.dnd.convert_selection(xwindow, time);
+                                self.dnd.convert_selection(window, time);
                             }
-                            self.dnd.send_status(xwindow, source_window, DndState::Accepted)
+                            self.dnd.send_status(window, source_window, DndState::Accepted)
                                 .expect("Failed to send XDnD status message.");
                         }
                     } else {
                         unsafe {
-                            self.dnd.send_status(xwindow, source_window, DndState::Rejected)
+                            self.dnd.send_status(window, source_window, DndState::Rejected)
                                 .expect("Failed to send XDnD status message.");
-                            self.dnd.send_finished(xwindow, source_window, DndState::Rejected)
+                            self.dnd.send_finished(window, source_window, DndState::Rejected)
                                 .expect("Failed to send XDnD finished message.");
                         }
                         self.dnd.reset();
@@ -293,13 +320,13 @@ impl EventsLoop {
                         if let Some(Ok(ref path_list)) = self.dnd.result {
                             for path in path_list {
                                 callback(Event::WindowEvent {
-                                    window_id: wid,
+                                    window_id,
                                     event: WindowEvent::DroppedFile(path.clone()),
                                 });
                             }
                         }
                         unsafe {
-                            self.dnd.send_finished(xwindow, source_window, DndState::Accepted)
+                            self.dnd.send_finished(window, source_window, DndState::Accepted)
                                 .expect("Failed to send XDnD finished message.");
                         }
                     }
@@ -307,7 +334,7 @@ impl EventsLoop {
                 } else if client_msg.message_type == self.dnd.atoms.leave {
                     self.dnd.reset();
                     callback(Event::WindowEvent {
-                        window_id: wid,
+                        window_id,
                         event: WindowEvent::HoveredFileCancelled,
                     });
                 } else if self.pending_wakeup.load(atomic::Ordering::Relaxed) {
@@ -318,16 +345,20 @@ impl EventsLoop {
 
             ffi::SelectionNotify => {
                 let xsel: &ffi::XSelectionEvent = xev.as_ref();
+
+                let window = xsel.requestor;
+                let window_id = mkwid(window);
+
                 if xsel.property == self.dnd.atoms.selection {
                     let mut result = None;
 
                     // This is where we receive data from drag and drop
-                    if let Ok(mut data) = unsafe { self.dnd.read_data(xwindow) } {
+                    if let Ok(mut data) = unsafe { self.dnd.read_data(window) } {
                         let parse_result = self.dnd.parse_data(&mut data);
                         if let Ok(ref path_list) = parse_result {
                             for path in path_list {
                                 callback(Event::WindowEvent {
-                                    window_id: wid,
+                                    window_id,
                                     event: WindowEvent::HoveredFile(path.clone()),
                                 });
                             }
@@ -341,114 +372,128 @@ impl EventsLoop {
 
             ffi::ConfigureNotify => {
                 let xev: &ffi::XConfigureEvent = xev.as_ref();
-                let size = (xev.width, xev.height);
-                let position = (xev.x, xev.y);
+
+                let window = xev.window;
+                let window_id = mkwid(window);
+
+                let new_size = (xev.width, xev.height);
+                let new_position = (xev.x, xev.y);
                 // Gymnastics to ensure self.windows isn't locked when we invoke callback
                 let (resized, moved) = {
                     let mut windows = self.windows.lock().unwrap();
-                    let window_data = windows.get_mut(&WindowId(xwindow)).unwrap();
-                    if window_data.config.is_none() {
-                        window_data.config = Some(WindowConfig::new(xev));
-                        (true, true)
+                    if let Some(window_data) = windows.get_mut(&WindowId(window)) {
+                        if window_data.config.is_none() {
+                            window_data.config = Some(WindowConfig::new(xev));
+                            (true, true)
+                        } else {
+                            let window_state = window_data.config.as_mut().unwrap();
+                            (if window_state.size != new_size {
+                                window_state.size = new_size;
+                                true
+                            } else { false },
+                            if window_state.position != new_position {
+                                window_state.position = new_position;
+                                true
+                            } else { false })
+                        }
                     } else {
-                        let window = window_data.config.as_mut().unwrap();
-                        (if window.size != size {
-                            window.size = size;
-                            true
-                        } else { false },
-                        if window.position != position {
-                            window.position = position;
-                            true
-                        } else { false })
+                        return;
                     }
                 };
                 if resized {
-                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Resized(xev.width as u32, xev.height as u32) });
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Resized(xev.width as u32, xev.height as u32),
+                    });
                 }
                 if moved {
-                    callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Moved(xev.x as i32, xev.y as i32) });
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Moved(xev.x as i32, xev.y as i32),
+                    });
                 }
+            }
+
+            ffi::DestroyNotify => {
+                let xev: &ffi::XDestroyWindowEvent = xev.as_ref();
+
+                let window = xev.window;
+
+                self.ime.borrow_mut().remove(&WindowId(window));
             }
 
             ffi::Expose => {
-                callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Refresh });
+                let xev: &ffi::XExposeEvent = xev.as_ref();
+
+                let window = xev.window;
+                let window_id = mkwid(window);
+
+                callback(Event::WindowEvent { window_id, event: WindowEvent::Refresh });
             }
 
-            // FIXME: Use XInput2 + libxkbcommon for keyboard input!
             ffi::KeyPress | ffi::KeyRelease => {
-                use events::ModifiersState;
                 use events::ElementState::{Pressed, Released};
 
-                let state;
-                if xev.get_type() == ffi::KeyPress {
-                    state = Pressed;
+                // Note that in compose/pre-edit sequences, this will always be Released.
+                let state = if xev.get_type() == ffi::KeyPress {
+                    Pressed
                 } else {
-                    state = Released;
-                }
+                    Released
+                };
 
                 let xkev: &mut ffi::XKeyEvent = xev.as_mut();
 
-                let ev_mods = {
-                    // Translate x event state to mods
-                    let state = xkev.state;
-                    ModifiersState {
-                        alt:   state & ffi::Mod1Mask != 0,
-                        shift: state & ffi::ShiftMask != 0,
-                        ctrl:  state & ffi::ControlMask != 0,
-                        logo:  state & ffi::Mod4Mask != 0,
-                    }
+                let window = xkev.window;
+                let window_id = mkwid(window);
+
+                let modifiers = ModifiersState {
+                    alt: xkev.state & ffi::Mod1Mask != 0,
+                    shift: xkev.state & ffi::ShiftMask != 0,
+                    ctrl: xkev.state & ffi::ControlMask != 0,
+                    logo: xkev.state & ffi::Mod4Mask != 0,
                 };
 
                 let keysym = unsafe {
                     let mut keysym = 0;
-                    (self.display.xlib.XLookupString)(xkev, ptr::null_mut(), 0, &mut keysym, ptr::null_mut());
+                    (self.display.xlib.XLookupString)(
+                        xkev,
+                        ptr::null_mut(),
+                        0,
+                        &mut keysym,
+                        ptr::null_mut(),
+                    );
                     keysym
                 };
 
-                let vkey = events::keysym_to_element(keysym as libc::c_uint);
+                let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
-                callback(Event::WindowEvent { window_id: wid, event: WindowEvent::KeyboardInput {
-                     // Typical virtual core keyboard ID. xinput2 needs to be used to get a reliable value.
-                    device_id: mkdid(3),
-                    input: KeyboardInput {
-                        state: state,
-                        scancode: xkev.keycode - 8,
-                        virtual_keycode: vkey,
-                        modifiers: ev_mods,
-                    },
-                }});
+                // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
+                // a keycode of 0.
+                if xkev.keycode != 0 {
+                    callback(Event::WindowEvent { window_id, event: WindowEvent::KeyboardInput {
+                        // Standard virtual core keyboard ID. XInput2 needs to be used to get a
+                        // reliable value, though this should only be an issue under multiseat
+                        // configurations.
+                        device_id: mkdid(3),
+                        input: KeyboardInput {
+                            state,
+                            scancode: xkev.keycode - 8,
+                            virtual_keycode,
+                            modifiers,
+                        },
+                    }});
+                }
 
                 if state == Pressed {
-                    let written = unsafe {
-                        use std::str;
-
-                        const INIT_BUFF_SIZE: usize = 16;
-                        let mut windows = self.windows.lock().unwrap();
-                        let window_data = windows.get_mut(&WindowId(xwindow)).unwrap();
-                        /* buffer allocated on heap instead of stack, due to the possible
-                         * reallocation */
-                        let mut buffer: Vec<u8> = vec![mem::uninitialized(); INIT_BUFF_SIZE];
-                        let mut keysym: ffi::KeySym = 0;
-                        let mut status: ffi::Status = 0;
-                        let mut count = (self.display.xlib.Xutf8LookupString)(window_data.ic, xkev,
-                                                                          mem::transmute(buffer.as_mut_ptr()),
-                                                                          buffer.len() as libc::c_int,
-                                                                          &mut keysym, &mut status);
-                        /* buffer overflowed, dynamically reallocate */
-                        if status == ffi::XBufferOverflow {
-                            buffer = vec![mem::uninitialized(); count as usize];
-                            count = (self.display.xlib.Xutf8LookupString)(window_data.ic, xkev,
-                                                                          mem::transmute(buffer.as_mut_ptr()),
-                                                                          buffer.len() as libc::c_int,
-                                                                          &mut keysym, &mut status);
-                        }
-
-                        str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
+                    let written = if let Some(ime) = self.ime.borrow().get(&WindowId(window)) {
+                        unsafe { util::lookup_utf8(&self.display, ime.ic, xkev) }
+                    } else {
+                        return;
                     };
 
                     for chr in written.chars() {
                         let event = Event::WindowEvent {
-                            window_id: wid,
+                            window_id,
                             event: WindowEvent::ReceivedCharacter(chr),
                         };
                         callback(event);
@@ -471,26 +516,22 @@ impl EventsLoop {
 
                 match xev.evtype {
                     ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
-                        use events::ModifiersState;
-
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
-                        let wid = mkwid(xev.event);
-                        let did = mkdid(xev.deviceid);
-                        if (xev.flags & ffi::XIPointerEmulated) != 0 && self.windows.lock().unwrap().get(&WindowId(xev.event)).unwrap().multitouch {
-                            // Deliver multi-touch events instead of emulated mouse events.
-                            return;
+                        let window_id = mkwid(xev.event);
+                        let device_id = mkdid(xev.deviceid);
+                        if (xev.flags & ffi::XIPointerEmulated) != 0 {
+                            let windows = self.windows.lock().unwrap();
+                            if let Some(window_data) = windows.get(&WindowId(xev.event)) {
+                                if window_data.multitouch {
+                                    // Deliver multi-touch events instead of emulated mouse events.
+                                    return;
+                                }
+                            } else {
+                                return;
+                            }
                         }
 
-                        let ev_mods = {
-                          // Translate x mod state to mods
-                          let state = xev.mods.effective as u32;
-                          ModifiersState {
-                            alt:   state & ffi::Mod1Mask != 0,
-                            shift: state & ffi::ShiftMask != 0,
-                            ctrl:  state & ffi::ControlMask != 0,
-                            logo:  state & ffi::Mod4Mask != 0,
-                          }
-                        };
+                        let modifiers = ModifiersState::from(xev.mods);
 
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
@@ -498,68 +539,97 @@ impl EventsLoop {
                             Released
                         };
                         match xev.detail as u32 {
-                            ffi::Button1 => callback(Event::WindowEvent { window_id: wid, event:
-                                                                          MouseInput { device_id: did, state: state, button: Left, modifiers: ev_mods } }),
-                            ffi::Button2 => callback(Event::WindowEvent { window_id: wid, event:
-                                                                          MouseInput { device_id: did, state: state, button: Middle, modifiers: ev_mods} }),
-                            ffi::Button3 => callback(Event::WindowEvent { window_id: wid, event:
-                                                                          MouseInput { device_id: did, state: state, button: Right, modifiers: ev_mods } }),
+                            ffi::Button1 => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Left,
+                                    modifiers,
+                                },
+                            }),
+                            ffi::Button2 => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Middle,
+                                    modifiers,
+                                },
+                            }),
+                            ffi::Button3 => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Right,
+                                    modifiers,
+                                },
+                            }),
 
                             // Suppress emulated scroll wheel clicks, since we handle the real motion events for those.
                             // In practice, even clicky scroll wheels appear to be reported by evdev (and XInput2 in
                             // turn) as axis motion, so we don't otherwise special-case these button presses.
                             4 | 5 | 6 | 7 => if xev.flags & ffi::XIPointerEmulated == 0 {
-                                callback(Event::WindowEvent { window_id: wid, event: MouseWheel {
-                                    device_id: did,
-                                    delta: match xev.detail {
-                                        4 => LineDelta(0.0, 1.0),
-                                        5 => LineDelta(0.0, -1.0),
-                                        6 => LineDelta(-1.0, 0.0),
-                                        7 => LineDelta(1.0, 0.0),
-                                        _ => unreachable!()
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: MouseWheel {
+                                        device_id,
+                                        delta: match xev.detail {
+                                            4 => LineDelta(0.0, 1.0),
+                                            5 => LineDelta(0.0, -1.0),
+                                            6 => LineDelta(-1.0, 0.0),
+                                            7 => LineDelta(1.0, 0.0),
+                                            _ => unreachable!(),
+                                        },
+                                        phase: TouchPhase::Moved,
+                                        modifiers,
                                     },
-                                    phase: TouchPhase::Moved,
-                                    modifiers: ev_mods,
-                                }});
+                                });
                             },
 
-                            x => callback(Event::WindowEvent { window_id: wid,
-                                                               event: MouseInput { device_id: did, state: state, button: Other(x as u8), modifiers: ev_mods } })
+                            x => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Other(x as u8),
+                                    modifiers,
+                                },
+                            }),
                         }
                     }
                     ffi::XI_Motion => {
-                        use events::ModifiersState;
-
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
-                        let did = mkdid(xev.deviceid);
-                        let wid = mkwid(xev.event);
+                        let device_id = mkdid(xev.deviceid);
+                        let window_id = mkwid(xev.event);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
-                        
-                        let ev_mods = {
-                          // Translate x event state to mods
-                          let state = xev.mods.effective as u32;
-                          ModifiersState {
-                            alt:   state & ffi::Mod1Mask != 0,
-                            shift: state & ffi::ShiftMask != 0,
-                            ctrl:  state & ffi::ControlMask != 0,
-                            logo:  state & ffi::Mod4Mask != 0,
-                          }
-                        };
-  
+
+                        let modifiers = ModifiersState::from(xev.mods);
+
                         // Gymnastics to ensure self.windows isn't locked when we invoke callback
                         if {
                             let mut windows = self.windows.lock().unwrap();
-                            let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
+                            let window_data = {
+                                if let Some(window_data) = windows.get_mut(&WindowId(xev.event)) {
+                                    window_data
+                                } else {
+                                    return;
+                                }
+                            };
                             if Some(new_cursor_pos) != window_data.cursor_pos {
                                 window_data.cursor_pos = Some(new_cursor_pos);
                                 true
                             } else { false }
                         } {
-                            callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
-                                device_id: did,
-                                position: new_cursor_pos,
-                                modifiers: ev_mods,
-                            }});
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: CursorMoved {
+                                    device_id,
+                                    position: new_cursor_pos,
+                                    modifiers,
+                                },
+                            });
                         }
 
                         // More gymnastics, for self.devices
@@ -576,22 +646,28 @@ impl EventsLoop {
                                     if let Some(&mut (_, ref mut info)) = physical_device.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == i) {
                                         let delta = (x - info.position) / info.increment;
                                         info.position = x;
-                                        events.push(Event::WindowEvent { window_id: wid, event: MouseWheel {
-                                            device_id: did,
-                                            delta: match info.orientation {
-                                                ScrollOrientation::Horizontal => LineDelta(delta as f32, 0.0),
-                                                // X11 vertical scroll coordinates are opposite to winit's
-                                                ScrollOrientation::Vertical => LineDelta(0.0, -delta as f32),
+                                        events.push(Event::WindowEvent {
+                                            window_id,
+                                            event: MouseWheel {
+                                                device_id,
+                                                delta: match info.orientation {
+                                                    ScrollOrientation::Horizontal => LineDelta(delta as f32, 0.0),
+                                                    // X11 vertical scroll coordinates are opposite to winit's
+                                                    ScrollOrientation::Vertical => LineDelta(0.0, -delta as f32),
+                                                },
+                                                phase: TouchPhase::Moved,
+                                                modifiers,
                                             },
-                                            phase: TouchPhase::Moved,
-                                            modifiers: ev_mods,
-                                        }});
+                                        });
                                     } else {
-                                        events.push(Event::WindowEvent { window_id: wid, event: AxisMotion {
-                                            device_id: did,
-                                            axis: i as u32,
-                                            value: unsafe { *value },
-                                        }});
+                                        events.push(Event::WindowEvent {
+                                            window_id,
+                                            event: AxisMotion {
+                                                device_id,
+                                                axis: i as u32,
+                                                value: unsafe { *value },
+                                            },
+                                        });
                                     }
                                     value = unsafe { value.offset(1) };
                                 }
@@ -603,19 +679,10 @@ impl EventsLoop {
                     }
 
                     ffi::XI_Enter => {
-                        use events::ModifiersState;
                         let xev: &ffi::XIEnterEvent = unsafe { &*(xev.data as *const _) };
 
-                        let ev_mods = {
-                            // Translate x event state to mods
-                            let state = xev.mods.effective as u32;
-                            ModifiersState {
-                                alt:   state & ffi::Mod1Mask != 0,
-                                shift: state & ffi::ShiftMask != 0,
-                                ctrl:  state & ffi::ControlMask != 0,
-                                logo:  state & ffi::Mod4Mask != 0,
-                            }
-                        };
+                        let window_id = mkwid(xev.event);
+                        let device_id = mkdid(xev.deviceid);
 
                         let mut devices = self.devices.lock().unwrap();
                         let physical_device = devices.get_mut(&DeviceId(xev.sourceid)).unwrap();
@@ -624,73 +691,109 @@ impl EventsLoop {
                                 physical_device.reset_scroll_position(info);
                             }
                         }
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorEntered { device_id: mkdid(xev.deviceid) } });
+                        callback(Event::WindowEvent {
+                            window_id,
+                            event: CursorEntered { device_id },
+                        });
 
                         let new_cursor_pos = (xev.event_x, xev.event_y);
-                        callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
-                            device_id: mkdid(xev.deviceid),
+                        // The mods field on this event isn't actually useful, so we have to
+                        // query the pointer device.
+                        let modifiers = unsafe {
+                            util::query_pointer(
+                                &self.display,
+                                xev.event,
+                                xev.deviceid,
+                            ).expect("Failed to query pointer device")
+                        }.get_modifier_state();
+
+                        callback(Event::WindowEvent { window_id, event: CursorMoved {
+                            device_id,
                             position: new_cursor_pos,
-                            modifiers: ev_mods,
+                            modifiers,
                         }})
                     }
                     ffi::XI_Leave => {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: CursorLeft { device_id: mkdid(xev.deviceid) } })
+
+                        // Leave, FocusIn, and FocusOut can be received by a window that's already
+                        // been destroyed, which the user presumably doesn't want to deal with.
+                        let window_closed = self.windows
+                            .lock()
+                            .unwrap()
+                            .get(&WindowId(xev.event))
+                            .is_none();
+
+                        if !window_closed {
+                            callback(Event::WindowEvent {
+                                window_id: mkwid(xev.event),
+                                event: CursorLeft { device_id: mkdid(xev.deviceid) },
+                            });
+                        }
                     }
                     ffi::XI_FocusIn => {
-                        use events::ModifiersState;
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
-                        let ev_mods = {
-                            // Translate x event state to mods
-                            let state = xev.mods.effective as u32;
-                            ModifiersState {
-                                alt:   state & ffi::Mod1Mask != 0,
-                                shift: state & ffi::ShiftMask != 0,
-                                ctrl:  state & ffi::ControlMask != 0,
-                                logo:  state & ffi::Mod4Mask != 0,
-                            }
-                        };
+                        let window_id = mkwid(xev.event);
 
-                        unsafe {
-                            let mut windows = self.windows.lock().unwrap();
-                            let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
-                            (self.display.xlib.XSetICFocus)(window_data.ic);
+                        if let Some(ime) = self.ime.borrow().get(&WindowId(xev.event)) {
+                            ime.focus().expect("Failed to focus input context");
+                        } else {
+                            return;
                         }
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: Focused(true) });
 
-                        let new_cursor_pos = (xev.event_x, xev.event_y);
-                        callback(Event::WindowEvent { window_id: wid, event: CursorMoved {
-                            device_id: mkdid(xev.deviceid),
-                            position: new_cursor_pos,
-                            modifiers: ev_mods,
-                        }})
+                        callback(Event::WindowEvent { window_id, event: Focused(true) });
+
+                        // The deviceid for this event is for a keyboard instead of a pointer,
+                        // so we have to do a little extra work.
+                        let device_info = DeviceInfo::get(&self.display, xev.deviceid);
+                        // For master devices, the attachment field contains the ID of the
+                        // paired master device; for the master keyboard, the attachment is
+                        // the master pointer, and vice versa.
+                        let pointer_id = unsafe { (*device_info.info) }.attachment;
+
+                        callback(Event::WindowEvent {
+                            window_id,
+                            event: CursorMoved {
+                                device_id: mkdid(pointer_id),
+                                position: (xev.event_x, xev.event_y),
+                                modifiers: ModifiersState::from(xev.mods),
+                            }
+                        });
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
-                        unsafe {
-                            let mut windows = self.windows.lock().unwrap();
-                            let window_data = windows.get_mut(&WindowId(xev.event)).unwrap();
-                            (self.display.xlib.XUnsetICFocus)(window_data.ic);
+
+                        if let Some(ime) = self.ime.borrow().get(&WindowId(xev.event)) {
+                            ime.unfocus().expect("Failed to unfocus input context");
+                        } else {
+                            return;
                         }
-                        callback(Event::WindowEvent { window_id: mkwid(xev.event), event: Focused(false) })
+
+                        callback(Event::WindowEvent {
+                            window_id: mkwid(xev.event),
+                            event: Focused(false),
+                        })
                     }
 
                     ffi::XI_TouchBegin | ffi::XI_TouchUpdate | ffi::XI_TouchEnd => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
-                        let wid = mkwid(xev.event);
+                        let window_id = mkwid(xev.event);
                         let phase = match xev.evtype {
                             ffi::XI_TouchBegin => TouchPhase::Started,
                             ffi::XI_TouchUpdate => TouchPhase::Moved,
                             ffi::XI_TouchEnd => TouchPhase::Ended,
                             _ => unreachable!()
                         };
-                        callback(Event::WindowEvent { window_id: wid, event: WindowEvent::Touch(Touch {
-                            device_id: mkdid(xev.deviceid),
-                            phase: phase,
-                            location: (xev.event_x, xev.event_y),
-                            id: xev.detail as u64,
-                        })})
+                        callback(Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Touch(Touch {
+                                device_id: mkdid(xev.deviceid),
+                                phase,
+                                location: (xev.event_x, xev.event_y),
+                                id: xev.detail as u64,
+                            },
+                        )})
                     }
 
                     ffi::XI_RawButtonPress | ffi::XI_RawButtonRelease => {
@@ -758,7 +861,7 @@ impl EventsLoop {
                                 ffi::XI_RawKeyRelease => Released,
                                 _ => unreachable!(),
                             },
-                            modifiers: ::events::ModifiersState::default(),
+                            modifiers: ModifiersState::default(),
                         })});
                     }
 
@@ -781,6 +884,15 @@ impl EventsLoop {
             }
 
             _ => {}
+        }
+
+        match self.ime_receiver.try_recv() {
+            Ok((window_id, x, y)) => {
+                if let Some(ime) = self.ime.borrow_mut().get_mut(&window_id) {
+                    ime.send_xim_spot(x, y);
+                }
+            }
+            Err(_) => ()
         }
     }
 
@@ -875,6 +987,7 @@ pub struct Window {
     pub window: Arc<Window2>,
     display: Weak<XConnection>,
     windows: Weak<Mutex<HashMap<WindowId, WindowData>>>,
+    ime_sender: Sender<(WindowId, i16, i16)>,
 }
 
 impl ::std::ops::Deref for Window {
@@ -885,48 +998,19 @@ impl ::std::ops::Deref for Window {
     }
 }
 
-// XOpenIM doesn't seem to be thread-safe
-lazy_static! {      // TODO: use a static mutex when that's possible, and put me back in my function
-    static ref GLOBAL_XOPENIM_LOCK: Mutex<()> = Mutex::new(());
-}
-
 impl Window {
-    pub fn new(x_events_loop: &EventsLoop,
-               window: &::WindowAttributes,
-               pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Self, CreationError>
-    {
-        let win = ::std::sync::Arc::new(try!(Window2::new(&x_events_loop, window, pl_attribs)));
+    pub fn new(
+        x_events_loop: &EventsLoop,
+        window: &::WindowAttributes,
+        pl_attribs: &PlatformSpecificWindowBuilderAttributes
+    ) -> Result<Self, CreationError> {
+        let win = Arc::new(try!(Window2::new(&x_events_loop, window, pl_attribs)));
 
-        // creating IM
-        let im = unsafe {
-            let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
-
-            let im = (x_events_loop.display.xlib.XOpenIM)(x_events_loop.display.display, ptr::null_mut(), ptr::null_mut(), ptr::null_mut());
-            if im.is_null() {
-                panic!("XOpenIM failed");
-            }
-            im
-        };
-
-        // creating input context
-        let ic = unsafe {
-            let ic = (x_events_loop.display.xlib.XCreateIC)(im,
-                                              b"inputStyle\0".as_ptr() as *const _,
-                                              ffi::XIMPreeditNothing | ffi::XIMStatusNothing, b"clientWindow\0".as_ptr() as *const _,
-                                              win.id().0, ptr::null::<()>());
-            if ic.is_null() {
-                panic!("XCreateIC failed");
-            }
-            (x_events_loop.display.xlib.XSetICFocus)(ic);
-            x_events_loop.display.check_errors().expect("Failed to call XSetICFocus");
-            ic
-        };
+        let ime = util::Ime::new(Arc::clone(&x_events_loop.display), win.id().0)
+            .expect("Failed to initialize IME");
+        x_events_loop.ime.borrow_mut().insert(win.id(), ime);
 
         x_events_loop.windows.lock().unwrap().insert(win.id(), WindowData {
-            im: im,
-            ic: ic,
-            ic_spot: ffi::XPoint {x: 0, y: 0},
             config: None,
             multitouch: window.multitouch,
             cursor_pos: None,
@@ -936,6 +1020,7 @@ impl Window {
             window: win,
             windows: Arc::downgrade(&x_events_loop.windows),
             display: Arc::downgrade(&x_events_loop.display),
+            ime_sender: x_events_loop.ime_sender.clone(),
         })
     }
 
@@ -946,35 +1031,34 @@ impl Window {
 
     #[inline]
     pub fn send_xim_spot(&self, x: i16, y: i16) {
-        if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
-            let nspot = ffi::XPoint{x: x, y: y};
-            let mut windows = windows.lock().unwrap();
-            let w = windows.get_mut(&self.window.id()).unwrap();
-            if w.ic_spot.x == x && w.ic_spot.y == y {
-                return
-            }
-            w.ic_spot = nspot;
-            unsafe {
-                let preedit_attr = (display.xlib.XVaCreateNestedList)
-                    (0, b"spotLocation\0", &nspot, ptr::null::<()>());
-                (display.xlib.XSetICValues)(w.ic, b"preeditAttributes\0",
-                                            preedit_attr, ptr::null::<()>());
-                (display.xlib.XFree)(preedit_attr);
-            }
-        }
+        let _ = self.ime_sender.send((self.window.id(), x, y));
     }
 }
 
 impl Drop for Window {
     fn drop(&mut self) {
         if let (Some(windows), Some(display)) = (self.windows.upgrade(), self.display.upgrade()) {
-            let mut windows = windows.lock().unwrap();
-            let w = windows.remove(&self.window.id()).unwrap();
-            let _lock = GLOBAL_XOPENIM_LOCK.lock().unwrap();
-            unsafe {
-                (display.xlib.XDestroyIC)(w.ic);
-                (display.xlib.XCloseIM)(w.im);
-            }
+            // It's possible for the Window object to outlive the actual window, so we need to
+            // check for that, lest the program explode with BadWindow errors soon after this.
+            let window_closed = windows
+                .lock()
+                .unwrap()
+                .get(&self.window.id())
+                .is_none();
+            if !window_closed { unsafe {
+                let wm_protocols_atom = util::get_atom(&display, b"WM_PROTOCOLS\0")
+                    .expect("Failed to call XInternAtom (WM_PROTOCOLS)");
+                let wm_delete_atom = util::get_atom(&display, b"WM_DELETE_WINDOW\0")
+                    .expect("Failed to call XInternAtom (WM_DELETE_WINDOW)");
+                util::send_client_msg(
+                    &display,
+                    self.window.id().0,
+                    self.window.id().0,
+                    wm_protocols_atom,
+                    None,
+                    (wm_delete_atom as _, ffi::CurrentTime as _, 0, 0, 0),
+                ).expect("Failed to send window deletion message");
+            } }
         }
     }
 }
@@ -982,9 +1066,6 @@ impl Drop for Window {
 /// State maintained for translating window-related events
 struct WindowData {
     config: Option<WindowConfig>,
-    im: ffi::XIM,
-    ic: ffi::XIC,
-    ic_spot: ffi::XPoint,
     multitouch: bool,
     cursor_pos: Option<(f64, f64)>,
 }

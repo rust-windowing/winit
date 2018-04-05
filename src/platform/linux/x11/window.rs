@@ -3,7 +3,7 @@ use CreationError;
 use CreationError::OsError;
 use libc;
 use std::borrow::Borrow;
-use std::{mem, cmp};
+use std::{mem, cmp, ptr};
 use std::sync::{Arc, Mutex};
 use std::os::raw::{c_int, c_long, c_uchar, c_ulong, c_void};
 use std::thread;
@@ -19,7 +19,7 @@ use window::MonitorId as RootMonitorId;
 
 use platform::x11::monitor::get_available_monitors;
 
-use super::{ffi, util, XConnection, WindowId, EventsLoop};
+use super::{ffi, util, XConnection, XError, WindowId, EventsLoop};
 
 // TODO: remove me
 fn with_c_str<F, T>(s: &str, f: F) -> T where F: FnOnce(*const libc::c_char) -> T {
@@ -51,6 +51,42 @@ pub struct XWindow {
     window: ffi::Window,
     root: ffi::Window,
     screen_id: i32,
+}
+
+impl XWindow {
+    /// Get parent window of `child`
+    ///
+    /// This method can return None if underlying xlib call fails.
+    ///
+    /// # Unsafety
+    ///
+    /// `child` must be a valid `Window`.
+    unsafe fn get_parent_window(&self, child: ffi::Window) -> Option<ffi::Window> {
+        let mut root: ffi::Window = mem::uninitialized();
+        let mut parent: ffi::Window = mem::uninitialized();
+        let mut children: *mut ffi::Window = ptr::null_mut();
+        let mut nchildren: libc::c_uint = mem::uninitialized();
+
+        let res = (self.display.xlib.XQueryTree)(
+            self.display.display,
+            child,
+            &mut root,
+            &mut parent,
+            &mut children,
+            &mut nchildren
+        );
+
+        if res == 0 {
+            return None;
+        }
+
+        // The list of children isn't used
+        if children != ptr::null_mut() {
+            (self.display.xlib.XFree)(children as *mut _);
+        }
+
+        Some(parent)
+    }
 }
 
 unsafe impl Send for XWindow {}
@@ -194,23 +230,33 @@ impl Window2 {
             }
 
             // set size hints
-            let mut size_hints: ffi::XSizeHints = unsafe { mem::zeroed() };
-            size_hints.flags = ffi::PSize;
-            size_hints.width = dimensions.0 as i32;
-            size_hints.height = dimensions.1 as i32;
-            if let Some(dimensions) = window_attrs.min_dimensions {
-                size_hints.flags |= ffi::PMinSize;
-                size_hints.min_width = dimensions.0 as i32;
-                size_hints.min_height = dimensions.1 as i32;
-            }
-            if let Some(dimensions) = window_attrs.max_dimensions {
-                size_hints.flags |= ffi::PMaxSize;
-                size_hints.max_width = dimensions.0 as i32;
-                size_hints.max_height = dimensions.1 as i32;
-            }
-            unsafe {
-                (display.xlib.XSetNormalHints)(display.display, x_window.window, &mut size_hints);
-                display.check_errors().expect("Failed to call XSetNormalHints");
+            {
+                let mut size_hints = {
+                    let size_hints = unsafe { (display.xlib.XAllocSizeHints)() };
+                    util::XSmartPointer::new(&display, size_hints)
+                        .expect("XAllocSizeHints returned null; out of memory")
+                };
+                (*size_hints).flags = ffi::PSize;
+                (*size_hints).width = dimensions.0 as c_int;
+                (*size_hints).height = dimensions.1 as c_int;
+                if let Some(dimensions) = window_attrs.min_dimensions {
+                    (*size_hints).flags |= ffi::PMinSize;
+                    (*size_hints).min_width = dimensions.0 as c_int;
+                    (*size_hints).min_height = dimensions.1 as c_int;
+                }
+                if let Some(dimensions) = window_attrs.max_dimensions {
+                    (*size_hints).flags |= ffi::PMaxSize;
+                    (*size_hints).max_width = dimensions.0 as c_int;
+                    (*size_hints).max_height = dimensions.1 as c_int;
+                }
+                unsafe {
+                    (display.xlib.XSetWMNormalHints)(
+                        display.display,
+                        x_window.window,
+                        size_hints.ptr,
+                    );
+                }
+                display.check_errors().expect("Failed to call XSetWMNormalHints");
             }
 
             // Opt into handling window close
@@ -497,6 +543,7 @@ impl Window2 {
             let mut border: libc::c_uint = mem::uninitialized();
             let mut depth: libc::c_uint = mem::uninitialized();
 
+            // Get non-positioning data from winit window
             if (self.x.display.xlib.XGetGeometry)(self.x.display.display, self.x.window,
                 &mut root, &mut x, &mut y, &mut width, &mut height,
                 &mut border, &mut depth) == 0
@@ -504,7 +551,39 @@ impl Window2 {
                 return None;
             }
 
-            Some((x as i32, y as i32, width as u32, height as u32, border as u32))
+            let width_out = width;
+            let height_out = height;
+            let border_out = border;
+
+            // Some window managers like i3wm will actually nest application
+            // windows (like those opened by winit) within other windows to, for
+            // example, add decorations. Initially when debugging this method on
+            // i3, the x and y positions were always returned as "2".
+            //
+            // The solution that other xlib abstractions use is to climb up the
+            // window hierarchy until just below the root window, and that
+            // window must be used to determine the appropriate position.
+            let window = {
+                let root = self.x.root;
+                let mut window = self.x.window;
+                loop {
+                    let candidate = self.x.get_parent_window(window).unwrap();
+                    if candidate == root {
+                        break window;
+                    }
+
+                    window = candidate;
+                }
+            };
+
+            if (self.x.display.xlib.XGetGeometry)(self.x.display.display, window,
+                &mut root, &mut x, &mut y, &mut width, &mut height,
+                &mut border, &mut depth) == 0
+            {
+                return None;
+            }
+
+            Some((x as i32, y as i32, width_out as u32, height_out as u32, border_out as u32))
         }
     }
 
@@ -532,6 +611,67 @@ impl Window2 {
     pub fn set_inner_size(&self, x: u32, y: u32) {
         unsafe { (self.x.display.xlib.XResizeWindow)(self.x.display.display, self.x.window, x as libc::c_uint, y as libc::c_uint); }
         self.x.display.check_errors().expect("Failed to call XResizeWindow");
+    }
+
+    unsafe fn update_normal_hints<F>(&self, callback: F) -> Result<(), XError>
+        where F: FnOnce(*mut ffi::XSizeHints) -> ()
+    {
+        let xconn = &self.x.display;
+
+        let size_hints = {
+            let size_hints = (xconn.xlib.XAllocSizeHints)();
+            util::XSmartPointer::new(&xconn, size_hints)
+                .expect("XAllocSizeHints returned null; out of memory")
+        };
+
+        let mut flags: c_long = mem::uninitialized();
+
+        (xconn.xlib.XGetWMNormalHints)(
+            xconn.display,
+            self.x.window,
+            size_hints.ptr,
+            &mut flags,
+        );
+        xconn.check_errors()?;
+
+        callback(size_hints.ptr);
+
+        (xconn.xlib.XSetWMNormalHints)(
+            xconn.display,
+            self.x.window,
+            size_hints.ptr,
+        );
+        xconn.check_errors()?;
+
+        Ok(())
+    }
+
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        unsafe {
+            self.update_normal_hints(|size_hints| {
+                if let Some((width, height)) = dimensions {
+                    (*size_hints).flags |= ffi::PMinSize;
+                    (*size_hints).min_width = width as c_int;
+                    (*size_hints).min_height = height as c_int;
+                } else {
+                    (*size_hints).flags &= !ffi::PMinSize;
+                }
+            })
+        }.expect("Failed to call XSetWMNormalHints");
+    }
+
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        unsafe {
+            self.update_normal_hints(|size_hints| {
+                if let Some((width, height)) = dimensions {
+                    (*size_hints).flags |= ffi::PMaxSize;
+                    (*size_hints).max_width = width as c_int;
+                    (*size_hints).max_height = height as c_int;
+                } else {
+                    (*size_hints).flags &= !ffi::PMaxSize;
+                }
+            })
+        }.expect("Failed to call XSetWMNormalHints");
     }
 
     #[inline]
@@ -714,15 +854,22 @@ impl Window2 {
             Hide => self.update_cursor(self.get_cursor(*self.cursor.lock().unwrap())),
         }
 
-        *cursor_state = state;
         match state {
-            Normal => Ok(()),
+            Normal => {
+                *cursor_state = state;
+                Ok(())
+            },
             Hide => {
+                *cursor_state = state;
                 self.update_cursor(self.create_empty_cursor());
                 Ok(())
             },
             Grab => {
                 unsafe {
+                    // Ungrab before grabbing to prevent passive grabs
+                    // from causing AlreadyGrabbed
+                    (self.x.display.xlib.XUngrabPointer)(self.x.display.display, ffi::CurrentTime);
+
                     match (self.x.display.xlib.XGrabPointer)(
                         self.x.display.display, self.x.window, ffi::True,
                         (ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
@@ -733,7 +880,10 @@ impl Window2 {
                         ffi::GrabModeAsync, ffi::GrabModeAsync,
                         self.x.window, 0, ffi::CurrentTime
                     ) {
-                        ffi::GrabSuccess => Ok(()),
+                        ffi::GrabSuccess => {
+                            *cursor_state = state;
+                            Ok(())
+                        },
                         ffi::AlreadyGrabbed | ffi::GrabInvalidTime |
                         ffi::GrabNotViewable | ffi::GrabFrozen
                             => Err("cursor could not be grabbed".to_string()),

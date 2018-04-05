@@ -104,7 +104,8 @@ impl EventsLoop {
                 *context_stash.borrow_mut() = Some(ThreadLocalData {
                     sender: tx,
                     windows: HashMap::with_capacity(4),
-                    win32_block_loop: win32_block_loop_child
+                    win32_block_loop: win32_block_loop_child,
+                    mouse_buttons_down: 0
                 });
             });
 
@@ -298,7 +299,8 @@ thread_local!(static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::
 struct ThreadLocalData {
     sender: mpsc::Sender<Event>,
     windows: HashMap<HWND, Arc<Mutex<WindowState>>>,
-    win32_block_loop: Arc<(Mutex<bool>, Condvar)>
+    win32_block_loop: Arc<(Mutex<bool>, Condvar)>,
+    mouse_buttons_down: u32
 }
 
 // Utility function that dispatches an event on the current thread.
@@ -307,6 +309,32 @@ fn send_event(event: Event) {
         let context_stash = context_stash.borrow();
 
         let _ = context_stash.as_ref().unwrap().sender.send(event);   // Ignoring if closed
+    });
+}
+
+/// Capture mouse input, allowing `window` to receive mouse events when the cursor is outside of
+/// the window.
+unsafe fn capture_mouse(window: HWND) {
+    CONTEXT_STASH.with(|context_stash| {
+        let mut context_stash = context_stash.borrow_mut();
+        if let Some(context_stash) = context_stash.as_mut() {
+            context_stash.mouse_buttons_down += 1;
+            winuser::SetCapture(window);
+        }
+    });
+}
+
+/// Release mouse input, stopping windows on this thread from receiving mouse input when the cursor
+/// is outside the window.
+unsafe fn release_mouse() {
+    CONTEXT_STASH.with(|context_stash| {
+        let mut context_stash = context_stash.borrow_mut();
+        if let Some(context_stash) = context_stash.as_mut() {
+            context_stash.mouse_buttons_down = context_stash.mouse_buttons_down.saturating_sub(1);
+            if context_stash.mouse_buttons_down == 0 {
+                winuser::ReleaseCapture();
+            }
+        }
     });
 }
 
@@ -552,6 +580,9 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Left;
             use events::ElementState::Pressed;
+
+            capture_mouse(window);
+
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Left, modifiers: event::get_key_mods() }
@@ -563,6 +594,9 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Left;
             use events::ElementState::Released;
+
+            release_mouse();
+
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Left, modifiers: event::get_key_mods() }
@@ -574,6 +608,9 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Right;
             use events::ElementState::Pressed;
+
+            capture_mouse(window);
+
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Right, modifiers: event::get_key_mods() }
@@ -585,6 +622,9 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Right;
             use events::ElementState::Released;
+
+            release_mouse();
+
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Right, modifiers: event::get_key_mods() }
@@ -596,6 +636,9 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Middle;
             use events::ElementState::Pressed;
+
+            capture_mouse(window);
+
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Middle, modifiers: event::get_key_mods() }
@@ -607,6 +650,9 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::WindowEvent::MouseInput;
             use events::MouseButton::Middle;
             use events::ElementState::Released;
+
+            release_mouse();
+
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Middle, modifiers: event::get_key_mods() }
@@ -619,6 +665,9 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::MouseButton::Other;
             use events::ElementState::Pressed;
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
+
+            capture_mouse(window);
+
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Other(xbutton as u8), modifiers: event::get_key_mods() }
@@ -631,6 +680,9 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             use events::MouseButton::Other;
             use events::ElementState::Released;
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
+
+            release_mouse();
+
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Other(xbutton as u8), modifiers: event::get_key_mods() }

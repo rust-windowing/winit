@@ -1,10 +1,54 @@
 use std::mem;
 use std::ptr;
+use std::str;
 use std::sync::Arc;
-
-use libc::{c_char, c_int, c_long, c_short, c_uchar, c_ulong};
+use std::ops::{Deref, DerefMut};
+use std::os::raw::{c_char, c_double, c_int, c_long, c_short, c_uchar, c_uint, c_ulong};
 
 use super::{ffi, XConnection, XError};
+use events::ModifiersState;
+
+pub struct XSmartPointer<'a, T> {
+    xconn: &'a Arc<XConnection>,
+    pub ptr: *mut T,
+}
+
+impl<'a, T> XSmartPointer<'a, T> {
+    // You're responsible for only passing things to this that should be XFree'd.
+    // Returns None if ptr is null.
+    pub fn new(xconn: &'a Arc<XConnection>, ptr: *mut T) -> Option<Self> {
+        if !ptr.is_null() {
+            Some(XSmartPointer {
+                xconn,
+                ptr,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T> Deref for XSmartPointer<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        unsafe { &*self.ptr }
+    }
+}
+
+impl<'a, T> DerefMut for XSmartPointer<'a, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.ptr }
+    }
+}
+
+impl<'a, T> Drop for XSmartPointer<'a, T> {
+    fn drop(&mut self) {
+        unsafe {
+            (self.xconn.xlib.XFree)(self.ptr as *mut _);
+        }
+    }
+}
 
 pub unsafe fn get_atom(xconn: &Arc<XConnection>, name: &[u8]) -> Result<ffi::Atom, XError> {
     let atom_name: *const c_char = name.as_ptr() as _;
@@ -116,4 +160,252 @@ pub unsafe fn get_property<T>(
     }
 
     Ok(data)
+}
+
+impl From<ffi::XIModifierState> for ModifiersState {
+    fn from(mods: ffi::XIModifierState) -> Self {
+        let state = mods.effective as c_uint;
+        ModifiersState {
+            alt: state & ffi::Mod1Mask != 0,
+            shift: state & ffi::ShiftMask != 0,
+            ctrl: state & ffi::ControlMask != 0,
+            logo: state & ffi::Mod4Mask != 0,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct PointerState {
+    #[allow(dead_code)]
+    root: ffi::Window,
+    #[allow(dead_code)]
+    child: ffi::Window,
+    #[allow(dead_code)]
+    root_x: c_double,
+    #[allow(dead_code)]
+    root_y: c_double,
+    #[allow(dead_code)]
+    win_x: c_double,
+    #[allow(dead_code)]
+    win_y: c_double,
+    #[allow(dead_code)]
+    buttons: ffi::XIButtonState,
+    modifiers: ffi::XIModifierState,
+    #[allow(dead_code)]
+    group: ffi::XIGroupState,
+    #[allow(dead_code)]
+    relative_to_window: bool,
+}
+
+impl PointerState {
+    pub fn get_modifier_state(&self) -> ModifiersState {
+        self.modifiers.into()
+    }
+}
+
+pub unsafe fn query_pointer(
+    xconn: &Arc<XConnection>,
+    window: ffi::Window,
+    device_id: c_int,
+) -> Result<PointerState, XError> {
+    let mut root_return = mem::uninitialized();
+    let mut child_return = mem::uninitialized();
+    let mut root_x_return = mem::uninitialized();
+    let mut root_y_return = mem::uninitialized();
+    let mut win_x_return = mem::uninitialized();
+    let mut win_y_return = mem::uninitialized();
+    let mut buttons_return = mem::uninitialized();
+    let mut modifiers_return = mem::uninitialized();
+    let mut group_return = mem::uninitialized();
+
+    let relative_to_window = (xconn.xinput2.XIQueryPointer)(
+        xconn.display,
+        device_id,
+        window,
+        &mut root_return,
+        &mut child_return,
+        &mut root_x_return,
+        &mut root_y_return,
+        &mut win_x_return,
+        &mut win_y_return,
+        &mut buttons_return,
+        &mut modifiers_return,
+        &mut group_return,
+    ) == ffi::True;
+
+    xconn.check_errors()?;
+
+    Ok(PointerState {
+        root: root_return,
+        child: child_return,
+        root_x: root_x_return,
+        root_y: root_y_return,
+        win_x: win_x_return,
+        win_y: win_y_return,
+        buttons: buttons_return,
+        modifiers: modifiers_return,
+        group: group_return,
+        relative_to_window,
+    })
+}
+
+unsafe fn lookup_utf8_inner(
+    xconn: &Arc<XConnection>,
+    ic: ffi::XIC,
+    key_event: &mut ffi::XKeyEvent,
+    buffer: &mut [u8],
+) -> (ffi::KeySym, ffi::Status, c_int) {
+    let mut keysym: ffi::KeySym = 0;
+    let mut status: ffi::Status = 0;
+    let count = (xconn.xlib.Xutf8LookupString)(
+        ic,
+        key_event,
+        buffer.as_mut_ptr() as *mut c_char,
+        buffer.len() as c_int,
+        &mut keysym,
+        &mut status,
+    );
+    (keysym, status, count)
+}
+
+pub unsafe fn lookup_utf8(
+    xconn: &Arc<XConnection>,
+    ic: ffi::XIC,
+    key_event: &mut ffi::XKeyEvent,
+) -> String {
+    const INIT_BUFF_SIZE: usize = 16;
+
+    // Buffer allocated on heap instead of stack, due to the possible reallocation
+    let mut buffer: Vec<u8> = vec![mem::uninitialized(); INIT_BUFF_SIZE];
+    let (_, status, mut count) = lookup_utf8_inner(
+        xconn,
+        ic,
+        key_event,
+        &mut buffer,
+    );
+
+    // Buffer overflowed, dynamically reallocate
+    if status == ffi::XBufferOverflow {
+        buffer = vec![mem::uninitialized(); count as usize];
+        let (_, _, new_count) = lookup_utf8_inner(
+            xconn,
+            ic,
+            key_event,
+            &mut buffer,
+        );
+        count = new_count;
+    }
+
+    str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
+}
+
+// Important: all XIM calls need to happen from the same thread!
+pub struct Ime {
+    xconn: Arc<XConnection>,
+    pub im: ffi::XIM,
+    pub ic: ffi::XIC,
+    ic_spot: ffi::XPoint,
+}
+
+impl Ime {
+    pub fn new(xconn: Arc<XConnection>, window: ffi::Window) -> Option<Self> {
+        let im = unsafe {
+            let mut im: ffi::XIM = ptr::null_mut();
+
+            // Setting an empty string as the locale modifier results in the user's XMODIFIERS
+            // environment variable being read, which should result in the user's configured input
+            // method (ibus, fcitx, etc.) being used. If that fails, we fall back to internal
+            // input methods which should always be available, though only support compose keys.
+            for modifiers in &[b"\0" as &[u8], b"@im=local\0", b"@im=\0"] {
+                if !im.is_null() {
+                    break;
+                }
+
+                (xconn.xlib.XSetLocaleModifiers)(modifiers.as_ptr() as *const _);
+                im = (xconn.xlib.XOpenIM)(
+                    xconn.display,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                );
+            }
+
+            if im.is_null() {
+                return None;
+            }
+
+            im
+        };
+
+        let ic = unsafe {
+            let ic = (xconn.xlib.XCreateIC)(
+                im,
+                b"inputStyle\0".as_ptr() as *const _,
+                ffi::XIMPreeditNothing | ffi::XIMStatusNothing,
+                b"clientWindow\0".as_ptr() as *const _,
+                window,
+                ptr::null::<()>(),
+            );
+            if ic.is_null() {
+                return None;
+            }
+            (xconn.xlib.XSetICFocus)(ic);
+            xconn.check_errors().expect("Failed to call XSetICFocus");
+            ic
+        };
+
+        Some(Ime {
+            xconn,
+            im,
+            ic,
+            ic_spot: ffi::XPoint { x: 0, y: 0 },
+        })
+    }
+
+    pub fn focus(&self) -> Result<(), XError> {
+        unsafe {
+            (self.xconn.xlib.XSetICFocus)(self.ic);
+        }
+        self.xconn.check_errors()
+    }
+
+    pub fn unfocus(&self) -> Result<(), XError> {
+        unsafe {
+            (self.xconn.xlib.XUnsetICFocus)(self.ic);
+        }
+        self.xconn.check_errors()
+    }
+
+    pub fn send_xim_spot(&mut self, x: i16, y: i16) {
+        let nspot = ffi::XPoint { x: x as _, y: y as _ };
+        if self.ic_spot.x == x && self.ic_spot.y == y {
+            return;
+        }
+        self.ic_spot = nspot;
+        unsafe {
+            let preedit_attr = (self.xconn.xlib.XVaCreateNestedList)(
+                0,
+                b"spotLocation\0",
+                &nspot,
+                ptr::null::<()>(),
+            );
+            (self.xconn.xlib.XSetICValues)(
+                self.ic,
+                b"preeditAttributes\0",
+                preedit_attr,
+                ptr::null::<()>(),
+            );
+            (self.xconn.xlib.XFree)(preedit_attr);
+        }
+    }
+}
+
+impl Drop for Ime {
+    fn drop(&mut self) {
+        unsafe {
+            (self.xconn.xlib.XDestroyIC)(self.ic);
+            (self.xconn.xlib.XCloseIM)(self.im);
+        }
+        self.xconn.check_errors().expect("Failed to close input method");
+    }
 }
