@@ -1,6 +1,7 @@
 # Unreleased
 
 - Overhauled X11 window geometry calculations. `get_position` and `set_position` are more universally accurate across different window managers, and `get_outer_size` actually works now.
+- Corrected `get_position` on macOS to return outer frame position, not content area position.
 
 # Version 0.12.0 (2018-04-06)
 

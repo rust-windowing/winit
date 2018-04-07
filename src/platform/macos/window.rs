@@ -526,23 +526,31 @@ impl Window2 {
         unsafe { NSWindow::orderOut_(*self.window, nil); }
     }
 
-    pub fn get_position(&self) -> Option<(i32, i32)> {
-        unsafe {
-            let content_rect = NSWindow::contentRectForFrameRect_(*self.window, NSWindow::frame(*self.window));
+    // Translate bottom-left origin coordinates into top-left origin coordinates for
+    // consistency with other platform
+    fn bottom_left_to_top_left(rect: NSRect) -> i32 {
+        (CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height)) as _
+    }
 
-            // TODO: consider extrapolating the calculations for the y axis to
-            // a private method
-            Some((content_rect.origin.x as i32, (CGDisplay::main().pixels_high() as f64 - (content_rect.origin.y + content_rect.size.height)) as i32))
-        }
+    pub fn get_position(&self) -> Option<(i32, i32)> {
+        let frame_rect = unsafe { NSWindow::frame(*self.window) };
+        Some((
+            frame_rect.origin.x as i32,
+            Self::bottom_left_to_top_left(frame_rect),
+        ))
     }
 
     pub fn get_inner_position(&self) -> Option<(i32, i32)> {
-        unsafe {
-            let inner_size = self.get_inner_size().unwrap();
-            let window_rect = NSRect::new(NSPoint::new(0., 0.), NSSize::new(inner_size.0 as f64, inner_size.1 as f64));
-            let screen_rect = self.window.convertRectToScreen_(window_rect);
-            Some((screen_rect.origin.x as i32, (CGDisplay::main().pixels_high() as f64 - (screen_rect.origin.y + screen_rect.size.height)) as i32))
-        }
+        let content_rect = unsafe {
+            NSWindow::contentRectForFrameRect_(
+                *self.window,
+                NSWindow::frame(*self.window),
+            )
+        };
+        Some((
+            content_rect.origin.x as i32,
+            Self::bottom_left_to_top_left(content_rect),
+        ))
     }
 
     pub fn set_position(&self, x: i32, y: i32) {
@@ -557,7 +565,11 @@ impl Window2 {
 
             // TODO: consider extrapolating the calculations for the y axis to
             // a private method
-            let dummy = NSRect::new(NSPoint::new(x as f64, CGDisplay::main().pixels_high() as f64 - (frame.size.height + y as f64)), NSSize::new(0f64, 0f64));
+            let dummy = NSRect::new(NSPoint::new(
+                x as f64,
+                CGDisplay::main().pixels_high() as f64 - (frame.size.height + y as f64)),
+                NSSize::new(0f64, 0f64),
+            );
             let conv = NSWindow::frameRectForContentRect_(*self.window, dummy);
 
             // NSWindow::setFrameTopLeftPoint_(*self.window, conv.origin);
@@ -567,9 +579,9 @@ impl Window2 {
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
+        let factor = self.hidpi_factor() as f64; // API convention is that size is in physical pixels
         unsafe {
             let view_frame = NSView::frame(*self.view);
-            let factor = self.hidpi_factor() as f64; // API convention is that size is in physical pixels
             Some(((view_frame.size.width*factor) as u32, (view_frame.size.height*factor) as u32))
         }
     }
