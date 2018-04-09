@@ -470,13 +470,13 @@ impl Window2 {
                 }
                 if pl_attrs.titlebar_buttons_hidden {
                     let button = window.standardWindowButton_(NSWindowButton::NSWindowFullScreenButton);
-                    msg_send![button, setHidden:YES];
+                    let () = msg_send![button, setHidden:YES];
                     let button = window.standardWindowButton_(NSWindowButton::NSWindowMiniaturizeButton);
-                    msg_send![button, setHidden:YES];
+                    let () = msg_send![button, setHidden:YES];
                     let button = window.standardWindowButton_(NSWindowButton::NSWindowCloseButton);
-                    msg_send![button, setHidden:YES];
+                    let () = msg_send![button, setHidden:YES];
                     let button = window.standardWindowButton_(NSWindowButton::NSWindowZoomButton);
-                    msg_send![button, setHidden:YES];
+                    let () = msg_send![button, setHidden:YES];
                 }
                 if pl_attrs.movable_by_window_background {
                     window.setMovableByWindowBackground_(YES);
