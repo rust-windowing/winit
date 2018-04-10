@@ -1,6 +1,6 @@
 use winapi::ctypes::wchar_t;
 use winapi::shared::minwindef::{DWORD, LPARAM, BOOL, TRUE};
-use winapi::shared::windef::{HMONITOR, HDC, LPRECT};
+use winapi::shared::windef::{HMONITOR, HDC, LPRECT, HWND};
 use winapi::um::winuser;
 
 use std::collections::VecDeque;
@@ -84,6 +84,37 @@ impl EventsLoop {
             let mut result: VecDeque<MonitorId> = VecDeque::new();
             winuser::EnumDisplayMonitors(ptr::null_mut(), ptr::null_mut(), Some(monitor_enum_proc), &mut result as *mut _ as LPARAM);
             result
+        }
+    }
+
+    pub fn get_current_monitor(handle: HWND) -> MonitorId {
+        unsafe {
+            let mut monitor_info: winuser::MONITORINFOEXW = mem::zeroed();
+            monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
+
+            let hmonitor = winuser::MonitorFromWindow(handle, winuser::MONITOR_DEFAULTTONEAREST);
+
+            winuser::GetMonitorInfoW(
+                hmonitor,
+                &mut monitor_info as *mut winuser::MONITORINFOEXW as *mut winuser::MONITORINFO,
+            );
+
+            let place = monitor_info.rcMonitor;
+            let position = (place.left as i32, place.top as i32);
+            let dimensions = (
+                (place.right - place.left) as u32,
+                (place.bottom - place.top) as u32,
+            );
+
+            MonitorId {
+                adapter_name: monitor_info.szDevice,
+                hmonitor: super::monitor::HMonitor(hmonitor),
+                monitor_name: wchar_as_string(&monitor_info.szDevice),
+                primary: monitor_info.dwFlags & winuser::MONITORINFOF_PRIMARY != 0,
+                position,
+                dimensions,
+                hidpi_factor: 1.0,
+            }
         }
     }
 

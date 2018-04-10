@@ -49,7 +49,7 @@ fn main() {
                         if is_fullscreen {
                             window.set_fullscreen(None);
                         } else {
-                            window.set_fullscreen(Some(monitor.clone()));
+                            window.set_fullscreen(Some(window.get_current_monitor()));
                         }
 
                         is_fullscreen = !is_fullscreen;                        

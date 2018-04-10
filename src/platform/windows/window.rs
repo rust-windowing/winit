@@ -437,7 +437,9 @@ impl Window {
 
     #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
-        unimplemented!()
+        RootMonitorId {
+            inner: EventsLoop::get_current_monitor(self.window.0),
+        }
     }
 }
 
