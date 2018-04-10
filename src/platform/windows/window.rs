@@ -49,6 +49,22 @@ pub struct Window {
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
+// https://blogs.msdn.microsoft.com/oldnewthing/20131017-00/?p=2903
+unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> BOOL {
+    let mut rc: RECT = mem::zeroed();
+
+    winuser::SetRectEmpty(&mut rc);
+
+    let fRc = winuser::AdjustWindowRectEx(&mut rc, style, 0, ex_style);
+    if fRc != 0 {
+        prc.left -= rc.left;
+        prc.top -= rc.top;
+        prc.right -= rc.right;
+        prc.bottom -= rc.bottom;
+    }
+    return fRc;
+}
+
 impl Window {
     pub fn new(events_loop: &EventsLoop, w_attr: &WindowAttributes,
                pl_attr: &PlatformSpecificWindowBuilderAttributes) -> Result<Window, CreationError>
@@ -449,8 +465,77 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_decorations(&self, _decorations: bool) {
-        unimplemented!()
+    pub fn set_decorations(&self, decorations: bool) {
+        if let Ok(mut window_state) = self.window_state.lock() {
+            if window_state.attributes.decorations == decorations {
+                return;
+            }
+
+            let style_flags = (winuser::WS_CAPTION | winuser::WS_THICKFRAME) as LONG;
+            let ex_style_flags = (winuser::WS_EX_WINDOWEDGE) as LONG;
+
+            // if we are in fullscreen mode, we only change the saved window info
+            if window_state.attributes.fullscreen.is_some() {
+                let mut saved = window_state.saved_window_info.as_mut().unwrap();
+
+                unsafe {
+                    unjust_window_rect(&mut saved.rect, saved.style as _, saved.ex_style as _);
+                }                    
+
+                if decorations {
+                    saved.style = saved.style | style_flags;
+                    saved.ex_style = saved.ex_style | ex_style_flags;
+
+
+                } else {                   
+                    saved.style = saved.style & !style_flags;
+                    saved.ex_style = saved.ex_style & !ex_style_flags;                    
+                }
+                
+                unsafe {
+                    winuser::AdjustWindowRectEx(&mut saved.rect, saved.style as _, 0, saved.ex_style as _);
+                }
+
+                return;
+            }
+
+            unsafe {
+                let mut rect: RECT = mem::zeroed();
+                winuser::GetWindowRect(self.window.0, &mut rect);
+
+                let mut style = winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE);
+                let mut ex_style = winuser::GetWindowLongW(self.window.0, winuser::GWL_EXSTYLE);
+                unjust_window_rect(&mut rect, style as _, ex_style as _);
+
+                if decorations {
+                    style = style | style_flags;
+                    ex_style = ex_style | ex_style_flags;
+                } else {
+                    style = style & !style_flags;
+                    ex_style = ex_style & !ex_style_flags;
+                }
+
+                winuser::SetWindowLongW(self.window.0, winuser::GWL_STYLE, style);
+                winuser::SetWindowLongW(self.window.0, winuser::GWL_EXSTYLE, ex_style);
+                winuser::AdjustWindowRectEx(&mut rect, style as _, 0, ex_style as _);                
+                
+                let window = self.window.clone();
+
+                self.events_loop_proxy.execute_in_thread(move |_| {
+                    winuser::SetWindowPos(
+                        window.0,
+                        ptr::null_mut(),
+                        rect.left,
+                        rect.top,
+                        rect.right - rect.left,
+                        rect.bottom - rect.top,
+                        winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
+                    );
+                });                
+            }
+
+            window_state.attributes.decorations = decorations;
+        }
     }
 
     #[inline]
