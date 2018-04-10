@@ -27,9 +27,10 @@ use std::sync::Condvar;
 use std::thread;
 
 use winapi::shared::minwindef::{LOWORD, HIWORD, DWORD, WPARAM, LPARAM, INT, UINT, LRESULT, MAX_PATH};
-use winapi::shared::windef::{HWND, POINT};
+use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
 use winapi::um::{winuser, shellapi, processthreadsapi};
+use winapi::um::winnt::LONG;
 
 use platform::platform::event;
 use platform::platform::Cursor;
@@ -46,6 +47,16 @@ use WindowEvent;
 use WindowId as SuperWindowId;
 use events::{Touch, TouchPhase};
 
+/// Contains information for saved window info for switching between fullscreen 
+#[derive(Clone)]
+pub struct SavedWindowInfo {
+    /// Windows style
+    pub style : LONG,
+    /// Windows ex-style
+    pub ex_style : LONG,
+    /// Windows position and size    
+    pub rect: RECT,
+}
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Clone)]
@@ -58,6 +69,8 @@ pub struct WindowState {
     pub attributes: WindowAttributes,
     /// Will contain `true` if the mouse is hovering the window.
     pub mouse_in_window: bool,
+    /// Saved window info for fullscreen restored
+    pub saved_window_info: Option<SavedWindowInfo>,
 }
 
 /// Dummy object that allows inserting a window's state.
@@ -361,11 +374,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                 context_stash.as_mut().unwrap().windows.remove(&window);
             });
             winuser::DefWindowProcW(window, msg, wparam, lparam)
-        },
-
-        winuser::WM_ERASEBKGND => {
-            1
-        },
+        },       
 
         winuser::WM_SIZE => {
             use events::WindowEvent::Resized;

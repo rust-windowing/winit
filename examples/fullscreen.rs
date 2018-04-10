@@ -25,11 +25,13 @@ fn main() {
         monitor
     };
 
-    let _window = winit::WindowBuilder::new()
+    let window = winit::WindowBuilder::new()
         .with_title("Hello world!")
-        .with_fullscreen(Some(monitor))
+        .with_fullscreen(Some(monitor.clone()))
         .build(&events_loop)
         .unwrap();
+
+    let mut is_fullscreen = true;
 
     events_loop.run_forever(|event| {
         println!("{:?}", event);
@@ -41,6 +43,17 @@ fn main() {
                     WindowEvent::KeyboardInput {
                         input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::Escape), .. }, ..
                     } => return ControlFlow::Break,
+                    WindowEvent::KeyboardInput {
+                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::A), state: winit::ElementState::Released, .. }, ..
+                    } => {
+                        if is_fullscreen {
+                            window.set_fullscreen(None);
+                        } else {
+                            window.set_fullscreen(Some(monitor.clone()));
+                        }
+
+                        is_fullscreen = !is_fullscreen;                        
+                    },
                     _ => ()
                 }
             },

@@ -1,4 +1,7 @@
 #![cfg(target_os = "windows")]
+#![allow(non_upper_case_globals)]
+#![allow(non_snake_case)]
+#![allow(dead_code)]
 
 use std::ffi::OsStr;
 use std::io;
@@ -9,11 +12,11 @@ use std::ptr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::mpsc::channel;
+use std::cell::Cell;
 
 use platform::platform::events_loop;
 use platform::platform::EventsLoop;
 use platform::platform::PlatformSpecificWindowBuilderAttributes;
-use platform::platform::MonitorId;
 use platform::platform::WindowId;
 
 use CreationError;
@@ -22,11 +25,14 @@ use MouseCursor;
 use WindowAttributes;
 use MonitorId as RootMonitorId;
 
-use winapi::shared::minwindef::{UINT, WORD, DWORD, BOOL};
+use winapi::shared::minwindef::{UINT, DWORD, BOOL};
 use winapi::shared::windef::{HWND, HDC, RECT, POINT};
 use winapi::shared::hidusage;
-use winapi::um::{winuser, dwmapi, wingdi, libloaderapi, processthreadsapi};
-use winapi::um::winnt::{LPCWSTR, LONG};
+use winapi::um::{winuser, dwmapi, libloaderapi, processthreadsapi};
+use winapi::um::winnt::{LPCWSTR, LONG, HRESULT};
+use winapi::um::combaseapi;
+use winapi::um::objbase::{COINIT_MULTITHREADED};
+use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
 
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
@@ -330,9 +336,98 @@ impl Window {
         unimplemented!()
     }
 
+    unsafe fn set_fullscreen_style(&self) {
+        let mut window_state = self.window_state.lock().unwrap();
+
+        if window_state.attributes.fullscreen.is_none() || window_state.saved_window_info.is_none() {
+            let mut rect: RECT = mem::zeroed();
+
+            winuser::GetWindowRect(self.window.0, &mut rect);
+
+            window_state.saved_window_info = Some(events_loop::SavedWindowInfo {
+                style: winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE),
+                ex_style: winuser::GetWindowLongW(self.window.0, winuser::GWL_EXSTYLE),
+                rect,
+            });
+        }
+
+        let saved_window_info = window_state.saved_window_info.as_ref().unwrap();
+
+        winuser::SetWindowLongW(
+            self.window.0,
+            winuser::GWL_STYLE,
+            ((saved_window_info.style as DWORD) & !(winuser::WS_CAPTION | winuser::WS_THICKFRAME)) as LONG,
+        );
+
+        winuser::SetWindowLongW(
+            self.window.0,
+            winuser::GWL_EXSTYLE,
+            ((saved_window_info.ex_style as DWORD)
+                & !((winuser::WS_EX_DLGMODALFRAME | winuser::WS_EX_WINDOWEDGE
+                    | winuser::WS_EX_CLIENTEDGE | winuser::WS_EX_STATICEDGE)
+                    )) as LONG,
+        );
+    }
+
+    unsafe fn restore_saved_window(&self) {
+        let window_state = self.window_state.lock().unwrap();
+        // Reset original window style and size.  The multiple window size/moves
+        // here are ugly, but if SetWindowPos() doesn't redraw, the taskbar won't be
+        // repainted.  Better-looking methods welcome.
+        let saved_window_info = window_state.saved_window_info.as_ref().unwrap();
+
+        winuser::SetWindowLongW(self.window.0, winuser::GWL_STYLE, saved_window_info.style);
+        winuser::SetWindowLongW(
+            self.window.0,
+            winuser::GWL_EXSTYLE,
+            saved_window_info.ex_style,
+        );
+
+        let rect = &saved_window_info.rect;
+
+        // On restore, resize to the previous saved rect size.
+        winuser::SetWindowPos(
+            self.window.0,
+            ptr::null_mut(),
+            rect.left,
+            rect.top,
+            rect.right - rect.left,
+            rect.bottom - rect.top,
+            winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
+        );
+    }
+    
+
     #[inline]
-    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
-        unimplemented!()
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+        unsafe {
+            match &monitor {
+                Some(RootMonitorId { inner }) => {
+                    self.set_fullscreen_style();
+                   
+                    let pos = inner.get_position();
+                    let dim = inner.get_dimensions();
+
+                    winuser::SetWindowPos(
+                        self.window.0,
+                        ptr::null_mut(),
+                        pos.0,
+                        pos.1,
+                        dim.0 as i32,
+                        dim.1 as i32,
+                        winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
+                    );
+                }
+                None => {
+                    self.restore_saved_window();
+                }
+            }
+
+            mark_fullscreen(self.window.0, monitor.is_some())
+        }
+
+        let mut window_state = self.window_state.lock().unwrap();
+        window_state.attributes.fullscreen = monitor;
     }
 
     #[inline]
@@ -375,18 +470,8 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
         top: 0, bottom: window.dimensions.unwrap_or((1024, 768)).1 as LONG,
     };
 
-    // switching to fullscreen if necessary
-    // this means adjusting the window's position so that it overlaps the right monitor,
-    //  and change the monitor's resolution if necessary
-    let fullscreen = if let Some(RootMonitorId { ref inner }) = window.fullscreen {
-        try!(switch_to_fullscreen(&mut rect, inner));
-        true
-    } else {
-        false
-    };
-
     // computing the style and extended style of the window
-    let (ex_style, style) = if fullscreen || !window.decorations {
+    let (ex_style, style) = if !window.decorations {
         (winuser::WS_EX_APPWINDOW,
             //winapi::WS_POPUP is incompatible with winapi::WS_CHILD
             if pl_attribs.parent.is_some() {
@@ -406,7 +491,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
 
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
-        let (width, height) = if fullscreen || window.dimensions.is_some() {
+        let (width, height) = if window.dimensions.is_some() {
             let min_dimensions = window.min_dimensions
                 .map(|d| (d.0 as raw::c_int, d.1 as raw::c_int))
                 .unwrap_or((0, 0));
@@ -422,11 +507,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
             (None, None)
         };
 
-        let (x, y) = if fullscreen {
-            (Some(rect.left), Some(rect.top))
-        } else {
-            (None, None)
-        };
+        let (x, y) = (None, None);
 
         let mut style = if !window.visible {
             style
@@ -481,16 +562,14 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
         }
     }
     
-
     // Creating a mutex to track the current window state
     let window_state = Arc::new(Mutex::new(events_loop::WindowState {
         cursor: winuser::IDC_ARROW, // use arrow by default
         cursor_state: CursorState::Normal,
         attributes: window.clone(),
         mouse_in_window: false,
+        saved_window_info: None,
     }));
-
-    inserter.insert(real_window.0, window_state.clone());
 
     // making the window transparent
     if window.transparent {
@@ -503,17 +582,20 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
 
         dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
     }
-
-    // calling SetForegroundWindow if fullscreen
-    if fullscreen {
-        winuser::SetForegroundWindow(real_window.0);
-    }
-
-    // Building the struct.
-    Ok(Window {
+    
+    let win = Window {
         window: real_window,
         window_state: window_state,
-    })
+    };
+
+    if let Some(_) = window.fullscreen {
+        win.set_fullscreen(window.fullscreen);
+        force_window_active(win.window.0);
+    }
+
+    inserter.insert(win.window.0, win.window_state.clone());
+    
+    Ok(win)
 }
 
 unsafe fn register_window_class() -> Vec<u16> {
@@ -544,33 +626,111 @@ unsafe fn register_window_class() -> Vec<u16> {
     class_name
 }
 
-unsafe fn switch_to_fullscreen(rect: &mut RECT, monitor: &MonitorId)
-                               -> Result<(), CreationError>
-{
-    // adjusting the rect
-    {
-        let pos = monitor.get_position();
-        rect.left += pos.0 as LONG;
-        rect.right += pos.0 as LONG;
-        rect.top += pos.1 as LONG;
-        rect.bottom += pos.1 as LONG;
+
+struct ComInitialized(*mut ());
+impl Drop for ComInitialized {
+    fn drop(&mut self) {
+        unsafe { combaseapi::CoUninitialize() };
     }
+}
 
-    // changing device settings
-    let mut screen_settings: wingdi::DEVMODEW = mem::zeroed();
-    screen_settings.dmSize = mem::size_of::<wingdi::DEVMODEW>() as WORD;
-    screen_settings.dmPelsWidth = (rect.right - rect.left) as DWORD;
-    screen_settings.dmPelsHeight = (rect.bottom - rect.top) as DWORD;
-    screen_settings.dmBitsPerPel = 32;      // TODO: ?
-    screen_settings.dmFields = wingdi::DM_BITSPERPEL | wingdi::DM_PELSWIDTH | wingdi::DM_PELSHEIGHT;
+thread_local!{    
+    static COM_INITIALIZED: ComInitialized = {
+        unsafe {
+            combaseapi::CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED);
+            ComInitialized(ptr::null_mut())
+        }
+    };
 
-    let result = winuser::ChangeDisplaySettingsExW(monitor.get_adapter_name().as_ptr(),
-                                                  &mut screen_settings, ptr::null_mut(),
-                                                  winuser::CDS_FULLSCREEN, ptr::null_mut());
+    static TASKBAR_LIST: Cell<*mut ITaskbarList2> = Cell::new(ptr::null_mut());
+}
 
-    if result != winuser::DISP_CHANGE_SUCCESSFUL {
-        return Err(CreationError::OsError(format!("ChangeDisplaySettings failed: {}", result)));
-    }
+pub fn com_initialized() {
+    COM_INITIALIZED.with(|_| {});
+}
 
-    Ok(())
+// TODO: remove these when they get added to winapi
+// https://github.com/retep998/winapi-rs/pull/592
+DEFINE_GUID!{CLSID_TaskbarList,
+    0x56fdf344, 0xfd6d, 0x11d0, 0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90}
+
+RIDL!(
+#[uuid(0x56fdf342, 0xfd6d, 0x11d0, 0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90)]
+interface ITaskbarList(ITaskbarListVtbl): IUnknown(IUnknownVtbl) {
+    fn HrInit() -> HRESULT,
+    fn AddTab(
+        hwnd: HWND,
+    ) -> HRESULT,
+    fn DeleteTab(
+        hwnd: HWND,
+    ) -> HRESULT,
+    fn ActivateTab(
+        hwnd: HWND,
+    ) -> HRESULT,
+    fn SetActiveAlt(
+        hwnd: HWND,
+    ) -> HRESULT,
+});
+
+RIDL!(
+#[uuid(0x602d4995, 0xb13a, 0x429b, 0xa6, 0x6e, 0x19, 0x35, 0xe4, 0x4f, 0x43, 0x17)]
+interface ITaskbarList2(ITaskbarList2Vtbl): ITaskbarList(ITaskbarListVtbl) {
+    fn MarkFullscreenWindow(
+        hwnd: HWND,
+        fFullscreen: BOOL,
+    ) -> HRESULT,    
+});
+
+// Reference Implementation:
+// https://github.com/chromium/chromium/blob/f18e79d901f56154f80eea1e2218544285e62623/ui/views/win/fullscreen_handler.cc
+//
+// As per MSDN marking the window as fullscreen should ensure that the
+// taskbar is moved to the bottom of the Z-order when the fullscreen window
+// is activated. If the window is not fullscreen, the Shell falls back to
+// heuristics to determine how the window should be treated, which means
+// that it could still consider the window as fullscreen. :(
+unsafe fn mark_fullscreen(handle: HWND, fullscreen: bool) {            
+    com_initialized();
+
+    TASKBAR_LIST.with(|task_bar_list_ptr|{
+        let mut task_bar_list = task_bar_list_ptr.get();
+
+        if task_bar_list == ptr::null_mut() {
+            use winapi::Interface;
+            use winapi::shared::winerror::{S_OK};    
+
+            let hr = combaseapi::CoCreateInstance(
+                &CLSID_TaskbarList,
+                ptr::null_mut(), combaseapi::CLSCTX_ALL,
+                &ITaskbarList2::uuidof(),
+                &mut task_bar_list as *mut _ as *mut _);
+
+            if hr != S_OK || (*task_bar_list).HrInit() != S_OK {
+                // In some old windows, the taskbar object could not be created, we just ignore it
+                return;
+            }
+            task_bar_list_ptr.set(task_bar_list)
+        }
+
+        task_bar_list = task_bar_list_ptr.get();
+        (*task_bar_list).MarkFullscreenWindow(handle, if fullscreen {1} else {0} );
+    })
+}
+
+unsafe fn force_window_active(handle: HWND) {
+    // In some situation, calling SetForegroundWindow could not bring up the window,
+    // This is a little hack which can "steal" the foreground window permission
+    // We only call this function in the window creation, so it should be fine.
+    // See : https://stackoverflow.com/questions/10740346/setforegroundwindow-only-working-while-visual-studio-is-open
+    const ALT : i32 = 0xA4;
+    const EXTENDEDKEY : u32 = 0x1;
+    const KEYUP : u32 = 0x2;
+
+    // Simulate a key press
+    winuser::keybd_event(ALT as _, 0x45, EXTENDEDKEY | 0, 0);
+
+    // Simulate a key release
+    winuser::keybd_event(0xA4, 0x45, EXTENDEDKEY | KEYUP, 0);
+
+    winuser::SetForegroundWindow(handle);    
 }
