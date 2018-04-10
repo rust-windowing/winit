@@ -41,6 +41,9 @@ pub struct Window {
 
     /// The current window state.
     window_state: Arc<Mutex<events_loop::WindowState>>,
+
+    // The events loop proxy.
+    events_loop_proxy: events_loop::EventsLoopProxy,
 }
 
 unsafe impl Send for Window {}
@@ -55,9 +58,11 @@ impl Window {
 
         let (tx, rx) = channel();
 
+        let proxy = events_loop.create_proxy();
+
         events_loop.execute_in_thread(move |inserter| {
             // We dispatch an `init` function because of code style.
-            let win = unsafe { init(w_attr.take().unwrap(), pl_attr.take().unwrap(), inserter) };
+            let win = unsafe { init(w_attr.take().unwrap(), pl_attr.take().unwrap(), inserter, proxy.clone()) };
             let _ = tx.send(win);
         });
 
@@ -332,8 +337,16 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_maximized(&self, _maximized: bool) {
-        unimplemented!()
+    pub fn set_maximized(&self, maximized: bool) {
+        let window = self.window.clone();
+        
+        unsafe {            
+            // And because ShowWindow will resize the window
+            // We call it in the main thread
+            self.events_loop_proxy.execute_in_thread(move |_| {
+                winuser::ShowWindow(window.0, if maximized { winuser::SW_MAXIMIZE } else {winuser::SW_RESTORE} );
+            });            
+        }
     }
 
     unsafe fn set_fullscreen_style(&self) {
@@ -383,18 +396,23 @@ impl Window {
             saved_window_info.ex_style,
         );
 
-        let rect = &saved_window_info.rect;
+        let rect = saved_window_info.rect.clone();
+        let window = self.window.clone();
 
         // On restore, resize to the previous saved rect size.
-        winuser::SetWindowPos(
-            self.window.0,
-            ptr::null_mut(),
-            rect.left,
-            rect.top,
-            rect.right - rect.left,
-            rect.bottom - rect.top,
-            winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
-        );
+        // And because SetWindowPos will resize the window
+        // We call it in the main thread
+        self.events_loop_proxy.execute_in_thread(move |_| {
+            winuser::SetWindowPos(
+                window.0,
+                ptr::null_mut(),
+                rect.left,
+                rect.top,
+                rect.right - rect.left,
+                rect.bottom - rect.top,
+                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
+            );
+        });
     }
     
 
@@ -456,10 +474,17 @@ impl Drop for Window {
 
 /// A simple non-owning wrapper around a window.
 #[doc(hidden)]
+#[derive(Clone)]
 pub struct WindowWrapper(HWND, HDC);
 
+// Send is not implemented for HWND and HDC, we have to wrap it and implement it manually.
+// For more info see:
+// https://github.com/retep998/winapi-rs/issues/360
+// https://github.com/retep998/winapi-rs/issues/396
+unsafe impl Send for WindowWrapper {}
+
 unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes,
-               inserter: events_loop::Inserter) -> Result<Window, CreationError> {
+               inserter: events_loop::Inserter, events_loop_proxy: events_loop::EventsLoopProxy) -> Result<Window, CreationError> {
     let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 
@@ -588,6 +613,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     let win = Window {
         window: real_window,
         window_state: window_state,
+        events_loop_proxy
     };
 
     if let Some(_) = window.fullscreen {

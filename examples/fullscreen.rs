@@ -32,6 +32,7 @@ fn main() {
         .unwrap();
 
     let mut is_fullscreen = true;
+    let mut is_maximized = false;
 
     events_loop.run_forever(|event| {
         println!("{:?}", event);
@@ -53,6 +54,13 @@ fn main() {
                         }
 
                         is_fullscreen = !is_fullscreen;                        
+                    },
+
+                    WindowEvent::KeyboardInput {
+                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::F11), state: winit::ElementState::Released, .. }, ..
+                    } => {
+                        is_maximized = !is_maximized;                                                
+                        window.set_maximized(is_maximized);
                     },
                     _ => ()
                 }

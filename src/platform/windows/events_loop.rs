@@ -286,6 +286,23 @@ impl EventsLoopProxy {
             }
         }
     }
+
+    pub fn execute_in_thread<F>(&self, function: F)
+        where F: FnMut(Inserter) + Send + 'static
+    {
+        unsafe {
+            let boxed = Box::new(function) as Box<FnMut(_)>;
+            let boxed2 = Box::new(boxed);
+
+            let raw = Box::into_raw(boxed2);
+
+            let res = winuser::PostThreadMessageA(self.thread_id, *EXEC_MSG_ID,
+                                                 raw as *mut () as usize as WPARAM, 0);
+            // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
+            // as the events loop is still alive) or if the queue is full.
+            assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
+        }
+    }
 }
 
 lazy_static! {
