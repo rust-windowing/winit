@@ -4,6 +4,7 @@
 - Fixed SIGSEGV/SIGILL crashes on macOS caused by stabilization of the `!` (never) type.
 - Implement `WindowEvent::HiDPIFactorChanged` for macOS
 - On X11, input methods now work completely out of the box, no longer requiring application developers to manually call `setlocale`. Additionally, when input methods are started, stopped, or restarted on the server end, it's correctly handled.
+- Implemented `Refresh` event on Windows.
 
 # Version 0.12.0 (2018-04-06)
 

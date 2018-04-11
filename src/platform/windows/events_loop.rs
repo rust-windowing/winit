@@ -367,6 +367,15 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             1
         },
 
+        winuser::WM_PAINT => {
+            use events::WindowEvent::Refresh;
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: Refresh,
+            });
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
+        },
+
         winuser::WM_SIZE => {
             use events::WindowEvent::Resized;
             let w = LOWORD(lparam as DWORD) as u32;
