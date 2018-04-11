@@ -2,6 +2,7 @@
 
 - Overhauled X11 window geometry calculations. `get_position` and `set_position` are more universally accurate across different window managers, and `get_outer_size` actually works now.
 - Fixed SIGSEGV/SIGILL crashes on macOS caused by stabilization of the `!` (never) type.
+- Implement `WindowEvent::HiDPIFactorChanged` for macOS
 
 # Version 0.12.0 (2018-04-06)
 
