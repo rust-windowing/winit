@@ -95,6 +95,17 @@ impl WindowDelegate {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 emit_resize_event(state);
+                let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
+                emit_event(state, WindowEvent::HiDPIFactorChanged(scale_factor));
+            }
+        }
+
+        extern fn window_did_change_backing_properties(this: &Object, _:Sel, _:id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+                let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
+                emit_event(state, WindowEvent::HiDPIFactorChanged(scale_factor));
             }
         }
 
@@ -198,7 +209,8 @@ impl WindowDelegate {
                 window_did_resize as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidChangeScreen:),
                 window_did_change_screen as extern fn(&Object, Sel, id));
-
+            decl.add_method(sel!(windowDidChangeBackingProperties:),
+                window_did_change_backing_properties as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidBecomeKey:),
                 window_did_become_key as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidResignKey:),
