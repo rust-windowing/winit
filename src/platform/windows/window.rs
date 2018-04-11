@@ -701,6 +701,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
         events_loop_proxy
     };
 
+    win.set_maximized(window.maximized);
     if let Some(_) = window.fullscreen {
         win.set_fullscreen(window.fullscreen);
         force_window_active(win.window.0);
