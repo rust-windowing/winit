@@ -1,5 +1,6 @@
 # Unreleased
 
+- Implement Window::set_fullscreen, Window::set_maximized and Window::set_decorations for windows.
 - Overhauled X11 window geometry calculations. `get_position` and `set_position` are more universally accurate across different window managers, and `get_outer_size` actually works now.
 - Fixed SIGSEGV/SIGILL crashes on macOS caused by stabilization of the `!` (never) type.
 
