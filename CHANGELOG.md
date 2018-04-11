@@ -3,6 +3,7 @@
 - Overhauled X11 window geometry calculations. `get_position` and `set_position` are more universally accurate across different window managers, and `get_outer_size` actually works now.
 - Fixed SIGSEGV/SIGILL crashes on macOS caused by stabilization of the `!` (never) type.
 - Implement `WindowEvent::HiDPIFactorChanged` for macOS
+- On X11, input methods now work completely out of the box, no longer requiring application developers to manually call `setlocale`. Additionally, when input methods are started, stopped, or restarted on the server end, it's correctly handled.
 
 # Version 0.12.0 (2018-04-06)
 
