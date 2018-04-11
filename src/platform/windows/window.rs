@@ -6,11 +6,10 @@ use std::mem;
 use std::os::raw;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::mpsc::channel;
+use std::rc::Rc;
+use std::cell::RefCell;
 
-use platform::platform::events_loop;
+use platform::platform::events_loop::{self, SubclassInput};
 use platform::platform::EventsLoop;
 use platform::platform::PlatformSpecificWindowBuilderAttributes;
 use platform::platform::MonitorId;
@@ -34,7 +33,7 @@ pub struct Window {
     window: WindowWrapper,
 
     /// The current window state.
-    window_state: Arc<Mutex<events_loop::WindowState>>,
+    window_state: Rc<RefCell<events_loop::WindowState>>,
 }
 
 unsafe impl Send for Window {}
@@ -47,15 +46,15 @@ impl Window {
         let mut w_attr = Some(w_attr.clone());
         let mut pl_attr = Some(pl_attr.clone());
 
-        let (tx, rx) = channel();
+        let window = unsafe { init(w_attr.take().unwrap(), pl_attr.take().unwrap()) };
+        if let Ok(ref window) = window {
+            events_loop::subclass_window(window.window.0, SubclassInput {
+                window_state: window.window_state.clone(),
+                event_queue: events_loop.event_queue.clone()
+            });
+        }
 
-        events_loop.execute_in_thread(move |inserter| {
-            // We dispatch an `init` function because of code style.
-            let win = unsafe { init(w_attr.take().unwrap(), pl_attr.take().unwrap(), inserter) };
-            let _ = tx.send(win);
-        });
-
-        rx.recv().unwrap()
+        window
     }
 
     pub fn set_title(&self, text: &str) {
@@ -100,7 +99,7 @@ impl Window {
     pub fn set_position(&self, x: i32, y: i32) {
         unsafe {
             winuser::SetWindowPos(self.window.0, ptr::null_mut(), x as raw::c_int, y as raw::c_int,
-                                 0, 0, winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOSIZE);
+                                 0, 0, winuser::SWP_NOZORDER | winuser::SWP_NOSIZE);
             winuser::UpdateWindow(self.window.0);
         }
     }
@@ -148,7 +147,7 @@ impl Window {
             let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
 
             winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+                winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
             winuser::UpdateWindow(self.window.0);
         }
     }
@@ -156,8 +155,7 @@ impl Window {
     /// See the docs in the crate root file.
     #[inline]
     pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
-        let mut window_state = self.window_state.lock().unwrap();
-        window_state.attributes.min_dimensions = dimensions;
+        self.window_state.borrow_mut().attributes.min_dimensions = dimensions;
 
         // Make windows re-check the window size bounds.
         if let Some(inner_size) = self.get_inner_size() {
@@ -171,7 +169,7 @@ impl Window {
                 let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
 
                 winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+                    winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
             }
         }
     }
@@ -179,8 +177,7 @@ impl Window {
     /// See the docs in the crate root file.
     #[inline]
     pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
-        let mut window_state = self.window_state.lock().unwrap();
-        window_state.attributes.max_dimensions = dimensions;
+        self.window_state.borrow_mut().attributes.max_dimensions = dimensions;
 
         // Make windows re-check the window size bounds.
         if let Some(inner_size) = self.get_inner_size() {
@@ -194,7 +191,7 @@ impl Window {
                 let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
 
                 winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+                    winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
             }
         }
     }
@@ -233,14 +230,13 @@ impl Window {
             _ => winuser::IDC_ARROW, // use arrow for the missing cases.
         };
 
-        let mut cur = self.window_state.lock().unwrap();
-        cur.cursor = cursor_id;
+        self.window_state.borrow_mut().cursor = cursor_id;
     }
 
     // TODO: it should be possible to rework this function by using the `execute_in_thread` method
     // of the events loop.
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        let mut current_state = self.window_state.lock().unwrap();
+        let mut current_state = self.window_state.borrow_mut();
 
         let foreground_thread_id = unsafe { winuser::GetWindowThreadProcessId(self.window.0, ptr::null_mut()) };
         let current_thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
@@ -346,13 +342,11 @@ impl Window {
     }
 }
 
-impl Drop for Window {
+impl Drop for WindowWrapper {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            // We are sending WM_CLOSE, and our callback will process this by calling DefWindowProcW,
-            // which in turn will send a WM_DESTROY.
-            winuser::PostMessageW(self.window.0, winuser::WM_CLOSE, 0, 0);
+            winuser::DestroyWindow(self.0);
         }
     }
 }
@@ -361,8 +355,10 @@ impl Drop for Window {
 #[doc(hidden)]
 pub struct WindowWrapper(HWND, HDC);
 
-unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes,
-               inserter: events_loop::Inserter) -> Result<Window, CreationError> {
+unsafe fn init(
+    window: WindowAttributes,
+    pl_attribs: PlatformSpecificWindowBuilderAttributes,
+) -> Result<Window, CreationError> {
     let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 
@@ -371,8 +367,12 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
 
     // building a RECT object with coordinates
     let mut rect = RECT {
-        left: 0, right: window.dimensions.unwrap_or((1024, 768)).0 as LONG,
-        top: 0, bottom: window.dimensions.unwrap_or((1024, 768)).1 as LONG,
+        left: 0, right: window.dimensions.unwrap_or((1024, 768)).0
+            .max(window.min_dimensions.map(|m| m.0).unwrap_or(0))
+            .min(window.max_dimensions.map(|m| m.0).unwrap_or(u32::max_value())) as LONG,
+        top: 0, bottom: window.dimensions.unwrap_or((1024, 768)).1
+            .max(window.min_dimensions.map(|m| m.1).unwrap_or(0))
+            .min(window.max_dimensions.map(|m| m.1).unwrap_or(u32::max_value())) as LONG,
     };
 
     // switching to fullscreen if necessary
@@ -483,14 +483,13 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     
 
     // Creating a mutex to track the current window state
-    let window_state = Arc::new(Mutex::new(events_loop::WindowState {
+    let window_state = Rc::new(RefCell::new(events_loop::WindowState {
         cursor: winuser::IDC_ARROW, // use arrow by default
         cursor_state: CursorState::Normal,
         attributes: window.clone(),
         mouse_in_window: false,
+        mouse_buttons_down: 0
     }));
-
-    inserter.insert(real_window.0, window_state.clone());
 
     // making the window transparent
     if window.transparent {
@@ -523,7 +522,7 @@ unsafe fn register_window_class() -> Vec<u16> {
     let class = winuser::WNDCLASSEXW {
         cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
         style: winuser::CS_HREDRAW | winuser::CS_VREDRAW | winuser::CS_OWNDC,
-        lpfnWndProc: Some(events_loop::callback),
+        lpfnWndProc: Some(winuser::DefWindowProcW),
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: libloaderapi::GetModuleHandleW(ptr::null()),
