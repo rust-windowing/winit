@@ -365,7 +365,7 @@ impl Window {
         }
     }
 
-    unsafe fn set_fullscreen_style(&self) {
+    unsafe fn set_fullscreen_style(&self) -> (LONG, LONG) {
         let mut window_state = self.window_state.lock().unwrap();
 
         if window_state.attributes.fullscreen.is_none() || window_state.saved_window_info.is_none() {
@@ -382,20 +382,7 @@ impl Window {
 
         let saved_window_info = window_state.saved_window_info.as_ref().unwrap();
 
-        winuser::SetWindowLongW(
-            self.window.0,
-            winuser::GWL_STYLE,
-            ((saved_window_info.style as DWORD) & !(winuser::WS_CAPTION | winuser::WS_THICKFRAME)) as LONG,
-        );
-
-        winuser::SetWindowLongW(
-            self.window.0,
-            winuser::GWL_EXSTYLE,
-            ((saved_window_info.ex_style as DWORD)
-                & !((winuser::WS_EX_DLGMODALFRAME | winuser::WS_EX_WINDOWEDGE
-                    | winuser::WS_EX_CLIENTEDGE | winuser::WS_EX_STATICEDGE)
-                    )) as LONG,
-        );
+        (saved_window_info.style, saved_window_info.ex_style)
     }
 
     unsafe fn restore_saved_window(&self) {
@@ -405,20 +392,21 @@ impl Window {
         // repainted.  Better-looking methods welcome.
         let saved_window_info = window_state.saved_window_info.as_ref().unwrap();
 
-        winuser::SetWindowLongW(self.window.0, winuser::GWL_STYLE, saved_window_info.style);
-        winuser::SetWindowLongW(
-            self.window.0,
-            winuser::GWL_EXSTYLE,
-            saved_window_info.ex_style,
-        );
-
         let rect = saved_window_info.rect.clone();
         let window = self.window.clone();
+        let (style, ex_style) = (saved_window_info.style, saved_window_info.ex_style);
 
         // On restore, resize to the previous saved rect size.
         // And because SetWindowPos will resize the window
         // We call it in the main thread
         self.events_loop_proxy.execute_in_thread(move |_| {
+            winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
+            winuser::SetWindowLongW(
+                window.0,
+                winuser::GWL_EXSTYLE,
+                ex_style,
+            );
+
             winuser::SetWindowPos(
                 window.0,
                 ptr::null_mut(),
@@ -428,36 +416,60 @@ impl Window {
                 rect.bottom - rect.top,
                 winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
             );
+
+            mark_fullscreen(window.0, false);
         });
+        
     }
-    
 
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         unsafe {
             match &monitor {
                 &Some(RootMonitorId { ref inner }) => {
-                    self.set_fullscreen_style();
-                   
                     let pos = inner.get_position();
                     let dim = inner.get_dimensions();
+                    let window = self.window.clone();
 
-                    winuser::SetWindowPos(
-                        self.window.0,
-                        ptr::null_mut(),
-                        pos.0,
-                        pos.1,
-                        dim.0 as i32,
-                        dim.1 as i32,
-                        winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
-                    );
+                    let (style, ex_style) = self.set_fullscreen_style();
+
+                    self.events_loop_proxy.execute_in_thread(move |_| {
+                        winuser::SetWindowLongW(
+                            window.0,
+                            winuser::GWL_STYLE,
+                            ((style as DWORD) & !(winuser::WS_CAPTION | winuser::WS_THICKFRAME))
+                                as LONG,
+                        );
+
+                        winuser::SetWindowLongW(
+                            window.0,
+                            winuser::GWL_EXSTYLE,
+                            ((ex_style as DWORD)
+                                & !(winuser::WS_EX_DLGMODALFRAME | winuser::WS_EX_WINDOWEDGE
+                                    | winuser::WS_EX_CLIENTEDGE
+                                    | winuser::WS_EX_STATICEDGE))
+                                as LONG,
+                        );
+
+                        winuser::SetWindowPos(
+                            window.0,
+                            ptr::null_mut(),
+                            pos.0,
+                            pos.1,
+                            dim.0 as i32,
+                            dim.1 as i32,
+                            winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER
+                                | winuser::SWP_NOACTIVATE
+                                | winuser::SWP_FRAMECHANGED,
+                        );
+
+                        mark_fullscreen(window.0, true);
+                    });
                 }
                 &None => {
                     self.restore_saved_window();
                 }
             }
-
-            mark_fullscreen(self.window.0, monitor.is_some())
         }
 
         let mut window_state = self.window_state.lock().unwrap();
@@ -514,14 +526,14 @@ impl Window {
                     style = style & !style_flags;
                     ex_style = ex_style & !ex_style_flags;
                 }
-
-                winuser::SetWindowLongW(self.window.0, winuser::GWL_STYLE, style);
-                winuser::SetWindowLongW(self.window.0, winuser::GWL_EXSTYLE, ex_style);
-                winuser::AdjustWindowRectEx(&mut rect, style as _, 0, ex_style as _);                
                 
                 let window = self.window.clone();
 
                 self.events_loop_proxy.execute_in_thread(move |_| {
+                    winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
+                    winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
+                    winuser::AdjustWindowRectEx(&mut rect, style as _, 0, ex_style as _);                
+
                     winuser::SetWindowPos(
                         window.0,
                         ptr::null_mut(),

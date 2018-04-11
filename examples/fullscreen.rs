@@ -46,7 +46,7 @@ fn main() {
                         input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::Escape), .. }, ..
                     } => return ControlFlow::Break,
                     WindowEvent::KeyboardInput {
-                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::F11), state: winit::ElementState::Released, .. }, ..
+                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::F11), state: winit::ElementState::Pressed, .. }, ..
                     } => {
                         if is_fullscreen {
                             window.set_fullscreen(None);
@@ -58,14 +58,14 @@ fn main() {
                     },
 
                     WindowEvent::KeyboardInput {
-                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::A), state: winit::ElementState::Released, .. }, ..
+                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::A), state: winit::ElementState::Pressed, .. }, ..
                     } => {
                         is_maximized = !is_maximized;                                                
                         window.set_maximized(is_maximized);
                     },
 
                     WindowEvent::KeyboardInput {
-                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::B), state: winit::ElementState::Released, .. }, ..
+                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::B), state: winit::ElementState::Pressed, .. }, ..
                     } => {
                         decorations = !decorations;
                         window.set_decorations(decorations);
