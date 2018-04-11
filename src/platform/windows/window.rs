@@ -436,7 +436,7 @@ impl Window {
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         unsafe {
             match &monitor {
-                Some(RootMonitorId { inner }) => {
+                &Some(RootMonitorId { ref inner }) => {
                     self.set_fullscreen_style();
                    
                     let pos = inner.get_position();
@@ -452,7 +452,7 @@ impl Window {
                         winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
                     );
                 }
-                None => {
+                &None => {
                     self.restore_saved_window();
                 }
             }
