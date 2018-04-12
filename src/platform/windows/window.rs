@@ -360,8 +360,15 @@ impl Window {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        let window = self.window.clone();
+        let mut window_state = self.window_state.lock().unwrap();
+
+        window_state.attributes.maximized = maximized;       
+        // we only maximized if we are not in fullscreen
+        if window_state.attributes.fullscreen.is_some() {
+            return;
+        }
         
+        let window = self.window.clone();        
         unsafe {
             // And because ShowWindow will resize the window
             // We call it in the main thread
@@ -409,6 +416,8 @@ impl Window {
         let window = self.window.clone();
         let (style, ex_style) = (saved_window_info.style, saved_window_info.ex_style);
 
+        let maximized = window_state.attributes.maximized;
+
         // On restore, resize to the previous saved rect size.
         // And because SetWindowPos will resize the window
         // We call it in the main thread
@@ -430,9 +439,13 @@ impl Window {
                 winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
             );
 
+            // if it was set to maximized when it were fullscreened, we restore it as well
+            if maximized {
+                 winuser::ShowWindow(window.0, winuser::SW_MAXIMIZE);
+            }
+
             mark_fullscreen(window.0, false);
         });
-        
     }
 
     #[inline]
@@ -501,29 +514,32 @@ impl Window {
 
             // if we are in fullscreen mode, we only change the saved window info
             if window_state.attributes.fullscreen.is_some() {
-                let mut saved = window_state.saved_window_info.as_mut().unwrap();
+                {
+                    let mut saved = window_state.saved_window_info.as_mut().unwrap();
 
-                unsafe {
-                    unjust_window_rect(&mut saved.rect, saved.style as _, saved.ex_style as _);
+                    unsafe {
+                        unjust_window_rect(&mut saved.rect, saved.style as _, saved.ex_style as _);
+                    }
+
+                    if decorations {
+                        saved.style = saved.style | style_flags;
+                        saved.ex_style = saved.ex_style | ex_style_flags;
+                    } else {
+                        saved.style = saved.style & !style_flags;
+                        saved.ex_style = saved.ex_style & !ex_style_flags;
+                    }
+
+                    unsafe {
+                        winuser::AdjustWindowRectEx(
+                            &mut saved.rect,
+                            saved.style as _,
+                            0,
+                            saved.ex_style as _,
+                        );
+                    }
                 }
 
-                if decorations {
-                    saved.style = saved.style | style_flags;
-                    saved.ex_style = saved.ex_style | ex_style_flags;
-                } else {
-                    saved.style = saved.style & !style_flags;
-                    saved.ex_style = saved.ex_style & !ex_style_flags;
-                }
-
-                unsafe {
-                    winuser::AdjustWindowRectEx(
-                        &mut saved.rect,
-                        saved.style as _,
-                        0,
-                        saved.ex_style as _,
-                    );
-                }
-
+                window_state.attributes.decorations = decorations;
                 return;
             }
 
