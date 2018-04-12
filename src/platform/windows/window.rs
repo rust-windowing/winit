@@ -631,8 +631,6 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
             (None, None)
         };
 
-        let (x, y) = (None, None);
-
         let mut style = if !window.visible {
             style
         } else {
@@ -647,7 +645,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
             class_name.as_ptr(),
             title.as_ptr() as LPCWSTR,
             style | winuser::WS_CLIPSIBLINGS | winuser::WS_CLIPCHILDREN,
-            x.unwrap_or(winuser::CW_USEDEFAULT), y.unwrap_or(winuser::CW_USEDEFAULT),
+            winuser::CW_USEDEFAULT, winuser::CW_USEDEFAULT,
             width.unwrap_or(winuser::CW_USEDEFAULT), height.unwrap_or(winuser::CW_USEDEFAULT),
             pl_attribs.parent.unwrap_or(ptr::null_mut()),
             ptr::null_mut(), libloaderapi::GetModuleHandleW(ptr::null()),
