@@ -423,11 +423,7 @@ impl Window {
         // We call it in the main thread
         self.events_loop_proxy.execute_in_thread(move |_| {
             winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
-            winuser::SetWindowLongW(
-                window.0,
-                winuser::GWL_EXSTYLE,
-                ex_style,
-            );
+            winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
 
             winuser::SetWindowPos(
                 window.0,
@@ -436,13 +432,19 @@ impl Window {
                 rect.top,
                 rect.right - rect.left,
                 rect.bottom - rect.top,
-                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
+                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE
+                    | winuser::SWP_FRAMECHANGED,
             );
 
             // if it was set to maximized when it were fullscreened, we restore it as well
-            if maximized {
-                 winuser::ShowWindow(window.0, winuser::SW_MAXIMIZE);
-            }
+            winuser::ShowWindow(
+                window.0,
+                if maximized {
+                    winuser::SW_MAXIMIZE
+                } else {
+                    winuser::SW_RESTORE
+                },
+            );
 
             mark_fullscreen(window.0, false);
         });
