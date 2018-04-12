@@ -400,6 +400,12 @@ impl Window {
             });
         }
 
+        // We sync the system maximized state here, it will be used when restoring
+        let mut placement: winuser::WINDOWPLACEMENT = mem::zeroed();
+        placement.length = mem::size_of::<winuser::WINDOWPLACEMENT>() as u32;
+        winuser::GetWindowPlacement(self.window.0, &mut placement);
+        window_state.attributes.maximized =
+            placement.showCmd == (winuser::SW_SHOWMAXIMIZED as u32);
         let saved_window_info = window_state.saved_window_info.as_ref().unwrap();
 
         (saved_window_info.style, saved_window_info.ex_style)
