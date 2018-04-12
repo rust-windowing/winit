@@ -27,7 +27,7 @@ fn main() {
 
     let window = winit::WindowBuilder::new()
         .with_title("Hello world!")
-        .with_fullscreen(Some(monitor.clone()))
+        .with_fullscreen(Some(monitor))
         .build(&events_loop)
         .unwrap();
 
@@ -39,40 +39,37 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            Event::WindowEvent { event, .. } => {
-                match event {
-                    WindowEvent::Closed => return ControlFlow::Break,
-                    WindowEvent::KeyboardInput {
-                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::Escape), .. }, ..
-                    } => return ControlFlow::Break,
-                    WindowEvent::KeyboardInput {
-                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::F11), state: winit::ElementState::Pressed, .. }, ..
-                    } => {
-                        if is_fullscreen {
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::Closed => return ControlFlow::Break,
+                WindowEvent::KeyboardInput {
+                    input:
+                        winit::KeyboardInput {
+                            virtual_keycode: Some(virtual_code),
+                            state,
+                            ..
+                        },
+                    ..
+                } => match (virtual_code, state) {
+                    (winit::VirtualKeyCode::Escape, _) => return ControlFlow::Break,
+                    (winit::VirtualKeyCode::F11, winit::ElementState::Pressed) => {
+                        is_fullscreen = !is_fullscreen;
+                        if !is_fullscreen {
                             window.set_fullscreen(None);
                         } else {
                             window.set_fullscreen(Some(window.get_current_monitor()));
-                        }
-
-                        is_fullscreen = !is_fullscreen;                        
-                    },
-
-                    WindowEvent::KeyboardInput {
-                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::A), state: winit::ElementState::Pressed, .. }, ..
-                    } => {
-                        is_maximized = !is_maximized;                                                
+                        }                        
+                    }
+                    (winit::VirtualKeyCode::M, winit::ElementState::Pressed) => {
+                        is_maximized = !is_maximized;
                         window.set_maximized(is_maximized);
-                    },
-
-                    WindowEvent::KeyboardInput {
-                        input: winit::KeyboardInput { virtual_keycode: Some(winit::VirtualKeyCode::B), state: winit::ElementState::Pressed, .. }, ..
-                    } => {
+                    }
+                    (winit::VirtualKeyCode::D, winit::ElementState::Pressed) => {
                         decorations = !decorations;
                         window.set_decorations(decorations);
-                    },
-
-                    _ => ()
-                }
+                    }
+                    _ => (),
+                },
+                _ => (),
             },
             _ => {}
         }
