@@ -848,15 +848,25 @@ unsafe fn force_window_active(handle: HWND) {
     // This is a little hack which can "steal" the foreground window permission
     // We only call this function in the window creation, so it should be fine.
     // See : https://stackoverflow.com/questions/10740346/setforegroundwindow-only-working-while-visual-studio-is-open
-    const ALT : i32 = 0xA4;
-    const EXTENDEDKEY : u32 = 0x1;
-    const KEYUP : u32 = 0x2;
+    let alt_sc = winuser::MapVirtualKeyW(winuser::VK_MENU as _, winuser::MAPVK_VK_TO_VSC);
 
-    // Simulate a key press
-    winuser::keybd_event(ALT as _, 0x45, EXTENDEDKEY | 0, 0);
+    let mut inputs: [winuser::INPUT; 2] = mem::zeroed();
+    inputs[0].type_ = winuser::INPUT_KEYBOARD;
+    inputs[0].u.ki_mut().wVk = winuser::VK_LMENU as _;
+    inputs[0].u.ki_mut().wScan = alt_sc as _;
+    inputs[0].u.ki_mut().dwFlags = winuser::KEYEVENTF_EXTENDEDKEY;
 
-    // Simulate a key release
-    winuser::keybd_event(0xA4, 0x45, EXTENDEDKEY | KEYUP, 0);
+    inputs[1].type_ = winuser::INPUT_KEYBOARD;
+    inputs[1].u.ki_mut().wVk = winuser::VK_LMENU as _;
+    inputs[1].u.ki_mut().wScan = alt_sc as _;
+    inputs[1].u.ki_mut().dwFlags = winuser::KEYEVENTF_EXTENDEDKEY | winuser::KEYEVENTF_KEYUP;
 
-    winuser::SetForegroundWindow(handle);    
+    // Simulate a key press and release
+    winuser::SendInput(
+        inputs.len() as _,
+        inputs.as_mut_ptr(),
+        mem::size_of::<winuser::INPUT>() as _,
+    );
+
+    winuser::SetForegroundWindow(handle);
 }
