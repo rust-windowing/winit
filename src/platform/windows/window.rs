@@ -46,6 +46,7 @@ pub struct Window {
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
+// https://blogs.msdn.microsoft.com/oldnewthing/20131017-00/?p=2903
 // The idea here is that we use the Adjust­Window­Rect­Ex function to calculate how much additional 
 // non-client area gets added due to the styles we passed. To make the math simple, 
 // we ask for a zero client rectangle, so that the resulting window is all non-client. 
