@@ -1,7 +1,4 @@
 #![cfg(target_os = "windows")]
-#![allow(non_upper_case_globals)]
-#![allow(non_snake_case)]
-#![allow(dead_code)]
 
 use std::ffi::OsStr;
 use std::io;
@@ -49,20 +46,28 @@ pub struct Window {
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
-// https://blogs.msdn.microsoft.com/oldnewthing/20131017-00/?p=2903
+// The idea here is that we use the Adjust­Window­Rect­Ex function to calculate how much additional 
+// non-client area gets added due to the styles we passed. To make the math simple, 
+// we ask for a zero client rectangle, so that the resulting window is all non-client. 
+// And then we pass in the empty rectangle represented by the dot in the middle, 
+// and the Adjust­Window­Rect­Ex expands the rectangle in all dimensions. 
+// We see that it added ten pixels to the left, right, and bottom, 
+// and it added fifty pixels to the top.
+// From this we can perform the reverse calculation: Instead of expanding the rectangle, we shrink it. 
 unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> BOOL {
     let mut rc: RECT = mem::zeroed();
 
     winuser::SetRectEmpty(&mut rc);
 
-    let fRc = winuser::AdjustWindowRectEx(&mut rc, style, 0, ex_style);
-    if fRc != 0 {
+    let frc = winuser::AdjustWindowRectEx(&mut rc, style, 0, ex_style);
+    if frc != 0 {
         prc.left -= rc.left;
         prc.top -= rc.top;
         prc.right -= rc.right;
         prc.bottom -= rc.bottom;
     }
-    return fRc;
+    
+    frc
 }
 
 impl Window {
@@ -356,12 +361,19 @@ impl Window {
     pub fn set_maximized(&self, maximized: bool) {
         let window = self.window.clone();
         
-        unsafe {            
+        unsafe {
             // And because ShowWindow will resize the window
             // We call it in the main thread
             self.events_loop_proxy.execute_in_thread(move |_| {
-                winuser::ShowWindow(window.0, if maximized { winuser::SW_MAXIMIZE } else {winuser::SW_RESTORE} );
-            });            
+                winuser::ShowWindow(
+                    window.0,
+                    if maximized {
+                        winuser::SW_MAXIMIZE
+                    } else {
+                        winuser::SW_RESTORE
+                    },
+                );
+            });
         }
     }
 
@@ -492,20 +504,23 @@ impl Window {
 
                 unsafe {
                     unjust_window_rect(&mut saved.rect, saved.style as _, saved.ex_style as _);
-                }                    
+                }
 
                 if decorations {
                     saved.style = saved.style | style_flags;
                     saved.ex_style = saved.ex_style | ex_style_flags;
-
-
-                } else {                   
+                } else {
                     saved.style = saved.style & !style_flags;
-                    saved.ex_style = saved.ex_style & !ex_style_flags;                    
+                    saved.ex_style = saved.ex_style & !ex_style_flags;
                 }
-                
+
                 unsafe {
-                    winuser::AdjustWindowRectEx(&mut saved.rect, saved.style as _, 0, saved.ex_style as _);
+                    winuser::AdjustWindowRectEx(
+                        &mut saved.rect,
+                        saved.style as _,
+                        0,
+                        saved.ex_style as _,
+                    );
                 }
 
                 return;
@@ -526,13 +541,13 @@ impl Window {
                     style = style & !style_flags;
                     ex_style = ex_style & !ex_style_flags;
                 }
-                
+
                 let window = self.window.clone();
 
                 self.events_loop_proxy.execute_in_thread(move |_| {
                     winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
                     winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
-                    winuser::AdjustWindowRectEx(&mut rect, style as _, 0, ex_style as _);                
+                    winuser::AdjustWindowRectEx(&mut rect, style as _, 0, ex_style as _);
 
                     winuser::SetWindowPos(
                         window.0,
@@ -541,9 +556,11 @@ impl Window {
                         rect.top,
                         rect.right - rect.left,
                         rect.bottom - rect.top,
-                        winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE | winuser::SWP_FRAMECHANGED,
+                        winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER
+                            | winuser::SWP_NOACTIVATE
+                            | winuser::SWP_FRAMECHANGED,
                     );
-                });                
+                });
             }
 
             window_state.attributes.decorations = decorations;
@@ -766,7 +783,7 @@ thread_local!{
         }
     };
 
-    static TASKBAR_LIST: Cell<*mut ITaskbarList2> = Cell::new(ptr::null_mut());
+    static TASKBAR_LIST: Cell<*mut taskbar::ITaskbarList2> = Cell::new(ptr::null_mut());
 }
 
 pub fn com_initialized() {
@@ -775,35 +792,39 @@ pub fn com_initialized() {
 
 // TODO: remove these when they get added to winapi
 // https://github.com/retep998/winapi-rs/pull/592
-DEFINE_GUID!{CLSID_TaskbarList,
-    0x56fdf344, 0xfd6d, 0x11d0, 0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90}
+#[allow(non_upper_case_globals)]
+#[allow(non_snake_case)]
+#[allow(dead_code)]
+mod taskbar {
+    use super::{IUnknown,IUnknownVtbl,HRESULT, HWND,BOOL};
+    DEFINE_GUID!{CLSID_TaskbarList,
+        0x56fdf344, 0xfd6d, 0x11d0, 0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90}
 
-RIDL!(
-#[uuid(0x56fdf342, 0xfd6d, 0x11d0, 0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90)]
-interface ITaskbarList(ITaskbarListVtbl): IUnknown(IUnknownVtbl) {
-    fn HrInit() -> HRESULT,
-    fn AddTab(
-        hwnd: HWND,
-    ) -> HRESULT,
-    fn DeleteTab(
-        hwnd: HWND,
-    ) -> HRESULT,
-    fn ActivateTab(
-        hwnd: HWND,
-    ) -> HRESULT,
-    fn SetActiveAlt(
-        hwnd: HWND,
-    ) -> HRESULT,
-});
+    RIDL!(#[uuid(0x56fdf342, 0xfd6d, 0x11d0, 0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90)]
+    interface ITaskbarList(ITaskbarListVtbl): IUnknown(IUnknownVtbl) {
+        fn HrInit() -> HRESULT,
+        fn AddTab(
+            hwnd: HWND,
+        ) -> HRESULT,
+        fn DeleteTab(
+            hwnd: HWND,
+        ) -> HRESULT,
+        fn ActivateTab(
+            hwnd: HWND,
+        ) -> HRESULT,
+        fn SetActiveAlt(
+            hwnd: HWND,
+        ) -> HRESULT,
+    });
 
-RIDL!(
-#[uuid(0x602d4995, 0xb13a, 0x429b, 0xa6, 0x6e, 0x19, 0x35, 0xe4, 0x4f, 0x43, 0x17)]
-interface ITaskbarList2(ITaskbarList2Vtbl): ITaskbarList(ITaskbarListVtbl) {
-    fn MarkFullscreenWindow(
-        hwnd: HWND,
-        fFullscreen: BOOL,
-    ) -> HRESULT,    
-});
+    RIDL!(#[uuid(0x602d4995, 0xb13a, 0x429b, 0xa6, 0x6e, 0x19, 0x35, 0xe4, 0x4f, 0x43, 0x17)]
+    interface ITaskbarList2(ITaskbarList2Vtbl): ITaskbarList(ITaskbarListVtbl) {
+        fn MarkFullscreenWindow(
+            hwnd: HWND,
+            fFullscreen: BOOL,
+        ) -> HRESULT,    
+    });
+}
 
 // Reference Implementation:
 // https://github.com/chromium/chromium/blob/f18e79d901f56154f80eea1e2218544285e62623/ui/views/win/fullscreen_handler.cc
@@ -813,21 +834,23 @@ interface ITaskbarList2(ITaskbarList2Vtbl): ITaskbarList(ITaskbarListVtbl) {
 // is activated. If the window is not fullscreen, the Shell falls back to
 // heuristics to determine how the window should be treated, which means
 // that it could still consider the window as fullscreen. :(
-unsafe fn mark_fullscreen(handle: HWND, fullscreen: bool) {            
+unsafe fn mark_fullscreen(handle: HWND, fullscreen: bool) {
     com_initialized();
 
-    TASKBAR_LIST.with(|task_bar_list_ptr|{
+    TASKBAR_LIST.with(|task_bar_list_ptr| {
         let mut task_bar_list = task_bar_list_ptr.get();
 
         if task_bar_list == ptr::null_mut() {
+            use winapi::shared::winerror::S_OK;
             use winapi::Interface;
-            use winapi::shared::winerror::{S_OK};    
 
             let hr = combaseapi::CoCreateInstance(
-                &CLSID_TaskbarList,
-                ptr::null_mut(), combaseapi::CLSCTX_ALL,
-                &ITaskbarList2::uuidof(),
-                &mut task_bar_list as *mut _ as *mut _);
+                &taskbar::CLSID_TaskbarList,
+                ptr::null_mut(),
+                combaseapi::CLSCTX_ALL,
+                &taskbar::ITaskbarList2::uuidof(),
+                &mut task_bar_list as *mut _ as *mut _,
+            );
 
             if hr != S_OK || (*task_bar_list).HrInit() != S_OK {
                 // In some old windows, the taskbar object could not be created, we just ignore it
@@ -837,7 +860,7 @@ unsafe fn mark_fullscreen(handle: HWND, fullscreen: bool) {
         }
 
         task_bar_list = task_bar_list_ptr.get();
-        (*task_bar_list).MarkFullscreenWindow(handle, if fullscreen {1} else {0} );
+        (*task_bar_list).MarkFullscreenWindow(handle, if fullscreen { 1 } else { 0 });
     })
 }
 

@@ -47,14 +47,14 @@ use WindowEvent;
 use WindowId as SuperWindowId;
 use events::{Touch, TouchPhase};
 
-/// Contains information for saved window info for switching between fullscreen 
+/// Contains saved window info for switching between fullscreen
 #[derive(Clone)]
 pub struct SavedWindowInfo {
-    /// Windows style
-    pub style : LONG,
-    /// Windows ex-style
-    pub ex_style : LONG,
-    /// Windows position and size    
+    /// Window style
+    pub style: LONG,
+    /// Window ex-style
+    pub ex_style: LONG,
+    /// Window position and size    
     pub rect: RECT,
 }
 
@@ -240,18 +240,7 @@ impl EventsLoop {
     pub(super) fn execute_in_thread<F>(&self, function: F)
         where F: FnMut(Inserter) + Send + 'static
     {
-        unsafe {
-            let boxed = Box::new(function) as Box<FnMut(_)>;
-            let boxed2 = Box::new(boxed);
-
-            let raw = Box::into_raw(boxed2);
-
-            let res = winuser::PostThreadMessageA(self.thread_id, *EXEC_MSG_ID,
-                                                 raw as *mut () as usize as WPARAM, 0);
-            // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
-            // as the events loop is still alive) or if the queue is full.
-            assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
-        }
+        self.create_proxy().execute_in_thread(function)
     }
 }
 
@@ -287,20 +276,35 @@ impl EventsLoopProxy {
         }
     }
 
+    /// Executes a function in the background thread.
+    ///
+    /// Note that we use a FnMut instead of a FnOnce because we're too lazy to create an equivalent
+    /// to the unstable FnBox.
+    ///
+    /// The `Inserted` can be used to inject a `WindowState` for the callback to use. The state is
+    /// removed automatically if the callback receives a `WM_CLOSE` message for the window.
     pub fn execute_in_thread<F>(&self, function: F)
-        where F: FnMut(Inserter) + Send + 'static
+    where
+        F: FnMut(Inserter) + Send + 'static,
     {
         unsafe {
+            // We are using double-boxing here because it make casting back much easier
             let boxed = Box::new(function) as Box<FnMut(_)>;
             let boxed2 = Box::new(boxed);
-
             let raw = Box::into_raw(boxed2);
 
-            let res = winuser::PostThreadMessageA(self.thread_id, *EXEC_MSG_ID,
-                                                 raw as *mut () as usize as WPARAM, 0);
+            let res = winuser::PostThreadMessageA(
+                self.thread_id,
+                *EXEC_MSG_ID,
+                raw as *mut () as usize as WPARAM,
+                0,
+            );
             // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
             // as the events loop is still alive) or if the queue is full.
-            assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
+            assert!(
+                res != 0,
+                "PostThreadMessage failed ; is the messages queue full?"
+            );
         }
     }
 }
