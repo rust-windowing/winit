@@ -26,10 +26,11 @@ use std::sync::Mutex;
 use std::sync::Condvar;
 use std::thread;
 
-use winapi::shared::minwindef::{LOWORD, HIWORD, DWORD, WPARAM, LPARAM, UINT, LRESULT, MAX_PATH};
-use winapi::shared::windef::{HWND, POINT};
+use winapi::shared::minwindef::{LOWORD, HIWORD, DWORD, WPARAM, LPARAM, INT, UINT, LRESULT, MAX_PATH};
+use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
 use winapi::um::{winuser, shellapi, processthreadsapi};
+use winapi::um::winnt::LONG;
 
 use platform::platform::event;
 use platform::platform::Cursor;
@@ -44,6 +45,18 @@ use KeyboardInput;
 use WindowAttributes;
 use WindowEvent;
 use WindowId as SuperWindowId;
+use events::{Touch, TouchPhase};
+
+/// Contains saved window info for switching between fullscreen
+#[derive(Clone)]
+pub struct SavedWindowInfo {
+    /// Window style
+    pub style: LONG,
+    /// Window ex-style
+    pub ex_style: LONG,
+    /// Window position and size    
+    pub rect: RECT,
+}
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Clone)]
@@ -56,6 +69,8 @@ pub struct WindowState {
     pub attributes: WindowAttributes,
     /// Will contain `true` if the mouse is hovering the window.
     pub mouse_in_window: bool,
+    /// Saved window info for fullscreen restored
+    pub saved_window_info: Option<SavedWindowInfo>,
 }
 
 /// Dummy object that allows inserting a window's state.
@@ -225,18 +240,7 @@ impl EventsLoop {
     pub(super) fn execute_in_thread<F>(&self, function: F)
         where F: FnMut(Inserter) + Send + 'static
     {
-        unsafe {
-            let boxed = Box::new(function) as Box<FnMut(_)>;
-            let boxed2 = Box::new(boxed);
-
-            let raw = Box::into_raw(boxed2);
-
-            let res = winuser::PostThreadMessageA(self.thread_id, *EXEC_MSG_ID,
-                                                 raw as *mut () as usize as WPARAM, 0);
-            // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
-            // as the events loop is still alive) or if the queue is full.
-            assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
-        }
+        self.create_proxy().execute_in_thread(function)
     }
 }
 
@@ -269,6 +273,38 @@ impl EventsLoopProxy {
                 // TODO: handle ERROR_NOT_ENOUGH_QUOTA
                 Err(EventsLoopClosed)
             }
+        }
+    }
+
+    /// Executes a function in the background thread.
+    ///
+    /// Note that we use a FnMut instead of a FnOnce because we're too lazy to create an equivalent
+    /// to the unstable FnBox.
+    ///
+    /// The `Inserted` can be used to inject a `WindowState` for the callback to use. The state is
+    /// removed automatically if the callback receives a `WM_CLOSE` message for the window.
+    pub fn execute_in_thread<F>(&self, function: F)
+    where
+        F: FnMut(Inserter) + Send + 'static,
+    {
+        unsafe {
+            // We are using double-boxing here because it make casting back much easier
+            let boxed = Box::new(function) as Box<FnMut(_)>;
+            let boxed2 = Box::new(boxed);
+            let raw = Box::into_raw(boxed2);
+
+            let res = winuser::PostThreadMessageA(
+                self.thread_id,
+                *EXEC_MSG_ID,
+                raw as *mut () as usize as WPARAM,
+                0,
+            );
+            // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
+            // as the events loop is still alive) or if the queue is full.
+            assert!(
+                res != 0,
+                "PostThreadMessage failed ; is the messages queue full?"
+            );
         }
     }
 }
@@ -359,10 +395,15 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                 context_stash.as_mut().unwrap().windows.remove(&window);
             });
             winuser::DefWindowProcW(window, msg, wparam, lparam)
-        },
+        },       
 
-        winuser::WM_ERASEBKGND => {
-            1
+        winuser::WM_PAINT => {
+            use events::WindowEvent::Refresh;
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: Refresh,
+            });
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
         },
 
         winuser::WM_SIZE => {
@@ -729,6 +770,40 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                 winuser::DefWindowProcW(window, msg, wparam, lparam)
             }
         },
+
+        winuser::WM_TOUCH => {
+            let pcount = LOWORD( wparam as DWORD ) as usize;
+            let mut inputs = Vec::with_capacity( pcount );
+            inputs.set_len( pcount );
+            let htouch = lparam as winuser::HTOUCHINPUT;
+            if winuser::GetTouchInputInfo( htouch, pcount as UINT,
+                                           inputs.as_mut_ptr(),
+                                           mem::size_of::<winuser::TOUCHINPUT>() as INT ) > 0 {
+                for input in &inputs {
+                    send_event( Event::WindowEvent {
+                        window_id: SuperWindowId(WindowId(window)),
+                        event: WindowEvent::Touch(Touch {
+                            phase:
+                            if input.dwFlags & winuser::TOUCHEVENTF_DOWN != 0 {
+                                TouchPhase::Started
+                            } else if input.dwFlags & winuser::TOUCHEVENTF_UP != 0 {
+                                TouchPhase::Ended
+                            } else if input.dwFlags & winuser::TOUCHEVENTF_MOVE != 0 {
+                                TouchPhase::Moved
+                            } else {
+                                continue;
+                            },
+                            location: ((input.x as f64) / 100f64,
+                                       (input.y as f64) / 100f64),
+                            id: input.dwID as u64,
+                            device_id: DEVICE_ID,
+                        })
+                    });
+                }
+            }
+            winuser::CloseTouchInputHandle( htouch );
+            0
+        }
 
         winuser::WM_SETFOCUS => {
             use events::WindowEvent::{Focused, CursorMoved};

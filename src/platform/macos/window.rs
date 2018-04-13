@@ -12,8 +12,8 @@ use objc::declare::ClassDecl;
 
 use cocoa;
 use cocoa::base::{id, nil};
-use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
-use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask};
+use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString};
+use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask, NSWindowButton};
 
 use core_graphics::display::CGDisplay;
 
@@ -95,6 +95,17 @@ impl WindowDelegate {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 emit_resize_event(state);
+                let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
+                emit_event(state, WindowEvent::HiDPIFactorChanged(scale_factor));
+            }
+        }
+
+        extern fn window_did_change_backing_properties(this: &Object, _:Sel, _:id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+                let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
+                emit_event(state, WindowEvent::HiDPIFactorChanged(scale_factor));
             }
         }
 
@@ -198,7 +209,8 @@ impl WindowDelegate {
                 window_did_resize as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidChangeScreen:),
                 window_did_change_screen as extern fn(&Object, Sel, id));
-
+            decl.add_method(sel!(windowDidChangeBackingProperties:),
+                window_did_change_backing_properties as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidBecomeKey:),
                 window_did_become_key as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidResignKey:),
@@ -255,6 +267,11 @@ impl Drop for WindowDelegate {
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,
+    pub titlebar_transparent: bool,
+    pub title_hidden: bool,
+    pub titlebar_hidden: bool,
+    pub titlebar_buttons_hidden: bool,
+    pub fullsize_content_view: bool,
 }
 
 pub struct Window2 {
@@ -278,7 +295,7 @@ impl Drop for Window2 {
         let nswindow = *self.window;
         if nswindow != nil {
             unsafe {
-                msg_send![nswindow, close];
+                let () = msg_send![nswindow, close];
             }
         }
     }
@@ -346,7 +363,7 @@ impl Window2 {
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
-            msg_send![(*window as id),
+            let () = msg_send![(*window as id),
                 registerForDraggedTypes:NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)];
         }
 
@@ -389,27 +406,8 @@ impl Window2 {
         unsafe {
             let screen = match attrs.fullscreen {
                 Some(ref monitor_id) => {
-                    let native_id = monitor_id.inner.get_native_identifier();
-                    let matching_screen = {
-                        let screens = appkit::NSScreen::screens(nil);
-                        let count: NSUInteger = msg_send![screens, count];
-                        let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
-                        let mut matching_screen: Option<id> = None;
-                        for i in 0..count {
-                            let screen = msg_send![screens, objectAtIndex:i as NSUInteger];
-                            let device_description = appkit::NSScreen::deviceDescription(screen);
-                            let value: id = msg_send![device_description, objectForKey:*key];
-                            if value != nil {
-                                let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
-                                if screen_number as u32 == native_id {
-                                    matching_screen = Some(screen);
-                                    break;
-                                }
-                            }
-                        }
-                        matching_screen
-                    };
-                    Some(matching_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
+                    let monitor_screen = monitor_id.inner.get_nsscreen();
+                    Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
                 },
                 _ => None,
             };
@@ -423,20 +421,48 @@ impl Window2 {
 
             let masks = if screen.is_some() {
                 // Fullscreen window
-                NSWindowStyleMask::NSBorderlessWindowMask | NSWindowStyleMask::NSResizableWindowMask |
-                    NSWindowStyleMask::NSTitledWindowMask
-            } else if attrs.decorations {
-                // Window2 with a titlebar
-                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
-                    NSWindowStyleMask::NSResizableWindowMask | NSWindowStyleMask::NSTitledWindowMask
-            } else {
-                // Window2 without a titlebar
-                NSWindowStyleMask::NSClosableWindowMask | NSWindowStyleMask::NSMiniaturizableWindowMask |
+                NSWindowStyleMask::NSBorderlessWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
+            } else if !attrs.decorations {
+                // Window2 without a titlebar
+                NSWindowStyleMask::NSBorderlessWindowMask
+            } else if pl_attrs.titlebar_hidden {
+                NSWindowStyleMask::NSBorderlessWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask
+            } else if !pl_attrs.titlebar_transparent {
+                // Window2 with a titlebar
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
+            } else if pl_attrs.fullsize_content_view {
+                // Window2 with a transparent titlebar and fullsize content view
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask |
                     NSWindowStyleMask::NSFullSizeContentViewWindowMask
+            } else {
+                // Window2 with a transparent titlebar and regular content view
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
             };
 
-            let window = IdRef::new(NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
+            let winit_window = Class::get("WinitWindow").unwrap_or_else(|| {
+                let window_superclass = Class::get("NSWindow").unwrap();
+                let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
+                decl.add_method(sel!(canBecomeMainWindow), yes as extern fn(&Object, Sel) -> BOOL);
+                decl.add_method(sel!(canBecomeKeyWindow), yes as extern fn(&Object, Sel) -> BOOL);
+                decl.register();
+                Class::get("WinitWindow").unwrap()
+            });
+
+            let window: id = msg_send![winit_window, alloc];
+
+            let window = IdRef::new(window.initWithContentRect_styleMask_backing_defer_(
                 frame,
                 masks,
                 appkit::NSBackingStoreBuffered,
@@ -448,13 +474,29 @@ impl Window2 {
                 window.setTitle_(*title);
                 window.setAcceptsMouseMovedEvents_(YES);
 
+                if pl_attrs.titlebar_transparent {
+                    window.setTitlebarAppearsTransparent_(YES);
+                }
+                if pl_attrs.title_hidden {
+                    window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
+                }
+                if pl_attrs.titlebar_buttons_hidden {
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowFullScreenButton);
+                    let () = msg_send![button, setHidden:YES];
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowMiniaturizeButton);
+                    let () = msg_send![button, setHidden:YES];
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowCloseButton);
+                    let () = msg_send![button, setHidden:YES];
+                    let button = window.standardWindowButton_(NSWindowButton::NSWindowZoomButton);
+                    let () = msg_send![button, setHidden:YES];
+                }
+                if pl_attrs.movable_by_window_background {
+                    window.setMovableByWindowBackground_(YES);
+                }
+
                 if !attrs.decorations {
                     window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
                     window.setTitlebarAppearsTransparent_(YES);
-                }
-
-                if pl_attrs.movable_by_window_background {
-                    window.setMovableByWindowBackground_(YES);
                 }
 
                 if screen.is_some() {
@@ -530,22 +572,39 @@ impl Window2 {
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
         unsafe {
             let view_frame = NSView::frame(*self.view);
-            Some((view_frame.size.width as u32, view_frame.size.height as u32))
+            let factor = self.hidpi_factor() as f64; // API convention is that size is in physical pixels
+            Some(((view_frame.size.width*factor) as u32, (view_frame.size.height*factor) as u32))
         }
     }
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
+        let factor = self.hidpi_factor() as f64; // API convention is that size is in physical pixels
         unsafe {
             let window_frame = NSWindow::frame(*self.window);
-            Some((window_frame.size.width as u32, window_frame.size.height as u32))
+            Some(((window_frame.size.width*factor) as u32, (window_frame.size.height*factor) as u32))
         }
     }
 
     #[inline]
     pub fn set_inner_size(&self, width: u32, height: u32) {
+        let factor = self.hidpi_factor() as f64; // API convention is that size is in physical pixels
         unsafe {
-            NSWindow::setContentSize_(*self.window, NSSize::new(width as f64, height as f64));
+            NSWindow::setContentSize_(*self.window, NSSize::new((width as f64)/factor, (height as f64)/factor));
+        }
+    }
+
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        unsafe {
+            let (width, height) = dimensions.unwrap_or((0, 0));
+            nswindow_set_min_dimensions(self.window.0, width.into(), height.into());
+        }
+    }
+
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        unsafe {
+            let (width, height) = dimensions.unwrap_or((!0, !0));
+            nswindow_set_max_dimensions(self.window.0, width.into(), height.into());
         }
     }
 
@@ -720,19 +779,19 @@ unsafe fn nswindow_set_max_dimensions<V: NSWindow + Copy>(
 pub struct IdRef(id);
 
 impl IdRef {
-    fn new(i: id) -> IdRef {
+    pub fn new(i: id) -> IdRef {
         IdRef(i)
     }
 
     #[allow(dead_code)]
-    fn retain(i: id) -> IdRef {
+    pub fn retain(i: id) -> IdRef {
         if i != nil {
             let _: id = unsafe { msg_send![i, retain] };
         }
         IdRef(i)
     }
 
-    fn non_nil(self) -> Option<IdRef> {
+    pub fn non_nil(self) -> Option<IdRef> {
         if self.0 == nil { None } else { Some(self) }
     }
 }
@@ -759,4 +818,8 @@ impl Clone for IdRef {
         }
         IdRef(self.0)
     }
+}
+
+extern fn yes(_: &Object, _: Sel) -> BOOL {
+    YES
 }

@@ -195,6 +195,22 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        match self {
+            &Window::X(ref w) => w.set_min_dimensions(dimensions),
+            &Window::Wayland(ref w) => w.set_min_dimensions(dimensions)
+        }
+    }
+
+    #[inline]
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        match self {
+            &Window::X(ref w) => w.set_max_dimensions(dimensions),
+            &Window::Wayland(ref w) => w.set_max_dimensions(dimensions)
+        }
+    }
+
+    #[inline]
     pub fn set_cursor(&self, cursor: MouseCursor) {
         match self {
             &Window::X(ref w) => w.set_cursor(cursor),

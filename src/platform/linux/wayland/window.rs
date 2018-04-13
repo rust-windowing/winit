@@ -137,6 +137,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        self.frame.lock().unwrap().set_min_size(dimensions.map(|(w, h)| (w as i32, h as i32)));
+    }
+
+    #[inline]
+    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        self.frame.lock().unwrap().set_max_size(dimensions.map(|(w, h)| (w as i32, h as i32)));
+    }
+
+    #[inline]
     pub fn set_cursor(&self, _cursor: MouseCursor) {
         // TODO
     }
@@ -190,11 +200,11 @@ impl Window {
         // TODO: not yet possible on wayland
         Err(())
     }
-    
+
     pub fn get_display(&self) -> &wl_display::WlDisplay {
         &*self.display
     }
-    
+
     pub fn get_surface(&self) -> &wl_surface::WlSurface {
         &self.surface
     }

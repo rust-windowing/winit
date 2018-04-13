@@ -1,10 +1,54 @@
 use std::mem;
 use std::ptr;
+use std::str;
 use std::sync::Arc;
+use std::ops::{Deref, DerefMut};
 use std::os::raw::{c_char, c_double, c_int, c_long, c_short, c_uchar, c_uint, c_ulong};
 
 use super::{ffi, XConnection, XError};
 use events::ModifiersState;
+
+pub struct XSmartPointer<'a, T> {
+    xconn: &'a Arc<XConnection>,
+    pub ptr: *mut T,
+}
+
+impl<'a, T> XSmartPointer<'a, T> {
+    // You're responsible for only passing things to this that should be XFree'd.
+    // Returns None if ptr is null.
+    pub fn new(xconn: &'a Arc<XConnection>, ptr: *mut T) -> Option<Self> {
+        if !ptr.is_null() {
+            Some(XSmartPointer {
+                xconn,
+                ptr,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T> Deref for XSmartPointer<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        unsafe { &*self.ptr }
+    }
+}
+
+impl<'a, T> DerefMut for XSmartPointer<'a, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.ptr }
+    }
+}
+
+impl<'a, T> Drop for XSmartPointer<'a, T> {
+    fn drop(&mut self) {
+        unsafe {
+            (self.xconn.xlib.XFree)(self.ptr as *mut _);
+        }
+    }
+}
 
 pub unsafe fn get_atom(xconn: &Arc<XConnection>, name: &[u8]) -> Result<ffi::Atom, XError> {
     let atom_name: *const c_char = name.as_ptr() as _;
@@ -46,12 +90,22 @@ pub unsafe fn send_client_msg(
     xconn.check_errors().map(|_| ())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum GetPropertyError {
     XError(XError),
     TypeMismatch(ffi::Atom),
     FormatMismatch(c_int),
     NothingAllocated,
+}
+
+impl GetPropertyError {
+    pub fn is_actual_property_type(&self, t: ffi::Atom) -> bool {
+        if let GetPropertyError::TypeMismatch(actual_type) = *self {
+            actual_type == t
+        } else {
+            false
+        }
+    }
 }
 
 pub unsafe fn get_property<T>(
@@ -203,4 +257,109 @@ pub unsafe fn query_pointer(
         group: group_return,
         relative_to_window,
     })
+}
+
+unsafe fn lookup_utf8_inner(
+    xconn: &Arc<XConnection>,
+    ic: ffi::XIC,
+    key_event: &mut ffi::XKeyEvent,
+    buffer: &mut [u8],
+) -> (ffi::KeySym, ffi::Status, c_int) {
+    let mut keysym: ffi::KeySym = 0;
+    let mut status: ffi::Status = 0;
+    let count = (xconn.xlib.Xutf8LookupString)(
+        ic,
+        key_event,
+        buffer.as_mut_ptr() as *mut c_char,
+        buffer.len() as c_int,
+        &mut keysym,
+        &mut status,
+    );
+    (keysym, status, count)
+}
+
+pub unsafe fn lookup_utf8(
+    xconn: &Arc<XConnection>,
+    ic: ffi::XIC,
+    key_event: &mut ffi::XKeyEvent,
+) -> String {
+    const INIT_BUFF_SIZE: usize = 16;
+
+    // Buffer allocated on heap instead of stack, due to the possible reallocation
+    let mut buffer: Vec<u8> = vec![mem::uninitialized(); INIT_BUFF_SIZE];
+    let (_, status, mut count) = lookup_utf8_inner(
+        xconn,
+        ic,
+        key_event,
+        &mut buffer,
+    );
+
+    // Buffer overflowed, dynamically reallocate
+    if status == ffi::XBufferOverflow {
+        buffer = vec![mem::uninitialized(); count as usize];
+        let (_, _, new_count) = lookup_utf8_inner(
+            xconn,
+            ic,
+            key_event,
+            &mut buffer,
+        );
+        count = new_count;
+    }
+
+    str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
+}
+
+#[derive(Debug)]
+pub struct FrameExtents {
+    pub left: c_ulong,
+    pub right: c_ulong,
+    pub top: c_ulong,
+    pub bottom: c_ulong,
+}
+
+impl FrameExtents {
+    pub fn new(left: c_ulong, right: c_ulong, top: c_ulong, bottom: c_ulong) -> Self {
+        FrameExtents { left, right, top, bottom }
+    }
+
+    pub fn from_border(border: c_ulong) -> Self {
+        Self::new(border, border, border, border)
+    }
+}
+
+#[derive(Debug)]
+pub struct WindowGeometry {
+    pub x: c_int,
+    pub y: c_int,
+    pub width: c_uint,
+    pub height: c_uint,
+    pub frame: FrameExtents,
+}
+
+impl WindowGeometry {
+    pub fn get_position(&self) -> (i32, i32) {
+        (self.x as _, self.y as _)
+    }
+
+    pub fn get_inner_position(&self) -> (i32, i32) {
+        (
+            self.x.saturating_add(self.frame.left as c_int) as _,
+            self.y.saturating_add(self.frame.top as c_int) as _,
+        )
+    }
+
+    pub fn get_inner_size(&self) -> (u32, u32) {
+        (self.width as _, self.height as _)
+    }
+
+    pub fn get_outer_size(&self) -> (u32, u32) {
+        (
+            self.width.saturating_add(
+                self.frame.left.saturating_add(self.frame.right) as c_uint
+            ) as _,
+            self.height.saturating_add(
+                self.frame.top.saturating_add(self.frame.bottom) as c_uint
+            ) as _,
+        )
+    }
 }
