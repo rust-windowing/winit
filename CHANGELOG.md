@@ -8,6 +8,7 @@
 - On X11, input methods now work completely out of the box, no longer requiring application developers to manually call `setlocale`. Additionally, when input methods are started, stopped, or restarted on the server end, it's correctly handled.
 - Implemented `Refresh` event on Windows.
 - Properly calculate the minimum and maximum window size on Windows, including window decorations.
+- Map more `MouseCursor` variants to cursor icons on Windows.
 
 # Version 0.12.0 (2018-04-06)
 
