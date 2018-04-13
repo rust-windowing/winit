@@ -16,6 +16,7 @@
 - Fixed thread safety issues with input methods on X11.
 - Add support for `Touch` for win32 backend.
 - Fixed `Window::get_inner_size` and friends to return the size in pixels instead of points when using HIDPI displays on OSX.
+- Properly calculate the minimum and maximum window size on Windows, including window decorations.
 
 # Version 0.11.3 (2018-03-28)
 

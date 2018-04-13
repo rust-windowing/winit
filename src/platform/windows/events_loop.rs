@@ -33,6 +33,7 @@ use winapi::um::{winuser, shellapi, processthreadsapi};
 use winapi::um::winnt::LONG;
 
 use platform::platform::event;
+use platform::platform::window::adjust_size;
 use platform::platform::Cursor;
 use platform::platform::WindowId;
 use platform::platform::DEVICE_ID;
@@ -898,18 +899,20 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                     if let Some(wstash) = cstash.windows.get(&window) {
                         let window_state = wstash.lock().unwrap();
 
-                        match window_state.attributes.min_dimensions {
-                            Some((width, height)) => {
-                                (*mmi).ptMinTrackSize = POINT { x: width as i32, y: height as i32 };
-                            },
-                            None => { }
-                        }
+                        if window_state.attributes.min_dimensions.is_some() ||
+                           window_state.attributes.max_dimensions.is_some() {
 
-                        match window_state.attributes.max_dimensions {
-                            Some((width, height)) => {
+                            let style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
+                            let ex_style = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
+
+                            if let Some(min_dimensions) = window_state.attributes.min_dimensions {
+                                let (width, height) = adjust_size(min_dimensions, style, ex_style);
+                                (*mmi).ptMinTrackSize = POINT { x: width as i32, y: height as i32 };
+                            }
+                            if let Some(max_dimensions) = window_state.attributes.max_dimensions {
+                                let (width, height) = adjust_size(max_dimensions, style, ex_style);
                                 (*mmi).ptMaxTrackSize = POINT { x: width as i32, y: height as i32 };
-                            },
-                            None => { }
+                            }
                         }
                     }
                 }
