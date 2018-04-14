@@ -1,5 +1,6 @@
 # Unreleased
 
+- Implement `WindowBuilder::with_maximized`, `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for MacOS.
 - Implement `WindowBuilder::with_maximized`, `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for Windows.
 - On Windows, `WindowBuilder::with_dimensions` no longer changing monitor display resolution.
 - Overhauled X11 window geometry calculations. `get_position` and `set_position` are more universally accurate across different window managers, and `get_outer_size` actually works now.
