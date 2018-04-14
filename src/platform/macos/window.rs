@@ -22,7 +22,7 @@ use std;
 use std::ops::Deref;
 use std::os::raw::c_void;
 use std::sync::Weak;
-use std::cell::RefCell;
+use std::cell::{Cell,RefCell};
 
 use super::events_loop::{EventsLoop,Shared};
 
@@ -37,7 +37,75 @@ struct DelegateState {
     shared: Weak<Shared>,
 
     win_attribs: RefCell<WindowAttributes>,
+    standard_frame: Cell<Option<NSRect>>,
+
     handle_with_fullscreen: bool,
+}
+
+impl DelegateState {
+    fn is_zoomed(&self) -> bool {
+        let win_attribs = self.win_attribs.borrow();
+
+        unsafe {
+            // Because isZoomed do not work in Borderless mode, we set it 
+            // resizable temporality
+            if !win_attribs.decorations {
+                self.window.setStyleMask_(NSWindowStyleMask::NSResizableWindowMask);
+            } 
+
+            let is_zoomed: BOOL = msg_send![*self.window, isZoomed];
+
+            // Roll the the style
+            if !win_attribs.decorations {
+                self.window.setStyleMask_(NSWindowStyleMask::NSBorderlessWindowMask);
+            } 
+
+            is_zoomed != 0
+        }
+    }
+
+    fn perform_maximized(&self, maximized: bool) {
+        let is_zoomed = self.is_zoomed();
+
+        if is_zoomed == maximized {
+            return;
+        }
+
+        // Save the standard frame sized if it is not zoomed
+        if !is_zoomed {
+            unsafe {
+                self.standard_frame.set(Some(NSWindow::frame(*self.window)));
+            }
+        }
+
+        let mut win_attribs = self.win_attribs.borrow_mut();
+        win_attribs.maximized = maximized;
+
+        if win_attribs.fullscreen.is_some() {
+            // Handle it in window_did_exit_fullscreen
+            return;
+        } else if win_attribs.decorations {
+            // Just use the native zoom if not borderless
+            unsafe {
+                self.window.zoom_(nil);
+            }
+        } else {
+            // if it is borderless, we set the frame directly
+            unsafe {
+                let new_rect = if maximized {
+                    let screen = NSScreen::mainScreen(nil);
+                    NSScreen::visibleFrame(screen)
+                } else {
+                    self.standard_frame.get().unwrap_or(NSRect::new(
+                        NSPoint::new(50.0, 50.0),
+                        NSSize::new(800.0, 600.0),
+                    ))
+                };
+
+                self.window.setFrame_display_(new_rect, 0);
+            }
+        }
+    }
 }
 
 pub struct WindowDelegate {
@@ -212,16 +280,23 @@ impl WindowDelegate {
 
         /// Invoked when exited fullscreen
         extern fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id){
-            unsafe {
+            let state = unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
-                let state = &mut *(state as *mut DelegateState);
+                &mut *(state as *mut DelegateState)
+            };
+
+            let maximized = unsafe {
                 let mut win_attribs = state.win_attribs.borrow_mut();
 
                 win_attribs.fullscreen = None;
                 if !win_attribs.decorations {
                     state.window.setStyleMask_(NSWindowStyleMask::NSBorderlessWindowMask);
-            }
-        }
+                } 
+
+                win_attribs.maximized
+            };
+
+            state.perform_maximized(maximized);
         }
 
         /// Invoked when fail to enter fullscreen
@@ -249,7 +324,7 @@ impl WindowDelegate {
                     let _: () = msg_send![*state.window, 
                         performSelector:sel!(toggleFullScreen:)
                         withObject:nil
-                        afterDelay: 0.01                        
+                        afterDelay: 0.5                        
                     ];
                 }
             }
@@ -296,7 +371,7 @@ impl WindowDelegate {
                 window_did_exit_fullscreen as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidFailToEnterFullScreen:),
                 window_did_fail_to_enter_fullscreen as extern fn(&Object, Sel, id));
-
+            
             // Store internal state as user data
             decl.add_ivar::<*mut c_void>("winitState");
 
@@ -457,6 +532,7 @@ impl Window2 {
             view: view.clone(),
             window: window.clone(),
             win_attribs: RefCell::new(win_attribs.clone()),
+            standard_frame: Cell::new(None),
             handle_with_fullscreen: win_attribs.fullscreen.is_some(),
             shared: shared,
         };
@@ -466,6 +542,10 @@ impl Window2 {
             window: window,
             delegate: WindowDelegate::new(ds),
         };
+
+        if win_attribs.maximized {
+            window.delegate.state.perform_maximized(win_attribs.maximized);
+        }
 
         Ok(window)
     }
@@ -781,8 +861,8 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn set_maximized(&self, _maximized: bool) {
-        unimplemented!()
+    pub fn set_maximized(&self, maximized: bool) {
+        self.delegate.state.perform_maximized(maximized)
     }
 
     #[inline]
