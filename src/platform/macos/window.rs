@@ -22,6 +22,7 @@ use std;
 use std::ops::Deref;
 use std::os::raw::c_void;
 use std::sync::Weak;
+use std::cell::RefCell;
 
 use super::events_loop::{EventsLoop,Shared};
 
@@ -33,9 +34,10 @@ pub struct Id(pub usize);
 struct DelegateState {
     view: IdRef,
     window: IdRef,
-    win_attribs: WindowAttributes,
-    handle_with_fullscreen: bool,
     shared: Weak<Shared>,
+
+    win_attribs: RefCell<WindowAttributes>,
+    handle_with_fullscreen: bool,
 }
 
 pub struct WindowDelegate {
@@ -202,7 +204,7 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-                state.win_attribs.fullscreen = Some(get_current_monitor());
+                state.win_attribs.borrow_mut().fullscreen = Some(get_current_monitor());
                 
                 state.handle_with_fullscreen = false;
             }
@@ -213,8 +215,13 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-                state.win_attribs.fullscreen = None;
+                let mut win_attribs = state.win_attribs.borrow_mut();
+
+                win_attribs.fullscreen = None;
+                if !win_attribs.decorations {
+                    state.window.setStyleMask_(NSWindowStyleMask::NSBorderlessWindowMask);
             }
+        }
         }
 
         /// Invoked when fail to enter fullscreen
@@ -449,7 +456,7 @@ impl Window2 {
         let ds = DelegateState {
             view: view.clone(),
             window: window.clone(),
-            win_attribs: win_attribs.clone(),
+            win_attribs: RefCell::new(win_attribs.clone()),
             handle_with_fullscreen: win_attribs.fullscreen.is_some(),
             shared: shared,
         };
@@ -517,7 +524,7 @@ impl Window2 {
                     NSWindowStyleMask::NSTitledWindowMask |
                     NSWindowStyleMask::NSFullSizeContentViewWindowMask
             } else {
-                if !attrs.decorations {
+                if !attrs.decorations && !screen.is_some() {
                     // Window2 without a titlebar
                     NSWindowStyleMask::NSBorderlessWindowMask
                 } else {
@@ -783,8 +790,10 @@ impl Window2 {
     /// in fullscreen mode
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         let state = &self.delegate.state;
-        let current = state.win_attribs.fullscreen.clone();
-        match (current, monitor) {
+        let win_attribs = state.win_attribs.borrow_mut();
+
+        let current = win_attribs.fullscreen.clone();
+        match (current.clone(), monitor.clone()) {
             (None, None) => {
                 return;
             }
@@ -795,13 +804,46 @@ impl Window2 {
         }
 
         unsafe {
+            // Because toggleFullScreen will not work if the StyleMask is none,
+            // We set a normal style to it temporary.
+            // It will clean up at window_did_exit_fullscreen.
+            if current.is_none() && !win_attribs.decorations {
+                state.window.setStyleMask_(NSWindowStyleMask::NSTitledWindowMask|NSWindowStyleMask::NSResizableWindowMask);
+            }
+
             self.window.toggleFullScreen_(nil);
         }
     }
 
     #[inline]
-    pub fn set_decorations(&self, _decorations: bool) {
-        unimplemented!()
+    pub fn set_decorations(&self, decorations: bool) {
+        let state = &self.delegate.state;
+        let mut win_attribs = state.win_attribs.borrow_mut();
+        
+        if win_attribs.decorations == decorations {
+            return;
+        }
+
+        win_attribs.decorations = decorations;
+
+        // Skip modifiy if we are in fullscreen mode, 
+        // window_did_exit_fullscreen will handle it
+        if win_attribs.fullscreen.is_some() {
+            return;
+        }
+
+        unsafe {
+            let new_mask = if decorations {
+                NSWindowStyleMask::NSClosableWindowMask
+                    | NSWindowStyleMask::NSMiniaturizableWindowMask
+                    | NSWindowStyleMask::NSResizableWindowMask
+                    | NSWindowStyleMask::NSTitledWindowMask
+            } else {
+                NSWindowStyleMask::NSBorderlessWindowMask
+            };
+
+            state.window.setStyleMask_(new_mask);
+        }
     }
 
     #[inline]
