@@ -25,6 +25,11 @@ impl EventsLoop {
         let id = MonitorId(CGDisplay::main().id);
         id
     }
+
+    pub fn make_monitor_from_display(id: CGDirectDisplayID) -> MonitorId {
+        let id = MonitorId(id);
+        id
+    }
 }
 
 impl MonitorId {
