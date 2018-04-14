@@ -33,6 +33,8 @@ pub struct Id(pub usize);
 struct DelegateState {
     view: IdRef,
     window: IdRef,
+    win_attribs: WindowAttributes,
+    handle_with_fullscreen: bool,
     shared: Weak<Shared>,
 }
 
@@ -195,6 +197,57 @@ impl WindowDelegate {
             }
         }
 
+        /// Invoked when entered fullscreen
+        extern fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id){
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+                state.win_attribs.fullscreen = Some(get_current_monitor());
+                
+                state.handle_with_fullscreen = false;
+            }
+        }
+
+        /// Invoked when exited fullscreen
+        extern fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id){
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+                state.win_attribs.fullscreen = None;
+            }
+        }
+
+        /// Invoked when fail to enter fullscreen
+        ///
+        /// When this window launch from a fullscreen app (e.g. launch from VS Code
+        /// terminal), it creates a new virtual destkop and d an transition
+        /// animation. This animation takes one second and cannot be disable without
+        /// elevated privileges. In this animation time, all toggleFullscreen events
+        /// will be failed. In this implementation, we will try again by using
+        /// performSelector:withObject:afterDelay: until window_did_enter_fullscreen.
+        /// It should be fine as we only do this at initialzation (i.e with_fullscreen
+        /// was set).
+        ///
+        /// From Apple doc:
+        /// In some cases, the transition to enter full-screen mode can fail,
+        /// due to being in the midst of handling some other animation or user gesture.
+        /// This method indicates that there was an error, and you should clean up any
+        /// work you may have done to prepare to enter full-screen mode.
+        extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+
+                if state.handle_with_fullscreen {
+                    let _: () = msg_send![*state.window, 
+                        performSelector:sel!(toggleFullScreen:)
+                        withObject:nil
+                        afterDelay: 0.01                        
+                    ];
+                }
+            }
+        }
+
         static mut DELEGATE_CLASS: *const Class = 0 as *const Class;
         static INIT: std::sync::Once = std::sync::ONCE_INIT;
 
@@ -228,6 +281,14 @@ impl WindowDelegate {
                 conclude_drag_operation as extern fn(&Object, Sel, id));
            decl.add_method(sel!(draggingExited:),
                 dragging_exited as extern fn(&Object, Sel, id));
+
+            // callbacks for fullscreen events
+            decl.add_method(sel!(windowDidEnterFullScreen:),
+                window_did_enter_fullscreen as extern fn(&Object, Sel, id));
+            decl.add_method(sel!(windowDidExitFullScreen:),
+                window_did_exit_fullscreen as extern fn(&Object, Sel, id));
+            decl.add_method(sel!(windowDidFailToEnterFullScreen:),
+                window_did_fail_to_enter_fullscreen as extern fn(&Object, Sel, id));
 
             // Store internal state as user data
             decl.add_ivar::<*mut c_void>("winitState");
@@ -283,6 +344,19 @@ pub struct Window2 {
 
 unsafe impl Send for Window2 {}
 unsafe impl Sync for Window2 {}
+
+unsafe fn get_current_monitor() -> RootMonitorId {
+    let screen = NSScreen::mainScreen(nil);
+    let desc = NSScreen::deviceDescription(screen);
+    let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
+
+    let value = NSDictionary::valueForKey_(desc, *key);
+    let display_id = msg_send![value, unsignedIntegerValue];
+
+    RootMonitorId {
+        inner: EventsLoop::make_monitor_from_display(display_id),
+    }
+}
 
 impl Drop for Window2 {
     fn drop(&mut self) {
@@ -354,6 +428,10 @@ impl Window2 {
                 window.makeKeyWindow();
             }
 
+            if win_attribs.fullscreen.is_some() {
+                window.toggleFullScreen_(nil);
+            }
+
             if let Some((width, height)) = win_attribs.min_dimensions {
                 nswindow_set_min_dimensions(window.0, width.into(), height.into());
             }
@@ -371,6 +449,8 @@ impl Window2 {
         let ds = DelegateState {
             view: view.clone(),
             window: window.clone(),
+            win_attribs: win_attribs.clone(),
+            handle_with_fullscreen: win_attribs.fullscreen.is_some(),
             shared: shared,
         };
 
@@ -420,19 +500,11 @@ impl Window2 {
                 }
             };
 
-            let masks = if screen.is_some() {
-                // Fullscreen window
-                NSWindowStyleMask::NSBorderlessWindowMask |
-                    NSWindowStyleMask::NSResizableWindowMask |
-                    NSWindowStyleMask::NSTitledWindowMask
-            } else if !attrs.decorations {
-                // Window2 without a titlebar
-                NSWindowStyleMask::NSBorderlessWindowMask
-            } else if pl_attrs.titlebar_hidden {
+            let masks = if pl_attrs.titlebar_hidden {
                 NSWindowStyleMask::NSBorderlessWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask
-            } else if !pl_attrs.titlebar_transparent {
-                // Window2 with a titlebar
+            } else if pl_attrs.titlebar_transparent {
+                // Window2 with a transparent titlebar and regular content view
                 NSWindowStyleMask::NSClosableWindowMask |
                     NSWindowStyleMask::NSMiniaturizableWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
@@ -445,11 +517,16 @@ impl Window2 {
                     NSWindowStyleMask::NSTitledWindowMask |
                     NSWindowStyleMask::NSFullSizeContentViewWindowMask
             } else {
-                // Window2 with a transparent titlebar and regular content view
-                NSWindowStyleMask::NSClosableWindowMask |
-                    NSWindowStyleMask::NSMiniaturizableWindowMask |
-                    NSWindowStyleMask::NSResizableWindowMask |
-                    NSWindowStyleMask::NSTitledWindowMask
+                if !attrs.decorations {
+                    // Window2 without a titlebar
+                    NSWindowStyleMask::NSBorderlessWindowMask
+                } else {
+                    // Window2 with a titlebar
+                    NSWindowStyleMask::NSClosableWindowMask |
+                        NSWindowStyleMask::NSMiniaturizableWindowMask |
+                        NSWindowStyleMask::NSResizableWindowMask |
+                        NSWindowStyleMask::NSTitledWindowMask
+                }    
             };
 
             let winit_window = Class::get("WinitWindow").unwrap_or_else(|| {
@@ -500,12 +577,7 @@ impl Window2 {
                     window.setTitlebarAppearsTransparent_(YES);
                 }
 
-                if screen.is_some() {
-                    window.setLevel_(appkit::NSMainMenuWindowLevel as i64 + 1);
-                }
-                else {
-                    window.center();
-                }
+                window.center();
                 window
             })
         }
@@ -707,8 +779,24 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
-        unimplemented!()
+    /// TODO: Right now set_fullscreen do not work on switching monitors
+    /// in fullscreen mode
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+        let state = &self.delegate.state;
+        let current = state.win_attribs.fullscreen.clone();
+        match (current, monitor) {
+            (None, None) => {
+                return;
+            }
+            (Some(_), Some(_)) => {
+                return;
+            }
+            _ => (),
+        }
+
+        unsafe {
+            self.window.toggleFullScreen_(nil);
+        }
     }
 
     #[inline]
@@ -719,16 +807,7 @@ impl Window2 {
     #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         unsafe {
-            let screen = NSScreen::mainScreen(nil);
-            let desc = NSScreen::deviceDescription(screen);
-            let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
-            
-            let value = NSDictionary::valueForKey_(desc, *key);
-            let display_id = msg_send![value,unsignedIntegerValue];
-
-            RootMonitorId {
-                inner : EventsLoop::make_monitor_from_display(display_id)
-            }
+            self::get_current_monitor()
         }
     }
 }
