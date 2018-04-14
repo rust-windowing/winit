@@ -12,8 +12,9 @@ use objc::declare::ClassDecl;
 
 use cocoa;
 use cocoa::base::{id, nil};
-use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString};
-use cocoa::appkit::{self, NSApplication, NSColor, NSView, NSWindow, NSWindowStyleMask, NSWindowButton};
+use cocoa::foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString};
+use cocoa::appkit::{self, NSApplication, NSColor, NSScreen, NSView, NSWindow, NSWindowButton,
+                    NSWindowStyleMask};
 
 use core_graphics::display::CGDisplay;
 
@@ -22,7 +23,7 @@ use std::ops::Deref;
 use std::os::raw::c_void;
 use std::sync::Weak;
 
-use super::events_loop::Shared;
+use super::events_loop::{EventsLoop,Shared};
 
 use window::MonitorId as RootMonitorId;
 
@@ -512,7 +513,7 @@ impl Window2 {
 
     fn create_view(window: id) -> Option<IdRef> {
         unsafe {
-            let view = IdRef::new(NSView::alloc(nil).init());
+            let view = IdRef::new(NSView::init(NSView::alloc(nil)));
             view.non_nil().map(|view| {
                 view.setWantsBestResolutionOpenGLSurface_(YES);
                 window.setContentView_(*view);
@@ -717,7 +718,18 @@ impl Window2 {
 
     #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
-        unimplemented!()
+        unsafe {
+            let screen = NSScreen::mainScreen(nil);
+            let desc = NSScreen::deviceDescription(screen);
+            let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
+            
+            let value = NSDictionary::valueForKey_(desc, *key);
+            let display_id = msg_send![value,unsignedIntegerValue];
+
+            RootMonitorId {
+                inner : EventsLoop::make_monitor_from_display(display_id)
+            }
+        }
     }
 }
 
