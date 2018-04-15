@@ -102,6 +102,10 @@ impl Shared {
         }
     }
 
+    // Instructs the `EventsLoop` to discard the next input event.
+    //
+    // This is called when the window is resized, to avoid a delayed mouse down event being posted
+    // after the resize completes.
     pub fn discard_next_event(&self) {
         *self.discard_event.borrow_mut() = true;
     }
@@ -213,7 +217,11 @@ impl EventsLoop {
 
                 match event {
                     // Call the user's callback.
-                    Some(event) => self.shared.user_callback.call_with_event(event),
+                    Some(event) => {
+                        if !self.shared.should_discard_next_event() {
+                            self.shared.user_callback.call_with_event(event);
+                        }
+                    },
                     None => break,
                 }
             }

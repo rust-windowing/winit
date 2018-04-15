@@ -87,6 +87,8 @@ impl WindowDelegate {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 emit_resize_event(state);
+
+                // discard the pending mouse down event
                 if let Some(shared) = state.shared.upgrade() {
                     shared.discard_next_event();
                 }
