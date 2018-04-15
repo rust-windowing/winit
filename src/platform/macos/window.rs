@@ -55,7 +55,7 @@ impl DelegateState {
 
             let is_zoomed: BOOL = msg_send![*self.window, isZoomed];
 
-            // Roll the the style
+            // Roll back temp styles
             if !win_attribs.decorations {
                 self.window.setStyleMask_(NSWindowStyleMask::NSBorderlessWindowMask);
             } 
@@ -302,8 +302,8 @@ impl WindowDelegate {
         /// Invoked when fail to enter fullscreen
         ///
         /// When this window launch from a fullscreen app (e.g. launch from VS Code
-        /// terminal), it creates a new virtual destkop and d an transition
-        /// animation. This animation takes one second and cannot be disable without
+        /// terminal), it creates a new virtual destkop and a transition animation. 
+        /// This animation takes one second and cannot be disable without
         /// elevated privileges. In this animation time, all toggleFullscreen events
         /// will be failed. In this implementation, we will try again by using
         /// performSelector:withObject:afterDelay: until window_did_enter_fullscreen.
@@ -427,6 +427,7 @@ pub struct Window2 {
 unsafe impl Send for Window2 {}
 unsafe impl Sync for Window2 {}
 
+/// Helpper funciton to convert NSScreen::mainScreen to MonitorId
 unsafe fn get_current_monitor() -> RootMonitorId {
     let screen = NSScreen::mainScreen(nil);
     let desc = NSScreen::deviceDescription(screen);
