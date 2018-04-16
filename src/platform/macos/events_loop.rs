@@ -179,6 +179,13 @@ impl UserCallback {
 impl EventsLoop {
 
     pub fn new() -> Self {
+        // Mark this thread as the main thread of the Cocoa event system.
+        //
+        // This must be done before any worker threads get a chance to call it
+        // (e.g., via `EventsLoopProxy::wakeup()`), causing a wrong thread to be
+        // marked as the main thread.
+        unsafe { appkit::NSApp(); }
+
         EventsLoop {
             shared: Arc::new(Shared::new()),
             modifiers: Modifiers::new(),
