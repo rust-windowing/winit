@@ -11,10 +11,10 @@ use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
 use objc::declare::ClassDecl;
 
 use cocoa;
+use cocoa::appkit::{self, NSApplication, NSColor, NSScreen, NSView, NSWindow, NSWindowButton,
+    NSWindowStyleMask};
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString};
-use cocoa::appkit::{self, NSApplication, NSColor, NSScreen, NSView, NSWindow, NSWindowButton,
-                    NSWindowStyleMask};
 
 use core_graphics::display::CGDisplay;
 
@@ -24,7 +24,7 @@ use std::os::raw::c_void;
 use std::sync::Weak;
 use std::cell::{Cell,RefCell};
 
-use super::events_loop::{EventsLoop,Shared};
+use super::events_loop::{EventsLoop, Shared};
 
 use window::MonitorId as RootMonitorId;
 
@@ -39,6 +39,8 @@ struct DelegateState {
     win_attribs: RefCell<WindowAttributes>,
     standard_frame: Cell<Option<NSRect>>,
 
+    // This is set when WindowBuilder::with_fullscreen was set,
+    // see comments of `window_did_fail_to_enter_fullscreen`
     handle_with_fullscreen: bool,
 }
 
@@ -47,21 +49,39 @@ impl DelegateState {
         let win_attribs = self.win_attribs.borrow();
 
         unsafe {
-            // Because isZoomed do not work in Borderless mode, we set it 
+            // Because isZoomed do not work in Borderless mode, we set it
             // resizable temporality
             if !win_attribs.decorations {
-                self.window.setStyleMask_(NSWindowStyleMask::NSResizableWindowMask);
-            } 
+                self.window
+                    .setStyleMask_(NSWindowStyleMask::NSResizableWindowMask);
+            }
 
             let is_zoomed: BOOL = msg_send![*self.window, isZoomed];
 
             // Roll back temp styles
             if !win_attribs.decorations {
-                self.window.setStyleMask_(NSWindowStyleMask::NSBorderlessWindowMask);
-            } 
+                self.window
+                    .setStyleMask_(NSWindowStyleMask::NSBorderlessWindowMask);
+            }
 
             is_zoomed != 0
         }
+    }
+
+    fn restore_state_from_fullscreen(&mut self) {
+        let maximized = unsafe {
+            let mut win_attribs = self.win_attribs.borrow_mut();
+
+            win_attribs.fullscreen = None;
+            if !win_attribs.decorations {
+                self.window
+                    .setStyleMask_(NSWindowStyleMask::NSBorderlessWindowMask);
+            }
+
+            win_attribs.maximized
+        };
+
+        self.perform_maximized(maximized);
     }
 
     fn perform_maximized(&self, maximized: bool) {
@@ -285,18 +305,7 @@ impl WindowDelegate {
                 &mut *(state as *mut DelegateState)
             };
 
-            let maximized = unsafe {
-                let mut win_attribs = state.win_attribs.borrow_mut();
-
-                win_attribs.fullscreen = None;
-                if !win_attribs.decorations {
-                    state.window.setStyleMask_(NSWindowStyleMask::NSBorderlessWindowMask);
-                } 
-
-                win_attribs.maximized
-            };
-
-            state.perform_maximized(maximized);
+            state.restore_state_from_fullscreen();
         }
 
         /// Invoked when fail to enter fullscreen
@@ -315,7 +324,7 @@ impl WindowDelegate {
         /// due to being in the midst of handling some other animation or user gesture.
         /// This method indicates that there was an error, and you should clean up any
         /// work you may have done to prepare to enter full-screen mode.
-        extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) {
+        extern fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
@@ -326,6 +335,9 @@ impl WindowDelegate {
                         withObject:nil
                         afterDelay: 0.5                        
                     ];
+                }
+                else {
+                    state.restore_state_from_fullscreen();
                 }
             }
         }
@@ -874,11 +886,14 @@ impl Window2 {
         let win_attribs = state.win_attribs.borrow_mut();
 
         let current = win_attribs.fullscreen.clone();
-        match (current.clone(), monitor.clone()) {
-            (None, None) => {
+        match (&current, monitor) {
+            (&None, None) => {
                 return;
             }
-            (Some(_), Some(_)) => {
+            (&Some(ref a), Some(ref b)) if a.inner == b.inner => {
+                unimplemented!();
+            }
+            (&Some(_), Some(_)) => {
                 return;
             }
             _ => (),
@@ -889,7 +904,10 @@ impl Window2 {
             // We set a normal style to it temporary.
             // It will clean up at window_did_exit_fullscreen.
             if current.is_none() && !win_attribs.decorations {
-                state.window.setStyleMask_(NSWindowStyleMask::NSTitledWindowMask|NSWindowStyleMask::NSResizableWindowMask);
+                state.window.setStyleMask_(
+                    NSWindowStyleMask::NSTitledWindowMask
+                        | NSWindowStyleMask::NSResizableWindowMask,
+                );
             }
 
             self.window.toggleFullScreen_(nil);
