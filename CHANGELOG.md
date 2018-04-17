@@ -1,7 +1,8 @@
 # Unreleased
 
-# Version 0.13.0 (2018-04-16)
+# Version 0.13.0 (2018-04-17)
 
+- Implement `WindowBuilder::with_maximized`, `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for MacOS.
 - Implement `WindowBuilder::with_maximized`, `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for Windows.
 - On Windows, `WindowBuilder::with_dimensions` no longer changing monitor display resolution.
 - Overhauled X11 window geometry calculations. `get_position` and `set_position` are more universally accurate across different window managers, and `get_outer_size` actually works now.
@@ -12,6 +13,9 @@
 - Properly calculate the minimum and maximum window size on Windows, including window decorations.
 - Map more `MouseCursor` variants to cursor icons on Windows.
 - Discard the stray mouse down event being delivered after window resize on macOS.
+- Corrected `get_position` on macOS to return outer frame position, not content area position.
+- Corrected `set_position` on macOS to set outer frame position, not content area position.
+- Added `get_inner_position` method to `Window`, which gets the position of the window's client area. This is implemented on all applicable platforms (all desktop platforms other than Wayland, where this isn't possible).
 
 # Version 0.12.0 (2018-04-06)
 

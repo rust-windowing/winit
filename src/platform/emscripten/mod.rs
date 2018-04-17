@@ -418,6 +418,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+        Some((0, 0))
+    }
+
+    #[inline]
     pub fn set_position(&self, _: i32, _: i32) {
     }
 
