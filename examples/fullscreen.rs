@@ -51,7 +51,7 @@ fn main() {
                     ..
                 } => match (virtual_code, state) {
                     (winit::VirtualKeyCode::Escape, _) => return ControlFlow::Break,
-                    (winit::VirtualKeyCode::F11, winit::ElementState::Pressed) => {
+                    (winit::VirtualKeyCode::F, winit::ElementState::Pressed) => {
                         is_fullscreen = !is_fullscreen;
                         if !is_fullscreen {
                             window.set_fullscreen(None);
