@@ -347,8 +347,7 @@ impl WindowDelegate {
                         withObject:nil
                         afterDelay: 0.5                        
                     ];
-                }
-                else {
+                } else {
                     state.restore_state_from_fullscreen();
                 }
             }
@@ -574,7 +573,7 @@ impl Window2 {
         }
 
         // Make key have to be after set fullscreen
-        // to prevent normal zie window brefly appears
+        // to prevent normal size window brefly appears
         unsafe {
             if win_attribs.visible {
                 window.window.makeKeyAndOrderFront_(nil);
