@@ -919,6 +919,11 @@ impl Window2 {
         self.get_geometry().map(|geo| geo.get_position())
     }
 
+    #[inline]
+    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+        self.get_geometry().map(|geo| geo.get_inner_position())
+    }
+
     pub fn set_position(&self, mut x: i32, mut y: i32) {
         if let Some(ref wm_name) = self.wm_name {
             // There are a few WMs that set client area position rather than window position, so

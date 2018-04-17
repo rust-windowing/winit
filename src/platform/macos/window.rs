@@ -543,41 +543,54 @@ impl Window2 {
         unsafe { NSWindow::orderOut_(*self.window, nil); }
     }
 
-    pub fn get_position(&self) -> Option<(i32, i32)> {
-        unsafe {
-            let content_rect = NSWindow::contentRectForFrameRect_(*self.window, NSWindow::frame(*self.window));
+    // For consistency with other platforms, this will...
+    // 1. translate the bottom-left window corner into the top-left window corner
+    // 2. translate the coordinate from a bottom-left origin coordinate system to a top-left one
+    fn bottom_left_to_top_left(rect: NSRect) -> i32 {
+        (CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height)) as _
+    }
 
-            // TODO: consider extrapolating the calculations for the y axis to
-            // a private method
-            Some((content_rect.origin.x as i32, (CGDisplay::main().pixels_high() as f64 - (content_rect.origin.y + content_rect.size.height)) as i32))
-        }
+    pub fn get_position(&self) -> Option<(i32, i32)> {
+        let frame_rect = unsafe { NSWindow::frame(*self.window) };
+        Some((
+            frame_rect.origin.x as i32,
+            Self::bottom_left_to_top_left(frame_rect),
+        ))
+    }
+
+    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+        let content_rect = unsafe {
+            NSWindow::contentRectForFrameRect_(
+                *self.window,
+                NSWindow::frame(*self.window),
+            )
+        };
+        Some((
+            content_rect.origin.x as i32,
+            Self::bottom_left_to_top_left(content_rect),
+        ))
     }
 
     pub fn set_position(&self, x: i32, y: i32) {
+        let dummy = NSRect::new(
+            NSPoint::new(
+                x as f64,
+                // While it's true that we're setting the top-left position, it still needs to be
+                // in a bottom-left coordinate system.
+                CGDisplay::main().pixels_high() as f64 - y as f64,
+            ),
+            NSSize::new(0f64, 0f64),
+        );
         unsafe {
-            let frame = NSWindow::frame(*self.view);
-
-            // NOTE: `setFrameOrigin` might not give desirable results when
-            // setting window, as it treats bottom left as origin.
-            // `setFrameTopLeftPoint` treats top left as origin (duh), but
-            // does not equal the value returned by `get_window_position`
-            // (there is a difference by 22 for me on yosemite)
-
-            // TODO: consider extrapolating the calculations for the y axis to
-            // a private method
-            let dummy = NSRect::new(NSPoint::new(x as f64, CGDisplay::main().pixels_high() as f64 - (frame.size.height + y as f64)), NSSize::new(0f64, 0f64));
-            let conv = NSWindow::frameRectForContentRect_(*self.window, dummy);
-
-            // NSWindow::setFrameTopLeftPoint_(*self.window, conv.origin);
-            NSWindow::setFrameOrigin_(*self.window, conv.origin);
+            NSWindow::setFrameTopLeftPoint_(*self.window, dummy.origin);
         }
     }
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
+        let factor = self.hidpi_factor() as f64; // API convention is that size is in physical pixels
         unsafe {
             let view_frame = NSView::frame(*self.view);
-            let factor = self.hidpi_factor() as f64; // API convention is that size is in physical pixels
             Some(((view_frame.size.width*factor) as u32, (view_frame.size.height*factor) as u32))
         }
     }
