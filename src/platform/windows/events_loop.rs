@@ -27,11 +27,13 @@ use std::sync::Condvar;
 use std::thread;
 
 use winapi::shared::minwindef::{LOWORD, HIWORD, DWORD, WPARAM, LPARAM, INT, UINT, LRESULT, MAX_PATH};
-use winapi::shared::windef::{HWND, POINT};
+use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
 use winapi::um::{winuser, shellapi, processthreadsapi};
+use winapi::um::winnt::LONG;
 
 use platform::platform::event;
+use platform::platform::window::adjust_size;
 use platform::platform::Cursor;
 use platform::platform::WindowId;
 use platform::platform::DEVICE_ID;
@@ -46,6 +48,16 @@ use WindowEvent;
 use WindowId as SuperWindowId;
 use events::{Touch, TouchPhase};
 
+/// Contains saved window info for switching between fullscreen
+#[derive(Clone)]
+pub struct SavedWindowInfo {
+    /// Window style
+    pub style: LONG,
+    /// Window ex-style
+    pub ex_style: LONG,
+    /// Window position and size    
+    pub rect: RECT,
+}
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Clone)]
@@ -58,6 +70,8 @@ pub struct WindowState {
     pub attributes: WindowAttributes,
     /// Will contain `true` if the mouse is hovering the window.
     pub mouse_in_window: bool,
+    /// Saved window info for fullscreen restored
+    pub saved_window_info: Option<SavedWindowInfo>,
 }
 
 /// Dummy object that allows inserting a window's state.
@@ -227,18 +241,7 @@ impl EventsLoop {
     pub(super) fn execute_in_thread<F>(&self, function: F)
         where F: FnMut(Inserter) + Send + 'static
     {
-        unsafe {
-            let boxed = Box::new(function) as Box<FnMut(_)>;
-            let boxed2 = Box::new(boxed);
-
-            let raw = Box::into_raw(boxed2);
-
-            let res = winuser::PostThreadMessageA(self.thread_id, *EXEC_MSG_ID,
-                                                 raw as *mut () as usize as WPARAM, 0);
-            // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
-            // as the events loop is still alive) or if the queue is full.
-            assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
-        }
+        self.create_proxy().execute_in_thread(function)
     }
 }
 
@@ -271,6 +274,38 @@ impl EventsLoopProxy {
                 // TODO: handle ERROR_NOT_ENOUGH_QUOTA
                 Err(EventsLoopClosed)
             }
+        }
+    }
+
+    /// Executes a function in the background thread.
+    ///
+    /// Note that we use a FnMut instead of a FnOnce because we're too lazy to create an equivalent
+    /// to the unstable FnBox.
+    ///
+    /// The `Inserted` can be used to inject a `WindowState` for the callback to use. The state is
+    /// removed automatically if the callback receives a `WM_CLOSE` message for the window.
+    pub fn execute_in_thread<F>(&self, function: F)
+    where
+        F: FnMut(Inserter) + Send + 'static,
+    {
+        unsafe {
+            // We are using double-boxing here because it make casting back much easier
+            let boxed = Box::new(function) as Box<FnMut(_)>;
+            let boxed2 = Box::new(boxed);
+            let raw = Box::into_raw(boxed2);
+
+            let res = winuser::PostThreadMessageA(
+                self.thread_id,
+                *EXEC_MSG_ID,
+                raw as *mut () as usize as WPARAM,
+                0,
+            );
+            // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
+            // as the events loop is still alive) or if the queue is full.
+            assert!(
+                res != 0,
+                "PostThreadMessage failed ; is the messages queue full?"
+            );
         }
     }
 }
@@ -361,10 +396,15 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                 context_stash.as_mut().unwrap().windows.remove(&window);
             });
             winuser::DefWindowProcW(window, msg, wparam, lparam)
-        },
+        },       
 
-        winuser::WM_ERASEBKGND => {
-            1
+        winuser::WM_PAINT => {
+            use events::WindowEvent::Refresh;
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: Refresh,
+            });
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
         },
 
         winuser::WM_SIZE => {
@@ -859,18 +899,20 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                     if let Some(wstash) = cstash.windows.get(&window) {
                         let window_state = wstash.lock().unwrap();
 
-                        match window_state.attributes.min_dimensions {
-                            Some((width, height)) => {
-                                (*mmi).ptMinTrackSize = POINT { x: width as i32, y: height as i32 };
-                            },
-                            None => { }
-                        }
+                        if window_state.attributes.min_dimensions.is_some() ||
+                           window_state.attributes.max_dimensions.is_some() {
 
-                        match window_state.attributes.max_dimensions {
-                            Some((width, height)) => {
+                            let style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
+                            let ex_style = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
+
+                            if let Some(min_dimensions) = window_state.attributes.min_dimensions {
+                                let (width, height) = adjust_size(min_dimensions, style, ex_style);
+                                (*mmi).ptMinTrackSize = POINT { x: width as i32, y: height as i32 };
+                            }
+                            if let Some(max_dimensions) = window_state.attributes.max_dimensions {
+                                let (width, height) = adjust_size(max_dimensions, style, ex_style);
                                 (*mmi).ptMaxTrackSize = POINT { x: width as i32, y: height as i32 };
-                            },
-                            None => { }
+                            }
                         }
                     }
                 }

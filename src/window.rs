@@ -344,8 +344,7 @@ impl Window {
         self.window.set_decorations(decorations)
     }
 
-    /// Returns the current monitor the window is on or the primary monitor is nothing
-    /// matches
+    /// Returns the monitor on which the window currently resides
     pub fn get_current_monitor(&self) -> MonitorId {
         self.window.get_current_monitor()
     }
