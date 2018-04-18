@@ -163,6 +163,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+        match self {
+            &Window::X(ref m) => m.get_inner_position(),
+            &Window::Wayland(ref m) => m.get_inner_position(),
+        }
+    }
+
+    #[inline]
     pub fn set_position(&self, x: i32, y: i32) {
         match self {
             &Window::X(ref w) => w.set_position(x, y),

@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use super::EventsLoop;
 use super::window::IdRef;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct MonitorId(CGDirectDisplayID);
 
 impl EventsLoop {
@@ -23,6 +23,11 @@ impl EventsLoop {
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
         let id = MonitorId(CGDisplay::main().id);
+        id
+    }
+
+    pub fn make_monitor_from_display(id: CGDirectDisplayID) -> MonitorId {
+        let id = MonitorId(id);
         id
     }
 }

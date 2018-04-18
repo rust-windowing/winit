@@ -114,6 +114,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+        // Not possible with wayland
+        None
+    }
+
+    #[inline]
     pub fn set_position(&self, _x: i32, _y: i32) {
         // Not possible with wayland
     }

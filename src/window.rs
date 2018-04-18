@@ -181,6 +181,15 @@ impl Window {
         self.window.get_position()
     }
 
+    /// Returns the position of the top-left hand corner of the window's client area relative to the
+    /// top-left hand corner of the desktop.
+    ///
+    /// The same conditions that apply to `get_position` apply to this method.
+    #[inline]
+    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+        self.window.get_inner_position()
+    }
+
     /// Modifies the position of the window.
     ///
     /// See `get_position` for more information about the coordinates.
