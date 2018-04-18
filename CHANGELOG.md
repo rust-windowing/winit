@@ -12,7 +12,6 @@
 - Implemented `Refresh` event on Windows.
 - Properly calculate the minimum and maximum window size on Windows, including window decorations.
 - Map more `MouseCursor` variants to cursor icons on Windows.
-- Discard the stray mouse down event being delivered after window resize on macOS.
 - Corrected `get_position` on macOS to return outer frame position, not content area position.
 - Corrected `set_position` on macOS to set outer frame position, not content area position.
 - Added `get_inner_position` method to `Window`, which gets the position of the window's client area. This is implemented on all applicable platforms (all desktop platforms other than Wayland, where this isn't possible).
