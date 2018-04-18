@@ -9,7 +9,6 @@
 - Implemented `Refresh` event on Windows.
 - Properly calculate the minimum and maximum window size on Windows, including window decorations.
 - Map more `MouseCursor` variants to cursor icons on Windows.
-- Discard the stray mouse down event being delivered after window resize on macOS.
 
 # Version 0.12.0 (2018-04-06)
 

@@ -6,7 +6,6 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 use super::window::Window2;
 use std;
-use std::cell::RefCell;
 use super::DeviceId;
 
 
@@ -19,7 +18,6 @@ pub struct EventsLoop {
 pub struct Shared {
     pub windows: Mutex<Vec<Weak<Window2>>>,
     pub pending_events: Mutex<VecDeque<Event>>,
-    pub discard_event: RefCell<bool>,
     // The user event callback given via either of the `poll_events` or `run_forever` methods.
     //
     // We store the user's callback here so that it may be accessed by each of the window delegate
@@ -57,7 +55,6 @@ impl Shared {
         Shared {
             windows: Mutex::new(Vec::new()),
             pending_events: Mutex::new(VecDeque::new()),
-            discard_event: RefCell::new(false),
             user_callback: UserCallback { mutex: Mutex::new(None) },
         }
     }
@@ -102,19 +99,6 @@ impl Shared {
         }
     }
 
-    // Instructs the `EventsLoop` to discard the next input event.
-    //
-    // This is called when the window is resized, to avoid a delayed mouse down event being posted
-    // after the resize completes.
-    pub fn discard_next_event(&self) {
-        *self.discard_event.borrow_mut() = true;
-    }
-
-    fn should_discard_next_event(&self) -> bool {
-        let result = *self.discard_event.borrow();
-        *self.discard_event.borrow_mut() = false;
-        result
-    }
 }
 
 
@@ -217,11 +201,7 @@ impl EventsLoop {
 
                 match event {
                     // Call the user's callback.
-                    Some(event) => {
-                        if !self.shared.should_discard_next_event() {
-                            self.shared.user_callback.call_with_event(event);
-                        }
-                    },
+                    Some(event) => self.shared.user_callback.call_with_event(event),
                     None => break,
                 }
             }
@@ -274,9 +254,7 @@ impl EventsLoop {
                 let _: () = msg_send![pool, release];
 
                 if let Some(event) = maybe_event {
-                    if !self.shared.should_discard_next_event() {
-                        self.shared.user_callback.call_with_event(event);
-                    }
+                    self.shared.user_callback.call_with_event(event);
                     if let ControlFlow::Break = control_flow.get() {
                         break;
                     }
