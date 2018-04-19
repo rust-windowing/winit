@@ -30,6 +30,7 @@ core-graphics = "0.13"
 version = "0.3"
 features = [
     "winnt",
+    "setupapi",
     "winuser",
     "wingdi",
     "shellapi",

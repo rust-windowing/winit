@@ -8,8 +8,12 @@ fn main() {
         .build(&events_loop)
         .unwrap();
 
+    for monitor in events_loop.get_available_monitors() {
+        println!("the extent of the monitor is: {:?}", monitor.get_physical_extents());
+    }
+
     events_loop.run_forever(|event| {
-        println!("{:?}", event);
+        // println!("{:?}", event);
 
         match event {
             winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => {
