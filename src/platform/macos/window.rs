@@ -22,7 +22,7 @@ use std;
 use std::ops::Deref;
 use std::os::raw::c_void;
 use std::sync::Weak;
-use std::cell::{Cell,RefCell};
+use std::cell::{Cell, RefCell};
 
 use super::events_loop::{EventsLoop, Shared};
 
@@ -43,6 +43,9 @@ struct DelegateState {
     // This is set when WindowBuilder::with_fullscreen was set,
     // see comments of `window_did_fail_to_enter_fullscreen`
     handle_with_fullscreen: bool,
+
+    // During windowDidResize, we use this to only send Moved if the position changed.
+    previous_position: Option<(i32, i32)>,
 }
 
 impl DelegateState {
@@ -161,6 +164,17 @@ impl WindowDelegate {
             emit_event(state, WindowEvent::Resized(width, height));
         }
 
+        unsafe fn emit_move_event(state: &mut DelegateState) {
+            let frame_rect = NSWindow::frame(*state.window);
+            let x = frame_rect.origin.x as _;
+            let y = Window2::bottom_left_to_top_left(frame_rect);
+            let moved = state.previous_position != Some((x, y));
+            if moved {
+                state.previous_position = Some((x, y));
+                emit_event(state, WindowEvent::Moved(x, y));
+            }
+        }
+
         extern fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
@@ -190,18 +204,16 @@ impl WindowDelegate {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 emit_resize_event(state);
+                emit_move_event(state);
             }
         }
 
+        // This won't be triggered if the move was part of a resize.
         extern fn window_did_move(this: &Object, _: Sel, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-
-                let frame_rect = NSWindow::frame(*state.window);
-                let x = frame_rect.origin.x as _;
-                let y = Window2::bottom_left_to_top_left(frame_rect);
-                emit_event(state, WindowEvent::Moved(x, y));
+                emit_move_event(state);
             }
         }
 
@@ -567,11 +579,12 @@ impl Window2 {
         let ds = DelegateState {
             view: view.clone(),
             window: window.clone(),
+            shared,
             win_attribs: RefCell::new(win_attribs.clone()),
             standard_frame: Cell::new(None),
             save_style_mask: Cell::new(None),
             handle_with_fullscreen: win_attribs.fullscreen.is_some(),
-            shared: shared,
+            previous_position: None,
         };
         ds.win_attribs.borrow_mut().fullscreen = None;
 
