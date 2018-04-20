@@ -193,6 +193,18 @@ impl WindowDelegate {
             }
         }
 
+        extern fn window_did_move(this: &Object, _: Sel, _: id) {
+            unsafe {
+                let state: *mut c_void = *this.get_ivar("winitState");
+                let state = &mut *(state as *mut DelegateState);
+
+                let frame_rect = NSWindow::frame(*state.window);
+                let x = frame_rect.origin.x as _;
+                let y = Window2::bottom_left_to_top_left(frame_rect);
+                emit_event(state, WindowEvent::Moved(x, y));
+            }
+        }
+
         extern fn window_did_change_screen(this: &Object, _: Sel, _: id) {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
@@ -377,6 +389,8 @@ impl WindowDelegate {
                 window_will_close as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidResize:),
                 window_did_resize as extern fn(&Object, Sel, id));
+            decl.add_method(sel!(windowDidMove:),
+                window_did_move as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidChangeScreen:),
                 window_did_change_screen as extern fn(&Object, Sel, id));
             decl.add_method(sel!(windowDidChangeBackingProperties:),
