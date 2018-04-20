@@ -116,24 +116,20 @@ impl Window {
 
     /// See the docs in the crate root file.
     pub fn get_position(&self) -> Option<(i32, i32)> {
-        use std::mem;
+        let mut rect: RECT = unsafe { mem::uninitialized() };
 
-        let mut placement: winuser::WINDOWPLACEMENT = unsafe { mem::zeroed() };
-        placement.length = mem::size_of::<winuser::WINDOWPLACEMENT>() as UINT;
-
-        if unsafe { winuser::GetWindowPlacement(self.window.0, &mut placement) } == 0 {
-            return None
+        if unsafe { winuser::GetWindowRect(self.window.0, &mut rect) } != 0 {
+            Some((rect.left as i32, rect.top as i32))
+        } else {
+            None
         }
-
-        let ref rect = placement.rcNormalPosition;
-        Some((rect.left as i32, rect.top as i32))
     }
 
     pub fn get_inner_position(&self) -> Option<(i32, i32)> {
         use std::mem;
 
-        let mut position: POINT = unsafe{ mem::zeroed() };
-        if unsafe{ winuser::ClientToScreen(self.window.0, &mut position) } == 0 {
+        let mut position: POINT = unsafe { mem::zeroed() };
+        if unsafe { winuser::ClientToScreen(self.window.0, &mut position) } == 0 {
             return None;
         }
 
@@ -749,7 +745,7 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
             winuser::RegisterTouchWindow( real_window.0, winuser::TWF_WANTPALM );
         }
     }
-    
+
     // Creating a mutex to track the current window state
     let window_state = Arc::new(Mutex::new(events_loop::WindowState {
         cursor: winuser::IDC_ARROW, // use arrow by default

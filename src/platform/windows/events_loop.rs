@@ -469,6 +469,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                 window_id: SuperWindowId(WindowId(window)),
                 event: Moved(x, y),
             });
+
             0
         },
 
