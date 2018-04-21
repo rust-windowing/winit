@@ -14,7 +14,7 @@ use cocoa;
 use cocoa::appkit::{self, NSApplication, NSColor, NSScreen, NSView, NSWindow, NSWindowButton,
     NSWindowStyleMask};
 use cocoa::base::{id, nil};
-use cocoa::foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString};
+use cocoa::foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString, NSAutoreleasePool};
 
 use core_graphics::display::CGDisplay;
 
@@ -452,8 +452,14 @@ impl WindowDelegate {
         unsafe {
             let delegate = IdRef::new(msg_send![WindowDelegate::class(), new]);
 
+            // setDelegate uses autorelease on objects,
+            // so need autorelease
+            let autoreleasepool = NSAutoreleasePool::new(cocoa::base::nil);
+
             (&mut **delegate).set_ivar("winitState", state_ptr as *mut ::std::os::raw::c_void);
             let _: () = msg_send![*state.window, setDelegate:*delegate];
+
+            msg_send![autoreleasepool, drain];
 
             WindowDelegate { state: state, _this: delegate }
         }
@@ -464,7 +470,11 @@ impl Drop for WindowDelegate {
     fn drop(&mut self) {
         unsafe {
             // Nil the window's delegate so it doesn't still reference us
+            // NOTE: setDelegate:nil at first retains the previous value,
+            // and then autoreleases it, so autorelease pool is needed
+            let autoreleasepool = NSAutoreleasePool::new(cocoa::base::nil);
             let _: () = msg_send![*self.state.window, setDelegate:nil];
+            msg_send![autoreleasepool, drain];
         }
     }
 }
@@ -505,12 +515,29 @@ unsafe fn get_current_monitor() -> RootMonitorId {
 
 impl Drop for Window2 {
     fn drop(&mut self) {
+        // Remove this window from the `EventLoop`s list of windows.
+        let id = self.id();
+        if let Some(shared) = self.delegate.state.shared.upgrade() {
+            shared.find_and_remove_window(id);
+        }
+
+
+        // nswindow::close uses autorelease
+        // so autorelease pool
+        let autoreleasepool = unsafe {
+            NSAutoreleasePool::new(cocoa::base::nil)
+        };
+
         // Close the window if it has not yet been closed.
         let nswindow = *self.window;
         if nswindow != nil {
             unsafe {
                 let () = msg_send![nswindow, close];
             }
+        }
+
+        unsafe {
+            msg_send![autoreleasepool, release];
         }
     }
 }
@@ -538,20 +565,35 @@ impl Window2 {
                 panic!("Windows can only be created on the main thread on macOS");
             }
         }
+        let autoreleasepool = unsafe {
+            NSAutoreleasePool::new(cocoa::base::nil)
+        };
 
         let app = match Window2::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
-            None      => { return Err(OsError(format!("Couldn't create NSApplication"))); },
+            None      => {
+                unsafe {
+                    msg_send![autoreleasepool, drain];
+                }
+                return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
 
         let window = match Window2::create_window(win_attribs, pl_attribs)
         {
             Some(window) => window,
-            None         => { return Err(OsError(format!("Couldn't create NSWindow"))); },
+            None         => {
+                unsafe {
+                    msg_send![autoreleasepool, drain];
+                }
+                return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
         let view = match Window2::create_view(*window) {
             Some(view) => view,
-            None       => { return Err(OsError(format!("Couldn't create NSView"))); },
+            None       => {
+                unsafe {
+                    msg_send![autoreleasepool, drain];
+                }
+                return Err(OsError(format!("Couldn't create NSView"))); },
         };
 
         unsafe {
@@ -618,6 +660,10 @@ impl Window2 {
             window.delegate.state.perform_maximized(win_attribs.maximized);
         }
 
+        unsafe {
+            msg_send![autoreleasepool, drain];
+        }
+
         Ok(window)
     }
 
@@ -638,11 +684,30 @@ impl Window2 {
         }
     }
 
+    fn class() -> *const Class {
+
+        static mut WINDOW2_CLASS: *const Class = 0 as *const Class;
+        static INIT: std::sync::Once = std::sync::ONCE_INIT;
+
+        INIT.call_once(|| unsafe {
+            let window_superclass = Class::get("NSWindow").unwrap();
+            let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
+            decl.add_method(sel!(canBecomeMainWindow), yes as extern fn(&Object, Sel) -> BOOL);
+            decl.add_method(sel!(canBecomeKeyWindow), yes as extern fn(&Object, Sel) -> BOOL);
+            WINDOW2_CLASS = decl.register();
+        });
+
+        unsafe {
+            WINDOW2_CLASS
+        }
+    }
+
     fn create_window(
         attrs: &WindowAttributes,
         pl_attrs: &PlatformSpecificWindowBuilderAttributes)
         -> Option<IdRef> {
         unsafe {
+            let autoreleasepool = NSAutoreleasePool::new(cocoa::base::nil);
             let screen = match attrs.fullscreen {
                 Some(ref monitor_id) => {
                     let monitor_screen = monitor_id.inner.get_nsscreen();
@@ -685,14 +750,7 @@ impl Window2 {
                     NSWindowStyleMask::NSTitledWindowMask
             };
 
-            let winit_window = Class::get("WinitWindow").unwrap_or_else(|| {
-                let window_superclass = Class::get("NSWindow").unwrap();
-                let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
-                decl.add_method(sel!(canBecomeMainWindow), yes as extern fn(&Object, Sel) -> BOOL);
-                decl.add_method(sel!(canBecomeKeyWindow), yes as extern fn(&Object, Sel) -> BOOL);
-                decl.register();
-                Class::get("WinitWindow").unwrap()
-            });
+            let winit_window = Window2::class();
 
             let window: id = msg_send![winit_window, alloc];
 
@@ -702,7 +760,7 @@ impl Window2 {
                 appkit::NSBackingStoreBuffered,
                 NO,
             ));
-            window.non_nil().map(|window| {
+            let res = window.non_nil().map(|window| {
                 let title = IdRef::new(NSString::alloc(nil).init_str(&attrs.title));
                 window.setReleasedWhenClosed_(NO);
                 window.setTitle_(*title);
@@ -735,7 +793,9 @@ impl Window2 {
 
                 window.center();
                 window
-            })
+            });
+            msg_send![autoreleasepool, drain];
+            res
         }
     }
 
@@ -1109,7 +1169,12 @@ impl IdRef {
 impl Drop for IdRef {
     fn drop(&mut self) {
         if self.0 != nil {
-            let _: () = unsafe { msg_send![self.0, release] };
+            let _: () = unsafe {
+                let autoreleasepool =
+                    NSAutoreleasePool::new(cocoa::base::nil);
+                msg_send![self.0, release];
+                msg_send![autoreleasepool, release];
+            };
         }
     }
 }
