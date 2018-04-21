@@ -1004,7 +1004,7 @@ pub struct Window {
     pub window: Arc<Window2>,
     display: Weak<XConnection>,
     windows: Weak<Mutex<HashMap<WindowId, WindowData>>>,
-    ime_sender: ImeSender,
+    ime_sender: Mutex<ImeSender>,
 }
 
 impl ::std::ops::Deref for Window {
@@ -1038,7 +1038,7 @@ impl Window {
             window: win,
             windows: Arc::downgrade(&x_events_loop.windows),
             display: Arc::downgrade(&x_events_loop.display),
-            ime_sender: x_events_loop.ime_sender.clone(),
+            ime_sender: Mutex::new(x_events_loop.ime_sender.clone()),
         })
     }
 
@@ -1049,7 +1049,10 @@ impl Window {
 
     #[inline]
     pub fn send_xim_spot(&self, x: i16, y: i16) {
-        let _ = self.ime_sender.send((self.window.id().0, x, y));
+        let _ = self.ime_sender
+            .lock()
+            .unwrap()
+            .send((self.window.id().0, x, y));
     }
 }
 
