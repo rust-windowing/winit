@@ -1,14 +1,13 @@
+use std::char;
+use std::os::raw::c_int;
+
 use events::VirtualKeyCode;
 use events::ModifiersState;
 
-use winapi::shared::minwindef::{WPARAM, LPARAM};
+use winapi::shared::minwindef::{WPARAM, LPARAM, UINT};
 use winapi::um::winuser;
 
 use ScanCode;
-use std::char;
-
-const MAPVK_VK_TO_CHAR: u32 = 2;
-const MAPVK_VSC_TO_VK_EX: u32 = 3;
 
 pub fn get_key_mods() -> ModifiersState {
     let mut mods = ModifiersState::default();
@@ -29,18 +28,9 @@ pub fn get_key_mods() -> ModifiersState {
     mods
 }
 
-pub fn vkeycode_to_element(wparam: WPARAM, lparam: LPARAM) -> (ScanCode, Option<VirtualKeyCode>) {
-    let scancode = ((lparam >> 16) & 0xff) as u32;
-    let extended = (lparam & 0x01000000) != 0;
-    let vk = match wparam as i32 {
-        winuser::VK_SHIFT => unsafe { winuser::MapVirtualKeyA(scancode, MAPVK_VSC_TO_VK_EX) as i32 },
-        winuser::VK_CONTROL => if extended { winuser::VK_RCONTROL } else { winuser::VK_LCONTROL },
-        winuser::VK_MENU => if extended { winuser::VK_RMENU } else { winuser::VK_LMENU },
-        other => other
-    };
-
+pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
     // VK_* codes are documented here https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
-    (scancode, match vk {
+    match vkey {
         //winuser::VK_LBUTTON => Some(VirtualKeyCode::Lbutton),
         //winuser::VK_RBUTTON => Some(VirtualKeyCode::Rbutton),
         //winuser::VK_CANCEL => Some(VirtualKeyCode::Cancel),
@@ -191,13 +181,13 @@ pub fn vkeycode_to_element(wparam: WPARAM, lparam: LPARAM) -> (ScanCode, Option<
         winuser::VK_OEM_COMMA => Some(VirtualKeyCode::Comma),
         winuser::VK_OEM_MINUS => Some(VirtualKeyCode::Minus),
         winuser::VK_OEM_PERIOD => Some(VirtualKeyCode::Period),
-        winuser::VK_OEM_1 => map_text_keys(vk),
-        winuser::VK_OEM_2 => map_text_keys(vk),
-        winuser::VK_OEM_3 => map_text_keys(vk),
-        winuser::VK_OEM_4 => map_text_keys(vk),
-        winuser::VK_OEM_5 => map_text_keys(vk),
-        winuser::VK_OEM_6 => map_text_keys(vk),
-        winuser::VK_OEM_7 => map_text_keys(vk),
+        winuser::VK_OEM_1 => map_text_keys(vkey),
+        winuser::VK_OEM_2 => map_text_keys(vkey),
+        winuser::VK_OEM_3 => map_text_keys(vkey),
+        winuser::VK_OEM_4 => map_text_keys(vkey),
+        winuser::VK_OEM_5 => map_text_keys(vkey),
+        winuser::VK_OEM_6 => map_text_keys(vkey),
+        winuser::VK_OEM_7 => map_text_keys(vkey),
         /*winuser::VK_OEM_8 => Some(VirtualKeyCode::Oem_8), */
         winuser::VK_OEM_102 => Some(VirtualKeyCode::OEM102),
         /*winuser::VK_PROCESSKEY => Some(VirtualKeyCode::Processkey),
@@ -212,13 +202,40 @@ pub fn vkeycode_to_element(wparam: WPARAM, lparam: LPARAM) -> (ScanCode, Option<
         winuser::VK_PA1 => Some(VirtualKeyCode::Pa1),
         winuser::VK_OEM_CLEAR => Some(VirtualKeyCode::Oem_clear),*/
         _ => None
-    })
+    }
+}
+
+pub fn vkey_left_right(vkey: c_int, scancode: UINT, extended: bool) -> c_int {
+    match vkey {
+       winuser::VK_SHIFT => unsafe { winuser::MapVirtualKeyA(
+           scancode,
+           winuser::MAPVK_VSC_TO_VK_EX,
+       ) as _ },
+       winuser::VK_CONTROL => if extended {
+           winuser::VK_RCONTROL
+       } else {
+           winuser::VK_LCONTROL
+       },
+       winuser::VK_MENU => if extended {
+           winuser::VK_RMENU
+       } else {
+           winuser::VK_LMENU
+       },
+       _ => vkey,
+   }
+}
+
+pub fn vkeycode_to_element(wparam: WPARAM, lparam: LPARAM) -> (ScanCode, Option<VirtualKeyCode>) {
+    let scancode = ((lparam >> 16) & 0xff) as UINT;
+    let extended = (lparam & 0x01000000) != 0;
+    let vkey = vkey_left_right(wparam as _, scancode, extended);
+    (scancode, vkey_to_winit_vkey(vkey))
 }
 
 // This is needed as windows doesn't properly distinguish
 // some virtual key codes for different keyboard layouts
 fn map_text_keys(win_virtual_key: i32) -> Option<VirtualKeyCode> {
-    let char_key = unsafe { winuser::MapVirtualKeyA(win_virtual_key as u32, MAPVK_VK_TO_CHAR) } & 0x7FFF;
+    let char_key = unsafe { winuser::MapVirtualKeyA(win_virtual_key as u32, winuser::MAPVK_VK_TO_CHAR) } & 0x7FFF;
     match char::from_u32(char_key) {
         Some(';') => Some(VirtualKeyCode::Semicolon),
         Some('/') => Some(VirtualKeyCode::Slash),
