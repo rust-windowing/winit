@@ -79,6 +79,12 @@ impl XConnection {
     }
 }
 
+impl fmt::Debug for XConnection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.display.fmt(f)
+    }
+}
+
 impl Drop for XConnection {
     #[inline]
     fn drop(&mut self) {

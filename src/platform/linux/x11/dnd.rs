@@ -2,13 +2,11 @@ use std::io;
 use std::sync::Arc;
 use std::path::{Path, PathBuf};
 use std::str::Utf8Error;
+use std::os::raw::*;
 
-use libc::{c_char, c_int, c_long, c_uchar, c_ulong};
 use percent_encoding::percent_decode;
 
 use super::{ffi, util, XConnection, XError};
-
-const DND_ATOMS_LEN: usize = 12;
 
 #[derive(Debug)]
 pub struct DndAtoms {
@@ -28,36 +26,21 @@ pub struct DndAtoms {
 
 impl DndAtoms {
     pub fn new(xconn: &Arc<XConnection>) -> Result<Self, XError> {
-        let mut atoms = Vec::with_capacity(DND_ATOMS_LEN);
-
-        let mut names = [
-            b"XdndAware\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"XdndEnter\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"XdndLeave\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"XdndDrop\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"XdndPosition\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"XdndStatus\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"XdndActionPrivate\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"XdndSelection\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"XdndFinished\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"XdndTypeList\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"text/uri-list\0".to_owned().as_mut_ptr() as *mut c_char,
-            b"None\0".to_owned().as_mut_ptr() as *mut c_char,
+        let names = [
+            b"XdndAware\0".as_ptr() as *mut c_char,
+            b"XdndEnter\0".as_ptr() as *mut c_char,
+            b"XdndLeave\0".as_ptr() as *mut c_char,
+            b"XdndDrop\0".as_ptr() as *mut c_char,
+            b"XdndPosition\0".as_ptr() as *mut c_char,
+            b"XdndStatus\0".as_ptr() as *mut c_char,
+            b"XdndActionPrivate\0".as_ptr() as *mut c_char,
+            b"XdndSelection\0".as_ptr() as *mut c_char,
+            b"XdndFinished\0".as_ptr() as *mut c_char,
+            b"XdndTypeList\0".as_ptr() as *mut c_char,
+            b"text/uri-list\0".as_ptr() as *mut c_char,
+            b"None\0".as_ptr() as *mut c_char,
         ];
-
-        unsafe {
-            (xconn.xlib.XInternAtoms)(
-                xconn.display,
-                names.as_mut_ptr(),
-                DND_ATOMS_LEN as c_int,
-                ffi::False,
-                atoms.as_mut_ptr(),
-            );
-        }
-        xconn.check_errors()?;
-        unsafe {
-            atoms.set_len(DND_ATOMS_LEN);
-        }
+        let atoms = unsafe { util::get_atoms(xconn, &names) }?;
         Ok(DndAtoms {
             aware: atoms[0],
             enter: atoms[1],
@@ -151,7 +134,7 @@ impl Dnd {
             self.atoms.status,
             None,
             (this_window as c_long, accepted, 0, 0, action),
-        )
+        ).flush()
     }
 
     pub unsafe fn send_finished(
@@ -171,7 +154,7 @@ impl Dnd {
             self.atoms.finished,
             None,
             (this_window as c_long, accepted, action, 0, 0),
-        )
+        ).flush()
     }
 
     pub unsafe fn get_type_list(
