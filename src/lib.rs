@@ -61,7 +61,7 @@
 //! events_loop.run_forever(|event| {
 //!     match event {
 //!         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-//!             println!("The window was closed ; stopping");
+//!             println!("The close button was pressed; stopping");
 //!             ControlFlow::Break
 //!         },
 //!         _ => ControlFlow::Continue,
