@@ -55,7 +55,7 @@ pub struct SavedWindowInfo {
     pub style: LONG,
     /// Window ex-style
     pub ex_style: LONG,
-    /// Window position and size    
+    /// Window position and size
     pub rect: RECT,
 }
 
@@ -326,6 +326,13 @@ lazy_static! {
             winuser::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as *const i8)
         }
     };
+    // Message sent by a `Window` when it wants to be destroyed by the main thread.
+    // WPARAM and LPARAM are unused.
+    pub static ref DESTROY_MSG_ID: u32 = {
+        unsafe {
+            winuser::RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr() as *const i8)
+        }
+    };
 }
 
 // There's no parameters passed to the callback function, so it needs to get its context stashed
@@ -386,17 +393,26 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 {
     match msg {
         winuser::WM_CLOSE => {
-            use events::WindowEvent::Closed;
+            use events::WindowEvent::CloseRequested;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: Closed
+                event: CloseRequested
             });
+            0
+        },
+
+        winuser::WM_DESTROY => {
+            use events::WindowEvent::Destroyed;
             CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
                 context_stash.as_mut().unwrap().windows.remove(&window);
             });
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
-        },       
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: Destroyed
+            });
+            0
+        },
 
         winuser::WM_PAINT => {
             use events::WindowEvent::Refresh;
@@ -922,7 +938,12 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
         },
 
         _ => {
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
+            if msg == *DESTROY_MSG_ID {
+                winuser::DestroyWindow(window);
+                0
+            } else {
+                winuser::DefWindowProcW(window, msg, wparam, lparam)
+            }
         }
     }
 }

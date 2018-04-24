@@ -40,7 +40,7 @@ fn main() {
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::Closed => return ControlFlow::Break,
+                WindowEvent::CloseRequested => return ControlFlow::Break,
                 WindowEvent::KeyboardInput {
                     input:
                         winit::KeyboardInput {
@@ -57,7 +57,7 @@ fn main() {
                             window.set_fullscreen(None);
                         } else {
                             window.set_fullscreen(Some(window.get_current_monitor()));
-                        }                        
+                        }
                     }
                     (winit::VirtualKeyCode::M, winit::ElementState::Pressed) => {
                         is_maximized = !is_maximized;

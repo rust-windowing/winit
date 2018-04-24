@@ -262,16 +262,19 @@ impl WindowStore {
         None
     }
 
-    pub fn cleanup(&mut self) {
+    pub fn cleanup(&mut self) -> Vec<WindowId> {
+        let mut pruned = Vec::new();
         self.windows.retain(|w| {
             if *w.kill_switch.lock().unwrap() {
                 // window is dead, cleanup
+                pruned.push(make_wid(&w.surface));
                 w.surface.destroy();
                 false
             } else {
                 true
             }
         });
+        pruned
     }
 
     pub fn for_each<F>(&mut self, mut f: F)
