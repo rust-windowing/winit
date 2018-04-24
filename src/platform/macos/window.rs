@@ -459,7 +459,7 @@ impl WindowDelegate {
             (&mut **delegate).set_ivar("winitState", state_ptr as *mut ::std::os::raw::c_void);
             let _: () = msg_send![*state.window, setDelegate:*delegate];
 
-            msg_send![autoreleasepool, drain];
+            let _: () = msg_send![autoreleasepool, drain];
 
             WindowDelegate { state: state, _this: delegate }
         }
@@ -474,7 +474,7 @@ impl Drop for WindowDelegate {
             // and then autoreleases it, so autorelease pool is needed
             let autoreleasepool = NSAutoreleasePool::new(cocoa::base::nil);
             let _: () = msg_send![*self.state.window, setDelegate:nil];
-            msg_send![autoreleasepool, drain];
+            let _: () = msg_send![autoreleasepool, drain];
         }
     }
 }
@@ -536,9 +536,7 @@ impl Drop for Window2 {
             }
         }
 
-        unsafe {
-            msg_send![autoreleasepool, release];
-        }
+        let _: () = unsafe { msg_send![autoreleasepool, drain] };
     }
 }
 
@@ -572,9 +570,7 @@ impl Window2 {
         let app = match Window2::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
             None      => {
-                unsafe {
-                    msg_send![autoreleasepool, drain];
-                }
+                let _: () = unsafe { msg_send![autoreleasepool, drain] };
                 return Err(OsError(format!("Couldn't create NSApplication"))); },
         };
 
@@ -582,17 +578,13 @@ impl Window2 {
         {
             Some(window) => window,
             None         => {
-                unsafe {
-                    msg_send![autoreleasepool, drain];
-                }
+                let _: () = unsafe { msg_send![autoreleasepool, drain] };
                 return Err(OsError(format!("Couldn't create NSWindow"))); },
         };
         let view = match Window2::create_view(*window) {
             Some(view) => view,
             None       => {
-                unsafe {
-                    msg_send![autoreleasepool, drain];
-                }
+                let _: () = unsafe { msg_send![autoreleasepool, drain] };
                 return Err(OsError(format!("Couldn't create NSView"))); },
         };
 
@@ -660,9 +652,7 @@ impl Window2 {
             window.delegate.state.perform_maximized(win_attribs.maximized);
         }
 
-        unsafe {
-            msg_send![autoreleasepool, drain];
-        }
+        let _: () = unsafe { msg_send![autoreleasepool, drain] };
 
         Ok(window)
     }
@@ -794,7 +784,7 @@ impl Window2 {
                 window.center();
                 window
             });
-            msg_send![autoreleasepool, drain];
+            let _: () = msg_send![autoreleasepool, drain];
             res
         }
     }
@@ -1169,11 +1159,11 @@ impl IdRef {
 impl Drop for IdRef {
     fn drop(&mut self) {
         if self.0 != nil {
-            let _: () = unsafe {
+            unsafe {
                 let autoreleasepool =
                     NSAutoreleasePool::new(cocoa::base::nil);
-                msg_send![self.0, release];
-                msg_send![autoreleasepool, release];
+                let _ : () = msg_send![self.0, release];
+                let _ : () = msg_send![autoreleasepool, release];
             };
         }
     }
