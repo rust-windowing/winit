@@ -60,8 +60,8 @@
 //!
 //! events_loop.run_forever(|event| {
 //!     match event {
-//!         Event::WindowEvent { event: WindowEvent::Closed, .. } => {
-//!             println!("The window was closed ; stopping");
+//!         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+//!             println!("The close button was pressed; stopping");
 //!             ControlFlow::Break
 //!         },
 //!         _ => ControlFlow::Continue,
@@ -127,7 +127,7 @@ pub mod os;
 ///
 /// events_loop.run_forever(|event| {
 ///     match event {
-///         Event::WindowEvent { event: WindowEvent::Closed, .. } => {
+///         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
 ///             ControlFlow::Break
 ///         },
 ///         _ => ControlFlow::Continue,

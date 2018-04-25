@@ -15,6 +15,7 @@
 - Corrected `get_position` on macOS to return outer frame position, not content area position.
 - Corrected `set_position` on macOS to set outer frame position, not content area position.
 - Added `get_inner_position` method to `Window`, which gets the position of the window's client area. This is implemented on all applicable platforms (all desktop platforms other than Wayland, where this isn't possible).
+- **Breaking:** the `Closed` event has been replaced by `CloseRequested` and `Destroyed`. To migrate, you typically just need to replace all usages of `Closed` with `CloseRequested`; see example programs for more info. The exception is iOS, where `Closed` must be replaced by `Destroyed`.
 
 # Version 0.12.0 (2018-04-06)
 

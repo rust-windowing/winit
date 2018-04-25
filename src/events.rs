@@ -30,8 +30,11 @@ pub enum WindowEvent {
     /// The position of the window has changed.
     Moved(i32, i32),
 
-    /// The window has been closed.
-    Closed,
+    /// The window has been requested to close.
+    CloseRequested,
+
+    /// The window has been destroyed.
+    Destroyed,
 
     /// A file has been dropped into the window.
     DroppedFile(PathBuf),
@@ -75,7 +78,7 @@ pub enum WindowEvent {
 
     /// An mouse button press has been received.
     MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton, modifiers: ModifiersState },
-  
+
 
     /// Touchpad pressure event.
     ///

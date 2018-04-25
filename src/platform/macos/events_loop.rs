@@ -89,7 +89,7 @@ impl Shared {
 
     // Removes the window with the given `Id` from the `windows` list.
     //
-    // This is called when a window is either `Closed` or `Drop`ped.
+    // This is called in response to `windowWillClose`.
     pub fn find_and_remove_window(&self, id: super::window::Id) {
         if let Ok(mut windows) = self.windows.lock() {
             windows.retain(|w| match w.upgrade() {
