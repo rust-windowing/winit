@@ -1,6 +1,6 @@
 # Unreleased
 
-# Version 0.13.0 (2018-04-24)
+# Version 0.13.0 (2018-04-25)
 
 - Implement `WindowBuilder::with_maximized`, `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for MacOS.
 - Implement `WindowBuilder::with_maximized`, `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for Windows.
