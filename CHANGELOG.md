@@ -1,10 +1,10 @@
 # Unreleased
 
-# Version 0.13.0 (2018-04-17)
+# Version 0.13.0 (2018-04-24)
 
 - Implement `WindowBuilder::with_maximized`, `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for MacOS.
 - Implement `WindowBuilder::with_maximized`, `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for Windows.
-- On Windows, `WindowBuilder::with_dimensions` no longer changing monitor display resolution.
+- On Windows, `WindowBuilder::with_fullscreen` no longer changing monitor display resolution.
 - Overhauled X11 window geometry calculations. `get_position` and `set_position` are more universally accurate across different window managers, and `get_outer_size` actually works now.
 - Fixed SIGSEGV/SIGILL crashes on macOS caused by stabilization of the `!` (never) type.
 - Implement `WindowEvent::HiDPIFactorChanged` for macOS
