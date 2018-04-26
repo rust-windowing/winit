@@ -24,10 +24,10 @@ pub enum Event {
 #[derive(Clone, Debug)]
 pub enum WindowEvent {
 
-    /// The size of the window has changed.
+    /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(u32, u32),
 
-    /// The position of the window has changed.
+    /// The position of the window has changed. Contains the window's new position.
     Moved(i32, i32),
 
     /// The window has been requested to close.
