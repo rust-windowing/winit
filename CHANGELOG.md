@@ -1,5 +1,9 @@
 # Unreleased
 
+# Version 0.13.1 (2018-04-26)
+
+- Ensure necessary `x11-dl` version is used.
+
 # Version 0.13.0 (2018-04-25)
 
 - Implement `WindowBuilder::with_maximized`, `Window::set_fullscreen`, `Window::set_maximized` and `Window::set_decorations` for MacOS.
