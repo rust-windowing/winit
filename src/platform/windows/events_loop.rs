@@ -423,6 +423,22 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             winuser::DefWindowProcW(window, msg, wparam, lparam)
         },
 
+        // WM_MOVE supplies client area positions, so we send Moved here instead.
+        winuser::WM_WINDOWPOSCHANGED => {
+            use events::WindowEvent::Moved;
+
+            let windowpos = lparam as *const winuser::WINDOWPOS;
+            if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
+                send_event(Event::WindowEvent {
+                    window_id: SuperWindowId(WindowId(window)),
+                    event: Moved((*windowpos).x, (*windowpos).y),
+                });
+            }
+
+            // This is necessary for us to still get sent WM_SIZE.
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
+        },
+
         winuser::WM_SIZE => {
             use events::WindowEvent::Resized;
             let w = LOWORD(lparam as DWORD) as u32;
@@ -457,17 +473,6 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                 } else {
                     cstash.sender.send(event).ok();
                 }
-            });
-            0
-        },
-
-        winuser::WM_MOVE => {
-            use events::WindowEvent::Moved;
-            let x = LOWORD(lparam as DWORD) as i32;
-            let y = HIWORD(lparam as DWORD) as i32;
-            send_event(Event::WindowEvent {
-                window_id: SuperWindowId(WindowId(window)),
-                event: Moved(x, y),
             });
             0
         },
