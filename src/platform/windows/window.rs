@@ -8,22 +8,27 @@ use std::os::windows::ffi::OsStrExt;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
 
-use winapi::shared::minwindef::{BOOL, DWORD, FALSE, TRUE, UINT};
+use winapi::shared::minwindef::{BOOL, DWORD, FALSE, LPARAM, TRUE, UINT, WORD, WPARAM};
 use winapi::shared::windef::{HDC, HWND, LPPOINT, POINT, RECT};
 use winapi::um::{combaseapi, dwmapi, libloaderapi, winuser};
 use winapi::um::objbase::{COINIT_MULTITHREADED};
 use winapi::um::shobjidl_core::{CLSID_TaskbarList, ITaskbarList2};
 use winapi::um::winnt::{LONG, LPCWSTR};
 
-use CreationError;
-use CursorState;
-use Icon;
-use MonitorId as RootMonitorId;
-use MouseCursor;
-use WindowAttributes;
+use {
+    CreationError,
+    CursorState,
+    Icon,
+    LogicalCoordinates,
+    LogicalDimensions,
+    MonitorId as RootMonitorId,
+    MouseCursor,
+    WindowAttributes,
+};
 
 use platform::platform::{Cursor, EventsLoop, PlatformSpecificWindowBuilderAttributes, WindowId};
-use platform::platform::events_loop::{self, DESTROY_MSG_ID};
+use platform::platform::dpi::{BASE_DPI, get_window_dpi, get_window_scale_factor};
+use platform::platform::events_loop::{self, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID};
 use platform::platform::icon::{self, IconType, WinIcon};
 use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
 use platform::platform::util;
@@ -56,19 +61,16 @@ unsafe impl Sync for Window {}
 // and it added fifty pixels to the top.
 // From this we can perform the reverse calculation: Instead of expanding the rectangle, we shrink it.
 unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> BOOL {
-    let mut rc: RECT = mem::zeroed();
-
+    let mut rc: RECT = mem::uninitialized();
     winuser::SetRectEmpty(&mut rc);
-
-    let frc = winuser::AdjustWindowRectEx(&mut rc, style, 0, ex_style);
-    if frc != 0 {
+    let status = winuser::AdjustWindowRectEx(&mut rc, style, 0, ex_style);
+    if status != 0 {
         prc.left -= rc.left;
         prc.top -= rc.top;
         prc.right -= rc.right;
         prc.bottom -= rc.bottom;
     }
-
-    frc
+    status
 }
 
 impl Window {
@@ -78,16 +80,13 @@ impl Window {
         pl_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, CreationError> {
         let (tx, rx) = channel();
-
         let proxy = events_loop.create_proxy();
-
         events_loop.execute_in_thread(move |inserter| {
             // We dispatch an `init` function because of code style.
             // First person to remove the need for cloning here gets a cookie!
             let win = unsafe { init(w_attr.clone(), pl_attr.clone(), inserter, proxy.clone()) };
             let _ = tx.send(win);
         });
-
         rx.recv().unwrap()
     }
 
@@ -115,168 +114,253 @@ impl Window {
         }
     }
 
-    /// See the docs in the crate root file.
-    pub fn get_position(&self) -> Option<(i32, i32)> {
-        let mut rect: RECT = unsafe { mem::uninitialized() };
-
-        if unsafe { winuser::GetWindowRect(self.window.0, &mut rect) } != 0 {
-            Some((rect.left as i32, rect.top as i32))
-        } else {
-            None
-        }
+    pub(crate) fn get_position_physical(&self) -> Option<(i32, i32)> {
+        util::get_window_rect(self.window.0)
+            .map(|rect| (rect.left as i32, rect.top as i32))
     }
 
-    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
-        use std::mem;
+    #[inline]
+    pub fn get_position(&self) -> Option<LogicalCoordinates> {
+        self.get_position_physical()
+            .map(|physical_position| {
+                let dpi_factor = self.get_hidpi_factor();
+                LogicalCoordinates::from_physical(physical_position, dpi_factor)
+            })
+    }
 
+    pub(crate) fn get_inner_position_physical(&self) -> Option<(i32, i32)> {
         let mut position: POINT = unsafe { mem::zeroed() };
         if unsafe { winuser::ClientToScreen(self.window.0, &mut position) } == 0 {
             return None;
         }
-
         Some((position.x, position.y))
     }
 
-    /// See the docs in the crate root file.
-    pub fn set_position(&self, x: i32, y: i32) {
+    #[inline]
+    pub fn get_inner_position(&self) -> Option<LogicalCoordinates> {
+        self.get_inner_position_physical()
+            .map(|physical_position| {
+                let dpi_factor = self.get_hidpi_factor();
+                LogicalCoordinates::from_physical(physical_position, dpi_factor)
+            })
+    }
+
+    pub(crate) fn set_position_physical(&self, x: i32, y: i32) {
         unsafe {
-            winuser::SetWindowPos(self.window.0, ptr::null_mut(), x as raw::c_int, y as raw::c_int,
-                                 0, 0, winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOSIZE);
+            winuser::SetWindowPos(
+                self.window.0,
+                ptr::null_mut(),
+                x as raw::c_int,
+                y as raw::c_int,
+                0,
+                0,
+                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOSIZE,
+            );
             winuser::UpdateWindow(self.window.0);
         }
     }
 
-    /// See the docs in the crate root file.
     #[inline]
-    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        let mut rect: RECT = unsafe { mem::uninitialized() };
+    pub fn set_position(&self, logical_position: LogicalCoordinates) {
+        let dpi_factor = self.get_hidpi_factor();
+        let (x, y) = logical_position.to_physical(dpi_factor).into();
+        self.set_position_physical(x, y);
+    }
 
+    pub(crate) fn get_inner_size_physical(&self) -> Option<(u32, u32)> {
+        let mut rect: RECT = unsafe { mem::uninitialized() };
         if unsafe { winuser::GetClientRect(self.window.0, &mut rect) } == 0 {
-            return None
+            return None;
         }
-
         Some((
             (rect.right - rect.left) as u32,
-            (rect.bottom - rect.top) as u32
+            (rect.bottom - rect.top) as u32,
         ))
     }
 
-    /// See the docs in the crate root file.
     #[inline]
-    pub fn get_outer_size(&self) -> Option<(u32, u32)> {
-        let mut rect: RECT = unsafe { mem::uninitialized() };
-
-        if unsafe { winuser::GetWindowRect(self.window.0, &mut rect) } == 0 {
-            return None
-        }
-
-        Some((
-            (rect.right - rect.left) as u32,
-            (rect.bottom - rect.top) as u32
-        ))
+    pub fn get_inner_size(&self) -> Option<LogicalDimensions> {
+        self.get_inner_size_physical()
+            .map(|physical_size| {
+                let dpi_factor = self.get_hidpi_factor();
+                LogicalDimensions::from_physical(physical_size, dpi_factor)
+            })
     }
 
-    /// See the docs in the crate root file.
-    pub fn set_inner_size(&self, x: u32, y: u32) {
+    pub(crate) fn get_outer_size_physical(&self) -> Option<(u32, u32)> {
+        util::get_window_rect(self.window.0)
+            .map(|rect| (
+                (rect.right - rect.left) as u32,
+                (rect.bottom - rect.top) as u32,
+            ))
+    }
+
+    #[inline]
+    pub fn get_outer_size(&self) -> Option<LogicalDimensions> {
+        self.get_outer_size_physical()
+            .map(|physical_size| {
+                let dpi_factor = self.get_hidpi_factor();
+                LogicalDimensions::from_physical(physical_size, dpi_factor)
+            })
+    }
+
+    pub(crate) fn set_inner_size_physical(&self, x: u32, y: u32) {
         unsafe {
             // Calculate the outer size based upon the specified inner size
-            let mut rect = RECT { top: 0, left: 0, bottom: y as LONG, right: x as LONG };
+            let mut rect = RECT {
+                top: 0,
+                left: 0,
+                bottom: y as LONG,
+                right: x as LONG,
+            };
             let dw_style = winuser::GetWindowLongA(self.window.0, winuser::GWL_STYLE) as DWORD;
             let b_menu = !winuser::GetMenu(self.window.0).is_null() as BOOL;
             let dw_style_ex = winuser::GetWindowLongA(self.window.0, winuser::GWL_EXSTYLE) as DWORD;
             winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
             let outer_x = (rect.right - rect.left).abs() as raw::c_int;
             let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
-
-            winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+            winuser::SetWindowPos(
+                self.window.0,
+                ptr::null_mut(),
+                0,
+                0,
+                outer_x,
+                outer_y,
+                winuser::SWP_ASYNCWINDOWPOS
+                | winuser::SWP_NOZORDER
+                | winuser::SWP_NOREPOSITION
+                | winuser::SWP_NOMOVE,
+            );
             winuser::UpdateWindow(self.window.0);
         }
     }
 
-    /// See the docs in the crate root file.
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+    pub fn set_inner_size(&self, logical_size: LogicalDimensions) {
+        let dpi_factor = self.get_hidpi_factor();
+        let (width, height) = logical_size.to_physical(dpi_factor).into();
+        self.set_inner_size_physical(width, height);
+    }
+
+    pub(crate) fn set_min_dimensions_physical(&self, dimensions: Option<(u32, u32)>) {
         let mut window_state = self.window_state.lock().unwrap();
         window_state.attributes.min_dimensions = dimensions;
-
         // Make windows re-check the window size bounds.
         if let Some(inner_size) = self.get_inner_size() {
+            let dpi_factor = self.get_hidpi_factor();
+            let inner_size: (u32, u32) = inner_size.to_physical(dpi_factor).into();
             unsafe {
-                let mut rect = RECT { top: 0, left: 0, bottom: inner_size.1 as LONG, right: inner_size.0 as LONG };
+                let mut rect = RECT {
+                    top: 0,
+                    left: 0,
+                    bottom: inner_size.1 as LONG,
+                    right: inner_size.0 as LONG,
+                };
                 let dw_style = winuser::GetWindowLongA(self.window.0, winuser::GWL_STYLE) as DWORD;
                 let b_menu = !winuser::GetMenu(self.window.0).is_null() as BOOL;
                 let dw_style_ex = winuser::GetWindowLongA(self.window.0, winuser::GWL_EXSTYLE) as DWORD;
                 winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
                 let outer_x = (rect.right - rect.left).abs() as raw::c_int;
                 let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
-
-                winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+                winuser::SetWindowPos(
+                    self.window.0,
+                    ptr::null_mut(),
+                    0,
+                    0,
+                    outer_x,
+                    outer_y,
+                    winuser::SWP_ASYNCWINDOWPOS
+                    | winuser::SWP_NOZORDER
+                    | winuser::SWP_NOREPOSITION
+                    | winuser::SWP_NOMOVE,
+                );
             }
         }
     }
 
-    /// See the docs in the crate root file.
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+    pub fn set_min_dimensions(&self, logical_size: Option<LogicalDimensions>) {
+        let physical_size = logical_size.map(|logical_size| {
+            let dpi_factor = self.get_hidpi_factor();
+            logical_size.to_physical(dpi_factor).into()
+        });
+        self.set_min_dimensions_physical(physical_size);
+    }
+
+    pub fn set_max_dimensions_physical(&self, dimensions: Option<(u32, u32)>) {
         let mut window_state = self.window_state.lock().unwrap();
         window_state.attributes.max_dimensions = dimensions;
-
         // Make windows re-check the window size bounds.
         if let Some(inner_size) = self.get_inner_size() {
+            let dpi_factor = self.get_hidpi_factor();
+            let inner_size: (u32, u32) = inner_size.to_physical(dpi_factor).into();
             unsafe {
-                let mut rect = RECT { top: 0, left: 0, bottom: inner_size.1 as LONG, right: inner_size.0 as LONG };
+                let mut rect = RECT {
+                    top: 0,
+                    left: 0,
+                    bottom: inner_size.1 as LONG,
+                    right: inner_size.0 as LONG,
+                };
                 let dw_style = winuser::GetWindowLongA(self.window.0, winuser::GWL_STYLE) as DWORD;
                 let b_menu = !winuser::GetMenu(self.window.0).is_null() as BOOL;
                 let dw_style_ex = winuser::GetWindowLongA(self.window.0, winuser::GWL_EXSTYLE) as DWORD;
                 winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
                 let outer_x = (rect.right - rect.left).abs() as raw::c_int;
                 let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
-
-                winuser::SetWindowPos(self.window.0, ptr::null_mut(), 0, 0, outer_x, outer_y,
-                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOREPOSITION | winuser::SWP_NOMOVE);
+                winuser::SetWindowPos(
+                    self.window.0,
+                    ptr::null_mut(),
+                    0,
+                    0,
+                    outer_x,
+                    outer_y,
+                    winuser::SWP_ASYNCWINDOWPOS
+                    | winuser::SWP_NOZORDER
+                    | winuser::SWP_NOREPOSITION
+                    | winuser::SWP_NOMOVE,
+                );
             }
         }
+    }
+
+    #[inline]
+    pub fn set_max_dimensions(&self, logical_size: Option<LogicalDimensions>) {
+        let physical_size = logical_size.map(|logical_size| {
+            let dpi_factor = self.get_hidpi_factor();
+            logical_size.to_physical(dpi_factor).into()
+        });
+        self.set_max_dimensions_physical(physical_size);
     }
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
-        if let Ok(mut window_state) = self.window_state.lock() {
-            if window_state.attributes.resizable == resizable {
-                return;
-            }
-            if window_state.attributes.fullscreen.is_some() {
-                window_state.attributes.resizable = resizable;
-                return;
-            }
-            let window = self.window.clone();
-            let mut style = unsafe {
-                winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE)
-            };
-            if resizable {
-                style |= winuser::WS_SIZEBOX as LONG;
-            } else {
-                style &= !winuser::WS_SIZEBOX as LONG;
-            }
-            unsafe {
-                winuser::SetWindowLongW(
-                    window.0,
-                    winuser::GWL_STYLE,
-                    style as _,
-                );
-            };
-            window_state.attributes.resizable = resizable;
+        let mut window_state = self.window_state.lock().unwrap();
+        if window_state.attributes.resizable == resizable {
+            return;
         }
-    }
+        if window_state.attributes.fullscreen.is_some() {
+            // If we're in fullscreen, update stored configuration but don't apply anything.
+            window_state.attributes.resizable = resizable;
+            return;
+        }
 
-    // TODO: remove
-    pub fn platform_display(&self) -> *mut ::libc::c_void {
-        panic!()        // Deprecated function ; we don't care anymore
-    }
-    // TODO: remove
-    pub fn platform_window(&self) -> *mut ::libc::c_void {
-        self.window.0 as *mut ::libc::c_void
+        let mut style = unsafe {
+            winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE)
+        };
+        if resizable {
+            style |= winuser::WS_SIZEBOX as LONG;
+        } else {
+            style &= !winuser::WS_SIZEBOX as LONG;
+        }
+
+        unsafe {
+            winuser::SetWindowLongW(
+                self.window.0,
+                winuser::GWL_STYLE,
+                style as _,
+            );
+        };
+        window_state.attributes.resizable = resizable;
     }
 
     /// Returns the `hwnd` of this window.
@@ -411,27 +495,28 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f32 {
-        1.0
+    pub fn get_hidpi_factor(&self) -> f64 {
+        get_window_scale_factor(self.window.0, self.window.1)
     }
 
-    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
-        let mut point = POINT {
-            x: x,
-            y: y,
-        };
-
+    fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ()> {
+        let mut point = POINT { x, y };
         unsafe {
             if winuser::ClientToScreen(self.window.0, &mut point) == 0 {
                 return Err(());
             }
-
             if winuser::SetCursorPos(point.x, point.y) == 0 {
                 return Err(());
             }
         }
-
         Ok(())
+    }
+
+    #[inline]
+    pub fn set_cursor_position(&self, logical_position: LogicalCoordinates) -> Result<(), ()> {
+        let dpi_factor = self.get_hidpi_factor();
+        let (x, y) = logical_position.to_physical(dpi_factor).into();
+        self.set_cursor_position_physical(x, y)
     }
 
     #[inline]
@@ -470,10 +555,7 @@ impl Window {
         let mut window_state = self.window_state.lock().unwrap();
 
         if window_state.attributes.fullscreen.is_none() || window_state.saved_window_info.is_none() {
-            let mut rect: RECT = mem::zeroed();
-
-            winuser::GetWindowRect(self.window.0, &mut rect);
-
+            let rect = util::get_window_rect(self.window.0).expect("`GetWindowRect` failed");
             window_state.saved_window_info = Some(events_loop::SavedWindowInfo {
                 style: winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE),
                 ex_style: winuser::GetWindowLongW(self.window.0, winuser::GWL_EXSTYLE),
@@ -752,7 +834,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, _x: i32, _y: i32) {
+    pub fn set_ime_spot(&self, _logical_spot: LogicalCoordinates) {
         unimplemented!();
     }
 }
@@ -826,10 +908,13 @@ unsafe fn init(
     // registering the window class
     let class_name = register_window_class(&window_icon, &taskbar_icon);
 
+    let dimensions = window.dimensions.unwrap_or((1024, 768));
     // building a RECT object with coordinates
     let mut rect = RECT {
-        left: 0, right: window.dimensions.unwrap_or((1024, 768)).0 as LONG,
-        top: 0, bottom: window.dimensions.unwrap_or((1024, 768)).1 as LONG,
+        left: 0,
+        right: dimensions.0 as LONG,
+        top: 0,
+        bottom: dimensions.1 as LONG,
     };
 
     // computing the style and extended style of the window
@@ -925,6 +1010,23 @@ unsafe fn init(
     let (transparent, maximized, fullscreen) = (
         window.transparent.clone(), window.maximized.clone(), window.fullscreen.clone()
     );
+
+    let dpi = get_window_dpi(real_window.0, real_window.1);
+    if dpi != BASE_DPI {
+        let width = dimensions.0 as WORD;
+        let height = dimensions.1 as WORD;
+        let mut packed_dimensions = 0;
+        // MAKELPARAM isn't provided by winapi yet.
+        let ptr = &mut packed_dimensions as *mut LPARAM as *mut WORD;
+        *ptr.offset(0) = width;
+        *ptr.offset(1) = height;
+        winuser::PostMessageW(
+            real_window.0,
+            *INITIAL_DPI_MSG_ID,
+            dpi as WPARAM,
+            packed_dimensions,
+        );
+    }
 
     // Creating a mutex to track the current window state
     let window_state = Arc::new(Mutex::new(events_loop::WindowState {

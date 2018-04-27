@@ -672,7 +672,7 @@ impl UnownedWindow {
             .map(|coords| self.logicalize_coords(coords))
     }
 
-    pub fn set_position_inner(&self, mut x: i32, mut y: i32) -> util::Flusher {
+    pub(crate) fn set_position_inner(&self, mut x: i32, mut y: i32) -> util::Flusher {
         // There are a few WMs that set client area position rather than window position, so
         // we'll translate for consistency.
         if util::wm_name_is_one_of(&["Enlightenment", "FVWM"]) {
@@ -696,7 +696,7 @@ impl UnownedWindow {
         util::Flusher::new(&self.xconn)
     }
 
-    pub fn set_position_physical(&self, x: i32, y: i32) {
+    pub(crate) fn set_position_physical(&self, x: i32, y: i32) {
         self.set_position_inner(x, y)
             .flush()
             .expect("Failed to call `XMoveWindow`");
@@ -708,7 +708,7 @@ impl UnownedWindow {
         self.set_position_physical(x, y);
     }
 
-    pub fn get_inner_size_physical(&self) -> Option<(u32, u32)> {
+    pub(crate) fn get_inner_size_physical(&self) -> Option<(u32, u32)> {
         self.xconn.get_geometry(self.xwindow)
             .ok()
             .map(|geo| (geo.width, geo.height))
@@ -720,7 +720,7 @@ impl UnownedWindow {
             .map(|size| self.logicalize_size(size))
     }
 
-    pub fn get_outer_size_physical(&self) -> Option<(u32, u32)> {
+    pub(crate) fn get_outer_size_physical(&self) -> Option<(u32, u32)> {
         let extents = self.shared_state.lock().frame_extents.clone();
         if let Some(extents) = extents {
             self.get_inner_size_physical()
@@ -743,7 +743,7 @@ impl UnownedWindow {
         }
     }
 
-    pub fn set_inner_size_physical(&self, width: u32, height: u32) {
+    pub(crate) fn set_inner_size_physical(&self, width: u32, height: u32) {
         unsafe {
             (self.xconn.xlib.XResizeWindow)(
                 self.xconn.display,
@@ -770,7 +770,7 @@ impl UnownedWindow {
         self.xconn.set_normal_hints(self.xwindow, normal_hints).flush()
     }
 
-    pub fn set_min_dimensions_physical(&self, dimensions: Option<(u32, u32)>) {
+    pub(crate) fn set_min_dimensions_physical(&self, dimensions: Option<(u32, u32)>) {
         self.update_normal_hints(|normal_hints| normal_hints.set_min_size(dimensions))
             .expect("Failed to call `XSetWMNormalHints`");
     }
@@ -784,7 +784,7 @@ impl UnownedWindow {
         self.set_min_dimensions_physical(physical_dimensions);
     }
 
-    pub fn set_max_dimensions_physical(&self, dimensions: Option<(u32, u32)>) {
+    pub(crate) fn set_max_dimensions_physical(&self, dimensions: Option<(u32, u32)>) {
         self.update_normal_hints(|normal_hints| normal_hints.set_max_size(dimensions))
             .expect("Failed to call `XSetWMNormalHints`");
     }
@@ -879,18 +879,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn platform_display(&self) -> *mut libc::c_void {
-        self.xconn.display as _
-    }
-
-    #[inline]
     pub fn get_xlib_window(&self) -> c_ulong {
         self.xwindow
-    }
-
-    #[inline]
-    pub fn platform_window(&self) -> *mut libc::c_void {
-        self.xwindow as _
     }
 
     #[inline]
@@ -1106,7 +1096,7 @@ impl UnownedWindow {
         self.get_current_monitor().hidpi_factor
     }
 
-    pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ()> {
+    pub(crate) fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ()> {
         unsafe {
             (self.xconn.xlib.XWarpPointer)(
                 self.xconn.display,
@@ -1129,15 +1119,15 @@ impl UnownedWindow {
         self.set_cursor_position_physical(x, y)
     }
 
-    pub fn set_ime_spot_physical(&self, x: i32, y: i32) {
+    pub(crate) fn set_ime_spot_physical(&self, x: i32, y: i32) {
         let _ = self.ime_sender
             .lock()
             .send((self.xwindow, x as i16, y as i16));
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, logical_position: LogicalCoordinates) {
-        let (x, y) = logical_position.to_physical(self.get_hidpi_factor()).into();
+    pub fn set_ime_spot(&self, logical_spot: LogicalCoordinates) {
+        let (x, y) = logical_spot.to_physical(self.get_hidpi_factor()).into();
         self.set_ime_spot_physical(x, y);
     }
 

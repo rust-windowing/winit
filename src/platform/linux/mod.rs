@@ -8,9 +8,6 @@ use std::sync::Arc;
 
 use sctk::reexports::client::ConnectError;
 
-// `std::os::raw::c_void` and `libc::c_void` are NOT interchangeable!
-use libc;
-
 use {
     CreationError,
     CursorState,
@@ -114,7 +111,7 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f32 {
+    pub fn get_hidpi_factor(&self) -> f64 {
         match self {
             &MonitorId::X(ref m) => m.get_hidpi_factor(),
             &MonitorId::Wayland(ref m) => m.get_hidpi_factor(),
@@ -242,7 +239,7 @@ impl Window {
             _ => (),
         }
     }
-    
+
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         match self {
@@ -281,22 +278,6 @@ impl Window {
             &Window::X(ref w) => w.set_cursor_position(position),
             //&Window::Wayland(ref w) => w.set_cursor_position(x, y),
             _ => unimplemented!(),
-        }
-    }
-
-    #[inline]
-    pub fn platform_display(&self) -> *mut libc::c_void {
-        match self {
-            &Window::X(ref w) => w.platform_display(),
-            &Window::Wayland(ref w) => w.get_display().c_ptr() as *mut _
-        }
-    }
-
-    #[inline]
-    pub fn platform_window(&self) -> *mut libc::c_void {
-        match self {
-            &Window::X(ref w) => w.platform_window(),
-            &Window::Wayland(ref w) => w.get_surface().c_ptr() as *mut _
         }
     }
 
