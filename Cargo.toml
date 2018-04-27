@@ -10,9 +10,13 @@ repository = "https://github.com/tomaka/winit"
 documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
+[features]
+icon_loading = ["image"]
+
 [dependencies]
 lazy_static = "1"
 libc = "0.2"
+image = { version = "0.19", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
 version = "0.2"

@@ -4,6 +4,7 @@
 mod atom;
 mod geometry;
 mod hint;
+mod icon;
 mod input;
 mod window_property;
 mod wm;
@@ -11,6 +12,7 @@ mod wm;
 pub use self::atom::*;
 pub use self::geometry::*;
 pub use self::hint::*;
+pub use self::icon::*;
 pub use self::input::*;
 pub use self::window_property::*;
 pub use self::wm::*;

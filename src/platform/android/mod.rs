@@ -201,8 +201,8 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 impl Window {
-    pub fn new(_: &EventsLoop, win_attribs: &WindowAttributes,
-               _: &PlatformSpecificWindowBuilderAttributes)
+    pub fn new(_: &EventsLoop, win_attribs: WindowAttributes,
+               _: PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
         // not implemented
@@ -320,6 +320,11 @@ impl Window {
 
     #[inline]
     pub fn set_decorations(&self, _decorations: bool) {
+        // N/A
+    }
+
+    #[inline]
+    pub fn set_window_icon(&self, _icon: Option<::Icon>) {
         // N/A
     }
 

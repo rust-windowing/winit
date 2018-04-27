@@ -1,28 +1,6 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
-pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
-pub use self::window::{Window2, XWindow};
-pub use self::xdisplay::{XConnection, XNotSupported, XError};
-
 pub mod ffi;
-
-use platform::PlatformSpecificWindowBuilderAttributes;
-use {CreationError, Event, EventsLoopClosed, WindowEvent, DeviceEvent,
-     KeyboardInput, ControlFlow};
-use events::ModifiersState;
-
-use std::{mem, ptr, slice};
-use std::sync::{Arc, Weak};
-use std::sync::atomic::{self, AtomicBool};
-use std::sync::mpsc;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::ffi::CStr;
-use std::os::raw::*;
-
-use libc::{self, setlocale, LC_CTYPE};
-use parking_lot::Mutex;
-
 mod events;
 mod monitor;
 mod window;
@@ -31,6 +9,33 @@ mod dnd;
 mod ime;
 mod util;
 
+pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
+pub use self::window::{Window2, XWindow};
+pub use self::xdisplay::{XConnection, XNotSupported, XError};
+
+use std::{mem, ptr, slice};
+use std::sync::{Arc, mpsc, Weak};
+use std::sync::atomic::{self, AtomicBool};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::ffi::CStr;
+use std::os::raw::*;
+
+use libc::{self, setlocale, LC_CTYPE};
+use parking_lot::Mutex;
+
+use {
+    ControlFlow,
+    CreationError,
+    DeviceEvent,
+    Event,
+    EventsLoopClosed,
+    KeyboardInput,
+    WindowAttributes,
+    WindowEvent,
+};
+use events::ModifiersState;
+use platform::PlatformSpecificWindowBuilderAttributes;
 use self::dnd::{Dnd, DndState};
 use self::ime::{ImeReceiver, ImeSender, ImeCreationError, Ime};
 
@@ -1150,10 +1155,11 @@ impl ::std::ops::Deref for Window {
 impl Window {
     pub fn new(
         x_events_loop: &EventsLoop,
-        window: &::WindowAttributes,
-        pl_attribs: &PlatformSpecificWindowBuilderAttributes
+        attribs: WindowAttributes,
+        pl_attribs: PlatformSpecificWindowBuilderAttributes
     ) -> Result<Self, CreationError> {
-        let win = Arc::new(Window2::new(&x_events_loop, window, pl_attribs)?);
+        let multitouch = attribs.multitouch;
+        let win = Arc::new(Window2::new(&x_events_loop, attribs, pl_attribs)?);
 
         x_events_loop.shared_state
             .borrow_mut()
@@ -1166,7 +1172,7 @@ impl Window {
 
         x_events_loop.windows.lock().insert(win.id(), WindowData {
             config: Default::default(),
-            multitouch: window.multitouch,
+            multitouch,
             cursor_pos: None,
         });
 

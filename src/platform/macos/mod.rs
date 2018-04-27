@@ -25,8 +25,8 @@ impl ::std::ops::Deref for Window {
 impl Window {
 
     pub fn new(events_loop: &EventsLoop,
-               attributes: &::WindowAttributes,
-               pl_attribs: &PlatformSpecificWindowBuilderAttributes) -> Result<Self, CreationError>
+               attributes: ::WindowAttributes,
+               pl_attribs: PlatformSpecificWindowBuilderAttributes) -> Result<Self, CreationError>
     {
         let weak_shared = Arc::downgrade(&events_loop.shared);
         let window = Arc::new(try!(Window2::new(weak_shared, attributes, pl_attribs)));

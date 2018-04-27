@@ -83,8 +83,9 @@
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "windows"))]
 #[macro_use]
 extern crate lazy_static;
-
 extern crate libc;
+#[cfg(feature = "icon_loading")]
+extern crate image;
 
 #[cfg(target_os = "windows")]
 #[macro_use]
@@ -109,10 +110,12 @@ extern crate smithay_client_toolkit as sctk;
 
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId};
+pub use icon::*;
 
 mod platform;
 mod events;
 mod window;
+mod icon;
 
 pub mod os;
 
@@ -439,6 +442,11 @@ pub struct WindowAttributes {
     /// The default is `true`.
     pub decorations: bool,
 
+    /// The window icon.
+    ///
+    /// The default is `None`.
+    pub window_icon: Option<Icon>,
+
     /// [iOS only] Enable multitouch,
     /// see [multipleTouchEnabled](https://developer.apple.com/documentation/uikit/uiview/1622519-multipletouchenabled)
     pub multitouch: bool,
@@ -457,6 +465,7 @@ impl Default for WindowAttributes {
             visible: true,
             transparent: false,
             decorations: true,
+            window_icon: None,
             multitouch: false,
         }
     }
