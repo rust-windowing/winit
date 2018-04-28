@@ -1,6 +1,13 @@
 # Unreleased
 
 - Fix regression of Window platform extensions for macOS.
+- Corrected `get_position` on Windows to be relative to the screen rather than to the taskbar.
+- Corrected `Moved` event on Windows to use position values equivalent to those returned by `get_position`. It previously supplied client area positions instead of window positions, and would additionally interpret negative values as being very large (around `u16::MAX`).
+- Implemented `Moved` event on macOS.
+
+# Version 0.13.1 (2018-04-26)
+
+- Ensure necessary `x11-dl` version is used.
 
 # Version 0.13.0 (2018-04-25)
 
