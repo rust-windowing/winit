@@ -190,8 +190,6 @@ impl EventsLoop {
     pub fn run_forever<F>(&mut self, mut callback: F)
         where F: FnMut(Event) -> ControlFlow
     {
-        self.pending_wakeup.store(false, atomic::Ordering::Relaxed);
-
         let mut xev = unsafe { mem::uninitialized() };
 
         loop {
