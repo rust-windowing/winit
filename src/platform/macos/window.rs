@@ -454,7 +454,7 @@ impl WindowDelegate {
 
             // setDelegate uses autorelease on objects,
             // so need autorelease
-            let autoreleasepool = NSAutoreleasePool::new(cocoa::base::nil);
+            let autoreleasepool = NSAutoreleasePool::new(nil);
 
             (&mut **delegate).set_ivar("winitState", state_ptr as *mut ::std::os::raw::c_void);
             let _: () = msg_send![*state.window, setDelegate:*delegate];
@@ -472,7 +472,7 @@ impl Drop for WindowDelegate {
             // Nil the window's delegate so it doesn't still reference us
             // NOTE: setDelegate:nil at first retains the previous value,
             // and then autoreleases it, so autorelease pool is needed
-            let autoreleasepool = NSAutoreleasePool::new(cocoa::base::nil);
+            let autoreleasepool = NSAutoreleasePool::new(nil);
             let _: () = msg_send![*self.state.window, setDelegate:nil];
             let _: () = msg_send![autoreleasepool, drain];
         }
@@ -518,7 +518,7 @@ impl Drop for Window2 {
         // Remove this window from the `EventLoop`s list of windows.
         // The destructor order is:
         // Window ->
-        // Rc<Window2> (makes Weak<..> in shared.windows none) ->
+        // Rc<Window2> (makes Weak<..> in shared.windows None) ->
         // Window2
         // needed to remove the element from array
         let id = self.id();
@@ -526,11 +526,10 @@ impl Drop for Window2 {
             shared.find_and_remove_window(id);
         }
 
-
         // nswindow::close uses autorelease
         // so autorelease pool
         let autoreleasepool = unsafe {
-            NSAutoreleasePool::new(cocoa::base::nil)
+            NSAutoreleasePool::new(nil)
         };
 
         // Close the window if it has not yet been closed.
@@ -569,14 +568,15 @@ impl Window2 {
             }
         }
         let autoreleasepool = unsafe {
-            NSAutoreleasePool::new(cocoa::base::nil)
+            NSAutoreleasePool::new(nil)
         };
 
         let app = match Window2::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
             None      => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
-                return Err(OsError(format!("Couldn't create NSApplication"))); },
+                return Err(OsError(format!("Couldn't create NSApplication")));
+            },
         };
 
         let window = match Window2::create_window(win_attribs, pl_attribs)
@@ -584,13 +584,15 @@ impl Window2 {
             Some(window) => window,
             None         => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
-                return Err(OsError(format!("Couldn't create NSWindow"))); },
+                return Err(OsError(format!("Couldn't create NSWindow")));
+            },
         };
         let view = match Window2::create_view(*window) {
             Some(view) => view,
             None       => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
-                return Err(OsError(format!("Couldn't create NSView"))); },
+                return Err(OsError(format!("Couldn't create NSView")));
+            },
         };
 
         unsafe {
@@ -680,7 +682,6 @@ impl Window2 {
     }
 
     fn class() -> *const Class {
-
         static mut WINDOW2_CLASS: *const Class = 0 as *const Class;
         static INIT: std::sync::Once = std::sync::ONCE_INIT;
 
@@ -702,7 +703,7 @@ impl Window2 {
         pl_attrs: &PlatformSpecificWindowBuilderAttributes)
         -> Option<IdRef> {
         unsafe {
-            let autoreleasepool = NSAutoreleasePool::new(cocoa::base::nil);
+            let autoreleasepool = NSAutoreleasePool::new(nil);
             let screen = match attrs.fullscreen {
                 Some(ref monitor_id) => {
                     let monitor_screen = monitor_id.inner.get_nsscreen();
@@ -1088,7 +1089,7 @@ impl Window2 {
 
 // Convert the `cocoa::base::id` associated with a window to a usize to use as a unique identifier
 // for the window.
-pub fn get_window_id(window_cocoa_id: cocoa::base::id) -> Id {
+pub fn get_window_id(window_cocoa_id: id) -> Id {
     Id(window_cocoa_id as *const objc::runtime::Object as usize)
 }
 
@@ -1166,7 +1167,7 @@ impl Drop for IdRef {
         if self.0 != nil {
             unsafe {
                 let autoreleasepool =
-                    NSAutoreleasePool::new(cocoa::base::nil);
+                    NSAutoreleasePool::new(nil);
                 let _ : () = msg_send![self.0, release];
                 let _ : () = msg_send![autoreleasepool, release];
             };
