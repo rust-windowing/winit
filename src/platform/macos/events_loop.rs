@@ -94,7 +94,7 @@ impl Shared {
         if let Ok(mut windows) = self.windows.lock() {
             windows.retain(|w| match w.upgrade() {
                 Some(w) => w.id() != id,
-                None => true,
+                None => false,
             });
         }
     }
