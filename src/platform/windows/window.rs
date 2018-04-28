@@ -14,6 +14,7 @@ use std::cell::Cell;
 use platform::platform::events_loop::{self, DESTROY_MSG_ID};
 use platform::platform::EventsLoop;
 use platform::platform::PlatformSpecificWindowBuilderAttributes;
+use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
 use platform::platform::WindowId;
 
 use CreationError;
@@ -24,7 +25,6 @@ use MonitorId as RootMonitorId;
 
 use winapi::shared::minwindef::{UINT, DWORD, BOOL};
 use winapi::shared::windef::{HWND, HDC, RECT, POINT};
-use winapi::shared::hidusage;
 use winapi::um::{winuser, dwmapi, libloaderapi, processthreadsapi};
 use winapi::um::winnt::{LPCWSTR, LONG, HRESULT};
 use winapi::um::combaseapi;
@@ -727,16 +727,8 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
         WindowWrapper(handle, hdc)
     };
 
-    // Set up raw mouse input
-    {
-        let mut rid: winuser::RAWINPUTDEVICE = mem::uninitialized();
-        rid.usUsagePage = hidusage::HID_USAGE_PAGE_GENERIC;
-        rid.usUsage = hidusage::HID_USAGE_GENERIC_MOUSE;
-        rid.dwFlags = 0;
-        rid.hwndTarget = real_window.0;
-
-        winuser::RegisterRawInputDevices(&rid, 1, mem::size_of::<winuser::RAWINPUTDEVICE>() as u32);
-    }
+    // Set up raw input
+    register_all_mice_and_keyboards_for_raw_input(real_window.0);
 
     // Register for touch events if applicable
     {

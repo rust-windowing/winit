@@ -30,13 +30,13 @@ use winapi::shared::minwindef::{LOWORD, HIWORD, DWORD, WPARAM, LPARAM, INT, UINT
 use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
 use winapi::um::{winuser, shellapi, processthreadsapi};
-use winapi::um::winnt::LONG;
+use winapi::um::winnt::{LONG, SHORT};
 
-use platform::platform::event;
+use events::DeviceEvent;
+use platform::platform::{event, Cursor, WindowId, DEVICE_ID, wrap_device_id, util};
+use platform::platform::event::{vkey_to_winit_vkey, vkey_left_right};
+use platform::platform::raw_input::*;
 use platform::platform::window::adjust_size;
-use platform::platform::Cursor;
-use platform::platform::WindowId;
-use platform::platform::DEVICE_ID;
 
 use ControlFlow;
 use CursorState;
@@ -567,7 +567,6 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
         },
 
         winuser::WM_MOUSEWHEEL => {
-            use events::{DeviceEvent, WindowEvent};
             use events::MouseScrollDelta::LineDelta;
             use events::TouchPhase;
 
@@ -578,11 +577,6 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: LineDelta(0.0, value), phase: TouchPhase::Moved, modifiers: event::get_key_mods() },
-            });
-
-            send_event(Event::DeviceEvent {
-                device_id: DEVICE_ID,
-                event: DeviceEvent::MouseWheel { delta: LineDelta(0.0, value) },
             });
 
             0
@@ -751,46 +745,121 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             0
         },
 
+        winuser::WM_INPUT_DEVICE_CHANGE => {
+            let event = match wparam as _ {
+                winuser::GIDC_ARRIVAL => DeviceEvent::Added,
+                winuser::GIDC_REMOVAL => DeviceEvent::Removed,
+                _ => unreachable!(),
+            };
+
+            send_event(Event::DeviceEvent {
+                device_id: wrap_device_id(lparam as _),
+                event,
+            });
+
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
+        },
+
         winuser::WM_INPUT => {
-            use events::DeviceEvent::{Motion, MouseMotion};
-            let mut data: winuser::RAWINPUT = mem::uninitialized();
-            let mut data_size = mem::size_of::<winuser::RAWINPUT>() as UINT;
-            winuser::GetRawInputData(mem::transmute(lparam), winuser::RID_INPUT,
-                                    mem::transmute(&mut data), &mut data_size,
-                                    mem::size_of::<winuser::RAWINPUTHEADER>() as UINT);
+            use events::DeviceEvent::{Motion, MouseMotion, MouseWheel, Button, Key};
+            use events::MouseScrollDelta::LineDelta;
+            use events::ElementState::{Pressed, Released};
 
-            if data.header.dwType == winuser::RIM_TYPEMOUSE {
-                let mouse = data.data.mouse();
-                if mouse.usFlags & winuser::MOUSE_MOVE_RELATIVE == winuser::MOUSE_MOVE_RELATIVE {
-                    let x = mouse.lLastX as f64;
-                    let y = mouse.lLastY as f64;
+            if let Some(data) = get_raw_input_data(lparam as _) {
+                let device_id = wrap_device_id(data.header.hDevice as _);
 
-                    if x != 0.0 {
+                if data.header.dwType == winuser::RIM_TYPEMOUSE {
+                    let mouse = data.data.mouse();
+
+                    if util::has_flag(mouse.usFlags, winuser::MOUSE_MOVE_RELATIVE) {
+                        let x = mouse.lLastX as f64;
+                        let y = mouse.lLastY as f64;
+
+                        if x != 0.0 {
+                            send_event(Event::DeviceEvent {
+                                device_id,
+                                event: Motion { axis: 0, value: x }
+                            });
+                        }
+
+                        if y != 0.0 {
+                            send_event(Event::DeviceEvent {
+                                device_id,
+                                event: Motion { axis: 1, value: y }
+                            });
+                        }
+
+                        if x != 0.0 || y != 0.0 {
+                            send_event(Event::DeviceEvent {
+                                device_id,
+                                event: MouseMotion { delta: (x, y) }
+                            });
+                        }
+                    }
+
+                    if util::has_flag(mouse.usButtonFlags, winuser::RI_MOUSE_WHEEL) {
+                        let delta = mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
                         send_event(Event::DeviceEvent {
-                            device_id: DEVICE_ID,
-                            event: Motion { axis: 0, value: x }
+                            device_id,
+                            event: MouseWheel { delta: LineDelta(0.0, delta as f32) }
                         });
                     }
 
-                    if y != 0.0 {
-                        send_event(Event::DeviceEvent {
-                            device_id: DEVICE_ID,
-                            event: Motion { axis: 1, value: y }
-                        });
+                    let button_state = get_raw_mouse_button_state(mouse.usButtonFlags);
+                    // Left, middle, and right, respectively.
+                    for (index, state) in button_state.iter().enumerate() {
+                        if let Some(state) = *state {
+                            // This gives us consistency with X11, since there doesn't
+                            // seem to be anything else reasonable to do for a mouse
+                            // button ID.
+                            let button = (index + 1) as _;
+                            send_event(Event::DeviceEvent {
+                                device_id,
+                                event: Button {
+                                    button,
+                                    state,
+                                }
+                            });
+                        }
                     }
+                } else if data.header.dwType == winuser::RIM_TYPEKEYBOARD {
+                    let keyboard = data.data.keyboard();
 
-                    if x != 0.0 || y != 0.0 {
+                    let pressed = keyboard.Message == winuser::WM_KEYDOWN
+                        || keyboard.Message == winuser::WM_SYSKEYDOWN;
+                    let released = keyboard.Message == winuser::WM_KEYUP
+                        || keyboard.Message == winuser::WM_SYSKEYUP;
+
+                    if pressed || released {
+                        let state = if pressed {
+                            Pressed
+                        } else {
+                            Released
+                        };
+
+                        let scancode = keyboard.MakeCode as _;
+                        let extended = util::has_flag(keyboard.Flags, winuser::RI_KEY_E0 as _);
+                        let vkey = vkey_left_right(
+                            keyboard.VKey as _,
+                            scancode,
+                            extended,
+                        );
+                        let virtual_keycode = vkey_to_winit_vkey(vkey);
+
                         send_event(Event::DeviceEvent {
-                            device_id: DEVICE_ID,
-                            event: MouseMotion { delta: (x, y) }
+                            device_id,
+                            event: Key(KeyboardInput {
+                                scancode,
+                                state,
+                                virtual_keycode,
+                                modifiers: event::get_key_mods(),
+                            }),
                         });
                     }
                 }
-
-                0
-            } else {
-                winuser::DefWindowProcW(window, msg, wparam, lparam)
             }
+
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
         },
 
         winuser::WM_TOUCH => {
