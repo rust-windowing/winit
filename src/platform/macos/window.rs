@@ -516,6 +516,11 @@ unsafe fn get_current_monitor() -> RootMonitorId {
 impl Drop for Window2 {
     fn drop(&mut self) {
         // Remove this window from the `EventLoop`s list of windows.
+        // The destructor order is:
+        // Window ->
+        // Rc<Window2> (makes Weak<..> in shared.windows none) ->
+        // Window2
+        // needed to remove the element from array
         let id = self.id();
         if let Some(shared) = self.delegate.state.shared.upgrade() {
             shared.find_and_remove_window(id);
