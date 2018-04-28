@@ -661,8 +661,8 @@ impl Window2 {
             let masks = if pl_attrs.titlebar_hidden {
                 NSWindowStyleMask::NSBorderlessWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask
-            } else if pl_attrs.titlebar_transparent {
-                // Window2 with a transparent titlebar and regular content view
+            } else if !pl_attrs.titlebar_transparent {
+                // Window2 with a titlebar
                 NSWindowStyleMask::NSClosableWindowMask |
                     NSWindowStyleMask::NSMiniaturizableWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
@@ -674,17 +674,15 @@ impl Window2 {
                     NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSTitledWindowMask |
                     NSWindowStyleMask::NSFullSizeContentViewWindowMask
+            } else if !attrs.decorations && !screen.is_some() {
+                // Window2 without a titlebar
+                NSWindowStyleMask::NSBorderlessWindowMask
             } else {
-                if !attrs.decorations && !screen.is_some() {
-                    // Window2 without a titlebar
-                    NSWindowStyleMask::NSBorderlessWindowMask
-                } else {
-                    // Window2 with a titlebar
-                    NSWindowStyleMask::NSClosableWindowMask |
-                        NSWindowStyleMask::NSMiniaturizableWindowMask |
-                        NSWindowStyleMask::NSResizableWindowMask |
-                        NSWindowStyleMask::NSTitledWindowMask
-                }
+                // Window2 with a transparent titlebar and regular content view
+                NSWindowStyleMask::NSClosableWindowMask |
+                    NSWindowStyleMask::NSMiniaturizableWindowMask |
+                    NSWindowStyleMask::NSResizableWindowMask |
+                    NSWindowStyleMask::NSTitledWindowMask
             };
 
             let winit_window = Class::get("WinitWindow").unwrap_or_else(|| {
