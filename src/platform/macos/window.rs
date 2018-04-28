@@ -658,32 +658,24 @@ impl Window2 {
                 }
             };
 
-            let masks = if pl_attrs.titlebar_hidden {
+            let mut masks = if !attrs.decorations && !screen.is_some() {
+                // unresizable Window2 without a titlebar or borders
+                // if decorations is set to false, ignore pl_attrs
+                NSWindowStyleMask::NSBorderlessWindowMask
+            } else if pl_attrs.titlebar_hidden {
+                // if the titlebar is hidden, ignore other pl_attrs
                 NSWindowStyleMask::NSBorderlessWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask
-            } else if !pl_attrs.titlebar_transparent {
-                // Window2 with a titlebar
-                NSWindowStyleMask::NSClosableWindowMask |
-                    NSWindowStyleMask::NSMiniaturizableWindowMask |
-                    NSWindowStyleMask::NSResizableWindowMask |
-                    NSWindowStyleMask::NSTitledWindowMask
-            } else if pl_attrs.fullsize_content_view {
-                // Window2 with a transparent titlebar and fullsize content view
-                NSWindowStyleMask::NSClosableWindowMask |
-                    NSWindowStyleMask::NSMiniaturizableWindowMask |
-                    NSWindowStyleMask::NSResizableWindowMask |
-                    NSWindowStyleMask::NSTitledWindowMask |
-                    NSWindowStyleMask::NSFullSizeContentViewWindowMask
-            } else if !attrs.decorations && !screen.is_some() {
-                // Window2 without a titlebar
-                NSWindowStyleMask::NSBorderlessWindowMask
             } else {
-                // Window2 with a transparent titlebar and regular content view
-                NSWindowStyleMask::NSClosableWindowMask |
+                NSWindowStyleMask::NSMiniaturizableWindowMask |
                     NSWindowStyleMask::NSMiniaturizableWindowMask |
                     NSWindowStyleMask::NSResizableWindowMask |
                     NSWindowStyleMask::NSTitledWindowMask
             };
+
+            if pl_attrs.fullsize_content_view {
+                masks = masks | NSWindowStyleMask::NSFullSizeContentViewWindowMask;
+            }
 
             let winit_window = Class::get("WinitWindow").unwrap_or_else(|| {
                 let window_superclass = Class::get("NSWindow").unwrap();
