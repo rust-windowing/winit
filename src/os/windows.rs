@@ -3,6 +3,7 @@
 use std::os::raw::c_void;
 use libc;
 use MonitorId;
+use DeviceId;
 use Window;
 use WindowBuilder;
 use winapi::shared::windef::HWND;
@@ -54,5 +55,20 @@ impl MonitorIdExt for MonitorId {
     #[inline]
     fn hmonitor(&self) -> *mut c_void {
         self.inner.get_hmonitor() as *mut _
+    }
+}
+
+/// Additional methods on `DeviceId` that are specific to Windows.
+pub trait DeviceIdExt {
+    /// Returns an identifier that persistently refers to this specific device.
+    ///
+    /// Will return `None` if the device is no longer available.
+    fn get_persistent_identifier(&self) -> Option<String>;
+}
+
+impl DeviceIdExt for DeviceId {
+    #[inline]
+    fn get_persistent_identifier(&self) -> Option<String> {
+        self.0.get_persistent_identifier()
     }
 }
