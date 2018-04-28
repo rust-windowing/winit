@@ -6,7 +6,7 @@ use winapi::um::winuser;
 use std::collections::VecDeque;
 use std::{mem, ptr};
 
-use super::EventsLoop;
+use super::{EventsLoop, util};
 
 /// Win32 implementation of the main `MonitorId` object.
 #[derive(Clone)]
@@ -44,12 +44,6 @@ struct HMonitor(HMONITOR);
 
 unsafe impl Send for HMonitor {}
 
-fn wchar_as_string(wchar: &[wchar_t]) -> String {
-    String::from_utf16_lossy(wchar)
-        .trim_right_matches(0 as char)
-        .to_string()
-}
-
 unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, _: HDC, place: LPRECT, data: LPARAM) -> BOOL {
     let monitors = data as *mut VecDeque<MonitorId>;
 
@@ -67,7 +61,7 @@ unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, _: HDC, place: L
     (*monitors).push_back(MonitorId {
         adapter_name: monitor_info.szDevice,
         hmonitor: HMonitor(hmonitor),
-        monitor_name: wchar_as_string(&monitor_info.szDevice),
+        monitor_name: util::wchar_to_string(&monitor_info.szDevice),
         primary: monitor_info.dwFlags & winuser::MONITORINFOF_PRIMARY != 0,
         position,
         dimensions,
@@ -109,7 +103,7 @@ impl EventsLoop {
             MonitorId {
                 adapter_name: monitor_info.szDevice,
                 hmonitor: super::monitor::HMonitor(hmonitor),
-                monitor_name: wchar_as_string(&monitor_info.szDevice),
+                monitor_name: util::wchar_to_string(&monitor_info.szDevice),
                 primary: monitor_info.dwFlags & winuser::MONITORINFOF_PRIMARY != 0,
                 position,
                 dimensions,
