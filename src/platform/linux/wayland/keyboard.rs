@@ -1,150 +1,154 @@
 use std::sync::{Arc, Mutex};
 
-use {VirtualKeyCode, ElementState, WindowEvent as Event, KeyboardInput, ModifiersState};
+use {ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
 
-use super::{EventsLoopSink, WindowId, make_wid, DeviceId};
-use super::wayland_kbd::{MappedKeyboardImplementation, register_kbd};
-use wayland_client::protocol::wl_keyboard;
-use wayland_client::EventQueueHandle;
+use super::{make_wid, DeviceId, EventsLoopSink};
+use sctk::keyboard::{self, map_keyboard_auto, Event as KbEvent};
+use sctk::reexports::client::{NewProxy, Proxy};
+use sctk::reexports::client::protocol::wl_keyboard;
 
-pub fn init_keyboard(evq: &mut EventQueueHandle, keyboard: &wl_keyboard::WlKeyboard, sink: &Arc<Mutex<EventsLoopSink>>) {
-    let idata = KeyboardIData {
-        sink: sink.clone(),
-        target: None
-    };
-
-    if register_kbd(evq, keyboard, mapped_keyboard_impl(), idata).is_err() {
-        // initializing libxkbcommon failed :(
-        // fallback implementation
-        let idata = KeyboardIData {
-            sink: sink.clone(),
-            target: None
-        };
-        evq.register(keyboard, raw_keyboard_impl(), idata);
-    }
-}
-
-struct KeyboardIData {
+pub fn init_keyboard(
+    keyboard: NewProxy<wl_keyboard::WlKeyboard>,
     sink: Arc<Mutex<EventsLoopSink>>,
-    target: Option<WindowId>
-}
-
-fn mapped_keyboard_impl() -> MappedKeyboardImplementation<KeyboardIData> {
-    MappedKeyboardImplementation {
-        enter: |_, idata, _, _, surface, _, _, _| {
-            let wid = make_wid(surface);
-            idata.sink.lock().unwrap().send_event(Event::Focused(true), wid);
-            idata.target = Some(wid);
-        },
-        leave: |_, idata, _, _, surface| {
-            let wid = make_wid(surface);
-            idata.sink.lock().unwrap().send_event(Event::Focused(false), wid);
-            idata.target = None;
-        },
-        key: |_, idata, _, _, _, mods, rawkey, keysym, state, utf8| {
-            if let Some(wid) = idata.target {
+) -> Proxy<wl_keyboard::WlKeyboard> {
+    // { variables to be captured by the closure
+    let mut target = None;
+    let my_sink = sink.clone();
+    // }
+    let ret = map_keyboard_auto(keyboard, move |evt: KbEvent, _| match evt {
+        KbEvent::Enter { surface, .. } => {
+            let wid = make_wid(&surface);
+            my_sink
+                .lock()
+                .unwrap()
+                .send_event(WindowEvent::Focused(true), wid);
+            target = Some(wid);
+        }
+        KbEvent::Leave { surface, .. } => {
+            let wid = make_wid(&surface);
+            my_sink
+                .lock()
+                .unwrap()
+                .send_event(WindowEvent::Focused(false), wid);
+            target = None;
+        }
+        KbEvent::Key {
+            modifiers,
+            rawkey,
+            keysym,
+            state,
+            utf8,
+            ..
+        } => {
+            if let Some(wid) = target {
                 let state = match state {
                     wl_keyboard::KeyState::Pressed => ElementState::Pressed,
                     wl_keyboard::KeyState::Released => ElementState::Released,
                 };
                 let vkcode = key_to_vkey(rawkey, keysym);
-                let mut guard = idata.sink.lock().unwrap();
+                let mut guard = my_sink.lock().unwrap();
                 guard.send_event(
-                    Event::KeyboardInput {
+                    WindowEvent::KeyboardInput {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                         input: KeyboardInput {
                             state: state,
                             scancode: rawkey,
                             virtual_keycode: vkcode,
-                            modifiers: ModifiersState {
-                                shift: mods.shift,
-                                ctrl: mods.ctrl,
-                                alt: mods.alt,
-                                logo: mods.logo
-                            },
+                            modifiers: modifiers.into(),
                         },
                     },
-                    wid
+                    wid,
                 );
                 // send char event only on key press, not release
-                if let ElementState::Released = state { return }
+                if let ElementState::Released = state {
+                    return;
+                }
                 if let Some(txt) = utf8 {
                     for chr in txt.chars() {
-                        guard.send_event(Event::ReceivedCharacter(chr), wid);
+                        guard.send_event(WindowEvent::ReceivedCharacter(chr), wid);
                     }
                 }
             }
-        },
-        repeat_info: |_, _idata, _, _rate, _delay| {
-            // TODO: handle repeat info
         }
-    }
-}
+        KbEvent::RepeatInfo { .. } => { /* TODO: handle repeat info */ }
+    });
 
+    match ret {
+        Ok(keyboard) => keyboard,
+        Err((_, keyboard)) => {
+            // This is a fallback impl if libxkbcommon was not available
+            // This case should probably never happen, as most wayland
+            // compositors _need_ libxkbcommon anyway...
+            //
+            // In this case, we don't have the keymap information (it is
+            // supposed to be serialized by the compositor using libxkbcommon)
 
-// This is fallback impl if libxkbcommon was not available
-// This case should probably never happen, as most wayland
-// compositors _need_ libxkbcommon anyway...
-//
-// In this case, we don't have the keymap information (it is
-// supposed to be serialized by the compositor using libxkbcommon)
-fn raw_keyboard_impl() -> wl_keyboard::Implementation<KeyboardIData> {
-    wl_keyboard::Implementation {
-        enter: |_, idata, _, _, surface, _| {
-            let wid = make_wid(surface);
-            idata.sink.lock().unwrap().send_event(Event::Focused(true), wid);
-            idata.target = Some(wid);
-        },
-        leave: |_, idata, _, _, surface| {
-            let wid = make_wid(surface);
-            idata.sink.lock().unwrap().send_event(Event::Focused(false), wid);
-            idata.target = None;
-        },
-        key: |_, idata, _, _, _, key, state| {
-            if let Some(wid) = idata.target {
-                let state = match state {
-                    wl_keyboard::KeyState::Pressed => ElementState::Pressed,
-                    wl_keyboard::KeyState::Released => ElementState::Released,
-                };
-                idata.sink.lock().unwrap().send_event(
-                    Event::KeyboardInput {
-                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                        input: KeyboardInput {
-                            state: state,
-                            scancode: key,
-                            virtual_keycode: None,
-                            modifiers: ModifiersState::default(),
-                        },
-                    },
-                    wid
-                );
-            }
-        },
-        repeat_info: |_, _idata, _, _rate, _delay| {},
-        keymap: |_, _, _, _, _, _| {},
-        modifiers: |_, _, _, _, _, _, _, _| {}
+            // { variables to be captured by the closure
+            let mut target = None;
+            let my_sink = sink;
+            // }
+            keyboard.implement(move |evt, _| match evt {
+                wl_keyboard::Event::Enter { surface, .. } => {
+                    let wid = make_wid(&surface);
+                    my_sink
+                        .lock()
+                        .unwrap()
+                        .send_event(WindowEvent::Focused(true), wid);
+                    target = Some(wid);
+                }
+                wl_keyboard::Event::Leave { surface, .. } => {
+                    let wid = make_wid(&surface);
+                    my_sink
+                        .lock()
+                        .unwrap()
+                        .send_event(WindowEvent::Focused(false), wid);
+                    target = None;
+                }
+                wl_keyboard::Event::Key { key, state, .. } => {
+                    if let Some(wid) = target {
+                        let state = match state {
+                            wl_keyboard::KeyState::Pressed => ElementState::Pressed,
+                            wl_keyboard::KeyState::Released => ElementState::Released,
+                        };
+                        my_sink.lock().unwrap().send_event(
+                            WindowEvent::KeyboardInput {
+                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                input: KeyboardInput {
+                                    state: state,
+                                    scancode: key,
+                                    virtual_keycode: None,
+                                    modifiers: ModifiersState::default(),
+                                },
+                            },
+                            wid,
+                        );
+                    }
+                }
+                _ => (),
+            })
+        }
     }
 }
 
 fn key_to_vkey(rawkey: u32, keysym: u32) -> Option<VirtualKeyCode> {
     match rawkey {
-         1 => Some(VirtualKeyCode::Escape),
-         2 => Some(VirtualKeyCode::Key1),
-         3 => Some(VirtualKeyCode::Key2),
-         4 => Some(VirtualKeyCode::Key3),
-         5 => Some(VirtualKeyCode::Key4),
-         6 => Some(VirtualKeyCode::Key5),
-         7 => Some(VirtualKeyCode::Key6),
-         8 => Some(VirtualKeyCode::Key7),
-         9 => Some(VirtualKeyCode::Key8),
+        1 => Some(VirtualKeyCode::Escape),
+        2 => Some(VirtualKeyCode::Key1),
+        3 => Some(VirtualKeyCode::Key2),
+        4 => Some(VirtualKeyCode::Key3),
+        5 => Some(VirtualKeyCode::Key4),
+        6 => Some(VirtualKeyCode::Key5),
+        7 => Some(VirtualKeyCode::Key6),
+        8 => Some(VirtualKeyCode::Key7),
+        9 => Some(VirtualKeyCode::Key8),
         10 => Some(VirtualKeyCode::Key9),
         11 => Some(VirtualKeyCode::Key0),
-        _  => keysym_to_vkey(keysym)
+        _ => keysym_to_vkey(keysym),
     }
 }
 
 fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
-    use super::wayland_kbd::keysyms;
+    use sctk::keyboard::keysyms;
     match keysym {
         // letters
         keysyms::XKB_KEY_A | keysyms::XKB_KEY_a => Some(VirtualKeyCode::A),
@@ -174,15 +178,15 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         keysyms::XKB_KEY_Y | keysyms::XKB_KEY_y => Some(VirtualKeyCode::Y),
         keysyms::XKB_KEY_Z | keysyms::XKB_KEY_z => Some(VirtualKeyCode::Z),
         // F--
-        keysyms::XKB_KEY_F1  => Some(VirtualKeyCode::F1),
-        keysyms::XKB_KEY_F2  => Some(VirtualKeyCode::F2),
-        keysyms::XKB_KEY_F3  => Some(VirtualKeyCode::F3),
-        keysyms::XKB_KEY_F4  => Some(VirtualKeyCode::F4),
-        keysyms::XKB_KEY_F5  => Some(VirtualKeyCode::F5),
-        keysyms::XKB_KEY_F6  => Some(VirtualKeyCode::F6),
-        keysyms::XKB_KEY_F7  => Some(VirtualKeyCode::F7),
-        keysyms::XKB_KEY_F8  => Some(VirtualKeyCode::F8),
-        keysyms::XKB_KEY_F9  => Some(VirtualKeyCode::F9),
+        keysyms::XKB_KEY_F1 => Some(VirtualKeyCode::F1),
+        keysyms::XKB_KEY_F2 => Some(VirtualKeyCode::F2),
+        keysyms::XKB_KEY_F3 => Some(VirtualKeyCode::F3),
+        keysyms::XKB_KEY_F4 => Some(VirtualKeyCode::F4),
+        keysyms::XKB_KEY_F5 => Some(VirtualKeyCode::F5),
+        keysyms::XKB_KEY_F6 => Some(VirtualKeyCode::F6),
+        keysyms::XKB_KEY_F7 => Some(VirtualKeyCode::F7),
+        keysyms::XKB_KEY_F8 => Some(VirtualKeyCode::F8),
+        keysyms::XKB_KEY_F9 => Some(VirtualKeyCode::F9),
         keysyms::XKB_KEY_F10 => Some(VirtualKeyCode::F10),
         keysyms::XKB_KEY_F11 => Some(VirtualKeyCode::F11),
         keysyms::XKB_KEY_F12 => Some(VirtualKeyCode::F12),
@@ -294,6 +298,17 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         keysyms::XKB_KEY_XF86Paste => Some(VirtualKeyCode::Paste),
         keysyms::XKB_KEY_XF86Cut => Some(VirtualKeyCode::Cut),
         // fallback
-        _ => None
+        _ => None,
+    }
+}
+
+impl From<keyboard::ModifiersState> for ModifiersState {
+    fn from(mods: keyboard::ModifiersState) -> ModifiersState {
+        ModifiersState {
+            shift: mods.shift,
+            ctrl: mods.ctrl,
+            alt: mods.alt,
+            logo: mods.logo,
+        }
     }
 }

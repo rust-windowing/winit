@@ -1,81 +1,128 @@
 use std::sync::{Arc, Mutex, Weak};
 
-use wayland_client::protocol::{wl_display,wl_surface};
-use wayland_client::{Proxy, StateToken};
-
-use {CreationError, MouseCursor, CursorState, WindowAttributes};
+use {CreationError, CursorState, MouseCursor, WindowAttributes};
 use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
 
-use super::{EventsLoop, WindowId, make_wid, MonitorId};
-use super::wayland_window::{Frame, FrameImplementation, State as FrameState};
-use super::event_loop::StateContext;
+use sctk::window::{BasicFrame, Event as WEvent, Window as SWindow};
+use sctk::reexports::client::{Display, Proxy};
+use sctk::reexports::client::protocol::{wl_seat, wl_surface};
+use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as CompositorRequests;
+use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
+
+use super::{make_wid, EventsLoop, MonitorId, WindowId};
 
 pub struct Window {
-    surface: wl_surface::WlSurface,
-    frame: Arc<Mutex<Frame>>,
-    monitors: Arc<Mutex<MonitorList>>,
+    surface: Proxy<wl_surface::WlSurface>,
+    frame: Arc<Mutex<SWindow<BasicFrame>>>,
+    monitors: Arc<Mutex<Vec<MonitorId>>>,
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
-    display: Arc<wl_display::WlDisplay>,
-    need_frame_refresh: Arc<Mutex<bool>>
+    display: Arc<Display>,
+    need_frame_refresh: Arc<Mutex<bool>>,
 }
 
 impl Window {
-    pub fn new(evlp: &EventsLoop, attributes: &WindowAttributes) -> Result<Window, CreationError>
-    {
-        let (width, height) = attributes.dimensions.unwrap_or((800,600));
+    pub fn new(evlp: &EventsLoop, attributes: &WindowAttributes) -> Result<Window, CreationError> {
+        let (width, height) = attributes.dimensions.unwrap_or((800, 600));
 
-        // Create the decorated surface
+        // Create the window
         let size = Arc::new(Mutex::new((width, height)));
-        let store_token = evlp.store.clone();
-        let (surface, mut frame) = evlp.create_window(
-            width, height, decorated_impl(),
-            |surface| FrameIData {
-                surface: surface.clone().unwrap(),
-                store_token: store_token.clone()
+
+        // monitor tracking
+        let monitor_list = Arc::new(Mutex::new(Vec::new()));
+
+        let surface = evlp.env.compositor.create_surface().unwrap().implement({
+            let list = monitor_list.clone();
+            let omgr = evlp.env.outputs.clone();
+            move |event, _| match event {
+                wl_surface::Event::Enter { output } => list.lock().unwrap().push(MonitorId {
+                    proxy: output,
+                    mgr: omgr.clone(),
+                }),
+                wl_surface::Event::Leave { output } => {
+                    list.lock().unwrap().retain(|m| !m.proxy.equals(&output));
+                }
             }
-        );
+        });
+
+        let window_store = evlp.store.clone();
+        let my_surface = surface.clone();
+        let mut frame = SWindow::<BasicFrame>::init(
+            surface.clone(),
+            (width, height),
+            &evlp.env.compositor,
+            &evlp.env.subcompositor,
+            &evlp.env.shm,
+            &evlp.env.shell,
+            move |event, ()| match event {
+                WEvent::Configure { new_size, .. } => {
+                    let mut store = window_store.lock().unwrap();
+                    for window in &mut store.windows {
+                        if window.surface.equals(&my_surface) {
+                            window.newsize = new_size.map(|(w, h)| (w as i32, h as i32));
+                            window.need_refresh = true;
+                            *(window.need_frame_refresh.lock().unwrap()) = true;
+                            return;
+                        }
+                    }
+                }
+                WEvent::Refresh => {
+                    let store = window_store.lock().unwrap();
+                    for window in &store.windows {
+                        if window.surface.equals(&my_surface) {
+                            *(window.need_frame_refresh.lock().unwrap()) = true;
+                            return;
+                        }
+                    }
+                }
+                WEvent::Close => {
+                    let mut store = window_store.lock().unwrap();
+                    for window in &mut store.windows {
+                        if window.surface.equals(&my_surface) {
+                            window.closed = true;
+                            return;
+                        }
+                    }
+                }
+            },
+        ).unwrap();
+
+        for &(_, ref seat) in evlp.seats.lock().unwrap().iter() {
+            frame.new_seat(seat);
+        }
+
         // Check for fullscreen requirements
-        if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = attributes.fullscreen {
-            let info = monitor_id.info.lock().unwrap();
-            frame.set_state(FrameState::Fullscreen(Some(&info.output)));
+        if let Some(RootMonitorId {
+            inner: PlatformMonitorId::Wayland(ref monitor_id),
+        }) = attributes.fullscreen
+        {
+            frame.set_fullscreen(Some(&monitor_id.proxy));
         } else if attributes.maximized {
-            frame.set_state(FrameState::Maximized);
+            frame.set_maximized();
         }
 
         // set decorations
         frame.set_decorate(attributes.decorations);
 
         // min-max dimensions
-        frame.set_min_size(attributes.min_dimensions.map(|(w, h)| (w as i32, h as i32)));
-        frame.set_max_size(attributes.max_dimensions.map(|(w, h)| (w as i32, h as i32)));
-
-        // setup the monitor tracking
-        let monitor_list = Arc::new(Mutex::new(MonitorList::default()));
-        {
-            let mut evq = evlp.evq.borrow_mut();
-            let idata = (evlp.ctxt_token.clone(), monitor_list.clone());
-            evq.register(&surface, surface_impl(), idata);
-        }
+        frame.set_min_size(attributes.min_dimensions);
+        frame.set_max_size(attributes.max_dimensions);
 
         let kill_switch = Arc::new(Mutex::new(false));
         let need_frame_refresh = Arc::new(Mutex::new(true));
         let frame = Arc::new(Mutex::new(frame));
 
-        {
-            let mut evq = evlp.evq.borrow_mut();
-            evq.state().get_mut(&store_token).windows.push(InternalWindow {
-                closed: false,
-                newsize: None,
-                need_refresh: false,
-                need_frame_refresh: need_frame_refresh.clone(),
-                surface: surface.clone().unwrap(),
-                kill_switch: kill_switch.clone(),
-                frame: Arc::downgrade(&frame)
-            });
-            evq.sync_roundtrip().unwrap();
-        }
+        evlp.store.lock().unwrap().windows.push(InternalWindow {
+            closed: false,
+            newsize: None,
+            need_refresh: false,
+            need_frame_refresh: need_frame_refresh.clone(),
+            surface: surface.clone(),
+            kill_switch: kill_switch.clone(),
+            frame: Arc::downgrade(&frame),
+        });
+        evlp.evq.borrow_mut().sync_roundtrip().unwrap();
 
         Ok(Window {
             display: evlp.display.clone(),
@@ -84,7 +131,7 @@ impl Window {
             monitors: monitor_list,
             size: size,
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
-            need_frame_refresh: need_frame_refresh
+            need_frame_refresh: need_frame_refresh,
         })
     }
 
@@ -131,25 +178,25 @@ impl Window {
     #[inline]
     pub fn get_outer_size(&self) -> Option<(u32, u32)> {
         let (w, h) = self.size.lock().unwrap().clone();
-        let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
+        // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
         Some((w as u32, h as u32))
     }
 
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, x: u32, y: u32) {
-        self.frame.lock().unwrap().resize(x as i32, y as i32);
+        self.frame.lock().unwrap().resize(x, y);
         *(self.size.lock().unwrap()) = (x, y);
     }
 
     #[inline]
     pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
-        self.frame.lock().unwrap().set_min_size(dimensions.map(|(w, h)| (w as i32, h as i32)));
+        self.frame.lock().unwrap().set_min_size(dimensions);
     }
 
     #[inline]
     pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
-        self.frame.lock().unwrap().set_max_size(dimensions.map(|(w, h)| (w as i32, h as i32)));
+        self.frame.lock().unwrap().set_max_size(dimensions);
     }
 
     #[inline]
@@ -159,22 +206,22 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        use CursorState::{Grab, Normal, Hide};
+        use CursorState::{Grab, Hide, Normal};
         // TODO : not yet possible on wayland to grab cursor
         match state {
             Grab => Err("Cursor cannot be grabbed on wayland yet.".to_string()),
             Hide => Err("Cursor cannot be hidden on wayland yet.".to_string()),
-            Normal => Ok(())
+            Normal => Ok(()),
         }
     }
 
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
-        let mut factor = 1.0;
+        let mut factor: f32 = 1.0;
         let guard = self.monitors.lock().unwrap();
-        for monitor_id in &guard.monitors {
-            let info = monitor_id.info.lock().unwrap();
-            if info.scale > factor { factor = info.scale; }
+        for monitor_id in guard.iter() {
+            let hidpif = monitor_id.get_hidpi_factor();
+            factor = factor.max(hidpif);
         }
         factor
     }
@@ -186,18 +233,23 @@ impl Window {
 
     pub fn set_maximized(&self, maximized: bool) {
         if maximized {
-            self.frame.lock().unwrap().set_state(FrameState::Maximized);
+            self.frame.lock().unwrap().set_maximized();
         } else {
-            self.frame.lock().unwrap().set_state(FrameState::Regular);
+            self.frame.lock().unwrap().unset_maximized();
         }
     }
 
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
-        if let Some(RootMonitorId { inner: PlatformMonitorId::Wayland(ref monitor_id) }) = monitor {
-            let info = monitor_id.info.lock().unwrap();
-            self.frame.lock().unwrap().set_state(FrameState::Fullscreen(Some(&info.output)));
+        if let Some(RootMonitorId {
+            inner: PlatformMonitorId::Wayland(ref monitor_id),
+        }) = monitor
+        {
+            self.frame
+                .lock()
+                .unwrap()
+                .set_fullscreen(Some(&monitor_id.proxy));
         } else {
-            self.frame.lock().unwrap().set_state(FrameState::Regular);
+            self.frame.lock().unwrap().unset_fullscreen();
         }
     }
 
@@ -207,11 +259,11 @@ impl Window {
         Err(())
     }
 
-    pub fn get_display(&self) -> &wl_display::WlDisplay {
+    pub fn get_display(&self) -> &Display {
         &*self.display
     }
 
-    pub fn get_surface(&self) -> &wl_surface::WlSurface {
+    pub fn get_surface(&self) -> &Proxy<wl_surface::WlSurface> {
         &self.surface
     }
 
@@ -219,7 +271,7 @@ impl Window {
         // we don't know how much each monitor sees us so...
         // just return the most recent one ?
         let guard = self.monitors.lock().unwrap();
-        guard.monitors.last().unwrap().clone()
+        guard.last().unwrap().clone()
     }
 }
 
@@ -235,25 +287,27 @@ impl Drop for Window {
  */
 
 struct InternalWindow {
-    surface: wl_surface::WlSurface,
+    surface: Proxy<wl_surface::WlSurface>,
     newsize: Option<(i32, i32)>,
     need_refresh: bool,
     need_frame_refresh: Arc<Mutex<bool>>,
     closed: bool,
     kill_switch: Arc<Mutex<bool>>,
-    frame: Weak<Mutex<Frame>>
+    frame: Weak<Mutex<SWindow<BasicFrame>>>,
 }
 
 pub struct WindowStore {
-    windows: Vec<InternalWindow>
+    windows: Vec<InternalWindow>,
 }
 
 impl WindowStore {
     pub fn new() -> WindowStore {
-        WindowStore { windows: Vec::new() }
+        WindowStore {
+            windows: Vec::new(),
+        }
     }
 
-    pub fn find_wid(&self, surface: &wl_surface::WlSurface) -> Option<WindowId> {
+    pub fn find_wid(&self, surface: &Proxy<wl_surface::WlSurface>) -> Option<WindowId> {
         for window in &self.windows {
             if surface.equals(&window.surface) {
                 return Some(make_wid(surface));
@@ -277,8 +331,17 @@ impl WindowStore {
         pruned
     }
 
+    pub fn new_seat(&self, seat: &Proxy<wl_seat::WlSeat>) {
+        for window in &self.windows {
+            if let Some(w) = window.frame.upgrade() {
+                w.lock().unwrap().new_seat(seat);
+            }
+        }
+    }
+
     pub fn for_each<F>(&mut self, mut f: F)
-    where F: FnMut(Option<(i32, i32)>, bool, bool, bool, WindowId, Option<&mut Frame>)
+    where
+        F: FnMut(Option<(i32, i32)>, bool, bool, bool, WindowId, Option<&mut SWindow<BasicFrame>>),
     {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();
@@ -289,76 +352,11 @@ impl WindowStore {
                 ::std::mem::replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
                 make_wid(&window.surface),
-                opt_mutex_lock.as_mut().map(|m| &mut **m)
+                opt_mutex_lock.as_mut().map(|m| &mut **m),
             );
             window.need_refresh = false;
             // avoid re-spamming the event
             window.closed = false;
-        }
-    }
-}
-
-/*
- * Protocol implementation
- */
-
-struct FrameIData {
-    store_token: StateToken<WindowStore>,
-    surface: wl_surface::WlSurface
-}
-
-fn decorated_impl() -> FrameImplementation<FrameIData> {
-    FrameImplementation {
-        configure: |evqh, idata, _, newsize| {
-            let store = evqh.state().get_mut(&idata.store_token);
-            for window in &mut store.windows {
-                if window.surface.equals(&idata.surface) {
-                    window.newsize = newsize;
-                    window.need_refresh = true;
-                    *(window.need_frame_refresh.lock().unwrap()) = true;
-                    return;
-                }
-            }
-        },
-        close: |evqh, idata| {
-            let store = evqh.state().get_mut(&idata.store_token);
-            for window in &mut store.windows {
-                if window.surface.equals(&idata.surface) {
-                    window.closed = true;
-                    return;
-                }
-            }
-        },
-        refresh: |evqh, idata| {
-            let store = evqh.state().get_mut(&idata.store_token);
-            for window in &mut store.windows {
-                if window.surface.equals(&idata.surface) {
-                    *(window.need_frame_refresh.lock().unwrap()) = true;
-                    return;
-                }
-            }
-        }
-    }
-}
-
-#[derive(Default)]
-struct MonitorList {
-    monitors: Vec<MonitorId>
-}
-
-fn surface_impl() -> wl_surface::Implementation<(StateToken<StateContext>, Arc<Mutex<MonitorList>>)> {
-    wl_surface::Implementation {
-        enter: |evqh, &mut (ref token, ref list), _, output| {
-            let mut guard = list.lock().unwrap();
-            let ctxt = evqh.state().get(token);
-            let monitor = ctxt.monitor_id_for(output);
-            guard.monitors.push(monitor);
-        },
-        leave: |evqh, &mut (ref token, ref list), _, output| {
-            let mut guard = list.lock().unwrap();
-            let ctxt = evqh.state().get(token);
-            let monitor = ctxt.monitor_id_for(output);
-            guard.monitors.retain(|m| !Arc::ptr_eq(&m.info, &monitor.info));
         }
     }
 }
