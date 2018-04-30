@@ -382,15 +382,25 @@ impl Window2 {
                 (*size_hints).flags = ffi::PSize;
                 (*size_hints).width = dimensions.0 as c_int;
                 (*size_hints).height = dimensions.1 as c_int;
-                if let Some(dimensions) = window_attrs.min_dimensions {
+                if let Some((min_width, min_height)) = window_attrs.min_dimensions {
                     (*size_hints).flags |= ffi::PMinSize;
-                    (*size_hints).min_width = dimensions.0 as c_int;
-                    (*size_hints).min_height = dimensions.1 as c_int;
+                    (*size_hints).min_width = min_width as c_int;
+                    (*size_hints).min_height = min_height as c_int;
                 }
-                if let Some(dimensions) = window_attrs.max_dimensions {
+                if let Some((max_width, max_height)) = window_attrs.max_dimensions {
                     (*size_hints).flags |= ffi::PMaxSize;
-                    (*size_hints).max_width = dimensions.0 as c_int;
-                    (*size_hints).max_height = dimensions.1 as c_int;
+                    (*size_hints).max_width = max_width as c_int;
+                    (*size_hints).max_height = max_height as c_int;
+                }
+                if let Some((width_inc, height_inc)) = pl_attribs.resize_increments {
+                    (*size_hints).flags |= ffi::PResizeInc;
+                    (*size_hints).width_inc = width_inc as c_int;
+                    (*size_hints).height_inc = height_inc as c_int;
+                }
+                if let Some((base_width, base_height)) = pl_attribs.base_size {
+                    (*size_hints).flags |= ffi::PBaseSize;
+                    (*size_hints).base_width = base_width as c_int;
+                    (*size_hints).base_height = base_height as c_int;
                 }
                 unsafe {
                     (display.xlib.XSetWMNormalHints)(
