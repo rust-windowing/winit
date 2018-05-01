@@ -340,28 +340,39 @@ impl EventsLoop {
         if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
             match env_var.as_str() {
                 "x11" => {
-                    return EventsLoop::new_x11().unwrap();      // TODO: propagate
+                    // TODO: propagate
+                    return EventsLoop::new_x11().expect("Failed to initialize X11 backend");
                 },
                 "wayland" => {
-                    match EventsLoop::new_wayland() {
-                        Ok(e) => return e,
-                        Err(_) => panic!()      // TODO: propagate
-                    }
+                    return EventsLoop::new_wayland()
+                        .expect("Failed to initialize Wayland backend");
                 },
-                _ => panic!("Unknown environment variable value for {}, try one of `x11`,`wayland`",
-                            BACKEND_PREFERENCE_ENV_VAR),
+                _ => panic!(
+                    "Unknown environment variable value for {}, try one of `x11`,`wayland`",
+                    BACKEND_PREFERENCE_ENV_VAR,
+                ),
             }
         }
 
-        if let Ok(el) = EventsLoop::new_wayland() {
-            return el;
-        }
+        let wayland_err = match EventsLoop::new_wayland() {
+            Ok(event_loop) => return event_loop,
+            Err(err) => err,
+        };
 
-        if let Ok(el) = EventsLoop::new_x11() {
-            return el;
-        }
+        let x11_err = match EventsLoop::new_x11() {
+            Ok(event_loop) => return event_loop,
+            Err(err) => err,
+        };
 
-        panic!("No backend is available")
+        let err_string = format!(
+r#"Failed to initialize any backend!
+    Wayland status: {:#?}
+    X11 status: {:#?}
+"#,
+            wayland_err,
+            x11_err,
+        );
+        panic!(err_string);
     }
 
     pub fn new_wayland() -> Result<EventsLoop, ()> {

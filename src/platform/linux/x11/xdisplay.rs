@@ -29,12 +29,12 @@ pub type XErrorHandler = Option<unsafe extern fn(*mut ffi::Display, *mut ffi::XE
 impl XConnection {
     pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
         // opening the libraries
-        let xlib = try!(ffi::Xlib::open());
-        let xcursor = try!(ffi::Xcursor::open());
-        let xrandr = try!(ffi::Xrandr_2_2_0::open());
+        let xlib = ffi::Xlib::open()?;
+        let xcursor = ffi::Xcursor::open()?;
+        let xrandr = ffi::Xrandr_2_2_0::open()?;
         let xrandr_1_5 = ffi::Xrandr::open().ok();
-        let xinput2 = try!(ffi::XInput2::open());
-        let xlib_xcb = try!(ffi::Xlib_xcb::open());
+        let xinput2 = ffi::XInput2::open()?;
+        let xlib_xcb = ffi::Xlib_xcb::open()?;
 
         unsafe { (xlib.XInitThreads)() };
         unsafe { (xlib.XSetErrorHandler)(error_handler) };
@@ -49,13 +49,13 @@ impl XConnection {
         };
 
         Ok(XConnection {
-            xlib: xlib,
-            xrandr: xrandr,
-            xrandr_1_5: xrandr_1_5,
-            xcursor: xcursor,
-            xinput2: xinput2,
-            xlib_xcb: xlib_xcb,
-            display: display,
+            xlib,
+            xrandr,
+            xrandr_1_5,
+            xcursor,
+            xinput2,
+            xlib_xcb,
+            display,
             latest_error: Mutex::new(None),
         })
     }
