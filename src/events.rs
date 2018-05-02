@@ -431,6 +431,8 @@ pub enum VirtualKeyCode {
     WebSearch,
     WebStop,
     Yen,
+    Copy,
+    Paste,
 }
 
 /// Represents the current state of the keyboard modifiers
