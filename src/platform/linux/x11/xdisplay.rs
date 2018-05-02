@@ -1,9 +1,9 @@
 use std::ptr;
 use std::fmt;
 use std::error::Error;
-use std::sync::Mutex;
 
 use libc;
+use parking_lot::Mutex;
 
 use super::ffi;
 
@@ -63,8 +63,7 @@ impl XConnection {
     /// Checks whether an error has been triggered by the previous function calls.
     #[inline]
     pub fn check_errors(&self) -> Result<(), XError> {
-        let error = self.latest_error.lock().unwrap().take();
-
+        let error = self.latest_error.lock().take();
         if let Some(error) = error {
             Err(error)
         } else {
@@ -75,7 +74,7 @@ impl XConnection {
     /// Ignores any previous error.
     #[inline]
     pub fn ignore_error(&self) {
-        *self.latest_error.lock().unwrap() = None;
+        *self.latest_error.lock() = None;
     }
 }
 
