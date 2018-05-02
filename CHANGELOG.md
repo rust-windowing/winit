@@ -1,5 +1,6 @@
 # Unreleased
 
+- Added `Copy`, `Paste` and `Cut` `VirtualKeyCode`s on Linux and Windows
 - Fix `.with_decorations(false)` in macOS
 - On Mac, `NSWindow` and supporting objects might be alive long after they were `closed` which resulted in apps consuming more heap then needed. Mainly it was affecting multi window applications. Not expecting any user visible change of behaviour after the fix.
 - Fix regression of Window platform extensions for macOS where `NSFullSizeContentViewWindowMask` was not being correctly applied to `.fullsize_content_view`.

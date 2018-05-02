@@ -433,6 +433,7 @@ pub enum VirtualKeyCode {
     Yen,
     Copy,
     Paste,
+    Cut,
 }
 
 /// Represents the current state of the keyboard modifiers

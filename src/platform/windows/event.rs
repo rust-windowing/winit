@@ -201,8 +201,9 @@ pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
         winuser::VK_NONAME => Some(VirtualKeyCode::Noname),
         winuser::VK_PA1 => Some(VirtualKeyCode::Pa1),
         winuser::VK_OEM_CLEAR => Some(VirtualKeyCode::Oem_clear),*/
-        winuser::WM_COPY => Some(VirtualKeyCode::Copy),
-        winuser::WM_PASTE => Some(VirtualKeyCode::Paste),
+        winuser::APPCOMMAND_COPY => Some(VirtualKeyCode::Copy),
+        winuser::APPCOMMAND_PASTE => Some(VirtualKeyCode::Paste),
+        winuser::APPCOMMAND_CUT => Some(VirtualKeyCode::Cut),
         _ => None
     }
 }
