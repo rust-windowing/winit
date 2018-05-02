@@ -749,7 +749,10 @@ impl EventsLoop {
                         {
                             let mask = unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
                             let mut devices = self.devices.borrow_mut();
-                            let physical_device = devices.get_mut(&DeviceId(xev.sourceid)).unwrap();
+                            let physical_device = match devices.get_mut(&DeviceId(xev.sourceid)) {
+                                Some(device) => device,
+                                None => return,
+                            };
 
                             let mut value = xev.valuators.values;
                             for i in 0..xev.valuators.mask_len*8 {
@@ -797,10 +800,15 @@ impl EventsLoop {
                         let device_id = mkdid(xev.deviceid);
 
                         let mut devices = self.devices.borrow_mut();
-                        let physical_device = devices.get_mut(&DeviceId(xev.sourceid)).unwrap();
-                        for info in DeviceInfo::get(&self.display, ffi::XIAllDevices).iter() {
-                            if info.deviceid == xev.sourceid {
-                                physical_device.reset_scroll_position(info);
+                        let physical_device = match devices.get_mut(&DeviceId(xev.sourceid)) {
+                            Some(device) => device,
+                            None => return,
+                        };
+                        if let Some(all_info) = DeviceInfo::get(&self.display, ffi::XIAllDevices) {
+                            for device_info in all_info.iter() {
+                                if device_info.deviceid == xev.sourceid {
+                                    physical_device.reset_scroll_position(device_info);
+                                }
                             }
                         }
                         callback(Event::WindowEvent {
@@ -1037,8 +1045,10 @@ impl EventsLoop {
 
     fn init_device(&self, device: c_int) {
         let mut devices = self.devices.borrow_mut();
-        for info in DeviceInfo::get(&self.display, device).iter() {
-            devices.insert(DeviceId(info.deviceid), Device::new(&self, info));
+        if let Some(info) = DeviceInfo::get(&self.display, device) {
+            for info in info.iter() {
+                devices.insert(DeviceId(info.deviceid), Device::new(&self, info));
+            }
         }
     }
 }
@@ -1081,21 +1091,30 @@ struct DeviceInfo<'a> {
 }
 
 impl<'a> DeviceInfo<'a> {
-    fn get(display: &'a XConnection, device: c_int) -> Self {
+    fn get(display: &'a XConnection, device: c_int) -> Option<Self> {
         unsafe {
             let mut count = mem::uninitialized();
             let info = (display.xinput2.XIQueryDevice)(display.display, device, &mut count);
-            DeviceInfo {
-                display: display,
-                info: info,
-                count: count as usize,
-            }
+            display.check_errors()
+                .ok()
+                .and_then(|_| {
+                    if info.is_null() || count == 0 {
+                        None
+                    } else {
+                        Some(DeviceInfo {
+                            display,
+                            info,
+                            count: count as usize,
+                        })
+                    }
+                })
         }
     }
 }
 
 impl<'a> Drop for DeviceInfo<'a> {
     fn drop(&mut self) {
+        assert!(!self.info.is_null());
         unsafe { (self.display.xinput2.XIFreeDeviceInfo)(self.info as *mut _) };
     }
 }
