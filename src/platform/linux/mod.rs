@@ -1,18 +1,19 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
 use std::collections::VecDeque;
+use std::{env, mem};
+use std::ffi::CStr;
+use std::os::raw::*;
 use std::sync::Arc;
-use std::env;
 
-use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow};
 use libc;
 
+use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow};
+use window::MonitorId as RootMonitorId;
 use self::x11::XConnection;
 use self::x11::XError;
 use self::x11::ffi::XVisualInfo;
-
 pub use self::x11::XNotSupported;
-use window::MonitorId as RootMonitorId;
 
 mod dlopen;
 pub mod wayland;
@@ -303,15 +304,19 @@ impl Window {
     }
 }
 
-unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x11::ffi::XErrorEvent)
-                                      -> libc::c_int
-{
-    use std::ffi::CStr;
-
-    if let Ok(ref x) = *X11_BACKEND {
-        let mut buff: Vec<u8> = Vec::with_capacity(1024);
-        (x.xlib.XGetErrorText)(dpy, (*event).error_code as i32, buff.as_mut_ptr() as *mut libc::c_char, buff.capacity() as i32);
-        let description = CStr::from_ptr(buff.as_mut_ptr() as *const libc::c_char).to_string_lossy();
+unsafe extern "C" fn x_error_callback(
+    display: *mut x11::ffi::Display,
+    event: *mut x11::ffi::XErrorEvent,
+) -> c_int {
+    if let Ok(ref xconn) = *X11_BACKEND {
+        let mut buf: [c_char; 1024] = mem::uninitialized();
+        (xconn.xlib.XGetErrorText)(
+            display,
+            (*event).error_code as c_int,
+            buf.as_mut_ptr(),
+            buf.len() as c_int,
+        );
+        let description = CStr::from_ptr(buf.as_ptr()).to_string_lossy();
 
         let error = XError {
             description: description.into_owned(),
@@ -320,9 +325,9 @@ unsafe extern "C" fn x_error_callback(dpy: *mut x11::ffi::Display, event: *mut x
             minor_code: (*event).minor_code,
         };
 
-        *x.latest_error.lock().unwrap() = Some(error);
+        *xconn.latest_error.lock() = Some(error);
     }
-
+    // Fun fact: this return value is completely ignored.
     0
 }
 
@@ -342,28 +347,39 @@ impl EventsLoop {
         if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
             match env_var.as_str() {
                 "x11" => {
-                    return EventsLoop::new_x11().unwrap();      // TODO: propagate
+                    // TODO: propagate
+                    return EventsLoop::new_x11().expect("Failed to initialize X11 backend");
                 },
                 "wayland" => {
-                    match EventsLoop::new_wayland() {
-                        Ok(e) => return e,
-                        Err(_) => panic!()      // TODO: propagate
-                    }
+                    return EventsLoop::new_wayland()
+                        .expect("Failed to initialize Wayland backend");
                 },
-                _ => panic!("Unknown environment variable value for {}, try one of `x11`,`wayland`",
-                            BACKEND_PREFERENCE_ENV_VAR),
+                _ => panic!(
+                    "Unknown environment variable value for {}, try one of `x11`,`wayland`",
+                    BACKEND_PREFERENCE_ENV_VAR,
+                ),
             }
         }
 
-        if let Ok(el) = EventsLoop::new_wayland() {
-            return el;
-        }
+        let wayland_err = match EventsLoop::new_wayland() {
+            Ok(event_loop) => return event_loop,
+            Err(err) => err,
+        };
 
-        if let Ok(el) = EventsLoop::new_x11() {
-            return el;
-        }
+        let x11_err = match EventsLoop::new_x11() {
+            Ok(event_loop) => return event_loop,
+            Err(err) => err,
+        };
 
-        panic!("No backend is available")
+        let err_string = format!(
+r#"Failed to initialize any backend!
+    Wayland status: {:#?}
+    X11 status: {:#?}
+"#,
+            wayland_err,
+            x11_err,
+        );
+        panic!(err_string);
     }
 
     pub fn new_wayland() -> Result<EventsLoop, ()> {

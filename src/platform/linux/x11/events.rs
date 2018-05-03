@@ -1000,6 +1000,9 @@ pub fn keysym_to_element(keysym: libc::c_uint) -> Option<VirtualKeyCode> {
         //ffi::XK_Hebrew_switch => events::VirtualKeyCode::Hebrew_switch,
         ffi::XF86XK_Back => VirtualKeyCode::NavigateBackward,
         ffi::XF86XK_Forward => VirtualKeyCode::NavigateForward,
+        ffi::XF86XK_Copy => VirtualKeyCode::Copy,
+        ffi::XF86XK_Paste => VirtualKeyCode::Paste,
+        ffi::XF86XK_Cut => VirtualKeyCode::Cut,
         _ => return None
     })
 }

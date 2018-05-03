@@ -290,6 +290,9 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         // => Some(VirtualKeyCode::WebSearch),
         // => Some(VirtualKeyCode::WebStop),
         // => Some(VirtualKeyCode::Yen),
+        keysyms::XKB_KEY_XF86Copy => Some(VirtualKeyCode::Copy),
+        keysyms::XKB_KEY_XF86Paste => Some(VirtualKeyCode::Paste),
+        keysyms::XKB_KEY_XF86Cut => Some(VirtualKeyCode::Cut),
         // fallback
         _ => None
     }
