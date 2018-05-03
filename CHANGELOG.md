@@ -14,6 +14,7 @@
 - Various safety and correctness improvements to the X11 backend internals.
 - Fixed memory leak on X11 every time the mouse entered the window.
 - On X11, drag and drop now works reliably in release mode.
+- Added `WindowBuilderExt::with_resize_increments` and `WindowBuilderExt::with_base_size` to X11, allowing for more optional hints to be set.
 
 # Version 0.13.1 (2018-04-26)
 

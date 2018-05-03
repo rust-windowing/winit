@@ -199,6 +199,11 @@ impl WindowExt for Window {
 pub trait WindowBuilderExt {
     fn with_x11_visual<T>(self, visual_infos: *const T) -> WindowBuilder;
     fn with_x11_screen(self, screen_id: i32) -> WindowBuilder;
+
+    /// Build window with resize increment hint. Only implemented on X11.
+    fn with_resize_increments(self, width_inc: i32, height_inc: i32) -> WindowBuilder;
+    /// Build window with base size hint. Only implemented on X11.
+    fn with_base_size(self, base_width: i32, base_height: i32) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -213,6 +218,18 @@ impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_x11_screen(mut self, screen_id: i32) -> WindowBuilder {
         self.platform_specific.screen_id = Some(screen_id);
+        self
+    }
+
+    #[inline]
+    fn with_resize_increments(mut self, width_inc: i32, height_inc: i32) -> WindowBuilder {
+        self.platform_specific.resize_increments = Some((width_inc, height_inc));
+        self
+    }
+
+    #[inline]
+    fn with_base_size(mut self, base_width: i32, base_height: i32) -> WindowBuilder {
+        self.platform_specific.base_size = Some((base_width, base_height));
         self
     }
 }
