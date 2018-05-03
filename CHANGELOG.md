@@ -15,6 +15,7 @@
 - Fixed memory leak on X11 every time the mouse entered the window.
 - On X11, drag and drop now works reliably in release mode.
 - Added `WindowBuilderExt::with_resize_increments` and `WindowBuilderExt::with_base_size` to X11, allowing for more optional hints to be set.
+- Rework of the wayland backend, migrating it to use [Smithay's Client Toolkit](https://github.com/Smithay/client-toolkit).
 
 # Version 0.13.1 (2018-04-26)
 
