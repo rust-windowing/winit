@@ -7,9 +7,13 @@
 - Corrected `get_position` on Windows to be relative to the screen rather than to the taskbar.
 - Corrected `Moved` event on Windows to use position values equivalent to those returned by `get_position`. It previously supplied client area positions instead of window positions, and would additionally interpret negative values as being very large (around `u16::MAX`).
 - Implemented `Moved` event on macOS.
+- On X11, the `Moved` event correctly use window positions rather than client area positions. Additionally, a stray `Moved` that unconditionally accompanied `Resized` with the client area position relative to the parent has been eliminated; `Moved` is still received alongside `Resized`, but now only once and always correctly.
 - On Windows, implemented all variants of `DeviceEvent` other than `Text`. Mouse `DeviceEvent`s are now received even if the window isn't in the foreground.
 - `DeviceId` on Windows is no longer a unit struct, and now contains a `u32`. For `WindowEvent`s, this will always be 0, but on `DeviceEvent`s it will be the handle to that device. `DeviceIdExt::get_persistent_identifier` can be used to acquire a unique identifier for that device that persists across replugs/reboots/etc.
 - Corrected `run_forever` on X11 to stop discarding `Awakened` events.
+- Various safety and correctness improvements to the X11 backend internals.
+- Fixed memory leak on X11 every time the mouse entered the window.
+- On X11, drag and drop now works reliably in release mode.
 
 # Version 0.13.1 (2018-04-26)
 
