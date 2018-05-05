@@ -255,19 +255,17 @@ impl Window {
 
     #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
-        use wayland_client::Proxy;
         match self {
             &Window::X(ref w) => w.platform_display(),
-            &Window::Wayland(ref w) => w.get_display().ptr() as *mut _
+            &Window::Wayland(ref w) => w.get_display().c_ptr() as *mut _
         }
     }
 
     #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
-        use wayland_client::Proxy;
         match self {
             &Window::X(ref w) => w.platform_window(),
-            &Window::Wayland(ref w) => w.get_surface().ptr() as *mut _
+            &Window::Wayland(ref w) => w.get_surface().c_ptr() as *mut _
         }
     }
 

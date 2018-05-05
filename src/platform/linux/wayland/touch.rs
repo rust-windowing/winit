@@ -1,106 +1,93 @@
 use std::sync::{Arc, Mutex};
 
-use {WindowEvent as Event, TouchPhase};
+use {TouchPhase, WindowEvent};
 
-use super::{WindowId, DeviceId};
+use super::{DeviceId, WindowId};
 use super::event_loop::EventsLoopSink;
 use super::window::WindowStore;
 
-use wayland_client::StateToken;
-use wayland_client::protocol::wl_touch;
-
-pub struct TouchIData {
-    sink: Arc<Mutex<EventsLoopSink>>,
-    windows_token: StateToken<WindowStore>,
-    pending_ids: Vec<TouchPoint>,
-}
+use sctk::reexports::client::{NewProxy, Proxy};
+use sctk::reexports::client::protocol::wl_touch::{Event as TouchEvent, WlTouch};
 
 struct TouchPoint {
     wid: WindowId,
     location: (f64, f64),
-    id: i32
+    id: i32,
 }
 
-impl TouchIData {
-    pub fn new(sink: &Arc<Mutex<EventsLoopSink>>, token: StateToken<WindowStore>)
-        -> TouchIData
-    {
-        TouchIData {
-            sink: sink.clone(),
-            windows_token: token,
-            pending_ids: Vec::new(),
-        }
-    }
-}
-
-pub fn touch_implementation() -> wl_touch::Implementation<TouchIData> {
-    wl_touch::Implementation {
-        down: |evqh, idata, _, _serial, _time, surface, touch_id, x, y| {
-            let wid = evqh.state().get(&idata.windows_token).find_wid(surface);
-            if let Some(wid) = wid {
-                let mut guard = idata.sink.lock().unwrap();
-                guard.send_event(
-                    Event::Touch(::Touch {
-                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                        phase: TouchPhase::Started,
+pub(crate) fn implement_touch(
+    touch: NewProxy<WlTouch>,
+    sink: Arc<Mutex<EventsLoopSink>>,
+    store: Arc<Mutex<WindowStore>>,
+) -> Proxy<WlTouch> {
+    let mut pending_ids = Vec::new();
+    touch.implement(move |evt, _| {
+        let mut sink = sink.lock().unwrap();
+        let store = store.lock().unwrap();
+        match evt {
+            TouchEvent::Down {
+                surface, id, x, y, ..
+            } => {
+                let wid = store.find_wid(&surface);
+                if let Some(wid) = wid {
+                    sink.send_event(
+                        WindowEvent::Touch(::Touch {
+                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            phase: TouchPhase::Started,
+                            location: (x, y),
+                            id: id as u64,
+                        }),
+                        wid,
+                    );
+                    pending_ids.push(TouchPoint {
+                        wid: wid,
                         location: (x, y),
-                        id: touch_id as u64
-                    }),
-                    wid,
-                );
-                idata.pending_ids.push(TouchPoint {
-                    wid: wid,
-                    location: (x, y),
-                    id: touch_id
-                });
+                        id: id,
+                    });
+                }
             }
-        },
-        up: |_, idata, _, _serial, _time, touch_id| {
-            let idx = idata.pending_ids.iter().position(|p| p.id == touch_id);
-            if let Some(idx) = idx {
-                let pt = idata.pending_ids.remove(idx);
-                let mut guard = idata.sink.lock().unwrap();
-                guard.send_event(
-                    Event::Touch(::Touch {
-                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                        phase: TouchPhase::Ended,
-                        location: pt.location,
-                        id: touch_id as u64
-                    }),
-                    pt.wid,
-                );
+            TouchEvent::Up { id, .. } => {
+                let idx = pending_ids.iter().position(|p| p.id == id);
+                if let Some(idx) = idx {
+                    let pt = pending_ids.remove(idx);
+                    sink.send_event(
+                        WindowEvent::Touch(::Touch {
+                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            phase: TouchPhase::Ended,
+                            location: pt.location,
+                            id: id as u64,
+                        }),
+                        pt.wid,
+                    );
+                }
             }
-        },
-        motion: |_, idata, _, _time, touch_id, x, y| {
-            let pt = idata.pending_ids.iter_mut().find(|p| p.id == touch_id);
-            if let Some(pt) = pt {
-                let mut guard = idata.sink.lock().unwrap();
-                pt.location = (x, y);
-                guard.send_event(
-                    Event::Touch(::Touch {
-                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                        phase: TouchPhase::Moved,
-                        location: (x, y),
-                        id: touch_id as u64
-                    }),
-                    pt.wid,
-                );
+            TouchEvent::Motion { id, x, y, .. } => {
+                let pt = pending_ids.iter_mut().find(|p| p.id == id);
+                if let Some(pt) = pt {
+                    pt.location = (x, y);
+                    sink.send_event(
+                        WindowEvent::Touch(::Touch {
+                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            phase: TouchPhase::Moved,
+                            location: (x, y),
+                            id: id as u64,
+                        }),
+                        pt.wid,
+                    );
+                }
             }
-        },
-        frame: |_, _, _| {},
-        cancel: |_, idata, _| {
-            let mut guard = idata.sink.lock().unwrap();
-            for pt in idata.pending_ids.drain(..) {
-                guard.send_event(
-                    Event::Touch(::Touch {
+            TouchEvent::Frame => (),
+            TouchEvent::Cancel => for pt in pending_ids.drain(..) {
+                sink.send_event(
+                    WindowEvent::Touch(::Touch {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                         phase: TouchPhase::Cancelled,
                         location: pt.location,
-                        id: pt.id as u64
+                        id: pt.id as u64,
                     }),
                     pt.wid,
                 );
-            }
+            },
         }
-    }
+    })
 }
