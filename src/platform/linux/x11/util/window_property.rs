@@ -3,6 +3,9 @@ use std::fmt::Debug;
 
 use super::*;
 
+pub type Cardinal = c_long;
+pub const CARDINAL_SIZE: usize = mem::size_of::<c_long>();
+
 #[derive(Debug, Clone)]
 pub enum GetPropertyError {
     XError(XError),

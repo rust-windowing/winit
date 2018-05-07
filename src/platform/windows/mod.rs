@@ -10,6 +10,7 @@ pub use self::window::Window;
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub parent: Option<HWND>,
+    pub taskbar_icon: Option<::Icon>,
 }
 
 unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
@@ -45,6 +46,7 @@ unsafe impl Sync for WindowId {}
 
 mod event;
 mod events_loop;
+mod icon;
 mod monitor;
 mod raw_input;
 mod util;

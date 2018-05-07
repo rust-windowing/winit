@@ -6,12 +6,20 @@ use std::ffi::CStr;
 use std::os::raw::*;
 use std::sync::Arc;
 
+// `std::os::raw::c_void` and `libc::c_void` are NOT interchangeable!
 use libc;
 
-use {CreationError, CursorState, EventsLoopClosed, MouseCursor, ControlFlow};
+use {
+    CreationError,
+    CursorState,
+    EventsLoopClosed,
+    Icon,
+    MouseCursor,
+    ControlFlow,
+    WindowAttributes,
+};
 use window::MonitorId as RootMonitorId;
-use self::x11::XConnection;
-use self::x11::XError;
+use self::x11::{XConnection, XError};
 use self::x11::ffi::XVisualInfo;
 pub use self::x11::XNotSupported;
 
@@ -109,18 +117,17 @@ impl MonitorId {
 
 impl Window {
     #[inline]
-    pub fn new(events_loop: &EventsLoop,
-               window: &::WindowAttributes,
-               pl_attribs: &PlatformSpecificWindowBuilderAttributes)
-               -> Result<Self, CreationError>
-    {
+    pub fn new(
+        events_loop: &EventsLoop,
+        attribs: WindowAttributes,
+        pl_attribs: PlatformSpecificWindowBuilderAttributes,
+    ) -> Result<Self, CreationError> {
         match *events_loop {
-            EventsLoop::Wayland(ref evlp) => {
-                wayland::Window::new(evlp, window).map(Window::Wayland)
+            EventsLoop::Wayland(ref events_loop) => {
+                wayland::Window::new(events_loop, attribs).map(Window::Wayland)
             },
-
-            EventsLoop::X(ref el) => {
-                x11::Window::new(el, window, pl_attribs).map(Window::X)
+            EventsLoop::X(ref events_loop) => {
+                x11::Window::new(events_loop, attribs, pl_attribs).map(Window::X)
             },
         }
     }
@@ -290,6 +297,14 @@ impl Window {
         match self {
             &Window::X(ref w) => w.set_decorations(decorations),
             &Window::Wayland(ref w) => w.set_decorations(decorations)
+        }
+    }
+
+    #[inline]
+    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+        match self {
+            &Window::X(ref w) => w.set_window_icon(window_icon),
+            &Window::Wayland(_) => (),
         }
     }
 

@@ -1,24 +1,19 @@
-use MouseCursor;
-use CreationError;
-use CreationError::OsError;
-use libc;
+use std::{cmp, mem};
 use std::borrow::Borrow;
-use std::{mem, cmp};
-use std::sync::Arc;
-use std::os::raw::*;
 use std::ffi::CString;
+use std::os::raw::*;
+use std::sync::Arc;
 
+use libc;
 use parking_lot::Mutex;
 
-use CursorState;
-use WindowAttributes;
-use platform::PlatformSpecificWindowBuilderAttributes;
-
+use {CursorState, Icon, MouseCursor, WindowAttributes};
+use CreationError::{self, OsError};
 use platform::MonitorId as PlatformMonitorId;
+use platform::PlatformSpecificWindowBuilderAttributes;
 use platform::x11::MonitorId as X11MonitorId;
-use window::MonitorId as RootMonitorId;
-
 use platform::x11::monitor::get_available_monitors;
+use window::MonitorId as RootMonitorId;
 
 use super::{ffi, util, XConnection, XError, WindowId, EventsLoop};
 
@@ -60,8 +55,8 @@ pub struct Window2 {
 impl Window2 {
     pub fn new(
         ctx: &EventsLoop,
-        window_attrs: &WindowAttributes,
-        pl_attribs: &PlatformSpecificWindowBuilderAttributes,
+        window_attrs: WindowAttributes,
+        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window2, CreationError> {
         let xconn = &ctx.display;
 
@@ -239,6 +234,11 @@ impl Window2 {
                         size_hints.ptr,
                     );
                 }//.queue();
+            }
+
+            // Set window icons
+            if let Some(icon) = window_attrs.window_icon {
+                window.set_icon_inner(icon).queue();
             }
 
             // Opt into handling window close
@@ -520,6 +520,53 @@ impl Window2 {
             .flush()
             .expect("Failed to set decoration state");
         self.invalidate_cached_frame_extents();
+    }
+
+    fn set_icon_inner(&self, icon: Icon) -> util::Flusher {
+        let xconn = &self.x.display;
+
+        let icon_atom = unsafe { util::get_atom(xconn, b"_NET_WM_ICON\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_ICON)");
+
+        let data = icon.to_cardinals();
+        unsafe {
+            util::change_property(
+                xconn,
+                self.x.window,
+                icon_atom,
+                ffi::XA_CARDINAL,
+                util::Format::Long,
+                util::PropMode::Replace,
+                data.as_slice(),
+            )
+        }
+    }
+
+    fn unset_icon_inner(&self) -> util::Flusher {
+        let xconn = &self.x.display;
+
+        let icon_atom = unsafe { util::get_atom(xconn, b"_NET_WM_ICON\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_ICON)");
+
+        let empty_data: [util::Cardinal; 0] = [];
+        unsafe {
+            util::change_property(
+                xconn,
+                self.x.window,
+                icon_atom,
+                ffi::XA_CARDINAL,
+                util::Format::Long,
+                util::PropMode::Replace,
+                &empty_data,
+            )
+        }
+    }
+
+    pub fn set_window_icon(&self, icon: Option<Icon>) {
+        match icon {
+            Some(icon) => self.set_icon_inner(icon),
+            None => self.unset_icon_inner(),
+        }.flush().expect("Failed to set icons");
     }
 
     pub fn show(&self) {

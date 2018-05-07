@@ -559,8 +559,8 @@ impl WindowExt for Window2 {
 impl Window2 {
     pub fn new(
         shared: Weak<Shared>,
-        win_attribs: &WindowAttributes,
-        pl_attribs: &PlatformSpecificWindowBuilderAttributes,
+        win_attribs: WindowAttributes,
+        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window2, CreationError> {
         unsafe {
             if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
@@ -579,7 +579,7 @@ impl Window2 {
             },
         };
 
-        let window = match Window2::create_window(win_attribs, pl_attribs)
+        let window = match Window2::create_window(&win_attribs, &pl_attribs)
         {
             Some(window) => window,
             None         => {
@@ -700,8 +700,8 @@ impl Window2 {
 
     fn create_window(
         attrs: &WindowAttributes,
-        pl_attrs: &PlatformSpecificWindowBuilderAttributes)
-        -> Option<IdRef> {
+        pl_attrs: &PlatformSpecificWindowBuilderAttributes
+    ) -> Option<IdRef> {
         unsafe {
             let autoreleasepool = NSAutoreleasePool::new(nil);
             let screen = match attrs.fullscreen {
@@ -1070,6 +1070,16 @@ impl Window2 {
 
             state.window.setStyleMask_(new_mask);
         }
+    }
+
+    #[inline]
+    pub fn set_window_icon(&self, _icon: Option<::Icon>) {
+        // macOS doesn't have window icons. Though, there is `setRepresentedFilename`, but that's
+        // semantically distinct and should only be used when the window is in some representing a
+        // specific file/directory. For instance, Terminal.app uses this for the CWD. Anyway, that
+        // should eventually be implemented as `WindowBuilderExt::with_represented_file` or
+        // something, and doesn't have anything to do with this.
+        // https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/WinPanel/Tasks/SettingWindowTitle.html
     }
 
     #[inline]

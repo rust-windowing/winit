@@ -1,35 +1,31 @@
 #![cfg(target_os = "windows")]
 
+use std::cell::Cell;
 use std::ffi::OsStr;
-use std::io;
-use std::mem;
+use std::{io, mem, ptr};
 use std::os::raw;
 use std::os::windows::ffi::OsStrExt;
-use std::ptr;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
-use std::cell::Cell;
 
-use platform::platform::events_loop::{self, DESTROY_MSG_ID};
-use platform::platform::EventsLoop;
-use platform::platform::PlatformSpecificWindowBuilderAttributes;
-use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
-use platform::platform::WindowId;
+use winapi::shared::minwindef::{BOOL, DWORD, UINT};
+use winapi::shared::windef::{HDC, HWND, POINT, RECT};
+use winapi::um::{combaseapi, dwmapi, libloaderapi, processthreadsapi, winuser};
+use winapi::um::objbase::{COINIT_MULTITHREADED};
+use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
+use winapi::um::winnt::{HRESULT, LONG, LPCWSTR};
 
 use CreationError;
 use CursorState;
+use Icon;
+use MonitorId as RootMonitorId;
 use MouseCursor;
 use WindowAttributes;
-use MonitorId as RootMonitorId;
 
-use winapi::shared::minwindef::{UINT, DWORD, BOOL};
-use winapi::shared::windef::{HWND, HDC, RECT, POINT};
-use winapi::um::{winuser, dwmapi, libloaderapi, processthreadsapi};
-use winapi::um::winnt::{LPCWSTR, LONG, HRESULT};
-use winapi::um::combaseapi;
-use winapi::um::objbase::{COINIT_MULTITHREADED};
-use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
+use platform::platform::{EventsLoop, PlatformSpecificWindowBuilderAttributes, WindowId};
+use platform::platform::events_loop::{self, DESTROY_MSG_ID};
+use platform::platform::icon::{self, IconType, WinIcon};
+use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
 
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
@@ -38,6 +34,9 @@ pub struct Window {
 
     /// The current window state.
     window_state: Arc<Mutex<events_loop::WindowState>>,
+
+    window_icon: Cell<Option<WinIcon>>,
+    taskbar_icon: Cell<Option<WinIcon>>,
 
     // The events loop proxy.
     events_loop_proxy: events_loop::EventsLoopProxy,
@@ -72,19 +71,19 @@ unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> B
 }
 
 impl Window {
-    pub fn new(events_loop: &EventsLoop, w_attr: &WindowAttributes,
-               pl_attr: &PlatformSpecificWindowBuilderAttributes) -> Result<Window, CreationError>
-    {
-        let mut w_attr = Some(w_attr.clone());
-        let mut pl_attr = Some(pl_attr.clone());
-
+    pub fn new(
+        events_loop: &EventsLoop,
+        w_attr: WindowAttributes,
+        pl_attr: PlatformSpecificWindowBuilderAttributes,
+    ) -> Result<Window, CreationError> {
         let (tx, rx) = channel();
 
         let proxy = events_loop.create_proxy();
 
         events_loop.execute_in_thread(move |inserter| {
             // We dispatch an `init` function because of code style.
-            let win = unsafe { init(w_attr.take().unwrap(), pl_attr.take().unwrap(), inserter, proxy.clone()) };
+            // First person to remove the need for cloning here gets a cookie!
+            let win = unsafe { init(w_attr.clone(), pl_attr.clone(), inserter, proxy.clone()) };
             let _ = tx.send(win);
         });
 
@@ -92,10 +91,11 @@ impl Window {
     }
 
     pub fn set_title(&self, text: &str) {
+        let text = OsStr::new(text)
+            .encode_wide()
+            .chain(Some(0).into_iter())
+            .collect::<Vec<_>>();
         unsafe {
-            let text = OsStr::new(text).encode_wide().chain(Some(0).into_iter())
-                                       .collect::<Vec<_>>();
-
             winuser::SetWindowTextW(self.window.0, text.as_ptr() as LPCWSTR);
         }
     }
@@ -610,6 +610,32 @@ impl Window {
             inner: EventsLoop::get_current_monitor(self.window.0),
         }
     }
+
+    #[inline]
+    pub fn set_window_icon(&self, mut window_icon: Option<Icon>) {
+        let window_icon = window_icon
+            .take()
+            .map(|icon| WinIcon::from_icon(icon).expect("Failed to create `ICON_SMALL`"));
+        if let Some(ref window_icon) = window_icon {
+            window_icon.set_for_window(self.window.0, IconType::Small);
+        } else {
+            icon::unset_for_window(self.window.0, IconType::Small);
+        }
+        self.window_icon.replace(window_icon);
+    }
+
+    #[inline]
+    pub fn set_taskbar_icon(&self, mut taskbar_icon: Option<Icon>) {
+        let taskbar_icon = taskbar_icon
+            .take()
+            .map(|icon| WinIcon::from_icon(icon).expect("Failed to create `ICON_BIG`"));
+        if let Some(ref taskbar_icon) = taskbar_icon {
+            taskbar_icon.set_for_window(self.window.0, IconType::Big);
+        } else {
+            icon::unset_for_window(self.window.0, IconType::Big);
+        }
+        self.taskbar_icon.replace(taskbar_icon);
+    }
 }
 
 impl Drop for Window {
@@ -642,13 +668,44 @@ pub unsafe fn adjust_size(
     (rect.right - rect.left, rect.bottom - rect.top)
 }
 
-unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuilderAttributes,
-               inserter: events_loop::Inserter, events_loop_proxy: events_loop::EventsLoopProxy) -> Result<Window, CreationError> {
-    let title = OsStr::new(&window.title).encode_wide().chain(Some(0).into_iter())
+unsafe fn init(
+    mut window: WindowAttributes,
+    mut pl_attribs: PlatformSpecificWindowBuilderAttributes,
+    inserter: events_loop::Inserter,
+    events_loop_proxy: events_loop::EventsLoopProxy,
+) -> Result<Window, CreationError> {
+    let title = OsStr::new(&window.title)
+        .encode_wide()
+        .chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 
+    let window_icon = {
+        let icon = window.window_icon
+            .take()
+            .map(WinIcon::from_icon);
+        if icon.is_some() {
+            Some(icon.unwrap().map_err(|err| {
+                CreationError::OsError(format!("Failed to create `ICON_SMALL`: {:?}", err))
+            })?)
+        } else {
+            None
+        }
+    };
+    let taskbar_icon = {
+        let icon = pl_attribs.taskbar_icon
+            .take()
+            .map(WinIcon::from_icon);
+        if icon.is_some() {
+            Some(icon.unwrap().map_err(|err| {
+                CreationError::OsError(format!("Failed to create `ICON_BIG`: {:?}", err))
+            })?)
+        } else {
+            None
+        }
+    };
+
     // registering the window class
-    let class_name = register_window_class();
+    let class_name = register_window_class(&window_icon, &taskbar_icon);
 
     // building a RECT object with coordinates
     let mut rect = RECT {
@@ -738,17 +795,21 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
         }
     }
 
+    let (transparent, maximized, fullscreen) = (
+        window.transparent.clone(), window.maximized.clone(), window.fullscreen.clone()
+    );
+
     // Creating a mutex to track the current window state
     let window_state = Arc::new(Mutex::new(events_loop::WindowState {
         cursor: winuser::IDC_ARROW, // use arrow by default
         cursor_state: CursorState::Normal,
-        attributes: window.clone(),
+        attributes: window,
         mouse_in_window: false,
         saved_window_info: None,
     }));
 
     // making the window transparent
-    if window.transparent {
+    if transparent {
         let bb = dwmapi::DWM_BLURBEHIND {
             dwFlags: 0x1, // FIXME: DWM_BB_ENABLE;
             fEnable: 1,
@@ -762,12 +823,14 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     let win = Window {
         window: real_window,
         window_state: window_state,
-        events_loop_proxy
+        window_icon: Cell::new(window_icon),
+        taskbar_icon: Cell::new(taskbar_icon),
+        events_loop_proxy,
     };
 
-    win.set_maximized(window.maximized);
-    if let Some(_) = window.fullscreen {
-        win.set_fullscreen(window.fullscreen);
+    win.set_maximized(maximized);
+    if let Some(_) = fullscreen {
+        win.set_fullscreen(fullscreen);
         force_window_active(win.window.0);
     }
 
@@ -776,9 +839,23 @@ unsafe fn init(window: WindowAttributes, pl_attribs: PlatformSpecificWindowBuild
     Ok(win)
 }
 
-unsafe fn register_window_class() -> Vec<u16> {
-    let class_name = OsStr::new("Window Class").encode_wide().chain(Some(0).into_iter())
-                                               .collect::<Vec<_>>();
+unsafe fn register_window_class(
+    window_icon: &Option<WinIcon>,
+    taskbar_icon: &Option<WinIcon>,
+) -> Vec<u16> {
+    let class_name: Vec<_> = OsStr::new("Window Class")
+        .encode_wide()
+        .chain(Some(0).into_iter())
+        .collect();
+
+    let h_icon = taskbar_icon
+        .as_ref()
+        .map(|icon| icon.handle)
+        .unwrap_or(ptr::null_mut());
+    let h_icon_small = window_icon
+        .as_ref()
+        .map(|icon| icon.handle)
+        .unwrap_or(ptr::null_mut());
 
     let class = winuser::WNDCLASSEXW {
         cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
@@ -787,12 +864,12 @@ unsafe fn register_window_class() -> Vec<u16> {
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: libloaderapi::GetModuleHandleW(ptr::null()),
-        hIcon: ptr::null_mut(),
-        hCursor: ptr::null_mut(),       // must be null in order for cursor state to work properly
+        hIcon: h_icon,
+        hCursor: ptr::null_mut(), // must be null in order for cursor state to work properly
         hbrBackground: ptr::null_mut(),
         lpszMenuName: ptr::null(),
         lpszClassName: class_name.as_ptr(),
-        hIconSm: ptr::null_mut(),
+        hIconSm: h_icon_small,
     };
 
     // We ignore errors because registering the same window class twice would trigger

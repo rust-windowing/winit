@@ -279,8 +279,9 @@ impl EventsLoopProxy {
 
     /// Executes a function in the background thread.
     ///
-    /// Note that we use a FnMut instead of a FnOnce because we're too lazy to create an equivalent
-    /// to the unstable FnBox.
+    /// Note that we use FnMut instead of FnOnce because boxing FnOnce won't work on stable Rust
+    /// until 2030 when the design of Box is finally complete.
+    /// https://github.com/rust-lang/rust/issues/28796
     ///
     /// The `Inserted` can be used to inject a `WindowState` for the callback to use. The state is
     /// removed automatically if the callback receives a `WM_CLOSE` message for the window.
@@ -302,10 +303,7 @@ impl EventsLoopProxy {
             );
             // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
             // as the events loop is still alive) or if the queue is full.
-            assert!(
-                res != 0,
-                "PostThreadMessage failed ; is the messages queue full?"
-            );
+            assert!(res != 0, "PostThreadMessage failed; is the messages queue full?");
         }
     }
 }

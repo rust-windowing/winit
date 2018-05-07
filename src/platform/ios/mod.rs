@@ -263,7 +263,7 @@ pub struct DeviceId;
 pub struct PlatformSpecificWindowBuilderAttributes;
 
 impl Window {
-    pub fn new(ev: &EventsLoop, _: &WindowAttributes, _: &PlatformSpecificWindowBuilderAttributes)
+    pub fn new(ev: &EventsLoop, _: WindowAttributes, _: PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
         Ok(Window {
@@ -367,6 +367,11 @@ impl Window {
 
     #[inline]
     pub fn set_decorations(&self, _decorations: bool) {
+        // N/A
+    }
+
+    #[inline]
+    pub fn set_window_icon(&self, _icon: Option<::Icon>) {
         // N/A
     }
 

@@ -1,12 +1,11 @@
 #![cfg(target_os = "windows")]
 
 use std::os::raw::c_void;
+
 use libc;
-use MonitorId;
-use DeviceId;
-use Window;
-use WindowBuilder;
 use winapi::shared::windef::HWND;
+
+use {DeviceId, Icon, MonitorId, Window, WindowBuilder};
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExt {
@@ -14,6 +13,9 @@ pub trait WindowExt {
     ///
     /// The pointer will become invalid when the native window was destroyed.
     fn get_hwnd(&self) -> *mut libc::c_void;
+
+    /// This sets `ICON_BIG`. A good ceiling here is 256x256.
+    fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 }
 
 impl WindowExt for Window {
@@ -21,18 +23,32 @@ impl WindowExt for Window {
     fn get_hwnd(&self) -> *mut libc::c_void {
         self.window.hwnd() as *mut _
     }
+
+    #[inline]
+    fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
+        self.window.set_taskbar_icon(taskbar_icon)
+    }
 }
 
 /// Additional methods on `WindowBuilder` that are specific to Windows.
 pub trait WindowBuilderExt {
+    /// Sets a parent to the window to be created.
     fn with_parent_window(self, parent: HWND) -> WindowBuilder;
+
+    /// This sets `ICON_BIG`. A good ceiling here is 256x256.
+    fn with_taskbar_icon(self, taskbar_icon: Option<Icon>) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
-    /// Sets a parent to the window to be created.
     #[inline]
     fn with_parent_window(mut self, parent: HWND) -> WindowBuilder {
         self.platform_specific.parent = Some(parent);
+        self
+    }
+
+    #[inline]
+    fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> WindowBuilder {
+        self.platform_specific.taskbar_icon = taskbar_icon;
         self
     }
 }

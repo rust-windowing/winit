@@ -23,9 +23,8 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(evlp: &EventsLoop, attributes: &WindowAttributes) -> Result<Window, CreationError> {
+    pub fn new(evlp: &EventsLoop, attributes: WindowAttributes) -> Result<Window, CreationError> {
         let (width, height) = attributes.dimensions.unwrap_or((800, 600));
-
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
 

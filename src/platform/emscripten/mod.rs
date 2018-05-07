@@ -347,8 +347,8 @@ fn em_try(res: ffi::EMSCRIPTEN_RESULT) -> Result<(), String> {
 }
 
 impl Window {
-    pub fn new(events_loop: &EventsLoop, attribs: &::WindowAttributes,
-               _pl_attribs: &PlatformSpecificWindowBuilderAttributes)
+    pub fn new(events_loop: &EventsLoop, attribs: ::WindowAttributes,
+               _pl_attribs: PlatformSpecificWindowBuilderAttributes)
         -> Result<Window, ::CreationError>
     {
         if events_loop.window.lock().unwrap().is_some() {
@@ -540,6 +540,11 @@ impl Window {
 
     #[inline]
     pub fn set_decorations(&self, _decorations: bool) {
+        // N/A
+    }
+
+    #[inline]
+    pub fn set_window_icon(&self, _icon: Option<::Icon>) {
         // N/A
     }
 

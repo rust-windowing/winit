@@ -3,6 +3,7 @@ use std::collections::vec_deque::IntoIter as VecDequeIter;
 use CreationError;
 use CursorState;
 use EventsLoop;
+use Icon;
 use MouseCursor;
 use Window;
 use WindowBuilder;
@@ -91,6 +92,24 @@ impl WindowBuilder {
         self
     }
 
+    /// Sets the window icon. On Windows and X11, this is typically the small icon in the top-left
+    /// corner of the titlebar.
+    ///
+    /// ## Platform-specific
+    ///
+    /// This only has an effect on Windows and X11.
+    ///
+    /// On Windows, this sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
+    /// recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
+    ///
+    /// X11 has no universal guidelines for icon sizes, so you're at the whims of the WM. That
+    /// said, it's usually in the same ballpark as on Windows.
+    #[inline]
+    pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> WindowBuilder {
+        self.window.window_icon = window_icon;
+        self
+    }
+
     /// Enables multitouch.
     #[inline]
     pub fn with_multitouch(mut self) -> WindowBuilder {
@@ -103,22 +122,22 @@ impl WindowBuilder {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     /// out of memory, etc.
     pub fn build(mut self, events_loop: &EventsLoop) -> Result<Window, CreationError> {
-        // resizing the window to the dimensions of the monitor when fullscreen
-        if self.window.dimensions.is_none() {
+        self.window.dimensions = Some(self.window.dimensions.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
-                self.window.dimensions = Some(monitor.get_dimensions());
+                // resizing the window to the dimensions of the monitor when fullscreen
+                monitor.get_dimensions()
+            } else {
+                // default dimensions
+                (1024, 768)
             }
-        }
-
-        // default dimensions
-        if self.window.dimensions.is_none() {
-            self.window.dimensions = Some((1024, 768));
-        }
+        }));
 
         // building
-        let w = try!(platform::Window::new(&events_loop.events_loop, &self.window, &self.platform_specific));
-
-        Ok(Window { window: w })
+        platform::Window::new(
+            &events_loop.events_loop,
+            self.window,
+            self.platform_specific,
+        ).map(|window| Window { window })
     }
 }
 
@@ -342,6 +361,19 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
+    }
+
+    /// Sets the window icon. On Windows and X11, this is typically the small icon in the top-left
+    /// corner of the titlebar.
+    ///
+    /// For more usage notes, see `WindowBuilder::with_window_icon`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// This only has an effect on Windows and X11.
+    #[inline]
+    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+        self.window.set_window_icon(window_icon)
     }
 
     /// Returns the monitor on which the window currently resides
