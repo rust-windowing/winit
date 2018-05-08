@@ -18,6 +18,7 @@
 - Rework of the wayland backend, migrating it to use [Smithay's Client Toolkit](https://github.com/Smithay/client-toolkit).
 - Added `WindowBuilder::with_window_icon` and `Window::set_window_icon`, finally making it possible to set the window icon on Windows and X11. The `icon_loading` feature can be enabled to allow for icons to be easily loaded; see example program `window_icon.rs` for usage.
 - Windows additionally has `WindowBuilderExt::with_taskbar_icon` and `WindowExt::set_taskbar_icon`.
+- On Windows, fix panic when trying to call `set_fullscreen(None)` on a window that has not been fullscreened prior.
 
 # Version 0.13.1 (2018-04-26)
 
