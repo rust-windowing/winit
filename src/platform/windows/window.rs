@@ -782,6 +782,16 @@ unsafe fn init(
                                               format!("{}", io::Error::last_os_error()))));
         }
 
+        if let Some(callback) = pl_attribs.wm_create_callback {
+            // The WM_CREATE message is immediately dispatched after the CreateWindowExW call.
+            // Since we don't know the HWND before CreateWindowExW returns, we need to call the callback here.
+            // The callback can't be executed from the user thread, otherwise Windows
+            // will freeze the application. The callback also can't be executed from the EventLoop itself,
+            // since we have to know which callback corresponds to which window and the Win32 message loop
+            // doesn't allow to inject custon data. So the only place to call the callback is here
+            callback(handle);
+        }
+
         let hdc = winuser::GetDC(handle);
         if hdc.is_null() {
             return Err(CreationError::OsError(format!("GetDC function failed: {}",
