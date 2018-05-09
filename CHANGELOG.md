@@ -1,5 +1,7 @@
 # Unreleased
 
+# Version 0.14.0 (2018-05-09)
+
 - Created the `Copy`, `Paste` and `Cut` `VirtualKeyCode`s and added support for them on X11 and Wayland
 - Fix `.with_decorations(false)` in macOS
 - On Mac, `NSWindow` and supporting objects might be alive long after they were `closed` which resulted in apps consuming more heap then needed. Mainly it was affecting multi window applications. Not expecting any user visible change of behaviour after the fix.
