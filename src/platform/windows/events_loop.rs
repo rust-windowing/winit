@@ -1009,6 +1009,15 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             0
         },
 
+        winuser::WM_COMMAND => {
+            use events::WindowEvent::Command;
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: Command(LOWORD(wparam as u32))
+            });
+            0
+        },
+
         _ => {
             if msg == *DESTROY_MSG_ID {
                 winuser::DestroyWindow(window);
