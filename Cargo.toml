@@ -10,6 +10,9 @@ repository = "https://github.com/tomaka/winit"
 documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
+[package.metadata.docs.rs]
+features = ["icon_loading"]
+
 [features]
 icon_loading = ["image"]
 
