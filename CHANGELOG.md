@@ -1,6 +1,7 @@
 # Unreleased
 
 - **Breaking:** Removed `VirtualKeyCode::LMenu` and `VirtualKeyCode::RMenu`; Windows now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead.
+- On X11, exiting fullscreen no longer leaves the window in the monitor's top left corner.
 
 # Version 0.15.1 (2018-06-13)
 

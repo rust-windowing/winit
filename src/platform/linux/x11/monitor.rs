@@ -1,5 +1,4 @@
 use std::os::raw::*;
-use std::sync::Arc;
 
 use parking_lot::Mutex;
 
@@ -45,7 +44,7 @@ pub struct MonitorId {
     /// The actual id
     id: u32,
     /// The name of the monitor
-    name: String,
+    pub(crate) name: String,
     /// The size of the monitor
     dimensions: (u32, u32),
     /// The position of the monitor in the X screen
@@ -53,14 +52,14 @@ pub struct MonitorId {
     /// If the monitor is the primary one
     primary: bool,
     /// The DPI scale factor
-    pub(crate) hidpi_factor: f32,
+    pub(crate) hidpi_factor: f64,
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::Rect,
 }
 
 impl MonitorId {
     fn from_repr(
-        xconn: &Arc<XConnection>,
+        xconn: &XConnection,
         resources: *mut XRRScreenResources,
         id: u32,
         repr: util::MonitorRepr,
@@ -99,172 +98,171 @@ impl MonitorId {
 
     #[inline]
     pub fn get_hidpi_factor(&self) -> f32 {
-        self.hidpi_factor
+        self.hidpi_factor as f32
     }
 }
 
-pub fn get_monitor_for_window(
-    xconn: &Arc<XConnection>,
-    window_rect: Option<util::Rect>,
-) -> MonitorId {
-    let monitors = get_available_monitors(xconn);
-    let default = monitors
-        .get(0)
-        .expect("[winit] Failed to find any monitors using XRandR.");
+impl XConnection {
+    pub fn get_monitor_for_window(&self, window_rect: Option<util::Rect>) -> MonitorId {
+        let monitors = self.get_available_monitors();
+        let default = monitors
+            .get(0)
+            .expect("[winit] Failed to find any monitors using XRandR.");
 
-    let window_rect = match window_rect {
-        Some(rect) => rect,
-        None => return default.to_owned(),
-    };
+        let window_rect = match window_rect {
+            Some(rect) => rect,
+            None => return default.to_owned(),
+        };
 
-    let mut largest_overlap = 0;
-    let mut matched_monitor = default;
-    for monitor in &monitors {
-        let overlapping_area = window_rect.get_overlapping_area(&monitor.rect);
-        if overlapping_area > largest_overlap {
-            largest_overlap = overlapping_area;
-            matched_monitor = &monitor;
-        }
-    }
-
-    matched_monitor.to_owned()
-}
-
-fn query_monitor_list(xconn: &Arc<XConnection>) -> Vec<MonitorId> {
-    unsafe {
-        let root = (xconn.xlib.XDefaultRootWindow)(xconn.display);
-        // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
-        // Upon failure, `resources` will be null.
-        let resources = (xconn.xrandr.XRRGetScreenResources)(xconn.display, root);
-        if resources.is_null() {
-            panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
-        }
-
-        let mut available;
-        let mut has_primary = false;
-
-        if xconn.xrandr_1_5.is_some() && version_is_at_least(1, 5) && !FORCE_RANDR_COMPAT {
-            // We're in XRandR >= 1.5, enumerate monitors. This supports things like MST and
-            // videowalls.
-            let xrandr_1_5 = xconn.xrandr_1_5.as_ref().unwrap();
-            let mut monitor_count = 0;
-            let monitors = (xrandr_1_5.XRRGetMonitors)(xconn.display, root, 1, &mut monitor_count);
-            assert!(monitor_count >= 0);
-            available = Vec::with_capacity(monitor_count as usize);
-            for monitor_index in 0..monitor_count {
-                let monitor = monitors.offset(monitor_index as isize);
-                let is_primary = (*monitor).primary != 0;
-                has_primary |= is_primary;
-                available.push(MonitorId::from_repr(
-                    xconn,
-                    resources,
-                    monitor_index as u32,
-                    monitor.into(),
-                    is_primary,
-                ));
+        let mut largest_overlap = 0;
+        let mut matched_monitor = default;
+        for monitor in &monitors {
+            let overlapping_area = window_rect.get_overlapping_area(&monitor.rect);
+            if overlapping_area > largest_overlap {
+                largest_overlap = overlapping_area;
+                matched_monitor = &monitor;
             }
-            (xrandr_1_5.XRRFreeMonitors)(monitors);
-        } else {
-            // We're in XRandR < 1.5, enumerate CRTCs. Everything will work except MST and
-            // videowall setups will also show monitors that aren't in the logical groups the user
-            // cares about.
-            let primary = (xconn.xrandr.XRRGetOutputPrimary)(xconn.display, root);
-            available = Vec::with_capacity((*resources).ncrtc as usize);
-            for crtc_index in 0..(*resources).ncrtc {
-                let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
-                let crtc = (xconn.xrandr.XRRGetCrtcInfo)(xconn.display, resources, crtc_id);
-                let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
-                if is_active {
-                    let crtc = util::MonitorRepr::from(crtc);
-                    let is_primary = crtc.get_output() == primary;
+        }
+
+        matched_monitor.to_owned()
+    }
+
+    fn query_monitor_list(&self) -> Vec<MonitorId> {
+        unsafe {
+            let root = (self.xlib.XDefaultRootWindow)(self.display);
+            // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
+            // Upon failure, `resources` will be null.
+            let resources = (self.xrandr.XRRGetScreenResources)(self.display, root);
+            if resources.is_null() {
+                panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
+            }
+
+            let mut available;
+            let mut has_primary = false;
+
+            if self.xrandr_1_5.is_some() && version_is_at_least(1, 5) && !FORCE_RANDR_COMPAT {
+                // We're in XRandR >= 1.5, enumerate monitors. This supports things like MST and
+                // videowalls.
+                let xrandr_1_5 = self.xrandr_1_5.as_ref().unwrap();
+                let mut monitor_count = 0;
+                let monitors = (xrandr_1_5.XRRGetMonitors)(self.display, root, 1, &mut monitor_count);
+                assert!(monitor_count >= 0);
+                available = Vec::with_capacity(monitor_count as usize);
+                for monitor_index in 0..monitor_count {
+                    let monitor = monitors.offset(monitor_index as isize);
+                    let is_primary = (*monitor).primary != 0;
                     has_primary |= is_primary;
                     available.push(MonitorId::from_repr(
-                        xconn,
+                        self,
                         resources,
-                        crtc_id as u32,
-                        crtc,
+                        monitor_index as u32,
+                        monitor.into(),
                         is_primary,
                     ));
                 }
-                (xconn.xrandr.XRRFreeCrtcInfo)(crtc);
+                (xrandr_1_5.XRRFreeMonitors)(monitors);
+            } else {
+                // We're in XRandR < 1.5, enumerate CRTCs. Everything will work except MST and
+                // videowall setups will also show monitors that aren't in the logical groups the user
+                // cares about.
+                let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root);
+                available = Vec::with_capacity((*resources).ncrtc as usize);
+                for crtc_index in 0..(*resources).ncrtc {
+                    let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
+                    let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
+                    let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
+                    if is_active {
+                        let crtc = util::MonitorRepr::from(crtc);
+                        let is_primary = crtc.get_output() == primary;
+                        has_primary |= is_primary;
+                        available.push(MonitorId::from_repr(
+                            self,
+                            resources,
+                            crtc_id as u32,
+                            crtc,
+                            is_primary,
+                        ));
+                    }
+                    (self.xrandr.XRRFreeCrtcInfo)(crtc);
+                }
             }
-        }
 
-        // If no monitors were detected as being primary, we just pick one ourselves!
-        if !has_primary {
-            if let Some(ref mut fallback) = available.first_mut() {
-                // Setting this here will come in handy if we ever add an `is_primary` method.
-                fallback.primary = true;
+            // If no monitors were detected as being primary, we just pick one ourselves!
+            if !has_primary {
+                if let Some(ref mut fallback) = available.first_mut() {
+                    // Setting this here will come in handy if we ever add an `is_primary` method.
+                    fallback.primary = true;
+                }
             }
-        }
 
-        (xconn.xrandr.XRRFreeScreenResources)(resources);
-        available
-    }
-}
-
-pub fn get_available_monitors(xconn: &Arc<XConnection>) -> Vec<MonitorId> {
-    let mut monitors_lock = MONITORS.lock();
-    (*monitors_lock)
-        .as_ref()
-        .cloned()
-        .or_else(|| {
-            let monitors = Some(query_monitor_list(xconn));
-            if !DISABLE_MONITOR_LIST_CACHING {
-                (*monitors_lock) = monitors.clone();
-            }
-            monitors
-        })
-        .unwrap()
-}
-
-#[inline]
-pub fn get_primary_monitor(xconn: &Arc<XConnection>) -> MonitorId {
-    get_available_monitors(xconn)
-        .into_iter()
-        .find(|monitor| monitor.primary)
-        .expect("[winit] Failed to find any monitors using XRandR.")
-}
-
-pub fn select_input(xconn: &Arc<XConnection>, root: Window) -> Result<c_int, XError> {
-    {
-        let mut version_lock = XRANDR_VERSION.lock();
-        if version_lock.is_none() {
-            let mut major = 0;
-            let mut minor = 0;
-            let has_extension = unsafe {
-                (xconn.xrandr.XRRQueryVersion)(
-                    xconn.display,
-                    &mut major,
-                    &mut minor,
-                )
-            };
-            if has_extension != True {
-                panic!("[winit] XRandR extension not available.");
-            }
-            *version_lock = Some((major, minor));
+            (self.xrandr.XRRFreeScreenResources)(resources);
+            available
         }
     }
 
-    let mut event_offset = 0;
-    let mut error_offset = 0;
-    let status = unsafe {
-        (xconn.xrandr.XRRQueryExtension)(
-            xconn.display,
-            &mut event_offset,
-            &mut error_offset,
-        )
-    };
-
-    if status != True {
-        xconn.check_errors()?;
-        unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
+    pub fn get_available_monitors(&self) -> Vec<MonitorId> {
+        let mut monitors_lock = MONITORS.lock();
+        (*monitors_lock)
+            .as_ref()
+            .cloned()
+            .or_else(|| {
+                let monitors = Some(self.query_monitor_list());
+                if !DISABLE_MONITOR_LIST_CACHING {
+                    (*monitors_lock) = monitors.clone();
+                }
+                monitors
+            })
+            .unwrap()
     }
 
-    let mask = RRCrtcChangeNotifyMask
-        | RROutputPropertyNotifyMask
-        | RRScreenChangeNotifyMask;
-    unsafe { (xconn.xrandr.XRRSelectInput)(xconn.display, root, mask) };
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        self.get_available_monitors()
+            .into_iter()
+            .find(|monitor| monitor.primary)
+            .expect("[winit] Failed to find any monitors using XRandR.")
+    }
 
-    Ok(event_offset)
+    pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, XError> {
+        {
+            let mut version_lock = XRANDR_VERSION.lock();
+            if version_lock.is_none() {
+                let mut major = 0;
+                let mut minor = 0;
+                let has_extension = unsafe {
+                    (self.xrandr.XRRQueryVersion)(
+                        self.display,
+                        &mut major,
+                        &mut minor,
+                    )
+                };
+                if has_extension != True {
+                    panic!("[winit] XRandR extension not available.");
+                }
+                *version_lock = Some((major, minor));
+            }
+        }
+
+        let mut event_offset = 0;
+        let mut error_offset = 0;
+        let status = unsafe {
+            (self.xrandr.XRRQueryExtension)(
+                self.display,
+                &mut event_offset,
+                &mut error_offset,
+            )
+        };
+
+        if status != True {
+            self.check_errors()?;
+            unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
+        }
+
+        let mask = RRCrtcChangeNotifyMask
+            | RROutputPropertyNotifyMask
+            | RRScreenChangeNotifyMask;
+        unsafe { (self.xrandr.XRRSelectInput)(self.display, root, mask) };
+
+        Ok(event_offset)
+    }
 }

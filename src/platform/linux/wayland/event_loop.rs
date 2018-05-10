@@ -253,7 +253,8 @@ impl EventsLoop {
                     if let Some((w, h)) = newsize {
                         frame.resize(w as u32, h as u32);
                         frame.refresh();
-                        sink.send_event(::WindowEvent::Resized(w as u32, h as u32), wid);
+                        let logical_size = ::LogicalDimensions::new(w as f64, h as f64);
+                        sink.send_event(::WindowEvent::Resized(logical_size), wid);
                     } else if frame_refresh {
                         frame.refresh();
                     }

@@ -106,14 +106,16 @@ extern crate percent_encoding;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
 extern crate smithay_client_toolkit as sctk;
 
+pub use dpi::*;
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId};
 pub use icon::*;
 
-mod platform;
+mod dpi;
 mod events;
-mod window;
 mod icon;
+mod platform;
+mod window;
 
 pub mod os;
 
@@ -403,7 +405,7 @@ impl Default for CursorState {
 }
 
 /// Attributes to use when creating a window.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct WindowAttributes {
     /// The dimensions of the window. If this is `None`, some platform-specific dimensions will be
     /// used.

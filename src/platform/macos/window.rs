@@ -235,7 +235,7 @@ impl WindowDelegate {
                 let state = &mut *(state as *mut DelegateState);
                 emit_resize_event(state);
                 let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
-                emit_event(state, WindowEvent::HiDPIFactorChanged(scale_factor));
+                emit_event(state, WindowEvent::HiDpiFactorChanged(scale_factor));
             }
         }
 
@@ -244,7 +244,7 @@ impl WindowDelegate {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
                 let scale_factor = NSWindow::backingScaleFactor(*state.window) as f32;
-                emit_event(state, WindowEvent::HiDPIFactorChanged(scale_factor));
+                emit_event(state, WindowEvent::HiDpiFactorChanged(scale_factor));
             }
         }
 

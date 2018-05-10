@@ -1,16 +1,20 @@
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
-use CreationError;
-use CursorState;
-use EventsLoop;
-use Icon;
-use MouseCursor;
-use Window;
-use WindowBuilder;
-use WindowId;
-
 use libc;
-use platform;
+
+use {
+    CreationError,
+    CursorState,
+    EventsLoop,
+    Icon,
+    LogicalCoordinates,
+    LogicalDimensions,
+    MouseCursor,
+    platform,
+    Window,
+    WindowBuilder,
+    WindowId,
+};
 
 impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
@@ -219,7 +223,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_position(&self) -> Option<(i32, i32)> {
+    pub fn get_position(&self) -> Option<LogicalCoordinates> {
         self.window.get_position()
     }
 
@@ -228,7 +232,7 @@ impl Window {
     ///
     /// The same conditions that apply to `get_position` apply to this method.
     #[inline]
-    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+    pub fn get_inner_position(&self) -> Option<LogicalCoordinates> {
         self.window.get_inner_position()
     }
 
@@ -238,8 +242,8 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_position(&self, x: i32, y: i32) {
-        self.window.set_position(x, y)
+    pub fn set_position(&self, position: LogicalCoordinates) {
+        self.window.set_position(position)
     }
 
     /// Returns the size in pixels of the client area of the window.
@@ -249,39 +253,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        self.window.get_inner_size()
-    }
-
-    /// Returns the size in points of the client area of the window.
-    ///
-    /// The client area is the content of the window, excluding the title bar and borders.
-    /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
-    ///
-    /// Returns `None` if the window no longer exists.
-    ///
-    /// DEPRECATED
-    #[inline]
-    #[deprecated]
-    pub fn get_inner_size_points(&self) -> Option<(u32, u32)> {
-        self.window.get_inner_size().map(|(x, y)| {
-            let hidpi = self.hidpi_factor();
-            ((x as f32 / hidpi) as u32, (y as f32 / hidpi) as u32)
-        })
-    }
-
-    /// Returns the size in pixels of the client area of the window.
-    ///
-    /// The client area is the content of the window, excluding the title bar and borders.
-    /// These are the dimensions of the frame buffer, and the dimensions that you should use
-    ///  when you call `glViewport`.
-    ///
-    /// Returns `None` if the window no longer exists.
-    ///
-    /// DEPRECATED
-    #[inline]
-    #[deprecated]
-    pub fn get_inner_size_pixels(&self) -> Option<(u32, u32)> {
+    pub fn get_inner_size(&self) -> Option<LogicalDimensions> {
         self.window.get_inner_size()
     }
 
@@ -292,7 +264,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_outer_size(&self) -> Option<(u32, u32)> {
+    pub fn get_outer_size(&self) -> Option<LogicalDimensions> {
         self.window.get_outer_size()
     }
 
@@ -302,15 +274,15 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_inner_size(&self, x: u32, y: u32) {
-        self.window.set_inner_size(x, y)
+    pub fn set_inner_size(&self, size: LogicalDimensions) {
+        self.window.set_inner_size(size)
     }
 
     /// Sets a minimum dimension size for the window.
     ///
     /// Width and height are in pixels.
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+    pub fn set_min_dimensions(&self, dimensions: Option<LogicalDimensions>) {
         self.window.set_min_dimensions(dimensions)
     }
 
@@ -318,7 +290,7 @@ impl Window {
     ///
     /// Width and height are in pixels.
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+    pub fn set_max_dimensions(&self, dimensions: Option<LogicalDimensions>) {
         self.window.set_max_dimensions(dimensions)
     }
 
@@ -369,14 +341,14 @@ impl Window {
     /// On X11 the DPI factor can be overridden using the `WINIT_HIDPI_FACTOR` environment
     /// variable.
     #[inline]
-    pub fn hidpi_factor(&self) -> f32 {
-        self.window.hidpi_factor()
+    pub fn get_hidpi_factor(&self) -> f64 {
+        self.window.get_hidpi_factor()
     }
 
     /// Changes the position of the cursor in window coordinates.
     #[inline]
-    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
-        self.window.set_cursor_position(x, y)
+    pub fn set_cursor_position(&self, position: LogicalCoordinates) -> Result<(), ()> {
+        self.window.set_cursor_position(position)
     }
 
     /// Sets how winit handles the cursor. See the documentation of `CursorState` for details.
@@ -426,8 +398,8 @@ impl Window {
 
     /// Sets location of IME candidate box in client area coordinates relative to the top left.
     #[inline]
-    pub fn set_ime_spot(&self, x: i32, y: i32) {
-        self.window.set_ime_spot(x, y)
+    pub fn set_ime_spot(&self, position: LogicalCoordinates) {
+        self.window.set_ime_spot(position)
     }
 
     /// Returns the monitor on which the window currently resides

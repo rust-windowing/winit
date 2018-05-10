@@ -9,13 +9,7 @@ mod dnd;
 mod ime;
 pub mod util;
 
-pub use self::monitor::{
-    MonitorId,
-    get_available_monitors,
-    get_monitor_for_window,
-    get_primary_monitor,
-    invalidate_cached_monitor_list,
-};
+pub use self::monitor::MonitorId;
 pub use self::window::UnownedWindow;
 pub use self::xdisplay::{XConnection, XNotSupported, XError};
 
@@ -29,7 +23,6 @@ use std::sync::{Arc, mpsc, Weak};
 use std::sync::atomic::{self, AtomicBool};
 
 use libc::{self, setlocale, LC_CTYPE};
-use parking_lot::Mutex;
 
 use {
     ControlFlow,
@@ -38,6 +31,8 @@ use {
     Event,
     EventsLoopClosed,
     KeyboardInput,
+    LogicalCoordinates,
+    LogicalDimensions,
     WindowAttributes,
     WindowEvent,
 };
@@ -92,7 +87,7 @@ impl EventsLoop {
             result.expect("Failed to set input method destruction callback")
         });
 
-        let randr_event_offset = monitor::select_input(&xconn, root)
+        let randr_event_offset = xconn.select_xrandr_input(root)
             .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
@@ -394,6 +389,13 @@ impl EventsLoop {
             }
 
             ffi::ConfigureNotify => {
+                #[derive(Debug, Default)]
+                struct Events {
+                    resized: Option<WindowEvent>,
+                    moved: Option<WindowEvent>,
+                    dpi_changed: Option<WindowEvent>,
+                }
+
                 let xev: &ffi::XConfigureEvent = xev.as_ref();
                 let xwindow = xev.window;
                 let events = self.with_window(xwindow, |window| {
@@ -406,9 +408,11 @@ impl EventsLoop {
                     // that has a position relative to the parent window.
                     let is_synthetic = xev.send_event == ffi::True;
 
+                    // These are both in physical space.
                     let new_inner_size = (xev.width as u32, xev.height as u32);
                     let new_inner_position = (xev.x as i32, xev.y as i32);
 
+                    let monitor = window.get_current_monitor(); // This must be done *before* locking!
                     let mut shared_state_lock = window.shared_state.lock();
 
                     let (resized, moved) = {
@@ -431,14 +435,33 @@ impl EventsLoop {
                         (resized, moved)
                     };
 
-                    let capacity = resized as usize + moved as usize;
-                    let mut events = Vec::with_capacity(capacity);
-
-                    if resized {
-                        events.push(WindowEvent::Resized(new_inner_size.0, new_inner_size.1));
+                    // This is a hack to ensure that the DPI adjusted resize is actually applied on all WMs. KWin
+                    // doesn't need this, but Xfwm does.
+                    if let Some(adjusted_size) = shared_state_lock.dpi_adjusted {
+                        let rounded_size = (adjusted_size.0.round() as u32, adjusted_size.1.round() as u32);
+                        if new_inner_size == rounded_size {
+                            // When this finally happens, the event will not be synthetic.
+                            shared_state_lock.dpi_adjusted = None;
+                        } else {
+                            unsafe {
+                                (self.xconn.xlib.XResizeWindow)(
+                                    self.xconn.display,
+                                    xwindow,
+                                    rounded_size.0 as c_uint,
+                                    rounded_size.1 as c_uint,
+                                );
+                            }
+                        }
                     }
 
-                    if moved || shared_state_lock.position.is_none() {
+                    let mut events = Events::default();
+
+                    if resized {
+                        let logical_size = LogicalDimensions::from_physical(new_inner_size, monitor.hidpi_factor);
+                        events.resized = Some(WindowEvent::Resized(logical_size));
+                    }
+
+                    let new_outer_position = if moved || shared_state_lock.position.is_none() {
                         // We need to convert client area position to window position.
                         let frame_extents = shared_state_lock.frame_extents
                             .as_ref()
@@ -451,19 +474,59 @@ impl EventsLoop {
                         let outer = frame_extents.inner_pos_to_outer(new_inner_position.0, new_inner_position.1);
                         shared_state_lock.position = Some(outer);
                         if moved {
-                            events.push(WindowEvent::Moved(outer.0, outer.1));
+                            let logical_position = LogicalCoordinates::from_physical(outer, monitor.hidpi_factor);
+                            events.moved = Some(WindowEvent::Moved(logical_position));
                         }
+                        outer
+                    } else {
+                        shared_state_lock.position.unwrap()
+                    };
+
+                    // If we don't use the existing adjusted value when available, then the user can screw up the
+                    // resizing by dragging across monitors *without* dropping the window.
+                    let (width, height) = shared_state_lock.dpi_adjusted
+                        .unwrap_or_else(|| (xev.width as f64, xev.height as f64));
+                    let last_hidpi_factor = if shared_state_lock.is_new_window {
+                        shared_state_lock.is_new_window = false;
+                        1.0
+                    } else {
+                        shared_state_lock.last_monitor
+                            .as_ref()
+                            .map(|last_monitor| last_monitor.hidpi_factor)
+                            .unwrap_or(1.0)
+                    };
+                    let new_hidpi_factor = {
+                        let window_rect = util::Rect::new(new_outer_position, new_inner_size);
+                        let monitor = self.xconn.get_monitor_for_window(Some(window_rect));
+                        let new_hidpi_factor = monitor.hidpi_factor;
+                        shared_state_lock.last_monitor = Some(monitor);
+                        new_hidpi_factor
+                    };
+                    if last_hidpi_factor != new_hidpi_factor {
+                        events.dpi_changed = Some(WindowEvent::HiDpiFactorChanged(new_hidpi_factor));
+                        let (new_width, new_height, flusher) = window.adjust_for_dpi(
+                            last_hidpi_factor,
+                            new_hidpi_factor,
+                            width,
+                            height,
+                        );
+                        flusher.queue();
+                        shared_state_lock.dpi_adjusted = Some((new_width, new_height));
                     }
 
                     events
                 });
 
                 if let Some(events) = events {
-                    for event in events {
-                        callback(Event::WindowEvent {
-                            window_id: mkwid(xwindow),
-                            event,
-                        });
+                    let window_id = mkwid(xwindow);
+                    if let Some(event) = events.resized {
+                        callback(Event::WindowEvent { window_id, event });
+                    }
+                    if let Some(event) = events.moved {
+                        callback(Event::WindowEvent { window_id, event });
+                    }
+                    if let Some(event) = events.dpi_changed {
+                        callback(Event::WindowEvent { window_id, event });
                     }
                 }
             }
@@ -986,7 +1049,44 @@ impl EventsLoop {
             _ => {
                 if event_type == self.randr_event_offset {
                     // In the future, it would be quite easy to emit monitor hotplug events.
-                    monitor::invalidate_cached_monitor_list();
+                    let prev_list = monitor::invalidate_cached_monitor_list();
+                    if let Some(prev_list) = prev_list {
+                        let new_list = self.xconn.get_available_monitors();
+                        for new_monitor in new_list {
+                            prev_list
+                                .iter()
+                                .find(|prev_monitor| prev_monitor.name == new_monitor.name)
+                                .map(|prev_monitor| {
+                                    if new_monitor.hidpi_factor != prev_monitor.hidpi_factor {
+                                        for (window_id, window) in self.windows.borrow().iter() {
+                                            if let Some(window) = window.upgrade() {
+                                                // Check if the window is on this monitor
+                                                let monitor = window.get_current_monitor();
+                                                if monitor.name == new_monitor.name {
+                                                    callback(Event::WindowEvent {
+                                                        window_id: mkwid(window_id.0),
+                                                        event: WindowEvent::HiDpiFactorChanged(
+                                                            new_monitor.hidpi_factor
+                                                        ),
+                                                    });
+                                                    let (width, height) = match window.get_inner_size_physical() {
+                                                        Some(result) => result,
+                                                        None => continue,
+                                                    };
+                                                    let (_, _, flusher) = window.adjust_for_dpi(
+                                                        prev_monitor.hidpi_factor,
+                                                        new_monitor.hidpi_factor,
+                                                        width as f64,
+                                                        height as f64,
+                                                    );
+                                                    flusher.queue();
+                                                }
+                                            }
+                                        }
+                                    }
+                                });
+                        }
+                    }
                 }
             },
         }
@@ -1110,16 +1210,13 @@ pub struct WindowId(ffi::Window);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
 
-pub struct Window {
-    pub window: Arc<UnownedWindow>,
-    ime_sender: Mutex<ImeSender>,
-}
+pub struct Window(Arc<UnownedWindow>);
 
 impl Deref for Window {
     type Target = UnownedWindow;
     #[inline]
     fn deref(&self) -> &UnownedWindow {
-        &*self.window
+        &*self.0
     }
 }
 
@@ -1130,35 +1227,19 @@ impl Window {
         pl_attribs: PlatformSpecificWindowBuilderAttributes
     ) -> Result<Self, CreationError> {
         let window = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
-
         event_loop.windows
             .borrow_mut()
             .insert(window.id(), Arc::downgrade(&window));
-
-        event_loop.ime
-            .borrow_mut()
-            .create_context(window.id().0)
-            .expect("Failed to create input context");
-
-        Ok(Window {
-            window,
-            ime_sender: Mutex::new(event_loop.ime_sender.clone()),
-        })
-    }
-
-    #[inline]
-    pub fn send_xim_spot(&self, x: i16, y: i16) {
-        let _ = self.ime_sender
-            .lock()
-            .send((self.window.id().0, x, y));
+        Ok(Window(window))
     }
 }
 
 impl Drop for Window {
     fn drop(&mut self) {
-        let xconn = &self.window.xconn;
+        let window = self.deref();
+        let xconn = &window.xconn;
         unsafe {
-            (xconn.xlib.XDestroyWindow)(xconn.display, self.window.id().0);
+            (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0);
             // If the window was somehow already destroyed, we'll get a `BadWindow` error, which we don't care about.
             let _ = xconn.check_errors();
         }

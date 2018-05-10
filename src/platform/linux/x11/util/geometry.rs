@@ -1,6 +1,7 @@
 use std::cmp;
 
 use super::*;
+use {LogicalCoordinates, LogicalDimensions};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rect {
@@ -78,6 +79,24 @@ impl FrameExtents {
     pub fn from_border(border: c_ulong) -> Self {
         Self::new(border, border, border, border)
     }
+
+    pub fn as_logical(&self, factor: f64) -> LogicalFrameExtents {
+        let logicalize = |value: c_ulong| value as f64 / factor;
+        LogicalFrameExtents {
+            left: logicalize(self.left),
+            right: logicalize(self.right),
+            top: logicalize(self.top),
+            bottom: logicalize(self.bottom),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LogicalFrameExtents {
+    pub left: f64,
+    pub right: f64,
+    pub top: f64,
+    pub bottom: f64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -103,6 +122,16 @@ impl FrameExtentsHeuristic {
         }
     }
 
+    pub fn inner_pos_to_outer_logical(&self, mut logical: LogicalCoordinates, factor: f64) -> LogicalCoordinates {
+        use self::FrameExtentsHeuristicPath::*;
+        if self.heuristic_path != UnsupportedBordered {
+            let frame_extents = self.frame_extents.as_logical(factor);
+            logical.x -= frame_extents.left;
+            logical.y -= frame_extents.top;
+        }
+        logical
+    }
+
     pub fn inner_size_to_outer(&self, width: u32, height: u32) -> (u32, u32) {
         (
             width.saturating_add(
@@ -112,6 +141,13 @@ impl FrameExtentsHeuristic {
                 self.frame_extents.top.saturating_add(self.frame_extents.bottom) as u32
             ),
         )
+    }
+
+    pub fn inner_size_to_outer_logical(&self, mut logical: LogicalDimensions, factor: f64) -> LogicalDimensions {
+        let frame_extents = self.frame_extents.as_logical(factor);
+        logical.width += frame_extents.left + frame_extents.right;
+        logical.height += frame_extents.top + frame_extents.bottom;
+        logical
     }
 }
 

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
-use {WindowId, DeviceId};
+
+use {DeviceId, LogicalCoordinates, LogicalDimensions, WindowId};
 
 /// Describes a generic event.
 #[derive(Clone, Debug)]
@@ -23,12 +24,11 @@ pub enum Event {
 /// Describes an event from a `Window`.
 #[derive(Clone, Debug)]
 pub enum WindowEvent {
-
     /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(u32, u32),
+    Resized(LogicalDimensions),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(i32, i32),
+    Moved(LogicalCoordinates),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -103,7 +103,7 @@ pub enum WindowEvent {
     /// * A user changes the resolution.
     /// * A user changes the desktop scaling value (e.g. in Control Panel on Windows).
     /// * A user moves the application window to a display with a different DPI.
-    HiDPIFactorChanged(f32),
+    HiDpiFactorChanged(f64),
 }
 
 /// Represents raw hardware events that are not associated with any particular window.
