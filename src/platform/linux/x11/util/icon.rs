@@ -17,7 +17,7 @@ impl Pixel {
 }
 
 impl Icon {
-    pub fn to_cardinals(&self) -> Vec<Cardinal> {
+    pub(crate) fn to_cardinals(&self) -> Vec<Cardinal> {
         assert_eq!(self.rgba.len() % PIXEL_SIZE, 0);
         let pixel_count = self.rgba.len() / PIXEL_SIZE;
         assert_eq!(pixel_count, (self.width * self.height) as usize);

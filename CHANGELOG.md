@@ -1,5 +1,7 @@
 # Unreleased
 
+- `Icon::to_cardinals` is no longer public, since it was never supposed to be.
+
 # Version 0.14.0 (2018-05-09)
 
 - Created the `Copy`, `Paste` and `Cut` `VirtualKeyCode`s and added support for them on X11 and Wayland
