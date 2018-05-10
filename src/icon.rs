@@ -104,12 +104,16 @@ impl Icon {
 
     #[cfg(feature = "icon_loading")]
     /// Loads an `Icon` from the path of an image on the filesystem.
+    ///
+    /// Requires the `icon_loading` feature.
     pub fn from_path<P: AsRef<Path>>(path: P) -> image::ImageResult<Self> {
         image::open(path).map(Into::into)
     }
 
     #[cfg(feature = "icon_loading")]
     /// Loads an `Icon` from anything implementing `BufRead` and `Seek`.
+    ///
+    /// Requires the `icon_loading` feature.
     pub fn from_reader<R: BufRead + Seek>(
         reader: R,
         format: image::ImageFormat,
@@ -120,12 +124,16 @@ impl Icon {
     #[cfg(feature = "icon_loading")]
     /// Loads an `Icon` from the unprocessed bytes of an image file.
     /// Uses heuristics to determine format.
+    ///
+    /// Requires the `icon_loading` feature.
     pub fn from_bytes(bytes: &[u8]) -> image::ImageResult<Self> {
         image::load_from_memory(bytes).map(Into::into)
     }
 
     #[cfg(feature = "icon_loading")]
     /// Loads an `Icon` from the unprocessed bytes of an image.
+    ///
+    /// Requires the `icon_loading` feature.
     pub fn from_bytes_with_format(
         bytes: &[u8],
         format: image::ImageFormat,
@@ -135,6 +143,7 @@ impl Icon {
 }
 
 #[cfg(feature = "icon_loading")]
+/// Requires the `icon_loading` feature.
 impl From<image::DynamicImage> for Icon {
     fn from(image: image::DynamicImage) -> Self {
         use image::{GenericImage, Pixel};
@@ -148,6 +157,7 @@ impl From<image::DynamicImage> for Icon {
 }
 
 #[cfg(feature = "icon_loading")]
+/// Requires the `icon_loading` feature.
 impl From<image::RgbaImage> for Icon {
     fn from(buf: image::RgbaImage) -> Self {
         let (width, height) = buf.dimensions();
