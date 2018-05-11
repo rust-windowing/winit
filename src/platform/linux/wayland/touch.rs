@@ -2,15 +2,16 @@ use std::sync::{Arc, Mutex};
 
 use {TouchPhase, WindowEvent};
 
-use super::{DeviceId, WindowId};
+use super::{DeviceId, make_wid};
 use super::event_loop::EventsLoopSink;
 use super::window::WindowStore;
 
 use sctk::reexports::client::{NewProxy, Proxy};
+use sctk::reexports::client::protocol::wl_surface;
 use sctk::reexports::client::protocol::wl_touch::{Event as TouchEvent, WlTouch};
 
 struct TouchPoint {
-    wid: WindowId,
+    surface: Proxy<wl_surface::WlSurface>,
     location: (f64, f64),
     id: i32,
 }
@@ -28,23 +29,22 @@ pub(crate) fn implement_touch(
             TouchEvent::Down {
                 surface, id, x, y, ..
             } => {
-                let wid = store.find_wid(&surface);
-                if let Some(wid) = wid {
-                    sink.send_event(
-                        WindowEvent::Touch(::Touch {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                            phase: TouchPhase::Started,
-                            location: (x, y),
-                            id: id as u64,
-                        }),
-                        wid,
-                    );
-                    pending_ids.push(TouchPoint {
-                        wid: wid,
-                        location: (x, y),
-                        id: id,
-                    });
-                }
+                let dpi = store.get_dpi(&surface) as f64;
+                let location = (dpi*x, dpi*y);
+                sink.send_event(
+                    WindowEvent::Touch(::Touch {
+                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                        phase: TouchPhase::Started,
+                        location,
+                        id: id as u64,
+                    }),
+                    make_wid(&surface),
+                );
+                pending_ids.push(TouchPoint {
+                    surface: surface,
+                    location,
+                    id: id,
+                });
             }
             TouchEvent::Up { id, .. } => {
                 let idx = pending_ids.iter().position(|p| p.id == id);
@@ -57,22 +57,23 @@ pub(crate) fn implement_touch(
                             location: pt.location,
                             id: id as u64,
                         }),
-                        pt.wid,
+                        make_wid(&pt.surface),
                     );
                 }
             }
             TouchEvent::Motion { id, x, y, .. } => {
                 let pt = pending_ids.iter_mut().find(|p| p.id == id);
                 if let Some(pt) = pt {
-                    pt.location = (x, y);
+                    let dpi = store.get_dpi(&pt.surface) as f64;
+                    pt.location = (dpi*x, dpi*y);
                     sink.send_event(
                         WindowEvent::Touch(::Touch {
                             device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                             phase: TouchPhase::Moved,
-                            location: (x, y),
+                            location: pt.location,
                             id: id as u64,
                         }),
-                        pt.wid,
+                        make_wid(&pt.surface),
                     );
                 }
             }
@@ -85,7 +86,7 @@ pub(crate) fn implement_touch(
                         location: pt.location,
                         id: pt.id as u64,
                     }),
-                    pt.wid,
+                    make_wid(&pt.surface),
                 );
             },
         }

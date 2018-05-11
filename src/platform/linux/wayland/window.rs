@@ -326,15 +326,6 @@ impl WindowStore {
         }
     }
 
-    pub fn find_wid(&self, surface: &Proxy<wl_surface::WlSurface>) -> Option<WindowId> {
-        for window in &self.windows {
-            if surface.equals(&window.surface) {
-                return Some(make_wid(surface));
-            }
-        }
-        None
-    }
-
     pub fn cleanup(&mut self) -> Vec<WindowId> {
         let mut pruned = Vec::new();
         self.windows.retain(|w| {
@@ -364,6 +355,15 @@ impl WindowStore {
                 window.new_dpi = Some(new);
             }
         }
+    }
+
+    pub fn get_dpi(&self, surface: &Proxy<wl_surface::WlSurface>) -> i32 {
+        for window in &self.windows {
+            if surface.equals(&window.surface) {
+                return window.current_dpi;
+            }
+        }
+        return 1;
     }
 
     pub fn for_each<F>(&mut self, mut f: F)

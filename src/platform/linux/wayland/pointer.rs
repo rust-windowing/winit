@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use {ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
 use events::ModifiersState;
 
-use super::DeviceId;
+use super::{DeviceId, make_wid};
 use super::event_loop::EventsLoopSink;
 use super::window::WindowStore;
 
@@ -30,57 +30,53 @@ pub fn implement_pointer(
                 surface_y,
                 ..
             } => {
-                let wid = store.find_wid(&surface);
-                if let Some(wid) = wid {
-                    mouse_focus = Some(wid);
-                    sink.send_event(
-                        WindowEvent::CursorEntered {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                        },
-                        wid,
-                    );
-                    sink.send_event(
-                        WindowEvent::CursorMoved {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                            position: (surface_x, surface_y),
-                            // TODO: replace dummy value with actual modifier state
-                            modifiers: ModifiersState::default(),
-                        },
-                        wid,
-                    );
-                }
+                let dpi = store.get_dpi(&surface) as f64;
+                sink.send_event(
+                    WindowEvent::CursorEntered {
+                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                    },
+                    make_wid(&surface),
+                );
+                sink.send_event(
+                    WindowEvent::CursorMoved {
+                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                        position: (dpi*surface_x, dpi*surface_y),
+                        // TODO: replace dummy value with actual modifier state
+                        modifiers: ModifiersState::default(),
+                    },
+                    make_wid(&surface),
+                );
+                mouse_focus = Some(surface);
             }
             PtrEvent::Leave { surface, .. } => {
                 mouse_focus = None;
-                let wid = store.find_wid(&surface);
-                if let Some(wid) = wid {
-                    sink.send_event(
-                        WindowEvent::CursorLeft {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                        },
-                        wid,
-                    );
-                }
+                sink.send_event(
+                    WindowEvent::CursorLeft {
+                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                    },
+                    make_wid(&surface),
+                );
             }
             PtrEvent::Motion {
                 surface_x,
                 surface_y,
                 ..
             } => {
-                if let Some(wid) = mouse_focus {
+                if let Some(ref surface) = mouse_focus {
+                    let dpi = store.get_dpi(&surface) as f64;
                     sink.send_event(
                         WindowEvent::CursorMoved {
                             device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                            position: (surface_x, surface_y),
+                            position: (dpi*surface_x, dpi*surface_y),
                             // TODO: replace dummy value with actual modifier state
                             modifiers: ModifiersState::default(),
                         },
-                        wid,
+                        make_wid(surface),
                     );
                 }
             }
             PtrEvent::Button { button, state, .. } => {
-                if let Some(wid) = mouse_focus {
+                if let Some(ref surface) = mouse_focus {
                     let state = match state {
                         wl_pointer::ButtonState::Pressed => ElementState::Pressed,
                         wl_pointer::ButtonState::Released => ElementState::Released,
@@ -100,12 +96,12 @@ pub fn implement_pointer(
                             // TODO: replace dummy value with actual modifier state
                             modifiers: ModifiersState::default(),
                         },
-                        wid,
+                        make_wid(surface),
                     );
                 }
             }
             PtrEvent::Axis { axis, value, .. } => {
-                if let Some(wid) = mouse_focus {
+                if let Some(ref surface) = mouse_focus {
                     if pointer.version() < 5 {
                         let (mut x, mut y) = (0.0, 0.0);
                         // old seat compatibility
@@ -122,7 +118,7 @@ pub fn implement_pointer(
                                 // TODO: replace dummy value with actual modifier state
                                 modifiers: ModifiersState::default(),
                             },
-                            wid,
+                            make_wid(surface),
                         );
                     } else {
                         let (mut x, mut y) = axis_buffer.unwrap_or((0.0, 0.0));
@@ -142,7 +138,7 @@ pub fn implement_pointer(
             PtrEvent::Frame => {
                 let axis_buffer = axis_buffer.take();
                 let axis_discrete_buffer = axis_discrete_buffer.take();
-                if let Some(wid) = mouse_focus {
+                if let Some(ref surface) = mouse_focus {
                     if let Some((x, y)) = axis_discrete_buffer {
                         sink.send_event(
                             WindowEvent::MouseWheel {
@@ -152,7 +148,7 @@ pub fn implement_pointer(
                                 // TODO: replace dummy value with actual modifier state
                                 modifiers: ModifiersState::default(),
                             },
-                            wid,
+                            make_wid(surface),
                         );
                     } else if let Some((x, y)) = axis_buffer {
                         sink.send_event(
@@ -163,7 +159,7 @@ pub fn implement_pointer(
                                 // TODO: replace dummy value with actual modifier state
                                 modifiers: ModifiersState::default(),
                             },
-                            wid,
+                            make_wid(surface),
                         );
                     }
                 }
