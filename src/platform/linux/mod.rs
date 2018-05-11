@@ -69,7 +69,7 @@ pub enum DeviceId {
     Wayland(wayland::DeviceId)
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum MonitorId {
     X(x11::MonitorId),
     Wayland(wayland::MonitorId),

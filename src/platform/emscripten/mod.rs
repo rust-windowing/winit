@@ -24,7 +24,7 @@ pub struct DeviceId;
 #[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MonitorId;
 
 impl MonitorId {

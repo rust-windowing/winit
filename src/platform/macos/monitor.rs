@@ -3,6 +3,7 @@ use cocoa::base::{id, nil};
 use cocoa::foundation::{NSString, NSUInteger};
 use core_graphics::display::{CGDirectDisplayID, CGDisplay};
 use std::collections::VecDeque;
+use std::fmt;
 use super::EventsLoop;
 use super::window::IdRef;
 
@@ -29,6 +30,29 @@ impl EventsLoop {
     pub fn make_monitor_from_display(id: CGDirectDisplayID) -> MonitorId {
         let id = MonitorId(id);
         id
+    }
+}
+
+impl fmt::Debug for MonitorId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        #[derive(Debug)]
+        struct MonitorId {
+            name: Option<String>,
+            native_identifier: u32,
+            dimensions: (u32, u32),
+            position: &'static str,
+            hidpi_factor: f32,
+        }
+
+        let monitor_id_proxy = MonitorId {
+            name: self.get_name(),
+            native_identifier: self.get_native_identifier(),
+            dimensions: self.get_dimensions(),
+            position: "WARNING: `MonitorId::get_position` is unimplemented on macOS!",
+            hidpi_factor: self.get_hidpi_factor(),
+        };
+
+        monitor_id_proxy.fmt(f)
     }
 }
 

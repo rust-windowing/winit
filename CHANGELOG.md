@@ -6,6 +6,7 @@
 - On X11, `Window::get_current_monitor` now reliably returns the correct monitor.
 - On X11, `Window::hidpi_factor` returns values from XRandR rather than the inaccurate values previously queried from the core protocol.
 - On X11, the primary monitor is detected correctly even when using versions of XRandR less than 1.5.
+- `MonitorId` now implements `Debug`.
 
 # Version 0.14.0 (2018-05-09)
 

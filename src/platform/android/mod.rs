@@ -164,7 +164,7 @@ pub struct Window {
     native_window: *const c_void,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MonitorId;
 
 mod ffi;

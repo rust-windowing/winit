@@ -409,7 +409,7 @@ impl Iterator for AvailableMonitorsIter {
 }
 
 /// Identifier for a monitor.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MonitorId {
     pub(crate) inner: platform::MonitorId
 }
