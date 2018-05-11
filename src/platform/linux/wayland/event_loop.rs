@@ -250,12 +250,13 @@ impl EventsLoop {
         }
         // process pending resize/refresh
         self.store.lock().unwrap().for_each(
-            |newsize, refresh, frame_refresh, closed, wid, frame| {
+            |newsize, size, refresh, frame_refresh, closed, wid, frame| {
                 if let Some(frame) = frame {
                     if let Some((w, h)) = newsize {
-                        frame.resize(w as u32, h as u32);
+                        frame.resize(w, h);
                         frame.refresh();
-                        sink.send_event(::WindowEvent::Resized(w as u32, h as u32), wid);
+                        sink.send_event(::WindowEvent::Resized(w, h), wid);
+                        *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
                     }

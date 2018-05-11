@@ -59,7 +59,7 @@ impl Window {
                     let mut store = window_store.lock().unwrap();
                     for window in &mut store.windows {
                         if window.surface.equals(&my_surface) {
-                            window.newsize = new_size.map(|(w, h)| (w as i32, h as i32));
+                            window.newsize = new_size;
                             window.need_refresh = true;
                             *(window.need_frame_refresh.lock().unwrap()) = true;
                             return;
@@ -115,6 +115,7 @@ impl Window {
         evlp.store.lock().unwrap().windows.push(InternalWindow {
             closed: false,
             newsize: None,
+            size: size.clone(),
             need_refresh: false,
             need_frame_refresh: need_frame_refresh.clone(),
             surface: surface.clone(),
@@ -287,7 +288,8 @@ impl Drop for Window {
 
 struct InternalWindow {
     surface: Proxy<wl_surface::WlSurface>,
-    newsize: Option<(i32, i32)>,
+    newsize: Option<(u32, u32)>,
+    size: Arc<Mutex<(u32, u32)>>,
     need_refresh: bool,
     need_frame_refresh: Arc<Mutex<bool>>,
     closed: bool,
@@ -340,13 +342,14 @@ impl WindowStore {
 
     pub fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(Option<(i32, i32)>, bool, bool, bool, WindowId, Option<&mut SWindow<BasicFrame>>),
+        F: FnMut(Option<(u32, u32)>, &mut (u32, u32), bool, bool, bool, WindowId, Option<&mut SWindow<BasicFrame>>),
     {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();
             let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
             f(
                 window.newsize.take(),
+                &mut *(window.size.lock().unwrap()),
                 window.need_refresh,
                 ::std::mem::replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
