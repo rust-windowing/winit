@@ -250,15 +250,45 @@ impl EventsLoop {
         }
         // process pending resize/refresh
         self.store.lock().unwrap().for_each(
-            |newsize, size, refresh, frame_refresh, closed, wid, frame| {
+            |newsize, size, current_dpi, new_dpi, refresh, frame_refresh, closed, wid, frame| {
+                // update frame if needed
                 if let Some(frame) = frame {
                     if let Some((w, h)) = newsize {
                         frame.resize(w, h);
                         frame.refresh();
-                        sink.send_event(::WindowEvent::Resized(w, h), wid);
                         *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
+                    }
+                }
+                // handle dpi/size change
+                match (newsize, new_dpi) {
+                    (Some((w, h)), Some(new_dpi)) => {
+                        // both size and dpi changed, compute a compound event
+                        let dpi_w = w * new_dpi as u32;
+                        let dpi_h = h * new_dpi as u32;
+                        sink.send_event(::WindowEvent::HiDPIFactorChanged(new_dpi as f32), wid);
+                        sink.send_event(::WindowEvent::Resized(dpi_w as u32, dpi_h as u32), wid);
+                        *size = (dpi_w as u32, dpi_h as u32);
+                    },
+                    (None, Some(new_dpi)) => {
+                        // dpi has changed, fetch previous DPI-aware size and recompute it
+                        let (old_w, old_h) = *size;
+                        let dpi_w = old_w as i32 * new_dpi / current_dpi;
+                        let dpi_h = old_h as i32 * new_dpi / current_dpi;
+                        sink.send_event(::WindowEvent::HiDPIFactorChanged(new_dpi as f32), wid);
+                        sink.send_event(::WindowEvent::Resized(dpi_w as u32, dpi_h as u32), wid);
+                        *size = (dpi_w as u32, dpi_h as u32);
+                    },
+                    (Some((w, h)), None) => {
+                        // new size, take dpi into account to send resized event
+                        let dpi_w = w * current_dpi as u32;
+                        let dpi_h = h * current_dpi as u32;
+                        sink.send_event(::WindowEvent::Resized(dpi_w as u32, dpi_h as u32), wid);
+                        *size = (dpi_w as u32, dpi_h as u32);
+                    },
+                    (None, None) => {
+                        // nothing to do
                     }
                 }
                 if refresh {
@@ -462,9 +492,9 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f32 {
+    pub fn get_hidpi_factor(&self) -> i32 {
         self.mgr
-            .with_info(&self.proxy, |_, info| info.scale_factor as f32)
-            .unwrap_or(1.0)
+            .with_info(&self.proxy, |_, info| info.scale_factor)
+            .unwrap_or(1)
     }
 }

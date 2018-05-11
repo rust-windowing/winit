@@ -110,7 +110,7 @@ impl MonitorId {
     pub fn get_hidpi_factor(&self) -> f32 {
         match self {
             &MonitorId::X(ref m) => m.get_hidpi_factor(),
-            &MonitorId::Wayland(ref m) => m.get_hidpi_factor(),
+            &MonitorId::Wayland(ref m) => m.get_hidpi_factor() as f32,
         }
     }
 }
