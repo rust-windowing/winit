@@ -10,7 +10,7 @@ use super::window::WindowStore;
 
 use sctk::Environment;
 use sctk::output::OutputMgr;
-use sctk::reexports::client::{Display, EventQueue, GlobalEvent, Proxy};
+use sctk::reexports::client::{Display, EventQueue, GlobalEvent, Proxy, ConnectError};
 use sctk::reexports::client::commons::Implementation;
 use sctk::reexports::client::protocol::{wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat,
                                         wl_touch};
@@ -100,11 +100,8 @@ impl EventsLoopProxy {
 }
 
 impl EventsLoop {
-    pub fn new() -> Option<EventsLoop> {
-        let (display, mut event_queue) = match Display::connect_to_env() {
-            Ok(ret) => ret,
-            Err(_) => return None,
-        };
+    pub fn new() -> Result<EventsLoop, ConnectError> {
+        let (display, mut event_queue) = Display::connect_to_env()?;
 
         let sink = Arc::new(Mutex::new(EventsLoopSink::new()));
         let store = Arc::new(Mutex::new(WindowStore::new()));
@@ -120,7 +117,7 @@ impl EventsLoop {
             },
         ).unwrap();
 
-        Some(EventsLoop {
+        Ok(EventsLoop {
             display: Arc::new(display),
             evq: RefCell::new(event_queue),
             sink: sink,
