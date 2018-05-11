@@ -2,6 +2,7 @@
 
 - `Icon::to_cardinals` is no longer public, since it was never supposed to be.
 - Wayland: improve diagnostics if initialization fails
+- Fix some system event key doesn't work when focused, do not block keyevent forward to system on macOS
 
 # Version 0.14.0 (2018-05-09)
 
