@@ -1,6 +1,7 @@
 # Unreleased
 
 - `Icon::to_cardinals` is no longer public, since it was never supposed to be.
+- Wayland: improve diagnostics if initialization fails
 
 # Version 0.14.0 (2018-05-09)
 

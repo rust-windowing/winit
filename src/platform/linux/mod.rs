@@ -6,6 +6,8 @@ use std::ffi::CStr;
 use std::os::raw::*;
 use std::sync::Arc;
 
+use sctk::reexports::client::ConnectError;
+
 // `std::os::raw::c_void` and `libc::c_void` are NOT interchangeable!
 use libc;
 
@@ -395,10 +397,9 @@ r#"Failed to initialize any backend!
         panic!(err_string);
     }
 
-    pub fn new_wayland() -> Result<EventsLoop, ()> {
+    pub fn new_wayland() -> Result<EventsLoop, ConnectError> {
         wayland::EventsLoop::new()
             .map(EventsLoop::Wayland)
-            .ok_or(())
     }
 
     pub fn new_x11() -> Result<EventsLoop, XNotSupported> {
