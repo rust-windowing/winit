@@ -3,6 +3,7 @@
 - `Icon::to_cardinals` is no longer public, since it was never supposed to be.
 - Wayland: improve diagnostics if initialization fails
 - Fix some system event key doesn't work when focused, do not block keyevent forward to system on macOS
+- On X11, the scroll wheel position is now correctly reset on i3 and other WMs that have the same quirk.
 - On X11, `Window::get_current_monitor` now reliably returns the correct monitor.
 - On X11, `Window::hidpi_factor` returns values from XRandR rather than the inaccurate values previously queried from the core protocol.
 - On X11, the primary monitor is detected correctly even when using versions of XRandR less than 1.5.
