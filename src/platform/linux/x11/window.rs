@@ -12,7 +12,7 @@ use CreationError::{self, OsError};
 use platform::MonitorId as PlatformMonitorId;
 use platform::PlatformSpecificWindowBuilderAttributes;
 use platform::x11::MonitorId as X11MonitorId;
-use platform::x11::monitor::get_available_monitors;
+use platform::x11::monitor::get_monitor_for_window;
 use window::MonitorId as RootMonitorId;
 
 use super::{ffi, util, XConnection, XError, WindowId, EventsLoop};
@@ -395,41 +395,17 @@ impl Window2 {
         self.invalidate_cached_frame_extents();
     }
 
-    pub fn get_current_monitor(&self) -> X11MonitorId {
-        let monitors = get_available_monitors(&self.x.display);
-        let default = monitors[0].clone();
-
-        let (wx,wy) = match self.get_position() {
-            Some(val) => (cmp::max(0,val.0) as u32, cmp::max(0,val.1) as u32),
-            None=> return default,
-        };
-        let (ww,wh) = match self.get_outer_size() {
-            Some(val) => val,
-            None=> return default,
-        };
-        // Opposite corner coordinates
-        let (wxo, wyo) = (wx+ww-1, wy+wh-1);
-
-        // Find the monitor with the biggest overlap with the window
-        let mut overlap = 0;
-        let mut find = default;
-        for monitor in monitors {
-            let (mx, my) = monitor.get_position();
-            let mx = mx as u32;
-            let my = my as u32;
-            let (mw, mh) = monitor.get_dimensions();
-            let (mxo, myo) = (mx+mw-1, my+mh-1);
-            let (ox, oy) = (cmp::max(wx, mx), cmp::max(wy, my));
-            let (oxo, oyo) = (cmp::min(wxo, mxo), cmp::min(wyo, myo));
-            let osize = if ox <= oxo || oy <= oyo { 0 } else { (oxo-ox)*(oyo-oy) };
-
-            if osize > overlap {
-                overlap = osize;
-                find = monitor;
-            }
+    fn get_rect(&self) -> Option<util::Rect> {
+        // TODO: This might round-trip more times than needed.
+        if let (Some(position), Some(size)) = (self.get_position(), self.get_outer_size()) {
+            Some(util::Rect::new(position, size))
+        } else {
+            None
         }
+    }
 
-        find
+    pub fn get_current_monitor(&self) -> X11MonitorId {
+        get_monitor_for_window(&self.x.display, self.get_rect()).to_owned()
     }
 
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher {
@@ -663,13 +639,13 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, x: u32, y: u32) {
+    pub fn set_inner_size(&self, width: u32, height: u32) {
         unsafe {
             (self.x.display.xlib.XResizeWindow)(
                 self.x.display.display,
                 self.x.window,
-                x as c_uint,
-                y as c_uint,
+                width as c_uint,
+                height as c_uint,
             );
             util::flush_requests(&self.x.display)
         }.expect("Failed to call XResizeWindow");
@@ -972,14 +948,7 @@ impl Window2 {
     }
 
     pub fn hidpi_factor(&self) -> f32 {
-        unsafe {
-            let x_px = (self.x.display.xlib.XDisplayWidth)(self.x.display.display, self.x.screen_id);
-            let y_px = (self.x.display.xlib.XDisplayHeight)(self.x.display.display, self.x.screen_id);
-            let x_mm = (self.x.display.xlib.XDisplayWidthMM)(self.x.display.display, self.x.screen_id);
-            let y_mm = (self.x.display.xlib.XDisplayHeightMM)(self.x.display.display, self.x.screen_id);
-            let ppmm = ((x_px as f32 * y_px as f32) / (x_mm as f32 * y_mm as f32)).sqrt();
-            ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0) // quantize with 1/12 step size.
-        }
+        self.get_current_monitor().hidpi_factor
     }
 
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {

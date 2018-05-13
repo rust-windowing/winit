@@ -6,6 +6,7 @@ mod geometry;
 mod hint;
 mod icon;
 mod input;
+mod randr;
 mod window_property;
 mod wm;
 
@@ -14,6 +15,7 @@ pub use self::geometry::*;
 pub use self::hint::*;
 pub use self::icon::*;
 pub use self::input::*;
+pub use self::randr::*;
 pub use self::window_property::*;
 pub use self::wm::*;
 

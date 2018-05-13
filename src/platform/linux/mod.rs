@@ -340,6 +340,8 @@ unsafe extern "C" fn x_error_callback(
             minor_code: (*event).minor_code,
         };
 
+        eprintln!("[winit X11 error] {:#?}", error);
+
         *xconn.latest_error.lock() = Some(error);
     }
     // Fun fact: this return value is completely ignored.
