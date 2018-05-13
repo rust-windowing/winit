@@ -804,15 +804,19 @@ impl EventsLoop {
                         let window_id = mkwid(xev.event);
                         let device_id = mkdid(xev.deviceid);
 
-                        let mut devices = self.devices.borrow_mut();
-                        let physical_device = match devices.get_mut(&DeviceId(xev.sourceid)) {
-                            Some(device) => device,
-                            None => return,
-                        };
                         if let Some(all_info) = DeviceInfo::get(&self.display, ffi::XIAllDevices) {
+                            let mut devices = self.devices.borrow_mut();
                             for device_info in all_info.iter() {
-                                if device_info.deviceid == xev.sourceid {
-                                    physical_device.reset_scroll_position(device_info);
+                                if device_info.deviceid == xev.sourceid
+                                // This is needed for resetting to work correctly on i3, and
+                                // presumably some other WMs. On those, `XI_Enter` doesn't include
+                                // the physical device ID, so both `sourceid` and `deviceid` are
+                                // the virtual device.
+                                || device_info.attachment == xev.sourceid {
+                                    let device_id = DeviceId(device_info.deviceid);
+                                    if let Some(device) = devices.get_mut(&device_id) {
+                                        device.reset_scroll_position(device_info);
+                                    }
                                 }
                             }
                         }
