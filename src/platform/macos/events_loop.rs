@@ -294,10 +294,7 @@ impl EventsLoop {
 
         // FIXME: Document this. Why do we do this? Seems like it passes on events to window/app.
         // If we don't do this, window does not become main for some reason.
-        match event_type {
-            appkit::NSKeyDown => (),
-            _ => appkit::NSApp().sendEvent_(ns_event),
-        }
+        appkit::NSApp().sendEvent_(ns_event);
 
         let windows = self.shared.windows.lock().unwrap();
         let maybe_window = windows.iter()

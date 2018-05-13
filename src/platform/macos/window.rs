@@ -415,13 +415,13 @@ impl WindowDelegate {
             // callbacks for drag and drop events
             decl.add_method(sel!(draggingEntered:),
                 dragging_entered as extern fn(&Object, Sel, id) -> BOOL);
-           decl.add_method(sel!(prepareForDragOperation:),
+            decl.add_method(sel!(prepareForDragOperation:),
                 prepare_for_drag_operation as extern fn(&Object, Sel, id));
-           decl.add_method(sel!(performDragOperation:),
+            decl.add_method(sel!(performDragOperation:),
                 perform_drag_operation as extern fn(&Object, Sel, id) -> BOOL);
-           decl.add_method(sel!(concludeDragOperation:),
+            decl.add_method(sel!(concludeDragOperation:),
                 conclude_drag_operation as extern fn(&Object, Sel, id));
-           decl.add_method(sel!(draggingExited:),
+            decl.add_method(sel!(draggingExited:),
                 dragging_exited as extern fn(&Object, Sel, id));
 
             // callbacks for fullscreen events
@@ -686,10 +686,13 @@ impl Window2 {
         static INIT: std::sync::Once = std::sync::ONCE_INIT;
 
         INIT.call_once(|| unsafe {
+            extern fn on_key_down(_this: &Object, _sel: Sel, _id: id) {}
+
             let window_superclass = Class::get("NSWindow").unwrap();
             let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
             decl.add_method(sel!(canBecomeMainWindow), yes as extern fn(&Object, Sel) -> BOOL);
             decl.add_method(sel!(canBecomeKeyWindow), yes as extern fn(&Object, Sel) -> BOOL);
+            decl.add_method(sel!(keyDown:), on_key_down as extern fn(&Object, Sel, id));
             WINDOW2_CLASS = decl.register();
         });
 
