@@ -96,7 +96,7 @@ use self::ffi::{
 
 static mut jmpbuf: [c_int;27] = [0;27];
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MonitorId;
 
 pub struct Window {

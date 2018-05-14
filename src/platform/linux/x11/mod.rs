@@ -9,7 +9,12 @@ mod dnd;
 mod ime;
 mod util;
 
-pub use self::monitor::{MonitorId, get_available_monitors, get_primary_monitor};
+pub use self::monitor::{
+    MonitorId,
+    get_available_monitors,
+    get_monitor_for_window,
+    get_primary_monitor,
+};
 pub use self::window::{Window2, XWindow};
 pub use self::xdisplay::{XConnection, XNotSupported, XError};
 
@@ -46,6 +51,7 @@ pub struct EventsLoop {
     ime_receiver: ImeReceiver,
     ime_sender: ImeSender,
     ime: RefCell<Ime>,
+    randr_event_offset: c_int,
     windows: Arc<Mutex<HashMap<WindowId, WindowData>>>,
     // Please don't laugh at this type signature
     shared_state: RefCell<HashMap<WindowId, Weak<Mutex<window::SharedState>>>>,
@@ -67,6 +73,8 @@ pub struct EventsLoopProxy {
 
 impl EventsLoop {
     pub fn new(display: Arc<XConnection>) -> EventsLoop {
+        let root = unsafe { (display.xlib.XDefaultRootWindow)(display.display) };
+
         let wm_delete_window = unsafe { util::get_atom(&display, b"WM_DELETE_WINDOW\0") }
             .expect("Failed to call XInternAtom (WM_DELETE_WINDOW)");
 
@@ -84,6 +92,9 @@ impl EventsLoop {
             }
             result.expect("Failed to set input method destruction callback")
         });
+
+        let randr_event_offset = monitor::select_input(&display, root)
+            .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
             let mut result = XExtension {
@@ -119,7 +130,6 @@ impl EventsLoop {
             }
         }
 
-        let root = unsafe { (display.xlib.XDefaultRootWindow)(display.display) };
         util::update_cached_wm_info(&display, root);
 
         let wakeup_dummy_window = unsafe {
@@ -146,6 +156,7 @@ impl EventsLoop {
             ime_receiver,
             ime_sender,
             ime,
+            randr_event_offset,
             windows: Arc::new(Mutex::new(HashMap::new())),
             shared_state: RefCell::new(HashMap::new()),
             devices: RefCell::new(HashMap::new()),
@@ -1041,7 +1052,12 @@ impl EventsLoop {
                     _ => {}
                 }
             },
-            _ => (),
+            _ => {
+                if event_type == self.randr_event_offset {
+                    // In the future, it would be quite easy to emit monitor hotplug events.
+                    monitor::invalidate_cached_monitor_list();
+                }
+            },
         }
 
         match self.ime_receiver.try_recv() {

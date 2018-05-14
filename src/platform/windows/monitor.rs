@@ -9,7 +9,7 @@ use std::{mem, ptr};
 use super::{EventsLoop, util};
 
 /// Win32 implementation of the main `MonitorId` object.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MonitorId {
     /// The system name of the adapter.
     adapter_name: [wchar_t; 32],
@@ -39,7 +39,7 @@ pub struct MonitorId {
 // For more info see:
 // https://github.com/retep998/winapi-rs/issues/360
 // https://github.com/retep998/winapi-rs/issues/396
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct HMonitor(HMONITOR);
 
 unsafe impl Send for HMonitor {}

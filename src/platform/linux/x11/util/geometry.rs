@@ -1,4 +1,39 @@
+use std::cmp;
+
 use super::*;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rect {
+    left: i64,
+    right: i64,
+    top: i64,
+    bottom: i64,
+}
+
+impl Rect {
+    pub fn new((x, y): (i32, i32), (width, height): (u32, u32)) -> Self {
+        let (x, y) = (x as i64, y as i64);
+        let (width, height) = (width as i64, height as i64);
+        Rect {
+            left: x,
+            right: x + width,
+            top: y,
+            bottom: y + height,
+        }
+    }
+
+    pub fn get_overlapping_area(&self, other: &Self) -> i64 {
+        let x_overlap = cmp::max(
+            0,
+            cmp::min(self.right, other.right) - cmp::max(self.left, other.left),
+        );
+        let y_overlap = cmp::max(
+            0,
+            cmp::min(self.bottom, other.bottom) - cmp::max(self.top, other.top),
+        );
+        x_overlap * y_overlap
+    }
+}
 
 #[derive(Debug)]
 pub struct TranslatedCoords {

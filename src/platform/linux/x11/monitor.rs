@@ -1,9 +1,33 @@
+use std::os::raw::*;
 use std::sync::Arc;
-use std::slice;
 
-use super::XConnection;
+use parking_lot::Mutex;
 
-#[derive(Clone)]
+use super::ffi::{
+    RRCrtcChangeNotifyMask,
+    RROutputPropertyNotifyMask,
+    RRScreenChangeNotifyMask,
+    True,
+    Window,
+    XRRScreenResources,
+};
+use super::{util, XConnection, XError};
+
+// Used to test XRandR < 1.5 code path. This should always be committed as false.
+const FORCE_RANDR_COMPAT: bool = false;
+// Also used for testing. This should always be committed as false.
+const DISABLE_MONITOR_LIST_CACHING: bool = false;
+
+lazy_static! {
+    static ref MONITORS: Mutex<Option<Vec<MonitorId>>> = Mutex::new(None);
+}
+
+pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorId>> {
+    // We update this lazily.
+    (*MONITORS.lock()).take()
+}
+
+#[derive(Debug, Clone)]
 pub struct MonitorId {
     /// The actual id
     id: u32,
@@ -15,96 +39,34 @@ pub struct MonitorId {
     position: (i32, i32),
     /// If the monitor is the primary one
     primary: bool,
-    /// The DPI scaling factor
-    hidpi_factor: f32,
-}
-
-pub fn get_available_monitors(x: &Arc<XConnection>) -> Vec<MonitorId> {
-    let mut available = Vec::new();
-    unsafe {
-        let root = (x.xlib.XDefaultRootWindow)(x.display);
-        let resources = (x.xrandr.XRRGetScreenResources)(x.display, root);
-
-        if let Some(ref xrandr_1_5) = x.xrandr_1_5 {
-            // We're in XRandR >= 1.5, enumerate Monitors to handle things like MST and videowalls
-            let mut nmonitors = 0;
-            let monitors = (xrandr_1_5.XRRGetMonitors)(x.display, root, 1, &mut nmonitors);
-            for i in 0..nmonitors {
-                let monitor = *(monitors.offset(i as isize));
-                let output = (xrandr_1_5.XRRGetOutputInfo)(x.display, resources, *(monitor.outputs.offset(0)));
-                let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
-                let name = String::from_utf8_lossy(nameslice).into_owned();
-                let hidpi_factor = {
-                    let x_mm = (*output).mm_width as f32;
-                    let y_mm = (*output).mm_height as f32;
-                    let x_px = monitor.width as f32;
-                    let y_px = monitor.height as f32;
-                    let ppmm = ((x_px * y_px) / (x_mm * y_mm)).sqrt();
-
-                    // Quantize 1/12 step size
-                    ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0)
-                };
-                (xrandr_1_5.XRRFreeOutputInfo)(output);
-                available.push(MonitorId{
-                    id: i as u32,
-                    name,
-                    hidpi_factor,
-                    dimensions: (monitor.width as u32, monitor.height as u32),
-                    position: (monitor.x as i32, monitor.y as i32),
-                    primary: (monitor.primary != 0),
-                });
-            }
-            (xrandr_1_5.XRRFreeMonitors)(monitors);
-        } else {
-            // We're in XRandR < 1.5, enumerate CRTCs. Everything will work but MST and
-            // videowall setups will show more monitors than the logical groups the user
-            // cares about
-            for i in 0..(*resources).ncrtc {
-                let crtcid = *((*resources).crtcs.offset(i as isize));
-                let crtc = (x.xrandr.XRRGetCrtcInfo)(x.display, resources, crtcid);
-                if (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0 {
-                    let output = (x.xrandr.XRRGetOutputInfo)(x.display, resources, *((*crtc).outputs.offset(0)));
-                    let nameslice = slice::from_raw_parts((*output).name as *mut u8, (*output).nameLen as usize);
-                    let name = String::from_utf8_lossy(nameslice).into_owned();
-
-                    let hidpi_factor = {
-                        let x_mm = (*output).mm_width as f32;
-                        let y_mm = (*output).mm_height as f32;
-                        let x_px = (*crtc).width as f32;
-                        let y_px = (*crtc).height as f32;
-                        let ppmm = ((x_px * y_px) / (x_mm * y_mm)).sqrt();
-
-                        // Quantize 1/12 step size
-                        ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0)
-                    };
-
-                    (x.xrandr.XRRFreeOutputInfo)(output);
-                    available.push(MonitorId{
-                        id: crtcid as u32,
-                        name,
-                        hidpi_factor,
-                        dimensions: ((*crtc).width as u32, (*crtc).height as u32),
-                        position: ((*crtc).x as i32, (*crtc).y as i32),
-                        primary: true,
-                    });
-                }
-                (x.xrandr.XRRFreeCrtcInfo)(crtc);
-            }
-        }
-        (x.xrandr.XRRFreeScreenResources)(resources);
-    }
-    available
-}
-
-#[inline]
-pub fn get_primary_monitor(x: &Arc<XConnection>) -> MonitorId {
-    get_available_monitors(x).into_iter().find(|m| m.primary)
-        // 'no primary' case is better handled picking some existing monitor
-        .or_else(|| get_available_monitors(x).into_iter().next())
-        .expect("[winit] Failed to find any x11 monitor")
+    /// The DPI scale factor
+    pub(crate) hidpi_factor: f32,
+    /// Used to determine which windows are on this monitor
+    pub(crate) rect: util::Rect,
 }
 
 impl MonitorId {
+    fn from_repr(
+        xconn: &Arc<XConnection>,
+        resources: *mut XRRScreenResources,
+        id: u32,
+        repr: util::MonitorRepr,
+        primary: bool,
+    ) -> Self {
+        let (name, hidpi_factor) = unsafe { util::get_output_info(xconn, resources, &repr) };
+        let (dimensions, position) = unsafe { (repr.get_dimensions(), repr.get_position()) };
+        let rect = util::Rect::new(position, dimensions);
+        MonitorId {
+            id,
+            name,
+            hidpi_factor,
+            dimensions,
+            position,
+            primary,
+            rect,
+        }
+    }
+
     pub fn get_name(&self) -> Option<String> {
         Some(self.name.clone())
     }
@@ -126,4 +88,154 @@ impl MonitorId {
     pub fn get_hidpi_factor(&self) -> f32 {
         self.hidpi_factor
     }
+}
+
+pub fn get_monitor_for_window(
+    xconn: &Arc<XConnection>,
+    window_rect: Option<util::Rect>,
+) -> MonitorId {
+    let monitors = get_available_monitors(xconn);
+    let default = monitors
+        .get(0)
+        .expect("[winit] Failed to find any monitors using XRandR.");
+
+    let window_rect = match window_rect {
+        Some(rect) => rect,
+        None => return default.to_owned(),
+    };
+
+    let mut largest_overlap = 0;
+    let mut matched_monitor = default;
+    for monitor in &monitors {
+        let overlapping_area = window_rect.get_overlapping_area(&monitor.rect);
+        if overlapping_area > largest_overlap {
+            largest_overlap = overlapping_area;
+            matched_monitor = &monitor;
+        }
+    }
+
+    matched_monitor.to_owned()
+}
+
+fn query_monitor_list(xconn: &Arc<XConnection>) -> Vec<MonitorId> {
+    unsafe {
+        let root = (xconn.xlib.XDefaultRootWindow)(xconn.display);
+        // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
+        // Upon failure, `resources` will be null.
+        let resources = (xconn.xrandr.XRRGetScreenResources)(xconn.display, root);
+        if resources.is_null() {
+            panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
+        }
+
+        let mut available;
+
+        if xconn.xrandr_1_5.is_some() && !FORCE_RANDR_COMPAT {
+            // We're in XRandR >= 1.5, enumerate monitors. This supports things like MST and
+            // videowalls.
+            let xrandr_1_5 = xconn.xrandr_1_5.as_ref().unwrap();
+            let mut monitor_count = 0;
+            let monitors = (xrandr_1_5.XRRGetMonitors)(xconn.display, root, 1, &mut monitor_count);
+            available = Vec::with_capacity(monitor_count as usize);
+            for monitor_index in 0..monitor_count {
+                let monitor = monitors.offset(monitor_index as isize);
+                let is_primary = (*monitor).primary != 0;
+                available.push(MonitorId::from_repr(
+                    xconn,
+                    resources,
+                    monitor_index as u32,
+                    monitor.into(),
+                    is_primary,
+                ));
+            }
+            (xrandr_1_5.XRRFreeMonitors)(monitors);
+        } else {
+            // We're in XRandR < 1.5, enumerate CRTCs. Everything will work except MST and
+            // videowall setups will also show monitors that aren't in the logical groups the user
+            // cares about.
+            let primary = (xconn.xrandr.XRRGetOutputPrimary)(xconn.display, root);
+            available = Vec::with_capacity((*resources).ncrtc as usize);
+            for crtc_index in 0..(*resources).ncrtc {
+                let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
+                let crtc = (xconn.xrandr.XRRGetCrtcInfo)(xconn.display, resources, crtc_id);
+                let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
+                if is_active {
+                    let crtc = util::MonitorRepr::from(crtc);
+                    let is_primary = crtc.get_output() == primary;
+                    available.push(MonitorId::from_repr(
+                        xconn,
+                        resources,
+                        crtc_id as u32,
+                        crtc,
+                        is_primary,
+                    ));
+                }
+                (xconn.xrandr.XRRFreeCrtcInfo)(crtc);
+            }
+        }
+
+        (xconn.xrandr.XRRFreeScreenResources)(resources);
+        available
+    }
+}
+
+pub fn get_available_monitors(xconn: &Arc<XConnection>) -> Vec<MonitorId> {
+    let mut monitors_lock = MONITORS.lock();
+    (*monitors_lock)
+        .as_ref()
+        .cloned()
+        .or_else(|| {
+            let monitors = Some(query_monitor_list(xconn));
+            if !DISABLE_MONITOR_LIST_CACHING {
+                (*monitors_lock) = monitors.clone();
+            }
+            monitors
+        })
+        .unwrap()
+}
+
+#[inline]
+pub fn get_primary_monitor(x: &Arc<XConnection>) -> MonitorId {
+    let mut available_monitors = get_available_monitors(x).into_iter();
+    available_monitors
+        .find(|m| m.primary)
+        // If no monitors were detected as being primary, we just pick one ourselves!
+        .or_else(|| available_monitors.next())
+        .expect("[winit] Failed to find any monitors using XRandR.")
+}
+
+pub fn select_input(xconn: &Arc<XConnection>, root: Window) -> Result<c_int, XError> {
+    let mut major = 0;
+    let mut minor = 0;
+    let has_extension = unsafe {
+        (xconn.xrandr.XRRQueryExtension)(
+            xconn.display,
+            &mut major,
+            &mut minor,
+        )
+    };
+    if has_extension != True {
+        panic!("[winit] XRandR extension not available.");
+    }
+
+    let mut event_offset = 0;
+    let mut error_offset = 0;
+    let status = unsafe {
+        (xconn.xrandr.XRRQueryExtension)(
+            xconn.display,
+            &mut event_offset,
+            &mut error_offset,
+        )
+    };
+
+    if status != True {
+        xconn.check_errors()?;
+        unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
+    }
+
+    let mask = RRCrtcChangeNotifyMask
+        | RROutputPropertyNotifyMask
+        | RRScreenChangeNotifyMask;
+    unsafe { (xconn.xrandr.XRRSelectInput)(xconn.display, root, mask) };
+
+    Ok(event_offset)
 }

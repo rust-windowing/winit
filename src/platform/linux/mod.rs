@@ -69,7 +69,7 @@ pub enum DeviceId {
     Wayland(wayland::DeviceId)
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum MonitorId {
     X(x11::MonitorId),
     Wayland(wayland::MonitorId),
@@ -339,6 +339,8 @@ unsafe extern "C" fn x_error_callback(
             request_code: (*event).request_code,
             minor_code: (*event).minor_code,
         };
+
+        eprintln!("[winit X11 error] {:#?}", error);
 
         *xconn.latest_error.lock() = Some(error);
     }
