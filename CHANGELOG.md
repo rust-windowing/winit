@@ -8,6 +8,9 @@
 - On X11, `Window::hidpi_factor` returns values from XRandR rather than the inaccurate values previously queried from the core protocol.
 - On X11, the primary monitor is detected correctly even when using versions of XRandR less than 1.5.
 - `MonitorId` now implements `Debug`.
+- macOS keyboard handling has been overhauled, allowing for the use of dead keys, IME, etc. Right modifier keys are also no longer reported as being left.
+- Added the `Window::set_ime_spot(x: i32, y: i32)` method, which is implemented on X11 and macOS.
+- **Breaking**: `os::unix::WindowExt::send_xim_spot(x: i16, y: i16)` no longer exists. Switch to the new `Window::set_ime_spot(x: i32, y: i32)`, which has equivalent functionality.
 
 # Version 0.14.0 (2018-05-09)
 

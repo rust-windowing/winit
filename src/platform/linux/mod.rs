@@ -311,6 +311,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_spot(&self, x: i32, y: i32) {
+        match self {
+            &Window::X(ref w) => w.send_xim_spot(x as i16, y as i16),
+            &Window::Wayland(_) => (),
+        }
+    }
+
+    #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         match self {
             &Window::X(ref w) => RootMonitorId{inner: MonitorId::X(w.get_current_monitor())},

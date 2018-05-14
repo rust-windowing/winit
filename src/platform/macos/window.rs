@@ -25,6 +25,8 @@ use std::sync::Weak;
 use std::cell::{Cell, RefCell};
 
 use super::events_loop::{EventsLoop, Shared};
+use platform::platform::util;
+use platform::platform::view::{new_view, set_ime_spot};
 
 use window::MonitorId as RootMonitorId;
 
@@ -56,15 +58,14 @@ impl DelegateState {
             let curr_mask = self.window.styleMask();
 
             if !curr_mask.contains(NSWindowStyleMask::NSTitledWindowMask) {
-                self.window
-                    .setStyleMask_(NSWindowStyleMask::NSResizableWindowMask);
+                util::set_style_mask(*self.window, *self.view, NSWindowStyleMask::NSResizableWindowMask);
             }
 
             let is_zoomed: BOOL = msg_send![*self.window, isZoomed];
 
             // Roll back temp styles
             if !curr_mask.contains(NSWindowStyleMask::NSTitledWindowMask) {
-                self.window.setStyleMask_(curr_mask);
+                util::set_style_mask(*self.window, *self.view, curr_mask);
             }
 
             is_zoomed != 0
@@ -79,7 +80,7 @@ impl DelegateState {
             let save_style_opt = self.save_style_mask.take();
 
             if let Some(save_style) = save_style_opt {
-                self.window.setStyleMask_(save_style);
+                util::set_style_mask(*self.window, *self.view, save_style);
             }
 
             win_attribs.maximized
@@ -167,7 +168,7 @@ impl WindowDelegate {
         unsafe fn emit_move_event(state: &mut DelegateState) {
             let frame_rect = NSWindow::frame(*state.window);
             let x = frame_rect.origin.x as _;
-            let y = Window2::bottom_left_to_top_left(frame_rect);
+            let y = util::bottom_left_to_top_left(frame_rect);
             let moved = state.previous_position != Some((x, y));
             if moved {
                 state.previous_position = Some((x, y));
@@ -494,6 +495,7 @@ pub struct Window2 {
     pub view: IdRef,
     pub window: IdRef,
     pub delegate: WindowDelegate,
+    pub input_context: IdRef,
 }
 
 unsafe impl Send for Window2 {}
@@ -587,13 +589,15 @@ impl Window2 {
                 return Err(OsError(format!("Couldn't create NSWindow")));
             },
         };
-        let view = match Window2::create_view(*window) {
+        let view = match Window2::create_view(*window, Weak::clone(&shared)) {
             Some(view) => view,
             None       => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
                 return Err(OsError(format!("Couldn't create NSView")));
             },
         };
+
+        let input_context = unsafe { util::create_input_context(*view) };
 
         unsafe {
             if win_attribs.transparent {
@@ -633,6 +637,7 @@ impl Window2 {
             view: view,
             window: window,
             delegate: WindowDelegate::new(ds),
+            input_context,
         };
 
         // Set fullscreen mode after we setup everything
@@ -686,13 +691,10 @@ impl Window2 {
         static INIT: std::sync::Once = std::sync::ONCE_INIT;
 
         INIT.call_once(|| unsafe {
-            extern fn on_key_down(_this: &Object, _sel: Sel, _id: id) {}
-
             let window_superclass = Class::get("NSWindow").unwrap();
             let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
             decl.add_method(sel!(canBecomeMainWindow), yes as extern fn(&Object, Sel) -> BOOL);
             decl.add_method(sel!(canBecomeKeyWindow), yes as extern fn(&Object, Sel) -> BOOL);
-            decl.add_method(sel!(keyDown:), on_key_down as extern fn(&Object, Sel, id));
             WINDOW2_CLASS = decl.register();
         });
 
@@ -791,12 +793,13 @@ impl Window2 {
         }
     }
 
-    fn create_view(window: id) -> Option<IdRef> {
+    fn create_view(window: id, shared: Weak<Shared>) -> Option<IdRef> {
         unsafe {
-            let view = IdRef::new(NSView::init(NSView::alloc(nil)));
+            let view = new_view(window, shared);
             view.non_nil().map(|view| {
                 view.setWantsBestResolutionOpenGLSurface_(YES);
                 window.setContentView_(*view);
+                window.makeFirstResponder_(*view);
                 view
             })
         }
@@ -819,18 +822,11 @@ impl Window2 {
         unsafe { NSWindow::orderOut_(*self.window, nil); }
     }
 
-    // For consistency with other platforms, this will...
-    // 1. translate the bottom-left window corner into the top-left window corner
-    // 2. translate the coordinate from a bottom-left origin coordinate system to a top-left one
-    fn bottom_left_to_top_left(rect: NSRect) -> i32 {
-        (CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height)) as _
-    }
-
     pub fn get_position(&self) -> Option<(i32, i32)> {
         let frame_rect = unsafe { NSWindow::frame(*self.window) };
         Some((
             frame_rect.origin.x as i32,
-            Self::bottom_left_to_top_left(frame_rect),
+            util::bottom_left_to_top_left(frame_rect),
         ))
     }
 
@@ -843,7 +839,7 @@ impl Window2 {
         };
         Some((
             content_rect.origin.x as i32,
-            Self::bottom_left_to_top_left(content_rect),
+            util::bottom_left_to_top_left(content_rect),
         ))
     }
 
@@ -1032,10 +1028,9 @@ impl Window2 {
                 let curr_mask = state.window.styleMask();
 
                 if !curr_mask.contains(NSWindowStyleMask::NSTitledWindowMask) {
-                    state.window.setStyleMask_(
-                        NSWindowStyleMask::NSTitledWindowMask
-                            | NSWindowStyleMask::NSResizableWindowMask,
-                    );
+                    let mask = NSWindowStyleMask::NSTitledWindowMask
+                        | NSWindowStyleMask::NSResizableWindowMask;
+                    util::set_style_mask(*self.window, *self.view, mask);
                     state.save_style_mask.set(Some(curr_mask));
                 }
             }
@@ -1070,19 +1065,24 @@ impl Window2 {
             } else {
                 NSWindowStyleMask::NSBorderlessWindowMask
             };
-
-            state.window.setStyleMask_(new_mask);
+            util::set_style_mask(*state.window, *state.view, new_mask);
         }
     }
 
     #[inline]
     pub fn set_window_icon(&self, _icon: Option<::Icon>) {
         // macOS doesn't have window icons. Though, there is `setRepresentedFilename`, but that's
-        // semantically distinct and should only be used when the window is in some representing a
-        // specific file/directory. For instance, Terminal.app uses this for the CWD. Anyway, that
-        // should eventually be implemented as `WindowBuilderExt::with_represented_file` or
-        // something, and doesn't have anything to do with this.
+        // semantically distinct and should only be used when the window is in some way
+        // representing a specific file/directory. For instance, Terminal.app uses this for the
+        // CWD. Anyway, that should eventually be implemented as
+        // `WindowBuilderExt::with_represented_file` or something, and doesn't have anything to do
+        // with `set_window_icon`.
         // https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/WinPanel/Tasks/SettingWindowTitle.html
+    }
+
+    #[inline]
+    pub fn set_ime_spot(&self, x: i32, y: i32) {
+        set_ime_spot(*self.view, *self.input_context, x, y);
     }
 
     #[inline]
@@ -1172,8 +1172,7 @@ impl Drop for IdRef {
     fn drop(&mut self) {
         if self.0 != nil {
             unsafe {
-                let autoreleasepool =
-                    NSAutoreleasePool::new(nil);
+                let autoreleasepool = NSAutoreleasePool::new(nil);
                 let _ : () = msg_send![self.0, release];
                 let _ : () = msg_send![autoreleasepool, release];
             };

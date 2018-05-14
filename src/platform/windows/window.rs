@@ -643,6 +643,11 @@ impl Window {
         }
         self.taskbar_icon.replace(taskbar_icon);
     }
+
+    #[inline]
+    pub fn set_ime_spot(&self, _x: i32, _y: i32) {
+        unimplemented!();
+    }
 }
 
 impl Drop for Window {
