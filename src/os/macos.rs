@@ -71,62 +71,70 @@ impl From<ActivationPolicy> for NSApplicationActivationPolicy {
 ///  - `with_titlebar_buttons_hidden`
 ///  - `with_fullsize_content_view`
 pub trait WindowBuilderExt {
+    /// Sets the activation policy for the window being built.
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
+    /// Enables click-and-drag behavior for the entire window, not just the titlebar.
     fn with_movable_by_window_background(self, movable_by_window_background: bool) -> WindowBuilder;
+    /// Makes the titlebar transparent and allows the content to appear behind it.
     fn with_titlebar_transparent(self, titlebar_transparent: bool) -> WindowBuilder;
+    /// Hides the window title.
     fn with_title_hidden(self, title_hidden: bool) -> WindowBuilder;
+    /// Hides the window titlebar.
     fn with_titlebar_hidden(self, titlebar_hidden: bool) -> WindowBuilder;
+    /// Hides the window titlebar buttons.
     fn with_titlebar_buttons_hidden(self, titlebar_buttons_hidden: bool) -> WindowBuilder;
+    /// Makes the window content appear behind the titlebar.
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
+    /// Build window with `resizeIncrements` property. Values must not be 0.
+    fn with_resize_increments(self, width_inc: u32, height_inc: u32) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
-    /// Sets the activation policy for the window being built
     #[inline]
     fn with_activation_policy(mut self, activation_policy: ActivationPolicy) -> WindowBuilder {
         self.platform_specific.activation_policy = activation_policy;
         self
     }
 
-    /// Enables click-and-drag behavior for the entire window, not just the titlebar
     #[inline]
     fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> WindowBuilder {
         self.platform_specific.movable_by_window_background = movable_by_window_background;
         self
     }
 
-    /// Makes the titlebar transparent and allows the content to appear behind it
     #[inline]
     fn with_titlebar_transparent(mut self, titlebar_transparent: bool) -> WindowBuilder {
         self.platform_specific.titlebar_transparent = titlebar_transparent;
         self
     }
 
-    /// Hides the window titlebar
     #[inline]
     fn with_titlebar_hidden(mut self, titlebar_hidden: bool) -> WindowBuilder {
         self.platform_specific.titlebar_hidden = titlebar_hidden;
         self
     }
 
-    /// Hides the window titlebar buttons
     #[inline]
     fn with_titlebar_buttons_hidden(mut self, titlebar_buttons_hidden: bool) -> WindowBuilder {
         self.platform_specific.titlebar_buttons_hidden = titlebar_buttons_hidden;
         self
     }
 
-    /// Hides the window title
     #[inline]
     fn with_title_hidden(mut self, title_hidden: bool) -> WindowBuilder {
         self.platform_specific.title_hidden = title_hidden;
         self
     }
 
-    /// Makes the window content appear behind the titlebar
     #[inline]
     fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> WindowBuilder {
         self.platform_specific.fullsize_content_view = fullsize_content_view;
+        self
+    }
+
+    #[inline]
+    fn with_resize_increments(mut self, width_inc: u32, height_inc: u32) -> WindowBuilder {
+        self.platform_specific.resize_increments = Some((width_inc, height_inc));
         self
     }
 }

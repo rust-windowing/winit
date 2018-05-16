@@ -488,6 +488,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub titlebar_hidden: bool,
     pub titlebar_buttons_hidden: bool,
     pub fullsize_content_view: bool,
+    pub resize_increments: Option<(u32, u32)>,
 }
 
 pub struct Window2 {
@@ -770,6 +771,13 @@ impl Window2 {
                 }
                 if pl_attrs.movable_by_window_background {
                     window.setMovableByWindowBackground_(YES);
+                }
+                
+                if let Some((x, y)) = pl_attrs.resize_increments {
+                    if x >= 1 && y >= 1 {
+                        let size = NSSize::new(x as _, y as _);
+                        window.setResizeIncrements_(size);
+                    }
                 }
 
                 window.center();
