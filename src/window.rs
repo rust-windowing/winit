@@ -92,6 +92,13 @@ impl WindowBuilder {
         self
     }
 
+    /// Sets whether or not the window will always be on top of other windows.
+    #[inline]
+    pub fn with_always_on_top(mut self, always_on_top: bool) -> WindowBuilder {
+        self.window.always_on_top = always_on_top;
+        self
+    }
+
     /// Sets the window icon. On Windows and X11, this is typically the small icon in the top-left
     /// corner of the titlebar.
     ///
@@ -361,6 +368,12 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
+    }
+
+    /// Change whether or not the window will always be on top of other windows.
+    #[inline]
+    pub fn set_always_on_top(&self, always_on_top: bool) {
+        self.window.set_always_on_top(always_on_top)
     }
 
     /// Sets the window icon. On Windows and X11, this is typically the small icon in the top-left
