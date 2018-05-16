@@ -326,7 +326,7 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-                state.win_attribs.borrow_mut().fullscreen = Some(get_current_monitor());
+                state.win_attribs.borrow_mut().fullscreen = Some(get_current_monitor(*state.window));
 
                 state.handle_with_fullscreen = false;
             }
@@ -499,18 +499,13 @@ pub struct Window2 {
 unsafe impl Send for Window2 {}
 unsafe impl Sync for Window2 {}
 
-/// Helpper funciton to convert NSScreen::mainScreen to MonitorId
-unsafe fn get_current_monitor() -> RootMonitorId {
-    let screen = NSScreen::mainScreen(nil);
+unsafe fn get_current_monitor(window: id) -> RootMonitorId {
+    let screen: id = msg_send![window, screen];
     let desc = NSScreen::deviceDescription(screen);
     let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
-
     let value = NSDictionary::valueForKey_(desc, *key);
     let display_id = msg_send![value, unsignedIntegerValue];
-
-    RootMonitorId {
-        inner: EventsLoop::make_monitor_from_display(display_id),
-    }
+    RootMonitorId { inner: EventsLoop::make_monitor_from_display(display_id) }
 }
 
 impl Drop for Window2 {
@@ -637,7 +632,7 @@ impl Window2 {
         // Set fullscreen mode after we setup everything
         if let Some(ref monitor) = win_attribs.fullscreen {
             unsafe {
-                if monitor.inner != get_current_monitor().inner {
+                if monitor.inner != get_current_monitor(*window.window).inner {
                     unimplemented!();
                 }
             }
@@ -1082,7 +1077,7 @@ impl Window2 {
     #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         unsafe {
-            self::get_current_monitor()
+            self::get_current_monitor(*self.window)
         }
     }
 }

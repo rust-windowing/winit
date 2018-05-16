@@ -9,6 +9,8 @@
 - On X11, the primary monitor is detected correctly even when using versions of XRandR less than 1.5.
 - `MonitorId` now implements `Debug`.
 - Fixed bug on macOS where using `with_decorations(false)` would cause `set_decorations(true)` to produce a transparent titlebar with no title.
+- Implemented `MonitorId::get_position` on macOS.
+- On macOS, `Window::get_current_monitor` now returns accurate values.
 
 # Version 0.14.0 (2018-05-09)
 

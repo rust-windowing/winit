@@ -1,7 +1,7 @@
 use cocoa::appkit::NSScreen;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSString, NSUInteger};
-use core_graphics::display::{CGDirectDisplayID, CGDisplay};
+use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
 use std::collections::VecDeque;
 use std::fmt;
 use super::EventsLoop;
@@ -40,7 +40,7 @@ impl fmt::Debug for MonitorId {
             name: Option<String>,
             native_identifier: u32,
             dimensions: (u32, u32),
-            position: &'static str,
+            position: (i32, i32),
             hidpi_factor: f32,
         }
 
@@ -48,7 +48,7 @@ impl fmt::Debug for MonitorId {
             name: self.get_name(),
             native_identifier: self.get_native_identifier(),
             dimensions: self.get_dimensions(),
-            position: "WARNING: `MonitorId::get_position` is unimplemented on macOS!",
+            position: self.get_position(),
             hidpi_factor: self.get_hidpi_factor(),
         };
 
@@ -81,7 +81,8 @@ impl MonitorId {
 
     #[inline]
     pub fn get_position(&self) -> (i32, i32) {
-        unimplemented!()
+        let bounds = unsafe { CGDisplayBounds(self.get_native_identifier()) };
+        (bounds.origin.x as i32, bounds.origin.y as i32)
     }
 
     pub fn get_hidpi_factor(&self) -> f32 {
