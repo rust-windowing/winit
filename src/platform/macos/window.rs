@@ -573,23 +573,22 @@ impl Window2 {
 
         let app = match Window2::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
-            None      => {
+            None => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
                 return Err(OsError(format!("Couldn't create NSApplication")));
             },
         };
 
-        let window = match Window2::create_window(&win_attribs, &pl_attribs)
-        {
-            Some(window) => window,
-            None         => {
+        let window = match Window2::create_window(&win_attribs, &pl_attribs) {
+            Some(res) => res,
+            None => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
                 return Err(OsError(format!("Couldn't create NSWindow")));
             },
         };
         let view = match Window2::create_view(*window) {
             Some(view) => view,
-            None       => {
+            None => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
                 return Err(OsError(format!("Couldn't create NSView")));
             },
@@ -776,11 +775,6 @@ impl Window2 {
                 }
                 if pl_attrs.movable_by_window_background {
                     window.setMovableByWindowBackground_(YES);
-                }
-
-                if !attrs.decorations {
-                    window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
-                    window.setTitlebarAppearsTransparent_(YES);
                 }
 
                 window.center();
