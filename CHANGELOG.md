@@ -8,6 +8,9 @@
 - On X11, `Window::hidpi_factor` returns values from XRandR rather than the inaccurate values previously queried from the core protocol.
 - On X11, the primary monitor is detected correctly even when using versions of XRandR less than 1.5.
 - `MonitorId` now implements `Debug`.
+- Fixed bug on macOS where using `with_decorations(false)` would cause `set_decorations(true)` to produce a transparent titlebar with no title.
+- Implemented `MonitorId::get_position` on macOS.
+- On macOS, `Window::get_current_monitor` now returns accurate values.
 - Added `WindowBuilderExt::with_resize_increments` to macOS.
 - **Breaking:** On X11, `WindowBuilderExt::with_resize_increments` and `WindowBuilderExt::with_base_size` now take `u32` values rather than `i32`.
 
