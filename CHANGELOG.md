@@ -13,6 +13,7 @@
 - On macOS, `Window::get_current_monitor` now returns accurate values.
 - Added `WindowBuilderExt::with_resize_increments` to macOS.
 - **Breaking:** On X11, `WindowBuilderExt::with_resize_increments` and `WindowBuilderExt::with_base_size` now take `u32` values rather than `i32`.
+- Fixed detection of `Pause` and `Scroll` keys on Windows.
 
 # Version 0.14.0 (2018-05-09)
 

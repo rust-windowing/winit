@@ -205,31 +205,49 @@ pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
     }
 }
 
-pub fn vkey_left_right(vkey: c_int, scancode: UINT, extended: bool) -> c_int {
-    match vkey {
-       winuser::VK_SHIFT => unsafe { winuser::MapVirtualKeyA(
-           scancode,
-           winuser::MAPVK_VSC_TO_VK_EX,
-       ) as _ },
-       winuser::VK_CONTROL => if extended {
-           winuser::VK_RCONTROL
-       } else {
-           winuser::VK_LCONTROL
-       },
-       winuser::VK_MENU => if extended {
-           winuser::VK_RMENU
-       } else {
-           winuser::VK_LMENU
-       },
-       _ => vkey,
-   }
+pub fn handle_extended_keys(vkey: c_int, mut scancode: UINT, extended: bool) -> Option<(c_int, UINT)> {
+    // Welcome to hell https://blog.molecular-matters.com/2011/09/05/properly-handling-keyboard-input/
+    let vkey = match vkey {
+        winuser::VK_SHIFT => unsafe { winuser::MapVirtualKeyA(
+            scancode,
+            winuser::MAPVK_VSC_TO_VK_EX,
+        ) as _ },
+        winuser::VK_CONTROL => if extended {
+            winuser::VK_RCONTROL
+        } else {
+            winuser::VK_LCONTROL
+        },
+        winuser::VK_MENU => if extended {
+            winuser::VK_RMENU
+        } else {
+            winuser::VK_LMENU
+        },
+        _ => match scancode {
+            // This is only triggered when using raw input. Without this check, we get two events whenever VK_PAUSE is
+            // pressed, the first one having scancode 0x1D but vkey VK_PAUSE...
+            0x1D if vkey == winuser::VK_PAUSE => return None,
+            // ...and the second having scancode 0x45 but an unmatched vkey!
+            0x45 => winuser::VK_PAUSE,
+            // VK_PAUSE and VK_SCROLL have the same scancode when using modifiers, alongside incorrect vkey values.
+            0x46 => {
+                if extended {
+                    scancode = 0x45;
+                    winuser::VK_PAUSE
+                } else {
+                    winuser::VK_SCROLL
+                }
+            },
+            _ => vkey,
+        },
+    };
+    Some((vkey, scancode))
 }
 
-pub fn vkeycode_to_element(wparam: WPARAM, lparam: LPARAM) -> (ScanCode, Option<VirtualKeyCode>) {
+pub fn process_key_params(wparam: WPARAM, lparam: LPARAM) -> Option<(ScanCode, Option<VirtualKeyCode>)> {
     let scancode = ((lparam >> 16) & 0xff) as UINT;
     let extended = (lparam & 0x01000000) != 0;
-    let vkey = vkey_left_right(wparam as _, scancode, extended);
-    (scancode, vkey_to_winit_vkey(vkey))
+    handle_extended_keys(wparam as _, scancode, extended)
+        .map(|(vkey, scancode)| (scancode, vkey_to_winit_vkey(vkey)))
 }
 
 // This is needed as windows doesn't properly distinguish
