@@ -7,7 +7,7 @@ mod window;
 mod xdisplay;
 mod dnd;
 mod ime;
-mod util;
+pub mod util;
 
 pub use self::monitor::{
     MonitorId,

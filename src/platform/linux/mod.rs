@@ -44,6 +44,9 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub screen_id: Option<i32>,
     pub resize_increments: Option<(u32, u32)>,
     pub base_size: Option<(u32, u32)>,
+    pub class: Option<(String, String)>,
+    pub override_redirect: bool,
+    pub x11_window_type: x11::util::WindowType,
 }
 
 lazy_static!(

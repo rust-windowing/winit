@@ -1,7 +1,8 @@
-use std::{cmp, mem};
+use std::{cmp, env, mem};
 use std::borrow::Borrow;
 use std::ffi::CString;
 use std::os::raw::*;
+use std::path::Path;
 use std::sync::Arc;
 
 use libc;
@@ -115,6 +116,10 @@ impl Window2 {
             window_attributes |= ffi::CWBackPixel;
         }
 
+        if pl_attribs.override_redirect {
+            window_attributes |= ffi::CWOverrideRedirect;
+        }
+
         // finally creating the window
         let window = unsafe {
             (xconn.xlib.XCreateWindow)(
@@ -127,12 +132,12 @@ impl Window2 {
                 0,
                 match pl_attribs.visual_infos {
                     Some(vi) => vi.depth,
-                    None => ffi::CopyFromParent
+                    None => ffi::CopyFromParent,
                 },
                 ffi::InputOutput as c_uint,
                 match pl_attribs.visual_infos {
                     Some(vi) => vi.visual,
-                    None => ffi::CopyFromParent as *mut _
+                    None => ffi::CopyFromParent as *mut ffi::Visual,
                 },
                 window_attributes,
                 &mut set_win_attr,
@@ -178,17 +183,42 @@ impl Window2 {
                 )
             }.queue();
 
-            // Set ICCCM WM_CLASS property based on initial window title
-            // Must be done *before* mapping the window by ICCCM 4.1.2.5
+            // WM_CLASS must be set *before* mapping the window, as per ICCCM!
             {
-                let name = CString::new(window_attrs.title.as_str())
-                    .expect("Window title contained null byte");
                 let mut class_hints = {
                     let class_hints = unsafe { (xconn.xlib.XAllocClassHint)() };
                     util::XSmartPointer::new(xconn, class_hints)
-                }.expect("XAllocClassHint returned null; out of memory");
-                (*class_hints).res_name = name.as_ptr() as *mut c_char;
-                (*class_hints).res_class = name.as_ptr() as *mut c_char;
+                }.expect("`XAllocClassHint` returned null; out of memory");
+
+                let (class, instance) = if let Some((instance, class)) = pl_attribs.class {
+                    let instance = CString::new(instance.as_str())
+                        .expect("`WM_CLASS` instance contained null byte");
+                    let class = CString::new(class.as_str())
+                        .expect("`WM_CLASS` class contained null byte");
+                    (instance, class)
+                } else {
+                    let class = env::args()
+                        .next()
+                        .as_ref()
+                        // Default to the name of the binary (via argv[0])
+                        .and_then(|path| Path::new(path).file_name())
+                        .and_then(|bin_name| bin_name.to_str())
+                        .map(|bin_name| bin_name.to_owned())
+                        .or_else(|| Some(window_attrs.title.clone()))
+                        .and_then(|string| CString::new(string.as_str()).ok())
+                        .expect("Default `WM_CLASS` class contained null byte");
+                    // This environment variable is extraordinarily unlikely to actually be used...
+                    let instance = env::var("RESOURCE_NAME")
+                        .ok()
+                        .and_then(|instance| CString::new(instance.as_str()).ok())
+                        .or_else(|| Some(class.clone()))
+                        .expect("Default `WM_CLASS` instance contained null byte");
+                    (instance, class)
+                };
+
+                (*class_hints).res_name = class.as_ptr() as *mut c_char;
+                (*class_hints).res_class = instance.as_ptr() as *mut c_char;
+
                 unsafe {
                     (xconn.xlib.XSetClassHint)(
                         xconn.display,
@@ -196,6 +226,17 @@ impl Window2 {
                         class_hints.ptr,
                     );
                 }//.queue();
+            }
+
+            Window2::set_pid(xconn, x_window.window)
+                .map(|flusher| flusher.queue());
+
+            if pl_attribs.x11_window_type != Default::default() {
+                Window2::set_window_type(
+                    xconn,
+                    x_window.window,
+                    pl_attribs.x11_window_type,
+                ).queue();
             }
 
             // set size hints
@@ -329,6 +370,96 @@ impl Window2 {
             .map_err(|x_err| OsError(
                 format!("X server returned error while building window: {:?}", x_err)
             ))
+    }
+
+    fn set_pid(xconn: &Arc<XConnection>, window: ffi::Window) -> Option<util::Flusher> {
+        let pid_atom = unsafe { util::get_atom(xconn, b"_NET_WM_PID\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_PID)");
+        let client_machine_atom = unsafe { util::get_atom(xconn, b"WM_CLIENT_MACHINE\0") }
+            .expect("Failed to call XInternAtom (WM_CLIENT_MACHINE)");
+        unsafe {
+            let (hostname, hostname_length) = {
+                // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
+                // the limit defined by OpenBSD.
+                const MAXHOSTNAMELEN: usize = 256;
+                let mut hostname: [c_char; MAXHOSTNAMELEN] = mem::uninitialized();
+                let status = libc::gethostname(hostname.as_mut_ptr(), hostname.len());
+                if status != 0 { return None; }
+                hostname[MAXHOSTNAMELEN - 1] = '\0' as c_char; // a little extra safety
+                let hostname_length = libc::strlen(hostname.as_ptr());
+                (hostname, hostname_length as usize)
+            };
+            util::change_property(
+                xconn,
+                window,
+                pid_atom,
+                ffi::XA_CARDINAL,
+                util::Format::Long,
+                util::PropMode::Replace,
+                &[libc::getpid() as util::Cardinal],
+            ).queue();
+            let flusher = util::change_property(
+                xconn,
+                window,
+                client_machine_atom,
+                ffi::XA_STRING,
+                util::Format::Char,
+                util::PropMode::Replace,
+                &hostname[0..hostname_length],
+            );
+            Some(flusher)
+        }
+    }
+
+    fn set_window_type(
+        xconn: &Arc<XConnection>,
+        window: ffi::Window,
+        window_type: util::WindowType,
+    ) -> util::Flusher {
+        let hint_atom = unsafe { util::get_atom(xconn, b"_NET_WM_WINDOW_TYPE\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_WINDOW_TYPE)");
+        let window_type_atom = window_type.as_atom(xconn);
+        unsafe {
+            util::change_property(
+                xconn,
+                window,
+                hint_atom,
+                ffi::XA_ATOM,
+                util::Format::Long,
+                util::PropMode::Replace,
+                &[window_type_atom],
+            )
+        }
+    }
+
+    pub fn set_urgent(&self, is_urgent: bool) {
+        let xconn = &self.x.display;
+
+        let mut wm_hints = {
+            let mut wm_hints = unsafe {
+                (xconn.xlib.XGetWMHints)(xconn.display, self.x.window)
+            };
+            xconn.check_errors().expect("`XGetWMHints` failed");
+            if wm_hints.is_null() {
+                wm_hints = unsafe { (xconn.xlib.XAllocWMHints)() };
+            }
+            util::XSmartPointer::new(xconn, wm_hints)
+        }.expect("`XAllocWMHints` returned null; out of memory");
+
+        if is_urgent {
+            (*wm_hints).flags |= ffi::XUrgencyHint;
+        } else {
+            (*wm_hints).flags &= !ffi::XUrgencyHint;
+        }
+
+        unsafe {
+            (xconn.xlib.XSetWMHints)(
+                xconn.display,
+                self.x.window,
+                wm_hints.ptr,
+            );
+            util::flush_requests(xconn).expect("Failed to set urgency hint");
+        }
     }
 
     fn set_netwm(

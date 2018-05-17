@@ -17,6 +17,7 @@ use platform::x11::ffi::XVisualInfo;
 pub use platform::x11;
 
 pub use platform::XNotSupported;
+pub use platform::x11::util::WindowType as XWindowType;
 
 /// Additional methods on `EventsLoop` that are specific to Linux.
 pub trait EventsLoopExt {
@@ -94,6 +95,9 @@ pub trait WindowExt {
 
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
+    /// Set window urgency hint (`XUrgencyHint`). Only relevant on X.
+    fn set_urgent(&self, is_urgent: bool);
+
     /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
@@ -142,6 +146,7 @@ impl WindowExt for Window {
         }
     }
 
+    #[inline]
     fn get_xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_screen_id()),
@@ -149,6 +154,7 @@ impl WindowExt for Window {
         }
     }
 
+    #[inline]
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_xconnection()),
@@ -156,10 +162,18 @@ impl WindowExt for Window {
         }
     }
 
+    #[inline]
     fn get_xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xcb_connection()),
             _ => None
+        }
+    }
+
+    #[inline]
+    fn set_urgent(&self, is_urgent: bool) {
+        if let LinuxWindow::X(ref w) = self.window {
+            w.set_urgent(is_urgent);
         }
     }
 
@@ -190,6 +204,12 @@ pub trait WindowBuilderExt {
     fn with_x11_visual<T>(self, visual_infos: *const T) -> WindowBuilder;
     fn with_x11_screen(self, screen_id: i32) -> WindowBuilder;
 
+    /// Build window with `WM_CLASS` hint; defaults to the name of the binary. Only relevant on X11.
+    fn with_class(self, class: String, instance: String) -> WindowBuilder;
+    /// Build window with override-redirect flag; defaults to false. Only relevant on X11.
+    fn with_override_redirect(self, override_redirect: bool) -> WindowBuilder;
+    /// Build window with `_NET_WM_WINDOW_TYPE` hint; defaults to `Normal`. Only relevant on X11.
+    fn with_x11_window_type(self, x11_window_type: XWindowType) -> WindowBuilder;
     /// Build window with resize increment hint. Only implemented on X11.
     fn with_resize_increments(self, width_inc: u32, height_inc: u32) -> WindowBuilder;
     /// Build window with base size hint. Only implemented on X11.
@@ -208,6 +228,24 @@ impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_x11_screen(mut self, screen_id: i32) -> WindowBuilder {
         self.platform_specific.screen_id = Some(screen_id);
+        self
+    }
+
+    #[inline]
+    fn with_class(mut self, instance: String, class: String) -> WindowBuilder {
+        self.platform_specific.class = Some((instance, class));
+        self
+    }
+
+    #[inline]
+    fn with_override_redirect(mut self, override_redirect: bool) -> WindowBuilder {
+        self.platform_specific.override_redirect = override_redirect;
+        self
+    }
+
+    #[inline]
+    fn with_x11_window_type(mut self, x11_window_type: XWindowType) -> WindowBuilder {
+        self.platform_specific.x11_window_type = x11_window_type;
         self
     }
 
