@@ -17,6 +17,8 @@
 - Added the `Window::set_ime_spot(x: i32, y: i32)` method, which is implemented on X11 and macOS.
 - **Breaking**: `os::unix::WindowExt::send_xim_spot(x: i16, y: i16)` no longer exists. Switch to the new `Window::set_ime_spot(x: i32, y: i32)`, which has equivalent functionality.
 - Fixed detection of `Pause` and `Scroll` keys on Windows.
+- On Windows, alt-tabbing while the cursor is grabbed no longer makes it impossible to re-grab the window.
+- Implemented `CursorState::Hide` on Windows.
 
 # Version 0.14.0 (2018-05-09)
 
