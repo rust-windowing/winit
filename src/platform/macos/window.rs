@@ -327,7 +327,7 @@ impl WindowDelegate {
             unsafe {
                 let state: *mut c_void = *this.get_ivar("winitState");
                 let state = &mut *(state as *mut DelegateState);
-                state.win_attribs.borrow_mut().fullscreen = Some(get_current_monitor());
+                state.win_attribs.borrow_mut().fullscreen = Some(get_current_monitor(*state.window));
 
                 state.handle_with_fullscreen = false;
             }
@@ -489,6 +489,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub titlebar_hidden: bool,
     pub titlebar_buttons_hidden: bool,
     pub fullsize_content_view: bool,
+    pub resize_increments: Option<(u32, u32)>,
 }
 
 pub struct Window2 {
@@ -501,18 +502,13 @@ pub struct Window2 {
 unsafe impl Send for Window2 {}
 unsafe impl Sync for Window2 {}
 
-/// Helpper funciton to convert NSScreen::mainScreen to MonitorId
-unsafe fn get_current_monitor() -> RootMonitorId {
-    let screen = NSScreen::mainScreen(nil);
+unsafe fn get_current_monitor(window: id) -> RootMonitorId {
+    let screen: id = msg_send![window, screen];
     let desc = NSScreen::deviceDescription(screen);
     let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
-
     let value = NSDictionary::valueForKey_(desc, *key);
     let display_id = msg_send![value, unsignedIntegerValue];
-
-    RootMonitorId {
-        inner: EventsLoop::make_monitor_from_display(display_id),
-    }
+    RootMonitorId { inner: EventsLoop::make_monitor_from_display(display_id) }
 }
 
 impl Drop for Window2 {
@@ -575,23 +571,22 @@ impl Window2 {
 
         let app = match Window2::create_app(pl_attribs.activation_policy) {
             Some(app) => app,
-            None      => {
+            None => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
                 return Err(OsError(format!("Couldn't create NSApplication")));
             },
         };
 
-        let window = match Window2::create_window(&win_attribs, &pl_attribs)
-        {
-            Some(window) => window,
-            None         => {
+        let window = match Window2::create_window(&win_attribs, &pl_attribs) {
+            Some(res) => res,
+            None => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
                 return Err(OsError(format!("Couldn't create NSWindow")));
             },
         };
         let view = match Window2::create_view(*window, Weak::clone(&shared)) {
             Some(view) => view,
-            None       => {
+            None => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
                 return Err(OsError(format!("Couldn't create NSView")));
             },
@@ -643,7 +638,7 @@ impl Window2 {
         // Set fullscreen mode after we setup everything
         if let Some(ref monitor) = win_attribs.fullscreen {
             unsafe {
-                if monitor.inner != get_current_monitor().inner {
+                if monitor.inner != get_current_monitor(*window.window).inner {
                     unimplemented!();
                 }
             }
@@ -779,10 +774,12 @@ impl Window2 {
                 if pl_attrs.movable_by_window_background {
                     window.setMovableByWindowBackground_(YES);
                 }
-
-                if !attrs.decorations {
-                    window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
-                    window.setTitlebarAppearsTransparent_(YES);
+                
+                if let Some((x, y)) = pl_attrs.resize_increments {
+                    if x >= 1 && y >= 1 {
+                        let size = NSSize::new(x as _, y as _);
+                        window.setResizeIncrements_(size);
+                    }
                 }
 
                 window.center();
@@ -1088,7 +1085,7 @@ impl Window2 {
     #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         unsafe {
-            self::get_current_monitor()
+            self::get_current_monitor(*self.window)
         }
     }
 }
