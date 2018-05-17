@@ -933,18 +933,11 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                     .map(|window_state_mutex| {
                         let window_state = window_state_mutex.lock().unwrap();
                         if window_state.mouse_in_window {
-                            match window_state.cursor_state {
-                                CursorState::Normal => {
-                                    let cursor = winuser::LoadCursorW(
-                                        ptr::null_mut(),
-                                        window_state.cursor.0,
-                                    );
-                                    winuser::SetCursor(cursor);
-                                },
-                                CursorState::Grab | CursorState::Hide => {
-                                    winuser::SetCursor(ptr::null_mut());
-                                }
-                            }
+                            let cursor = winuser::LoadCursorW(
+                                ptr::null_mut(),
+                                window_state.cursor.0,
+                            );
+                            winuser::SetCursor(cursor);
                             false
                         } else {
                             true

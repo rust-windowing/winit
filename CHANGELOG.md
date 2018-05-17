@@ -18,7 +18,8 @@
 - **Breaking**: `os::unix::WindowExt::send_xim_spot(x: i16, y: i16)` no longer exists. Switch to the new `Window::set_ime_spot(x: i32, y: i32)`, which has equivalent functionality.
 - Fixed detection of `Pause` and `Scroll` keys on Windows.
 - On Windows, alt-tabbing while the cursor is grabbed no longer makes it impossible to re-grab the window.
-- Implemented `CursorState::Hide` on Windows.
+- On Windows, using `CursorState::Hide` when the cursor is grabbed now ungrabs the cursor first.
+- On Windows, `CursorState::Grab` and `CursorState::Hide` no longer unset the cursor. In practice, this means that `CursorState::Grab` no longer automatically hides this cursor; this is to allow for more flexibility (as is presently offered by the X11 backend). To keep behavior identical to what it was before, you must additionally call `set_cursor(MouseCursor::NoneCursor)` when grabbing the cursor.
 
 # Version 0.14.0 (2018-05-09)
 

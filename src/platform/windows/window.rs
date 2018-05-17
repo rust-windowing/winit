@@ -276,6 +276,7 @@ impl Window {
             MouseCursor::Wait => winuser::IDC_WAIT,
             MouseCursor::Progress => winuser::IDC_APPSTARTING,
             MouseCursor::Help => winuser::IDC_HELP,
+            MouseCursor::NoneCursor => ptr::null(),
             _ => winuser::IDC_ARROW, // use arrow for the missing cases.
         };
 
