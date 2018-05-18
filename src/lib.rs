@@ -80,7 +80,6 @@
 //! to create an OpenGL/Vulkan/DirectX/Metal/etc. context that will draw on the window.
 //!
 
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "windows"))]
 #[macro_use]
 extern crate lazy_static;
 extern crate libc;

@@ -376,6 +376,12 @@ impl Window {
         self.window.set_window_icon(window_icon)
     }
 
+    //// Sets location of IME candidate box in client area coordinates relative to the top left.
+    #[inline]
+    pub fn set_ime_spot(&self, x: i32, y: i32) {
+        self.window.set_ime_spot(x, y)
+    }
+
     /// Returns the monitor on which the window currently resides
     pub fn get_current_monitor(&self) -> MonitorId {
         self.window.get_current_monitor()
