@@ -34,7 +34,7 @@ use winapi::um::winnt::{LONG, SHORT};
 
 use events::DeviceEvent;
 use platform::platform::{event, Cursor, WindowId, DEVICE_ID, wrap_device_id, util};
-use platform::platform::event::{vkey_to_winit_vkey, vkey_left_right};
+use platform::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
 use platform::platform::raw_input::*;
 use platform::platform::window::adjust_size;
 
@@ -586,26 +586,27 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             if msg == winuser::WM_SYSKEYDOWN && wparam as i32 == winuser::VK_F4 {
                 winuser::DefWindowProcW(window, msg, wparam, lparam)
             } else {
-                let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
-                send_event(Event::WindowEvent {
-                    window_id: SuperWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
-                        input: KeyboardInput {
-                            state: Pressed,
-                            scancode: scancode,
-                            virtual_keycode: vkey,
-                            modifiers: event::get_key_mods(),
-                        }
-                    }
-                });
-                // Windows doesn't emit a delete character by default, but in order to make it
-                // consistent with the other platforms we'll emit a delete character here.
-                if vkey == Some(VirtualKeyCode::Delete) {
+                if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
                     send_event(Event::WindowEvent {
                         window_id: SuperWindowId(WindowId(window)),
-                        event: WindowEvent::ReceivedCharacter('\u{7F}'),
+                        event: WindowEvent::KeyboardInput {
+                            device_id: DEVICE_ID,
+                            input: KeyboardInput {
+                                state: Pressed,
+                                scancode: scancode,
+                                virtual_keycode: vkey,
+                                modifiers: event::get_key_mods(),
+                            }
+                        }
                     });
+                    // Windows doesn't emit a delete character by default, but in order to make it
+                    // consistent with the other platforms we'll emit a delete character here.
+                    if vkey == Some(VirtualKeyCode::Delete) {
+                        send_event(Event::WindowEvent {
+                            window_id: SuperWindowId(WindowId(window)),
+                            event: WindowEvent::ReceivedCharacter('\u{7F}'),
+                        });
+                    }
                 }
                 0
             }
@@ -613,19 +614,20 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 
         winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
             use events::ElementState::Released;
-            let (scancode, vkey) = event::vkeycode_to_element(wparam, lparam);
-            send_event(Event::WindowEvent {
-                window_id: SuperWindowId(WindowId(window)),
-                event: WindowEvent::KeyboardInput {
-                    device_id: DEVICE_ID,
-                    input: KeyboardInput {
-                        state: Released,
-                        scancode: scancode,
-                        virtual_keycode: vkey,
-                        modifiers: event::get_key_mods(),
-                    },
-                }
-            });
+            if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
+                send_event(Event::WindowEvent {
+                    window_id: SuperWindowId(WindowId(window)),
+                    event: WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        input: KeyboardInput {
+                            state: Released,
+                            scancode: scancode,
+                            virtual_keycode: vkey,
+                            modifiers: event::get_key_mods(),
+                        },
+                    }
+                });
+            }
             0
         },
 
@@ -836,23 +838,25 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                         };
 
                         let scancode = keyboard.MakeCode as _;
-                        let extended = util::has_flag(keyboard.Flags, winuser::RI_KEY_E0 as _);
-                        let vkey = vkey_left_right(
+                        let extended = util::has_flag(keyboard.Flags, winuser::RI_KEY_E0 as _)
+                            | util::has_flag(keyboard.Flags, winuser::RI_KEY_E1 as _);
+                        if let Some((vkey, scancode)) = handle_extended_keys(
                             keyboard.VKey as _,
                             scancode,
                             extended,
-                        );
-                        let virtual_keycode = vkey_to_winit_vkey(vkey);
+                        ) {
+                            let virtual_keycode = vkey_to_winit_vkey(vkey);
 
-                        send_event(Event::DeviceEvent {
-                            device_id,
-                            event: Key(KeyboardInput {
-                                scancode,
-                                state,
-                                virtual_keycode,
-                                modifiers: event::get_key_mods(),
-                            }),
-                        });
+                            send_event(Event::DeviceEvent {
+                                device_id,
+                                event: Key(KeyboardInput {
+                                    scancode,
+                                    state,
+                                    virtual_keycode,
+                                    modifiers: event::get_key_mods(),
+                                }),
+                            });
+                        }
                     }
                 }
             }
