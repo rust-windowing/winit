@@ -549,6 +549,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_spot(&self, _x: i32, _y: i32) {
+        // N/A
+    }
+
+    #[inline]
     pub fn get_current_monitor(&self) -> ::MonitorId {
         ::MonitorId{inner: MonitorId}
     }

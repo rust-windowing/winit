@@ -94,8 +94,6 @@ pub trait WindowExt {
 
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
-    fn send_xim_spot(&self, x: i16, y: i16);
-
     /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
@@ -162,12 +160,6 @@ impl WindowExt for Window {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xcb_connection()),
             _ => None
-        }
-    }
-
-    fn send_xim_spot(&self, x: i16, y: i16) {
-        if let LinuxWindow::X(ref w) = self.window {
-            w.send_xim_spot(x, y);
         }
     }
 

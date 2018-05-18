@@ -38,5 +38,8 @@ impl Window {
 }
 
 mod events_loop;
+mod ffi;
 mod monitor;
+mod util;
+mod view;
 mod window;
