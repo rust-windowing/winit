@@ -3,6 +3,7 @@ use std::ops::BitAnd;
 
 use winapi::ctypes::wchar_t;
 use winapi::shared::minwindef::DWORD;
+use winapi::shared::windef::RECT;
 use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::winbase::{
     FormatMessageW,
@@ -30,6 +31,15 @@ pub fn wchar_to_string(wchar: &[wchar_t]) -> String {
     String::from_utf16_lossy(wchar)
         .trim_right_matches(0 as char)
         .to_string()
+}
+
+// This won't be needed anymore if we just add a derive to winapi.
+pub fn rect_eq(a: &RECT, b: &RECT) -> bool {
+    let left_eq = a.left == b.left;
+    let right_eq = a.right == b.right;
+    let top_eq = a.top == b.top;
+    let bottom_eq = a.bottom == b.bottom;
+    left_eq && right_eq && top_eq && bottom_eq
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

@@ -152,13 +152,6 @@ impl MonitorId {
         self.dimensions
     }
 
-    /// This is a Win32-only function for `MonitorId` that returns the system name of the adapter
-    /// device.
-    #[inline]
-    pub fn get_adapter_name(&self) -> &[wchar_t] {
-        &self.adapter_name
-    }
-
     /// A window that is positioned at these coordinates will overlap the monitor.
     #[inline]
     pub fn get_position(&self) -> (i32, i32) {
