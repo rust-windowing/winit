@@ -321,7 +321,6 @@ impl Window {
                 if winuser::ClipCursor(ptr::null()) == 0 {
                     return Err("`ClipCursor` failed".to_owned());
                 }
-                winuser::ShowCursor(FALSE);
             },
 
             (CursorState::Hide, CursorState::Normal) => unsafe {
@@ -343,12 +342,16 @@ impl Window {
                 if winuser::ClipCursor(&rect) == 0 {
                     return Err("`ClipCursor` failed".to_owned());
                 }
+                if current_state != CursorState::Hide {
+                    winuser::ShowCursor(FALSE);
+                }
             },
 
             (CursorState::Grab, CursorState::Normal) => unsafe {
                 if winuser::ClipCursor(ptr::null()) == 0 {
                     return Err("`ClipCursor` failed".to_owned());
                 }
+                winuser::ShowCursor(TRUE);
             },
         };
         Ok(state)
