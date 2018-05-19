@@ -16,8 +16,11 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
 unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
 
-// TODO: document what this means
-pub type Cursor = *const winapi::ctypes::wchar_t;
+// Cursor name in UTF-16. Used to set cursor in `WM_SETCURSOR`.
+#[derive(Debug, Clone)]
+pub struct Cursor(pub *const winapi::ctypes::wchar_t);
+unsafe impl Send for Cursor {}
+unsafe impl Sync for Cursor {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(u32);
