@@ -15,7 +15,7 @@
 //!  - Calling `Window::new(&events_loop)`.
 //!  - Calling `let builder = WindowBuilder::new()` then `builder.build(&events_loop)`.
 //!
-//! The first way is the simpliest way and will give you default values for everything.
+//! The first way is the simplest way and will give you default values for everything.
 //!
 //! The second way allows you to customize the way your window will look and behave by modifying
 //! the fields of the `WindowBuilder` object before you create the window.

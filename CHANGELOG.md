@@ -21,6 +21,8 @@
 - On Windows, using `CursorState::Hide` when the cursor is grabbed now ungrabs the cursor first.
 - Implemented `MouseCursor::NoneCursor` on Windows.
 - Added `WindowBuilder::with_always_on_top` and `Window::set_always_on_top`. Implemented on Windows, macOS, and X11.
+- On X11, `WindowBuilderExt` now has `with_class`, `with_override_redirect`, and `with_x11_window_type` to allow for more control over window creation. `WindowExt` additionally has `set_urgent`.
+- More hints are set by default on X11, including `_NET_WM_PID` and `WM_CLIENT_MACHINE`. Note that prior to this, the `WM_CLASS` hint was automatically set to whatever value was passed to `with_title`. It's now set to the executable name to better conform to expectations and the specification; if this is undesirable, you must explicitly use `WindowBuilderExt::with_class`.
 
 # Version 0.14.0 (2018-05-09)
 
