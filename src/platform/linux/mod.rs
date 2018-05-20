@@ -306,6 +306,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_always_on_top(&self, always_on_top: bool) {
+        match self {
+            &Window::X(ref w) => w.set_always_on_top(always_on_top),
+            &Window::Wayland(_) => (),
+        }
+    }
+
+    #[inline]
     pub fn set_window_icon(&self, window_icon: Option<Icon>) {
         match self {
             &Window::X(ref w) => w.set_window_icon(window_icon),

@@ -441,6 +441,11 @@ pub struct WindowAttributes {
     /// The default is `true`.
     pub decorations: bool,
 
+    /// Whether the window should always be on top of other windows.
+    ///
+    /// The default is `false`.
+    pub always_on_top: bool,
+
     /// The window icon.
     ///
     /// The default is `None`.
@@ -464,6 +469,7 @@ impl Default for WindowAttributes {
             visible: true,
             transparent: false,
             decorations: true,
+            always_on_top: false,
             window_icon: None,
             multitouch: false,
         }

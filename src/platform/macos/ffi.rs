@@ -1,6 +1,6 @@
 // TODO: Upstream these
 
-#![allow(non_snake_case, non_upper_case_globals)]
+#![allow(dead_code, non_snake_case, non_upper_case_globals)]
 
 use cocoa::base::{class, id};
 use cocoa::foundation::{NSInteger, NSUInteger};
@@ -71,4 +71,37 @@ impl NSMutableAttributedString for id {
     unsafe fn length(self) -> NSUInteger {
         msg_send![self, length]
     }
+}
+
+pub const kCGBaseWindowLevelKey: NSInteger = 0;
+pub const kCGMinimumWindowLevelKey: NSInteger = 1;
+pub const kCGDesktopWindowLevelKey: NSInteger = 2;
+pub const kCGBackstopMenuLevelKey: NSInteger = 3;
+pub const kCGNormalWindowLevelKey: NSInteger = 4;
+pub const kCGFloatingWindowLevelKey: NSInteger = 5;
+pub const kCGTornOffMenuWindowLevelKey: NSInteger = 6;
+pub const kCGDockWindowLevelKey: NSInteger = 7;
+pub const kCGMainMenuWindowLevelKey: NSInteger = 8;
+pub const kCGStatusWindowLevelKey: NSInteger = 9;
+pub const kCGModalPanelWindowLevelKey: NSInteger = 10;
+pub const kCGPopUpMenuWindowLevelKey: NSInteger = 11;
+pub const kCGDraggingWindowLevelKey: NSInteger = 12;
+pub const kCGScreenSaverWindowLevelKey: NSInteger = 13;
+pub const kCGMaximumWindowLevelKey: NSInteger = 14;
+pub const kCGOverlayWindowLevelKey: NSInteger = 15;
+pub const kCGHelpWindowLevelKey: NSInteger = 16;
+pub const kCGUtilityWindowLevelKey: NSInteger = 17;
+pub const kCGDesktopIconWindowLevelKey: NSInteger = 18;
+pub const kCGCursorWindowLevelKey: NSInteger = 19;
+pub const kCGNumberOfWindowLevelKeys: NSInteger = 20;
+
+pub enum NSWindowLevel {
+    NSNormalWindowLevel = kCGBaseWindowLevelKey as _,
+    NSFloatingWindowLevel = kCGFloatingWindowLevelKey as _,
+    NSTornOffMenuWindowLevel = kCGTornOffMenuWindowLevelKey as _,
+    NSModalPanelWindowLevel = kCGModalPanelWindowLevelKey as _,
+    NSMainMenuWindowLevel = kCGMainMenuWindowLevelKey as _,
+    NSStatusWindowLevel = kCGStatusWindowLevelKey as _,
+    NSPopUpMenuWindowLevel = kCGPopUpMenuWindowLevelKey as _,
+    NSScreenSaverWindowLevel = kCGScreenSaverWindowLevelKey as _,
 }

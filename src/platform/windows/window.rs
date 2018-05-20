@@ -8,9 +8,9 @@ use std::os::windows::ffi::OsStrExt;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
 
-use winapi::shared::minwindef::{BOOL, DWORD, UINT};
-use winapi::shared::windef::{HDC, HWND, POINT, RECT};
-use winapi::um::{combaseapi, dwmapi, libloaderapi, processthreadsapi, winuser};
+use winapi::shared::minwindef::{BOOL, DWORD, FALSE, TRUE, UINT};
+use winapi::shared::windef::{HDC, HWND, LPPOINT, POINT, RECT};
+use winapi::um::{combaseapi, dwmapi, libloaderapi, winuser};
 use winapi::um::objbase::{COINIT_MULTITHREADED};
 use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
 use winapi::um::winnt::{HRESULT, LONG, LPCWSTR};
@@ -22,10 +22,11 @@ use MonitorId as RootMonitorId;
 use MouseCursor;
 use WindowAttributes;
 
-use platform::platform::{EventsLoop, PlatformSpecificWindowBuilderAttributes, WindowId};
+use platform::platform::{Cursor, EventsLoop, PlatformSpecificWindowBuilderAttributes, WindowId};
 use platform::platform::events_loop::{self, DESTROY_MSG_ID};
 use platform::platform::icon::{self, IconType, WinIcon};
 use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
+use platform::platform::util;
 
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
@@ -275,70 +276,108 @@ impl Window {
             MouseCursor::Wait => winuser::IDC_WAIT,
             MouseCursor::Progress => winuser::IDC_APPSTARTING,
             MouseCursor::Help => winuser::IDC_HELP,
+            MouseCursor::NoneCursor => ptr::null(),
             _ => winuser::IDC_ARROW, // use arrow for the missing cases.
         };
 
         let mut cur = self.window_state.lock().unwrap();
-        cur.cursor = cursor_id;
+        cur.cursor = Cursor(cursor_id);
     }
 
-    // TODO: it should be possible to rework this function by using the `execute_in_thread` method
-    // of the events loop.
-    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        let mut current_state = self.window_state.lock().unwrap();
+    unsafe fn cursor_is_grabbed(&self) -> Result<bool, String> {
+        let mut client_rect: RECT = mem::uninitialized();
+        let mut clip_rect: RECT = mem::uninitialized();
+        if winuser::GetClientRect(self.window.0, &mut client_rect) == 0 {
+            return Err("`GetClientRect` failed".to_owned());
+        }
+        // A `POINT` is two `LONG`s (x, y), and the `RECT` field after `left` is `top`.
+        if winuser::ClientToScreen(self.window.0, &mut client_rect.left as *mut _ as LPPOINT) == 0 {
+            return Err("`ClientToScreen` (left, top) failed".to_owned());
+        }
+        if winuser::ClientToScreen(self.window.0, &mut client_rect.right as *mut _ as LPPOINT) == 0 {
+            return Err("`ClientToScreen` (right, bottom) failed".to_owned());
+        }
+        if winuser::GetClipCursor(&mut clip_rect) == 0 {
+            return Err("`GetClipCursor` failed".to_owned());
+        }
+        Ok(util::rect_eq(&client_rect, &clip_rect))
+    }
 
-        let foreground_thread_id = unsafe { winuser::GetWindowThreadProcessId(self.window.0, ptr::null_mut()) };
-        let current_thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
+    fn change_cursor_state(
+        window: &WindowWrapper,
+        current_state: CursorState,
+        state: CursorState,
+    ) -> Result<CursorState, String> {
+        match (current_state, state) {
+            (CursorState::Normal, CursorState::Normal)
+            | (CursorState::Hide, CursorState::Hide)
+            | (CursorState::Grab, CursorState::Grab) => (), // no-op
 
-        unsafe { winuser::AttachThreadInput(foreground_thread_id, current_thread_id, 1) };
-
-        let res = match (state, current_state.cursor_state) {
-            (CursorState::Normal, CursorState::Normal) => Ok(()),
-            (CursorState::Hide, CursorState::Hide) => Ok(()),
-            (CursorState::Grab, CursorState::Grab) => Ok(()),
-
-            (CursorState::Hide, CursorState::Normal) => {
-                current_state.cursor_state = CursorState::Hide;
-                Ok(())
+            (CursorState::Normal, CursorState::Hide) => unsafe {
+                winuser::ShowCursor(FALSE);
             },
 
-            (CursorState::Normal, CursorState::Hide) => {
-                current_state.cursor_state = CursorState::Normal;
-                Ok(())
-            },
-
-            (CursorState::Grab, CursorState::Normal) | (CursorState::Grab, CursorState::Hide) => {
-                unsafe {
-                    let mut rect = mem::uninitialized();
-                    if winuser::GetClientRect(self.window.0, &mut rect) == 0 {
-                        return Err(format!("GetWindowRect failed"));
-                    }
-                    winuser::ClientToScreen(self.window.0, mem::transmute(&mut rect.left));
-                    winuser::ClientToScreen(self.window.0, mem::transmute(&mut rect.right));
-                    if winuser::ClipCursor(&rect) == 0 {
-                        return Err(format!("ClipCursor failed"));
-                    }
-                    current_state.cursor_state = CursorState::Grab;
-                    Ok(())
+            (CursorState::Grab, CursorState::Hide) => unsafe {
+                if winuser::ClipCursor(ptr::null()) == 0 {
+                    return Err("`ClipCursor` failed".to_owned());
                 }
             },
 
-            (CursorState::Normal, CursorState::Grab) => {
-                unsafe {
-                    if winuser::ClipCursor(ptr::null()) == 0 {
-                        return Err(format!("ClipCursor failed"));
-                    }
-                    current_state.cursor_state = CursorState::Normal;
-                    Ok(())
+            (CursorState::Hide, CursorState::Normal) => unsafe {
+                winuser::ShowCursor(TRUE);
+            },
+
+            (CursorState::Normal, CursorState::Grab)
+            | (CursorState::Hide, CursorState::Grab) => unsafe {
+                let mut rect = mem::uninitialized();
+                if winuser::GetClientRect(window.0, &mut rect) == 0 {
+                    return Err("`GetClientRect` failed".to_owned());
+                }
+                if winuser::ClientToScreen(window.0, &mut rect.left as *mut _ as LPPOINT) == 0 {
+                    return Err("`ClientToScreen` (left, top) failed".to_owned());
+                }
+                if winuser::ClientToScreen(window.0, &mut rect.right as *mut _ as LPPOINT) == 0 {
+                    return Err("`ClientToScreen` (right, bottom) failed".to_owned());
+                }
+                if winuser::ClipCursor(&rect) == 0 {
+                    return Err("`ClipCursor` failed".to_owned());
+                }
+                if current_state != CursorState::Hide {
+                    winuser::ShowCursor(FALSE);
                 }
             },
 
-            _ => unimplemented!(),
+            (CursorState::Grab, CursorState::Normal) => unsafe {
+                if winuser::ClipCursor(ptr::null()) == 0 {
+                    return Err("`ClipCursor` failed".to_owned());
+                }
+                winuser::ShowCursor(TRUE);
+            },
         };
+        Ok(state)
+    }
 
-        unsafe { winuser::AttachThreadInput(foreground_thread_id, current_thread_id, 0) };
-
-        res
+    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+        let is_grabbed = unsafe { self.cursor_is_grabbed() }?;
+        let (tx, rx) = channel();
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+        self.events_loop_proxy.execute_in_thread(move |_| {
+            let mut window_state_lock = window_state.lock().unwrap();
+            // We should probably also check if the cursor is hidden,
+            // but `GetCursorInfo` isn't in winapi-rs yet, and it doesn't seem to matter as much.
+            let current_state = match window_state_lock.cursor_state {
+                CursorState::Normal if is_grabbed => CursorState::Grab,
+                CursorState::Grab if !is_grabbed => CursorState::Normal,
+                current_state => current_state,
+            };
+            let result = Self::change_cursor_state(&window, current_state, state)
+                .map(|_| {
+                    window_state_lock.cursor_state = state;
+                });
+            let _ = tx.send(result);
+        });
+        rx.recv().unwrap()
     }
 
     #[inline]
@@ -612,6 +651,38 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_always_on_top(&self, always_on_top: bool) {
+        if let Ok(mut window_state) = self.window_state.lock() {
+            if window_state.attributes.always_on_top == always_on_top {
+                return;
+            }
+
+            let window = self.window.clone();
+            self.events_loop_proxy.execute_in_thread(move |_| {
+                let insert_after = if always_on_top {
+                    winuser::HWND_TOPMOST
+                } else {
+                    winuser::HWND_NOTOPMOST
+                };
+                unsafe {
+                    winuser::SetWindowPos(
+                        window.0,
+                        insert_after,
+                        0,
+                        0,
+                        0,
+                        0,
+                        winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOMOVE | winuser::SWP_NOSIZE,
+                    );
+                    winuser::UpdateWindow(window.0);
+                }
+            });
+
+            window_state.attributes.always_on_top = always_on_top;
+        }
+    }
+
+    #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         RootMonitorId {
             inner: EventsLoop::get_current_monitor(self.window.0),
@@ -726,7 +797,7 @@ unsafe fn init(
     };
 
     // computing the style and extended style of the window
-    let (ex_style, style) = if !window.decorations {
+    let (mut ex_style, style) = if !window.decorations {
         (winuser::WS_EX_APPWINDOW,
             //winapi::WS_POPUP is incompatible with winapi::WS_CHILD
             if pl_attribs.parent.is_some() {
@@ -740,6 +811,10 @@ unsafe fn init(
         (winuser::WS_EX_APPWINDOW | winuser::WS_EX_WINDOWEDGE,
             winuser::WS_OVERLAPPEDWINDOW | winuser::WS_CLIPSIBLINGS | winuser::WS_CLIPCHILDREN)
     };
+
+    if window.always_on_top {
+        ex_style |= winuser::WS_EX_TOPMOST;
+    }
 
     // adjusting the window coordinates using the style
     winuser::AdjustWindowRectEx(&mut rect, style, 0, ex_style);
@@ -813,7 +888,7 @@ unsafe fn init(
 
     // Creating a mutex to track the current window state
     let window_state = Arc::new(Mutex::new(events_loop::WindowState {
-        cursor: winuser::IDC_ARROW, // use arrow by default
+        cursor: Cursor(winuser::IDC_ARROW), // use arrow by default
         cursor_state: CursorState::Normal,
         attributes: window,
         mouse_in_window: false,
