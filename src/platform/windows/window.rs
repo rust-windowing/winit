@@ -651,6 +651,38 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_always_on_top(&self, always_on_top: bool) {
+        if let Ok(mut window_state) = self.window_state.lock() {
+            if window_state.attributes.always_on_top == always_on_top {
+                return;
+            }
+
+            let window = self.window.clone();
+            self.events_loop_proxy.execute_in_thread(move |_| {
+                let insert_after = if always_on_top {
+                    winuser::HWND_TOPMOST
+                } else {
+                    winuser::HWND_NOTOPMOST
+                };
+                unsafe {
+                    winuser::SetWindowPos(
+                        window.0,
+                        insert_after,
+                        0,
+                        0,
+                        0,
+                        0,
+                        winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOMOVE | winuser::SWP_NOSIZE,
+                    );
+                    winuser::UpdateWindow(window.0);
+                }
+            });
+
+            window_state.attributes.always_on_top = always_on_top;
+        }
+    }
+
+    #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         RootMonitorId {
             inner: EventsLoop::get_current_monitor(self.window.0),
@@ -765,7 +797,7 @@ unsafe fn init(
     };
 
     // computing the style and extended style of the window
-    let (ex_style, style) = if !window.decorations {
+    let (mut ex_style, style) = if !window.decorations {
         (winuser::WS_EX_APPWINDOW,
             //winapi::WS_POPUP is incompatible with winapi::WS_CHILD
             if pl_attribs.parent.is_some() {
@@ -779,6 +811,10 @@ unsafe fn init(
         (winuser::WS_EX_APPWINDOW | winuser::WS_EX_WINDOWEDGE,
             winuser::WS_OVERLAPPEDWINDOW | winuser::WS_CLIPSIBLINGS | winuser::WS_CLIPCHILDREN)
     };
+
+    if window.always_on_top {
+        ex_style |= winuser::WS_EX_TOPMOST;
+    }
 
     // adjusting the window coordinates using the style
     winuser::AdjustWindowRectEx(&mut rect, style, 0, ex_style);

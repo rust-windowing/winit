@@ -299,8 +299,15 @@ impl Window2 {
             }.queue();
 
             // These properties must be set after mapping
-            window.set_maximized_inner(window_attrs.maximized).queue();
-            window.set_fullscreen_inner(window_attrs.fullscreen.clone()).queue();
+            if window_attrs.maximized {
+                window.set_maximized_inner(window_attrs.maximized).queue();
+            }
+            if window_attrs.fullscreen.is_some() {
+                window.set_fullscreen_inner(window_attrs.fullscreen.clone()).queue();
+            }
+            if window_attrs.always_on_top {
+                window.set_always_on_top_inner(window_attrs.always_on_top).queue();
+            }
 
             if window_attrs.visible {
                 unsafe {
@@ -496,6 +503,27 @@ impl Window2 {
             .flush()
             .expect("Failed to set decoration state");
         self.invalidate_cached_frame_extents();
+    }
+
+    fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher {
+        let xconn = &self.x.display;
+
+        let above_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_ABOVE\0") }
+            .expect("Failed to call XInternAtom (_NET_WM_STATE_ABOVE)");
+
+        Window2::set_netwm(
+            xconn,
+            self.x.window,
+            self.x.root,
+            (above_atom as c_long, 0, 0, 0),
+            always_on_top.into(),
+        )
+    }
+
+    pub fn set_always_on_top(&self, always_on_top: bool) {
+        self.set_always_on_top_inner(always_on_top)
+            .flush()
+            .expect("Failed to set always-on-top state");
     }
 
     fn set_icon_inner(&self, icon: Icon) -> util::Flusher {

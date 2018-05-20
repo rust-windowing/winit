@@ -25,6 +25,7 @@ use std::sync::Weak;
 use std::cell::{Cell, RefCell};
 
 use super::events_loop::{EventsLoop, Shared};
+use platform::platform::ffi;
 use platform::platform::util;
 use platform::platform::view::{new_view, set_ime_spot};
 
@@ -774,6 +775,10 @@ impl Window2 {
                 if pl_attrs.movable_by_window_background {
                     window.setMovableByWindowBackground_(YES);
                 }
+
+                if attrs.always_on_top {
+                    let _: () = msg_send![*window, setLevel:ffi::NSWindowLevel::NSFloatingWindowLevel];
+                }
                 
                 if let Some((x, y)) = pl_attrs.resize_increments {
                     if x >= 1 && y >= 1 {
@@ -1063,6 +1068,18 @@ impl Window2 {
                 NSWindowStyleMask::NSBorderlessWindowMask
             };
             util::set_style_mask(*state.window, *state.view, new_mask);
+        }
+    }
+
+    #[inline]
+    pub fn set_always_on_top(&self, always_on_top: bool) {
+        unsafe {
+            let level = if always_on_top {
+                ffi::NSWindowLevel::NSFloatingWindowLevel
+            } else {
+                ffi::NSWindowLevel::NSNormalWindowLevel
+            };
+            let _: () = msg_send![*self.window, setLevel:level];
         }
     }
 

@@ -20,6 +20,7 @@
 - On Windows, alt-tabbing while the cursor is grabbed no longer makes it impossible to re-grab the window.
 - On Windows, using `CursorState::Hide` when the cursor is grabbed now ungrabs the cursor first.
 - Implemented `MouseCursor::NoneCursor` on Windows.
+- Added `WindowBuilder::with_always_on_top` and `Window::set_always_on_top`. Implemented on Windows, macOS, and X11.
 
 # Version 0.14.0 (2018-05-09)
 

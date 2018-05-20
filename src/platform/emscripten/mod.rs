@@ -544,6 +544,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_always_on_top(&self, _always_on_top: bool) {
+        // N/A
+    }
+
+    #[inline]
     pub fn set_window_icon(&self, _icon: Option<::Icon>) {
         // N/A
     }
