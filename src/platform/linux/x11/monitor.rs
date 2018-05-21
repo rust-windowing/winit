@@ -19,7 +19,20 @@ const FORCE_RANDR_COMPAT: bool = false;
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
 
 lazy_static! {
-    static ref MONITORS: Mutex<Option<Vec<MonitorId>>> = Mutex::new(None);
+    static ref XRANDR_VERSION: Mutex<Option<(c_int, c_int)>> = Mutex::default();
+    static ref MONITORS: Mutex<Option<Vec<MonitorId>>> = Mutex::default();
+}
+
+fn version_is_at_least(major: c_int, minor: c_int) -> bool {
+    if let Some((avail_major, avail_minor)) = *XRANDR_VERSION.lock() {
+        if avail_major == major {
+            avail_minor >= minor
+        } else {
+            avail_major > major
+        }
+    } else {
+        unreachable!();
+    }
 }
 
 pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorId>> {
@@ -128,17 +141,20 @@ fn query_monitor_list(xconn: &Arc<XConnection>) -> Vec<MonitorId> {
         }
 
         let mut available;
+        let mut has_primary = false;
 
-        if xconn.xrandr_1_5.is_some() && !FORCE_RANDR_COMPAT {
+        if xconn.xrandr_1_5.is_some() && version_is_at_least(1, 5) && !FORCE_RANDR_COMPAT {
             // We're in XRandR >= 1.5, enumerate monitors. This supports things like MST and
             // videowalls.
             let xrandr_1_5 = xconn.xrandr_1_5.as_ref().unwrap();
             let mut monitor_count = 0;
             let monitors = (xrandr_1_5.XRRGetMonitors)(xconn.display, root, 1, &mut monitor_count);
+            assert!(monitor_count >= 0);
             available = Vec::with_capacity(monitor_count as usize);
             for monitor_index in 0..monitor_count {
                 let monitor = monitors.offset(monitor_index as isize);
                 let is_primary = (*monitor).primary != 0;
+                has_primary |= is_primary;
                 available.push(MonitorId::from_repr(
                     xconn,
                     resources,
@@ -161,6 +177,7 @@ fn query_monitor_list(xconn: &Arc<XConnection>) -> Vec<MonitorId> {
                 if is_active {
                     let crtc = util::MonitorRepr::from(crtc);
                     let is_primary = crtc.get_output() == primary;
+                    has_primary |= is_primary;
                     available.push(MonitorId::from_repr(
                         xconn,
                         resources,
@@ -170,6 +187,14 @@ fn query_monitor_list(xconn: &Arc<XConnection>) -> Vec<MonitorId> {
                     ));
                 }
                 (xconn.xrandr.XRRFreeCrtcInfo)(crtc);
+            }
+        }
+
+        // If no monitors were detected as being primary, we just pick one ourselves!
+        if !has_primary {
+            if let Some(ref mut fallback) = available.first_mut() {
+                // Setting this here will come in handy if we ever add an `is_primary` method.
+                fallback.primary = true;
             }
         }
 
@@ -194,27 +219,31 @@ pub fn get_available_monitors(xconn: &Arc<XConnection>) -> Vec<MonitorId> {
 }
 
 #[inline]
-pub fn get_primary_monitor(x: &Arc<XConnection>) -> MonitorId {
-    let mut available_monitors = get_available_monitors(x).into_iter();
-    available_monitors
-        .find(|m| m.primary)
-        // If no monitors were detected as being primary, we just pick one ourselves!
-        .or_else(|| available_monitors.next())
+pub fn get_primary_monitor(xconn: &Arc<XConnection>) -> MonitorId {
+    get_available_monitors(xconn)
+        .into_iter()
+        .find(|monitor| monitor.primary)
         .expect("[winit] Failed to find any monitors using XRandR.")
 }
 
 pub fn select_input(xconn: &Arc<XConnection>, root: Window) -> Result<c_int, XError> {
-    let mut major = 0;
-    let mut minor = 0;
-    let has_extension = unsafe {
-        (xconn.xrandr.XRRQueryExtension)(
-            xconn.display,
-            &mut major,
-            &mut minor,
-        )
-    };
-    if has_extension != True {
-        panic!("[winit] XRandR extension not available.");
+    {
+        let mut version_lock = XRANDR_VERSION.lock();
+        if version_lock.is_none() {
+            let mut major = 0;
+            let mut minor = 0;
+            let has_extension = unsafe {
+                (xconn.xrandr.XRRQueryVersion)(
+                    xconn.display,
+                    &mut major,
+                    &mut minor,
+                )
+            };
+            if has_extension != True {
+                panic!("[winit] XRandR extension not available.");
+            }
+            *version_lock = Some((major, minor));
+        }
     }
 
     let mut event_offset = 0;
