@@ -24,10 +24,17 @@ struct ViewState {
     shared: Weak<Shared>,
     ime_spot: Option<(i32, i32)>,
     raw_characters: Option<String>,
+    last_insert: Option<String>,
 }
 
 pub fn new_view(window: id, shared: Weak<Shared>) -> IdRef {
-    let state = ViewState { window, shared, ime_spot: None, raw_characters: None };
+    let state = ViewState {
+        window,
+        shared,
+        ime_spot: None,
+        raw_characters: None,
+        last_insert: None,
+    };
     unsafe {
         // This is free'd in `dealloc`
         let state_ptr = Box::into_raw(Box::new(state)) as *mut c_void;
@@ -137,6 +144,7 @@ extern fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> id {
 }
 
 extern fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
+    //println!("hasMarkedText");
     unsafe {
         let marked_text: id = *this.get_ivar("markedText");
         (marked_text.length() > 0) as i8
@@ -144,6 +152,7 @@ extern fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
 }
 
 extern fn marked_range(this: &Object, _sel: Sel) -> NSRange {
+    //println!("markedRange");
     unsafe {
         let marked_text: id = *this.get_ivar("markedText");
         let length = marked_text.length();
@@ -156,6 +165,7 @@ extern fn marked_range(this: &Object, _sel: Sel) -> NSRange {
 }
 
 extern fn selected_range(_this: &Object, _sel: Sel) -> NSRange {
+    //println!("selectedRange");
     util::EMPTY_RANGE
 }
 
@@ -166,6 +176,7 @@ extern fn set_marked_text(
     _selected_range: NSRange,
     _replacement_range: NSRange,
 ) {
+    //println!("setMarkedText");
     unsafe {
         let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
         let _: () = msg_send![(*marked_text_ref), release];
@@ -181,6 +192,7 @@ extern fn set_marked_text(
 }
 
 extern fn unmark_text(this: &Object, _sel: Sel) {
+    //println!("unmarkText");
     unsafe {
         let marked_text: id = *this.get_ivar("markedText");
         let mutable_string = marked_text.mutableString();
@@ -191,6 +203,7 @@ extern fn unmark_text(this: &Object, _sel: Sel) {
 }
 
 extern fn valid_attributes_for_marked_text(_this: &Object, _sel: Sel) -> id {
+    //println!("validAttributesForMarkedText");
     unsafe { msg_send![class("NSArray"), array] }
 }
 
@@ -200,10 +213,12 @@ extern fn attributed_substring_for_proposed_range(
     _range: NSRange,
     _actual_range: *mut c_void, // *mut NSRange
 ) -> id {
+    //println!("attributedSubstringForProposedRange");
     nil
 }
 
 extern fn character_index_for_point(_this: &Object, _sel: Sel, _point: NSPoint) -> NSUInteger {
+    //println!("characterIndexForPoint");
     0
 }
 
@@ -213,6 +228,7 @@ extern fn first_rect_for_character_range(
     _range: NSRange,
     _actual_range: *mut c_void, // *mut NSRange
 ) -> NSRect {
+    //println!("firstRectForCharacterRange");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -225,7 +241,7 @@ extern fn first_rect_for_character_range(
             let y = util::bottom_left_to_top_left(content_rect);
             (x as i32, y as i32)
         });
-        
+
         NSRect::new(
             NSPoint::new(x as _, y as _),
             NSSize::new(0.0, 0.0),
@@ -234,6 +250,7 @@ extern fn first_rect_for_character_range(
 }
 
 extern fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: NSRange) {
+    //println!("insertText");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -252,6 +269,7 @@ extern fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: 
             characters.len(),
         );
         let string = str::from_utf8_unchecked(slice);
+        state.last_insert = Some(string.to_owned());
 
         // We don't need this now, but it's here if that changes.
         //let event: id = msg_send![class("NSApp"), currentEvent];
@@ -274,6 +292,7 @@ extern fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: 
 }
 
 extern fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
+    //println!("doCommandBySelector");
     // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human readable" character
     // happens, i.e. newlines, tabs, and Ctrl+C.
     unsafe {
@@ -290,10 +309,10 @@ extern fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
         if command == sel!(insertNewline:) {
             // The `else` condition would emit the same character, but I'm keeping this here both...
             // 1) as a reminder for how `doCommandBySelector` works
-            // 2) to make the newline character explicit (...not that it matters)
+            // 2) to make our use of carriage return explicit
             events.push_back(Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.window)),
-                event: WindowEvent::ReceivedCharacter('\n'),
+                event: WindowEvent::ReceivedCharacter('\r'),
             });
         } else {
             let raw_characters = state.raw_characters.take();
@@ -315,16 +334,19 @@ extern fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
 }
 
 extern fn key_down(this: &Object, _sel: Sel, event: id) {
+    //println!("keyDown");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
+        let window_id = WindowId(get_window_id(state.window));
 
         let keycode: c_ushort = msg_send![event, keyCode];
         let virtual_keycode = to_virtual_key_code(keycode);
         let scancode = keycode as u32;
+        let is_repeat = msg_send![event, isARepeat];
 
         let window_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.window)),
+            window_id,
             event: WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
                 input: KeyboardInput {
@@ -351,6 +373,20 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
                 .lock()
                 .unwrap()
                 .push_back(window_event);
+            // Emit `ReceivedCharacter` for key repeats
+            if is_repeat && state.last_insert.is_some() {
+                let last_insert = state.last_insert.as_ref().unwrap();
+                for character in last_insert.chars() {
+                    let window_event = Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::ReceivedCharacter(character),
+                    };
+                    shared.pending_events
+                        .lock()
+                        .unwrap()
+                        .push_back(window_event);
+                }
+            }
         }
 
         let array: id = msg_send![class("NSArray"), arrayWithObject:event];
@@ -359,9 +395,12 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
 }
 
 extern fn key_up(this: &Object, _sel: Sel, event: id) {
+    //println!("keyUp");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
+
+        state.last_insert = None;
 
         let keycode: c_ushort = msg_send![event, keyCode];
         let virtual_keycode = to_virtual_key_code(keycode);
