@@ -53,14 +53,14 @@ impl WindowType {
     pub(crate) fn as_atom(&self, xconn: &Arc<XConnection>) -> ffi::Atom {
         use self::WindowType::*;
         let atom_name: &[u8] = match self {
-            Desktop => b"_NET_WM_WINDOW_TYPE_DESKTOP\0",
-            Dock => b"_NET_WM_WINDOW_TYPE_DOCK\0",
-            Toolbar => b"_NET_WM_WINDOW_TYPE_TOOLBAR\0",
-            Menu => b"_NET_WM_WINDOW_TYPE_MENU\0",
-            Utility => b"_NET_WM_WINDOW_TYPE_UTILITY\0",
-            Splash => b"_NET_WM_WINDOW_TYPE_SPLASH\0",
-            Dialog => b"_NET_WM_WINDOW_TYPE_DIALOG\0",
-            Normal => b"_NET_WM_WINDOW_TYPE_NORMAL\0",
+            &Desktop => b"_NET_WM_WINDOW_TYPE_DESKTOP\0",
+            &Dock => b"_NET_WM_WINDOW_TYPE_DOCK\0",
+            &Toolbar => b"_NET_WM_WINDOW_TYPE_TOOLBAR\0",
+            &Menu => b"_NET_WM_WINDOW_TYPE_MENU\0",
+            &Utility => b"_NET_WM_WINDOW_TYPE_UTILITY\0",
+            &Splash => b"_NET_WM_WINDOW_TYPE_SPLASH\0",
+            &Dialog => b"_NET_WM_WINDOW_TYPE_DIALOG\0",
+            &Normal => b"_NET_WM_WINDOW_TYPE_NORMAL\0",
         };
         unsafe { get_atom(xconn, atom_name) }
             .expect("Failed to get atom for `WindowType`")
