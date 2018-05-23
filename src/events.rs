@@ -104,6 +104,16 @@ pub enum WindowEvent {
     /// * A user changes the desktop scaling value (e.g. in Control Panel on Windows).
     /// * A user moves the application window to a display with a different DPI.
     HiDPIFactorChanged(f32),
+
+    /// Custom command (currently only emitted on Windows). Win32 allows the user to
+    /// register custom command IDs for app menus, context menus and so on
+    /// (see the `WM_COMMAND` message in the Windows API). This event allows
+    /// you to, for example, react to when a user has clicked an item in an application menu.
+    ///
+    /// The ID contained in the `Command` has to be registered by the user of the library,
+    /// usually by using the `WindowBuilder::with_create_callback` function.
+    /// For an example of how to use it, see the `menu_bar_win32` example.
+    Command(u16)
 }
 
 /// Represents raw hardware events that are not associated with any particular window.

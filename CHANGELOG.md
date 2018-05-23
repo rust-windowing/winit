@@ -47,6 +47,9 @@
 - Added `WindowBuilder::with_window_icon` and `Window::set_window_icon`, finally making it possible to set the window icon on Windows and X11. The `icon_loading` feature can be enabled to allow for icons to be easily loaded; see example program `window_icon.rs` for usage.
 - Windows additionally has `WindowBuilderExt::with_taskbar_icon` and `WindowExt::set_taskbar_icon`.
 - On Windows, fix panic when trying to call `set_fullscreen(None)` on a window that has not been fullscreened prior.
+- Added `WindowBuilder::with_create_callback` on Windows, allowing to add custom application menus (see the `menu_bar_win32` example)
+- Added the `WindowEvent::Command` to catch custom Win32 messages (see the `menu_bar_win32` for a usage example)
+- Publicly exported the `winapi` crate, so that other crates can depend on the exact version of `winapi` that `winit` is using (to prevent version conflicts between different versions of `winapi` for external libraries)
 
 # Version 0.13.1 (2018-04-26)
 

@@ -88,7 +88,7 @@ extern crate image;
 
 #[cfg(target_os = "windows")]
 #[macro_use]
-extern crate winapi;
+pub extern crate winapi;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;

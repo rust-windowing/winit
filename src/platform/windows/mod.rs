@@ -11,6 +11,9 @@ pub use self::window::Window;
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub parent: Option<HWND>,
     pub taskbar_icon: Option<::Icon>,
+    /// Allows the user to register a callback that is called when the
+    /// WM_CREATE is emitted, allows to register application menus and context menus.
+    pub wm_create_callback: Option<fn(HWND) -> ()>,
 }
 
 unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
