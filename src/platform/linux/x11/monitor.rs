@@ -66,7 +66,7 @@ impl MonitorId {
         repr: util::MonitorRepr,
         primary: bool,
     ) -> Self {
-        let (name, hidpi_factor) = unsafe { util::get_output_info(xconn, resources, &repr) };
+        let (name, hidpi_factor) = unsafe { xconn.get_output_info(resources, &repr) };
         let (dimensions, position) = unsafe { (repr.get_dimensions(), repr.get_position()) };
         let rect = util::Rect::new(position, dimensions);
         MonitorId {

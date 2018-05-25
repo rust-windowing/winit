@@ -60,25 +60,23 @@ pub fn calc_dpi_factor(
     ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0)
 }
 
-pub unsafe fn get_output_info(
-    xconn: &Arc<XConnection>,
-    resources: *mut XRRScreenResources,
-    repr: &MonitorRepr,
-) -> (String, f32) {
-    let output_info = (xconn.xrandr.XRRGetOutputInfo)(
-        xconn.display,
-        resources,
-        repr.get_output(),
-    );
-    let name_slice = slice::from_raw_parts(
-        (*output_info).name as *mut u8,
-        (*output_info).nameLen as usize,
-    );
-    let name = String::from_utf8_lossy(name_slice).into();
-    let hidpi_factor = calc_dpi_factor(
-        repr.get_dimensions(),
-        ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
-    ) as f32;
-    (xconn.xrandr.XRRFreeOutputInfo)(output_info);
-    (name, hidpi_factor)
+impl XConnection {
+    pub unsafe fn get_output_info(&self, resources: *mut XRRScreenResources, repr: &MonitorRepr) -> (String, f32) {
+        let output_info = (self.xrandr.XRRGetOutputInfo)(
+            self.display,
+            resources,
+            repr.get_output(),
+        );
+        let name_slice = slice::from_raw_parts(
+            (*output_info).name as *mut u8,
+            (*output_info).nameLen as usize,
+        );
+        let name = String::from_utf8_lossy(name_slice).into();
+        let hidpi_factor = calc_dpi_factor(
+            repr.get_dimensions(),
+            ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
+        ) as f32;
+        (self.xrandr.XRRFreeOutputInfo)(output_info);
+        (name, hidpi_factor)
+    }
 }
