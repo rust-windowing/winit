@@ -85,13 +85,11 @@ enum GetXimServersError {
 // modifiers, since we don't want a user who's looking at logs to ask "am I supposed to set
 // XMODIFIERS to `@server=ibus`?!?"
 unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXimServersError> {
-    let servers_atom = util::get_atom(&xconn, b"XIM_SERVERS\0")
-        .map_err(GetXimServersError::XError)?;
+    let servers_atom = xconn.get_atom_unchecked(b"XIM_SERVERS\0");
 
     let root = (xconn.xlib.XDefaultRootWindow)(xconn.display);
 
-    let mut atoms: Vec<ffi::Atom> = util::get_property(
-        &xconn,
+    let mut atoms: Vec<ffi::Atom> = xconn.get_property(
         root,
         servers_atom,
         ffi::XA_ATOM,

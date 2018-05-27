@@ -169,15 +169,12 @@ impl Window2 {
 
             // Enable drag and drop (TODO: extend API to make this toggleable)
             unsafe {
-                let dnd_aware_atom = util::get_atom(xconn, b"XdndAware\0")
-                    .expect("Failed to call XInternAtom (XdndAware)");
+                let dnd_aware_atom = xconn.get_atom_unchecked(b"XdndAware\0");
                 let version = &[5 as c_ulong]; // Latest version; hasn't changed since 2002
-                util::change_property(
-                    xconn,
+                xconn.change_property(
                     x_window.window,
                     dnd_aware_atom,
                     ffi::XA_ATOM,
-                    util::Format::Long,
                     util::PropMode::Replace,
                     version,
                 )
@@ -185,11 +182,6 @@ impl Window2 {
 
             // WM_CLASS must be set *before* mapping the window, as per ICCCM!
             {
-                let mut class_hints = {
-                    let class_hints = unsafe { (xconn.xlib.XAllocClassHint)() };
-                    util::XSmartPointer::new(xconn, class_hints)
-                }.expect("`XAllocClassHint` returned null; out of memory");
-
                 let (class, instance) = if let Some((instance, class)) = pl_attribs.class {
                     let instance = CString::new(instance.as_str())
                         .expect("`WM_CLASS` instance contained null byte");
@@ -216,14 +208,15 @@ impl Window2 {
                     (instance, class)
                 };
 
-                (*class_hints).res_name = class.as_ptr() as *mut c_char;
-                (*class_hints).res_class = instance.as_ptr() as *mut c_char;
+                let mut class_hint = xconn.alloc_class_hint();
+                (*class_hint).res_name = class.as_ptr() as *mut c_char;
+                (*class_hint).res_class = instance.as_ptr() as *mut c_char;
 
                 unsafe {
                     (xconn.xlib.XSetClassHint)(
                         xconn.display,
                         x_window.window,
-                        class_hints.ptr,
+                        class_hint.ptr,
                     );
                 }//.queue();
             }
@@ -241,10 +234,7 @@ impl Window2 {
 
             // set size hints
             {
-                let mut size_hints = {
-                    let size_hints = unsafe { (xconn.xlib.XAllocSizeHints)() };
-                    util::XSmartPointer::new(xconn, size_hints)
-                }.expect("XAllocSizeHints returned null; out of memory");
+                let mut size_hints = xconn.alloc_size_hints();
                 (*size_hints).flags = ffi::PSize;
                 (*size_hints).width = dimensions.0 as c_int;
                 (*size_hints).height = dimensions.1 as c_int;
@@ -330,14 +320,7 @@ impl Window2 {
                 }
                 mask
             };
-            unsafe {
-                util::select_xinput_events(
-                    xconn,
-                    x_window.window,
-                    ffi::XIAllMasterDevices,
-                    mask,
-                )
-            }.queue();
+            xconn.select_xinput_events(x_window.window, ffi::XIAllMasterDevices, mask).queue();
 
             // These properties must be set after mapping
             if window_attrs.maximized {
@@ -372,7 +355,7 @@ impl Window2 {
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
-        unsafe { util::sync_with_server(xconn) }
+        xconn.sync_with_server()
             .map(|_| window)
             .map_err(|x_err| OsError(
                 format!("X server returned error while building window: {:?}", x_err)
@@ -380,10 +363,8 @@ impl Window2 {
     }
 
     fn set_pid(xconn: &Arc<XConnection>, window: ffi::Window) -> Option<util::Flusher> {
-        let pid_atom = unsafe { util::get_atom(xconn, b"_NET_WM_PID\0") }
-            .expect("Failed to call XInternAtom (_NET_WM_PID)");
-        let client_machine_atom = unsafe { util::get_atom(xconn, b"WM_CLIENT_MACHINE\0") }
-            .expect("Failed to call XInternAtom (WM_CLIENT_MACHINE)");
+        let pid_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_PID\0") };
+        let client_machine_atom = unsafe { xconn.get_atom_unchecked(b"WM_CLIENT_MACHINE\0") };
         unsafe {
             let (hostname, hostname_length) = {
                 // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
@@ -396,21 +377,17 @@ impl Window2 {
                 let hostname_length = libc::strlen(hostname.as_ptr());
                 (hostname, hostname_length as usize)
             };
-            util::change_property(
-                xconn,
+            xconn.change_property(
                 window,
                 pid_atom,
                 ffi::XA_CARDINAL,
-                util::Format::Long,
                 util::PropMode::Replace,
                 &[libc::getpid() as util::Cardinal],
             ).queue();
-            let flusher = util::change_property(
-                xconn,
+            let flusher = xconn.change_property(
                 window,
                 client_machine_atom,
                 ffi::XA_STRING,
-                util::Format::Char,
                 util::PropMode::Replace,
                 &hostname[0..hostname_length],
             );
@@ -423,50 +400,26 @@ impl Window2 {
         window: ffi::Window,
         window_type: util::WindowType,
     ) -> util::Flusher {
-        let hint_atom = unsafe { util::get_atom(xconn, b"_NET_WM_WINDOW_TYPE\0") }
-            .expect("Failed to call XInternAtom (_NET_WM_WINDOW_TYPE)");
+        let hint_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE\0") };
         let window_type_atom = window_type.as_atom(xconn);
-        unsafe {
-            util::change_property(
-                xconn,
-                window,
-                hint_atom,
-                ffi::XA_ATOM,
-                util::Format::Long,
-                util::PropMode::Replace,
-                &[window_type_atom],
-            )
-        }
+        xconn.change_property(
+            window,
+            hint_atom,
+            ffi::XA_ATOM,
+            util::PropMode::Replace,
+            &[window_type_atom],
+        )
     }
 
     pub fn set_urgent(&self, is_urgent: bool) {
         let xconn = &self.x.display;
-
-        let mut wm_hints = {
-            let mut wm_hints = unsafe {
-                (xconn.xlib.XGetWMHints)(xconn.display, self.x.window)
-            };
-            xconn.check_errors().expect("`XGetWMHints` failed");
-            if wm_hints.is_null() {
-                wm_hints = unsafe { (xconn.xlib.XAllocWMHints)() };
-            }
-            util::XSmartPointer::new(xconn, wm_hints)
-        }.expect("`XAllocWMHints` returned null; out of memory");
-
+        let mut wm_hints = xconn.get_wm_hints(self.x.window).expect("`XGetWMHints` failed");
         if is_urgent {
             (*wm_hints).flags |= ffi::XUrgencyHint;
         } else {
             (*wm_hints).flags &= !ffi::XUrgencyHint;
         }
-
-        unsafe {
-            (xconn.xlib.XSetWMHints)(
-                xconn.display,
-                self.x.window,
-                wm_hints.ptr,
-            );
-            util::flush_requests(xconn).expect("Failed to set urgency hint");
-        }
+        xconn.set_wm_hints(self.x.window, wm_hints).flush().expect("Failed to set urgency hint");
     }
 
     fn set_netwm(
@@ -476,33 +429,25 @@ impl Window2 {
         properties: (c_long, c_long, c_long, c_long),
         operation: util::StateOperation
     ) -> util::Flusher {
-        let state_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE\0") }
-            .expect("Failed to call XInternAtom (_NET_WM_STATE)");
-
-        unsafe {
-            util::send_client_msg(
-                xconn,
-                window,
-                root,
-                state_atom,
-                Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
-                (
-                    operation as c_long,
-                    properties.0,
-                    properties.1,
-                    properties.2,
-                    properties.3,
-                )
-            )
-        }
+        let state_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };
+        xconn.send_client_msg(
+            window,
+            root,
+            state_atom,
+            Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
+            [
+                operation as c_long,
+                properties.0,
+                properties.1,
+                properties.2,
+                properties.3,
+            ],
+        )
     }
 
     fn set_fullscreen_hint(&self, fullscreen: bool) -> util::Flusher {
         let xconn = &self.x.display;
-
-        let fullscreen_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_FULLSCREEN\0") }
-            .expect("Failed to call XInternAtom (_NET_WM_STATE_FULLSCREEN)");
-
+        let fullscreen_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_STATE_FULLSCREEN\0") };
         Window2::set_netwm(
             xconn,
             self.x.window,
@@ -548,12 +493,8 @@ impl Window2 {
 
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher {
         let xconn = &self.x.display;
-
-        let horz_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_MAXIMIZED_HORZ\0") }
-            .expect("Failed to call XInternAtom (_NET_WM_STATE_MAXIMIZED_HORZ)");
-        let vert_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_MAXIMIZED_VERT\0") }
-            .expect("Failed to call XInternAtom (_NET_WM_STATE_MAXIMIZED_VERT)");
-
+        let horz_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0") };
+        let vert_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0") };
         Window2::set_netwm(
             xconn,
             self.x.window,
@@ -572,12 +513,8 @@ impl Window2 {
 
     fn set_title_inner(&self, title: &str) -> util::Flusher {
         let xconn = &self.x.display;
-
-        let wm_name_atom = unsafe { util::get_atom(xconn, b"_NET_WM_NAME\0") }
-            .expect("Failed to call XInternAtom (_NET_WM_NAME)");
-        let utf8_atom = unsafe { util::get_atom(xconn, b"UTF8_STRING\0") }
-            .expect("Failed to call XInternAtom (UTF8_STRING)");
-
+        let wm_name_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_NAME\0") };
+        let utf8_atom = unsafe { xconn.get_atom_unchecked(b"UTF8_STRING\0") };
         let title = CString::new(title).expect("Window title contained null byte");
         unsafe {
             (xconn.xlib.XStoreName)(
@@ -585,13 +522,10 @@ impl Window2 {
                 self.x.window,
                 title.as_ptr() as *const c_char,
             );
-
-            util::change_property(
-                xconn,
+            xconn.change_property(
                 self.x.window,
                 wm_name_atom,
                 utf8_atom,
-                util::Format::Char,
                 util::PropMode::Replace,
                 title.as_bytes_with_nul(),
             )
@@ -606,27 +540,20 @@ impl Window2 {
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher {
         let xconn = &self.x.display;
-
-        let wm_hints = unsafe { util::get_atom(xconn, b"_MOTIF_WM_HINTS\0") }
-            .expect("Failed to call XInternAtom (_MOTIF_WM_HINTS)");
-
-        unsafe {
-            util::change_property(
-                xconn,
-                self.x.window,
-                wm_hints,
-                wm_hints,
-                util::Format::Long,
-                util::PropMode::Replace,
-                &[
-                    util::MWM_HINTS_DECORATIONS, // flags
-                    0, // functions
-                    decorations as c_ulong, // decorations
-                    0, // input mode
-                    0, // status
-                ],
-            )
-        }
+        let wm_hints = unsafe { xconn.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
+        xconn.change_property(
+            self.x.window,
+            wm_hints,
+            wm_hints,
+            util::PropMode::Replace,
+            &[
+                util::MWM_HINTS_DECORATIONS, // flags
+                0, // functions
+                decorations as c_ulong, // decorations
+                0, // input mode
+                0, // status
+            ],
+        )
     }
 
     pub fn set_decorations(&self, decorations: bool) {
@@ -638,10 +565,7 @@ impl Window2 {
 
     fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher {
         let xconn = &self.x.display;
-
-        let above_atom = unsafe { util::get_atom(xconn, b"_NET_WM_STATE_ABOVE\0") }
-            .expect("Failed to call XInternAtom (_NET_WM_STATE_ABOVE)");
-
+        let above_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_STATE_ABOVE\0") };
         Window2::set_netwm(
             xconn,
             self.x.window,
@@ -659,42 +583,28 @@ impl Window2 {
 
     fn set_icon_inner(&self, icon: Icon) -> util::Flusher {
         let xconn = &self.x.display;
-
-        let icon_atom = unsafe { util::get_atom(xconn, b"_NET_WM_ICON\0") }
-            .expect("Failed to call XInternAtom (_NET_WM_ICON)");
-
+        let icon_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_ICON\0") };
         let data = icon.to_cardinals();
-        unsafe {
-            util::change_property(
-                xconn,
-                self.x.window,
-                icon_atom,
-                ffi::XA_CARDINAL,
-                util::Format::Long,
-                util::PropMode::Replace,
-                data.as_slice(),
-            )
-        }
+        xconn.change_property(
+            self.x.window,
+            icon_atom,
+            ffi::XA_CARDINAL,
+            util::PropMode::Replace,
+            data.as_slice(),
+        )
     }
 
     fn unset_icon_inner(&self) -> util::Flusher {
         let xconn = &self.x.display;
-
-        let icon_atom = unsafe { util::get_atom(xconn, b"_NET_WM_ICON\0") }
-            .expect("Failed to call XInternAtom (_NET_WM_ICON)");
-
+        let icon_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_ICON\0") };
         let empty_data: [util::Cardinal; 0] = [];
-        unsafe {
-            util::change_property(
-                xconn,
-                self.x.window,
-                icon_atom,
-                ffi::XA_CARDINAL,
-                util::Format::Long,
-                util::PropMode::Replace,
-                &empty_data,
-            )
-        }
+        xconn.change_property(
+            self.x.window,
+            icon_atom,
+            ffi::XA_CARDINAL,
+            util::PropMode::Replace,
+            &empty_data,
+        )
     }
 
     pub fn set_window_icon(&self, icon: Option<Icon>) {
@@ -707,7 +617,7 @@ impl Window2 {
     pub fn show(&self) {
         unsafe {
             (self.x.display.xlib.XMapRaised)(self.x.display.display, self.x.window);
-            util::flush_requests(&self.x.display)
+            self.x.display.flush_requests()
                 .expect("Failed to call XMapRaised");
         }
     }
@@ -715,17 +625,13 @@ impl Window2 {
     pub fn hide(&self) {
         unsafe {
             (self.x.display.xlib.XUnmapWindow)(self.x.display.display, self.x.window);
-            util::flush_requests(&self.x.display)
+            self.x.display.flush_requests()
                 .expect("Failed to call XUnmapWindow");
         }
     }
 
     fn update_cached_frame_extents(&self) {
-        let extents = util::get_frame_extents_heuristic(
-            &self.x.display,
-            self.x.window,
-            self.x.root,
-        );
+        let extents = self.x.display.get_frame_extents_heuristic(self.x.window, self.x.root);
         (*self.shared_state.lock()).frame_extents = Some(extents);
     }
 
@@ -748,7 +654,7 @@ impl Window2 {
 
     #[inline]
     pub fn get_inner_position(&self) -> Option<(i32, i32)> {
-        unsafe { util::translate_coords(&self.x.display, self.x.window, self.x.root )}
+        self.x.display.translate_coords(self.x.window, self.x.root )
             .ok()
             .map(|coords| (coords.x_rel_root, coords.y_rel_root))
     }
@@ -773,13 +679,13 @@ impl Window2 {
                 x as c_int,
                 y as c_int,
             );
-            util::flush_requests(&self.x.display)
+            self.x.display.flush_requests()
         }.expect("Failed to call XMoveWindow");
     }
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        unsafe { util::get_geometry(&self.x.display, self.x.window) }
+        self.x.display.get_geometry(self.x.window)
             .ok()
             .map(|geo| (geo.width, geo.height))
     }
@@ -806,7 +712,7 @@ impl Window2 {
                 width as c_uint,
                 height as c_uint,
             );
-            util::flush_requests(&self.x.display)
+            self.x.display.flush_requests()
         }.expect("Failed to call XResizeWindow");
     }
 
@@ -815,14 +721,8 @@ impl Window2 {
     {
         let xconn = &self.x.display;
 
-        let size_hints = {
-            let size_hints = (xconn.xlib.XAllocSizeHints)();
-            util::XSmartPointer::new(&xconn, size_hints)
-                .expect("XAllocSizeHints returned null; out of memory")
-        };
-
+        let size_hints = xconn.alloc_size_hints();
         let mut flags: c_long = mem::uninitialized();
-
         (xconn.xlib.XGetWMNormalHints)(
             xconn.display,
             self.x.window,
@@ -838,7 +738,7 @@ impl Window2 {
             self.x.window,
             size_hints.ptr,
         );
-        util::flush_requests(xconn)?;
+        xconn.flush_requests()?;
 
         Ok(())
     }
@@ -994,7 +894,7 @@ impl Window2 {
             if cursor != 0 {
                 (self.x.display.xlib.XFreeCursor)(self.x.display.display, cursor);
             }
-            util::flush_requests(&self.x.display).expect("Failed to set or free the cursor");
+            self.x.display.flush_requests().expect("Failed to set or free the cursor");
         }
     }
 
@@ -1057,7 +957,7 @@ impl Window2 {
             Grab => {
                 unsafe {
                     (self.x.display.xlib.XUngrabPointer)(self.x.display.display, ffi::CurrentTime);
-                    util::flush_requests(&self.x.display).expect("Failed to call XUngrabPointer");
+                    self.x.display.flush_requests().expect("Failed to call XUngrabPointer");
                 }
             },
             Normal => {},
@@ -1123,7 +1023,7 @@ impl Window2 {
                 x,
                 y,
             );
-            util::flush_requests(&self.x.display).map_err(|_| ())
+            self.x.display.flush_requests().map_err(|_| ())
         }
     }
 

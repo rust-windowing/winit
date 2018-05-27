@@ -75,8 +75,7 @@ impl EventsLoop {
     pub fn new(display: Arc<XConnection>) -> EventsLoop {
         let root = unsafe { (display.xlib.XDefaultRootWindow)(display.display) };
 
-        let wm_delete_window = unsafe { util::get_atom(&display, b"WM_DELETE_WINDOW\0") }
-            .expect("Failed to call XInternAtom (WM_DELETE_WINDOW)");
+        let wm_delete_window = unsafe { display.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
 
         let dnd = Dnd::new(Arc::clone(&display))
             .expect("Failed to call XInternAtoms when initializing drag and drop");
@@ -130,7 +129,7 @@ impl EventsLoop {
             }
         }
 
-        util::update_cached_wm_info(&display, root);
+        display.update_cached_wm_info(root);
 
         let wakeup_dummy_window = unsafe {
             let (x, y, w, h) = (10, 10, 10, 10);
@@ -166,14 +165,8 @@ impl EventsLoop {
         };
 
         // Register for device hotplug events
-        unsafe {
-            util::select_xinput_events(
-                &result.display,
-                root,
-                ffi::XIAllDevices,
-                ffi::XI_HierarchyChangedMask,
-            )
-        }.queue(); // The request buffer is flushed during init_device
+        // (The request buffer is flushed during `init_device`)
+        result.display.select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask).queue();
 
         result.init_device(ffi::XIAllDevices);
 
@@ -484,11 +477,7 @@ impl EventsLoop {
                                         .unwrap()
                                         .inner_pos_to_outer(inner_x, inner_y)
                                 } else {
-                                    let extents = util::get_frame_extents_heuristic(
-                                        &self.display,
-                                        window,
-                                        self.root,
-                                    );
+                                    let extents = self.display.get_frame_extents_heuristic(window, self.root);
                                     let outer_pos = extents.inner_pos_to_outer(inner_x, inner_y);
                                     (*window_state_lock).frame_extents = Some(extents);
                                     outer_pos
@@ -513,7 +502,7 @@ impl EventsLoop {
                 // (which is almost all of them). Failing to correctly update WM info doesn't
                 // really have much impact, since on the WMs affected (xmonad, dwm, etc.) the only
                 // effect is that we waste some time trying to query unsupported properties.
-                util::update_cached_wm_info(&self.display, self.root);
+                self.display.update_cached_wm_info(self.root);
 
                 self.shared_state
                     .borrow()
@@ -614,7 +603,7 @@ impl EventsLoop {
 
                 if state == Pressed {
                     let written = if let Some(ic) = self.ime.borrow().get_context(window) {
-                        unsafe { util::lookup_utf8(&self.display, ic, xkev) }
+                        self.display.lookup_utf8(ic, xkev)
                     } else {
                         return;
                     };
@@ -841,13 +830,8 @@ impl EventsLoop {
                         // The mods field on this event isn't actually populated, so query the
                         // pointer device. In the future, we can likely remove this round-trip by
                         // relying on Xkb for modifier values.
-                        let modifiers = unsafe {
-                            util::query_pointer(
-                                &self.display,
-                                xev.event,
-                                xev.deviceid,
-                            )
-                        }.expect("Failed to query pointer device").get_modifier_state();
+                        let modifiers = self.display.query_pointer(xev.event, xev.deviceid)
+                            .expect("Failed to query pointer device").get_modifier_state();
 
                         callback(Event::WindowEvent { window_id, event: CursorMoved {
                             device_id,
@@ -1094,16 +1078,13 @@ impl EventsLoopProxy {
         // NOTE: This design is taken from the old `WindowProxy::wakeup` implementation. It
         // assumes that X11 is thread safe. Is this true?
         // (WARNING: it's probably not true)
-        unsafe {
-            util::send_client_msg(
-                &display,
-                self.wakeup_dummy_window,
-                self.wakeup_dummy_window,
-                0,
-                None,
-                (0, 0, 0, 0, 0),
-            )
-        }.flush().expect("Failed to call XSendEvent after wakeup");
+        display.send_client_msg(
+            self.wakeup_dummy_window,
+            self.wakeup_dummy_window,
+            0,
+            None,
+            [0, 0, 0, 0, 0],
+        ).flush().expect("Failed to call XSendEvent after wakeup");
 
         Ok(())
     }
@@ -1320,14 +1301,8 @@ impl Device {
                 | ffi::XI_RawButtonReleaseMask
                 | ffi::XI_RawKeyPressMask
                 | ffi::XI_RawKeyReleaseMask;
-            unsafe {
-                util::select_xinput_events(
-                    &el.display,
-                    el.root,
-                    info.deviceid,
-                    mask,
-                )
-            }.queue(); // The request buffer is flushed when we poll for events
+            // The request buffer is flushed when we poll for events
+            el.display.select_xinput_events(el.root, info.deviceid, mask).queue();
 
             // Identify scroll axes
             for class_ptr in Device::classes(info) {

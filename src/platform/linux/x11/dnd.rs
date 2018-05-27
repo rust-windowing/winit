@@ -40,7 +40,7 @@ impl DndAtoms {
             b"text/uri-list\0".as_ptr() as *mut c_char,
             b"None\0".as_ptr() as *mut c_char,
         ];
-        let atoms = unsafe { util::get_atoms(xconn, &names) }?;
+        let atoms = unsafe { xconn.get_atoms(&names) }?;
         Ok(DndAtoms {
             aware: atoms[0],
             enter: atoms[1],
@@ -127,13 +127,12 @@ impl Dnd {
             DndState::Accepted => (1, self.atoms.action_private as c_long),
             DndState::Rejected => (0, self.atoms.none as c_long),
         };
-        util::send_client_msg(
-            &self.xconn,
+        self.xconn.send_client_msg(
             target_window,
             target_window,
             self.atoms.status,
             None,
-            (this_window as c_long, accepted, 0, 0, action),
+            [this_window as c_long, accepted, 0, 0, action],
         ).flush()
     }
 
@@ -147,13 +146,12 @@ impl Dnd {
             DndState::Accepted => (1, self.atoms.action_private as c_long),
             DndState::Rejected => (0, self.atoms.none as c_long),
         };
-        util::send_client_msg(
-            &self.xconn,
+        self.xconn.send_client_msg(
             target_window,
             target_window,
             self.atoms.finished,
             None,
-            (this_window as c_long, accepted, action, 0, 0),
+            [this_window as c_long, accepted, action, 0, 0],
         ).flush()
     }
 
@@ -161,8 +159,7 @@ impl Dnd {
         &self,
         source_window: c_ulong,
     ) -> Result<Vec<ffi::Atom>, util::GetPropertyError> {
-        util::get_property(
-            &self.xconn,
+        self.xconn.get_property(
             source_window,
             self.atoms.type_list,
             ffi::XA_ATOM,
@@ -184,8 +181,7 @@ impl Dnd {
         &self,
         window: c_ulong,
     ) -> Result<Vec<c_uchar>, util::GetPropertyError> {
-        util::get_property(
-            &self.xconn,
+        self.xconn.get_property(
             window,
             self.atoms.selection,
             self.atoms.uri_list,

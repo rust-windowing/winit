@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
+use std::fmt::Debug;
 use std::os::raw::*;
 
 use parking_lot::Mutex;
@@ -12,48 +13,60 @@ lazy_static! {
     static ref ATOM_CACHE: Mutex<AtomCache> = Mutex::new(HashMap::with_capacity(2048));
 }
 
-pub unsafe fn get_atom(xconn: &Arc<XConnection>, name: &[u8]) -> Result<ffi::Atom, XError> {
-    let name = CStr::from_bytes_with_nul_unchecked(name); // I trust you. Don't let me down.
-    let mut atom_cache_lock = ATOM_CACHE.lock();
-    let cached_atom = (*atom_cache_lock).get(name).cloned();
-    if let Some(atom) = cached_atom {
-        Ok(atom)
-    } else {
-        let atom = (xconn.xlib.XInternAtom)(
-            xconn.display,
-            name.as_ptr() as *const c_char,
-            ffi::False,
-        );
-        /*println!(
-            "XInternAtom name:{:?} atom:{:?}",
-            name,
-            atom,
-        );*/
-        xconn.check_errors()?;
-        (*atom_cache_lock).insert(name.to_owned(), atom);
-        Ok(atom)
+impl XConnection {
+    pub fn get_atom<T: AsRef<CStr> + Debug>(&self, name: T) -> ffi::Atom {
+        let name = name.as_ref();
+        let mut atom_cache_lock = ATOM_CACHE.lock();
+        let cached_atom = (*atom_cache_lock).get(name).cloned();
+        if let Some(atom) = cached_atom {
+            atom
+        } else {
+            let atom = unsafe { (self.xlib.XInternAtom)(
+                self.display,
+                name.as_ptr() as *const c_char,
+                ffi::False,
+            ) };
+            if atom == 0 {
+                let msg = format!(
+                    "`XInternAtom` failed, which really shouldn't happen. Atom: {:?}, Error: {:#?}",
+                    name,
+                    self.check_errors(),
+                );
+                panic!(msg);
+            }
+            /*println!(
+                "XInternAtom name:{:?} atom:{:?}",
+                name,
+                atom,
+            );*/
+            (*atom_cache_lock).insert(name.to_owned(), atom);
+            atom
+        }
     }
-}
 
-// Note: this doesn't use caching, for the sake of simplicity.
-// If you're dealing with this many atoms, you'll usually want to cache them locally anyway.
-pub unsafe fn get_atoms(
-    xconn: &Arc<XConnection>,
-    names: &[*mut c_char],
-) -> Result<Vec<ffi::Atom>, XError> {
-    let mut atoms = Vec::with_capacity(names.len());
-    (xconn.xlib.XInternAtoms)(
-        xconn.display,
-        names.as_ptr() as *mut _,
-        names.len() as c_int,
-        ffi::False,
-        atoms.as_mut_ptr(),
-    );
-    xconn.check_errors()?;
-    atoms.set_len(names.len());
-    /*println!(
-        "XInternAtoms atoms:{:?}",
-        atoms,
-    );*/
-    Ok(atoms)
+    pub unsafe fn get_atom_unchecked(&self, name: &[u8]) -> ffi::Atom {
+        debug_assert!(CStr::from_bytes_with_nul(name).is_ok());
+        let name = CStr::from_bytes_with_nul_unchecked(name);
+        self.get_atom(name)
+    }
+
+    // Note: this doesn't use caching, for the sake of simplicity.
+    // If you're dealing with this many atoms, you'll usually want to cache them locally anyway.
+    pub unsafe fn get_atoms(&self,  names: &[*mut c_char]) -> Result<Vec<ffi::Atom>, XError> {
+        let mut atoms = Vec::with_capacity(names.len());
+        (self.xlib.XInternAtoms)(
+            self.display,
+            names.as_ptr() as *mut _,
+            names.len() as c_int,
+            ffi::False,
+            atoms.as_mut_ptr(),
+        );
+        self.check_errors()?;
+        atoms.set_len(names.len());
+        /*println!(
+            "XInternAtoms atoms:{:?}",
+            atoms,
+        );*/
+        Ok(atoms)
+    }
 }

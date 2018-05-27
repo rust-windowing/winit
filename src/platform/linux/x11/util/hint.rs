@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 
 pub const MWM_HINTS_DECORATIONS: c_ulong = 2;
@@ -6,12 +8,12 @@ pub const MWM_HINTS_DECORATIONS: c_ulong = 2;
 pub enum StateOperation {
     Remove = 0, // _NET_WM_STATE_REMOVE
     Add = 1,    // _NET_WM_STATE_ADD
-    _Toggle = 2, // _NET_WM_STATE_TOGGLE
+    Toggle = 2, // _NET_WM_STATE_TOGGLE
 }
 
 impl From<bool> for StateOperation {
-    fn from(b: bool) -> Self {
-        if b {
+    fn from(op: bool) -> Self {
+        if op {
             StateOperation::Add
         } else {
             StateOperation::Remove
@@ -62,7 +64,30 @@ impl WindowType {
             &Dialog => b"_NET_WM_WINDOW_TYPE_DIALOG\0",
             &Normal => b"_NET_WM_WINDOW_TYPE_NORMAL\0",
         };
-        unsafe { get_atom(xconn, atom_name) }
-            .expect("Failed to get atom for `WindowType`")
+        unsafe { xconn.get_atom_unchecked(atom_name) }
+    }
+}
+
+impl XConnection {
+    pub fn get_wm_hints(&self, window: ffi::Window) -> Result<XSmartPointer<ffi::XWMHints>, XError> {
+        let wm_hints = unsafe { (self.xlib.XGetWMHints)(self.display, window) };
+        self.check_errors()?;
+        let wm_hints = if wm_hints.is_null() {
+            self.alloc_wm_hints()
+        } else {
+            XSmartPointer::new(self, wm_hints).unwrap()
+        };
+        Ok(wm_hints)
+    }
+
+    pub fn set_wm_hints(&self, window: ffi::Window, wm_hints: XSmartPointer<ffi::XWMHints>) -> Flusher {
+        unsafe {
+            (self.xlib.XSetWMHints)(
+                self.display,
+                window,
+                wm_hints.ptr,
+            );
+        }
+        Flusher::new(self)
     }
 }
