@@ -374,6 +374,12 @@ pub enum MouseCursor {
     RowResize,
 }
 
+impl Default for MouseCursor {
+    fn default() -> Self {
+        MouseCursor::Default
+    }
+}
+
 /// Describes how winit handles the cursor.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum CursorState {
@@ -389,6 +395,12 @@ pub enum CursorState {
     ///
     /// This is useful for first-person cameras for example.
     Grab,
+}
+
+impl Default for CursorState {
+    fn default() -> Self {
+        CursorState::Normal
+    }
 }
 
 /// Attributes to use when creating a window.

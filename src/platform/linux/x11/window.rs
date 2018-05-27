@@ -1,5 +1,4 @@
 use std::{cmp, env, mem};
-use std::borrow::Borrow;
 use std::ffi::CString;
 use std::os::raw::*;
 use std::path::Path;
@@ -28,38 +27,41 @@ unsafe extern "C" fn visibility_predicate(
     (event.window == window && event.type_ == ffi::VisibilityNotify) as _
 }
 
-pub struct XWindow {
-    pub display: Arc<XConnection>,
-    pub window: ffi::Window,
-    pub root: ffi::Window,
-    pub screen_id: i32,
-}
-
-unsafe impl Send for XWindow {}
-unsafe impl Sync for XWindow {}
-
-unsafe impl Send for Window2 {}
-unsafe impl Sync for Window2 {}
-
 #[derive(Debug, Default)]
 pub struct SharedState {
+    pub multitouch: bool,
+    pub cursor_pos: Option<(f64, f64)>,
+    pub size: Option<(u32, u32)>,
+    pub position: Option<(i32, i32)>,
+    pub inner_position: Option<(i32, i32)>,
+    pub inner_position_rel_parent: Option<(i32, i32)>,
+    pub last_monitor: Option<X11MonitorId>,
+    pub dpi_adjusted: Option<(f64, f64)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
 }
 
-pub struct Window2 {
-    pub x: Arc<XWindow>,
+unsafe impl Send for UnownedWindow {}
+unsafe impl Sync for UnownedWindow {}
+
+pub struct UnownedWindow {
+    pub xconn: Arc<XConnection>, // never changes
+    xwindow: ffi::Window, // never changes
+    root: ffi::Window, // never changes
+    screen_id: i32, // never changes
     cursor: Mutex<MouseCursor>,
     cursor_state: Mutex<CursorState>,
-    pub shared_state: Arc<Mutex<SharedState>>,
+    pub multitouch: bool, // never changes
+    pub shared_state: Mutex<SharedState>,
 }
 
-impl Window2 {
+impl UnownedWindow {
     pub fn new(
-        ctx: &EventsLoop,
+        event_loop: &EventsLoop,
         window_attrs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Window2, CreationError> {
-        let xconn = &ctx.display;
+    ) -> Result<UnownedWindow, CreationError> {
+        let xconn = &event_loop.xconn;
+        let root = event_loop.root;
 
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
@@ -80,9 +82,6 @@ impl Window2 {
             Some(id) => id,
             None => unsafe { (xconn.xlib.XDefaultScreen)(xconn.display) },
         };
-
-        // getting the root window
-        let root = ctx.root;
 
         // creating
         let mut set_win_attr = {
@@ -121,7 +120,7 @@ impl Window2 {
         }
 
         // finally creating the window
-        let window = unsafe {
+        let xwindow = unsafe {
             (xconn.xlib.XCreateWindow)(
                 xconn.display,
                 root,
@@ -144,18 +143,15 @@ impl Window2 {
             )
         };
 
-        let x_window = Arc::new(XWindow {
-            display: Arc::clone(xconn),
-            window,
+        let window = UnownedWindow {
+            xconn: Arc::clone(xconn),
+            xwindow,
             root,
             screen_id,
-        });
-
-        let window = Window2 {
-            x: x_window,
-            cursor: Mutex::new(MouseCursor::Default),
-            cursor_state: Mutex::new(CursorState::Normal),
-            shared_state: Arc::new(Mutex::new(SharedState::default())),
+            cursor: Default::default(),
+            cursor_state: Default::default(),
+            multitouch: window_attrs.multitouch,
+            shared_state: Default::default(),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -165,14 +161,12 @@ impl Window2 {
         window.set_decorations_inner(window_attrs.decorations).queue();
 
         {
-            let ref x_window: &XWindow = window.x.borrow();
-
             // Enable drag and drop (TODO: extend API to make this toggleable)
             unsafe {
                 let dnd_aware_atom = xconn.get_atom_unchecked(b"XdndAware\0");
                 let version = &[5 as c_ulong]; // Latest version; hasn't changed since 2002
                 xconn.change_property(
-                    x_window.window,
+                    window.xwindow,
                     dnd_aware_atom,
                     ffi::XA_ATOM,
                     util::PropMode::Replace,
@@ -215,21 +209,16 @@ impl Window2 {
                 unsafe {
                     (xconn.xlib.XSetClassHint)(
                         xconn.display,
-                        x_window.window,
+                        window.xwindow,
                         class_hint.ptr,
                     );
                 }//.queue();
             }
 
-            Window2::set_pid(xconn, x_window.window)
-                .map(|flusher| flusher.queue());
+            window.set_pid().map(|flusher| flusher.queue());
 
             if pl_attribs.x11_window_type != Default::default() {
-                Window2::set_window_type(
-                    xconn,
-                    x_window.window,
-                    pl_attribs.x11_window_type,
-                ).queue();
+                window.set_window_type(pl_attribs.x11_window_type).queue();
             }
 
             // set size hints
@@ -261,7 +250,7 @@ impl Window2 {
                 unsafe {
                     (xconn.xlib.XSetWMNormalHints)(
                         xconn.display,
-                        x_window.window,
+                        window.xwindow,
                         size_hints.ptr,
                     );
                 }//.queue();
@@ -276,8 +265,8 @@ impl Window2 {
             unsafe {
                 (xconn.xlib.XSetWMProtocols)(
                     xconn.display,
-                    x_window.window,
-                    &ctx.wm_delete_window as *const _ as *mut _,
+                    window.xwindow,
+                    &event_loop.wm_delete_window as *const ffi::Atom as *mut ffi::Atom,
                     1,
                 );
             }//.queue();
@@ -285,7 +274,7 @@ impl Window2 {
             // Set visibility (map window)
             if window_attrs.visible {
                 unsafe {
-                    (xconn.xlib.XMapRaised)(xconn.display, x_window.window);
+                    (xconn.xlib.XMapRaised)(xconn.display, window.xwindow);
                 }//.queue();
             }
 
@@ -320,7 +309,7 @@ impl Window2 {
                 }
                 mask
             };
-            xconn.select_xinput_events(x_window.window, ffi::XIAllMasterDevices, mask).queue();
+            xconn.select_xinput_events(window.xwindow, ffi::XIAllMasterDevices, mask).queue();
 
             // These properties must be set after mapping
             if window_attrs.maximized {
@@ -342,11 +331,11 @@ impl Window2 {
                         xconn.display,
                         &mut event as *mut ffi::XEvent,
                         Some(visibility_predicate),
-                        x_window.window as _,
+                        window.xwindow as _,
                     );
                     (xconn.xlib.XSetInputFocus)(
                         xconn.display,
-                        x_window.window,
+                        window.xwindow,
                         ffi::RevertToParent,
                         ffi::CurrentTime,
                     );
@@ -362,9 +351,9 @@ impl Window2 {
             ))
     }
 
-    fn set_pid(xconn: &Arc<XConnection>, window: ffi::Window) -> Option<util::Flusher> {
-        let pid_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_PID\0") };
-        let client_machine_atom = unsafe { xconn.get_atom_unchecked(b"WM_CLIENT_MACHINE\0") };
+    fn set_pid(&self) -> Option<util::Flusher> {
+        let pid_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_PID\0") };
+        let client_machine_atom = unsafe { self.xconn.get_atom_unchecked(b"WM_CLIENT_MACHINE\0") };
         unsafe {
             let (hostname, hostname_length) = {
                 // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
@@ -377,15 +366,15 @@ impl Window2 {
                 let hostname_length = libc::strlen(hostname.as_ptr());
                 (hostname, hostname_length as usize)
             };
-            xconn.change_property(
-                window,
+            self.xconn.change_property(
+                self.xwindow,
                 pid_atom,
                 ffi::XA_CARDINAL,
                 util::PropMode::Replace,
                 &[libc::getpid() as util::Cardinal],
             ).queue();
-            let flusher = xconn.change_property(
-                window,
+            let flusher = self.xconn.change_property(
+                self.xwindow,
                 client_machine_atom,
                 ffi::XA_STRING,
                 util::PropMode::Replace,
@@ -395,15 +384,11 @@ impl Window2 {
         }
     }
 
-    fn set_window_type(
-        xconn: &Arc<XConnection>,
-        window: ffi::Window,
-        window_type: util::WindowType,
-    ) -> util::Flusher {
-        let hint_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE\0") };
-        let window_type_atom = window_type.as_atom(xconn);
-        xconn.change_property(
-            window,
+    fn set_window_type(&self, window_type: util::WindowType) -> util::Flusher {
+        let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE\0") };
+        let window_type_atom = window_type.as_atom(&self.xconn);
+        self.xconn.change_property(
+            self.xwindow,
             hint_atom,
             ffi::XA_ATOM,
             util::PropMode::Replace,
@@ -412,27 +397,24 @@ impl Window2 {
     }
 
     pub fn set_urgent(&self, is_urgent: bool) {
-        let xconn = &self.x.display;
-        let mut wm_hints = xconn.get_wm_hints(self.x.window).expect("`XGetWMHints` failed");
+        let mut wm_hints = self.xconn.get_wm_hints(self.xwindow).expect("`XGetWMHints` failed");
         if is_urgent {
             (*wm_hints).flags |= ffi::XUrgencyHint;
         } else {
             (*wm_hints).flags &= !ffi::XUrgencyHint;
         }
-        xconn.set_wm_hints(self.x.window, wm_hints).flush().expect("Failed to set urgency hint");
+        self.xconn.set_wm_hints(self.xwindow, wm_hints).flush().expect("Failed to set urgency hint");
     }
 
     fn set_netwm(
-        xconn: &Arc<XConnection>,
-        window: ffi::Window,
-        root: ffi::Window,
+        &self,
+        operation: util::StateOperation,
         properties: (c_long, c_long, c_long, c_long),
-        operation: util::StateOperation
     ) -> util::Flusher {
-        let state_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };
-        xconn.send_client_msg(
-            window,
-            root,
+        let state_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };
+        self.xconn.send_client_msg(
+            self.xwindow,
+            self.root,
             state_atom,
             Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
             [
@@ -446,15 +428,8 @@ impl Window2 {
     }
 
     fn set_fullscreen_hint(&self, fullscreen: bool) -> util::Flusher {
-        let xconn = &self.x.display;
-        let fullscreen_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_STATE_FULLSCREEN\0") };
-        Window2::set_netwm(
-            xconn,
-            self.x.window,
-            self.x.root,
-            (fullscreen_atom as c_long, 0, 0, 0),
-            fullscreen.into(),
-        )
+        let fullscreen_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_FULLSCREEN\0") };
+        self.set_netwm(fullscreen.into(), (fullscreen_atom as c_long, 0, 0, 0))
     }
 
     fn set_fullscreen_inner(&self, monitor: Option<RootMonitorId>) -> util::Flusher {
@@ -488,20 +463,13 @@ impl Window2 {
     }
 
     pub fn get_current_monitor(&self) -> X11MonitorId {
-        get_monitor_for_window(&self.x.display, self.get_rect()).to_owned()
+        get_monitor_for_window(&self.xconn, self.get_rect()).to_owned()
     }
 
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher {
-        let xconn = &self.x.display;
-        let horz_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0") };
-        let vert_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0") };
-        Window2::set_netwm(
-            xconn,
-            self.x.window,
-            self.x.root,
-            (horz_atom as c_long, vert_atom as c_long, 0, 0),
-            maximized.into(),
-        )
+        let horz_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0") };
+        let vert_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0") };
+        self.set_netwm(maximized.into(), (horz_atom as c_long, vert_atom as c_long, 0, 0))
     }
 
     pub fn set_maximized(&self, maximized: bool) {
@@ -512,18 +480,17 @@ impl Window2 {
     }
 
     fn set_title_inner(&self, title: &str) -> util::Flusher {
-        let xconn = &self.x.display;
-        let wm_name_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_NAME\0") };
-        let utf8_atom = unsafe { xconn.get_atom_unchecked(b"UTF8_STRING\0") };
+        let wm_name_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_NAME\0") };
+        let utf8_atom = unsafe { self.xconn.get_atom_unchecked(b"UTF8_STRING\0") };
         let title = CString::new(title).expect("Window title contained null byte");
         unsafe {
-            (xconn.xlib.XStoreName)(
-                xconn.display,
-                self.x.window,
+            (self.xconn.xlib.XStoreName)(
+                self.xconn.display,
+                self.xwindow,
                 title.as_ptr() as *const c_char,
             );
-            xconn.change_property(
-                self.x.window,
+            self.xconn.change_property(
+                self.xwindow,
                 wm_name_atom,
                 utf8_atom,
                 util::PropMode::Replace,
@@ -539,10 +506,9 @@ impl Window2 {
     }
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher {
-        let xconn = &self.x.display;
-        let wm_hints = unsafe { xconn.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
-        xconn.change_property(
-            self.x.window,
+        let wm_hints = unsafe { self.xconn.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
+        self.xconn.change_property(
+            self.xwindow,
             wm_hints,
             wm_hints,
             util::PropMode::Replace,
@@ -564,15 +530,8 @@ impl Window2 {
     }
 
     fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher {
-        let xconn = &self.x.display;
-        let above_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_STATE_ABOVE\0") };
-        Window2::set_netwm(
-            xconn,
-            self.x.window,
-            self.x.root,
-            (above_atom as c_long, 0, 0, 0),
-            always_on_top.into(),
-        )
+        let above_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_ABOVE\0") };
+        self.set_netwm(always_on_top.into(), (above_atom as c_long, 0, 0, 0))
     }
 
     pub fn set_always_on_top(&self, always_on_top: bool) {
@@ -582,11 +541,10 @@ impl Window2 {
     }
 
     fn set_icon_inner(&self, icon: Icon) -> util::Flusher {
-        let xconn = &self.x.display;
-        let icon_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_ICON\0") };
+        let icon_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_ICON\0") };
         let data = icon.to_cardinals();
-        xconn.change_property(
-            self.x.window,
+        self.xconn.change_property(
+            self.xwindow,
             icon_atom,
             ffi::XA_CARDINAL,
             util::PropMode::Replace,
@@ -595,11 +553,10 @@ impl Window2 {
     }
 
     fn unset_icon_inner(&self) -> util::Flusher {
-        let xconn = &self.x.display;
-        let icon_atom = unsafe { xconn.get_atom_unchecked(b"_NET_WM_ICON\0") };
+        let icon_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_ICON\0") };
         let empty_data: [util::Cardinal; 0] = [];
-        xconn.change_property(
-            self.x.window,
+        self.xconn.change_property(
+            self.xwindow,
             icon_atom,
             ffi::XA_CARDINAL,
             util::PropMode::Replace,
@@ -616,26 +573,26 @@ impl Window2 {
 
     pub fn show(&self) {
         unsafe {
-            (self.x.display.xlib.XMapRaised)(self.x.display.display, self.x.window);
-            self.x.display.flush_requests()
+            (self.xconn.xlib.XMapRaised)(self.xconn.display, self.xwindow);
+            self.xconn.flush_requests()
                 .expect("Failed to call XMapRaised");
         }
     }
 
     pub fn hide(&self) {
         unsafe {
-            (self.x.display.xlib.XUnmapWindow)(self.x.display.display, self.x.window);
-            self.x.display.flush_requests()
+            (self.xconn.xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
+            self.xconn.flush_requests()
                 .expect("Failed to call XUnmapWindow");
         }
     }
 
     fn update_cached_frame_extents(&self) {
-        let extents = self.x.display.get_frame_extents_heuristic(self.x.window, self.x.root);
+        let extents = self.xconn.get_frame_extents_heuristic(self.xwindow, self.root);
         (*self.shared_state.lock()).frame_extents = Some(extents);
     }
 
-    fn invalidate_cached_frame_extents(&self) {
+    pub fn invalidate_cached_frame_extents(&self) {
         (*self.shared_state.lock()).frame_extents.take();
     }
 
@@ -654,7 +611,7 @@ impl Window2 {
 
     #[inline]
     pub fn get_inner_position(&self) -> Option<(i32, i32)> {
-        self.x.display.translate_coords(self.x.window, self.x.root )
+        self.xconn.translate_coords(self.xwindow, self.root )
             .ok()
             .map(|coords| (coords.x_rel_root, coords.y_rel_root))
     }
@@ -673,19 +630,19 @@ impl Window2 {
             }
         }
         unsafe {
-            (self.x.display.xlib.XMoveWindow)(
-                self.x.display.display,
-                self.x.window,
+            (self.xconn.xlib.XMoveWindow)(
+                self.xconn.display,
+                self.xwindow,
                 x as c_int,
                 y as c_int,
             );
-            self.x.display.flush_requests()
+            self.xconn.flush_requests()
         }.expect("Failed to call XMoveWindow");
     }
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<(u32, u32)> {
-        self.x.display.get_geometry(self.x.window)
+        self.xconn.get_geometry(self.xwindow)
             .ok()
             .map(|geo| (geo.width, geo.height))
     }
@@ -706,39 +663,37 @@ impl Window2 {
     #[inline]
     pub fn set_inner_size(&self, width: u32, height: u32) {
         unsafe {
-            (self.x.display.xlib.XResizeWindow)(
-                self.x.display.display,
-                self.x.window,
+            (self.xconn.xlib.XResizeWindow)(
+                self.xconn.display,
+                self.xwindow,
                 width as c_uint,
                 height as c_uint,
             );
-            self.x.display.flush_requests()
+            self.xconn.flush_requests()
         }.expect("Failed to call XResizeWindow");
     }
 
     unsafe fn update_normal_hints<F>(&self, callback: F) -> Result<(), XError>
         where F: FnOnce(*mut ffi::XSizeHints) -> ()
     {
-        let xconn = &self.x.display;
-
-        let size_hints = xconn.alloc_size_hints();
+        let size_hints = self.xconn.alloc_size_hints();
         let mut flags: c_long = mem::uninitialized();
-        (xconn.xlib.XGetWMNormalHints)(
-            xconn.display,
-            self.x.window,
+        (self.xconn.xlib.XGetWMNormalHints)(
+            self.xconn.display,
+            self.xwindow,
             size_hints.ptr,
             &mut flags,
         );
-        xconn.check_errors()?;
+        self.xconn.check_errors()?;
 
         callback(size_hints.ptr);
 
-        (xconn.xlib.XSetWMNormalHints)(
-            xconn.display,
-            self.x.window,
+        (self.xconn.xlib.XSetWMNormalHints)(
+            self.xconn.display,
+            self.xwindow,
             size_hints.ptr,
         );
-        xconn.flush_requests()?;
+        self.xconn.flush_requests()?;
 
         Ok(())
     }
@@ -773,44 +728,44 @@ impl Window2 {
 
     #[inline]
     pub fn get_xlib_display(&self) -> *mut c_void {
-        self.x.display.display as _
+        self.xconn.display as _
     }
 
     #[inline]
     pub fn get_xlib_screen_id(&self) -> c_int {
-        self.x.screen_id
+        self.screen_id
     }
 
     #[inline]
     pub fn get_xlib_xconnection(&self) -> Arc<XConnection> {
-        self.x.display.clone()
+        Arc::clone(&self.xconn)
     }
 
     #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
-        self.x.display.display as _
+        self.xconn.display as _
     }
 
     #[inline]
     pub fn get_xlib_window(&self) -> c_ulong {
-        self.x.window
+        self.xwindow
     }
 
     #[inline]
     pub fn platform_window(&self) -> *mut libc::c_void {
-        self.x.window as _
+        self.xwindow as _
     }
 
     pub fn get_xcb_connection(&self) -> *mut c_void {
         unsafe {
-            (self.x.display.xlib_xcb.XGetXCBConnection)(self.x.display.display) as *mut _
+            (self.xconn.xlib_xcb.XGetXCBConnection)(self.xconn.display) as *mut _
         }
     }
 
     fn load_cursor(&self, name: &[u8]) -> ffi::Cursor {
         unsafe {
-            (self.x.display.xcursor.XcursorLibraryLoadCursor)(
-                self.x.display.display,
+            (self.xconn.xcursor.XcursorLibraryLoadCursor)(
+                self.xconn.display,
                 name.as_ptr() as *const c_char,
             )
         }
@@ -890,19 +845,18 @@ impl Window2 {
 
     fn update_cursor(&self, cursor: ffi::Cursor) {
         unsafe {
-            (self.x.display.xlib.XDefineCursor)(self.x.display.display, self.x.window, cursor);
+            (self.xconn.xlib.XDefineCursor)(self.xconn.display, self.xwindow, cursor);
             if cursor != 0 {
-                (self.x.display.xlib.XFreeCursor)(self.x.display.display, cursor);
+                (self.xconn.xlib.XFreeCursor)(self.xconn.display, cursor);
             }
-            self.x.display.flush_requests().expect("Failed to set or free the cursor");
+            self.xconn.flush_requests().expect("Failed to set or free the cursor");
         }
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
-        let mut current_cursor = self.cursor.lock();
-        *current_cursor = cursor;
+        *self.cursor.lock() = cursor;
         if *self.cursor_state.lock() != CursorState::Hide {
-            self.update_cursor(self.get_cursor(*current_cursor));
+            self.update_cursor(self.get_cursor(cursor));
         }
     }
 
@@ -912,9 +866,9 @@ impl Window2 {
     fn create_empty_cursor(&self) -> Option<ffi::Cursor> {
         let data = 0;
         let pixmap = unsafe {
-            (self.x.display.xlib.XCreateBitmapFromData)(
-                self.x.display.display,
-                self.x.window,
+            (self.xconn.xlib.XCreateBitmapFromData)(
+                self.xconn.display,
+                self.xwindow,
                 &data,
                 1,
                 1,
@@ -929,8 +883,8 @@ impl Window2 {
             // We don't care about this color, since it only fills bytes
             // in the pixmap which are not 0 in the mask.
             let dummy_color: ffi::XColor = mem::uninitialized();
-            let cursor = (self.x.display.xlib.XCreatePixmapCursor)(
-                self.x.display.display,
+            let cursor = (self.xconn.xlib.XCreatePixmapCursor)(
+                self.xconn.display,
                 pixmap,
                 pixmap,
                 &dummy_color as *const _ as *mut _,
@@ -938,26 +892,27 @@ impl Window2 {
                 0,
                 0,
             );
-            (self.x.display.xlib.XFreePixmap)(self.x.display.display, pixmap);
+            (self.xconn.xlib.XFreePixmap)(self.xconn.display, pixmap);
             cursor
         };
         Some(cursor)
     }
 
     pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        use CursorState::{ Grab, Normal, Hide };
+        use CursorState::*;
 
-        let mut cursor_state = self.cursor_state.lock();
-        match (state, *cursor_state) {
+        let mut cursor_state_lock = self.cursor_state.lock();
+
+        match (state, *cursor_state_lock) {
             (Normal, Normal) | (Hide, Hide) | (Grab, Grab) => return Ok(()),
             _ => {},
         }
 
-        match *cursor_state {
+        match *cursor_state_lock {
             Grab => {
                 unsafe {
-                    (self.x.display.xlib.XUngrabPointer)(self.x.display.display, ffi::CurrentTime);
-                    self.x.display.flush_requests().expect("Failed to call XUngrabPointer");
+                    (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
+                    self.xconn.flush_requests().expect("Failed to call XUngrabPointer");
                 }
             },
             Normal => {},
@@ -966,11 +921,11 @@ impl Window2 {
 
         match state {
             Normal => {
-                *cursor_state = state;
+                *cursor_state_lock = state;
                 Ok(())
             },
             Hide => {
-                *cursor_state = state;
+                *cursor_state_lock = state;
                 self.update_cursor(
                     self.create_empty_cursor().expect("Failed to create empty cursor")
                 );
@@ -980,20 +935,20 @@ impl Window2 {
                 unsafe {
                     // Ungrab before grabbing to prevent passive grabs
                     // from causing AlreadyGrabbed
-                    (self.x.display.xlib.XUngrabPointer)(self.x.display.display, ffi::CurrentTime);
+                    (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
 
-                    match (self.x.display.xlib.XGrabPointer)(
-                        self.x.display.display, self.x.window, ffi::True,
+                    match (self.xconn.xlib.XGrabPointer)(
+                        self.xconn.display, self.xwindow, ffi::True,
                         (ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
                         ffi::LeaveWindowMask | ffi::PointerMotionMask | ffi::PointerMotionHintMask |
                         ffi::Button1MotionMask | ffi::Button2MotionMask | ffi::Button3MotionMask |
                         ffi::Button4MotionMask | ffi::Button5MotionMask | ffi::ButtonMotionMask |
                         ffi::KeymapStateMask) as c_uint,
                         ffi::GrabModeAsync, ffi::GrabModeAsync,
-                        self.x.window, 0, ffi::CurrentTime
+                        self.xwindow, 0, ffi::CurrentTime
                     ) {
                         ffi::GrabSuccess => {
-                            *cursor_state = state;
+                            *cursor_state_lock = state;
                             Ok(())
                         },
                         ffi::AlreadyGrabbed | ffi::GrabInvalidTime |
@@ -1012,10 +967,10 @@ impl Window2 {
 
     pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
         unsafe {
-            (self.x.display.xlib.XWarpPointer)(
-                self.x.display.display,
+            (self.xconn.xlib.XWarpPointer)(
+                self.xconn.display,
                 0,
-                self.x.window,
+                self.xwindow,
                 0,
                 0,
                 0,
@@ -1023,10 +978,10 @@ impl Window2 {
                 x,
                 y,
             );
-            self.x.display.flush_requests().map_err(|_| ())
+            self.xconn.flush_requests().map_err(|_| ())
         }
     }
 
     #[inline]
-    pub fn id(&self) -> WindowId { WindowId(self.x.window) }
+    pub fn id(&self) -> WindowId { WindowId(self.xwindow) }
 }
