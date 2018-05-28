@@ -25,6 +25,34 @@ impl LogicalCoordinates {
     }
 }
 
+impl From<(f64, f64)> for LogicalCoordinates {
+    #[inline]
+    fn from((x, y): (f64, f64)) -> Self {
+        Self::new(x, y)
+    }
+}
+
+impl From<(i32, i32)> for LogicalCoordinates {
+    #[inline]
+    fn from((x, y): (i32, i32)) -> Self {
+        Self::new(x as f64, y as f64)
+    }
+}
+
+impl Into<(f64, f64)> for LogicalCoordinates {
+    #[inline]
+    fn into(self) -> (f64, f64) {
+        (self.x, self.y)
+    }
+}
+
+impl Into<(i32, i32)> for LogicalCoordinates {
+    #[inline]
+    fn into(self) -> (i32, i32) {
+        (self.x.round() as _, self.y.round() as _)
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PhysicalCoordinates {
     pub x: f64,
@@ -38,8 +66,8 @@ impl PhysicalCoordinates {
     }
 
     #[inline]
-    pub fn from_logical(logical: LogicalCoordinates, dpi_factor: f64) -> Self {
-        logical.to_physical(dpi_factor)
+    pub fn from_logical<T: Into<LogicalCoordinates>>(logical: T, dpi_factor: f64) -> Self {
+        logical.into().to_physical(dpi_factor)
     }
 
     #[inline]
@@ -62,6 +90,13 @@ impl From<(i32, i32)> for PhysicalCoordinates {
     #[inline]
     fn from((x, y): (i32, i32)) -> Self {
         Self::new(x as f64, y as f64)
+    }
+}
+
+impl Into<(f64, f64)> for PhysicalCoordinates {
+    #[inline]
+    fn into(self) -> (f64, f64) {
+        (self.x, self.y)
     }
 }
 
@@ -98,6 +133,34 @@ impl LogicalDimensions {
     }
 }
 
+impl From<(f64, f64)> for LogicalDimensions {
+    #[inline]
+    fn from((width, height): (f64, f64)) -> Self {
+        Self::new(width, height)
+    }
+}
+
+impl From<(u32, u32)> for LogicalDimensions {
+    #[inline]
+    fn from((width, height): (u32, u32)) -> Self {
+        Self::new(width as f64, height as f64)
+    }
+}
+
+impl Into<(f64, f64)> for LogicalDimensions {
+    #[inline]
+    fn into(self) -> (f64, f64) {
+        (self.width, self.height)
+    }
+}
+
+impl Into<(u32, u32)> for LogicalDimensions {
+    #[inline]
+    fn into(self) -> (u32, u32) {
+        (self.width.round() as _, self.height.round() as _)
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PhysicalDimensions {
     pub width: f64,
@@ -111,8 +174,8 @@ impl PhysicalDimensions {
     }
 
     #[inline]
-    pub fn from_logical(logical: LogicalDimensions, dpi_factor: f64) -> Self {
-        logical.to_physical(dpi_factor)
+    pub fn from_logical<T: Into<LogicalDimensions>>(logical: T, dpi_factor: f64) -> Self {
+        logical.into().to_physical(dpi_factor)
     }
 
     #[inline]
@@ -135,6 +198,13 @@ impl From<(u32, u32)> for PhysicalDimensions {
     #[inline]
     fn from((width, height): (u32, u32)) -> Self {
         Self::new(width as f64, height as f64)
+    }
+}
+
+impl Into<(f64, f64)> for PhysicalDimensions {
+    #[inline]
+    fn into(self) -> (f64, f64) {
+        (self.width, self.height)
     }
 }
 
