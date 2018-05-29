@@ -19,8 +19,8 @@ use {
     CreationError,
     CursorState,
     Icon,
-    LogicalCoordinates,
-    LogicalDimensions,
+    LogicalPosition,
+    LogicalSize,
     MonitorId as RootMonitorId,
     MouseCursor,
     WindowAttributes,
@@ -120,11 +120,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalCoordinates> {
+    pub fn get_position(&self) -> Option<LogicalPosition> {
         self.get_position_physical()
             .map(|physical_position| {
                 let dpi_factor = self.get_hidpi_factor();
-                LogicalCoordinates::from_physical(physical_position, dpi_factor)
+                LogicalPosition::from_physical(physical_position, dpi_factor)
             })
     }
 
@@ -137,11 +137,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalCoordinates> {
+    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
         self.get_inner_position_physical()
             .map(|physical_position| {
                 let dpi_factor = self.get_hidpi_factor();
-                LogicalCoordinates::from_physical(physical_position, dpi_factor)
+                LogicalPosition::from_physical(physical_position, dpi_factor)
             })
     }
 
@@ -161,7 +161,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_position(&self, logical_position: LogicalCoordinates) {
+    pub fn set_position(&self, logical_position: LogicalPosition) {
         let dpi_factor = self.get_hidpi_factor();
         let (x, y) = logical_position.to_physical(dpi_factor).into();
         self.set_position_physical(x, y);
@@ -179,11 +179,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalDimensions> {
+    pub fn get_inner_size(&self) -> Option<LogicalSize> {
         self.get_inner_size_physical()
             .map(|physical_size| {
                 let dpi_factor = self.get_hidpi_factor();
-                LogicalDimensions::from_physical(physical_size, dpi_factor)
+                LogicalSize::from_physical(physical_size, dpi_factor)
             })
     }
 
@@ -196,11 +196,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalDimensions> {
+    pub fn get_outer_size(&self) -> Option<LogicalSize> {
         self.get_outer_size_physical()
             .map(|physical_size| {
                 let dpi_factor = self.get_hidpi_factor();
-                LogicalDimensions::from_physical(physical_size, dpi_factor)
+                LogicalSize::from_physical(physical_size, dpi_factor)
             })
     }
 
@@ -236,7 +236,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, logical_size: LogicalDimensions) {
+    pub fn set_inner_size(&self, logical_size: LogicalSize) {
         let dpi_factor = self.get_hidpi_factor();
         let (width, height) = logical_size.to_physical(dpi_factor).into();
         self.set_inner_size_physical(width, height);
@@ -279,7 +279,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, logical_size: Option<LogicalDimensions>) {
+    pub fn set_min_dimensions(&self, logical_size: Option<LogicalSize>) {
         let physical_size = logical_size.map(|logical_size| {
             let dpi_factor = self.get_hidpi_factor();
             logical_size.to_physical(dpi_factor).into()
@@ -324,7 +324,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_max_dimensions(&self, logical_size: Option<LogicalDimensions>) {
+    pub fn set_max_dimensions(&self, logical_size: Option<LogicalSize>) {
         let physical_size = logical_size.map(|logical_size| {
             let dpi_factor = self.get_hidpi_factor();
             logical_size.to_physical(dpi_factor).into()
@@ -513,7 +513,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, logical_position: LogicalCoordinates) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), ()> {
         let dpi_factor = self.get_hidpi_factor();
         let (x, y) = logical_position.to_physical(dpi_factor).into();
         self.set_cursor_position_physical(x, y)
@@ -834,7 +834,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, _logical_spot: LogicalCoordinates) {
+    pub fn set_ime_spot(&self, _logical_spot: LogicalPosition) {
         unimplemented!();
     }
 }

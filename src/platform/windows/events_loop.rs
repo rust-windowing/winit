@@ -44,9 +44,9 @@ use {
     Event,
     EventsLoopClosed,
     KeyboardInput,
-    LogicalCoordinates,
-    LogicalDimensions,
-    PhysicalDimensions,
+    LogicalPosition,
+    LogicalSize,
+    PhysicalSize,
     WindowAttributes,
     WindowEvent,
     WindowId as SuperWindowId,
@@ -462,7 +462,7 @@ pub unsafe extern "system" fn callback(
             let windowpos = lparam as *const winuser::WINDOWPOS;
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
                 let dpi_factor = get_hwnd_scale_factor(window);
-                let logical_position = LogicalCoordinates::from_physical(
+                let logical_position = LogicalPosition::from_physical(
                     ((*windowpos).x, (*windowpos).y),
                     dpi_factor,
                 );
@@ -488,7 +488,7 @@ pub unsafe extern "system" fn callback(
                 let cstash = context_stash.as_mut().unwrap();
 
                 let dpi_factor = get_hwnd_scale_factor(window);
-                let logical_size = LogicalDimensions::from_physical((w, h), dpi_factor);
+                let logical_size = LogicalSize::from_physical((w, h), dpi_factor);
                 let event = Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
                     event: Resized(logical_size),
@@ -1093,7 +1093,7 @@ pub unsafe extern "system" fn callback(
                 // Automatically resize for actual DPI
                 let width = LOWORD(lparam as DWORD) as u32;
                 let height = HIWORD(lparam as DWORD) as u32;
-                let (adjusted_width, adjusted_height): (u32, u32) = PhysicalDimensions::from_logical(
+                let (adjusted_width, adjusted_height): (u32, u32) = PhysicalSize::from_logical(
                     (width, height),
                     scale_factor,
                 ).into();

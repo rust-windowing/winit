@@ -31,8 +31,8 @@ use {
     Event,
     EventsLoopClosed,
     KeyboardInput,
-    LogicalCoordinates,
-    LogicalDimensions,
+    LogicalPosition,
+    LogicalSize,
     WindowAttributes,
     WindowEvent,
 };
@@ -457,7 +457,7 @@ impl EventsLoop {
                     let mut events = Events::default();
 
                     if resized {
-                        let logical_size = LogicalDimensions::from_physical(new_inner_size, monitor.hidpi_factor);
+                        let logical_size = LogicalSize::from_physical(new_inner_size, monitor.hidpi_factor);
                         events.resized = Some(WindowEvent::Resized(logical_size));
                     }
 
@@ -474,7 +474,7 @@ impl EventsLoop {
                         let outer = frame_extents.inner_pos_to_outer(new_inner_position.0, new_inner_position.1);
                         shared_state_lock.position = Some(outer);
                         if moved {
-                            let logical_position = LogicalCoordinates::from_physical(outer, monitor.hidpi_factor);
+                            let logical_position = LogicalPosition::from_physical(outer, monitor.hidpi_factor);
                             events.moved = Some(WindowEvent::Moved(logical_position));
                         }
                         outer

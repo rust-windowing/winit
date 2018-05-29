@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use {DeviceId, LogicalCoordinates, LogicalDimensions, WindowId};
+use {DeviceId, LogicalPosition, LogicalSize, WindowId};
 
 /// Describes a generic event.
 #[derive(Clone, Debug)]
@@ -25,10 +25,10 @@ pub enum Event {
 #[derive(Clone, Debug)]
 pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(LogicalDimensions),
+    Resized(LogicalSize),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(LogicalCoordinates),
+    Moved(LogicalPosition),
 
     /// The window has been requested to close.
     CloseRequested,

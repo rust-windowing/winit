@@ -13,8 +13,8 @@ use {
     CursorState,
     EventsLoopClosed,
     Icon,
-    LogicalCoordinates,
-    LogicalDimensions,
+    LogicalPosition,
+    LogicalSize,
     MouseCursor,
     ControlFlow,
     WindowAttributes,
@@ -169,7 +169,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalCoordinates> {
+    pub fn get_position(&self) -> Option<LogicalPosition> {
         match self {
             &Window::X(ref w) => w.get_position(),
             //&Window::Wayland(ref w) => w.get_position(),
@@ -178,7 +178,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalCoordinates> {
+    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
         match self {
             &Window::X(ref m) => m.get_inner_position(),
             //&Window::Wayland(ref m) => m.get_inner_position(),
@@ -187,7 +187,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_position(&self, position: LogicalCoordinates) {
+    pub fn set_position(&self, position: LogicalPosition) {
         match self {
             &Window::X(ref w) => w.set_position(position),
             //&Window::Wayland(ref w) => w.set_position(x, y),
@@ -196,7 +196,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalDimensions> {
+    pub fn get_inner_size(&self) -> Option<LogicalSize> {
         match self {
             &Window::X(ref w) => w.get_inner_size(),
             //&Window::Wayland(ref w) => w.get_inner_size(),
@@ -205,7 +205,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalDimensions> {
+    pub fn get_outer_size(&self) -> Option<LogicalSize> {
         match self {
             &Window::X(ref w) => w.get_outer_size(),
             //&Window::Wayland(ref w) => w.get_outer_size(),
@@ -214,7 +214,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalDimensions) {
+    pub fn set_inner_size(&self, size: LogicalSize) {
         match self {
             &Window::X(ref w) => w.set_inner_size(size),
             //&Window::Wayland(ref w) => w.set_inner_size(x, y),
@@ -223,7 +223,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<LogicalDimensions>) {
+    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
         match self {
             &Window::X(ref w) => w.set_min_dimensions(dimensions),
             //&Window::Wayland(ref w) => w.set_min_dimensions(dimensions),
@@ -232,7 +232,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<LogicalDimensions>) {
+    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
         match self {
             &Window::X(ref w) => w.set_max_dimensions(dimensions),
             //&Window::Wayland(ref w) => w.set_max_dimensions(dimensions),
@@ -273,7 +273,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalCoordinates) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ()> {
         match self {
             &Window::X(ref w) => w.set_cursor_position(position),
             //&Window::Wayland(ref w) => w.set_cursor_position(x, y),
@@ -322,7 +322,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, position: LogicalCoordinates) {
+    pub fn set_ime_spot(&self, position: LogicalPosition) {
         match self {
             &Window::X(ref w) => w.set_ime_spot(position),
             &Window::Wayland(_) => (),

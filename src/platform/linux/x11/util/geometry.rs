@@ -1,7 +1,7 @@
 use std::cmp;
 
 use super::*;
-use {LogicalCoordinates, LogicalDimensions};
+use {LogicalPosition, LogicalSize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rect {
@@ -122,7 +122,7 @@ impl FrameExtentsHeuristic {
         }
     }
 
-    pub fn inner_pos_to_outer_logical(&self, mut logical: LogicalCoordinates, factor: f64) -> LogicalCoordinates {
+    pub fn inner_pos_to_outer_logical(&self, mut logical: LogicalPosition, factor: f64) -> LogicalPosition {
         use self::FrameExtentsHeuristicPath::*;
         if self.heuristic_path != UnsupportedBordered {
             let frame_extents = self.frame_extents.as_logical(factor);
@@ -143,7 +143,7 @@ impl FrameExtentsHeuristic {
         )
     }
 
-    pub fn inner_size_to_outer_logical(&self, mut logical: LogicalDimensions, factor: f64) -> LogicalDimensions {
+    pub fn inner_size_to_outer_logical(&self, mut logical: LogicalSize, factor: f64) -> LogicalSize {
         let frame_extents = self.frame_extents.as_logical(factor);
         logical.width += frame_extents.left + frame_extents.right;
         logical.height += frame_extents.top + frame_extents.bottom;

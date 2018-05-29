@@ -5,8 +5,8 @@ use {
     CursorState,
     EventsLoop,
     Icon,
-    LogicalCoordinates,
-    LogicalDimensions,
+    LogicalPosition,
+    LogicalSize,
     MouseCursor,
     platform,
     Window,
@@ -222,7 +222,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalCoordinates> {
+    pub fn get_position(&self) -> Option<LogicalPosition> {
         self.window.get_position()
     }
 
@@ -231,7 +231,7 @@ impl Window {
     ///
     /// The same conditions that apply to `get_position` apply to this method.
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalCoordinates> {
+    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
         self.window.get_inner_position()
     }
 
@@ -241,7 +241,7 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_position(&self, position: LogicalCoordinates) {
+    pub fn set_position(&self, position: LogicalPosition) {
         self.window.set_position(position)
     }
 
@@ -252,7 +252,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalDimensions> {
+    pub fn get_inner_size(&self) -> Option<LogicalSize> {
         self.window.get_inner_size()
     }
 
@@ -263,7 +263,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalDimensions> {
+    pub fn get_outer_size(&self) -> Option<LogicalSize> {
         self.window.get_outer_size()
     }
 
@@ -273,7 +273,7 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalDimensions) {
+    pub fn set_inner_size(&self, size: LogicalSize) {
         self.window.set_inner_size(size)
     }
 
@@ -281,7 +281,7 @@ impl Window {
     ///
     /// Width and height are in pixels.
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<LogicalDimensions>) {
+    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
         self.window.set_min_dimensions(dimensions)
     }
 
@@ -289,7 +289,7 @@ impl Window {
     ///
     /// Width and height are in pixels.
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<LogicalDimensions>) {
+    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
         self.window.set_max_dimensions(dimensions)
     }
 
@@ -329,7 +329,7 @@ impl Window {
 
     /// Changes the position of the cursor in window coordinates.
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalCoordinates) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ()> {
         self.window.set_cursor_position(position)
     }
 
@@ -380,7 +380,7 @@ impl Window {
 
     /// Sets location of IME candidate box in client area coordinates relative to the top left.
     #[inline]
-    pub fn set_ime_spot(&self, position: LogicalCoordinates) {
+    pub fn set_ime_spot(&self, position: LogicalPosition) {
         self.window.set_ime_spot(position)
     }
 
