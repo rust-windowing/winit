@@ -26,7 +26,6 @@ use {
     PhysicalSize,
     WindowAttributes,
 };
-
 use platform::platform::{Cursor, EventsLoop, PlatformSpecificWindowBuilderAttributes, WindowId};
 use platform::platform::dpi::{BASE_DPI, dpi_to_scale_factor, get_window_dpi, get_window_scale_factor};
 use platform::platform::events_loop::{self, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID};

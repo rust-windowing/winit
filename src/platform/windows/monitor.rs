@@ -5,8 +5,8 @@ use winapi::um::winuser;
 use std::{mem, ptr};
 use std::collections::VecDeque;
 
-use super::{EventsLoop, util};
 use {PhysicalPosition, PhysicalSize};
+use super::{EventsLoop, util};
 use platform::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 
 /// Win32 implementation of the main `MonitorId` object.

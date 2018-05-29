@@ -16,6 +16,8 @@ use {
     LogicalPosition,
     LogicalSize,
     MouseCursor,
+    PhysicalPosition,
+    PhysicalSize,
     ControlFlow,
     WindowAttributes,
 };
@@ -95,18 +97,20 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> (u32, u32) {
+    pub fn get_dimensions(&self) -> PhysicalSize {
         match self {
             &MonitorId::X(ref m) => m.get_dimensions(),
-            &MonitorId::Wayland(ref m) => m.get_dimensions(),
+            //&MonitorId::Wayland(ref m) => m.get_dimensions(),
+            _ => unimplemented!(),
         }
     }
 
     #[inline]
-    pub fn get_position(&self) -> (i32, i32) {
+    pub fn get_position(&self) -> PhysicalPosition {
         match self {
             &MonitorId::X(ref m) => m.get_position(),
-            &MonitorId::Wayland(ref m) => m.get_position(),
+            //&MonitorId::Wayland(ref m) => m.get_position(),
+            _ => unimplemented!(),
         }
     }
 
@@ -114,7 +118,7 @@ impl MonitorId {
     pub fn get_hidpi_factor(&self) -> f64 {
         match self {
             &MonitorId::X(ref m) => m.get_hidpi_factor(),
-            &MonitorId::Wayland(ref m) => m.get_hidpi_factor(),
+            &MonitorId::Wayland(ref m) => m.get_hidpi_factor() as f64,
         }
     }
 }

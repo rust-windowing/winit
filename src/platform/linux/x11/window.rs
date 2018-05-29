@@ -76,15 +76,20 @@ impl UnownedWindow {
         let xconn = &event_loop.xconn;
         let root = event_loop.root;
 
+        let max_dimensions: Option<(u32, u32)> = window_attrs.max_dimensions.map(Into::into);
+        let min_dimensions: Option<(u32, u32)> = window_attrs.min_dimensions.map(Into::into);
+
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
             // by the user, so we have to manually apply the initial constraints
-            let mut dimensions = window_attrs.dimensions.unwrap_or((800, 600));
-            if let Some(max) = window_attrs.max_dimensions {
+            let mut dimensions = window_attrs.dimensions
+                .map(Into::into)
+                .unwrap_or((800, 600));
+            if let Some(max) = max_dimensions {
                 dimensions.0 = cmp::min(dimensions.0, max.0);
                 dimensions.1 = cmp::min(dimensions.1, max.1);
             }
-            if let Some(min) = window_attrs.min_dimensions {
+            if let Some(min) = min_dimensions {
                 dimensions.0 = cmp::max(dimensions.0, min.0);
                 dimensions.1 = cmp::max(dimensions.1, min.1);
             }
@@ -458,8 +463,8 @@ impl UnownedWindow {
             Some(RootMonitorId { inner: PlatformMonitorId::X(monitor) }) => {
                 let window_position = self.get_position_physical();
                 self.shared_state.lock().restore_position = window_position;
-                let monitor_origin = monitor.get_position();
-                self.set_position_inner(monitor_origin.0 as i32, monitor_origin.1 as i32).queue();
+                let monitor_origin: (i32, i32) = monitor.get_position().into();
+                self.set_position_inner(monitor_origin.0, monitor_origin.1).queue();
                 self.set_fullscreen_hint(true)
             }
             _ => unreachable!(),

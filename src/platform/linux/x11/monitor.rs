@@ -2,6 +2,8 @@ use std::os::raw::*;
 
 use parking_lot::Mutex;
 
+use {PhysicalPosition, PhysicalSize};
+use super::{util, XConnection, XError};
 use super::ffi::{
     RRCrtcChangeNotifyMask,
     RROutputPropertyNotifyMask,
@@ -10,7 +12,6 @@ use super::ffi::{
     Window,
     XRRScreenResources,
 };
-use super::{util, XConnection, XError};
 
 // Used to test XRandR < 1.5 code path. This should always be committed as false.
 const FORCE_RANDR_COMPAT: bool = false;
@@ -88,17 +89,17 @@ impl MonitorId {
         self.id as u32
     }
 
-    pub fn get_dimensions(&self) -> (u32, u32) {
-        self.dimensions
+    pub fn get_dimensions(&self) -> PhysicalSize {
+        self.dimensions.into()
     }
 
-    pub fn get_position(&self) -> (i32, i32) {
-        self.position
+    pub fn get_position(&self) -> PhysicalPosition {
+        self.position.into()
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f32 {
-        self.hidpi_factor as f32
+    pub fn get_hidpi_factor(&self) -> f64 {
+        self.hidpi_factor
     }
 }
 
