@@ -1,13 +1,13 @@
 #![cfg(target_os = "windows")]
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ffi::OsStr;
 use std::{io, mem, ptr};
-use std::os::raw;
 use std::os::windows::ffi::OsStrExt;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
 
+use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{BOOL, DWORD, FALSE, LPARAM, TRUE, UINT, WORD, WPARAM};
 use winapi::shared::windef::{HDC, HWND, LPPOINT, POINT, RECT};
 use winapi::um::{combaseapi, dwmapi, libloaderapi, winuser};
@@ -23,11 +23,12 @@ use {
     LogicalSize,
     MonitorId as RootMonitorId,
     MouseCursor,
+    PhysicalSize,
     WindowAttributes,
 };
 
 use platform::platform::{Cursor, EventsLoop, PlatformSpecificWindowBuilderAttributes, WindowId};
-use platform::platform::dpi::{BASE_DPI, get_window_dpi, get_window_scale_factor};
+use platform::platform::dpi::{BASE_DPI, dpi_to_scale_factor, get_window_dpi, get_window_scale_factor};
 use platform::platform::events_loop::{self, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID};
 use platform::platform::icon::{self, IconType, WinIcon};
 use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
@@ -37,6 +38,12 @@ use platform::platform::util;
 pub struct Window {
     /// Main handle for the window.
     window: WindowWrapper,
+
+    decorations: Cell<bool>,
+    maximized: Cell<bool>,
+    resizable: Cell<bool>,
+    fullscreen: RefCell<Option<::MonitorId>>,
+    always_on_top: Cell<bool>,
 
     /// The current window state.
     window_state: Arc<Mutex<events_loop::WindowState>>,
@@ -150,8 +157,8 @@ impl Window {
             winuser::SetWindowPos(
                 self.window.0,
                 ptr::null_mut(),
-                x as raw::c_int,
-                y as raw::c_int,
+                x as c_int,
+                y as c_int,
                 0,
                 0,
                 winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOSIZE,
@@ -206,7 +213,6 @@ impl Window {
 
     pub(crate) fn set_inner_size_physical(&self, x: u32, y: u32) {
         unsafe {
-            // Calculate the outer size based upon the specified inner size
             let mut rect = RECT {
                 top: 0,
                 left: 0,
@@ -217,8 +223,8 @@ impl Window {
             let b_menu = !winuser::GetMenu(self.window.0).is_null() as BOOL;
             let dw_style_ex = winuser::GetWindowLongA(self.window.0, winuser::GWL_EXSTYLE) as DWORD;
             winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
-            let outer_x = (rect.right - rect.left).abs() as raw::c_int;
-            let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
+            let outer_x = (rect.right - rect.left).abs() as c_int;
+            let outer_y = (rect.top - rect.bottom).abs() as c_int;
             winuser::SetWindowPos(
                 self.window.0,
                 ptr::null_mut(),
@@ -243,39 +249,10 @@ impl Window {
     }
 
     pub(crate) fn set_min_dimensions_physical(&self, dimensions: Option<(u32, u32)>) {
-        let mut window_state = self.window_state.lock().unwrap();
-        window_state.attributes.min_dimensions = dimensions;
+        self.window_state.lock().unwrap().min_size = dimensions.map(Into::into);
         // Make windows re-check the window size bounds.
-        if let Some(inner_size) = self.get_inner_size() {
-            let dpi_factor = self.get_hidpi_factor();
-            let inner_size: (u32, u32) = inner_size.to_physical(dpi_factor).into();
-            unsafe {
-                let mut rect = RECT {
-                    top: 0,
-                    left: 0,
-                    bottom: inner_size.1 as LONG,
-                    right: inner_size.0 as LONG,
-                };
-                let dw_style = winuser::GetWindowLongA(self.window.0, winuser::GWL_STYLE) as DWORD;
-                let b_menu = !winuser::GetMenu(self.window.0).is_null() as BOOL;
-                let dw_style_ex = winuser::GetWindowLongA(self.window.0, winuser::GWL_EXSTYLE) as DWORD;
-                winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
-                let outer_x = (rect.right - rect.left).abs() as raw::c_int;
-                let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
-                winuser::SetWindowPos(
-                    self.window.0,
-                    ptr::null_mut(),
-                    0,
-                    0,
-                    outer_x,
-                    outer_y,
-                    winuser::SWP_ASYNCWINDOWPOS
-                    | winuser::SWP_NOZORDER
-                    | winuser::SWP_NOREPOSITION
-                    | winuser::SWP_NOMOVE,
-                );
-            }
-        }
+        self.get_inner_size_physical()
+            .map(|(width, height)| self.set_inner_size_physical(width, height));
     }
 
     #[inline]
@@ -288,39 +265,10 @@ impl Window {
     }
 
     pub fn set_max_dimensions_physical(&self, dimensions: Option<(u32, u32)>) {
-        let mut window_state = self.window_state.lock().unwrap();
-        window_state.attributes.max_dimensions = dimensions;
+        self.window_state.lock().unwrap().max_size = dimensions.map(Into::into);
         // Make windows re-check the window size bounds.
-        if let Some(inner_size) = self.get_inner_size() {
-            let dpi_factor = self.get_hidpi_factor();
-            let inner_size: (u32, u32) = inner_size.to_physical(dpi_factor).into();
-            unsafe {
-                let mut rect = RECT {
-                    top: 0,
-                    left: 0,
-                    bottom: inner_size.1 as LONG,
-                    right: inner_size.0 as LONG,
-                };
-                let dw_style = winuser::GetWindowLongA(self.window.0, winuser::GWL_STYLE) as DWORD;
-                let b_menu = !winuser::GetMenu(self.window.0).is_null() as BOOL;
-                let dw_style_ex = winuser::GetWindowLongA(self.window.0, winuser::GWL_EXSTYLE) as DWORD;
-                winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
-                let outer_x = (rect.right - rect.left).abs() as raw::c_int;
-                let outer_y = (rect.top - rect.bottom).abs() as raw::c_int;
-                winuser::SetWindowPos(
-                    self.window.0,
-                    ptr::null_mut(),
-                    0,
-                    0,
-                    outer_x,
-                    outer_y,
-                    winuser::SWP_ASYNCWINDOWPOS
-                    | winuser::SWP_NOZORDER
-                    | winuser::SWP_NOREPOSITION
-                    | winuser::SWP_NOMOVE,
-                );
-            }
-        }
+        self.get_inner_size_physical()
+            .map(|(width, height)| self.set_inner_size_physical(width, height));
     }
 
     #[inline]
@@ -334,13 +282,12 @@ impl Window {
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
-        let mut window_state = self.window_state.lock().unwrap();
-        if window_state.attributes.resizable == resizable {
+        if resizable == self.resizable.get() {
             return;
         }
-        if window_state.attributes.fullscreen.is_some() {
+        if self.fullscreen.borrow().is_some() {
             // If we're in fullscreen, update stored configuration but don't apply anything.
-            window_state.attributes.resizable = resizable;
+            self.resizable.replace(resizable);
             return;
         }
 
@@ -360,7 +307,7 @@ impl Window {
                 style as _,
             );
         };
-        window_state.attributes.resizable = resizable;
+        self.resizable.replace(resizable);
     }
 
     /// Returns the `hwnd` of this window.
@@ -526,18 +473,13 @@ impl Window {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        let mut window_state = self.window_state.lock().unwrap();
-
-        window_state.attributes.maximized = maximized;
-        // we only maximized if we are not in fullscreen
-        if window_state.attributes.fullscreen.is_some() {
-            return;
-        }
+        self.maximized.replace(maximized);
+        // We only maximize if we're not in fullscreen.
+        if self.fullscreen.borrow().is_some() { return; }
 
         let window = self.window.clone();
         unsafe {
-            // And because ShowWindow will resize the window
-            // We call it in the main thread
+            // `ShowWindow` resizes the window, so it must be called from the main thread.
             self.events_loop_proxy.execute_in_thread(move |_| {
                 winuser::ShowWindow(
                     window.0,
@@ -554,12 +496,15 @@ impl Window {
     unsafe fn set_fullscreen_style(&self) -> (LONG, LONG) {
         let mut window_state = self.window_state.lock().unwrap();
 
-        if window_state.attributes.fullscreen.is_none() || window_state.saved_window_info.is_none() {
+        if self.fullscreen.borrow().is_none() || window_state.saved_window_info.is_none() {
             let rect = util::get_window_rect(self.window.0).expect("`GetWindowRect` failed");
+            let dpi_factor = Some(self.get_hidpi_factor());
             window_state.saved_window_info = Some(events_loop::SavedWindowInfo {
                 style: winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE),
                 ex_style: winuser::GetWindowLongW(self.window.0, winuser::GWL_EXSTYLE),
                 rect,
+                is_fullscreen: true,
+                dpi_factor,
             });
         }
 
@@ -567,15 +512,14 @@ impl Window {
         let mut placement: winuser::WINDOWPLACEMENT = mem::zeroed();
         placement.length = mem::size_of::<winuser::WINDOWPLACEMENT>() as u32;
         winuser::GetWindowPlacement(self.window.0, &mut placement);
-        window_state.attributes.maximized =
-            placement.showCmd == (winuser::SW_SHOWMAXIMIZED as u32);
+        self.maximized.replace(placement.showCmd == (winuser::SW_SHOWMAXIMIZED as u32));
         let saved_window_info = window_state.saved_window_info.as_ref().unwrap();
 
         (saved_window_info.style, saved_window_info.ex_style)
     }
 
     unsafe fn restore_saved_window(&self) {
-        let window_state = self.window_state.lock().unwrap();
+        let mut window_state = self.window_state.lock().unwrap();
 
         // 'saved_window_info' can be None if the window has never been
         // in fullscreen mode before this method gets called.
@@ -586,18 +530,21 @@ impl Window {
         // Reset original window style and size.  The multiple window size/moves
         // here are ugly, but if SetWindowPos() doesn't redraw, the taskbar won't be
         // repainted.  Better-looking methods welcome.
+        {
+            let saved_window_info = window_state.saved_window_info.as_mut().unwrap();
+            saved_window_info.is_fullscreen = false;
+        }
         let saved_window_info = window_state.saved_window_info.as_ref().unwrap();
 
         let rect = saved_window_info.rect.clone();
         let window = self.window.clone();
         let (mut style, ex_style) = (saved_window_info.style, saved_window_info.ex_style);
 
-        let maximized = window_state.attributes.maximized;
-        let resizable = window_state.attributes.resizable;
+        let maximized = self.maximized.get();
+        let resizable = self.resizable.get();
 
-        // On restore, resize to the previous saved rect size.
-        // And because SetWindowPos will resize the window
-        // We call it in the main thread
+        // We're restoring the window to its size and position from before being fullscreened.
+        // `ShowWindow` resizes the window, so it must be called from the main thread.
         self.events_loop_proxy.execute_in_thread(move |_| {
             if resizable {
                 style |= winuser::WS_SIZEBOX as LONG;
@@ -614,11 +561,13 @@ impl Window {
                 rect.top,
                 rect.right - rect.left,
                 rect.bottom - rect.top,
-                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE
-                    | winuser::SWP_FRAMECHANGED,
+                winuser::SWP_ASYNCWINDOWPOS
+                | winuser::SWP_NOZORDER
+                | winuser::SWP_NOACTIVATE
+                | winuser::SWP_FRAMECHANGED,
             );
 
-            // if it was set to maximized when it were fullscreened, we restore it as well
+            // We apply any requested changes to maximization state that occurred while we were in fullscreen.
             winuser::ShowWindow(
                 window.0,
                 if maximized {
@@ -637,8 +586,8 @@ impl Window {
         unsafe {
             match &monitor {
                 &Some(RootMonitorId { ref inner }) => {
-                    let pos = inner.get_position();
-                    let dim = inner.get_dimensions();
+                    let (x, y): (i32, i32) = inner.get_position().into();
+                    let (width, height): (u32, u32) = inner.get_dimensions().into();
                     let window = self.window.clone();
 
                     let (style, ex_style) = self.set_fullscreen_style();
@@ -664,10 +613,10 @@ impl Window {
                         winuser::SetWindowPos(
                             window.0,
                             ptr::null_mut(),
-                            pos.0,
-                            pos.1,
-                            dim.0 as i32,
-                            dim.1 as i32,
+                            x as c_int,
+                            y as c_int,
+                            width as c_int,
+                            height as c_int,
                             winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER
                                 | winuser::SWP_NOACTIVATE
                                 | winuser::SWP_FRAMECHANGED,
@@ -682,122 +631,119 @@ impl Window {
             }
         }
 
-        let mut window_state = self.window_state.lock().unwrap();
-        window_state.attributes.fullscreen = monitor;
+        self.fullscreen.replace(monitor);
     }
 
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
-        if let Ok(mut window_state) = self.window_state.lock() {
-            if window_state.attributes.decorations == decorations {
-                return;
-            }
+        if self.decorations.get() == decorations {
+            return;
+        }
 
-            let style_flags = (winuser::WS_CAPTION | winuser::WS_THICKFRAME) as LONG;
-            let ex_style_flags = (winuser::WS_EX_WINDOWEDGE) as LONG;
+        let style_flags = (winuser::WS_CAPTION | winuser::WS_THICKFRAME) as LONG;
+        let ex_style_flags = (winuser::WS_EX_WINDOWEDGE) as LONG;
 
-            // if we are in fullscreen mode, we only change the saved window info
-            if window_state.attributes.fullscreen.is_some() {
-                {
-                    let mut saved = window_state.saved_window_info.as_mut().unwrap();
+        // if we are in fullscreen mode, we only change the saved window info
+        if self.fullscreen.borrow().is_some() {
+            {
+                let mut window_state = self.window_state.lock().unwrap();
+                let saved = window_state.saved_window_info.as_mut().unwrap();
 
-                    unsafe {
-                        unjust_window_rect(&mut saved.rect, saved.style as _, saved.ex_style as _);
-                    }
-
-                    if decorations {
-                        saved.style = saved.style | style_flags;
-                        saved.ex_style = saved.ex_style | ex_style_flags;
-                    } else {
-                        saved.style = saved.style & !style_flags;
-                        saved.ex_style = saved.ex_style & !ex_style_flags;
-                    }
-
-                    unsafe {
-                        winuser::AdjustWindowRectEx(
-                            &mut saved.rect,
-                            saved.style as _,
-                            0,
-                            saved.ex_style as _,
-                        );
-                    }
+                unsafe {
+                    unjust_window_rect(&mut saved.rect, saved.style as _, saved.ex_style as _);
                 }
-
-                window_state.attributes.decorations = decorations;
-                return;
-            }
-
-            unsafe {
-                let mut rect: RECT = mem::zeroed();
-                winuser::GetWindowRect(self.window.0, &mut rect);
-
-                let mut style = winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE);
-                let mut ex_style = winuser::GetWindowLongW(self.window.0, winuser::GWL_EXSTYLE);
-                unjust_window_rect(&mut rect, style as _, ex_style as _);
 
                 if decorations {
-                    style = style | style_flags;
-                    ex_style = ex_style | ex_style_flags;
+                    saved.style = saved.style | style_flags;
+                    saved.ex_style = saved.ex_style | ex_style_flags;
                 } else {
-                    style = style & !style_flags;
-                    ex_style = ex_style & !ex_style_flags;
+                    saved.style = saved.style & !style_flags;
+                    saved.ex_style = saved.ex_style & !ex_style_flags;
                 }
 
-                let window = self.window.clone();
-
-                self.events_loop_proxy.execute_in_thread(move |_| {
-                    winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
-                    winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
-                    winuser::AdjustWindowRectEx(&mut rect, style as _, 0, ex_style as _);
-
-                    winuser::SetWindowPos(
-                        window.0,
-                        ptr::null_mut(),
-                        rect.left,
-                        rect.top,
-                        rect.right - rect.left,
-                        rect.bottom - rect.top,
-                        winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER
-                            | winuser::SWP_NOACTIVATE
-                            | winuser::SWP_FRAMECHANGED,
+                unsafe {
+                    winuser::AdjustWindowRectEx(
+                        &mut saved.rect,
+                        saved.style as _,
+                        0,
+                        saved.ex_style as _,
                     );
-                });
+                }
             }
 
-            window_state.attributes.decorations = decorations;
+            self.decorations.replace(decorations);
+            return;
         }
+
+        unsafe {
+            let mut rect: RECT = mem::zeroed();
+            winuser::GetWindowRect(self.window.0, &mut rect);
+
+            let mut style = winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE);
+            let mut ex_style = winuser::GetWindowLongW(self.window.0, winuser::GWL_EXSTYLE);
+            unjust_window_rect(&mut rect, style as _, ex_style as _);
+
+            if decorations {
+                style = style | style_flags;
+                ex_style = ex_style | ex_style_flags;
+            } else {
+                style = style & !style_flags;
+                ex_style = ex_style & !ex_style_flags;
+            }
+
+            let window = self.window.clone();
+
+            self.events_loop_proxy.execute_in_thread(move |_| {
+                winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
+                winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
+                winuser::AdjustWindowRectEx(&mut rect, style as _, 0, ex_style as _);
+
+                winuser::SetWindowPos(
+                    window.0,
+                    ptr::null_mut(),
+                    rect.left,
+                    rect.top,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    winuser::SWP_ASYNCWINDOWPOS
+                    | winuser::SWP_NOZORDER
+                    | winuser::SWP_NOACTIVATE
+                    | winuser::SWP_FRAMECHANGED,
+                );
+            });
+        }
+
+        self.decorations.replace(decorations);
     }
 
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
-        if let Ok(mut window_state) = self.window_state.lock() {
-            if window_state.attributes.always_on_top == always_on_top {
-                return;
-            }
-
-            let window = self.window.clone();
-            self.events_loop_proxy.execute_in_thread(move |_| {
-                let insert_after = if always_on_top {
-                    winuser::HWND_TOPMOST
-                } else {
-                    winuser::HWND_NOTOPMOST
-                };
-                unsafe {
-                    winuser::SetWindowPos(
-                        window.0,
-                        insert_after,
-                        0,
-                        0,
-                        0,
-                        0,
-                        winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOMOVE | winuser::SWP_NOSIZE,
-                    );
-                    winuser::UpdateWindow(window.0);
-                }
-            });
-
-            window_state.attributes.always_on_top = always_on_top;
+        if self.always_on_top.get() == always_on_top {
+            return;
         }
+
+        let window = self.window.clone();
+        self.events_loop_proxy.execute_in_thread(move |_| {
+            let insert_after = if always_on_top {
+                winuser::HWND_TOPMOST
+            } else {
+                winuser::HWND_NOTOPMOST
+            };
+            unsafe {
+                winuser::SetWindowPos(
+                    window.0,
+                    insert_after,
+                    0,
+                    0,
+                    0,
+                    0,
+                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOMOVE | winuser::SWP_NOSIZE,
+                );
+                winuser::UpdateWindow(window.0);
+            }
+        });
+
+        self.always_on_top.replace(always_on_top);
     }
 
     #[inline]
@@ -861,27 +807,26 @@ pub struct WindowWrapper(HWND, HDC);
 // https://github.com/retep998/winapi-rs/issues/396
 unsafe impl Send for WindowWrapper {}
 
-pub unsafe fn adjust_size(
-    (x, y): (u32, u32), style: DWORD, ex_style: DWORD,
-) -> (LONG, LONG) {
-    let mut rect = RECT { left: 0, right: x as LONG, top: 0, bottom: y as LONG };
+pub unsafe fn adjust_size(physical_size: PhysicalSize, style: DWORD, ex_style: DWORD) -> (LONG, LONG) {
+    let (width, height): (u32, u32) = physical_size.into();
+    let mut rect = RECT { left: 0, right: width as LONG, top: 0, bottom: height as LONG };
     winuser::AdjustWindowRectEx(&mut rect, style, 0, ex_style);
     (rect.right - rect.left, rect.bottom - rect.top)
 }
 
 unsafe fn init(
-    mut window: WindowAttributes,
+    mut attributes: WindowAttributes,
     mut pl_attribs: PlatformSpecificWindowBuilderAttributes,
     inserter: events_loop::Inserter,
     events_loop_proxy: events_loop::EventsLoopProxy,
 ) -> Result<Window, CreationError> {
-    let title = OsStr::new(&window.title)
+    let title = OsStr::new(&attributes.title)
         .encode_wide()
         .chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 
     let window_icon = {
-        let icon = window.window_icon
+        let icon = attributes.window_icon
             .take()
             .map(WinIcon::from_icon);
         if icon.is_some() {
@@ -908,17 +853,19 @@ unsafe fn init(
     // registering the window class
     let class_name = register_window_class(&window_icon, &taskbar_icon);
 
-    let dimensions = window.dimensions.unwrap_or((1024, 768));
+    let (width, height) = attributes.dimensions
+        .map(Into::into)
+        .unwrap_or((1024, 768));
     // building a RECT object with coordinates
     let mut rect = RECT {
         left: 0,
-        right: dimensions.0 as LONG,
+        right: width as LONG,
         top: 0,
-        bottom: dimensions.1 as LONG,
+        bottom: height as LONG,
     };
 
     // computing the style and extended style of the window
-    let (mut ex_style, style) = if !window.decorations {
+    let (mut ex_style, style) = if !attributes.decorations {
         (winuser::WS_EX_APPWINDOW,
             //winapi::WS_POPUP is incompatible with winapi::WS_CHILD
             if pl_attribs.parent.is_some() {
@@ -933,7 +880,7 @@ unsafe fn init(
             winuser::WS_OVERLAPPEDWINDOW | winuser::WS_CLIPSIBLINGS | winuser::WS_CLIPCHILDREN)
     };
 
-    if window.always_on_top {
+    if attributes.always_on_top {
         ex_style |= winuser::WS_EX_TOPMOST;
     }
 
@@ -942,14 +889,15 @@ unsafe fn init(
 
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
-        let (width, height) = if window.dimensions.is_some() {
-            let min_dimensions = window.min_dimensions
-                .map(|d| adjust_size(d, style, ex_style))
+        let (adjusted_width, adjusted_height) = if attributes.dimensions.is_some() {
+            let min_dimensions = attributes.min_dimensions
+                .map(|logical_size| PhysicalSize::from_logical(logical_size, 1.0))
+                .map(|physical_size| adjust_size(physical_size, style, ex_style))
                 .unwrap_or((0, 0));
-            let max_dimensions = window.max_dimensions
-                .map(|d| adjust_size(d, style, ex_style))
-                .unwrap_or((raw::c_int::max_value(), raw::c_int::max_value()));
-
+            let max_dimensions = attributes.max_dimensions
+                .map(|logical_size| PhysicalSize::from_logical(logical_size, 1.0))
+                .map(|physical_size| adjust_size(physical_size, style, ex_style))
+                .unwrap_or((c_int::max_value(), c_int::max_value()));
             (
                 Some((rect.right - rect.left).min(max_dimensions.0).max(min_dimensions.0)),
                 Some((rect.bottom - rect.top).min(max_dimensions.1).max(min_dimensions.1))
@@ -958,7 +906,7 @@ unsafe fn init(
             (None, None)
         };
 
-        let mut style = if !window.visible {
+        let mut style = if !attributes.visible {
             style
         } else {
             style | winuser::WS_VISIBLE
@@ -977,10 +925,13 @@ unsafe fn init(
             title.as_ptr() as LPCWSTR,
             style | winuser::WS_CLIPSIBLINGS | winuser::WS_CLIPCHILDREN,
             winuser::CW_USEDEFAULT, winuser::CW_USEDEFAULT,
-            width.unwrap_or(winuser::CW_USEDEFAULT), height.unwrap_or(winuser::CW_USEDEFAULT),
+            adjusted_width.unwrap_or(winuser::CW_USEDEFAULT),
+            adjusted_height.unwrap_or(winuser::CW_USEDEFAULT),
             pl_attribs.parent.unwrap_or(ptr::null_mut()),
-            ptr::null_mut(), libloaderapi::GetModuleHandleW(ptr::null()),
-            ptr::null_mut());
+            ptr::null_mut(),
+            libloaderapi::GetModuleHandleW(ptr::null()),
+            ptr::null_mut(),
+        );
 
         if handle.is_null() {
             return Err(CreationError::OsError(format!("CreateWindowEx function failed: {}",
@@ -1007,19 +958,14 @@ unsafe fn init(
         }
     }
 
-    let (transparent, maximized, fullscreen) = (
-        window.transparent.clone(), window.maximized.clone(), window.fullscreen.clone()
-    );
-
     let dpi = get_window_dpi(real_window.0, real_window.1);
+    let dpi_factor = dpi_to_scale_factor(dpi);
     if dpi != BASE_DPI {
-        let width = dimensions.0 as WORD;
-        let height = dimensions.1 as WORD;
         let mut packed_dimensions = 0;
         // MAKELPARAM isn't provided by winapi yet.
         let ptr = &mut packed_dimensions as *mut LPARAM as *mut WORD;
-        *ptr.offset(0) = width;
-        *ptr.offset(1) = height;
+        *ptr.offset(0) = width as WORD;
+        *ptr.offset(1) = height as WORD;
         winuser::PostMessageW(
             real_window.0,
             *INITIAL_DPI_MSG_ID,
@@ -1028,17 +974,28 @@ unsafe fn init(
         );
     }
 
-    // Creating a mutex to track the current window state
-    let window_state = Arc::new(Mutex::new(events_loop::WindowState {
-        cursor: Cursor(winuser::IDC_ARROW), // use arrow by default
-        cursor_state: CursorState::Normal,
-        attributes: window,
-        mouse_in_window: false,
-        saved_window_info: None,
-    }));
+    let window_state = {
+        let max_size = attributes.max_dimensions
+            .map(|logical_size| PhysicalSize::from_logical(logical_size, 1.0));
+        let min_size = attributes.min_dimensions
+            .map(|logical_size| PhysicalSize::from_logical(logical_size, 1.0));
+        let mut window_state = events_loop::WindowState {
+            cursor: Cursor(winuser::IDC_ARROW), // use arrow by default
+            cursor_state: CursorState::Normal,
+            max_size,
+            min_size,
+            mouse_in_window: false,
+            saved_window_info: None,
+            dpi_factor,
+        };
+        // Adjust min/max dimensions for DPI.
+        window_state.update_min_max(1.0, dpi_factor);
+        // Creating a mutex to track the current window state
+        Arc::new(Mutex::new(window_state))
+    };
 
     // making the window transparent
-    if transparent {
+    if attributes.transparent {
         let bb = dwmapi::DWM_BLURBEHIND {
             dwFlags: 0x1, // FIXME: DWM_BB_ENABLE;
             fEnable: 1,
@@ -1052,14 +1009,19 @@ unsafe fn init(
     let win = Window {
         window: real_window,
         window_state: window_state,
+        decorations: Cell::new(attributes.decorations),
+        maximized: Cell::new(attributes.maximized.clone()),
+        resizable: Cell::new(attributes.resizable.clone()),
+        fullscreen: RefCell::new(attributes.fullscreen.clone()),
+        always_on_top: Cell::new(attributes.always_on_top),
         window_icon: Cell::new(window_icon),
         taskbar_icon: Cell::new(taskbar_icon),
         events_loop_proxy,
     };
 
-    win.set_maximized(maximized);
-    if let Some(_) = fullscreen {
-        win.set_fullscreen(fullscreen);
+    win.set_maximized(attributes.maximized);
+    if let Some(_) = attributes.fullscreen {
+        win.set_fullscreen(attributes.fullscreen);
         force_window_active(win.window.0);
     }
 

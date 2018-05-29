@@ -798,12 +798,12 @@ impl UnownedWindow {
 
     pub(crate) fn adjust_for_dpi(
         &self,
-        old_dpi: f64,
-        new_dpi: f64,
+        old_dpi_factor: f64,
+        new_dpi_factor: f64,
         width: f64,
         height: f64,
     ) -> (f64, f64, util::Flusher) {
-        let scale_factor = new_dpi / old_dpi;
+        let scale_factor = new_dpi_factor / old_dpi_factor;
         let new_width = width * scale_factor;
         let new_height = height * scale_factor;
         self.update_normal_hints(|normal_hints| {

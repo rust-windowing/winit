@@ -6,6 +6,7 @@ use std::{mem, ptr};
 use std::collections::VecDeque;
 
 use super::{EventsLoop, util};
+use {PhysicalPosition, PhysicalSize};
 use platform::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 
 /// Win32 implementation of the main `MonitorId` object.
@@ -128,13 +129,13 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> (u32, u32) {
-        self.dimensions
+    pub fn get_dimensions(&self) -> PhysicalSize {
+        self.dimensions.into()
     }
 
     #[inline]
-    pub fn get_position(&self) -> (i32, i32) {
-        self.position
+    pub fn get_position(&self) -> PhysicalPosition {
+        self.position.into()
     }
 
     #[inline]

@@ -47,7 +47,6 @@ use {
     LogicalPosition,
     LogicalSize,
     PhysicalSize,
-    WindowAttributes,
     WindowEvent,
     WindowId as SuperWindowId,
 };
@@ -72,6 +71,11 @@ pub struct SavedWindowInfo {
     pub ex_style: LONG,
     /// Window position and size
     pub rect: RECT,
+    // Since a window can be fullscreened to a different monitor, a DPI change can be triggered. This could result in
+    // the window being automitcally resized to smaller/larger than it was supposed to be restored to, so we thus must
+    // check if the post-fullscreen DPI matches the pre-fullscreen DPI.
+    pub is_fullscreen: bool,
+    pub dpi_factor: Option<f64>,
 }
 
 /// Contains information about states and the window that the callback is going to use.
@@ -82,11 +86,28 @@ pub struct WindowState {
     /// Cursor state to set at the next `WM_SETCURSOR` event received.
     pub cursor_state: CursorState,
     /// Used by `WM_GETMINMAXINFO`.
-    pub attributes: WindowAttributes,
+    pub max_size: Option<PhysicalSize>,
+    pub min_size: Option<PhysicalSize>,
     /// Will contain `true` if the mouse is hovering the window.
     pub mouse_in_window: bool,
     /// Saved window info for fullscreen restored
     pub saved_window_info: Option<SavedWindowInfo>,
+    // This is different from the value in `SavedWindowInfo`! That one represents the DPI saved upon entering
+    // fullscreen. This will always be the most recent DPI for the window.
+    pub dpi_factor: f64,
+}
+
+impl WindowState {
+    pub fn update_min_max(&mut self, old_dpi_factor: f64, new_dpi_factor: f64) {
+        let scale_factor = new_dpi_factor / old_dpi_factor;
+        let dpi_adjuster = |mut physical_size: PhysicalSize| -> PhysicalSize {
+            physical_size.width *= scale_factor;
+            physical_size.height *= scale_factor;
+            physical_size
+        };
+        self.max_size = self.max_size.map(&dpi_adjuster);
+        self.min_size = self.min_size.map(&dpi_adjuster);
+    }
 }
 
 /// Dummy object that allows inserting a window's state.
@@ -1026,18 +1047,15 @@ pub unsafe extern "system" fn callback(
                     if let Some(wstash) = cstash.windows.get(&window) {
                         let window_state = wstash.lock().unwrap();
 
-                        if window_state.attributes.min_dimensions.is_some() ||
-                           window_state.attributes.max_dimensions.is_some() {
-
+                        if window_state.min_size.is_some() || window_state.max_size.is_some() {
                             let style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
                             let ex_style = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
-
-                            if let Some(min_dimensions) = window_state.attributes.min_dimensions {
-                                let (width, height) = adjust_size(min_dimensions, style, ex_style);
+                            if let Some(min_size) = window_state.min_size {
+                                let (width, height) = adjust_size(min_size, style, ex_style);
                                 (*mmi).ptMinTrackSize = POINT { x: width as i32, y: height as i32 };
                             }
-                            if let Some(max_dimensions) = window_state.attributes.max_dimensions {
-                                let (width, height) = adjust_size(max_dimensions, style, ex_style);
+                            if let Some(max_size) = window_state.max_size {
+                                let (width, height) = adjust_size(max_size, style, ex_style);
                                 (*mmi).ptMaxTrackSize = POINT { x: width as i32, y: height as i32 };
                             }
                         }
@@ -1057,23 +1075,57 @@ pub unsafe extern "system" fn callback(
             // "you only need to use either the X-axis or the Y-axis value when scaling your
             // application since they are the same".
             // https://msdn.microsoft.com/en-us/library/windows/desktop/dn312083(v=vs.85).aspx
-            let dpi_x = u32::from(LOWORD(wparam as DWORD));
+            let new_dpi_x = u32::from(LOWORD(wparam as DWORD));
+            let new_dpi_factor = dpi_to_scale_factor(new_dpi_x);
 
-            // Resize window to the size suggested by Windows.
-            let rect = &*(lparam as *const RECT);
-            winuser::SetWindowPos(
-                window,
-                ptr::null_mut(),
-                rect.left,
-                rect.top,
-                rect.right - rect.left,
-                rect.bottom - rect.top,
-                winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE,
-            );
+            let suppress_resize = CONTEXT_STASH.with(|context_stash| {
+                context_stash
+                    .borrow()
+                    .as_ref()
+                    .and_then(|cstash| cstash.windows.get(&window))
+                    .map(|window_state_mutex| {
+                        let mut window_state = window_state_mutex.lock().unwrap();
+                        let suppress_resize = window_state.saved_window_info
+                            .as_mut()
+                            .map(|saved_window_info| {
+                                let dpi_changed = if !saved_window_info.is_fullscreen {
+                                    saved_window_info.dpi_factor.take() != Some(new_dpi_factor)
+                                } else {
+                                    false
+                                };
+                                !dpi_changed || saved_window_info.is_fullscreen
+                            })
+                            .unwrap_or(false);
+                        // Now we adjust the min/max dimensions for the new DPI.
+                        if !suppress_resize {
+                            let old_dpi_factor = window_state.dpi_factor;
+                            window_state.update_min_max(old_dpi_factor, new_dpi_factor);
+                        }
+                        window_state.dpi_factor = new_dpi_factor;
+                        suppress_resize
+                    })
+                    .unwrap_or(false)
+            });
+
+            // This prevents us from re-applying DPI adjustment to the restored size after exiting
+            // fullscreen (the restored size is already DPI adjusted).
+            if !suppress_resize {
+                // Resize window to the size suggested by Windows.
+                let rect = &*(lparam as *const RECT);
+                winuser::SetWindowPos(
+                    window,
+                    ptr::null_mut(),
+                    rect.left,
+                    rect.top,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE,
+                );
+            }
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: HiDpiFactorChanged(dpi_to_scale_factor(dpi_x)),
+                event: HiDpiFactorChanged(new_dpi_factor),
             });
 
             0

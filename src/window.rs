@@ -8,6 +8,8 @@ use {
     LogicalPosition,
     LogicalSize,
     MouseCursor,
+    PhysicalPosition,
+    PhysicalSize,
     platform,
     Window,
     WindowBuilder,
@@ -28,8 +30,8 @@ impl WindowBuilder {
     ///
     /// Width and height are in pixels.
     #[inline]
-    pub fn with_dimensions(mut self, width: u32, height: u32) -> WindowBuilder {
-        self.window.dimensions = Some((width, height));
+    pub fn with_dimensions(mut self, size: LogicalSize) -> WindowBuilder {
+        self.window.dimensions = Some(size);
         self
     }
 
@@ -37,8 +39,8 @@ impl WindowBuilder {
     ///
     /// Width and height are in pixels.
     #[inline]
-    pub fn with_min_dimensions(mut self, width: u32, height: u32) -> WindowBuilder {
-        self.window.min_dimensions = Some((width, height));
+    pub fn with_min_dimensions(mut self, min_size: LogicalSize) -> WindowBuilder {
+        self.window.min_dimensions = Some(min_size);
         self
     }
 
@@ -46,8 +48,8 @@ impl WindowBuilder {
     ///
     /// Width and height are in pixels.
     #[inline]
-    pub fn with_max_dimensions(mut self, width: u32, height: u32) -> WindowBuilder {
-        self.window.max_dimensions = Some((width, height));
+    pub fn with_max_dimensions(mut self, max_size: LogicalSize) -> WindowBuilder {
+        self.window.max_dimensions = Some(max_size);
         self
     }
 
@@ -151,10 +153,10 @@ impl WindowBuilder {
         self.window.dimensions = Some(self.window.dimensions.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
-                monitor.get_dimensions()
+                LogicalSize::from_physical(monitor.get_dimensions(), 1.0)
             } else {
                 // default dimensions
-                (1024, 768)
+                (1024, 768).into()
             }
         }));
 
@@ -434,14 +436,14 @@ impl MonitorId {
 
     /// Returns the number of pixels currently displayed on the monitor.
     #[inline]
-    pub fn get_dimensions(&self) -> (u32, u32) {
+    pub fn get_dimensions(&self) -> PhysicalSize {
         self.inner.get_dimensions()
     }
 
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
     #[inline]
-    pub fn get_position(&self) -> (i32, i32) {
+    pub fn get_position(&self) -> PhysicalPosition {
         self.inner.get_position()
     }
 

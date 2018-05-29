@@ -411,17 +411,17 @@ pub struct WindowAttributes {
     /// used.
     ///
     /// The default is `None`.
-    pub dimensions: Option<(u32, u32)>,
+    pub dimensions: Option<LogicalSize>,
 
     /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
     ///
     /// The default is `None`.
-    pub min_dimensions: Option<(u32, u32)>,
+    pub min_dimensions: Option<LogicalSize>,
 
     /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
     ///
     /// The default is `None`.
-    pub max_dimensions: Option<(u32, u32)>,
+    pub max_dimensions: Option<LogicalSize>,
 
     /// Whether the window is resizable or not.
     ///

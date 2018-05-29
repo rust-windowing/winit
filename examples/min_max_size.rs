@@ -1,5 +1,7 @@
 extern crate winit;
 
+use winit::LogicalSize;
+
 fn main() {
     let mut events_loop = winit::EventsLoop::new();
 
@@ -7,8 +9,8 @@ fn main() {
         .build(&events_loop)
         .unwrap();
 
-    window.set_min_dimensions(Some((400, 200)));
-    window.set_max_dimensions(Some((800, 400)));
+    window.set_min_dimensions(Some(LogicalSize::new(400.0, 200.0)));
+    window.set_max_dimensions(Some(LogicalSize::new(800.0, 400.0)));
 
     events_loop.run_forever(|event| {
         println!("{:?}", event);

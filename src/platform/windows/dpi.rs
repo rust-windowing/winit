@@ -183,7 +183,7 @@ pub unsafe fn get_window_dpi(hwnd: HWND, hdc: HDC) -> u32 {
 
 // Use this when you have both the HWND and HDC on hand (i.e. window methods)
 pub fn get_window_scale_factor(hwnd: HWND, hdc: HDC) -> f64 {
-    unsafe { dpi_to_scale_factor(get_window_dpi(hwnd, hdc)) }
+    dpi_to_scale_factor(unsafe { get_window_dpi(hwnd, hdc) })
 }
 
 // Use this when you only have the HWND (i.e. event handling)
