@@ -1,5 +1,8 @@
 # Unreleased
 
+- On X11, the `Moved` event is no longer sent when the window is resized without changing position.
+- `MouseCursor` and `CursorState` now implement `Default`.
+
 # Version 0.15.0 (2018-05-22)
 
 - `Icon::to_cardinals` is no longer public, since it was never supposed to be.
