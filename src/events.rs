@@ -63,7 +63,7 @@ pub enum WindowEvent {
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: (f64, f64),
+        position: LogicalPosition,
         modifiers: ModifiersState
     },
 
@@ -242,7 +242,7 @@ pub enum MouseScrollDelta {
 	/// Scroll events are expressed as a PixelDelta if
 	/// supported by the device (eg. a touchpad) and
 	/// platform.
-	PixelDelta(f32, f32)
+	PixelDelta(LogicalPosition),
 }
 
 /// Symbolic name for a keyboard key.
