@@ -34,15 +34,15 @@
 //! screen, such as video games.
 //!
 //! ```no_run
-//! use winit::{Event, WindowEvent};
+//! use winit::{Event, LogicalSize, WindowEvent};
 //! # use winit::EventsLoop;
 //! # let mut events_loop = EventsLoop::new();
 //!
 //! loop {
 //!     events_loop.poll_events(|event| {
 //!         match event {
-//!             Event::WindowEvent { event: WindowEvent::Resized(w, h), .. } => {
-//!                 println!("The window was resized to {}x{}", w, h);
+//!             Event::WindowEvent { event: WindowEvent::Resized(LogicalSize { width, height }), .. } => {
+//!                 println!("The window was resized to {}x{}", width, height);
 //!             },
 //!             _ => ()
 //!         }
