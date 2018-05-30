@@ -3,7 +3,7 @@
 use std::convert::From;
 use std::os::raw::c_void;
 use cocoa::appkit::NSApplicationActivationPolicy;
-use {MonitorId, Window, WindowBuilder};
+use {LogicalSize, MonitorId, Window, WindowBuilder};
 
 /// Additional methods on `Window` that are specific to MacOS.
 pub trait WindowExt {
@@ -86,7 +86,7 @@ pub trait WindowBuilderExt {
     /// Makes the window content appear behind the titlebar.
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
     /// Build window with `resizeIncrements` property. Values must not be 0.
-    fn with_resize_increments(self, width_inc: u32, height_inc: u32) -> WindowBuilder;
+    fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -133,8 +133,8 @@ impl WindowBuilderExt for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, width_inc: u32, height_inc: u32) -> WindowBuilder {
-        self.platform_specific.resize_increments = Some((width_inc, height_inc));
+    fn with_resize_increments(mut self, increments: LogicalSize) -> WindowBuilder {
+        self.platform_specific.resize_increments = Some(increments.into());
         self
     }
 }

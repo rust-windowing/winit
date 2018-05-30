@@ -519,7 +519,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub titlebar_hidden: bool,
     pub titlebar_buttons_hidden: bool,
     pub fullsize_content_view: bool,
-    pub resize_increments: Option<(u32, u32)>,
+    pub resize_increments: Option<LogicalSize>,
 }
 
 pub struct Window2 {
@@ -827,9 +827,10 @@ impl Window2 {
                     let _: () = msg_send![*window, setLevel:ffi::NSWindowLevel::NSFloatingWindowLevel];
                 }
 
-                if let Some((x, y)) = pl_attrs.resize_increments {
-                    if x >= 1 && y >= 1 {
-                        let size = NSSize::new(x as _, y as _);
+                if let Some(increments) = pl_attrs.resize_increments {
+                    let (x, y) = (increments.width, increments.height);
+                    if x >= 1.0 && y >= 1.0 {
+                        let size = NSSize::new(x as CGFloat, y as CGFloat);
                         window.setResizeIncrements_(size);
                     }
                 }
