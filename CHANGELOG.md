@@ -6,7 +6,9 @@
 - `WindowEvent::HiDpiFactorChanged` implemented on X11.
 - On macOS, `Window::set_cursor_position` is now relative to the client area.
 - On macOS, setting the maximum and minimum dimensions now applies to the client area rather than to the window.
-- **Breaking:** All deprecated methods have been removed.
+- **Breaking:** The entire API for sizes, positions, etc. has changed. In the majority of cases, winit produces and consumes positions and sizes as `LogicalPosition` and `LogicalSize`, respectively. The notable exception is `MonitorId` methods, which deal in `PhysicalPosition` and `PhysicalSize`. See the documentation for specifics and explanations of the types. Additionally, winit automatically conserves logical size when the DPI factor changes.
+- **Breaking:** `Window::hidpi_factor` has been renamed to `Window::get_hidpi_factor` for better consistency. `WindowEvent::HiDPIFactorChanged` has been renamed to ``WindowEvent::HiDpiFactorChanged``. DPI factors are always represented as `f64` instead of `f32` now.
+- **Breaking:** All deprecated methods have been removed. For `Window::platform_display` and `Window::platform_window`, switch to the appropriate platform-specific `WindowExt` methods. For `Window::get_inner_size_points` and `Window::get_inner_size_pixels`, use the `LogicalSize` returned by `Window::get_inner_size` and convert as needed.
 
 # Version 0.15.1 (2018-06-13)
 
