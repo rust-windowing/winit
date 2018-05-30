@@ -41,7 +41,10 @@
 //! loop {
 //!     events_loop.poll_events(|event| {
 //!         match event {
-//!             Event::WindowEvent { event: WindowEvent::Resized(LogicalSize { width, height }), .. } => {
+//!             Event::WindowEvent {
+//!                 event: WindowEvent::Resized(LogicalSize { width, height }),
+//!                 ..
+//!             } => {
 //!                 println!("The window was resized to {}x{}", width, height);
 //!             },
 //!             _ => ()
