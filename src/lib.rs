@@ -83,6 +83,7 @@
 //! to create an OpenGL/Vulkan/DirectX/Metal/etc. context that will draw on the window.
 //!
 
+#[allow(unused_imports)]
 #[macro_use]
 extern crate lazy_static;
 extern crate libc;
