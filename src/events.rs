@@ -197,7 +197,7 @@ pub enum TouchPhase {
 pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
-    pub location: (f64,f64),
+    pub location: LogicalPosition,
     /// unique identifier of a finger.
     pub id: u64
 }
