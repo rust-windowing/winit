@@ -590,10 +590,12 @@ pub unsafe extern "system" fn callback(
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
+            let dpi_factor = get_hwnd_scale_factor(window);
+            let position = LogicalPosition::from_physical((x, y), dpi_factor);
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: CursorMoved { device_id: DEVICE_ID, position: (x, y), modifiers: event::get_key_mods() },
+                event: CursorMoved { device_id: DEVICE_ID, position, modifiers: event::get_key_mods() },
             });
 
             0
@@ -931,10 +933,17 @@ pub unsafe extern "system" fn callback(
             let mut inputs = Vec::with_capacity( pcount );
             inputs.set_len( pcount );
             let htouch = lparam as winuser::HTOUCHINPUT;
-            if winuser::GetTouchInputInfo( htouch, pcount as UINT,
-                                           inputs.as_mut_ptr(),
-                                           mem::size_of::<winuser::TOUCHINPUT>() as INT ) > 0 {
+            if winuser::GetTouchInputInfo(
+                htouch,
+                pcount as UINT,
+                inputs.as_mut_ptr(),
+                mem::size_of::<winuser::TOUCHINPUT>() as INT,
+            ) > 0 {
+                let dpi_factor = get_hwnd_scale_factor(window);
                 for input in &inputs {
+                    let x = (input.x as f64) / 100f64;
+                    let y = (input.y as f64) / 100f64;
+                    let location = LogicalPosition::from_physical((x, y), dpi_factor);
                     send_event( Event::WindowEvent {
                         window_id: SuperWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {
@@ -948,8 +957,7 @@ pub unsafe extern "system" fn callback(
                             } else {
                                 continue;
                             },
-                            location: ((input.x as f64) / 100f64,
-                                       (input.y as f64) / 100f64),
+                            location,
                             id: input.dwID as u64,
                             device_id: DEVICE_ID,
                         })
@@ -969,11 +977,14 @@ pub unsafe extern "system" fn callback(
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
+            let dpi_factor = get_hwnd_scale_factor(window);
+            let position = LogicalPosition::from_physical((x, y), dpi_factor);
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: CursorMoved { device_id: DEVICE_ID, position: (x, y), modifiers: event::get_key_mods() },
+                event: CursorMoved { device_id: DEVICE_ID, position, modifiers: event::get_key_mods() },
             });
+
             0
         },
 
