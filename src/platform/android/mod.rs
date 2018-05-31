@@ -37,7 +37,7 @@ impl EventsLoop {
 
     #[inline]
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
-        let mut rb = VecDeque::new();
+        let mut rb = VecDeque::with_capacity(1);
         rb.push_back(MonitorId);
         rb
     }
