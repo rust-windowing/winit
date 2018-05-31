@@ -757,14 +757,25 @@ impl EventsLoop {
                             util::maybe_change(&mut shared_state_lock.cursor_pos, new_cursor_pos)
                         });
                         if cursor_moved == Some(true) {
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: CursorMoved {
-                                    device_id,
-                                    position: new_cursor_pos,
-                                    modifiers,
-                                },
+                            let dpi_factor = self.with_window(xev.event, |window| {
+                                window.get_hidpi_factor()
                             });
+                            if let Some(dpi_factor) = dpi_factor {
+                                let position = LogicalPosition::from_physical(
+                                    (xev.event_x as f64, xev.event_y as f64),
+                                    dpi_factor,
+                                );
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: CursorMoved {
+                                        device_id,
+                                        position,
+                                        modifiers,
+                                    },
+                                });
+                            } else {
+                                return;
+                            }
                         } else if cursor_moved.is_none() {
                             return;
                         }
@@ -845,19 +856,29 @@ impl EventsLoop {
                             event: CursorEntered { device_id },
                         });
 
-                        let new_cursor_pos = (xev.event_x, xev.event_y);
-
                         // The mods field on this event isn't actually populated, so query the
                         // pointer device. In the future, we can likely remove this round-trip by
                         // relying on Xkb for modifier values.
                         let modifiers = self.xconn.query_pointer(xev.event, xev.deviceid)
                             .expect("Failed to query pointer device").get_modifier_state();
 
-                        callback(Event::WindowEvent { window_id, event: CursorMoved {
-                            device_id,
-                            position: new_cursor_pos,
-                            modifiers,
-                        }})
+                        let dpi_factor = self.with_window(xev.event, |window| {
+                            window.get_hidpi_factor()
+                        });
+                        if let Some(dpi_factor) = dpi_factor {
+                            let position = LogicalPosition::from_physical(
+                                (xev.event_x as f64, xev.event_y as f64),
+                                dpi_factor,
+                            );
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: CursorMoved {
+                                    device_id,
+                                    position,
+                                    modifiers,
+                                },
+                            });
+                        }
                     }
                     ffi::XI_Leave => {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
@@ -875,7 +896,12 @@ impl EventsLoop {
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
-                        if !self.window_exists(xev.event) { return; }
+                        let dpi_factor = match self.with_window(xev.event, |window| {
+                            window.get_hidpi_factor()
+                        }) {
+                            Some(dpi_factor) => dpi_factor,
+                            None => return,
+                        };
                         let window_id = mkwid(xev.event);
 
                         self.ime
@@ -893,11 +919,15 @@ impl EventsLoop {
                             .map(|device| device.attachment)
                             .unwrap_or(2);
 
+                        let position = LogicalPosition::from_physical(
+                            (xev.event_x as f64, xev.event_y as f64),
+                            dpi_factor,
+                        );
                         callback(Event::WindowEvent {
                             window_id,
                             event: CursorMoved {
                                 device_id: mkdid(pointer_id),
-                                position: (xev.event_x, xev.event_y),
+                                position,
                                 modifiers: ModifiersState::from(xev.mods),
                             }
                         });
@@ -924,15 +954,24 @@ impl EventsLoop {
                             ffi::XI_TouchEnd => TouchPhase::Ended,
                             _ => unreachable!()
                         };
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Touch(Touch {
-                                device_id: mkdid(xev.deviceid),
-                                phase,
-                                location: (xev.event_x, xev.event_y),
-                                id: xev.detail as u64,
-                            },
-                        )})
+                         let dpi_factor = self.with_window(xev.event, |window| {
+                            window.get_hidpi_factor()
+                        });
+                        if let Some(dpi_factor) = dpi_factor {
+                            let location = LogicalPosition::from_physical(
+                                (xev.event_x as f64, xev.event_y as f64),
+                                dpi_factor,
+                            );
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::Touch(Touch {
+                                    device_id: mkdid(xev.deviceid),
+                                    phase,
+                                    location,
+                                    id: xev.detail as u64,
+                                }),
+                            })
+                        }
                     }
 
                     ffi::XI_RawButtonPress | ffi::XI_RawButtonRelease => {

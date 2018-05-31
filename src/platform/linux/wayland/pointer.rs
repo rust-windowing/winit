@@ -42,7 +42,7 @@ pub fn implement_pointer(
                     sink.send_event(
                         WindowEvent::CursorMoved {
                             device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                            position: (surface_x, surface_y),
+                            position: (surface_x, surface_y).into(),
                             // TODO: replace dummy value with actual modifier state
                             modifiers: ModifiersState::default(),
                         },
@@ -71,7 +71,7 @@ pub fn implement_pointer(
                     sink.send_event(
                         WindowEvent::CursorMoved {
                             device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                            position: (surface_x, surface_y),
+                            position: (surface_x, surface_y).into(),
                             // TODO: replace dummy value with actual modifier state
                             modifiers: ModifiersState::default(),
                         },
@@ -117,7 +117,7 @@ pub fn implement_pointer(
                         sink.send_event(
                             WindowEvent::MouseWheel {
                                 device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                                delta: MouseScrollDelta::PixelDelta(x as f32, y as f32),
+                                delta: MouseScrollDelta::PixelDelta((x as f64, y as f64).into()),
                                 phase: TouchPhase::Moved,
                                 // TODO: replace dummy value with actual modifier state
                                 modifiers: ModifiersState::default(),
@@ -158,7 +158,7 @@ pub fn implement_pointer(
                         sink.send_event(
                             WindowEvent::MouseWheel {
                                 device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                                delta: MouseScrollDelta::PixelDelta(x as f32, y as f32),
+                                delta: MouseScrollDelta::PixelDelta((x as f64, y as f64).into()),
                                 phase: axis_state,
                                 // TODO: replace dummy value with actual modifier state
                                 modifiers: ModifiersState::default(),

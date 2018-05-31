@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use {
     EventsLoop,
+    LogicalSize,
     MonitorId,
     Window,
     WindowBuilder,
