@@ -1,0 +1,3 @@
+- [ ] Modified `CHANGELOG.md`
+- [ ] Added any required documentation including platform specific notes (if applicable)
+- [ ] Added an example (if applicable)
