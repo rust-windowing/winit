@@ -53,6 +53,11 @@ pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
     (width_mm, height_mm): (u64, u64),
 ) -> f64 {
+    // See http://xpra.org/trac/ticket/728 for more information
+    if width_mm == 0 || width_mm == 0 {
+        return 1.0;
+    }
+
     let ppmm = (
         (width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)
     ).sqrt();
