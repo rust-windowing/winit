@@ -82,6 +82,15 @@ impl WindowBuilder {
     #[inline]
     pub fn with_transparency(mut self, transparent: bool) -> WindowBuilder {
         self.window.transparent = transparent;
+        self.window.blur = !transparent;
+        self
+    }
+
+    /// Sets whether the background of the window should be blurred.
+    #[inline]
+    pub fn with_blur(mut self, blur: bool) -> WindowBuilder {
+        self.window.blur = blur;
+        self.window.transparent = !blur;
         self
     }
 

@@ -466,6 +466,8 @@ pub struct WindowAttributes {
     /// [iOS only] Enable multitouch,
     /// see [multipleTouchEnabled](https://developer.apple.com/documentation/uikit/uiview/1622519-multipletouchenabled)
     pub multitouch: bool,
+
+    pub blur: bool,
 }
 
 impl Default for WindowAttributes {
@@ -484,6 +486,7 @@ impl Default for WindowAttributes {
             always_on_top: false,
             window_icon: None,
             multitouch: false,
+            blur: false,
         }
     }
 }

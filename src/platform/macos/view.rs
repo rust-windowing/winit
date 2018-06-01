@@ -13,7 +13,7 @@ use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
 use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Protocol, Sel, BOOL};
 
-use {ElementState, Event, KeyboardInput, WindowEvent, WindowId};
+use {ElementState, Event, KeyboardInput, WindowEvent, WindowId, WindowAttributes};
 use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code};
 use platform::platform::util;
 use platform::platform::ffi::*;
@@ -27,7 +27,7 @@ struct ViewState {
     last_insert: Option<String>,
 }
 
-pub fn new_view(window: id, shared: Weak<Shared>) -> IdRef {
+pub fn new_view(window: id, shared: Weak<Shared>, win_attribs: &WindowAttributes) -> IdRef {
     let state = ViewState {
         window,
         shared,
@@ -38,8 +38,14 @@ pub fn new_view(window: id, shared: Weak<Shared>) -> IdRef {
     unsafe {
         // This is free'd in `dealloc`
         let state_ptr = Box::into_raw(Box::new(state)) as *mut c_void;
-        let view: id = msg_send![VIEW_CLASS.0, alloc];
-        IdRef::new(msg_send![view, initWithWinit:state_ptr])
+        let view_class = if win_attribs.blur { VISUAL_EFFECT_VIEW_CLASS.0 } else { VIEW_CLASS.0 };
+        let view: id = msg_send![view_class, alloc];
+        msg_send![view, initWithWinit:state_ptr];
+        if win_attribs.blur {
+            msg_send![view, setMaterial: 2i64];
+            msg_send![view, setBlendingMode: 0i64];
+        }
+        IdRef::new(view)
     }
 }
 
@@ -65,6 +71,18 @@ unsafe impl Sync for ViewClass {}
 lazy_static! {
     static ref VIEW_CLASS: ViewClass = unsafe {
         let superclass = Class::get("NSView").unwrap();
+        let decl = common_view_decl(superclass);
+        ViewClass(decl.register())
+    };
+
+    static ref VISUAL_EFFECT_VIEW_CLASS: ViewClass = unsafe {
+        let superclass = Class::get("NSVisualEffectView").unwrap();
+        let decl = common_view_decl(superclass);
+        ViewClass(decl.register())
+    };
+}
+
+unsafe fn common_view_decl(superclass: &'static Class) -> ClassDecl {
         let mut decl = ClassDecl::new("WinitView", superclass).unwrap();
         decl.add_method(sel!(dealloc), dealloc as extern fn(&Object, Sel));
         decl.add_method(
@@ -116,8 +134,7 @@ lazy_static! {
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
         decl.add_protocol(&protocol);
-        ViewClass(decl.register())
-    };
+        decl
 }
 
 extern fn dealloc(this: &Object, _sel: Sel) {

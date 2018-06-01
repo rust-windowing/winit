@@ -16,6 +16,9 @@ pub trait WindowExt {
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
     fn get_nsview(&self) -> *mut c_void;
+
+    /// Just for testing purposes.
+    fn set_blur_material(&self, material_id: i64);
 }
 
 impl WindowExt for Window {
@@ -27,6 +30,10 @@ impl WindowExt for Window {
     #[inline]
     fn get_nsview(&self) -> *mut c_void {
         self.window.get_nsview()
+    }
+
+    fn set_blur_material(&self, material_id: i64) {
+        self.window.set_blur_material(material_id);
     }
 }
 

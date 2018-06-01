@@ -553,6 +553,11 @@ impl WindowExt for Window2 {
     fn get_nsview(&self) -> *mut c_void {
         *self.view as *mut c_void
     }
+
+    fn set_blur_material(&self, material_id: i64) {
+        let view = self.get_nsview() as *mut objc::runtime::Object;
+        unsafe { msg_send![view, setMaterial: material_id]; }
+    }
 }
 
 impl Window2 {
@@ -585,7 +590,7 @@ impl Window2 {
                 return Err(OsError(format!("Couldn't create NSWindow")));
             },
         };
-        let view = match Window2::create_view(*window, Weak::clone(&shared)) {
+        let view = match Window2::create_view(*window, Weak::clone(&shared), &win_attribs) {
             Some(view) => view,
             None => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
@@ -795,9 +800,9 @@ impl Window2 {
         }
     }
 
-    fn create_view(window: id, shared: Weak<Shared>) -> Option<IdRef> {
+    fn create_view(window: id, shared: Weak<Shared>, win_attribs: &WindowAttributes) -> Option<IdRef> {
         unsafe {
-            let view = new_view(window, shared);
+            let view = new_view(window, shared, win_attribs);
             view.non_nil().map(|view| {
                 view.setWantsBestResolutionOpenGLSurface_(YES);
                 window.setContentView_(*view);
