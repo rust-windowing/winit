@@ -1,4 +1,5 @@
-use std::slice;
+use std::str::FromStr;
+use std::{slice, env};
 
 use super::*;
 use super::ffi::{
@@ -53,6 +54,13 @@ pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
     (width_mm, height_mm): (u64, u64),
 ) -> f64 {
+    // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
+    if let Ok(dpi_factor_str) = env::var("WINIT_HIDPI_FACTOR") {
+        if let Ok(dpi_factor) = f64::from_str(&dpi_factor_str) {
+            return dpi_factor;
+        }
+    }
+
     // See http://xpra.org/trac/ticket/728 for more information
     if width_mm == 0 || width_mm == 0 {
         return 1.0;
