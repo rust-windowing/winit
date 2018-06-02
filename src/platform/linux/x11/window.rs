@@ -102,18 +102,11 @@ impl UnownedWindow {
                 | ffi::ButtonReleaseMask
                 | ffi::PointerMotionMask;
             swa.border_pixel = 0;
-            if window_attrs.transparent {
-                swa.background_pixel = 0;
-            }
             swa.override_redirect = 0;
             swa
         };
 
         let mut window_attributes = ffi::CWBorderPixel | ffi::CWColormap | ffi::CWEventMask;
-
-        if window_attrs.transparent {
-            window_attributes |= ffi::CWBackPixel;
-        }
 
         if pl_attribs.override_redirect {
             window_attributes |= ffi::CWOverrideRedirect;
