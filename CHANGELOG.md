@@ -4,6 +4,7 @@
 - `MouseCursor` and `CursorState` now implement `Default`.
 - `WindowBuilder::with_resizable` implemented for Windows.
 - On X11, enabling transparency no longer causes the window contents to flicker when resizing.
+- On X11, `with_override_redirect` now actually enables override redirect.
 
 # Version 0.15.0 (2018-05-22)
 

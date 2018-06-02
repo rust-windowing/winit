@@ -102,7 +102,7 @@ impl UnownedWindow {
                 | ffi::ButtonReleaseMask
                 | ffi::PointerMotionMask;
             swa.border_pixel = 0;
-            swa.override_redirect = 0;
+            swa.override_redirect = pl_attribs.override_redirect as c_int;
             swa
         };
 
