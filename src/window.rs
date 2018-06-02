@@ -2,7 +2,6 @@ use std::collections::vec_deque::IntoIter as VecDequeIter;
 
 use {
     CreationError,
-    CursorState,
     EventsLoop,
     Icon,
     LogicalPosition,
@@ -327,12 +326,24 @@ impl Window {
         self.window.set_cursor_position(position)
     }
 
-    /// Sets how winit handles the cursor. See the documentation of `CursorState` for details.
+    /// Grabs the cursor, preventing it from leaving the window.
     ///
-    /// Has no effect on Android.
+    /// ## Platform-specific
+    ///
+    /// Has no effect on Android or iOS.
     #[inline]
-    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        self.window.set_cursor_state(state)
+    pub fn grab_cursor(&self, grab: bool) {
+        self.window.grab_cursor(grab)
+    }
+
+    /// Hides the cursor, making it invisible but still usable.
+    ///
+    /// ## Platform-specific
+    ///
+    /// Has no effect on Android or iOS.
+    #[inline]
+    pub fn hide_cursor(&self, hide: bool) {
+        self.window.hide_cursor(hide)
     }
 
     /// Sets the window to maximized or back
