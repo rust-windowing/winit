@@ -4,7 +4,7 @@ fn main() {
     let mut events_loop = winit::EventsLoop::new();
 
     let _window = winit::WindowBuilder::new()
-        .with_title("A non-resiable window!")
+        .with_title("A non-resizable window!")
         .with_dimensions(200, 200)
         .with_resizable(false)
         .build(&events_loop)
