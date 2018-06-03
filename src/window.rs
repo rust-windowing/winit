@@ -49,6 +49,17 @@ impl WindowBuilder {
         self
     }
 
+    /// Sets whether the window is resizable or not
+    ///
+    /// ## Platform-specific
+    ///
+    /// This only has an effect on Windows.
+    #[inline]
+    pub fn with_resizable(mut self, resizable: bool) -> WindowBuilder {
+        self.window.resizable = resizable;
+        self
+    }
+
     /// Requests a specific title for the window.
     #[inline]
     pub fn with_title<T: Into<String>>(mut self, title: T) -> WindowBuilder {

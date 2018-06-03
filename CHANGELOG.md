@@ -2,8 +2,9 @@
 
 - On X11, the `Moved` event is no longer sent when the window is resized without changing position.
 - `MouseCursor` and `CursorState` now implement `Default`.
-- On X11, if width or height is reported as 0, the DPI is now 1.0 instead of +inf
-- On X11, the environment variable `WINIT_HIDPI_FACTOR` has been added for overriding DPI factor
+- `WindowBuilder::with_resizable` implemented for Windows.
+- On X11, if width or height is reported as 0, the DPI is now 1.0 instead of +inf.
+- On X11, the environment variable `WINIT_HIDPI_FACTOR` has been added for overriding DPI factor.
 
 # Version 0.15.0 (2018-05-22)
 
