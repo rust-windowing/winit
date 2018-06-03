@@ -7,7 +7,7 @@ fn main() {
 
     let window = winit::WindowBuilder::new()
         .with_title("Hit space to toggle resizability.")
-        .with_dimensions(400, 200)
+        .with_dimensions((400, 200).into())
         .with_resizable(resizable)
         .build(&events_loop)
         .unwrap();
