@@ -911,7 +911,7 @@ unsafe fn init(
             style | winuser::WS_VISIBLE
         };
 
-        if !window.resizable {
+        if !attributes.resizable {
             style &= !winuser::WS_SIZEBOX;
         }
 
