@@ -2,7 +2,7 @@
 
 - **Breaking:** Removed `VirtualKeyCode::LMenu` and `VirtualKeyCode::RMenu`; Windows now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead.
 - On X11, exiting fullscreen no longer leaves the window in the monitor's top left corner.
-- **Breaking:** `Window::get_hidpi_factor` has been renamed to `Window::get_hidpi_factor` for better consistency. `WindowEvent::HiDPIFactorChanged` has been renamed to ``WindowEvent::HiDpiFactorChanged``. DPI factors are always represented as `f64` instead of `f32` now.
+- **Breaking:** `Window::hidpi_factor` has been renamed to `Window::get_hidpi_factor` for better consistency. `WindowEvent::HiDPIFactorChanged` has been renamed to `WindowEvent::HiDpiFactorChanged`. DPI factors are always represented as `f64` instead of `f32` now.
 - The Windows backend is now DPI aware. `WindowEvent::HiDpiFactorChanged` is implemented, and `MonitorId::get_hidpi_factor` and `Window::hidpi_factor` return accurate values.
 - Implemented `WindowEvent::HiDpiFactorChanged` on X11.
 - On macOS, `Window::set_cursor_position` is now relative to the client area.
