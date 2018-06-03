@@ -310,13 +310,6 @@ impl Window {
         self.window.set_resizable(resizable)
     }
 
-    /// Modifies the mouse cursor of the window.
-    /// Has no effect on Android.
-    #[inline]
-    pub fn set_cursor(&self, cursor: MouseCursor) {
-        self.window.set_cursor(cursor);
-    }
-
     /// Returns the ratio between the backing framebuffer resolution and the
     /// window size in screen pixels. This is typically one for a normal display
     /// and two for a retina display.
@@ -327,6 +320,13 @@ impl Window {
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
         self.window.get_hidpi_factor()
+    }
+
+    /// Modifies the mouse cursor of the window.
+    /// Has no effect on Android.
+    #[inline]
+    pub fn set_cursor(&self, cursor: MouseCursor) {
+        self.window.set_cursor(cursor);
     }
 
     /// Changes the position of the cursor in window coordinates.
