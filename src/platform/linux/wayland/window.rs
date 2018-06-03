@@ -6,7 +6,7 @@ use window::MonitorId as RootMonitorId;
 
 use sctk::window::{BasicFrame, Event as WEvent, Window as SWindow};
 use sctk::reexports::client::{Display, Proxy};
-use sctk::reexports::client::protocol::{wl_seat, wl_surface};
+use sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_output};
 use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as CompositorRequests;
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
 
@@ -15,7 +15,7 @@ use super::{make_wid, EventsLoop, MonitorId, WindowId};
 pub struct Window {
     surface: Proxy<wl_surface::WlSurface>,
     frame: Arc<Mutex<SWindow<BasicFrame>>>,
-    monitors: Arc<Mutex<Vec<MonitorId>>>,
+    monitors: Arc<Mutex<MonitorList>>,
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
     display: Arc<Display>,
@@ -29,18 +29,35 @@ impl Window {
         let size = Arc::new(Mutex::new((width, height)));
 
         // monitor tracking
-        let monitor_list = Arc::new(Mutex::new(Vec::new()));
+        let monitor_list = Arc::new(Mutex::new(MonitorList::new()));
 
         let surface = evlp.env.compositor.create_surface().unwrap().implement({
             let list = monitor_list.clone();
             let omgr = evlp.env.outputs.clone();
-            move |event, _| match event {
-                wl_surface::Event::Enter { output } => list.lock().unwrap().push(MonitorId {
-                    proxy: output,
-                    mgr: omgr.clone(),
-                }),
+            let window_store = evlp.store.clone();
+            move |event, surface: Proxy<wl_surface::WlSurface>| match event {
+                wl_surface::Event::Enter { output } => {
+                    let dpi_change = list.lock().unwrap().add_output(MonitorId {
+                        proxy: output,
+                        mgr: omgr.clone(),
+                    });
+                    if let Some(dpi) = dpi_change {
+                        if surface.version() >= 3 {
+                            // without version 3 we can't be dpi aware
+                            window_store.lock().unwrap().dpi_change(&surface, dpi);
+                            surface.set_buffer_scale(dpi);
+                        }
+                    }
+                },
                 wl_surface::Event::Leave { output } => {
-                    list.lock().unwrap().retain(|m| !m.proxy.equals(&output));
+                    let dpi_change = list.lock().unwrap().del_output(&output);
+                    if let Some(dpi) = dpi_change {
+                        if surface.version() >= 3 {
+                            // without version 3 we can't be dpi aware
+                            window_store.lock().unwrap().dpi_change(&surface, dpi);
+                            surface.set_buffer_scale(dpi);
+                        }
+                    }
                 }
             }
         });
@@ -59,7 +76,7 @@ impl Window {
                     let mut store = window_store.lock().unwrap();
                     for window in &mut store.windows {
                         if window.surface.equals(&my_surface) {
-                            window.newsize = new_size.map(|(w, h)| (w as i32, h as i32));
+                            window.newsize = new_size;
                             window.need_refresh = true;
                             *(window.need_frame_refresh.lock().unwrap()) = true;
                             return;
@@ -115,11 +132,14 @@ impl Window {
         evlp.store.lock().unwrap().windows.push(InternalWindow {
             closed: false,
             newsize: None,
+            size: size.clone(),
             need_refresh: false,
             need_frame_refresh: need_frame_refresh.clone(),
             surface: surface.clone(),
             kill_switch: kill_switch.clone(),
             frame: Arc::downgrade(&frame),
+            current_dpi: 1,
+            new_dpi: None,
         });
         evlp.evq.borrow_mut().sync_roundtrip().unwrap();
 
@@ -184,6 +204,9 @@ impl Window {
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, x: u32, y: u32) {
+        let dpi = self.monitors.lock().unwrap().compute_hidpi_factor();
+        let x = x / dpi as u32;
+        let y = y / dpi as u32;
         self.frame.lock().unwrap().resize(x, y);
         *(self.size.lock().unwrap()) = (x, y);
     }
@@ -216,13 +239,7 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
-        let mut factor: f32 = 1.0;
-        let guard = self.monitors.lock().unwrap();
-        for monitor_id in guard.iter() {
-            let hidpif = monitor_id.get_hidpi_factor();
-            factor = factor.max(hidpif);
-        }
-        factor
+        self.monitors.lock().unwrap().compute_hidpi_factor() as f32
     }
 
     pub fn set_decorations(&self, decorate: bool) {
@@ -270,7 +287,7 @@ impl Window {
         // we don't know how much each monitor sees us so...
         // just return the most recent one ?
         let guard = self.monitors.lock().unwrap();
-        guard.last().unwrap().clone()
+        guard.monitors.last().unwrap().clone()
     }
 }
 
@@ -287,12 +304,15 @@ impl Drop for Window {
 
 struct InternalWindow {
     surface: Proxy<wl_surface::WlSurface>,
-    newsize: Option<(i32, i32)>,
+    newsize: Option<(u32, u32)>,
+    size: Arc<Mutex<(u32, u32)>>,
     need_refresh: bool,
     need_frame_refresh: Arc<Mutex<bool>>,
     closed: bool,
     kill_switch: Arc<Mutex<bool>>,
     frame: Weak<Mutex<SWindow<BasicFrame>>>,
+    current_dpi: i32,
+    new_dpi: Option<i32>
 }
 
 pub struct WindowStore {
@@ -304,15 +324,6 @@ impl WindowStore {
         WindowStore {
             windows: Vec::new(),
         }
-    }
-
-    pub fn find_wid(&self, surface: &Proxy<wl_surface::WlSurface>) -> Option<WindowId> {
-        for window in &self.windows {
-            if surface.equals(&window.surface) {
-                return Some(make_wid(surface));
-            }
-        }
-        None
     }
 
     pub fn cleanup(&mut self) -> Vec<WindowId> {
@@ -338,24 +349,94 @@ impl WindowStore {
         }
     }
 
+    fn dpi_change(&mut self, surface: &Proxy<wl_surface::WlSurface>, new: i32) {
+        for window in &mut self.windows {
+            if surface.equals(&window.surface) {
+                window.new_dpi = Some(new);
+            }
+        }
+    }
+
+    pub fn get_dpi(&self, surface: &Proxy<wl_surface::WlSurface>) -> i32 {
+        for window in &self.windows {
+            if surface.equals(&window.surface) {
+                return window.current_dpi;
+            }
+        }
+        return 1;
+    }
+
     pub fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(Option<(i32, i32)>, bool, bool, bool, WindowId, Option<&mut SWindow<BasicFrame>>),
+        F: FnMut(Option<(u32, u32)>, &mut (u32, u32), i32, Option<i32>, bool, bool, bool, WindowId, Option<&mut SWindow<BasicFrame>>),
     {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();
             let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
             f(
                 window.newsize.take(),
+                &mut *(window.size.lock().unwrap()),
+                window.current_dpi,
+                window.new_dpi,
                 window.need_refresh,
                 ::std::mem::replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
                 make_wid(&window.surface),
                 opt_mutex_lock.as_mut().map(|m| &mut **m),
             );
+            if let Some(dpi) = window.new_dpi.take() {
+                window.current_dpi = dpi;
+            }
             window.need_refresh = false;
             // avoid re-spamming the event
             window.closed = false;
+        }
+    }
+}
+
+/*
+ * Monitor list with some covenience method to compute DPI
+ */
+
+struct MonitorList {
+    monitors: Vec<MonitorId>
+}
+
+impl MonitorList {
+    fn new() -> MonitorList {
+        MonitorList {
+            monitors: Vec::new()
+        }
+    }
+
+    fn compute_hidpi_factor(&self) -> i32 {
+        let mut factor = 1;
+        for monitor_id in &self.monitors {
+            let monitor_dpi = monitor_id.get_hidpi_factor();
+            if monitor_dpi > factor { factor = monitor_dpi; }
+        }
+        factor
+    }
+
+    fn add_output(&mut self, monitor: MonitorId) -> Option<i32> {
+        let old_dpi = self.compute_hidpi_factor();
+        let monitor_dpi = monitor.get_hidpi_factor();
+        self.monitors.push(monitor);
+        if monitor_dpi > old_dpi {
+            Some(monitor_dpi)
+        } else {
+            None
+        }
+    }
+
+    fn del_output(&mut self, output: &Proxy<wl_output::WlOutput>) -> Option<i32> {
+        let old_dpi = self.compute_hidpi_factor();
+        self.monitors.retain(|m| !m.proxy.equals(output));
+        let new_dpi = self.compute_hidpi_factor();
+        if new_dpi != old_dpi {
+            Some(new_dpi)
+        } else {
+            None
         }
     }
 }
