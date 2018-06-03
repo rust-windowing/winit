@@ -1,4 +1,4 @@
-use std::{slice, env};
+use std::{env, slice};
 use std::str::FromStr;
 
 use super::*;
