@@ -57,6 +57,10 @@ pub fn calc_dpi_factor(
     // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
     if let Ok(dpi_factor_str) = env::var("WINIT_HIDPI_FACTOR") {
         if let Ok(dpi_factor) = f64::from_str(&dpi_factor_str) {
+            if dpi_factor <= 0. {
+                panic!("Expected `WINIT_HIDPI_FACTOR` to be bigger than 0, got '{}'", dpi_factor);
+            }
+
             return dpi_factor;
         }
     }
