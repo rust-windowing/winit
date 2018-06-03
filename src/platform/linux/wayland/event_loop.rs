@@ -4,7 +4,7 @@ use std::fmt;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use {ControlFlow, EventsLoopClosed};
+use {ControlFlow, EventsLoopClosed, PhysicalPosition, PhysicalSize};
 
 use super::WindowId;
 use super::window::WindowStore;
@@ -248,16 +248,20 @@ impl EventsLoop {
         }
         // process pending resize/refresh
         self.store.lock().unwrap().for_each(
-            |newsize, refresh, frame_refresh, closed, wid, frame| {
+            |newsize, size, new_dpi, refresh, frame_refresh, closed, wid, frame| {
                 if let Some(frame) = frame {
                     if let Some((w, h)) = newsize {
-                        frame.resize(w as u32, h as u32);
+                        frame.resize(w, h);
                         frame.refresh();
                         let logical_size = ::LogicalSize::new(w as f64, h as f64);
                         sink.send_event(::WindowEvent::Resized(logical_size), wid);
+                        *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
                     }
+                }
+                if let Some(dpi) = new_dpi {
+                    sink.send_event(::WindowEvent::HiDpiFactorChanged(dpi as f64), wid);
                 }
                 if refresh {
                     sink.send_event(::WindowEvent::Refresh, wid);
@@ -437,14 +441,14 @@ impl fmt::Debug for MonitorId {
             native_identifier: u32,
             dimensions: (u32, u32),
             position: (i32, i32),
-            hidpi_factor: f32,
+            hidpi_factor: i32,
         }
 
         let monitor_id_proxy = MonitorId {
             name: self.get_name(),
             native_identifier: self.get_native_identifier(),
-            dimensions: self.get_dimensions(),
-            position: self.get_position(),
+            dimensions: self.get_dimensions().into(),
+            position: self.get_position().into(),
             hidpi_factor: self.get_hidpi_factor(),
         };
 
@@ -464,7 +468,7 @@ impl MonitorId {
         self.mgr.with_info(&self.proxy, |id, _| id).unwrap_or(0)
     }
 
-    pub fn get_dimensions(&self) -> (u32, u32) {
+    pub fn get_dimensions(&self) -> PhysicalSize {
         match self.mgr.with_info(&self.proxy, |_, info| {
             info.modes
                 .iter()
@@ -473,19 +477,20 @@ impl MonitorId {
         }) {
             Some(Some((w, h))) => (w as u32, h as u32),
             _ => (0, 0),
-        }
+        }.into()
     }
 
-    pub fn get_position(&self) -> (i32, i32) {
+    pub fn get_position(&self) -> PhysicalPosition {
         self.mgr
             .with_info(&self.proxy, |_, info| info.location)
             .unwrap_or((0, 0))
+            .into()
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f32 {
+    pub fn get_hidpi_factor(&self) -> i32 {
         self.mgr
-            .with_info(&self.proxy, |_, info| info.scale_factor as f32)
-            .unwrap_or(1.0)
+            .with_info(&self.proxy, |_, info| info.scale_factor)
+            .unwrap_or(1)
     }
 }

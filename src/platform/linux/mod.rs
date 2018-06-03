@@ -100,8 +100,7 @@ impl MonitorId {
     pub fn get_dimensions(&self) -> PhysicalSize {
         match self {
             &MonitorId::X(ref m) => m.get_dimensions(),
-            //&MonitorId::Wayland(ref m) => m.get_dimensions(),
-            _ => unimplemented!(),
+            &MonitorId::Wayland(ref m) => m.get_dimensions(),
         }
     }
 
@@ -109,8 +108,7 @@ impl MonitorId {
     pub fn get_position(&self) -> PhysicalPosition {
         match self {
             &MonitorId::X(ref m) => m.get_position(),
-            //&MonitorId::Wayland(ref m) => m.get_position(),
-            _ => unimplemented!(),
+            &MonitorId::Wayland(ref m) => m.get_position(),
         }
     }
 
@@ -176,8 +174,7 @@ impl Window {
     pub fn get_position(&self) -> Option<LogicalPosition> {
         match self {
             &Window::X(ref w) => w.get_position(),
-            //&Window::Wayland(ref w) => w.get_position(),
-            _ => unimplemented!(),
+            &Window::Wayland(ref w) => w.get_position(),
         }
     }
 
@@ -185,8 +182,7 @@ impl Window {
     pub fn get_inner_position(&self) -> Option<LogicalPosition> {
         match self {
             &Window::X(ref m) => m.get_inner_position(),
-            //&Window::Wayland(ref m) => m.get_inner_position(),
-            _ => unimplemented!(),
+            &Window::Wayland(ref m) => m.get_inner_position(),
         }
     }
 
@@ -194,8 +190,7 @@ impl Window {
     pub fn set_position(&self, position: LogicalPosition) {
         match self {
             &Window::X(ref w) => w.set_position(position),
-            //&Window::Wayland(ref w) => w.set_position(x, y),
-            _ => unimplemented!(),
+            &Window::Wayland(ref w) => w.set_position(position),
         }
     }
 
@@ -203,8 +198,7 @@ impl Window {
     pub fn get_inner_size(&self) -> Option<LogicalSize> {
         match self {
             &Window::X(ref w) => w.get_inner_size(),
-            //&Window::Wayland(ref w) => w.get_inner_size(),
-            _ => unimplemented!(),
+            &Window::Wayland(ref w) => w.get_inner_size(),
         }
     }
 
@@ -212,8 +206,7 @@ impl Window {
     pub fn get_outer_size(&self) -> Option<LogicalSize> {
         match self {
             &Window::X(ref w) => w.get_outer_size(),
-            //&Window::Wayland(ref w) => w.get_outer_size(),
-            _ => unimplemented!(),
+            &Window::Wayland(ref w) => w.get_outer_size(),
         }
     }
 
@@ -221,8 +214,7 @@ impl Window {
     pub fn set_inner_size(&self, size: LogicalSize) {
         match self {
             &Window::X(ref w) => w.set_inner_size(size),
-            //&Window::Wayland(ref w) => w.set_inner_size(x, y),
-            _ => unimplemented!(),
+            &Window::Wayland(ref w) => w.set_inner_size(size),
         }
     }
 
@@ -230,8 +222,7 @@ impl Window {
     pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
         match self {
             &Window::X(ref w) => w.set_min_dimensions(dimensions),
-            //&Window::Wayland(ref w) => w.set_min_dimensions(dimensions),
-            _ => (),
+            &Window::Wayland(ref w) => w.set_min_dimensions(dimensions),
         }
     }
 
@@ -239,8 +230,7 @@ impl Window {
     pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
         match self {
             &Window::X(ref w) => w.set_max_dimensions(dimensions),
-            //&Window::Wayland(ref w) => w.set_max_dimensions(dimensions),
-            _ => (),
+            &Window::Wayland(ref w) => w.set_max_dimensions(dimensions),
         }
     }
 
@@ -280,8 +270,7 @@ impl Window {
     pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ()> {
         match self {
             &Window::X(ref w) => w.set_cursor_position(position),
-            //&Window::Wayland(ref w) => w.set_cursor_position(x, y),
-            _ => unimplemented!(),
+            &Window::Wayland(ref w) => w.set_cursor_position(position),
         }
     }
 
