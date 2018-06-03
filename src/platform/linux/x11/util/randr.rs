@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use std::{slice, env};
+use std::str::FromStr;
 
 use super::*;
 use super::ffi::{
