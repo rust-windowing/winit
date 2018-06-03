@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex, Weak};
 
-use {CreationError, CursorState, MouseCursor, WindowAttributes, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use {CreationError, CursorState, MouseCursor, WindowAttributes, LogicalPosition, LogicalSize};
 use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
 

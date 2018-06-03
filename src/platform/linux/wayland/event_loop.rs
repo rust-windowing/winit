@@ -439,16 +439,16 @@ impl fmt::Debug for MonitorId {
         struct MonitorId {
             name: Option<String>,
             native_identifier: u32,
-            dimensions: (u32, u32),
-            position: (i32, i32),
+            dimensions: PhysicalSize,
+            position: PhysicalPosition,
             hidpi_factor: i32,
         }
 
         let monitor_id_proxy = MonitorId {
             name: self.get_name(),
             native_identifier: self.get_native_identifier(),
-            dimensions: self.get_dimensions().into(),
-            position: self.get_position().into(),
+            dimensions: self.get_dimensions(),
+            position: self.get_position(),
             hidpi_factor: self.get_hidpi_factor(),
         };
 
