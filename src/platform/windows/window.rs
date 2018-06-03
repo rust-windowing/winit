@@ -975,9 +975,9 @@ unsafe fn init(
 
     let window_state = {
         let max_size = attributes.max_dimensions
-            .map(|logical_size| PhysicalSize::from_logical(logical_size, 1.0));
+            .map(|logical_size| PhysicalSize::from_logical(logical_size, dpi_factor));
         let min_size = attributes.min_dimensions
-            .map(|logical_size| PhysicalSize::from_logical(logical_size, 1.0));
+            .map(|logical_size| PhysicalSize::from_logical(logical_size, dpi_factor));
         let mut window_state = events_loop::WindowState {
             cursor: Cursor(winuser::IDC_ARROW), // use arrow by default
             cursor_state: CursorState::Normal,
@@ -987,8 +987,6 @@ unsafe fn init(
             saved_window_info: None,
             dpi_factor,
         };
-        // Adjust min/max dimensions for DPI.
-        window_state.update_min_max(1.0, dpi_factor);
         // Creating a mutex to track the current window state
         Arc::new(Mutex::new(window_state))
     };

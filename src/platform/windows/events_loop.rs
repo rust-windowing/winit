@@ -1185,7 +1185,6 @@ pub unsafe extern "system" fn callback(
                     | winuser::SWP_NOZORDER
                     | winuser::SWP_NOACTIVATE,
                 );
-                // TODO: Adjust min+max size
                 0
             } else {
                 winuser::DefWindowProcW(window, msg, wparam, lparam)
