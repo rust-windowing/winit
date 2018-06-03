@@ -344,6 +344,10 @@ impl Window {
     /// Returns the ratio between the backing framebuffer resolution and the
     /// window size in screen pixels. This is typically one for a normal display
     /// and two for a retina display.
+    ///
+    /// ## Platform-specific
+    /// On X11 the DPI factor can be overridden using the `WINIT_HIDPI_FACTOR` environment
+    /// variable.
     #[inline]
     pub fn hidpi_factor(&self) -> f32 {
         self.window.hidpi_factor()
@@ -467,6 +471,10 @@ impl MonitorId {
     }
 
     /// Returns the ratio between the monitor's physical pixels and logical pixels.
+    ///
+    /// ## Platform-specific
+    /// On X11 the DPI factor can be overridden using the `WINIT_HIDPI_FACTOR` environment
+    /// variable.
     #[inline]
     pub fn get_hidpi_factor(&self) -> f32 {
         self.inner.get_hidpi_factor()
