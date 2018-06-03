@@ -817,10 +817,10 @@ impl UnownedWindow {
                 let new_height = height as f64 * scale_factor;
                 (new_width.round() as u32, new_height.round() as u32)
             };
-            let max_size = normal_hints.get_max_size().map(dpi_adjuster);
-            let min_size = normal_hints.get_min_size().map(dpi_adjuster);
-            let resize_increments = normal_hints.get_resize_increments().map(dpi_adjuster);
-            let base_size = normal_hints.get_base_size().map(dpi_adjuster);
+            let max_size = normal_hints.get_max_size().map(&dpi_adjuster);
+            let min_size = normal_hints.get_min_size().map(&dpi_adjuster);
+            let resize_increments = normal_hints.get_resize_increments().map(&dpi_adjuster);
+            let base_size = normal_hints.get_base_size().map(&dpi_adjuster);
             normal_hints.set_max_size(max_size);
             normal_hints.set_min_size(min_size);
             normal_hints.set_resize_increments(resize_increments);
