@@ -27,7 +27,6 @@ use objc::declare::ClassDecl;
 
 use {
     CreationError,
-    CursorState,
     Event,
     LogicalPosition,
     LogicalSize,
@@ -527,6 +526,7 @@ pub struct Window2 {
     pub window: IdRef,
     pub delegate: WindowDelegate,
     pub input_context: IdRef,
+    cursor_hidden: Cell<bool>,
 }
 
 unsafe impl Send for Window2 {}
@@ -674,6 +674,7 @@ impl Window2 {
             window: window,
             delegate: WindowDelegate::new(delegate_state),
             input_context,
+            cursor_hidden: Default::default(),
         };
 
         // Set fullscreen mode after we setup everything
@@ -994,25 +995,24 @@ impl Window2 {
         }
     }
 
-    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        let cls = Class::get("NSCursor").unwrap();
+    #[inline]
+    pub fn grab_cursor(&self, grab: bool) {
+        // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
+        let _ = CGDisplay::associate_mouse_and_mouse_cursor_position(!grab);
+    }
 
-        // TODO: Check for errors.
-        match state {
-            CursorState::Normal => {
-                let _: () = unsafe { msg_send![cls, unhide] };
-                let _ = CGDisplay::associate_mouse_and_mouse_cursor_position(true);
-                Ok(())
-            },
-            CursorState::Hide => {
-                let _: () = unsafe { msg_send![cls, hide] };
-                Ok(())
-            },
-            CursorState::Grab => {
-                let _: () = unsafe { msg_send![cls, hide] };
-                let _ = CGDisplay::associate_mouse_and_mouse_cursor_position(false);
-                Ok(())
+    #[inline]
+    pub fn hide_cursor(&self, hide: bool) {
+        let cursor_class = Class::get("NSCursor").unwrap();
+        // macOS uses a "hide counter" like Windows does, so we avoid incrementing it more than once.
+        // (otherwise, `hide_cursor(false)` would need to be called n times!)
+        if hide != self.cursor_hidden.get() {
+            if hide {
+                let _: () = unsafe { msg_send![cursor_class, hide] };
+            } else {
+                let _: () = unsafe { msg_send![cursor_class, unhide] };
             }
+            self.cursor_hidden.replace(hide);
         }
     }
 
