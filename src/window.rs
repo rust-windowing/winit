@@ -384,6 +384,23 @@ impl Window {
         self.window.get_current_monitor()
     }
 
+    /// Returns the list of all the monitors available on the system.
+    ///
+    /// This is the same as `EventsLoop::get_available_monitors`, and is provided for convenience.
+    #[inline]
+    pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
+        let data = self.window.get_available_monitors();
+        AvailableMonitorsIter { data: data.into_iter() }
+    }
+
+    /// Returns the primary monitor of the system.
+    ///
+    /// This is the same as `EventsLoop::get_primary_monitor`, and is provided for convenience.
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId { inner: self.window.get_primary_monitor() }
+    }
+
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.id())
