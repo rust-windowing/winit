@@ -1,6 +1,6 @@
 # Unreleased
 
-- **Breaking:** Removed VirtualKeyCode::LMenu + VirtualKeyCode::RMenu, Windows now generates VirtualKeyCode::LAlt + VirtualKeyCode::RAlt instead.
+- **Breaking:** Removed `VirtualKeyCode::LMenu` and `VirtualKeyCode::RMenu`; Windows now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead.
 - On X11, the `Moved` event is no longer sent when the window is resized without changing position.
 - `MouseCursor` and `CursorState` now implement `Default`.
 - `WindowBuilder::with_resizable` implemented for Windows.
