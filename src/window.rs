@@ -53,7 +53,7 @@ impl WindowBuilder {
     ///
     /// ## Platform-specific
     ///
-    /// This only has an effect on Windows & X11.
+    /// This only has an effect on Windows, X11, and macOS.
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> WindowBuilder {
         self.window.resizable = resizable;
