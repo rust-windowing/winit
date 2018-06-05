@@ -929,7 +929,7 @@ impl Window2 {
 
     pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
         unsafe {
-            let dimensions = dimensions.unwrap_or_else(|| (!0, !0).into());
+            let dimensions = dimensions.unwrap_or_else(|| (0, 0).into());
             nswindow_set_min_dimensions(self.window.0, dimensions);
         }
     }
