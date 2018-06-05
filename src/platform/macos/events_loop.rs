@@ -602,10 +602,10 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
         0x37 => events::VirtualKeyCode::LWin,
         0x38 => events::VirtualKeyCode::LShift,
         //0x39 => Caps lock,
-        //0x3a => Left alt,
+        0x3a => events::VirtualKeyCode::LAlt,
         0x3b => events::VirtualKeyCode::LControl,
         0x3c => events::VirtualKeyCode::RShift,
-        //0x3d => Right alt,
+        0x3d => events::VirtualKeyCode::RAlt,
         0x3e => events::VirtualKeyCode::RControl,
         //0x3f => Fn key,
         //0x40 => F17 Key,
@@ -695,7 +695,7 @@ unsafe fn modifier_event(
     keymask: NSEventModifierFlags,
     key_pressed: bool,
 ) -> Option<WindowEvent> {
-    if !key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask) 
+    if !key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
     || key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask) {
         let state = ElementState::Released;
         let keycode = NSEvent::keyCode(ns_event);
