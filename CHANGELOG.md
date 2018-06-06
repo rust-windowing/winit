@@ -9,6 +9,7 @@
 - On X11, `with_override_redirect` now actually enables override redirect.
 - macOS now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead of `None` for both.
 - On macOS, `VirtualKeyCode::RWin` and `VirtualKeyCode::LWin` are no longer switched.
+- Fixed race conditions when creating an `EventsLoop` on X11, most commonly manifesting as "[xcb] Unknown sequence number while processing queue".
 
 # Version 0.15.0 (2018-05-22)
 
