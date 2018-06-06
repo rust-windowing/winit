@@ -343,7 +343,7 @@ unsafe extern "C" fn x_error_callback(
     event: *mut x11::ffi::XErrorEvent,
 ) -> c_int {
     X11_BACKEND.with(|result| {
-        if let Ok(ref xconn) = result {
+        if let &Ok(ref xconn) = result {
             let mut buf: [c_char; 1024] = mem::uninitialized();
             (xconn.xlib.XGetErrorText)(
                 display,
