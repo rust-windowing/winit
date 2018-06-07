@@ -726,6 +726,26 @@ impl UnownedWindow {
         }.expect("Failed to call XSetWMNormalHints");
     }
 
+    pub fn set_resizable(&self, resizable: bool) {
+        unsafe {
+            self.update_normal_hints(|size_hints| {
+                if resizable {
+                    (*size_hints).flags &= !ffi::PMinSize;
+                    (*size_hints).flags &= !ffi::PMaxSize;
+                } else {
+                    (*size_hints).flags |= ffi::PMinSize;
+                    (*size_hints).flags |= ffi::PMaxSize;
+                    if let Some((width, height)) = self.get_inner_size() {
+                        (*size_hints).min_width = width as c_int;
+                        (*size_hints).min_height = height as c_int;
+                        (*size_hints).max_width = width as c_int;
+                        (*size_hints).max_height = height as c_int;
+                    }
+                }
+            })
+        }.expect("Failed to call XSetWMNormalHints");
+    }
+    
     #[inline]
     pub fn get_xlib_display(&self) -> *mut c_void {
         self.xconn.display as _

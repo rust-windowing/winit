@@ -321,7 +321,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// This only has an effect on Windows and MacOS.
+    /// This only has an effect on Windows, X11, and MacOS.
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)

@@ -232,6 +232,15 @@ impl Window {
             &Window::Wayland(ref w) => w.set_max_dimensions(dimensions)
         }
     }
+    
+    #[inline]
+    pub fn set_resizable(&self, resizable: bool) {
+        match self {
+            &Window::X(ref w) => w.set_resizable(resizable),
+            // &Window::Wayland(ref w) => w.set_resizable(resizable),
+            _ => {}
+        }
+    }
 
     #[inline]
     pub fn set_cursor(&self, cursor: MouseCursor) {
