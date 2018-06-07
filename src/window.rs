@@ -410,6 +410,7 @@ impl Window {
 /// An iterator for the list of available monitors.
 // Implementation note: we retrieve the list once, then serve each element by one by one.
 // This may change in the future.
+#[derive(Debug)]
 pub struct AvailableMonitorsIter {
     pub(crate) data: VecDequeIter<platform::MonitorId>,
 }

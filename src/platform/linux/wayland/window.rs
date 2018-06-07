@@ -297,6 +297,16 @@ impl Window {
         let guard = self.monitors.lock().unwrap();
         guard.monitors.last().unwrap().clone()
     }
+
+    pub fn get_available_monitors(&self) -> Vec<MonitorId> {
+        let guard = self.monitors.lock().unwrap();
+        guard.monitors.clone()
+    }
+
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        let guard = self.monitors.lock().unwrap();
+        guard.monitors.first().cloned().expect("No monitor is available.")
+    }
 }
 
 impl Drop for Window {

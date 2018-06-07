@@ -325,8 +325,30 @@ impl Window {
     #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         match self {
-            &Window::X(ref w) => RootMonitorId{inner: MonitorId::X(w.get_current_monitor())},
-            &Window::Wayland(ref w) => RootMonitorId{inner: MonitorId::Wayland(w.get_current_monitor())},
+            &Window::X(ref window) => RootMonitorId { inner: MonitorId::X(window.get_current_monitor()) },
+            &Window::Wayland(ref window) => RootMonitorId { inner: MonitorId::Wayland(window.get_current_monitor()) },
+        }
+    }
+
+    #[inline]
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        match self {
+            &Window::X(ref window) => window.get_available_monitors()
+                .into_iter()
+                .map(MonitorId::X)
+                .collect(),
+            &Window::Wayland(ref window) => window.get_available_monitors()
+                .into_iter()
+                .map(MonitorId::Wayland)
+                .collect(),
+        }
+    }
+
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        match self {
+            &Window::X(ref window) => MonitorId::X(window.get_primary_monitor()),
+            &Window::Wayland(ref window) => MonitorId::Wayland(window.get_primary_monitor()),
         }
     }
 }
