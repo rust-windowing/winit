@@ -239,6 +239,33 @@ impl Window {
             }
         }
     }
+    
+    /// See the docs in the crate root file.
+    #[inline]
+    pub fn set_resizable(&self, resizable: bool) {
+        if let Ok(mut window_state) = self.window_state.lock() {
+            if window_state.attributes.resizable == resizable {
+                return;
+            }
+            let window = self.window.clone();
+            let mut style = unsafe {
+                winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE)
+            };
+            if resizable {
+                style |= winuser::WS_SIZEBOX as i32;
+            } else {
+                style &= !winuser::WS_SIZEBOX as i32;
+            }
+            unsafe {
+                winuser::SetWindowLongW(
+                    window.0,
+                    winuser::GWL_STYLE,
+                    style as _,
+                );
+            };
+            window_state.attributes.resizable = resizable;
+        }
+    }
 
     // TODO: remove
     pub fn platform_display(&self) -> *mut ::libc::c_void {
