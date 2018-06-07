@@ -58,15 +58,16 @@ impl DelegateState {
             // resizable temporality
             let curr_mask = self.window.styleMask();
 
-            let needs_temp_resize = !curr_mask.contains(NSWindowStyleMask::NSResizableWindowMask);
-            if needs_temp_resize {
-                util::set_style_mask(*self.window, *self.view, NSWindowStyleMask::NSResizableWindowMask);
+            let required = NSWindowStyleMask::NSTitledWindowMask | NSWindowStyleMask::NSResizableWindowMask;
+            let needs_temp_mask = !curr_mask.contains(required);
+            if needs_temp_mask {
+                util::set_style_mask(*self.window, *self.view, required);
             }
 
             let is_zoomed: BOOL = msg_send![*self.window, isZoomed];
 
             // Roll back temp styles
-            if needs_temp_resize {
+            if needs_temp_mask {
                 util::set_style_mask(*self.window, *self.view, curr_mask);
             }
 
@@ -77,25 +78,20 @@ impl DelegateState {
     fn restore_state_from_fullscreen(&mut self) {
         let maximized = unsafe {
             let mut win_attribs = self.win_attribs.borrow_mut();
-
             win_attribs.fullscreen = None;
-            let save_style_opt = self.save_style_mask.take();
 
-            let base_mask = if let Some(mut save_style) = save_style_opt {
-                save_style
-            } else {
-                self.window.styleMask()
+            let mask = {
+                let base_mask = self.save_style_mask
+                    .take()
+                    .unwrap_or_else(|| self.window.styleMask());
+                if win_attribs.resizable {
+                    base_mask | NSWindowStyleMask::NSResizableWindowMask
+                } else {
+                    base_mask & !NSWindowStyleMask::NSResizableWindowMask
+                }
             };
 
-            let new_mask = if win_attribs.resizable {
-                base_mask | NSWindowStyleMask::NSResizableWindowMask
-            } else {
-                base_mask & !NSWindowStyleMask::NSResizableWindowMask
-            };
-
-            if new_mask != base_mask {
-                util::set_style_mask(*self.window, *self.view, new_mask);
-            }
+            util::set_style_mask(*self.window, *self.view, mask);
 
             win_attribs.maximized
         };
@@ -739,7 +735,7 @@ impl Window2 {
             };
 
             let mut masks = if !attrs.decorations && !screen.is_some() {
-                // unresizable Window2 without a titlebar or borders
+                // Resizable Window2 without a titlebar or borders
                 // if decorations is set to false, ignore pl_attrs
                 NSWindowStyleMask::NSBorderlessWindowMask
                     | NSWindowStyleMask::NSResizableWindowMask
@@ -1066,11 +1062,9 @@ impl Window2 {
             // It will clean up at window_did_exit_fullscreen.
             if current.is_none() {
                 let curr_mask = state.window.styleMask();
-
-                if !curr_mask.contains(NSWindowStyleMask::NSResizableWindowMask) {
-                    let mask = NSWindowStyleMask::NSTitledWindowMask
-                        | NSWindowStyleMask::NSResizableWindowMask;
-                    util::set_style_mask(*self.window, *self.view, mask);
+                let required = NSWindowStyleMask::NSTitledWindowMask | NSWindowStyleMask::NSResizableWindowMask;
+                if !curr_mask.contains(required) {
+                    util::set_style_mask(*self.window, *self.view, required);
                     state.save_style_mask.set(Some(curr_mask));
                 }
             }
