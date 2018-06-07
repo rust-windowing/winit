@@ -5,12 +5,20 @@ use std::sync::Arc;
 use std::os::raw::c_char;
 use std::ffi::{CStr, CString, IntoStringError};
 
+use parking_lot::Mutex;
+
 use super::{ffi, util, XConnection, XError};
+
+lazy_static! {
+    static ref GLOBAL_LOCK: Mutex<()> = Default::default();
+}
 
 unsafe fn open_im(
     xconn: &Arc<XConnection>,
     locale_modifiers: &CStr,
 ) -> Option<ffi::XIM> {
+    let _lock = GLOBAL_LOCK.lock();
+
     // XSetLocaleModifiers returns...
     // * The current locale modifiers if it's given a NULL pointer.
     // * The new locale modifiers if we succeeded in setting them.

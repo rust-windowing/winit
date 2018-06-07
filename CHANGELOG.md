@@ -10,6 +10,7 @@
 - macOS now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead of `None` for both.
 - On macOS, `VirtualKeyCode::RWin` and `VirtualKeyCode::LWin` are no longer switched.
 - On macOS, windows without decorations can once again be resized.
+- Fixed race conditions when creating an `EventsLoop` on X11, most commonly manifesting as "[xcb] Unknown sequence number while processing queue".
 
 # Version 0.15.0 (2018-05-22)
 
