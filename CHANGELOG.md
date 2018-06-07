@@ -2,7 +2,7 @@
 
 - On X11, the `Moved` event is no longer sent when the window is resized without changing position.
 - `MouseCursor` and `CursorState` now implement `Default`.
-- `WindowBuilder::with_resizable` implemented for Windows.
+- `WindowBuilder::with_resizable` implemented for Windows & X11.
 - On X11, if the monitor's width or height in millimeters is reported as 0, the DPI is now 1.0 instead of +inf.
 - On X11, the environment variable `WINIT_HIDPI_FACTOR` has been added for overriding DPI factor.
 - On X11, enabling transparency no longer causes the window contents to flicker when resizing.

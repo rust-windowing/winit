@@ -11,8 +11,6 @@ fn main() {
         .unwrap();
 
     events_loop.run_forever(|event| {
-        println!("{:?}", event);
-
         match event {
             winit::Event::WindowEvent {
                 event: winit::WindowEvent::CloseRequested,
