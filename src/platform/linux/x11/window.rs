@@ -38,6 +38,8 @@ pub struct SharedState {
     pub last_monitor: Option<X11MonitorId>,
     pub dpi_adjusted: Option<(f64, f64)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
+    pub min_dimensions: Option<(u32, u32)>,
+    pub max_dimensions: Option<(u32, u32)>,
 }
 
 unsafe impl Send for UnownedWindow {}
@@ -216,6 +218,8 @@ impl UnownedWindow {
 
             // set size hints
             {
+                (*window.shared_state.lock()).min_dimensions = window_attrs.min_dimensions;
+                (*window.shared_state.lock()).max_dimensions = window_attrs.max_dimensions;
                 let mut min_dimensions = window_attrs.min_dimensions;
                 let mut max_dimensions = window_attrs.max_dimensions;
                 if !window_attrs.resizable {
@@ -699,6 +703,7 @@ impl UnownedWindow {
     }
 
     pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        (*self.shared_state.lock()).min_dimensions = dimensions;
         unsafe {
             self.update_normal_hints(|size_hints| {
                 if let Some((width, height)) = dimensions {
@@ -713,6 +718,7 @@ impl UnownedWindow {
     }
 
     pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        (*self.shared_state.lock()).max_dimensions = dimensions;
         unsafe {
             self.update_normal_hints(|size_hints| {
                 if let Some((width, height)) = dimensions {
@@ -727,11 +733,14 @@ impl UnownedWindow {
     }
 
     pub fn set_resizable(&self, resizable: bool) {
-        unsafe {
-            self.update_normal_hints(|size_hints| {
-                if resizable {
-                    (*size_hints).flags &= !(ffi::PMinSize | ffi::PMaxSize);
-                } else {
+        if resizable {
+            let min_dimensions = (*self.shared_state.lock()).min_dimensions;
+            let max_dimensions = (*self.shared_state.lock()).max_dimensions;
+            self.set_min_dimensions(min_dimensions);
+            self.set_max_dimensions(max_dimensions);
+        } else {
+            unsafe {
+                self.update_normal_hints(|size_hints| {
                     (*size_hints).flags |= ffi::PMinSize | ffi::PMaxSize;
                     if let Some((width, height)) = self.get_inner_size() {
                         (*size_hints).min_width = width as c_int;
@@ -739,9 +748,9 @@ impl UnownedWindow {
                         (*size_hints).max_width = width as c_int;
                         (*size_hints).max_height = height as c_int;
                     }
-                }
-            })
-        }.expect("Failed to call XSetWMNormalHints");
+                })
+            }.expect("Failed to call XSetWMNormalHints");
+        }
     }
     
     #[inline]
