@@ -317,15 +317,17 @@ impl Window {
         self.window.set_max_dimensions(dimensions)
     }
     
+    /*
     /// Sets whether the window is resizable or not.
     ///
     /// ## Platform-specific
     ///
-    /// This only has an effect on Windows, X11, and MacOS.
-    #[inline]
+    /// This only has an effect on Windows, X11, and macOS.
+    #[inline] 
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
     }
+    */
 
     /// DEPRECATED. Gets the native platform specific display for this window.
     /// This is typically only required when integrating with

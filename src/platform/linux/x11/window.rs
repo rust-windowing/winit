@@ -730,11 +730,9 @@ impl UnownedWindow {
         unsafe {
             self.update_normal_hints(|size_hints| {
                 if resizable {
-                    (*size_hints).flags &= !ffi::PMinSize;
-                    (*size_hints).flags &= !ffi::PMaxSize;
+                    (*size_hints).flags &= !(ffi::PMinSize | ffi::PMaxSize);
                 } else {
-                    (*size_hints).flags |= ffi::PMinSize;
-                    (*size_hints).flags |= ffi::PMaxSize;
+                    (*size_hints).flags |= ffi::PMinSize | ffi::PMaxSize;
                     if let Some((width, height)) = self.get_inner_size() {
                         (*size_hints).min_width = width as c_int;
                         (*size_hints).min_height = height as c_int;

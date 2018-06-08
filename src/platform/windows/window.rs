@@ -240,7 +240,6 @@ impl Window {
         }
     }
     
-    /// See the docs in the crate root file.
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         if let Ok(mut window_state) = self.window_state.lock() {
@@ -252,9 +251,9 @@ impl Window {
                 winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE)
             };
             if resizable {
-                style |= winuser::WS_SIZEBOX as i32;
+                style |= winuser::WS_SIZEBOX as LONG;
             } else {
-                style &= !winuser::WS_SIZEBOX as i32;
+                style &= !winuser::WS_SIZEBOX as LONG;
             }
             unsafe {
                 winuser::SetWindowLongW(
