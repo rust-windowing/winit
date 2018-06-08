@@ -323,11 +323,11 @@ impl Window {
     /// ## Platform-specific
     ///
     /// This only has an effect on Windows, X11, and macOS.
+    */
     #[inline] 
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
     }
-    */
 
     /// DEPRECATED. Gets the native platform specific display for this window.
     /// This is typically only required when integrating with
