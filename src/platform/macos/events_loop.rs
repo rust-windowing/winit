@@ -402,27 +402,9 @@ impl EventsLoop {
                     None => return None,
                 };
 
-                let window_point = ns_event.locationInWindow();
-                let view_point = if ns_window == cocoa::base::nil {
-                    let ns_size = foundation::NSSize::new(0.0, 0.0);
-                    let ns_rect = foundation::NSRect::new(window_point, ns_size);
-                    let window_rect = window.window.convertRectFromScreen_(ns_rect);
-                    window.view.convertPoint_fromView_(window_rect.origin, cocoa::base::nil)
-                } else {
-                    window.view.convertPoint_fromView_(window_point, cocoa::base::nil)
-                };
-                let view_rect = NSView::frame(*window.view);
                 let scale_factor = window.hidpi_factor();
 
-                let mut events = std::collections::VecDeque::new();
-
-                {
-                    let x = (scale_factor * view_point.x as f32) as f64;
-                    let y = (scale_factor * (view_rect.size.height - view_point.y) as f32) as f64;
-                    let window_event = WindowEvent::CursorMoved { device_id: DEVICE_ID, position: (x, y), modifiers: event_mods(ns_event) };
-                    let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
-                    events.push_back(event);
-                }
+                let mut events = std::collections::VecDeque::with_capacity(3);
 
                 let delta_x = (scale_factor * ns_event.deltaX() as f32) as f64;
                 if delta_x != 0.0 {

@@ -8,7 +8,7 @@ use std::os::raw::*;
 use std::sync::Weak;
 
 use cocoa::base::{class, id, nil};
-use cocoa::appkit::NSWindow;
+use cocoa::appkit::{NSEvent, NSView, NSWindow};
 use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
 use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Protocol, Sel, BOOL};
@@ -118,6 +118,10 @@ lazy_static! {
         decl.add_method(sel!(rightMouseUp:), right_mouse_up as extern fn(&Object, Sel, id));
         decl.add_method(sel!(otherMouseDown:), other_mouse_down as extern fn(&Object, Sel, id));
         decl.add_method(sel!(otherMouseUp:), other_mouse_up as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(mouseMoved:), mouse_moved as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(mouseDragged:), mouse_dragged as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(rightMouseDragged:), right_mouse_dragged as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(otherMouseDragged:), other_mouse_dragged as extern fn(&Object, Sel, id));
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
@@ -501,4 +505,62 @@ extern fn other_mouse_down(this: &Object, _sel: Sel, event: id) {
 
 extern fn other_mouse_up(this: &Object, _sel: Sel, event: id) {
     mouse_click(this, event, MouseButton::Middle, ElementState::Released);
+}
+
+fn mouse_motion(this: &Object, event: id) {
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        // We have to do this to have access to the `NSView` trait...
+        let view: id = this as *const _ as *mut _;
+
+        let window_point = event.locationInWindow();
+        let view_point = view.convertPoint_fromView_(window_point, nil);
+        let view_rect = NSView::frame(view);
+
+        if view_point.x.is_sign_negative()
+        || view_point.y.is_sign_negative()
+        || view_point.x > view_rect.size.width
+        || view_point.y > view_rect.size.height {
+            // Point is outside of the client area (view)
+            return;
+        }
+
+        let scale_factor = NSWindow::backingScaleFactor(state.window) as f64;
+        let x = scale_factor * view_point.x as f64;
+        let y = scale_factor * (view_rect.size.height as f64 - view_point.y as f64);
+
+        let window_event = Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.window)),
+            event: WindowEvent::CursorMoved {
+                device_id: DEVICE_ID,
+                position: (x, y),
+                modifiers: event_mods(event),
+            },
+        };
+
+        if let Some(shared) = state.shared.upgrade() {
+            shared.pending_events
+                .lock()
+                .unwrap()
+                .push_back(window_event);
+        }
+    }
+}
+
+extern fn mouse_moved(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
+}
+
+extern fn mouse_dragged(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
+}
+
+extern fn right_mouse_dragged(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
+}
+
+extern fn other_mouse_dragged(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
 }
