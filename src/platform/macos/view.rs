@@ -13,7 +13,7 @@ use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
 use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Protocol, Sel, BOOL};
 
-use {ElementState, Event, KeyboardInput, WindowEvent, WindowId};
+use {ElementState, Event, KeyboardInput, MouseButton, WindowEvent, WindowId};
 use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code};
 use platform::platform::util;
 use platform::platform::ffi::*;
@@ -112,6 +112,12 @@ lazy_static! {
         decl.add_method(sel!(keyUp:), key_up as extern fn(&Object, Sel, id));
         decl.add_method(sel!(insertTab:), insert_tab as extern fn(&Object, Sel, id));
         decl.add_method(sel!(insertBackTab:), insert_back_tab as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(mouseDown:), mouse_down as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(mouseUp:), mouse_up as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(rightMouseDown:), right_mouse_down as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(rightMouseUp:), right_mouse_up as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(otherMouseDown:), other_mouse_down as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(otherMouseUp:), other_mouse_up as extern fn(&Object, Sel, id));
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
@@ -447,4 +453,52 @@ extern fn insert_back_tab(this: &Object, _sel: Sel, _sender: id) {
             let (): _ = msg_send![window, selectPreviousKeyView:this];
         }
     }
+}
+
+fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: ElementState) {
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        let window_event = Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.window)),
+            event: WindowEvent::MouseInput {
+                device_id: DEVICE_ID,
+                state: button_state,
+                button,
+                modifiers: event_mods(event),
+            },
+        };
+
+        if let Some(shared) = state.shared.upgrade() {
+            shared.pending_events
+                .lock()
+                .unwrap()
+                .push_back(window_event);
+        }
+    }
+}
+
+extern fn mouse_down(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Left, ElementState::Pressed);
+}
+
+extern fn mouse_up(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Left, ElementState::Released);
+}
+
+extern fn right_mouse_down(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Right, ElementState::Pressed);
+}
+
+extern fn right_mouse_up(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Right, ElementState::Released);
+}
+
+extern fn other_mouse_down(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Middle, ElementState::Pressed);
+}
+
+extern fn other_mouse_up(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Middle, ElementState::Released);
 }

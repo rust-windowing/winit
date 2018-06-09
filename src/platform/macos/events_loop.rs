@@ -1,14 +1,13 @@
 use {ControlFlow, EventsLoopClosed};
 use cocoa::{self, appkit, foundation};
 use cocoa::appkit::{NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventPhase, NSView, NSWindow};
-use events::{self, ElementState, Event, MouseButton, TouchPhase, WindowEvent, DeviceEvent, ModifiersState, KeyboardInput};
+use events::{self, ElementState, Event, TouchPhase, WindowEvent, DeviceEvent, ModifiersState, KeyboardInput};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 use super::window::Window2;
 use std;
 use std::os::raw::*;
 use super::DeviceId;
-
 
 pub struct EventsLoop {
     modifiers: Modifiers,
@@ -362,13 +361,6 @@ impl EventsLoop {
                     .extend(events.into_iter());
                 event
             },
-
-            appkit::NSLeftMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Left, modifiers: event_mods(ns_event) })) },
-            appkit::NSLeftMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Left, modifiers: event_mods(ns_event) })) },
-            appkit::NSRightMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Right, modifiers: event_mods(ns_event) })) },
-            appkit::NSRightMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Right, modifiers: event_mods(ns_event) })) },
-            appkit::NSOtherMouseDown => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Pressed, button: MouseButton::Middle, modifiers: event_mods(ns_event) })) },
-            appkit::NSOtherMouseUp => { Some(into_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: ElementState::Released, button: MouseButton::Middle, modifiers: event_mods(ns_event) })) },
 
             appkit::NSMouseEntered => {
                 let window = match maybe_window.or_else(maybe_key_window) {
