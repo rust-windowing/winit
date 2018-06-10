@@ -1113,7 +1113,7 @@ impl UnownedWindow {
         self.get_current_monitor().hidpi_factor
     }
 
-    pub(crate) fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ()> {
+    pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), String> {
         unsafe {
             (self.xconn.xlib.XWarpPointer)(
                 self.xconn.display,
@@ -1126,12 +1126,12 @@ impl UnownedWindow {
                 x,
                 y,
             );
-            self.xconn.flush_requests().map_err(|_| ())
+            self.xconn.flush_requests().map_err(|e| format!("`XWarpPointer` failed: {:?}", e))
         }
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), String> {
         let (x, y) = logical_position.to_physical(self.get_hidpi_factor()).into();
         self.set_cursor_position_physical(x, y)
     }

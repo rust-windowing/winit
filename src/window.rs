@@ -322,7 +322,7 @@ impl Window {
 
     /// Changes the position of the cursor in window coordinates.
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), String> {
         self.window.set_cursor_position(position)
     }
 

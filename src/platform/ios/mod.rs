@@ -408,9 +408,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ()> {
-        // N/A
-        Ok(())
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
+        Err("Setting cursor position is not possible on iOS.".to_owned())
     }
 
     #[inline]

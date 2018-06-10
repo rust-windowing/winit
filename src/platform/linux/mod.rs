@@ -251,7 +251,7 @@ impl Window {
     pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         match self {
             &Window::X(ref window) => window.grab_cursor(grab),
-            &Window::Wayland(ref _window) => Err("Cursor grabbing is not yet possible on Wayland.".to_owned()),
+            &Window::Wayland(ref window) => window.grab_cursor(grab),
         }
     }
 
@@ -259,7 +259,7 @@ impl Window {
     pub fn hide_cursor(&self, hide: bool) {
         match self {
             &Window::X(ref window) => window.hide_cursor(hide),
-            &Window::Wayland(ref _window) => unimplemented!(),
+            &Window::Wayland(ref window) => window.hide_cursor(hide),
         }
     }
 
@@ -272,7 +272,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), String> {
         match self {
             &Window::X(ref w) => w.set_cursor_position(position),
             &Window::Wayland(ref w) => w.set_cursor_position(position),

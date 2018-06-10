@@ -236,11 +236,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor(&self, _cursor: MouseCursor) {
-        // TODO
-    }
-
-    #[inline]
     pub fn hidpi_factor(&self) -> i32 {
         self.monitors.lock().unwrap().compute_hidpi_factor()
     }
@@ -273,9 +268,23 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _pos: LogicalPosition) -> Result<(), ()> {
-        // TODO: not yet possible on wayland
-        Err(())
+    pub fn set_cursor(&self, _cursor: MouseCursor) {
+        unimplemented!("Set cursor is not yet possible on Wayland.")
+    }
+
+    #[inline]
+    pub fn hide_cursor(&self, _hide: bool) {
+        unimplemented!("Cursor hiding is not yet possible on Wayland.")
+    }
+
+    #[inline]
+    pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
+        unimplemented!("Cursor grabbing is not yet possible on Wayland.")
+    }
+
+    #[inline]
+    pub fn set_cursor_position(&self, _pos: LogicalPosition) -> Result<(), String> {
+        unimplemented!("Setting the cursor position is not yet possible on Wayland.")
     }
 
     pub fn get_display(&self) -> &Display {
