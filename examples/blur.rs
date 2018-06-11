@@ -11,8 +11,10 @@ fn main() {
 
     #[cfg(target_os = "macos")]
     {
+        // On macOS the blur material is 'light' by default.
+        // Let's change it to a dark theme!
         use winit::os::macos::{BlurMaterial, WindowExt};
-        window.set_blur_material(BlurMaterial::UltraDark);
+        window.set_blur_material(BlurMaterial::Dark);
     }
 
     events_loop.run_forever(|event| {
