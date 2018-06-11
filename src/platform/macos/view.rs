@@ -18,6 +18,7 @@ use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_
 use platform::platform::util;
 use platform::platform::ffi::*;
 use platform::platform::window::{get_window_id, IdRef};
+use os::macos::BlurMaterial;
 
 struct ViewState {
     window: id,
@@ -42,7 +43,7 @@ pub fn new_view(window: id, shared: Weak<Shared>, win_attribs: &WindowAttributes
         let view: id = msg_send![view_class, alloc];
         msg_send![view, initWithWinit:state_ptr];
         if win_attribs.blur {
-            msg_send![view, setMaterial: 2i64];
+            msg_send![view, setMaterial: BlurMaterial::Light as i64];
             msg_send![view, setBlendingMode: 0i64];
         }
         IdRef::new(view)

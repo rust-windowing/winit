@@ -3,8 +3,7 @@ use CreationError::OsError;
 use libc;
 
 use WindowAttributes;
-use os::macos::ActivationPolicy;
-use os::macos::WindowExt;
+use os::macos::{ActivationPolicy, WindowExt, BlurMaterial};
 
 use objc;
 use objc::runtime::{Class, Object, Sel, BOOL, YES, NO};
@@ -554,9 +553,10 @@ impl WindowExt for Window2 {
         *self.view as *mut c_void
     }
 
-    fn set_blur_material(&self, material_id: i64) {
+    #[inline]
+    fn set_blur_material(&self, material: BlurMaterial) {
         let view = self.get_nsview() as *mut objc::runtime::Object;
-        unsafe { msg_send![view, setMaterial: material_id]; }
+        unsafe { msg_send![view, setMaterial: material as i64]; }
     }
 }
 

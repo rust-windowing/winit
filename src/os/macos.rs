@@ -18,7 +18,7 @@ pub trait WindowExt {
     fn get_nsview(&self) -> *mut c_void;
 
     /// Just for testing purposes.
-    fn set_blur_material(&self, material_id: i64);
+    fn set_blur_material(&self, material: BlurMaterial);
 }
 
 impl WindowExt for Window {
@@ -32,8 +32,9 @@ impl WindowExt for Window {
         self.window.get_nsview()
     }
 
-    fn set_blur_material(&self, material_id: i64) {
-        self.window.set_blur_material(material_id);
+    #[inline]
+    fn set_blur_material(&self, material: BlurMaterial) {
+        self.window.set_blur_material(material);
     }
 }
 
@@ -163,4 +164,28 @@ impl MonitorIdExt for MonitorId {
     fn get_nsscreen(&self) -> Option<*mut c_void> {
         self.inner.get_nsscreen().map(|s| s as *mut c_void)
     }
+}
+
+#[repr(i64)]
+// Applies to MacOS Mojave.
+pub enum BlurMaterial {
+    AppearanceBased = 0, // Deperecated
+    Light = 1, // Deperecated
+    Dark = 2, // Deprecated
+    Titlebar = 3,
+    Selection = 4,
+    Menu = 5,
+    Popover = 6,
+    Sidebar = 7,
+    MediumLight = 8, // Deprecated
+    UltraDark = 9, // Deprecated
+    HeaderView = 10,
+    Sheet = 11,
+    WindowBackground = 12,
+    HudWindow = 13,
+    FullScreenUi = 15,
+    ToolTip = 17,
+    ContentBackground = 18,
+    UnderWindowBackground = 21,
+    UnderPageBackground = 22,
 }
