@@ -246,6 +246,10 @@ impl Window {
             if window_state.attributes.resizable == resizable {
                 return;
             }
+            if window_state.attributes.fullscreen.is_some() {
+                window_state.attributes.resizable = resizable;
+                return;
+            }
             let window = self.window.clone();
             let mut style = unsafe {
                 winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE)
@@ -504,14 +508,20 @@ impl Window {
 
         let rect = saved_window_info.rect.clone();
         let window = self.window.clone();
-        let (style, ex_style) = (saved_window_info.style, saved_window_info.ex_style);
+        let (mut style, ex_style) = (saved_window_info.style, saved_window_info.ex_style);
 
         let maximized = window_state.attributes.maximized;
+        let resizable = window_state.attributes.resizable;
 
         // On restore, resize to the previous saved rect size.
         // And because SetWindowPos will resize the window
         // We call it in the main thread
         self.events_loop_proxy.execute_in_thread(move |_| {
+            if resizable {
+                style |= winuser::WS_SIZEBOX as LONG;
+            } else {
+                style &= !winuser::WS_SIZEBOX as LONG;
+            }
             winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
             winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
 
