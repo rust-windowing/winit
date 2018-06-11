@@ -51,9 +51,14 @@ impl WindowBuilder {
 
     /// Sets whether the window is resizable or not
     ///
+    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
+    /// triggered by DPI scaling, entering fullscreen mode, etc.
+    ///
     /// ## Platform-specific
     ///
-    /// This only has an effect on Windows, X11, and macOS.
+    /// This only has an effect on desktop platforms.
+    ///
+    /// Due to a bug in XFCE, this has no effect on Xfwm.
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> WindowBuilder {
         self.window.resizable = resizable;
@@ -316,13 +321,18 @@ impl Window {
     pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
         self.window.set_max_dimensions(dimensions)
     }
-    
+
     /// Sets whether the window is resizable or not.
+    ///
+    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
+    /// triggered by DPI scaling, entering fullscreen mode, etc.
     ///
     /// ## Platform-specific
     ///
-    /// This only has an effect on Windows, X11, and macOS.
-    #[inline] 
+    /// This only has an effect on desktop platforms.
+    ///
+    /// Due to a bug in XFCE, this has no effect on Xfwm.
+    #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
     }
