@@ -8,12 +8,12 @@ use std::os::raw::*;
 use std::sync::Weak;
 
 use cocoa::base::{class, id, nil};
-use cocoa::appkit::NSWindow;
+use cocoa::appkit::{NSEvent, NSView, NSWindow};
 use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
 use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Protocol, Sel, BOOL};
 
-use {ElementState, Event, KeyboardInput, WindowEvent, WindowId};
+use {ElementState, Event, KeyboardInput, MouseButton, WindowEvent, WindowId};
 use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code};
 use platform::platform::util;
 use platform::platform::ffi::*;
@@ -112,6 +112,16 @@ lazy_static! {
         decl.add_method(sel!(keyUp:), key_up as extern fn(&Object, Sel, id));
         decl.add_method(sel!(insertTab:), insert_tab as extern fn(&Object, Sel, id));
         decl.add_method(sel!(insertBackTab:), insert_back_tab as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(mouseDown:), mouse_down as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(mouseUp:), mouse_up as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(rightMouseDown:), right_mouse_down as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(rightMouseUp:), right_mouse_up as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(otherMouseDown:), other_mouse_down as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(otherMouseUp:), other_mouse_up as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(mouseMoved:), mouse_moved as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(mouseDragged:), mouse_dragged as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(rightMouseDragged:), right_mouse_dragged as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(otherMouseDragged:), other_mouse_dragged as extern fn(&Object, Sel, id));
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
@@ -447,4 +457,110 @@ extern fn insert_back_tab(this: &Object, _sel: Sel, _sender: id) {
             let (): _ = msg_send![window, selectPreviousKeyView:this];
         }
     }
+}
+
+fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: ElementState) {
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        let window_event = Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.window)),
+            event: WindowEvent::MouseInput {
+                device_id: DEVICE_ID,
+                state: button_state,
+                button,
+                modifiers: event_mods(event),
+            },
+        };
+
+        if let Some(shared) = state.shared.upgrade() {
+            shared.pending_events
+                .lock()
+                .unwrap()
+                .push_back(window_event);
+        }
+    }
+}
+
+extern fn mouse_down(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Left, ElementState::Pressed);
+}
+
+extern fn mouse_up(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Left, ElementState::Released);
+}
+
+extern fn right_mouse_down(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Right, ElementState::Pressed);
+}
+
+extern fn right_mouse_up(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Right, ElementState::Released);
+}
+
+extern fn other_mouse_down(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Middle, ElementState::Pressed);
+}
+
+extern fn other_mouse_up(this: &Object, _sel: Sel, event: id) {
+    mouse_click(this, event, MouseButton::Middle, ElementState::Released);
+}
+
+fn mouse_motion(this: &Object, event: id) {
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        // We have to do this to have access to the `NSView` trait...
+        let view: id = this as *const _ as *mut _;
+
+        let window_point = event.locationInWindow();
+        let view_point = view.convertPoint_fromView_(window_point, nil);
+        let view_rect = NSView::frame(view);
+
+        if view_point.x.is_sign_negative()
+        || view_point.y.is_sign_negative()
+        || view_point.x > view_rect.size.width
+        || view_point.y > view_rect.size.height {
+            // Point is outside of the client area (view)
+            return;
+        }
+
+        let scale_factor = NSWindow::backingScaleFactor(state.window) as f64;
+        let x = scale_factor * view_point.x as f64;
+        let y = scale_factor * (view_rect.size.height as f64 - view_point.y as f64);
+
+        let window_event = Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.window)),
+            event: WindowEvent::CursorMoved {
+                device_id: DEVICE_ID,
+                position: (x, y),
+                modifiers: event_mods(event),
+            },
+        };
+
+        if let Some(shared) = state.shared.upgrade() {
+            shared.pending_events
+                .lock()
+                .unwrap()
+                .push_back(window_event);
+        }
+    }
+}
+
+extern fn mouse_moved(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
+}
+
+extern fn mouse_dragged(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
+}
+
+extern fn right_mouse_dragged(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
+}
+
+extern fn other_mouse_dragged(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
 }
