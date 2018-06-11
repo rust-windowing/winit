@@ -102,18 +102,11 @@ impl UnownedWindow {
                 | ffi::ButtonReleaseMask
                 | ffi::PointerMotionMask;
             swa.border_pixel = 0;
-            if window_attrs.transparent {
-                swa.background_pixel = 0;
-            }
-            swa.override_redirect = 0;
+            swa.override_redirect = pl_attribs.override_redirect as c_int;
             swa
         };
 
         let mut window_attributes = ffi::CWBorderPixel | ffi::CWColormap | ffi::CWEventMask;
-
-        if window_attrs.transparent {
-            window_attributes |= ffi::CWBackPixel;
-        }
 
         if pl_attribs.override_redirect {
             window_attributes |= ffi::CWOverrideRedirect;
@@ -223,16 +216,23 @@ impl UnownedWindow {
 
             // set size hints
             {
+                let mut min_dimensions = window_attrs.min_dimensions;
+                let mut max_dimensions = window_attrs.max_dimensions;
+                if !window_attrs.resizable {
+                    max_dimensions = Some(dimensions);
+                    min_dimensions = Some(dimensions);
+                }
+
                 let mut size_hints = xconn.alloc_size_hints();
                 (*size_hints).flags = ffi::PSize;
                 (*size_hints).width = dimensions.0 as c_int;
                 (*size_hints).height = dimensions.1 as c_int;
-                if let Some((min_width, min_height)) = window_attrs.min_dimensions {
+                if let Some((min_width, min_height)) = min_dimensions {
                     (*size_hints).flags |= ffi::PMinSize;
                     (*size_hints).min_width = min_width as c_int;
                     (*size_hints).min_height = min_height as c_int;
                 }
-                if let Some((max_width, max_height)) = window_attrs.max_dimensions {
+                if let Some((max_width, max_height)) = max_dimensions {
                     (*size_hints).flags |= ffi::PMaxSize;
                     (*size_hints).max_width = max_width as c_int;
                     (*size_hints).max_height = max_height as c_int;

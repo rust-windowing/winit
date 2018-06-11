@@ -49,8 +49,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub x11_window_type: x11::util::WindowType,
 }
 
-lazy_static!(
-    pub static ref X11_BACKEND: Result<Arc<XConnection>, XNotSupported> = {
+thread_local!(
+    pub static X11_BACKEND: Result<Arc<XConnection>, XNotSupported> = {
         XConnection::new(Some(x_error_callback)).map(Arc::new)
     };
 );
@@ -342,27 +342,29 @@ unsafe extern "C" fn x_error_callback(
     display: *mut x11::ffi::Display,
     event: *mut x11::ffi::XErrorEvent,
 ) -> c_int {
-    if let Ok(ref xconn) = *X11_BACKEND {
-        let mut buf: [c_char; 1024] = mem::uninitialized();
-        (xconn.xlib.XGetErrorText)(
-            display,
-            (*event).error_code as c_int,
-            buf.as_mut_ptr(),
-            buf.len() as c_int,
-        );
-        let description = CStr::from_ptr(buf.as_ptr()).to_string_lossy();
+    X11_BACKEND.with(|result| {
+        if let &Ok(ref xconn) = result {
+            let mut buf: [c_char; 1024] = mem::uninitialized();
+            (xconn.xlib.XGetErrorText)(
+                display,
+                (*event).error_code as c_int,
+                buf.as_mut_ptr(),
+                buf.len() as c_int,
+            );
+            let description = CStr::from_ptr(buf.as_ptr()).to_string_lossy();
 
-        let error = XError {
-            description: description.into_owned(),
-            error_code: (*event).error_code,
-            request_code: (*event).request_code,
-            minor_code: (*event).minor_code,
-        };
+            let error = XError {
+                description: description.into_owned(),
+                error_code: (*event).error_code,
+                request_code: (*event).request_code,
+                minor_code: (*event).minor_code,
+            };
 
-        eprintln!("[winit X11 error] {:#?}", error);
+            eprintln!("[winit X11 error] {:#?}", error);
 
-        *xconn.latest_error.lock() = Some(error);
-    }
+            *xconn.latest_error.lock() = Some(error);
+        }
+    });
     // Fun fact: this return value is completely ignored.
     0
 }
@@ -424,10 +426,14 @@ r#"Failed to initialize any backend!
     }
 
     pub fn new_x11() -> Result<EventsLoop, XNotSupported> {
-        match *X11_BACKEND {
-            Ok(ref x) => Ok(EventsLoop::X(x11::EventsLoop::new(x.clone()))),
-            Err(ref err) => Err(err.clone()),
-        }
+        X11_BACKEND.with(|result| {
+            result
+                .as_ref()
+                .map(Arc::clone)
+                .map(x11::EventsLoop::new)
+                .map(EventsLoop::X)
+                .map_err(|err| err.clone())
+        })
     }
 
     #[inline]

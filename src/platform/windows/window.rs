@@ -843,6 +843,10 @@ unsafe fn init(
             style | winuser::WS_VISIBLE
         };
 
+        if !window.resizable {
+            style &= !winuser::WS_SIZEBOX;
+        }
+
         if pl_attribs.parent.is_some() {
             style |= winuser::WS_CHILD;
         }
