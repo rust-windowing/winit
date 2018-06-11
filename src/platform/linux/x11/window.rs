@@ -222,7 +222,7 @@ impl UnownedWindow {
                 (*window.shared_state.lock()).max_dimensions = window_attrs.max_dimensions;
                 let mut min_dimensions = window_attrs.min_dimensions;
                 let mut max_dimensions = window_attrs.max_dimensions;
-                if !window_attrs.resizable {
+                if !window_attrs.resizable && !util::wm_name_is_one_of(&["Xfwm4"]) {
                     max_dimensions = Some(dimensions);
                     min_dimensions = Some(dimensions);
                 }
@@ -733,6 +733,12 @@ impl UnownedWindow {
     }
 
     pub fn set_resizable(&self, resizable: bool) {
+        if util::wm_name_is_one_of(&["Xfwm4"]) {
+            // Making the window unresizable on Xfwm prevents further changes to `WM_NORMAL_HINTS` from being detected.
+            // This makes it impossible for resizing to be re-enabled, and also breaks DPI scaling. As such, we choose
+            // the lesser of two evils and do nothing.
+            return;
+        }
         if resizable {
             let min_dimensions = (*self.shared_state.lock()).min_dimensions;
             let max_dimensions = (*self.shared_state.lock()).max_dimensions;
@@ -752,7 +758,7 @@ impl UnownedWindow {
             }.expect("Failed to call XSetWMNormalHints");
         }
     }
-    
+
     #[inline]
     pub fn get_xlib_display(&self) -> *mut c_void {
         self.xconn.display as _
