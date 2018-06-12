@@ -34,20 +34,21 @@ core-foundation = "0.6"
 core-graphics = "0.14"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
-version = "0.3"
+version = "0.3.5"
 features = [
+    "combaseapi",
+    "dwmapi",
+    "hidusage",
+    "libloaderapi",
+    "objbase",
+    "processthreadsapi",
+    "shellapi",
+    "shobjidl_core",
+    "unknwnbase",
+    "windowsx",
+    "wingdi",
     "winnt",
     "winuser",
-    "wingdi",
-    "shellapi",
-    "dwmapi",
-    "processthreadsapi",
-    "libloaderapi",
-    "windowsx",
-    "hidusage",
-    "combaseapi",
-    "objbase",
-    "unknwnbase",
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))'.dependencies]

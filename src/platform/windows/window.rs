@@ -12,8 +12,8 @@ use winapi::shared::minwindef::{BOOL, DWORD, FALSE, TRUE, UINT};
 use winapi::shared::windef::{HDC, HWND, LPPOINT, POINT, RECT};
 use winapi::um::{combaseapi, dwmapi, libloaderapi, winuser};
 use winapi::um::objbase::{COINIT_MULTITHREADED};
-use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
-use winapi::um::winnt::{HRESULT, LONG, LPCWSTR};
+use winapi::um::shobjidl_core::{CLSID_TaskbarList, ITaskbarList2};
+use winapi::um::winnt::{LONG, LPCWSTR};
 
 use CreationError;
 use CursorState;
@@ -239,7 +239,7 @@ impl Window {
             }
         }
     }
-    
+
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         if let Ok(mut window_state) = self.window_state.lock() {
@@ -1024,47 +1024,11 @@ thread_local!{
         }
     };
 
-    static TASKBAR_LIST: Cell<*mut taskbar::ITaskbarList2> = Cell::new(ptr::null_mut());
+    static TASKBAR_LIST: Cell<*mut ITaskbarList2> = Cell::new(ptr::null_mut());
 }
 
 pub fn com_initialized() {
     COM_INITIALIZED.with(|_| {});
-}
-
-// TODO: remove these when they get added to winapi
-// https://github.com/retep998/winapi-rs/pull/592
-#[allow(non_upper_case_globals)]
-#[allow(non_snake_case)]
-#[allow(dead_code)]
-mod taskbar {
-    use super::{IUnknown,IUnknownVtbl,HRESULT, HWND,BOOL};
-    DEFINE_GUID!{CLSID_TaskbarList,
-        0x56fdf344, 0xfd6d, 0x11d0, 0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90}
-
-    RIDL!(#[uuid(0x56fdf342, 0xfd6d, 0x11d0, 0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90)]
-    interface ITaskbarList(ITaskbarListVtbl): IUnknown(IUnknownVtbl) {
-        fn HrInit() -> HRESULT,
-        fn AddTab(
-            hwnd: HWND,
-        ) -> HRESULT,
-        fn DeleteTab(
-            hwnd: HWND,
-        ) -> HRESULT,
-        fn ActivateTab(
-            hwnd: HWND,
-        ) -> HRESULT,
-        fn SetActiveAlt(
-            hwnd: HWND,
-        ) -> HRESULT,
-    });
-
-    RIDL!(#[uuid(0x602d4995, 0xb13a, 0x429b, 0xa6, 0x6e, 0x19, 0x35, 0xe4, 0x4f, 0x43, 0x17)]
-    interface ITaskbarList2(ITaskbarList2Vtbl): ITaskbarList(ITaskbarListVtbl) {
-        fn MarkFullscreenWindow(
-            hwnd: HWND,
-            fFullscreen: BOOL,
-        ) -> HRESULT,
-    });
 }
 
 // Reference Implementation:
@@ -1086,10 +1050,10 @@ unsafe fn mark_fullscreen(handle: HWND, fullscreen: bool) {
             use winapi::Interface;
 
             let hr = combaseapi::CoCreateInstance(
-                &taskbar::CLSID_TaskbarList,
+                &CLSID_TaskbarList,
                 ptr::null_mut(),
                 combaseapi::CLSCTX_ALL,
-                &taskbar::ITaskbarList2::uuidof(),
+                &ITaskbarList2::uuidof(),
                 &mut task_bar_list as *mut _ as *mut _,
             );
 
