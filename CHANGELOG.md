@@ -1,5 +1,7 @@
 # Unreleased
 
+# Version 0.15.1 (2018-06-13)
+
 - On X11, the `Moved` event is no longer sent when the window is resized without changing position.
 - `MouseCursor` and `CursorState` now implement `Default`.
 - `WindowBuilder::with_resizable` implemented for Windows, X11, Wayland, and macOS.
