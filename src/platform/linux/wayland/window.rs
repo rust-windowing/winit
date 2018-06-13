@@ -101,6 +101,8 @@ impl Window {
             frame.set_maximized();
         }
 
+        frame.set_resizable(attributes.resizable);
+
         // set decorations
         frame.set_decorate(attributes.decorations);
 
@@ -196,6 +198,11 @@ impl Window {
     #[inline]
     pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
         self.frame.lock().unwrap().set_max_size(dimensions);
+    }
+
+    #[inline]
+    pub fn set_resizable(&self, resizable: bool) {
+        self.frame.lock().unwrap().set_resizable(resizable);
     }
 
     #[inline]

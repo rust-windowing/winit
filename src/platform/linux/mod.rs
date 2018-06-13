@@ -237,7 +237,7 @@ impl Window {
     pub fn set_resizable(&self, resizable: bool) {
         match self {
             &Window::X(ref w) => w.set_resizable(resizable),
-            &Window::Wayland(ref _w) => unimplemented!(),
+            &Window::Wayland(ref w) => w.set_resizable(resizable),
         }
     }
 
