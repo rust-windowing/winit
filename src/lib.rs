@@ -87,7 +87,6 @@ extern crate libc;
 extern crate image;
 
 #[cfg(target_os = "windows")]
-#[macro_use]
 extern crate winapi;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
@@ -422,7 +421,7 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub max_dimensions: Option<(u32, u32)>,
 
-    /// [Windows only] Whether the window is resizable or not
+    /// Whether the window is resizable or not.
     ///
     /// The default is `true`.
     pub resizable: bool,

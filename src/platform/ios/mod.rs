@@ -318,6 +318,11 @@ impl Window {
     pub fn set_max_dimensions(&self, _dimensions: Option<(u32, u32)>) { }
 
     #[inline]
+    pub fn set_resizable(&self, _resizable: bool) {
+        // N/A
+    }
+    
+    #[inline]
     pub fn platform_display(&self) -> *mut libc::c_void {
         unimplemented!();
     }

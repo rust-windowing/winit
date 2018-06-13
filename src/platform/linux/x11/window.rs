@@ -38,6 +38,8 @@ pub struct SharedState {
     pub last_monitor: Option<X11MonitorId>,
     pub dpi_adjusted: Option<(f64, f64)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
+    pub min_dimensions: Option<(u32, u32)>,
+    pub max_dimensions: Option<(u32, u32)>,
 }
 
 unsafe impl Send for UnownedWindow {}
@@ -216,16 +218,25 @@ impl UnownedWindow {
 
             // set size hints
             {
+                (*window.shared_state.lock()).min_dimensions = window_attrs.min_dimensions;
+                (*window.shared_state.lock()).max_dimensions = window_attrs.max_dimensions;
+                let mut min_dimensions = window_attrs.min_dimensions;
+                let mut max_dimensions = window_attrs.max_dimensions;
+                if !window_attrs.resizable && !util::wm_name_is_one_of(&["Xfwm4"]) {
+                    max_dimensions = Some(dimensions);
+                    min_dimensions = Some(dimensions);
+                }
+
                 let mut size_hints = xconn.alloc_size_hints();
                 (*size_hints).flags = ffi::PSize;
                 (*size_hints).width = dimensions.0 as c_int;
                 (*size_hints).height = dimensions.1 as c_int;
-                if let Some((min_width, min_height)) = window_attrs.min_dimensions {
+                if let Some((min_width, min_height)) = min_dimensions {
                     (*size_hints).flags |= ffi::PMinSize;
                     (*size_hints).min_width = min_width as c_int;
                     (*size_hints).min_height = min_height as c_int;
                 }
-                if let Some((max_width, max_height)) = window_attrs.max_dimensions {
+                if let Some((max_width, max_height)) = max_dimensions {
                     (*size_hints).flags |= ffi::PMaxSize;
                     (*size_hints).max_width = max_width as c_int;
                     (*size_hints).max_height = max_height as c_int;
@@ -692,6 +703,7 @@ impl UnownedWindow {
     }
 
     pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        (*self.shared_state.lock()).min_dimensions = dimensions;
         unsafe {
             self.update_normal_hints(|size_hints| {
                 if let Some((width, height)) = dimensions {
@@ -706,6 +718,7 @@ impl UnownedWindow {
     }
 
     pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+        (*self.shared_state.lock()).max_dimensions = dimensions;
         unsafe {
             self.update_normal_hints(|size_hints| {
                 if let Some((width, height)) = dimensions {
@@ -717,6 +730,33 @@ impl UnownedWindow {
                 }
             })
         }.expect("Failed to call XSetWMNormalHints");
+    }
+
+    pub fn set_resizable(&self, resizable: bool) {
+        if util::wm_name_is_one_of(&["Xfwm4"]) {
+            // Making the window unresizable on Xfwm prevents further changes to `WM_NORMAL_HINTS` from being detected.
+            // This makes it impossible for resizing to be re-enabled, and also breaks DPI scaling. As such, we choose
+            // the lesser of two evils and do nothing.
+            return;
+        }
+        if resizable {
+            let min_dimensions = (*self.shared_state.lock()).min_dimensions;
+            let max_dimensions = (*self.shared_state.lock()).max_dimensions;
+            self.set_min_dimensions(min_dimensions);
+            self.set_max_dimensions(max_dimensions);
+        } else {
+            unsafe {
+                self.update_normal_hints(|size_hints| {
+                    (*size_hints).flags |= ffi::PMinSize | ffi::PMaxSize;
+                    if let Some((width, height)) = self.get_inner_size() {
+                        (*size_hints).min_width = width as c_int;
+                        (*size_hints).min_height = height as c_int;
+                        (*size_hints).max_width = width as c_int;
+                        (*size_hints).max_height = height as c_int;
+                    }
+                })
+            }.expect("Failed to call XSetWMNormalHints");
+        }
     }
 
     #[inline]

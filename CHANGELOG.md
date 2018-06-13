@@ -1,13 +1,23 @@
 # Unreleased
 
 - **Breaking:** Removed `VirtualKeyCode::LMenu` and `VirtualKeyCode::RMenu`; Windows now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead.
+
+# Version 0.15.1 (2018-06-13)
+
 - On X11, the `Moved` event is no longer sent when the window is resized without changing position.
 - `MouseCursor` and `CursorState` now implement `Default`.
-- `WindowBuilder::with_resizable` implemented for Windows.
+- `WindowBuilder::with_resizable` implemented for Windows, X11, Wayland, and macOS.
+- `Window::set_resizable` implemented for Windows, X11, Wayland, and macOS.
 - On X11, if the monitor's width or height in millimeters is reported as 0, the DPI is now 1.0 instead of +inf.
 - On X11, the environment variable `WINIT_HIDPI_FACTOR` has been added for overriding DPI factor.
 - On X11, enabling transparency no longer causes the window contents to flicker when resizing.
 - On X11, `with_override_redirect` now actually enables override redirect.
+- macOS now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead of `None` for both.
+- On macOS, `VirtualKeyCode::RWin` and `VirtualKeyCode::LWin` are no longer switched.
+- On macOS, windows without decorations can once again be resized.
+- Fixed race conditions when creating an `EventsLoop` on X11, most commonly manifesting as "[xcb] Unknown sequence number while processing queue".
+- On macOS, `CursorMoved` and `MouseInput` events are only generated if they occurs within the window's client area.
+- On macOS, resizing the window no longer generates a spurious `MouseInput` event.
 
 # Version 0.15.0 (2018-05-22)
 
