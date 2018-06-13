@@ -1,5 +1,7 @@
 # Unreleased
 
+- **Breaking:** Removed `VirtualKeyCode::LMenu` and `VirtualKeyCode::RMenu`; Windows now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead.
+
 # Version 0.15.1 (2018-06-13)
 
 - On X11, the `Moved` event is no longer sent when the window is resized without changing position.
