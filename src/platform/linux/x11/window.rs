@@ -238,18 +238,18 @@ impl UnownedWindow {
                 let mut min_dimensions = window_attrs.min_dimensions;
                 let mut max_dimensions = window_attrs.max_dimensions;
                 if !window_attrs.resizable && !util::wm_name_is_one_of(&["Xfwm4"]) {
-                    max_dimensions = Some(dimensions);
-                    min_dimensions = Some(dimensions);
+                    max_dimensions = Some(dimensions.into());
+                    min_dimensions = Some(dimensions.into());
 
                     let mut shared_state_lock = window.shared_state.lock();
-                    shared_state_lock.min_dimensions = window_attrs.min_dimensions.map(Into::into);
-                    shared_state_lock.max_dimensions = window_attrs.max_dimensions.map(Into::into);
+                    shared_state_lock.min_dimensions = window_attrs.min_dimensions;
+                    shared_state_lock.max_dimensions = window_attrs.max_dimensions;
                 }
 
                 let mut normal_hints = util::NormalHints::new(xconn);
                 normal_hints.set_size(Some(dimensions));
-                normal_hints.set_min_size(min_dimensions);
-                normal_hints.set_max_size(max_dimensions);
+                normal_hints.set_min_size(min_dimensions.map(Into::into));
+                normal_hints.set_max_size(max_dimensions.map(Into::into));
                 normal_hints.set_resize_increments(pl_attribs.resize_increments);
                 normal_hints.set_base_size(pl_attribs.base_size);
                 xconn.set_normal_hints(window.xwindow, normal_hints).queue();
