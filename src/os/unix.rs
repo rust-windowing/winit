@@ -1,14 +1,20 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
 
 use std::os::raw;
-use std::sync::Arc;
 use std::ptr;
-use EventsLoop;
-use MonitorId;
-use Window;
-use platform::EventsLoop as LinuxEventsLoop;
-use platform::Window as LinuxWindow;
-use WindowBuilder;
+use std::sync::Arc;
+
+use {
+    EventsLoop,
+    LogicalSize,
+    MonitorId,
+    Window,
+    WindowBuilder,
+};
+use platform::{
+    EventsLoop as LinuxEventsLoop,
+    Window as LinuxWindow,
+};
 use platform::x11::XConnection;
 use platform::x11::ffi::XVisualInfo;
 
@@ -72,6 +78,7 @@ impl EventsLoopExt for EventsLoop {
     }
 
     #[inline]
+    #[doc(hidden)]
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         self.events_loop.x_connection().cloned()
     }
@@ -93,6 +100,7 @@ pub trait WindowExt {
 
     fn get_xlib_screen_id(&self) -> Option<raw::c_int>;
 
+    #[doc(hidden)]
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
     /// Set window urgency hint (`XUrgencyHint`). Only relevant on X.
@@ -155,6 +163,7 @@ impl WindowExt for Window {
     }
 
     #[inline]
+    #[doc(hidden)]
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_xconnection()),
@@ -211,9 +220,9 @@ pub trait WindowBuilderExt {
     /// Build window with `_NET_WM_WINDOW_TYPE` hint; defaults to `Normal`. Only relevant on X11.
     fn with_x11_window_type(self, x11_window_type: XWindowType) -> WindowBuilder;
     /// Build window with resize increment hint. Only implemented on X11.
-    fn with_resize_increments(self, width_inc: u32, height_inc: u32) -> WindowBuilder;
+    fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
     /// Build window with base size hint. Only implemented on X11.
-    fn with_base_size(self, base_width: u32, base_height: u32) -> WindowBuilder;
+    fn with_base_size(self, base_size: LogicalSize) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -250,14 +259,14 @@ impl WindowBuilderExt for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, width_inc: u32, height_inc: u32) -> WindowBuilder {
-        self.platform_specific.resize_increments = Some((width_inc, height_inc));
+    fn with_resize_increments(mut self, increments: LogicalSize) -> WindowBuilder {
+        self.platform_specific.resize_increments = Some(increments.into());
         self
     }
 
     #[inline]
-    fn with_base_size(mut self, base_width: u32, base_height: u32) -> WindowBuilder {
-        self.platform_specific.base_size = Some((base_width, base_height));
+    fn with_base_size(mut self, base_size: LogicalSize) -> WindowBuilder {
+        self.platform_specific.base_size = Some(base_size.into());
         self
     }
 }

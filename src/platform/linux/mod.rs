@@ -8,15 +8,16 @@ use std::sync::Arc;
 
 use sctk::reexports::client::ConnectError;
 
-// `std::os::raw::c_void` and `libc::c_void` are NOT interchangeable!
-use libc;
-
 use {
     CreationError,
     CursorState,
     EventsLoopClosed,
     Icon,
+    LogicalPosition,
+    LogicalSize,
     MouseCursor,
+    PhysicalPosition,
+    PhysicalSize,
     ControlFlow,
     WindowAttributes,
 };
@@ -57,19 +58,19 @@ thread_local!(
 
 pub enum Window {
     X(x11::Window),
-    Wayland(wayland::Window)
+    Wayland(wayland::Window),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WindowId {
     X(x11::WindowId),
-    Wayland(wayland::WindowId)
+    Wayland(wayland::WindowId),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceId {
     X(x11::DeviceId),
-    Wayland(wayland::DeviceId)
+    Wayland(wayland::DeviceId),
 }
 
 #[derive(Debug, Clone)]
@@ -96,7 +97,7 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> (u32, u32) {
+    pub fn get_dimensions(&self) -> PhysicalSize {
         match self {
             &MonitorId::X(ref m) => m.get_dimensions(),
             &MonitorId::Wayland(ref m) => m.get_dimensions(),
@@ -104,7 +105,7 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_position(&self) -> (i32, i32) {
+    pub fn get_position(&self) -> PhysicalPosition {
         match self {
             &MonitorId::X(ref m) => m.get_position(),
             &MonitorId::Wayland(ref m) => m.get_position(),
@@ -112,10 +113,10 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f32 {
+    pub fn get_hidpi_factor(&self) -> f64 {
         match self {
             &MonitorId::X(ref m) => m.get_hidpi_factor(),
-            &MonitorId::Wayland(ref m) => m.get_hidpi_factor(),
+            &MonitorId::Wayland(ref m) => m.get_hidpi_factor() as f64,
         }
     }
 }
@@ -141,7 +142,7 @@ impl Window {
     pub fn id(&self) -> WindowId {
         match self {
             &Window::X(ref w) => WindowId::X(w.id()),
-            &Window::Wayland(ref w) => WindowId::Wayland(w.id())
+            &Window::Wayland(ref w) => WindowId::Wayland(w.id()),
         }
     }
 
@@ -149,7 +150,7 @@ impl Window {
     pub fn set_title(&self, title: &str) {
         match self {
             &Window::X(ref w) => w.set_title(title),
-            &Window::Wayland(ref w) => w.set_title(title)
+            &Window::Wayland(ref w) => w.set_title(title),
         }
     }
 
@@ -157,7 +158,7 @@ impl Window {
     pub fn show(&self) {
         match self {
             &Window::X(ref w) => w.show(),
-            &Window::Wayland(ref w) => w.show()
+            &Window::Wayland(ref w) => w.show(),
         }
     }
 
@@ -165,20 +166,20 @@ impl Window {
     pub fn hide(&self) {
         match self {
             &Window::X(ref w) => w.hide(),
-            &Window::Wayland(ref w) => w.hide()
+            &Window::Wayland(ref w) => w.hide(),
         }
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<(i32, i32)> {
+    pub fn get_position(&self) -> Option<LogicalPosition> {
         match self {
             &Window::X(ref w) => w.get_position(),
-            &Window::Wayland(ref w) => w.get_position()
+            &Window::Wayland(ref w) => w.get_position(),
         }
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
         match self {
             &Window::X(ref m) => m.get_inner_position(),
             &Window::Wayland(ref m) => m.get_inner_position(),
@@ -186,53 +187,53 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_position(&self, x: i32, y: i32) {
+    pub fn set_position(&self, position: LogicalPosition) {
         match self {
-            &Window::X(ref w) => w.set_position(x, y),
-            &Window::Wayland(ref w) => w.set_position(x, y)
+            &Window::X(ref w) => w.set_position(position),
+            &Window::Wayland(ref w) => w.set_position(position),
         }
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
+    pub fn get_inner_size(&self) -> Option<LogicalSize> {
         match self {
             &Window::X(ref w) => w.get_inner_size(),
-            &Window::Wayland(ref w) => w.get_inner_size()
+            &Window::Wayland(ref w) => w.get_inner_size(),
         }
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<(u32, u32)> {
+    pub fn get_outer_size(&self) -> Option<LogicalSize> {
         match self {
             &Window::X(ref w) => w.get_outer_size(),
-            &Window::Wayland(ref w) => w.get_outer_size()
+            &Window::Wayland(ref w) => w.get_outer_size(),
         }
     }
 
     #[inline]
-    pub fn set_inner_size(&self, x: u32, y: u32) {
+    pub fn set_inner_size(&self, size: LogicalSize) {
         match self {
-            &Window::X(ref w) => w.set_inner_size(x, y),
-            &Window::Wayland(ref w) => w.set_inner_size(x, y)
+            &Window::X(ref w) => w.set_inner_size(size),
+            &Window::Wayland(ref w) => w.set_inner_size(size),
         }
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
         match self {
             &Window::X(ref w) => w.set_min_dimensions(dimensions),
-            &Window::Wayland(ref w) => w.set_min_dimensions(dimensions)
+            &Window::Wayland(ref w) => w.set_min_dimensions(dimensions),
         }
     }
 
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
         match self {
             &Window::X(ref w) => w.set_max_dimensions(dimensions),
-            &Window::Wayland(ref w) => w.set_max_dimensions(dimensions)
+            &Window::Wayland(ref w) => w.set_max_dimensions(dimensions),
         }
     }
-    
+
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         match self {
@@ -258,34 +259,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f32 {
+    pub fn get_hidpi_factor(&self) -> f64 {
        match self {
-            &Window::X(ref w) => w.hidpi_factor(),
-            &Window::Wayland(ref w) => w.hidpi_factor()
+            &Window::X(ref w) => w.get_hidpi_factor(),
+            &Window::Wayland(ref w) => w.hidpi_factor() as f64,
         }
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ()> {
         match self {
-            &Window::X(ref w) => w.set_cursor_position(x, y),
-            &Window::Wayland(ref w) => w.set_cursor_position(x, y)
-        }
-    }
-
-    #[inline]
-    pub fn platform_display(&self) -> *mut libc::c_void {
-        match self {
-            &Window::X(ref w) => w.platform_display(),
-            &Window::Wayland(ref w) => w.get_display().c_ptr() as *mut _
-        }
-    }
-
-    #[inline]
-    pub fn platform_window(&self) -> *mut libc::c_void {
-        match self {
-            &Window::X(ref w) => w.platform_window(),
-            &Window::Wayland(ref w) => w.get_surface().c_ptr() as *mut _
+            &Window::X(ref w) => w.set_cursor_position(position),
+            &Window::Wayland(ref w) => w.set_cursor_position(position),
         }
     }
 
@@ -330,9 +315,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, x: i32, y: i32) {
+    pub fn set_ime_spot(&self, position: LogicalPosition) {
         match self {
-            &Window::X(ref w) => w.send_xim_spot(x as i16, y as i16),
+            &Window::X(ref w) => w.set_ime_spot(position),
             &Window::Wayland(_) => (),
         }
     }
@@ -447,14 +432,17 @@ r#"Failed to initialize any backend!
     #[inline]
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
         match *self {
-            EventsLoop::Wayland(ref evlp) => evlp.get_available_monitors()
-                                    .into_iter()
-                                    .map(MonitorId::Wayland)
-                                    .collect(),
-            EventsLoop::X(ref evlp) => x11::get_available_monitors(evlp.x_connection())
-                                        .into_iter()
-                                        .map(MonitorId::X)
-                                        .collect(),
+            EventsLoop::Wayland(ref evlp) => evlp
+                .get_available_monitors()
+                .into_iter()
+                .map(MonitorId::Wayland)
+                .collect(),
+            EventsLoop::X(ref evlp) => evlp
+                .x_connection()
+                .get_available_monitors()
+                .into_iter()
+                .map(MonitorId::X)
+                .collect(),
         }
     }
 
@@ -462,7 +450,7 @@ r#"Failed to initialize any backend!
     pub fn get_primary_monitor(&self) -> MonitorId {
         match *self {
             EventsLoop::Wayland(ref evlp) => MonitorId::Wayland(evlp.get_primary_monitor()),
-            EventsLoop::X(ref evlp) => MonitorId::X(x11::get_primary_monitor(evlp.x_connection())),
+            EventsLoop::X(ref evlp) => MonitorId::X(evlp.x_connection().get_primary_monitor()),
         }
     }
 

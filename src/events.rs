@@ -1,5 +1,6 @@
 use std::path::PathBuf;
-use {WindowId, DeviceId};
+
+use {DeviceId, LogicalPosition, LogicalSize, WindowId};
 
 /// Describes a generic event.
 #[derive(Clone, Debug)]
@@ -23,12 +24,11 @@ pub enum Event {
 /// Describes an event from a `Window`.
 #[derive(Clone, Debug)]
 pub enum WindowEvent {
-
     /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(u32, u32),
+    Resized(LogicalSize),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(i32, i32),
+    Moved(LogicalPosition),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -63,7 +63,7 @@ pub enum WindowEvent {
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: (f64, f64),
+        position: LogicalPosition,
         modifiers: ModifiersState
     },
 
@@ -96,14 +96,16 @@ pub enum WindowEvent {
     /// Touch event has been received
     Touch(Touch),
 
-    /// DPI scaling factor of the window has changed.
+    /// The DPI factor of the window has changed.
     ///
-    /// The following actions cause DPI changes:
+    /// The following user actions can cause DPI changes:
     ///
-    /// * A user changes the resolution.
-    /// * A user changes the desktop scaling value (e.g. in Control Panel on Windows).
-    /// * A user moves the application window to a display with a different DPI.
-    HiDPIFactorChanged(f32),
+    /// * Changing the display's resolution.
+    /// * Changing the display's DPI factor (e.g. in Control Panel on Windows).
+    /// * Moving the window to a display with a different DPI factor.
+    ///
+    /// For more information about DPI in general, see the [`dpi`](dpi/index.html) module.
+    HiDpiFactorChanged(f64),
 }
 
 /// Represents raw hardware events that are not associated with any particular window.
@@ -197,7 +199,7 @@ pub enum TouchPhase {
 pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
-    pub location: (f64,f64),
+    pub location: LogicalPosition,
     /// unique identifier of a finger.
     pub id: u64
 }
@@ -242,7 +244,7 @@ pub enum MouseScrollDelta {
 	/// Scroll events are expressed as a PixelDelta if
 	/// supported by the device (eg. a touchpad) and
 	/// platform.
-	PixelDelta(f32, f32)
+	PixelDelta(LogicalPosition),
 }
 
 /// Symbolic name for a keyboard key.

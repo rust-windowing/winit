@@ -1,9 +1,9 @@
-use std::{self, mem, ptr};
+use std::{self, mem, ptr, slice};
 use std::ops::BitAnd;
 
 use winapi::ctypes::wchar_t;
 use winapi::shared::minwindef::DWORD;
-use winapi::shared::windef::RECT;
+use winapi::shared::windef::{HWND, RECT};
 use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::winbase::{
     FormatMessageW,
@@ -19,6 +19,7 @@ use winapi::um::winnt::{
     LANG_NEUTRAL,
     SUBLANG_DEFAULT,
 };
+use winapi::um::winuser;
 
 pub fn has_flag<T>(bitset: T, flag: T) -> bool
 where T:
@@ -28,9 +29,22 @@ where T:
 }
 
 pub fn wchar_to_string(wchar: &[wchar_t]) -> String {
-    String::from_utf16_lossy(wchar)
-        .trim_right_matches(0 as char)
-        .to_string()
+    String::from_utf16_lossy(wchar).to_string()
+}
+
+pub fn wchar_ptr_to_string(wchar: *const wchar_t) -> String {
+    let len = unsafe { lstrlenW(wchar) } as usize;
+    let wchar_slice = unsafe { slice::from_raw_parts(wchar, len) };
+    wchar_to_string(wchar_slice)
+}
+
+pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {
+    let mut rect: RECT = unsafe { mem::uninitialized() };
+    if unsafe { winuser::GetWindowRect(hwnd, &mut rect) } != 0 {
+        Some(rect)
+    } else {
+        None
+    }
 }
 
 // This won't be needed anymore if we just add a derive to winapi.

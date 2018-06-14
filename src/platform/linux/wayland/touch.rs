@@ -34,7 +34,7 @@ pub(crate) fn implement_touch(
                         WindowEvent::Touch(::Touch {
                             device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                             phase: TouchPhase::Started,
-                            location: (x, y),
+                            location: (x, y).into(),
                             id: id as u64,
                         }),
                         wid,
@@ -54,7 +54,7 @@ pub(crate) fn implement_touch(
                         WindowEvent::Touch(::Touch {
                             device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                             phase: TouchPhase::Ended,
-                            location: pt.location,
+                            location: pt.location.into(),
                             id: id as u64,
                         }),
                         pt.wid,
@@ -69,7 +69,7 @@ pub(crate) fn implement_touch(
                         WindowEvent::Touch(::Touch {
                             device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                             phase: TouchPhase::Moved,
-                            location: (x, y),
+                            location: (x, y).into(),
                             id: id as u64,
                         }),
                         pt.wid,
@@ -82,7 +82,7 @@ pub(crate) fn implement_touch(
                     WindowEvent::Touch(::Touch {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                         phase: TouchPhase::Cancelled,
-                        location: pt.location,
+                        location: pt.location.into(),
                         id: pt.id as u64,
                     }),
                     pt.wid,

@@ -47,6 +47,7 @@ pub struct WindowId(HWND);
 unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 
+mod dpi;
 mod event;
 mod events_loop;
 mod icon;

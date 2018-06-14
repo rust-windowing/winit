@@ -43,6 +43,7 @@ features = [
     "objbase",
     "processthreadsapi",
     "shellapi",
+    "shellscalingapi",
     "shobjidl_core",
     "unknwnbase",
     "windowsx",

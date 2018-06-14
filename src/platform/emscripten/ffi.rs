@@ -1,6 +1,4 @@
-#![allow(dead_code)]
-#![allow(non_snake_case)]
-#![allow(non_camel_case_types)]
+#![allow(dead_code, non_camel_case_types, non_snake_case)]
 
 use std::os::raw::{c_int, c_char, c_void, c_ulong, c_double, c_long, c_ushort};
 #[cfg(test)]

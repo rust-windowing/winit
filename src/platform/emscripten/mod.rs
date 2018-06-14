@@ -2,15 +2,20 @@
 
 mod ffi;
 
-use std::mem;
-use std::os::raw::{c_char, c_void, c_double, c_ulong, c_int};
-use std::ptr;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, Arc};
+use std::{mem, ptr, str};
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::os::raw::{c_char, c_void, c_double, c_ulong, c_int};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, Arc};
+
+use {LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 
 const DOCUMENT_NAME: &'static str = "#document\0";
+
+fn get_hidpi_factor() -> f64 {
+    unsafe { ffi::emscripten_get_device_pixel_ratio() as f64 }
+}
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes;
@@ -34,18 +39,18 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_position(&self) -> (i32, i32) {
+    pub fn get_position(&self) -> PhysicalPosition {
         unimplemented!()
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> (u32, u32) {
-        (0, 0)
+    pub fn get_dimensions(&self) -> PhysicalSize {
+        (0, 0).into()
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f32 {
-        1.0
+    pub fn get_hidpi_factor(&self) -> f64 {
+        get_hidpi_factor()
     }
 }
 
@@ -90,17 +95,19 @@ impl EventsLoop {
         }
     }
 
+    #[inline]
     pub fn interrupt(&self) {
         self.interrupted.store(true, Ordering::Relaxed);
     }
 
+    #[inline]
     pub fn create_proxy(&self) -> EventsLoopProxy {
         unimplemented!()
     }
 
     #[inline]
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
-        let mut list = VecDeque::new();
+        let mut list = VecDeque::with_capacity(1);
         list.push_back(MonitorId);
         list
     }
@@ -115,7 +122,7 @@ impl EventsLoop {
     {
         let ref mut window = *self.window.lock().unwrap();
         if let &mut Some(ref mut window) = window {
-            while let Some(event) = window.events.borrow_mut().pop_front() {
+            while let Some(event) = window.events.lock().unwrap().pop_front() {
                 callback(event)
             }
         }
@@ -144,7 +151,7 @@ pub struct WindowId(usize);
 pub struct Window2 {
     cursor_state: Mutex<::CursorState>,
     is_fullscreen: bool,
-    events: Box<RefCell<VecDeque<::Event>>>,
+    events: Box<Mutex<VecDeque<::Event>>>,
 }
 
 pub struct Window {
@@ -176,7 +183,7 @@ extern "C" fn mouse_callback(
     event_queue: *mut c_void) -> ffi::EM_BOOL
 {
     unsafe {
-        let queue: &RefCell<VecDeque<::Event>> = mem::transmute(event_queue);
+        let queue: &Mutex<VecDeque<::Event>> = mem::transmute(event_queue);
 
         let modifiers = ::ModifiersState {
             shift: (*event).shiftKey == ffi::EM_TRUE,
@@ -187,15 +194,20 @@ extern "C" fn mouse_callback(
 
         match event_type {
             ffi::EMSCRIPTEN_EVENT_MOUSEMOVE => {
-                queue.borrow_mut().push_back(::Event::WindowEvent {
+                let dpi_factor = get_hidpi_factor();
+                let position = LogicalPosition::from_physical(
+                    ((*event).canvasX as f64, (*event).canvasY as f64),
+                    dpi_factor,
+                );
+                queue.lock().unwrap().push_back(::Event::WindowEvent {
                     window_id: ::WindowId(WindowId(0)),
                     event: ::WindowEvent::CursorMoved {
                         device_id: ::DeviceId(DeviceId),
-                        position: ((*event).canvasX as f64, (*event).canvasY as f64),
+                        position,
                         modifiers: modifiers,
                     }
                 });
-                queue.borrow_mut().push_back(::Event::DeviceEvent {
+                queue.lock().unwrap().push_back(::Event::DeviceEvent {
                     device_id: ::DeviceId(DeviceId),
                     event: ::DeviceEvent::MouseMotion {
                         delta: ((*event).movementX as f64, (*event).movementY as f64),
@@ -215,7 +227,7 @@ extern "C" fn mouse_callback(
                     ffi::EMSCRIPTEN_EVENT_MOUSEUP => ::ElementState::Released,
                     _ => unreachable!(),
                 };
-                queue.borrow_mut().push_back(::Event::WindowEvent {
+                queue.lock().unwrap().push_back(::Event::WindowEvent {
                     window_id: ::WindowId(WindowId(0)),
                     event: ::WindowEvent::MouseInput {
                         device_id: ::DeviceId(DeviceId),
@@ -238,7 +250,7 @@ extern "C" fn keyboard_callback(
     event_queue: *mut c_void) -> ffi::EM_BOOL
 {
     unsafe {
-        let queue: &RefCell<VecDeque<::Event>> = mem::transmute(event_queue);
+        let queue: &Mutex<VecDeque<::Event>> = mem::transmute(event_queue);
 
         let modifiers = ::ModifiersState {
             shift: (*event).shiftKey == ffi::EM_TRUE,
@@ -249,7 +261,7 @@ extern "C" fn keyboard_callback(
 
         match event_type {
             ffi::EMSCRIPTEN_EVENT_KEYDOWN => {
-                queue.borrow_mut().push_back(::Event::WindowEvent {
+                queue.lock().unwrap().push_back(::Event::WindowEvent {
                     window_id: ::WindowId(WindowId(0)),
                     event: ::WindowEvent::KeyboardInput {
                         device_id: ::DeviceId(DeviceId),
@@ -263,7 +275,7 @@ extern "C" fn keyboard_callback(
                 });
             },
             ffi::EMSCRIPTEN_EVENT_KEYUP => {
-                queue.borrow_mut().push_back(::Event::WindowEvent {
+                queue.lock().unwrap().push_back(::Event::WindowEvent {
                     window_id: ::WindowId(WindowId(0)),
                     event: ::WindowEvent::KeyboardInput {
                         device_id: ::DeviceId(DeviceId),
@@ -289,7 +301,7 @@ extern fn touch_callback(
     event_queue: *mut c_void) -> ffi::EM_BOOL
 {
     unsafe {
-        let queue: &RefCell<VecDeque<::Event>> = mem::transmute(event_queue);
+        let queue: &Mutex<VecDeque<::Event>> = mem::transmute(event_queue);
 
         let phase = match event_type {
             ffi::EMSCRIPTEN_EVENT_TOUCHSTART => ::TouchPhase::Started,
@@ -302,13 +314,18 @@ extern fn touch_callback(
         for touch in 0..(*event).numTouches as usize {
             let touch = (*event).touches[touch];
             if touch.isChanged == ffi::EM_TRUE {
-                queue.borrow_mut().push_back(::Event::WindowEvent {
+                let dpi_factor = get_hidpi_factor();
+                let location = LogicalPosition::from_physical(
+                    (touch.canvasX as f64, touch.canvasY as f64),
+                    dpi_factor,
+                );
+                queue.lock().unwrap().push_back(::Event::WindowEvent {
                     window_id: ::WindowId(WindowId(0)),
                     event: ::WindowEvent::Touch(::Touch {
                         device_id: ::DeviceId(DeviceId),
                         phase,
                         id: touch.identifier as u64,
-                        location: (touch.canvasX as f64, touch.canvasY as f64),
+                        location,
                     }),
                 });
             }
@@ -356,8 +373,8 @@ impl Window {
         }
 
         let w = Window2 {
-            cursor_state: Mutex::new(::CursorState::Normal),
-            events: Box::new(RefCell::new(VecDeque::new())),
+            cursor_state: Default::default(),
+            events: Default::default(),
             is_fullscreen: attribs.fullscreen.is_some(),
         };
 
@@ -395,8 +412,8 @@ impl Window {
                 em_try(ffi::emscripten_set_fullscreenchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, Some(fullscreen_callback)))
                     .map_err(|e| ::CreationError::OsError(e))?;
             }
-        } else if let Some((w, h)) = attribs.dimensions {
-            window.set_inner_size(w, h);
+        } else if let Some(size) = attribs.dimensions {
+            window.set_inner_size(size);
         }
 
         *events_loop.window.lock().unwrap() = Some(window.window.clone());
@@ -413,22 +430,22 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<(i32, i32)> {
-        Some((0, 0))
+    pub fn get_position(&self) -> Option<LogicalPosition> {
+        Some((0, 0).into())
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
-        Some((0, 0))
+    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+        Some((0, 0).into())
     }
 
     #[inline]
-    pub fn set_position(&self, _: i32, _: i32) {
+    pub fn set_position(&self, _: LogicalPosition) {
     }
 
-    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
+    #[inline]
+    pub fn get_inner_size(&self) -> Option<LogicalSize> {
         unsafe {
-            use std::{mem, ptr};
             let mut width = 0;
             let mut height = 0;
             let mut fullscreen = 0;
@@ -438,31 +455,42 @@ impl Window {
             {
                 None
             } else {
-                Some((width as u32, height as u32))
+                let dpi_factor = self.get_hidpi_factor();
+                let logical = LogicalSize::from_physical((width as u32, height as u32), dpi_factor);
+                Some(logical)
             }
         }
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<(u32, u32)> {
+    pub fn get_outer_size(&self) -> Option<LogicalSize> {
         self.get_inner_size()
     }
 
     #[inline]
-    pub fn set_inner_size(&self, width: u32, height: u32) {
+    pub fn set_inner_size(&self, size: LogicalSize) {
         unsafe {
-            use std::ptr;
-            ffi::emscripten_set_element_css_size(ptr::null(), width as c_double, height
-                as c_double);
+            let dpi_factor = self.get_hidpi_factor();
+            let physical = PhysicalSize::from_logical(size, dpi_factor);
+            let (width, height): (u32, u32) = physical.into();
+            ffi::emscripten_set_element_css_size(
+                ptr::null(),
+                width as c_double,
+                height as c_double,
+            );
         }
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, _dimensions: Option<(u32, u32)>) { }
+    pub fn set_min_dimensions(&self, _dimensions: Option<LogicalSize>) {
+        // N/A
+    }
 
     #[inline]
-    pub fn set_max_dimensions(&self, _dimensions: Option<(u32, u32)>) { }
-    
+    pub fn set_max_dimensions(&self, _dimensions: Option<LogicalSize>) {
+        // N/A
+    }
+
     #[inline]
     pub fn set_resizable(&self, _resizable: bool) {
         // N/A
@@ -472,16 +500,6 @@ impl Window {
     pub fn show(&self) {}
     #[inline]
     pub fn hide(&self) {}
-
-    #[inline]
-    pub fn platform_display(&self) -> *mut ::libc::c_void {
-        unimplemented!()
-    }
-
-    #[inline]
-    pub fn platform_window(&self) -> *mut ::libc::c_void {
-        unimplemented!()
-    }
 
     #[inline]
     pub fn set_cursor(&self, _cursor: ::MouseCursor) {}
@@ -524,12 +542,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f32 {
-        unsafe { ffi::emscripten_get_device_pixel_ratio() as f32 }
+    pub fn get_hidpi_factor(&self) -> f64 {
+        get_hidpi_factor()
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ()> {
         Err(())
     }
 
@@ -559,7 +577,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, _x: i32, _y: i32) {
+    pub fn set_ime_spot(&self, _logical_spot: LogicalPosition) {
         // N/A
     }
 
@@ -612,7 +630,6 @@ fn error_to_str(code: ffi::EMSCRIPTEN_RESULT) -> &'static str {
 }
 
 fn key_translate(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES]) -> u8 {
-    use std::str;
     let slice = &input[0..input.iter().take_while(|x| **x != 0).count()];
     let maybe_key = unsafe { str::from_utf8(mem::transmute::<_, &[u8]>(slice)) };
     let key = match maybe_key {
@@ -629,7 +646,6 @@ fn key_translate(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES]) ->
 fn key_translate_virt(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES],
                       location: c_ulong) -> Option<::VirtualKeyCode>
 {
-    use std::str;
     let slice = &input[0..input.iter().take_while(|x| **x != 0).count()];
     let maybe_key = unsafe { str::from_utf8(mem::transmute::<_, &[u8]>(slice)) };
     let key = match maybe_key {
