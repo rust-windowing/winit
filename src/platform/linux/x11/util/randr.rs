@@ -1,20 +1,25 @@
 use std::{env, slice};
 use std::str::FromStr;
 
+use validate_hidpi_factor;
 use super::*;
 
 pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
     (width_mm, height_mm): (u64, u64),
 ) -> f64 {
-    // Override DPI if `WINIT_HIDPI_FACTOR` variable is set.
-    if let Ok(dpi_factor_str) = env::var("WINIT_HIDPI_FACTOR") {
-        if let Ok(dpi_factor) = f64::from_str(&dpi_factor_str) {
-            if dpi_factor <= 0. {
-                panic!("Expected `WINIT_HIDPI_FACTOR` to be bigger than 0, got '{}'", dpi_factor);
-            }
-            return dpi_factor;
+    // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
+    let dpi_override = env::var("WINIT_HIDPI_FACTOR")
+        .ok()
+        .and_then(|var| f64::from_str(&var).ok());
+    if let Some(dpi_override) = dpi_override {
+        if !validate_hidpi_factor(dpi_override) {
+            panic!(
+                "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be normal floats greater than 0. Got `{}`",
+                dpi_override,
+            );
         }
+        return dpi_override;
     }
 
     // See http://xpra.org/trac/ticket/728 for more information.
@@ -26,7 +31,9 @@ pub fn calc_dpi_factor(
         (width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)
     ).sqrt();
     // Quantize 1/12 step size
-    ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0)
+    let dpi_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
+    assert!(validate_hidpi_factor(dpi_factor));
+    dpi_factor
 }
 
 pub enum MonitorRepr {

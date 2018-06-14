@@ -1,4 +1,16 @@
 
+//! DPI is important.
+
+/// Checks that the DPI factor is a normal positive `f64`
+///
+/// All functions that take a DPI factor assert that this will return `true`. If you're sourcing DPI factors from
+/// anywhere other than winit, it's recommended to validate them using this function before passing them to winit;
+/// otherwise, you risk panics.
+#[inline]
+pub fn validate_hidpi_factor(dpi_factor: f64) -> bool {
+    dpi_factor.is_sign_positive() && dpi_factor.is_normal()
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct LogicalPosition {
     pub x: f64,
@@ -18,7 +30,7 @@ impl LogicalPosition {
 
     #[inline]
     pub fn to_physical(&self, dpi_factor: f64) -> PhysicalPosition {
-        assert!(dpi_factor > 0.0);
+        assert!(validate_hidpi_factor(dpi_factor));
         let x = self.x * dpi_factor;
         let y = self.y * dpi_factor;
         PhysicalPosition::new(x, y)
@@ -72,7 +84,7 @@ impl PhysicalPosition {
 
     #[inline]
     pub fn to_logical(&self, dpi_factor: f64) -> LogicalPosition {
-        assert!(dpi_factor > 0.0);
+        assert!(validate_hidpi_factor(dpi_factor));
         let x = self.x / dpi_factor;
         let y = self.y / dpi_factor;
         LogicalPosition::new(x, y)
@@ -126,7 +138,7 @@ impl LogicalSize {
 
     #[inline]
     pub fn to_physical(&self, dpi_factor: f64) -> PhysicalSize {
-        assert!(dpi_factor > 0.0);
+        assert!(validate_hidpi_factor(dpi_factor));
         let width = self.width * dpi_factor;
         let height = self.height * dpi_factor;
         PhysicalSize::new(width, height)
@@ -180,7 +192,7 @@ impl PhysicalSize {
 
     #[inline]
     pub fn to_logical(&self, dpi_factor: f64) -> LogicalSize {
-        assert!(dpi_factor > 0.0);
+        assert!(validate_hidpi_factor(dpi_factor));
         let width = self.width / dpi_factor;
         let height = self.height / dpi_factor;
         LogicalSize::new(width, height)
