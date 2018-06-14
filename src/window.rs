@@ -27,8 +27,6 @@ impl WindowBuilder {
     }
 
     /// Requests the window to be of specific dimensions.
-    ///
-    /// Width and height are in pixels.
     #[inline]
     pub fn with_dimensions(mut self, size: LogicalSize) -> WindowBuilder {
         self.window.dimensions = Some(size);
@@ -36,8 +34,6 @@ impl WindowBuilder {
     }
 
     /// Sets a minimum dimension size for the window
-    ///
-    /// Width and height are in pixels.
     #[inline]
     pub fn with_min_dimensions(mut self, min_size: LogicalSize) -> WindowBuilder {
         self.window.min_dimensions = Some(min_size);
@@ -45,8 +41,6 @@ impl WindowBuilder {
     }
 
     /// Sets a maximum dimension size for the window
-    ///
-    /// Width and height are in pixels.
     #[inline]
     pub fn with_max_dimensions(mut self, max_size: LogicalSize) -> WindowBuilder {
         self.window.max_dimensions = Some(max_size);
@@ -247,10 +241,11 @@ impl Window {
         self.window.set_position(position)
     }
 
-    /// Returns the size in pixels of the client area of the window.
+    /// Returns the logical size of the window's client area.
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
-    /// These are the dimensions that need to be supplied to `glViewport`.
+    ///
+    /// Converting the returned `LogicalSize` to `PhysicalSize` produces the size your framebuffer should be.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
@@ -258,10 +253,10 @@ impl Window {
         self.window.get_inner_size()
     }
 
-    /// Returns the size in pixels of the window.
+    /// Returns the logical size of the entire window.
     ///
-    /// These dimensions include title bar and borders. If you don't want these, you should use
-    ///  use `get_inner_size` instead.
+    /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
+    /// use `get_inner_size` instead.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
@@ -280,16 +275,12 @@ impl Window {
     }
 
     /// Sets a minimum dimension size for the window.
-    ///
-    /// Width and height are in pixels.
     #[inline]
     pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
         self.window.set_min_dimensions(dimensions)
     }
 
     /// Sets a maximum dimension size for the window.
-    ///
-    /// Width and height are in pixels.
     #[inline]
     pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
         self.window.set_max_dimensions(dimensions)
@@ -310,13 +301,14 @@ impl Window {
         self.window.set_resizable(resizable)
     }
 
-    /// Returns the ratio between the backing framebuffer resolution and the
-    /// window size in screen pixels. This is typically one for a normal display
-    /// and two for a retina display.
+    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
+    ///
+    /// See the [`dpi`](dpi/index.html) module for more information.
     ///
     /// ## Platform-specific
-    /// On X11 the DPI factor can be overridden using the `WINIT_HIDPI_FACTOR` environment
-    /// variable.
+    ///
+    /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **Android:** Always returns 1.0.
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
         self.window.get_hidpi_factor()
@@ -434,7 +426,7 @@ impl MonitorId {
         self.inner.get_name()
     }
 
-    /// Returns the number of pixels currently displayed on the monitor.
+    /// Returns the monitor's resolution.
     #[inline]
     pub fn get_dimensions(&self) -> PhysicalSize {
         self.inner.get_dimensions()
@@ -447,11 +439,14 @@ impl MonitorId {
         self.inner.get_position()
     }
 
-    /// Returns the ratio between the monitor's physical pixels and logical pixels.
+    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
+    ///
+    /// See the [`dpi`](dpi/index.html) module for more information.
     ///
     /// ## Platform-specific
-    /// On X11 the DPI factor can be overridden using the `WINIT_HIDPI_FACTOR` environment
-    /// variable.
+    ///
+    /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **Android:** Always returns 1.0.
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
         self.inner.get_hidpi_factor()

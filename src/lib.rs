@@ -34,7 +34,8 @@
 //! screen, such as video games.
 //!
 //! ```no_run
-//! use winit::{Event, LogicalSize, WindowEvent};
+//! use winit::{Event, WindowEvent};
+//! use winit::dpi::LogicalSize;
 //! # use winit::EventsLoop;
 //! # let mut events_loop = EventsLoop::new();
 //!
@@ -110,12 +111,12 @@ extern crate percent_encoding;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
 extern crate smithay_client_toolkit as sctk;
 
-pub use dpi::*;
+pub(crate) use dpi::*; // TODO: Actually change the imports throughout the codebase.
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId};
 pub use icon::*;
 
-mod dpi;
+pub mod dpi;
 mod events;
 mod icon;
 mod platform;
@@ -233,6 +234,11 @@ impl EventsLoop {
     /// Calls `callback` every time an event is received. If no event is available, sleeps the
     /// current thread and waits for an event. If the callback returns `ControlFlow::Break` then
     /// `run_forever` will immediately return.
+    ///
+    /// # Danger!
+    ///
+    /// The callback is run after *every* event, so if its execution time is non-trivial the event queue may not empty
+    /// at a sufficient rate. Rendering in the callback with vsync enabled **will** cause significant lag.
     #[inline]
     pub fn run_forever<F>(&mut self, callback: F)
         where F: FnMut(Event) -> ControlFlow

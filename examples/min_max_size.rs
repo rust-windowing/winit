@@ -1,6 +1,6 @@
 extern crate winit;
 
-use winit::LogicalSize;
+use winit::dpi::LogicalSize;
 
 fn main() {
     let mut events_loop = winit::EventsLoop::new();
