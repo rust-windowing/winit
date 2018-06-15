@@ -10,17 +10,13 @@ use sctk::reexports::client::ConnectError;
 
 use {
     CreationError,
-    CursorState,
     EventsLoopClosed,
     Icon,
-    LogicalPosition,
-    LogicalSize,
     MouseCursor,
-    PhysicalPosition,
-    PhysicalSize,
     ControlFlow,
     WindowAttributes,
 };
+use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use window::MonitorId as RootMonitorId;
 use self::x11::{XConnection, XError};
 use self::x11::ffi::XVisualInfo;
@@ -251,10 +247,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
+    pub fn grab_cursor(&self, grab: bool) {
         match self {
-            &Window::X(ref w) => w.set_cursor_state(state),
-            &Window::Wayland(ref w) => w.set_cursor_state(state)
+            &Window::X(ref window) => window.grab_cursor(grab),
+            &Window::Wayland(ref _window) => unimplemented!(),
+        }
+    }
+
+    #[inline]
+    pub fn hide_cursor(&self, hide: bool) {
+        match self {
+            &Window::X(ref window) => window.hide_cursor(hide),
+            &Window::Wayland(ref _window) => unimplemented!(),
         }
     }
 
