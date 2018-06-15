@@ -5,9 +5,10 @@ use winapi::um::winuser;
 use std::{mem, ptr};
 use std::collections::VecDeque;
 
-use {PhysicalPosition, PhysicalSize};
 use super::{EventsLoop, util};
+use dpi::{PhysicalPosition, PhysicalSize};
 use platform::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
+use platform::platform::window::Window;
 
 /// Win32 implementation of the main `MonitorId` object.
 #[derive(Debug, Clone)]
@@ -48,19 +49,31 @@ unsafe extern "system" fn monitor_enum_proc(
     TRUE // continue enumeration
 }
 
+fn get_available_monitors() -> VecDeque<MonitorId> {
+    let mut monitors: VecDeque<MonitorId> = VecDeque::new();
+    unsafe {
+        winuser::EnumDisplayMonitors(
+            ptr::null_mut(),
+            ptr::null_mut(),
+            Some(monitor_enum_proc),
+            &mut monitors as *mut _ as LPARAM,
+        );
+    }
+    monitors
+}
+
+fn get_primary_monitor() -> MonitorId {
+    const ORIGIN: POINT = POINT { x: 0, y: 0 };
+    let hmonitor = unsafe {
+        winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY)
+    };
+    MonitorId::from_hmonitor(hmonitor)
+}
+
 impl EventsLoop {
     // TODO: Investigate opportunities for caching
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
-        let mut monitors: VecDeque<MonitorId> = VecDeque::new();
-        unsafe {
-            winuser::EnumDisplayMonitors(
-                ptr::null_mut(),
-                ptr::null_mut(),
-                Some(monitor_enum_proc),
-                &mut monitors as *mut _ as LPARAM,
-            );
-        }
-        monitors
+        get_available_monitors()
     }
 
     pub fn get_current_monitor(hwnd: HWND) -> MonitorId {
@@ -71,11 +84,17 @@ impl EventsLoop {
     }
 
     pub fn get_primary_monitor(&self) -> MonitorId {
-        const ORIGIN: POINT = POINT { x: 0, y: 0 };
-        let hmonitor = unsafe {
-            winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY)
-        };
-        MonitorId::from_hmonitor(hmonitor)
+        get_primary_monitor()
+    }
+}
+
+impl Window {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        get_available_monitors()
+    }
+
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        get_primary_monitor()
     }
 }
 
