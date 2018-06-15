@@ -1,21 +1,48 @@
 use std::{env, slice};
 use std::str::FromStr;
 
+use validate_hidpi_factor;
 use super::*;
-use super::ffi::{
-    RROutput,
-    XRRCrtcInfo,
-    XRRMonitorInfo,
-    XRRScreenResources,
-};
+
+pub fn calc_dpi_factor(
+    (width_px, height_px): (u32, u32),
+    (width_mm, height_mm): (u64, u64),
+) -> f64 {
+    // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
+    let dpi_override = env::var("WINIT_HIDPI_FACTOR")
+        .ok()
+        .and_then(|var| f64::from_str(&var).ok());
+    if let Some(dpi_override) = dpi_override {
+        if !validate_hidpi_factor(dpi_override) {
+            panic!(
+                "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be normal floats greater than 0. Got `{}`",
+                dpi_override,
+            );
+        }
+        return dpi_override;
+    }
+
+    // See http://xpra.org/trac/ticket/728 for more information.
+    if width_mm == 0 || width_mm == 0 {
+        return 1.0;
+    }
+
+    let ppmm = (
+        (width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)
+    ).sqrt();
+    // Quantize 1/12 step size
+    let dpi_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
+    assert!(validate_hidpi_factor(dpi_factor));
+    dpi_factor
+}
 
 pub enum MonitorRepr {
-    Monitor(*mut XRRMonitorInfo),
-    Crtc(*mut XRRCrtcInfo),
+    Monitor(*mut ffi::XRRMonitorInfo),
+    Crtc(*mut ffi::XRRCrtcInfo),
 }
 
 impl MonitorRepr {
-    pub unsafe fn get_output(&self) -> RROutput {
+    pub unsafe fn get_output(&self) -> ffi::RROutput {
         match *self {
             // Same member names, but different locations within the struct...
             MonitorRepr::Monitor(monitor) => *((*monitor).outputs.offset(0)),
@@ -38,47 +65,20 @@ impl MonitorRepr {
     }
 }
 
-impl From<*mut XRRMonitorInfo> for MonitorRepr {
-    fn from(monitor: *mut XRRMonitorInfo) -> Self {
+impl From<*mut ffi::XRRMonitorInfo> for MonitorRepr {
+    fn from(monitor: *mut ffi::XRRMonitorInfo) -> Self {
         MonitorRepr::Monitor(monitor)
     }
 }
 
-impl From<*mut XRRCrtcInfo> for MonitorRepr {
-    fn from(crtc: *mut XRRCrtcInfo) -> Self {
+impl From<*mut ffi::XRRCrtcInfo> for MonitorRepr {
+    fn from(crtc: *mut ffi::XRRCrtcInfo) -> Self {
         MonitorRepr::Crtc(crtc)
     }
 }
 
-pub fn calc_dpi_factor(
-    (width_px, height_px): (u32, u32),
-    (width_mm, height_mm): (u64, u64),
-) -> f64 {
-    // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
-    if let Ok(dpi_factor_str) = env::var("WINIT_HIDPI_FACTOR") {
-        if let Ok(dpi_factor) = f64::from_str(&dpi_factor_str) {
-            if dpi_factor <= 0. {
-                panic!("Expected `WINIT_HIDPI_FACTOR` to be bigger than 0, got '{}'", dpi_factor);
-            }
-
-            return dpi_factor;
-        }
-    }
-
-    // See http://xpra.org/trac/ticket/728 for more information
-    if width_mm == 0 || width_mm == 0 {
-        return 1.0;
-    }
-
-    let ppmm = (
-        (width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)
-    ).sqrt();
-    // Quantize 1/12 step size
-    ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0)
-}
-
 impl XConnection {
-    pub unsafe fn get_output_info(&self, resources: *mut XRRScreenResources, repr: &MonitorRepr) -> (String, f32) {
+    pub unsafe fn get_output_info(&self, resources: *mut ffi::XRRScreenResources, repr: &MonitorRepr) -> (String, f64) {
         let output_info = (self.xrandr.XRRGetOutputInfo)(
             self.display,
             resources,
@@ -92,7 +92,7 @@ impl XConnection {
         let hidpi_factor = calc_dpi_factor(
             repr.get_dimensions(),
             ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
-        ) as f32;
+        );
         (self.xrandr.XRRFreeOutputInfo)(output_info);
         (name, hidpi_factor)
     }

@@ -2,24 +2,34 @@
 
 extern crate android_glue;
 
-use libc;
-use std::sync::mpsc::{Receiver, channel};
+mod ffi;
+
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::fmt;
 use std::os::raw::c_void;
-use {CreationError, Event, WindowEvent, MouseCursor};
+use std::sync::mpsc::{Receiver, channel};
+
+use {
+    CreationError,
+    CursorState,
+    Event,
+    LogicalPosition,
+    LogicalSize,
+    MouseCursor,
+    PhysicalPosition,
+    PhysicalSize,
+    WindowAttributes,
+    WindowEvent,
+    WindowId as RootWindowId,
+};
 use CreationError::OsError;
-use WindowId as RootWindowId;
 use events::{Touch, TouchPhase};
 use window::MonitorId as RootMonitorId;
 
-use std::collections::VecDeque;
-use std::cell::RefCell;
-
-use CursorState;
-use WindowAttributes;
-
 pub struct EventsLoop {
     event_rx: Receiver<android_glue::Event>,
-    suspend_callback: RefCell<Option<Box<Fn(bool) -> ()>>>
+    suspend_callback: RefCell<Option<Box<Fn(bool) -> ()>>>,
 }
 
 #[derive(Clone)]
@@ -31,13 +41,13 @@ impl EventsLoop {
         android_glue::add_sender(tx);
         EventsLoop {
             event_rx: rx,
-            suspend_callback: RefCell::new(None),
+            suspend_callback: Default::default(),
         }
     }
 
     #[inline]
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
-        let mut rb = VecDeque::new();
+        let mut rb = VecDeque::with_capacity(1);
         rb.push_back(MonitorId);
         rb
     }
@@ -47,14 +57,17 @@ impl EventsLoop {
         MonitorId
     }
 
-
     pub fn poll_events<F>(&mut self, mut callback: F)
         where F: FnMut(::Event)
     {
         while let Ok(event) = self.event_rx.try_recv() {
-
             let e = match event{
                 android_glue::Event::EventMotion(motion) => {
+                    let dpi_factor = MonitorId.get_hidpi_factor();
+                    let location = LogicalPosition::from_physical(
+                        (motion.x as f64, motion.y as f64),
+                        dpi_factor,
+                    );
                     Some(Event::WindowEvent {
                         window_id: RootWindowId(WindowId),
                         event: WindowEvent::Touch(Touch {
@@ -64,7 +77,7 @@ impl EventsLoop {
                                 android_glue::MotionAction::Up => TouchPhase::Ended,
                                 android_glue::MotionAction::Cancel => TouchPhase::Cancelled,
                             },
-                            location: (motion.x as f64, motion.y as f64),
+                            location,
                             id: motion.pointer_id as u64,
                             device_id: DEVICE_ID,
                         }),
@@ -91,11 +104,12 @@ impl EventsLoop {
                     if native_window.is_null() {
                         None
                     } else {
-                        let w = unsafe { ffi::ANativeWindow_getWidth(native_window as *const _) } as u32;
-                        let h = unsafe { ffi::ANativeWindow_getHeight(native_window as *const _) } as u32;
+                        let dpi_factor = MonitorId.get_hidpi_factor();
+                        let physical_size = MonitorId.get_dimensions();
+                        let size = LogicalSize::from_physical(physical_size, dpi_factor);
                         Some(Event::WindowEvent {
                             window_id: RootWindowId(WindowId),
-                            event: WindowEvent::Resized(w, h),
+                            event: WindowEvent::Resized(size),
                         })
                     }
                 },
@@ -164,10 +178,29 @@ pub struct Window {
     native_window: *const c_void,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MonitorId;
 
-mod ffi;
+impl fmt::Debug for MonitorId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        #[derive(Debug)]
+        struct MonitorId {
+            name: Option<String>,
+            dimensions: PhysicalSize,
+            position: PhysicalPosition,
+            hidpi_factor: f64,
+        }
+
+        let monitor_id_proxy = MonitorId {
+            name: self.get_name(),
+            dimensions: self.get_dimensions(),
+            position: self.get_position(),
+            hidpi_factor: self.get_hidpi_factor(),
+        };
+
+        monitor_id_proxy.fmt(f)
+    }
+}
 
 impl MonitorId {
     #[inline]
@@ -176,21 +209,24 @@ impl MonitorId {
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> (u32, u32) {
+    pub fn get_dimensions(&self) -> PhysicalSize {
         unsafe {
             let window = android_glue::get_native_window();
-            (ffi::ANativeWindow_getWidth(window) as u32, ffi::ANativeWindow_getHeight(window) as u32)
+            (
+                ffi::ANativeWindow_getWidth(window) as f64,
+                ffi::ANativeWindow_getHeight(window) as f64,
+            ).into()
         }
     }
 
     #[inline]
-    pub fn get_position(&self) -> (i32, i32) {
+    pub fn get_position(&self) -> PhysicalPosition {
         // Android assumes single screen
-        (0, 0)
+        (0, 0).into()
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f32 {
+    pub fn get_hidpi_factor(&self) -> f64 {
         1.0
     }
 }
@@ -205,10 +241,6 @@ impl Window {
                _: PlatformSpecificWindowBuilderAttributes)
                -> Result<Window, CreationError>
     {
-        // not implemented
-        assert!(win_attribs.min_dimensions.is_none());
-        assert!(win_attribs.max_dimensions.is_none());
-
         let native_window = unsafe { android_glue::get_native_window() };
         if native_window.is_null() {
             return Err(OsError(format!("Android's native window is null")));
@@ -228,93 +260,103 @@ impl Window {
 
     #[inline]
     pub fn set_title(&self, _: &str) {
+        // N/A
     }
 
     #[inline]
     pub fn show(&self) {
+        // N/A
     }
 
     #[inline]
     pub fn hide(&self) {
+        // N/A
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<(i32, i32)> {
+    pub fn get_position(&self) -> Option<LogicalPosition> {
+        // N/A
         None
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+        // N/A
         None
     }
 
     #[inline]
-    pub fn set_position(&self, _x: i32, _y: i32) {
+    pub fn set_position(&self, _position: LogicalPosition) {
+        // N/A
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, _dimensions: Option<(u32, u32)>) { }
+    pub fn set_min_dimensions(&self, _dimensions: Option<LogicalSize>) {
+        // N/A
+    }
 
     #[inline]
-    pub fn set_max_dimensions(&self, _dimensions: Option<(u32, u32)>) { }
+    pub fn set_max_dimensions(&self, _dimensions: Option<LogicalSize>) {
+        // N/A
+    }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
+    pub fn set_resizable(&self, _resizable: bool) {
+        // N/A
+    }
+
+    #[inline]
+    pub fn get_inner_size(&self) -> Option<LogicalSize> {
         if self.native_window.is_null() {
             None
         } else {
-            Some((
-                unsafe { ffi::ANativeWindow_getWidth(self.native_window as *const _) } as u32,
-                unsafe { ffi::ANativeWindow_getHeight(self.native_window as *const _) } as u32
-            ))
+            let dpi_factor = self.get_hidpi_factor();
+            let physical_size = self.get_current_monitor().get_dimensions();
+            Some(LogicalSize::from_physical(physical_size, dpi_factor))
         }
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<(u32, u32)> {
+    pub fn get_outer_size(&self) -> Option<LogicalSize> {
         self.get_inner_size()
     }
 
     #[inline]
-    pub fn set_inner_size(&self, _x: u32, _y: u32) {
+    pub fn set_inner_size(&self, _size: LogicalSize) {
+        // N/A
     }
 
     #[inline]
-    pub fn platform_display(&self) -> *mut libc::c_void {
-        unimplemented!();
-    }
-
-    #[inline]
-    pub fn platform_window(&self) -> *mut libc::c_void {
-        unimplemented!()
+    pub fn get_hidpi_factor(&self) -> f64 {
+        self.get_current_monitor().get_hidpi_factor()
     }
 
     #[inline]
     pub fn set_cursor(&self, _: MouseCursor) {
+        // N/A
     }
 
     #[inline]
     pub fn set_cursor_state(&self, _state: CursorState) -> Result<(), String> {
+        // N/A
         Ok(())
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f32 {
-        1.0
-    }
-
-    #[inline]
-    pub fn set_cursor_position(&self, _x: i32, _y: i32) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ()> {
+        // N/A
         Ok(())
     }
 
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
+        // N/A
         // Android has single screen maximized apps so nothing to do
     }
 
     #[inline]
     pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+        // N/A
         // Android has single screen maximized apps so nothing to do
     }
 
@@ -334,15 +376,16 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, _x: i32, _y: i32) {
+    pub fn set_ime_spot(&self, _spot: LogicalPosition) {
         // N/A
     }
 
     #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
-        RootMonitorId{inner: MonitorId}
+        RootMonitorId { inner: MonitorId }
     }
 
+    #[inline]
     pub fn id(&self) -> WindowId {
         WindowId
     }

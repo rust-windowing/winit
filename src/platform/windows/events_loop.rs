@@ -12,41 +12,55 @@
 //! The closure passed to the `execute_in_thread` method takes an `Inserter` that you can use to
 //! add a `WindowState` entry to a list of window to be used by the callback.
 
+use std::{mem, ptr, thread};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::mem;
 use std::os::windows::ffi::OsStringExt;
 use std::os::windows::io::AsRawHandle;
-use std::ptr;
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Barrier;
-use std::sync::Mutex;
-use std::sync::Condvar;
-use std::thread;
+use std::sync::{Arc, Barrier, Condvar, mpsc, Mutex};
 
-use winapi::shared::minwindef::{LOWORD, HIWORD, DWORD, WPARAM, LPARAM, INT, UINT, LRESULT, MAX_PATH};
+use winapi::ctypes::c_int;
+use winapi::shared::minwindef::{
+    BOOL,
+    DWORD,
+    HIWORD,
+    INT,
+    LOWORD,
+    LPARAM,
+    LRESULT,
+    MAX_PATH,
+    UINT,
+    WPARAM,
+};
 use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
 use winapi::um::{winuser, shellapi, processthreadsapi};
-use winapi::um::winnt::{LONG, SHORT};
+use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
-use events::DeviceEvent;
+use {
+    ControlFlow,
+    CursorState,
+    Event,
+    EventsLoopClosed,
+    KeyboardInput,
+    LogicalPosition,
+    LogicalSize,
+    PhysicalSize,
+    WindowEvent,
+    WindowId as SuperWindowId,
+};
+use events::{DeviceEvent, Touch, TouchPhase};
 use platform::platform::{event, Cursor, WindowId, DEVICE_ID, wrap_device_id, util};
+use platform::platform::dpi::{
+    become_dpi_aware,
+    dpi_to_scale_factor,
+    enable_non_client_dpi_scaling,
+    get_hwnd_scale_factor,
+};
 use platform::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
-use platform::platform::raw_input::*;
+use platform::platform::raw_input::{get_raw_input_data, get_raw_mouse_button_state};
 use platform::platform::window::adjust_size;
-
-use ControlFlow;
-use CursorState;
-use Event;
-use EventsLoopClosed;
-use KeyboardInput;
-use WindowAttributes;
-use WindowEvent;
-use WindowId as SuperWindowId;
-use events::{Touch, TouchPhase};
 
 /// Contains saved window info for switching between fullscreen
 #[derive(Clone)]
@@ -57,6 +71,11 @@ pub struct SavedWindowInfo {
     pub ex_style: LONG,
     /// Window position and size
     pub rect: RECT,
+    // Since a window can be fullscreened to a different monitor, a DPI change can be triggered. This could result in
+    // the window being automitcally resized to smaller/larger than it was supposed to be restored to, so we thus must
+    // check if the post-fullscreen DPI matches the pre-fullscreen DPI.
+    pub is_fullscreen: bool,
+    pub dpi_factor: Option<f64>,
 }
 
 /// Contains information about states and the window that the callback is going to use.
@@ -67,11 +86,28 @@ pub struct WindowState {
     /// Cursor state to set at the next `WM_SETCURSOR` event received.
     pub cursor_state: CursorState,
     /// Used by `WM_GETMINMAXINFO`.
-    pub attributes: WindowAttributes,
+    pub max_size: Option<PhysicalSize>,
+    pub min_size: Option<PhysicalSize>,
     /// Will contain `true` if the mouse is hovering the window.
     pub mouse_in_window: bool,
     /// Saved window info for fullscreen restored
     pub saved_window_info: Option<SavedWindowInfo>,
+    // This is different from the value in `SavedWindowInfo`! That one represents the DPI saved upon entering
+    // fullscreen. This will always be the most recent DPI for the window.
+    pub dpi_factor: f64,
+}
+
+impl WindowState {
+    pub fn update_min_max(&mut self, old_dpi_factor: f64, new_dpi_factor: f64) {
+        let scale_factor = new_dpi_factor / old_dpi_factor;
+        let dpi_adjuster = |mut physical_size: PhysicalSize| -> PhysicalSize {
+            physical_size.width *= scale_factor;
+            physical_size.height *= scale_factor;
+            physical_size
+        };
+        self.max_size = self.max_size.map(&dpi_adjuster);
+        self.min_size = self.min_size.map(&dpi_adjuster);
+    }
 }
 
 /// Dummy object that allows inserting a window's state.
@@ -98,11 +134,17 @@ pub struct EventsLoop {
     // Variable that contains the block state of the win32 event loop thread during a WM_SIZE event.
     // The mutex's value is `true` when it's blocked, and should be set to false when it's done
     // blocking. That's done by the parent thread when it receives a Resized event.
-    win32_block_loop: Arc<(Mutex<bool>, Condvar)>
+    win32_block_loop: Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
+        Self::with_dpi_awareness(true)
+    }
+
+    pub fn with_dpi_awareness(dpi_aware: bool) -> EventsLoop {
+        become_dpi_aware(dpi_aware);
+
         // The main events transfer channel.
         let (tx, rx) = mpsc::channel();
         let win32_block_loop = Arc::new((Mutex::new(false), Condvar::new()));
@@ -171,7 +213,7 @@ impl EventsLoop {
         EventsLoop {
             thread_id,
             receiver: rx,
-            win32_block_loop
+            win32_block_loop,
         }
     }
 
@@ -289,22 +331,21 @@ impl EventsLoopProxy {
     where
         F: FnMut(Inserter) + Send + 'static,
     {
-        unsafe {
-            // We are using double-boxing here because it make casting back much easier
-            let boxed = Box::new(function) as Box<FnMut(_)>;
-            let boxed2 = Box::new(boxed);
-            let raw = Box::into_raw(boxed2);
+        // We are using double-boxing here because it make casting back much easier
+        let double_box = Box::new(Box::new(function) as Box<FnMut(_)>);
+        let raw = Box::into_raw(double_box);
 
-            let res = winuser::PostThreadMessageA(
+        let res = unsafe {
+            winuser::PostThreadMessageA(
                 self.thread_id,
                 *EXEC_MSG_ID,
                 raw as *mut () as usize as WPARAM,
                 0,
-            );
-            // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
-            // as the events loop is still alive) or if the queue is full.
-            assert!(res != 0, "PostThreadMessage failed; is the messages queue full?");
-        }
+            )
+        };
+        // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen as
+        // the events loop is still alive) or if the queue is full.
+        assert!(res != 0, "PostThreadMessage failed; is the messages queue full?");
     }
 }
 
@@ -313,7 +354,7 @@ lazy_static! {
     // WPARAM and LPARAM are unused.
     static ref WAKEUP_MSG_ID: u32 = {
         unsafe {
-            winuser::RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr() as *const i8)
+            winuser::RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr() as LPCSTR)
         }
     };
     // Message sent when we want to execute a closure in the thread.
@@ -321,14 +362,21 @@ lazy_static! {
     // and LPARAM is unused.
     static ref EXEC_MSG_ID: u32 = {
         unsafe {
-            winuser::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as *const i8)
+            winuser::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as LPCSTR)
         }
     };
     // Message sent by a `Window` when it wants to be destroyed by the main thread.
     // WPARAM and LPARAM are unused.
     pub static ref DESTROY_MSG_ID: u32 = {
         unsafe {
-            winuser::RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr() as *const i8)
+            winuser::RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr() as LPCSTR)
+        }
+    };
+    // Message sent by a `Window` after creation if it has a DPI != 96.
+    // WPARAM is the the DPI (u32). LOWORD of LPARAM is width, and HIWORD is height.
+    pub static ref INITIAL_DPI_MSG_ID: u32 = {
+        unsafe {
+            winuser::RegisterWindowMessageA("Winit::InitialDpiMsg\0".as_ptr() as LPCSTR)
         }
     };
 }
@@ -385,11 +433,18 @@ unsafe fn release_mouse() {
 //
 // Returning 0 tells the Win32 API that the message has been processed.
 // FIXME: detect WM_DWMCOMPOSITIONCHANGED and call DwmEnableBlurBehindWindow if necessary
-pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
-                                       wparam: WPARAM, lparam: LPARAM)
-                                       -> LRESULT
-{
+pub unsafe extern "system" fn callback(
+    window: HWND,
+    msg: UINT,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     match msg {
+        winuser::WM_NCCREATE => {
+            enable_non_client_dpi_scaling(window);
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
+        },
+
         winuser::WM_CLOSE => {
             use events::WindowEvent::CloseRequested;
             send_event(Event::WindowEvent {
@@ -427,9 +482,14 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 
             let windowpos = lparam as *const winuser::WINDOWPOS;
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
+                let dpi_factor = get_hwnd_scale_factor(window);
+                let logical_position = LogicalPosition::from_physical(
+                    ((*windowpos).x, (*windowpos).y),
+                    dpi_factor,
+                );
                 send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
-                    event: Moved((*windowpos).x, (*windowpos).y),
+                    event: Moved(logical_position),
                 });
             }
 
@@ -448,9 +508,11 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                 let mut context_stash = context_stash.borrow_mut();
                 let cstash = context_stash.as_mut().unwrap();
 
+                let dpi_factor = get_hwnd_scale_factor(window);
+                let logical_size = LogicalSize::from_physical((w, h), dpi_factor);
                 let event = Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
-                    event: Resized(w, h),
+                    event: Resized(logical_size),
                 };
 
                 // If this window has been inserted into the window map, the resize event happened
@@ -528,10 +590,12 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
+            let dpi_factor = get_hwnd_scale_factor(window);
+            let position = LogicalPosition::from_physical((x, y), dpi_factor);
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: CursorMoved { device_id: DEVICE_ID, position: (x, y), modifiers: event::get_key_mods() },
+                event: CursorMoved { device_id: DEVICE_ID, position, modifiers: event::get_key_mods() },
             });
 
             0
@@ -869,10 +933,17 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             let mut inputs = Vec::with_capacity( pcount );
             inputs.set_len( pcount );
             let htouch = lparam as winuser::HTOUCHINPUT;
-            if winuser::GetTouchInputInfo( htouch, pcount as UINT,
-                                           inputs.as_mut_ptr(),
-                                           mem::size_of::<winuser::TOUCHINPUT>() as INT ) > 0 {
+            if winuser::GetTouchInputInfo(
+                htouch,
+                pcount as UINT,
+                inputs.as_mut_ptr(),
+                mem::size_of::<winuser::TOUCHINPUT>() as INT,
+            ) > 0 {
+                let dpi_factor = get_hwnd_scale_factor(window);
                 for input in &inputs {
+                    let x = (input.x as f64) / 100f64;
+                    let y = (input.y as f64) / 100f64;
+                    let location = LogicalPosition::from_physical((x, y), dpi_factor);
                     send_event( Event::WindowEvent {
                         window_id: SuperWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {
@@ -886,8 +957,7 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                             } else {
                                 continue;
                             },
-                            location: ((input.x as f64) / 100f64,
-                                       (input.y as f64) / 100f64),
+                            location,
                             id: input.dwID as u64,
                             device_id: DEVICE_ID,
                         })
@@ -907,11 +977,14 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
+            let dpi_factor = get_hwnd_scale_factor(window);
+            let position = LogicalPosition::from_physical((x, y), dpi_factor);
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: CursorMoved { device_id: DEVICE_ID, position: (x, y), modifiers: event::get_key_mods() },
+                event: CursorMoved { device_id: DEVICE_ID, position, modifiers: event::get_key_mods() },
             });
+
             0
         },
 
@@ -985,18 +1058,15 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
                     if let Some(wstash) = cstash.windows.get(&window) {
                         let window_state = wstash.lock().unwrap();
 
-                        if window_state.attributes.min_dimensions.is_some() ||
-                           window_state.attributes.max_dimensions.is_some() {
-
+                        if window_state.min_size.is_some() || window_state.max_size.is_some() {
                             let style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
                             let ex_style = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
-
-                            if let Some(min_dimensions) = window_state.attributes.min_dimensions {
-                                let (width, height) = adjust_size(min_dimensions, style, ex_style);
+                            if let Some(min_size) = window_state.min_size {
+                                let (width, height) = adjust_size(min_size, style, ex_style);
                                 (*mmi).ptMinTrackSize = POINT { x: width as i32, y: height as i32 };
                             }
-                            if let Some(max_dimensions) = window_state.attributes.max_dimensions {
-                                let (width, height) = adjust_size(max_dimensions, style, ex_style);
+                            if let Some(max_size) = window_state.max_size {
+                                let (width, height) = adjust_size(max_size, style, ex_style);
                                 (*mmi).ptMaxTrackSize = POINT { x: width as i32, y: height as i32 };
                             }
                         }
@@ -1007,9 +1077,114 @@ pub unsafe extern "system" fn callback(window: HWND, msg: UINT,
             0
         },
 
+        // Only sent on Windows 8.1 or newer. On Windows 7 and older user has to log out to change
+        // DPI, therefore all applications are closed while DPI is changing.
+        winuser::WM_DPICHANGED => {
+            use events::WindowEvent::HiDpiFactorChanged;
+
+            // This message actually provides two DPI values - x and y. However MSDN says that
+            // "you only need to use either the X-axis or the Y-axis value when scaling your
+            // application since they are the same".
+            // https://msdn.microsoft.com/en-us/library/windows/desktop/dn312083(v=vs.85).aspx
+            let new_dpi_x = u32::from(LOWORD(wparam as DWORD));
+            let new_dpi_factor = dpi_to_scale_factor(new_dpi_x);
+
+            let suppress_resize = CONTEXT_STASH.with(|context_stash| {
+                context_stash
+                    .borrow()
+                    .as_ref()
+                    .and_then(|cstash| cstash.windows.get(&window))
+                    .map(|window_state_mutex| {
+                        let mut window_state = window_state_mutex.lock().unwrap();
+                        let suppress_resize = window_state.saved_window_info
+                            .as_mut()
+                            .map(|saved_window_info| {
+                                let dpi_changed = if !saved_window_info.is_fullscreen {
+                                    saved_window_info.dpi_factor.take() != Some(new_dpi_factor)
+                                } else {
+                                    false
+                                };
+                                !dpi_changed || saved_window_info.is_fullscreen
+                            })
+                            .unwrap_or(false);
+                        // Now we adjust the min/max dimensions for the new DPI.
+                        if !suppress_resize {
+                            let old_dpi_factor = window_state.dpi_factor;
+                            window_state.update_min_max(old_dpi_factor, new_dpi_factor);
+                        }
+                        window_state.dpi_factor = new_dpi_factor;
+                        suppress_resize
+                    })
+                    .unwrap_or(false)
+            });
+
+            // This prevents us from re-applying DPI adjustment to the restored size after exiting
+            // fullscreen (the restored size is already DPI adjusted).
+            if !suppress_resize {
+                // Resize window to the size suggested by Windows.
+                let rect = &*(lparam as *const RECT);
+                winuser::SetWindowPos(
+                    window,
+                    ptr::null_mut(),
+                    rect.left,
+                    rect.top,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE,
+                );
+            }
+
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: HiDpiFactorChanged(new_dpi_factor),
+            });
+
+            0
+        },
+
         _ => {
             if msg == *DESTROY_MSG_ID {
                 winuser::DestroyWindow(window);
+                0
+            } else if msg == *INITIAL_DPI_MSG_ID {
+                use events::WindowEvent::HiDpiFactorChanged;
+                let scale_factor = dpi_to_scale_factor(wparam as u32);
+                send_event(Event::WindowEvent {
+                    window_id: SuperWindowId(WindowId(window)),
+                    event: HiDpiFactorChanged(scale_factor),
+                });
+                // Automatically resize for actual DPI
+                let width = LOWORD(lparam as DWORD) as u32;
+                let height = HIWORD(lparam as DWORD) as u32;
+                let (adjusted_width, adjusted_height): (u32, u32) = PhysicalSize::from_logical(
+                    (width, height),
+                    scale_factor,
+                ).into();
+                // We're not done yet! `SetWindowPos` needs the window size, not the client area size.
+                let mut rect = RECT {
+                    top: 0,
+                    left: 0,
+                    bottom: adjusted_height as LONG,
+                    right: adjusted_width as LONG,
+                };
+                let dw_style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
+                let b_menu = !winuser::GetMenu(window).is_null() as BOOL;
+                let dw_style_ex = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
+                winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
+                let outer_x = (rect.right - rect.left).abs() as c_int;
+                let outer_y = (rect.top - rect.bottom).abs() as c_int;
+                winuser::SetWindowPos(
+                    window,
+                    ptr::null_mut(),
+                    0,
+                    0,
+                    outer_x,
+                    outer_y,
+                    winuser::SWP_NOMOVE
+                    | winuser::SWP_NOREPOSITION
+                    | winuser::SWP_NOZORDER
+                    | winuser::SWP_NOACTIVATE,
+                );
                 0
             } else {
                 winuser::DefWindowProcW(window, msg, wparam, lparam)

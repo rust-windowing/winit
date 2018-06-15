@@ -5,7 +5,25 @@ use std::os::raw::c_void;
 use libc;
 use winapi::shared::windef::HWND;
 
-use {DeviceId, Icon, MonitorId, Window, WindowBuilder};
+use {DeviceId, EventsLoop, Icon, MonitorId, Window, WindowBuilder};
+use platform::EventsLoop as WindowsEventsLoop;
+
+/// Additional methods on `EventsLoop` that are specific to Windows.
+pub trait EventsLoopExt {
+    /// By default, winit on Windows will attempt to enable process-wide DPI awareness. If that's
+    /// undesirable, you can create an `EventsLoop` using this function instead.
+    fn new_dpi_unaware() -> Self where Self: Sized;
+}
+
+impl EventsLoopExt for EventsLoop {
+    #[inline]
+    fn new_dpi_unaware() -> Self {
+        EventsLoop {
+            events_loop: WindowsEventsLoop::with_dpi_awareness(false),
+            _marker: ::std::marker::PhantomData,
+        }
+    }
+}
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExt {

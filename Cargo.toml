@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.15.0"
+version = "0.15.1"
 authors = ["The winit contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
@@ -34,25 +34,27 @@ core-foundation = "0.6"
 core-graphics = "0.14"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
-version = "0.3"
+version = "0.3.5"
 features = [
+    "combaseapi",
+    "dwmapi",
+    "hidusage",
+    "libloaderapi",
+    "objbase",
+    "processthreadsapi",
+    "shellapi",
+    "shellscalingapi",
+    "shobjidl_core",
+    "unknwnbase",
+    "windowsx",
+    "wingdi",
     "winnt",
     "winuser",
-    "wingdi",
-    "shellapi",
-    "dwmapi",
-    "processthreadsapi",
-    "libloaderapi",
-    "windowsx",
-    "hidusage",
-    "combaseapi",
-    "objbase",
-    "unknwnbase",
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
 wayland-client = { version = "0.20.6", features = [ "dlopen", "egl", "cursor"] }
-smithay-client-toolkit = "0.2.1"
+smithay-client-toolkit = "0.2.2"
 x11-dl = "2.17.5"
 parking_lot = "0.5"
 percent-encoding = "1.0"

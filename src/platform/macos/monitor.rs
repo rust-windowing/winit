@@ -1,9 +1,12 @@
+use std::collections::VecDeque;
+use std::fmt;
+
 use cocoa::appkit::NSScreen;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSString, NSUInteger};
 use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
-use std::collections::VecDeque;
-use std::fmt;
+
+use {PhysicalPosition, PhysicalSize};
 use super::EventsLoop;
 use super::window::IdRef;
 
@@ -39,9 +42,9 @@ impl fmt::Debug for MonitorId {
         struct MonitorId {
             name: Option<String>,
             native_identifier: u32,
-            dimensions: (u32, u32),
-            position: (i32, i32),
-            hidpi_factor: f32,
+            dimensions: PhysicalSize,
+            position: PhysicalPosition,
+            hidpi_factor: f64,
         }
 
         let monitor_id_proxy = MonitorId {
@@ -68,30 +71,32 @@ impl MonitorId {
         self.0
     }
 
-    pub fn get_dimensions(&self) -> (u32, u32) {
+    pub fn get_dimensions(&self) -> PhysicalSize {
         let MonitorId(display_id) = *self;
         let display = CGDisplay::new(display_id);
-        let dimension = {
-            let height = display.pixels_high();
-            let width = display.pixels_wide();
-            (width as u32, height as u32)
-        };
-        dimension
+        let height = display.pixels_high();
+        let width = display.pixels_wide();
+        PhysicalSize::from_logical(
+            (width as f64, height as f64),
+            self.get_hidpi_factor(),
+        )
     }
 
     #[inline]
-    pub fn get_position(&self) -> (i32, i32) {
+    pub fn get_position(&self) -> PhysicalPosition {
         let bounds = unsafe { CGDisplayBounds(self.get_native_identifier()) };
-        (bounds.origin.x as i32, bounds.origin.y as i32)
+        PhysicalPosition::from_logical(
+            (bounds.origin.x as f64, bounds.origin.y as f64),
+            self.get_hidpi_factor(),
+        )
     }
 
-    pub fn get_hidpi_factor(&self) -> f32 {
+    pub fn get_hidpi_factor(&self) -> f64 {
         let screen = match self.get_nsscreen() {
             Some(screen) => screen,
             None => return 1.0, // default to 1.0 when we can't find the screen
         };
-
-        unsafe { NSScreen::backingScaleFactor(screen) as f32 }
+        unsafe { NSScreen::backingScaleFactor(screen) as f64 }
     }
 
     pub(crate) fn get_nsscreen(&self) -> Option<id> {

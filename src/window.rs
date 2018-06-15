@@ -1,16 +1,20 @@
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
-use CreationError;
-use CursorState;
-use EventsLoop;
-use Icon;
-use MouseCursor;
-use Window;
-use WindowBuilder;
-use WindowId;
-
-use libc;
-use platform;
+use {
+    CreationError,
+    CursorState,
+    EventsLoop,
+    Icon,
+    LogicalPosition,
+    LogicalSize,
+    MouseCursor,
+    PhysicalPosition,
+    PhysicalSize,
+    platform,
+    Window,
+    WindowBuilder,
+    WindowId,
+};
 
 impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
@@ -23,37 +27,36 @@ impl WindowBuilder {
     }
 
     /// Requests the window to be of specific dimensions.
-    ///
-    /// Width and height are in pixels.
     #[inline]
-    pub fn with_dimensions(mut self, width: u32, height: u32) -> WindowBuilder {
-        self.window.dimensions = Some((width, height));
+    pub fn with_dimensions(mut self, size: LogicalSize) -> WindowBuilder {
+        self.window.dimensions = Some(size);
         self
     }
 
     /// Sets a minimum dimension size for the window
-    ///
-    /// Width and height are in pixels.
     #[inline]
-    pub fn with_min_dimensions(mut self, width: u32, height: u32) -> WindowBuilder {
-        self.window.min_dimensions = Some((width, height));
+    pub fn with_min_dimensions(mut self, min_size: LogicalSize) -> WindowBuilder {
+        self.window.min_dimensions = Some(min_size);
         self
     }
 
     /// Sets a maximum dimension size for the window
-    ///
-    /// Width and height are in pixels.
     #[inline]
-    pub fn with_max_dimensions(mut self, width: u32, height: u32) -> WindowBuilder {
-        self.window.max_dimensions = Some((width, height));
+    pub fn with_max_dimensions(mut self, max_size: LogicalSize) -> WindowBuilder {
+        self.window.max_dimensions = Some(max_size);
         self
     }
 
     /// Sets whether the window is resizable or not
     ///
+    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
+    /// triggered by DPI scaling, entering fullscreen mode, etc.
+    ///
     /// ## Platform-specific
     ///
-    /// This only has an effect on Windows, X11, and macOS.
+    /// This only has an effect on desktop platforms.
+    ///
+    /// Due to a bug in XFCE, this has no effect on Xfwm.
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> WindowBuilder {
         self.window.resizable = resizable;
@@ -148,14 +151,15 @@ impl WindowBuilder {
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     /// out of memory, etc.
+    #[inline]
     pub fn build(mut self, events_loop: &EventsLoop) -> Result<Window, CreationError> {
         self.window.dimensions = Some(self.window.dimensions.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
-                monitor.get_dimensions()
+                LogicalSize::from_physical(monitor.get_dimensions(), 1.0)
             } else {
                 // default dimensions
-                (1024, 768)
+                (1024, 768).into()
             }
         }));
 
@@ -223,7 +227,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_position(&self) -> Option<(i32, i32)> {
+    pub fn get_position(&self) -> Option<LogicalPosition> {
         self.window.get_position()
     }
 
@@ -232,7 +236,7 @@ impl Window {
     ///
     /// The same conditions that apply to `get_position` apply to this method.
     #[inline]
-    pub fn get_inner_position(&self) -> Option<(i32, i32)> {
+    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
         self.window.get_inner_position()
     }
 
@@ -242,61 +246,30 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_position(&self, x: i32, y: i32) {
-        self.window.set_position(x, y)
+    pub fn set_position(&self, position: LogicalPosition) {
+        self.window.set_position(position)
     }
 
-    /// Returns the size in pixels of the client area of the window.
+    /// Returns the logical size of the window's client area.
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
-    /// These are the dimensions that need to be supplied to `glViewport`.
+    ///
+    /// Converting the returned `LogicalSize` to `PhysicalSize` produces the size your framebuffer should be.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_inner_size(&self) -> Option<(u32, u32)> {
+    pub fn get_inner_size(&self) -> Option<LogicalSize> {
         self.window.get_inner_size()
     }
 
-    /// Returns the size in points of the client area of the window.
+    /// Returns the logical size of the entire window.
     ///
-    /// The client area is the content of the window, excluding the title bar and borders.
-    /// To get the dimensions of the frame buffer when calling `glViewport`, multiply with hidpi factor.
-    ///
-    /// Returns `None` if the window no longer exists.
-    ///
-    /// DEPRECATED
-    #[inline]
-    #[deprecated]
-    pub fn get_inner_size_points(&self) -> Option<(u32, u32)> {
-        self.window.get_inner_size().map(|(x, y)| {
-            let hidpi = self.hidpi_factor();
-            ((x as f32 / hidpi) as u32, (y as f32 / hidpi) as u32)
-        })
-    }
-
-    /// Returns the size in pixels of the client area of the window.
-    ///
-    /// The client area is the content of the window, excluding the title bar and borders.
-    /// These are the dimensions of the frame buffer, and the dimensions that you should use
-    ///  when you call `glViewport`.
-    ///
-    /// Returns `None` if the window no longer exists.
-    ///
-    /// DEPRECATED
-    #[inline]
-    #[deprecated]
-    pub fn get_inner_size_pixels(&self) -> Option<(u32, u32)> {
-        self.window.get_inner_size()
-    }
-
-    /// Returns the size in pixels of the window.
-    ///
-    /// These dimensions include title bar and borders. If you don't want these, you should use
-    ///  use `get_inner_size` instead.
+    /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
+    /// use `get_inner_size` instead.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_outer_size(&self) -> Option<(u32, u32)> {
+    pub fn get_outer_size(&self) -> Option<LogicalSize> {
         self.window.get_outer_size()
     }
 
@@ -306,66 +279,61 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_inner_size(&self, x: u32, y: u32) {
-        self.window.set_inner_size(x, y)
+    pub fn set_inner_size(&self, size: LogicalSize) {
+        self.window.set_inner_size(size)
     }
 
     /// Sets a minimum dimension size for the window.
-    ///
-    /// Width and height are in pixels.
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<(u32, u32)>) {
+    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
         self.window.set_min_dimensions(dimensions)
     }
 
     /// Sets a maximum dimension size for the window.
-    ///
-    /// Width and height are in pixels.
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<(u32, u32)>) {
+    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
         self.window.set_max_dimensions(dimensions)
     }
 
-    /// DEPRECATED. Gets the native platform specific display for this window.
-    /// This is typically only required when integrating with
-    /// other libraries that need this information.
-    #[deprecated]
+    /// Sets whether the window is resizable or not.
+    ///
+    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
+    /// triggered by DPI scaling, entering fullscreen mode, etc.
+    ///
+    /// ## Platform-specific
+    ///
+    /// This only has an effect on desktop platforms.
+    ///
+    /// Due to a bug in XFCE, this has no effect on Xfwm.
     #[inline]
-    pub unsafe fn platform_display(&self) -> *mut libc::c_void {
-        self.window.platform_display()
+    pub fn set_resizable(&self, resizable: bool) {
+        self.window.set_resizable(resizable)
     }
 
-    /// DEPRECATED. Gets the native platform specific window handle. This is
-    /// typically only required when integrating with other libraries
-    /// that need this information.
-    #[deprecated]
+    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
+    ///
+    /// See the [`dpi`](dpi/index.html) module for more information.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **Android:** Always returns 1.0.
     #[inline]
-    pub unsafe fn platform_window(&self) -> *mut libc::c_void {
-        self.window.platform_window()
+    pub fn get_hidpi_factor(&self) -> f64 {
+        self.window.get_hidpi_factor()
     }
 
     /// Modifies the mouse cursor of the window.
     /// Has no effect on Android.
+    #[inline]
     pub fn set_cursor(&self, cursor: MouseCursor) {
         self.window.set_cursor(cursor);
     }
 
-    /// Returns the ratio between the backing framebuffer resolution and the
-    /// window size in screen pixels. This is typically one for a normal display
-    /// and two for a retina display.
-    ///
-    /// ## Platform-specific
-    /// On X11 the DPI factor can be overridden using the `WINIT_HIDPI_FACTOR` environment
-    /// variable.
-    #[inline]
-    pub fn hidpi_factor(&self) -> f32 {
-        self.window.hidpi_factor()
-    }
-
     /// Changes the position of the cursor in window coordinates.
     #[inline]
-    pub fn set_cursor_position(&self, x: i32, y: i32) -> Result<(), ()> {
-        self.window.set_cursor_position(x, y)
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ()> {
+        self.window.set_cursor_position(position)
     }
 
     /// Sets how winit handles the cursor. See the documentation of `CursorState` for details.
@@ -415,11 +383,12 @@ impl Window {
 
     /// Sets location of IME candidate box in client area coordinates relative to the top left.
     #[inline]
-    pub fn set_ime_spot(&self, x: i32, y: i32) {
-        self.window.set_ime_spot(x, y)
+    pub fn set_ime_spot(&self, position: LogicalPosition) {
+        self.window.set_ime_spot(position)
     }
 
     /// Returns the monitor on which the window currently resides
+    #[inline]
     pub fn get_current_monitor(&self) -> MonitorId {
         self.window.get_current_monitor()
     }
@@ -466,26 +435,29 @@ impl MonitorId {
         self.inner.get_name()
     }
 
-    /// Returns the number of pixels currently displayed on the monitor.
+    /// Returns the monitor's resolution.
     #[inline]
-    pub fn get_dimensions(&self) -> (u32, u32) {
+    pub fn get_dimensions(&self) -> PhysicalSize {
         self.inner.get_dimensions()
     }
 
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
     #[inline]
-    pub fn get_position(&self) -> (i32, i32) {
+    pub fn get_position(&self) -> PhysicalPosition {
         self.inner.get_position()
     }
 
-    /// Returns the ratio between the monitor's physical pixels and logical pixels.
+    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
+    ///
+    /// See the [`dpi`](dpi/index.html) module for more information.
     ///
     /// ## Platform-specific
-    /// On X11 the DPI factor can be overridden using the `WINIT_HIDPI_FACTOR` environment
-    /// variable.
+    ///
+    /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **Android:** Always returns 1.0.
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f32 {
+    pub fn get_hidpi_factor(&self) -> f64 {
         self.inner.get_hidpi_factor()
     }
 }

@@ -1,8 +1,24 @@
 # Unreleased
 
+- **Breaking:** Removed `VirtualKeyCode::LMenu` and `VirtualKeyCode::RMenu`; Windows now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead.
+- On X11, exiting fullscreen no longer leaves the window in the monitor's top left corner.
+- **Breaking:** `Window::hidpi_factor` has been renamed to `Window::get_hidpi_factor` for better consistency. `WindowEvent::HiDPIFactorChanged` has been renamed to `WindowEvent::HiDpiFactorChanged`. DPI factors are always represented as `f64` instead of `f32` now.
+- The Windows backend is now DPI aware. `WindowEvent::HiDpiFactorChanged` is implemented, and `MonitorId::get_hidpi_factor` and `Window::hidpi_factor` return accurate values.
+- Implemented `WindowEvent::HiDpiFactorChanged` on X11.
+- On macOS, `Window::set_cursor_position` is now relative to the client area.
+- On macOS, setting the maximum and minimum dimensions now applies to the client area dimensions rather than to the window dimensions.
+- On iOS, `MonitorId::get_dimensions` has been implemented and both `MonitorId::get_hidpi_factor` and `Window::get_hidpi_factor` return accurate values.
+- On Emscripten, `MonitorId::get_hidpi_factor` now returns the same value as `Window::get_hidpi_factor` (it previously would always return 1.0).
+- **Breaking:** The entire API for sizes, positions, etc. has changed. In the majority of cases, winit produces and consumes positions and sizes as `LogicalPosition` and `LogicalSize`, respectively. The notable exception is `MonitorId` methods, which deal in `PhysicalPosition` and `PhysicalSize`. See the documentation for specifics and explanations of the types. Additionally, winit automatically conserves logical size when the DPI factor changes.
+- **Breaking:** All deprecated methods have been removed. For `Window::platform_display` and `Window::platform_window`, switch to the appropriate platform-specific `WindowExt` methods. For `Window::get_inner_size_points` and `Window::get_inner_size_pixels`, use the `LogicalSize` returned by `Window::get_inner_size` and convert as needed.
+- HiDPI support for Wayland.
+
+# Version 0.15.1 (2018-06-13)
+
 - On X11, the `Moved` event is no longer sent when the window is resized without changing position.
 - `MouseCursor` and `CursorState` now implement `Default`.
-- `WindowBuilder::with_resizable` implemented for Windows, X11, and macOS.
+- `WindowBuilder::with_resizable` implemented for Windows, X11, Wayland, and macOS.
+- `Window::set_resizable` implemented for Windows, X11, Wayland, and macOS.
 - On X11, if the monitor's width or height in millimeters is reported as 0, the DPI is now 1.0 instead of +inf.
 - On X11, the environment variable `WINIT_HIDPI_FACTOR` has been added for overriding DPI factor.
 - On X11, enabling transparency no longer causes the window contents to flicker when resizing.
