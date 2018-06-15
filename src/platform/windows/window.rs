@@ -882,6 +882,9 @@ unsafe fn init(
     if attributes.always_on_top {
         ex_style |= winuser::WS_EX_TOPMOST;
     }
+    if pl_attribs.no_redirection_bitmap {
+        ex_style |= winuser::WS_EX_NOREDIRECTIONBITMAP;
+    }
 
     // adjusting the window coordinates using the style
     winuser::AdjustWindowRectEx(&mut rect, style, 0, ex_style);
