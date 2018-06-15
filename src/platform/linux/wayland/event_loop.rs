@@ -199,27 +199,11 @@ impl EventsLoop {
     }
 
     pub fn get_primary_monitor(&self) -> MonitorId {
-        self.env.outputs.with_all(|list| {
-            if let Some(&(_, ref proxy, _)) = list.first() {
-                MonitorId {
-                    proxy: proxy.clone(),
-                    mgr: self.env.outputs.clone(),
-                }
-            } else {
-                panic!("No monitor is available.")
-            }
-        })
+        get_primary_monitor(&self.env.outputs)
     }
 
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
-        self.env.outputs.with_all(|list| {
-            list.iter()
-                .map(|&(_, ref proxy, _)| MonitorId {
-                    proxy: proxy.clone(),
-                    mgr: self.env.outputs.clone(),
-                })
-                .collect()
-        })
+        get_available_monitors(&self.env.outputs)
     }
 }
 
@@ -493,4 +477,28 @@ impl MonitorId {
             .with_info(&self.proxy, |_, info| info.scale_factor)
             .unwrap_or(1)
     }
+}
+
+pub fn get_primary_monitor(outputs: &OutputMgr) -> MonitorId {
+    outputs.with_all(|list| {
+        if let Some(&(_, ref proxy, _)) = list.first() {
+            MonitorId {
+                proxy: proxy.clone(),
+                mgr: outputs.clone(),
+            }
+        } else {
+            panic!("No monitor is available.")
+        }
+    })
+}
+
+pub fn get_available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorId> {
+    outputs.with_all(|list| {
+        list.iter()
+            .map(|&(_, ref proxy, _)| MonitorId {
+                proxy: proxy.clone(),
+                mgr: outputs.clone(),
+            })
+            .collect()
+    })
 }
