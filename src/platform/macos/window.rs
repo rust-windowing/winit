@@ -996,9 +996,10 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) {
+    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
-        let _ = CGDisplay::associate_mouse_and_mouse_cursor_position(!grab);
+        CGDisplay::associate_mouse_and_mouse_cursor_position(!grab)
+            .map_err(|status| format!("Failed to grab cursor: `CGError` {:?}", status))
     }
 
     #[inline]

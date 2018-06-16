@@ -1042,15 +1042,15 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) {
+    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         let mut grabbed_lock = self.cursor_grabbed.lock();
-        if grab == *grabbed_lock { return; }
+        if grab == *grabbed_lock { return Ok(()); }
         unsafe {
             // We ungrab before grabbing to prevent passive grabs from causing `AlreadyGrabbed`.
             // Therefore, this is common to both codepaths.
             (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
         }
-        if grab {
+        let result = if grab {
             let result = unsafe {
                 (self.xconn.xlib.XGrabPointer)(
                     self.xconn.display,
@@ -1080,17 +1080,21 @@ impl UnownedWindow {
             };
 
             match result {
-                ffi::GrabSuccess => (),
-                ffi::AlreadyGrabbed => error!("Cursor could not be grabbed: already grabbed by another client"),
-                ffi::GrabInvalidTime => error!("Cursor could not be grabbed: invalid time"),
-                ffi::GrabNotViewable => error!("Cursor could not be grabbed: grab location not viewable"),
-                ffi::GrabFrozen => error!("Cursor could not be grabbed: frozen by another client"),
+                ffi::GrabSuccess => Ok(()),
+                ffi::AlreadyGrabbed => Err("Cursor could not be grabbed: already grabbed by another client"),
+                ffi::GrabInvalidTime => Err("Cursor could not be grabbed: invalid time"),
+                ffi::GrabNotViewable => Err("Cursor could not be grabbed: grab location not viewable"),
+                ffi::GrabFrozen => Err("Cursor could not be grabbed: frozen by another client"),
                 _ => unreachable!(),
-            }
+            }.map_err(|err| err.to_owned())
         } else {
-            self.xconn.flush_requests().expect("Failed to call `XUngrabPointer`");
+            self.xconn.flush_requests()
+                .map_err(|err| format!("Failed to call `XUngrabPointer`: {:?}", err))
+        };
+        if result.is_ok() {
+            *grabbed_lock = grab;
         }
-        *grabbed_lock = grab;
+        result
     }
 
     #[inline]

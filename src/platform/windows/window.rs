@@ -387,7 +387,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) {
+    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         let (tx, rx) = channel();
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
@@ -398,7 +398,7 @@ impl Window {
             }
             let _ = tx.send(result);
         });
-        rx.recv().unwrap().expect("Failed to grab cursor")
+        rx.recv().unwrap()
     }
 
     #[inline]

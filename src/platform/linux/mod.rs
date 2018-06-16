@@ -247,10 +247,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) {
+    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         match self {
             &Window::X(ref window) => window.grab_cursor(grab),
-            &Window::Wayland(ref _window) => unimplemented!(),
+            &Window::Wayland(ref _window) => Err("Cursor grabbing is not yet possible on Wayland.".to_owned()),
         }
     }
 

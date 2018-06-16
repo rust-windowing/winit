@@ -336,8 +336,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn grab_cursor(&self, _grab: bool) {
-        // N/A
+    pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
+        Err("Cursor grabbing is not possible on Android.".to_owned())
     }
 
     #[inline]

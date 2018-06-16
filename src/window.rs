@@ -332,7 +332,7 @@ impl Window {
     ///
     /// Has no effect on Android or iOS.
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) {
+    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         self.window.grab_cursor(grab)
     }
 

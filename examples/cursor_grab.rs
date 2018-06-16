@@ -25,7 +25,7 @@ fn main() {
                     use winit::VirtualKeyCode::*;
                     match key {
                         Escape => return winit::ControlFlow::Break,
-                        G => window.grab_cursor(!modifiers.shift),
+                        G => window.grab_cursor(!modifiers.shift).unwrap(),
                         H => window.hide_cursor(!modifiers.shift),
                         _ => (),
                     }
