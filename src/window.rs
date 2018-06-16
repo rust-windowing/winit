@@ -330,7 +330,9 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// Has no effect on Android or iOS.
+    /// On macOS, this presently merely locks the cursor in a fixed location, which looks visually awkward.
+    ///
+    /// This has no effect on Android or iOS.
     #[inline]
     pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         self.window.grab_cursor(grab)
@@ -340,7 +342,12 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// Has no effect on Android or iOS.
+    /// On Windows and X11, the cursor is only hidden within the confines of the window.
+    ///
+    /// On macOS, the cursor is hidden as long as the window has input focus, even if the cursor is outside of the
+    /// window.
+    ///
+    /// This has no effect on Android or iOS.
     #[inline]
     pub fn hide_cursor(&self, hide: bool) {
         self.window.hide_cursor(hide)
