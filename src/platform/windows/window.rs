@@ -403,8 +403,10 @@ impl Window {
 
     #[inline]
     pub fn hide_cursor(&self, hide: bool) {
-        let (tx, rx) = channel();
         let window_state = Arc::clone(&self.window_state);
+        // We don't want to increment/decrement the display count more than once!
+        if hide == window_state.lock().unwrap().cursor_hidden { return; }
+        let (tx, rx) = channel();
         self.events_loop_proxy.execute_in_thread(move |_| {
             if hide {
                 unsafe { winuser::ShowCursor(FALSE) };
