@@ -979,9 +979,6 @@ impl UnownedWindow {
 
             MouseCursor::ZoomIn => load(b"zoom-in\0"),
             MouseCursor::ZoomOut => load(b"zoom-out\0"),
-
-            MouseCursor::NoneCursor => self.create_empty_cursor()
-                .expect("Failed to create empty cursor"),
         }
     }
 

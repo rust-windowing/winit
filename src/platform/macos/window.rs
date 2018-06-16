@@ -981,7 +981,7 @@ impl Window2 {
             MouseCursor::SeResize | MouseCursor::SwResize |
             MouseCursor::NwseResize | MouseCursor::NeswResize |
 
-            MouseCursor::Cell | MouseCursor::NoneCursor |
+            MouseCursor::Cell |
             MouseCursor::Wait | MouseCursor::Progress | MouseCursor::Help |
             MouseCursor::Move | MouseCursor::AllScroll | MouseCursor::ZoomIn |
             MouseCursor::ZoomOut => "arrowCursor",

@@ -14,7 +14,7 @@
 - HiDPI support for Wayland.
 - `EventsLoop::get_available_monitors` and `EventsLoop::get_primary_monitor` now have identical counterparts on `Window`, so this information can be acquired without an `EventsLoop` borrow.
 - `AvailableMonitorsIter` now implements `Debug`.
-- **Breaking:** `Window::set_cursor_state` and `CursorState` enum removed in favor of the more composable `Window::grab_cursor` and `Window::hide_cursor`. As a result, grabbing the cursor no longer automatically hides it; you must call both methods to retain the old behavior on Windows and macOS.
+- **Breaking:** `Window::set_cursor_state` and `CursorState` enum removed in favor of the more composable `Window::grab_cursor` and `Window::hide_cursor`. As a result, grabbing the cursor no longer automatically hides it; you must call both methods to retain the old behavior on Windows and macOS. `Cursor::NoneCursor` has been removed, as it's no longer useful.
 
 # Version 0.15.1 (2018-06-13)
 

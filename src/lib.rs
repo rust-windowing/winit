@@ -355,7 +355,6 @@ pub enum MouseCursor {
     /// Cursor showing that something cannot be done.
     NotAllowed,
     ContextMenu,
-    NoneCursor,
     Cell,
     VerticalText,
     Alias,
