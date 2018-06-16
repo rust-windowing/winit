@@ -8,31 +8,54 @@ use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
 
 use {PhysicalPosition, PhysicalSize};
 use super::EventsLoop;
-use super::window::IdRef;
+use super::window::{IdRef, Window2};
 
 #[derive(Clone, PartialEq)]
 pub struct MonitorId(CGDirectDisplayID);
 
-impl EventsLoop {
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
-        let mut monitors = VecDeque::new();
-        if let Ok(displays) = CGDisplay::active_displays() {
-            for d in displays {
-                monitors.push_back(MonitorId(d));
-            }
+fn get_available_monitors() -> VecDeque<MonitorId> {
+    if let Ok(displays) = CGDisplay::active_displays() {
+        let mut monitors = VecDeque::with_capacity(displays.len());
+        for d in displays {
+            monitors.push_back(MonitorId(d));
         }
         monitors
+    } else {
+        VecDeque::with_capacity(0)
+    }
+}
+
+pub fn get_primary_monitor() -> MonitorId {
+    let id = MonitorId(CGDisplay::main().id);
+    id
+}
+
+impl EventsLoop {
+    #[inline]
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        get_available_monitors()
     }
 
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
-        let id = MonitorId(CGDisplay::main().id);
-        id
+        get_primary_monitor()
     }
 
     pub fn make_monitor_from_display(id: CGDirectDisplayID) -> MonitorId {
         let id = MonitorId(id);
         id
+    }
+}
+
+impl Window2 {
+    #[inline]
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        get_available_monitors()
+    }
+
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        get_primary_monitor()
     }
 }
 

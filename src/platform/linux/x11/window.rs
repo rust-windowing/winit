@@ -503,6 +503,14 @@ impl UnownedWindow {
             })
     }
 
+    pub fn get_available_monitors(&self) -> Vec<X11MonitorId> {
+        self.xconn.get_available_monitors()
+    }
+
+    pub fn get_primary_monitor(&self) -> X11MonitorId {
+        self.xconn.get_primary_monitor()
+    }
+
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher {
         let horz_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0") };
         let vert_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0") };

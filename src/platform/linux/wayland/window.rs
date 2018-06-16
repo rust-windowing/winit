@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 
 use {CreationError, CursorState, MouseCursor, WindowAttributes, LogicalPosition, LogicalSize};
@@ -9,13 +10,16 @@ use sctk::reexports::client::{Display, Proxy};
 use sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_output};
 use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as CompositorRequests;
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
+use sctk::output::OutputMgr;
 
 use super::{make_wid, EventsLoop, MonitorId, WindowId};
+use platform::platform::wayland::event_loop::{get_available_monitors, get_primary_monitor};
 
 pub struct Window {
     surface: Proxy<wl_surface::WlSurface>,
     frame: Arc<Mutex<SWindow<BasicFrame>>>,
-    monitors: Arc<Mutex<MonitorList>>,
+    monitors: Arc<Mutex<MonitorList>>, // Monitors this window is currently on
+    outputs: OutputMgr, // Access to info for all monitors
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
     display: Arc<Display>,
@@ -153,6 +157,7 @@ impl Window {
             surface: surface,
             frame: frame,
             monitors: monitor_list,
+            outputs: evlp.env.outputs.clone(),
             size: size,
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
             need_frame_refresh: need_frame_refresh,
@@ -296,6 +301,14 @@ impl Window {
         // just return the most recent one ?
         let guard = self.monitors.lock().unwrap();
         guard.monitors.last().unwrap().clone()
+    }
+
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        get_available_monitors(&self.outputs)
+    }
+
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        get_primary_monitor(&self.outputs)
     }
 }
 

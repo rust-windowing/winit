@@ -448,6 +448,18 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        let mut rb = VecDeque::with_capacity(1);
+        rb.push_back(MonitorId);
+        rb
+    }
+
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId
+    }
+
+    #[inline]
     pub fn id(&self) -> WindowId {
         WindowId
     }

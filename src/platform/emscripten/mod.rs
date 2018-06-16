@@ -9,7 +9,8 @@ use std::os::raw::{c_char, c_void, c_double, c_ulong, c_int};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, Arc};
 
-use {LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use window::MonitorId as RootMonitorId;
 
 const DOCUMENT_NAME: &'static str = "#document\0";
 
@@ -582,8 +583,20 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> ::MonitorId {
-        ::MonitorId{inner: MonitorId}
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        RootMonitorId { inner: MonitorId }
+    }
+
+    #[inline]
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        let mut list = VecDeque::with_capacity(1);
+        list.push_back(MonitorId);
+        list
+    }
+
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId
     }
 }
 
