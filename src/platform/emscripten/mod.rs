@@ -375,7 +375,8 @@ impl Window {
         }
 
         let w = Window2 {
-            cursor_state: Default::default(),
+            cursor_grabbed: Default::default(),
+            cursor_hidden: Default::default(),
             events: Default::default(),
             is_fullscreen: attribs.fullscreen.is_some(),
         };
@@ -516,23 +517,25 @@ impl Window {
     #[inline]
     pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         let mut grabbed_lock = self.window.cursor_grabbed.lock().unwrap();
-        if grab == *grabbed_lock { return Ok((); }
-        if grab {
-            em_try(ffi::emscripten_set_pointerlockchange_callback(
-                ptr::null(),
-                0 as *mut c_void,
-                ffi::EM_FALSE,
-                Some(pointerlockchange_callback),
-            ))?
-            em_try(ffi::emscripten_request_pointerlock(ptr::null(), ffi::EM_TRUE))?
-        } else {
-            em_try(ffi::emscripten_set_pointerlockchange_callback(
-                ptr::null(),
-                0 as *mut c_void,
-                ffi::EM_FALSE,
-                None,
-            ))?
-            em_try(ffi::emscripten_exit_pointerlock())?
+        if grab == *grabbed_lock { return Ok(()); }
+        unsafe {
+            if grab {
+                em_try(ffi::emscripten_set_pointerlockchange_callback(
+                    ptr::null(),
+                    0 as *mut c_void,
+                    ffi::EM_FALSE,
+                    Some(pointerlockchange_callback),
+                ))?;
+                em_try(ffi::emscripten_request_pointerlock(ptr::null(), ffi::EM_TRUE))?;
+            } else {
+                em_try(ffi::emscripten_set_pointerlockchange_callback(
+                    ptr::null(),
+                    0 as *mut c_void,
+                    ffi::EM_FALSE,
+                    None,
+                ))?;
+                em_try(ffi::emscripten_exit_pointerlock())?;
+            }
         }
         *grabbed_lock = grab;
         Ok(())
@@ -543,7 +546,7 @@ impl Window {
         let mut hidden_lock = self.window.cursor_hidden.lock().unwrap();
         if hide == *hidden_lock { return; }
         if hide {
-            ffi::emscripten_hide_mouse();
+            unsafe { ffi::emscripten_hide_mouse() };
         } else {
             show_mouse();
         }
