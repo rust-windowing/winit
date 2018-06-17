@@ -3,7 +3,6 @@ use std::ops::Deref;
 use std::os::raw::c_void;
 use std::sync::Weak;
 use std::cell::{Cell, RefCell};
-use os::macos::BlurMaterial;
 
 use cocoa;
 use cocoa::appkit::{
@@ -38,7 +37,7 @@ use {
     WindowId,
 };
 use CreationError::OsError;
-use os::macos::{ActivationPolicy, WindowExt};
+use os::macos::{ActivationPolicy, BlurMaterial, WindowExt};
 use platform::platform::{ffi, util};
 use platform::platform::events_loop::{EventsLoop, Shared};
 use platform::platform::view::{new_view, set_ime_spot};
@@ -585,9 +584,8 @@ impl WindowExt for Window2 {
     }
 
     #[inline]
-    fn set_blur_material(&self, material: BlurMaterial) {
-        let view = self.get_nsview() as *mut objc::runtime::Object;
-        unsafe { msg_send![view, setMaterial: material as i64]; }
+    unsafe fn set_blur_material(&self, material: BlurMaterial) {
+        let _: () = msg_send![*self.view, setMaterial:material as i64];
     }
 }
 

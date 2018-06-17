@@ -483,8 +483,13 @@ pub struct WindowAttributes {
     /// see [multipleTouchEnabled](https://developer.apple.com/documentation/uikit/uiview/1622519-multipletouchenabled)
     pub multitouch: bool,
 
-    /// Whether the window should be blurry. This is similar to transparency.
-    ///
+    /// Whether the window should have a blur effect.
+    /// 
+    /// Blur is similar to transparency in that both allow you to "look though" the window,
+    /// except that with blur the seethrough content has an effect applied that gives it a
+    /// milky or smeared look.  
+    /// The exact look can be controlled per platform via traits like `WindowExt`.
+    /// 
     /// The default is `false`.
     pub blur: bool,
 }

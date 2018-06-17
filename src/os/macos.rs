@@ -17,8 +17,12 @@ pub trait WindowExt {
     /// The pointer will become invalid when the `Window` is destroyed.
     fn get_nsview(&self) -> *mut c_void;
 
-    /// Just for testing purposes.
-    fn set_blur_material(&self, material: BlurMaterial);
+    /// For windows created with the [blurred](WindowBuilder::with_blur) option,
+    /// this controls the appearance of the blur effect.
+    /// 
+    /// Marked as unsafe because depending on the version of macOS and the `BlurMaterial` variant passed,
+    /// this might cause a crash.
+    unsafe fn set_blur_material(&self, material: BlurMaterial);
 }
 
 impl WindowExt for Window {
@@ -33,7 +37,7 @@ impl WindowExt for Window {
     }
 
     #[inline]
-    fn set_blur_material(&self, material: BlurMaterial) {
+    unsafe fn set_blur_material(&self, material: BlurMaterial) {
         self.window.set_blur_material(material);
     }
 }
@@ -166,26 +170,52 @@ impl MonitorIdExt for MonitorId {
     }
 }
 
+/// Enumeration of all possible blur materials for macOS. Applies to macOS SDK 10.10+.
+/// 
+/// Not all versions of macOS support all the variants listed here.
+/// Check [Apple's documentation](https://developer.apple.com/documentation/appkit/nsvisualeffectview/material)
+/// to find out what your target version supports.
+/// The behaviour for using a material which is not supported depends how it is implemented in cocoa,
+/// but will most likely cause a crash.
 #[repr(i64)]
-// Applies to MacOS Mojave.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum BlurMaterial {
-    AppearanceBased = 0, // Deperecated
-    Light = 1, // Deperecated
-    Dark = 2, // Deprecated
+    /// A default material for the view’s effective appearance.
+    AppearanceBased = 0,
+    /// A material with a light effect.
+    Light = 1,
+    /// A material with a dark effect.
+    Dark = 2,
+    /// The material for a window’s titlebar.
     Titlebar = 3,
+    /// The material used to indicate a selection.
     Selection = 4,
+    /// The material for menus.
     Menu = 5,
+    /// The material for the background of popover windows.
     Popover = 6,
+    /// The material for the background of window sidebars.
     Sidebar = 7,
-    MediumLight = 8, // Deprecated
-    UltraDark = 9, // Deprecated
+    /// A material with a medium-light effect.
+    MediumLight = 8,
+    /// A material with an ultra-dark effect.
+    UltraDark = 9,
+    /// The material for in-line header or footer views.
     HeaderView = 10,
+    /// The material for the background of sheet windows.
     Sheet = 11,
+    /// The material for the background of opaque windows.
     WindowBackground = 12,
+    /// The material for the background of heads-up display (HUD) windows.
     HudWindow = 13,
+    /// The material for the background of a full-screen modal interface.
     FullScreenUi = 15,
+    /// The material for the background of a tool tip.
     ToolTip = 17,
+    /// The material for the background of opaque content.
     ContentBackground = 18,
+    /// The material for under a window's background.
     UnderWindowBackground = 21,
+    /// The material for the area behind the pages of a document.
     UnderPageBackground = 22,
 }

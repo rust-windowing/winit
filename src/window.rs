@@ -100,7 +100,8 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets whether the background of the window should be blurred.
+    /// Sets whether the background of the window should be blurred.  
+    /// See the blur member on [WindowAttributes](::WindowAttributes) for more info.
     #[inline]
     pub fn with_blur(mut self, blur: bool) -> WindowBuilder {
         self.window.blur = blur;
