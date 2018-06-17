@@ -399,10 +399,10 @@ impl EventsLoop {
                 // If the mouse movement was on one of our windows, use it.
                 // Otherwise, if one of our windows is the key window (receiving input), use it.
                 // Otherwise, return `None`.
-                let window = match maybe_window.or_else(maybe_key_window) {
-                    Some(window) => window,
+                match maybe_window.or_else(maybe_key_window) {
+                    Some(_window) => (),
                     None => return None,
-                };
+                }
 
                 let mut events = std::collections::VecDeque::with_capacity(3);
 
