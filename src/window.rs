@@ -96,7 +96,9 @@ impl WindowBuilder {
     #[inline]
     pub fn with_transparency(mut self, transparent: bool) -> WindowBuilder {
         self.window.transparent = transparent;
-        self.window.blur = !transparent;
+        if transparent {
+            self.window.blur = false;
+        }
         self
     }
 
@@ -105,7 +107,9 @@ impl WindowBuilder {
     #[inline]
     pub fn with_blur(mut self, blur: bool) -> WindowBuilder {
         self.window.blur = blur;
-        self.window.transparent = !blur;
+        if blur {
+            self.window.transparent = false;
+        }
         self
     }
 
