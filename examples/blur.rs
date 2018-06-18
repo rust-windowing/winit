@@ -17,23 +17,23 @@ fn main() {
         unsafe { window.set_blur_material(BlurMaterial::Dark) };
     }
 
-    events_loop.run_forever(|event| {
-        match event {
-            winit::Event::WindowEvent {
-                event: winit::WindowEvent::CloseRequested,
-                ..
-            } => winit::ControlFlow::Break,
-            winit::Event::WindowEvent {
-                event: winit::WindowEvent::KeyboardInput {
-                    input: winit::KeyboardInput {
-                        virtual_keycode: Some(winit::VirtualKeyCode::Escape),
-                        ..
-                    },
+    events_loop.run_forever(|event| match event {
+        winit::Event::WindowEvent {
+            event: winit::WindowEvent::CloseRequested,
+            ..
+        } => winit::ControlFlow::Break,
+        winit::Event::WindowEvent {
+            event:
+                winit::WindowEvent::KeyboardInput {
+                    input:
+                        winit::KeyboardInput {
+                            virtual_keycode: Some(winit::VirtualKeyCode::Escape),
+                            ..
+                        },
                     ..
                 },
-                ..
-            } => winit::ControlFlow::Break,
-            _ => winit::ControlFlow::Continue,
-        }
+            ..
+        } => winit::ControlFlow::Break,
+        _ => winit::ControlFlow::Continue,
     });
 }

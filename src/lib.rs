@@ -87,10 +87,12 @@
 #[allow(unused_imports)]
 #[macro_use]
 extern crate lazy_static;
-extern crate libc;
 #[cfg(feature = "icon_loading")]
 extern crate image;
+extern crate libc;
 
+#[cfg(target_os = "windows")]
+extern crate libloading;
 #[cfg(target_os = "windows")]
 extern crate winapi;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -102,19 +104,27 @@ extern crate cocoa;
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
 extern crate core_graphics;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
-extern crate x11_dl;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
+#[cfg(
+    any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd")
+)]
 extern crate parking_lot;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
+#[cfg(
+    any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd")
+)]
 extern crate percent_encoding;
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
+#[cfg(
+    any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd")
+)]
 extern crate smithay_client_toolkit as sctk;
+#[cfg(
+    any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd")
+)]
+extern crate x11_dl;
 
 pub(crate) use dpi::*; // TODO: Actually change the imports throughout the codebase.
 pub use events::*;
-pub use window::{AvailableMonitorsIter, MonitorId};
 pub use icon::*;
+pub use window::{AvailableMonitorsIter, MonitorId};
 
 pub mod dpi;
 mod events;
@@ -179,7 +189,7 @@ pub struct DeviceId(platform::DeviceId);
 /// `EventsLoopProxy` allows you to wakeup an `EventsLoop` from an other thread.
 pub struct EventsLoop {
     events_loop: platform::EventsLoop,
-    _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
+    _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
 }
 
 /// Returned by the user callback given to the `EventsLoop::run_forever` method.
@@ -213,20 +223,25 @@ impl EventsLoop {
     #[inline]
     pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
         let data = self.events_loop.get_available_monitors();
-        AvailableMonitorsIter{ data: data.into_iter() }
+        AvailableMonitorsIter {
+            data: data.into_iter(),
+        }
     }
 
     /// Returns the primary monitor of the system.
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId { inner: self.events_loop.get_primary_monitor() }
+        MonitorId {
+            inner: self.events_loop.get_primary_monitor(),
+        }
     }
 
     /// Fetches all the events that are pending, calls the callback function for each of them,
     /// and returns.
     #[inline]
     pub fn poll_events<F>(&mut self, callback: F)
-        where F: FnMut(Event)
+    where
+        F: FnMut(Event),
     {
         self.events_loop.poll_events(callback)
     }
@@ -241,7 +256,8 @@ impl EventsLoop {
     /// at a sufficient rate. Rendering in the callback with vsync enabled **will** cause significant lag.
     #[inline]
     pub fn run_forever<F>(&mut self, callback: F)
-        where F: FnMut(Event) -> ControlFlow
+    where
+        F: FnMut(Event) -> ControlFlow,
     {
         self.events_loop.run_forever(callback)
     }
@@ -484,12 +500,12 @@ pub struct WindowAttributes {
     pub multitouch: bool,
 
     /// Whether the window should have a blur effect.
-    /// 
+    ///
     /// Blur is similar to transparency in that both allow you to "look though" the window,
     /// except that with blur the seethrough content has an effect applied that gives it a
-    /// milky or smeared look.  
+    /// milky or smeared look.
     /// The exact look can be controlled per platform via traits like `WindowExt`.
-    /// 
+    ///
     /// The default is `false`.
     pub blur: bool,
 }
