@@ -7,8 +7,9 @@ use std::sync::Arc;
 use libc;
 use parking_lot::Mutex;
 
-use {CursorState, Icon, LogicalPosition, LogicalSize, MouseCursor, WindowAttributes};
+use {Icon, MouseCursor, WindowAttributes};
 use CreationError::{self, OsError};
+use dpi::{LogicalPosition, LogicalSize};
 use platform::MonitorId as PlatformMonitorId;
 use platform::PlatformSpecificWindowBuilderAttributes;
 use platform::x11::MonitorId as X11MonitorId;
@@ -61,7 +62,8 @@ pub struct UnownedWindow {
     root: ffi::Window, // never changes
     screen_id: i32, // never changes
     cursor: Mutex<MouseCursor>,
-    cursor_state: Mutex<CursorState>,
+    cursor_grabbed: Mutex<bool>,
+    cursor_hidden: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub multitouch: bool, // never changes
     pub shared_state: Mutex<SharedState>,
@@ -160,7 +162,8 @@ impl UnownedWindow {
             root,
             screen_id,
             cursor: Default::default(),
-            cursor_state: Default::default(),
+            cursor_grabbed: Default::default(),
+            cursor_hidden: Default::default(),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             multitouch: window_attrs.multitouch,
             shared_state: SharedState::new(),
@@ -976,9 +979,6 @@ impl UnownedWindow {
 
             MouseCursor::ZoomIn => load(b"zoom-in\0"),
             MouseCursor::ZoomOut => load(b"zoom-out\0"),
-
-            MouseCursor::NoneCursor => self.create_empty_cursor()
-                .expect("Failed to create empty cursor"),
         }
     }
 
@@ -995,7 +995,7 @@ impl UnownedWindow {
     #[inline]
     pub fn set_cursor(&self, cursor: MouseCursor) {
         *self.cursor.lock() = cursor;
-        if *self.cursor_state.lock() != CursorState::Hide {
+        if !*self.cursor_hidden.lock() {
             self.update_cursor(self.get_cursor(cursor));
         }
     }
@@ -1039,67 +1039,73 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        use CursorState::*;
-
-        let mut cursor_state_lock = self.cursor_state.lock();
-
-        match (state, *cursor_state_lock) {
-            (Normal, Normal) | (Hide, Hide) | (Grab, Grab) => return Ok(()),
-            _ => {},
+    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+        let mut grabbed_lock = self.cursor_grabbed.lock();
+        if grab == *grabbed_lock { return Ok(()); }
+        unsafe {
+            // We ungrab before grabbing to prevent passive grabs from causing `AlreadyGrabbed`.
+            // Therefore, this is common to both codepaths.
+            (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
         }
+        let result = if grab {
+            let result = unsafe {
+                (self.xconn.xlib.XGrabPointer)(
+                    self.xconn.display,
+                    self.xwindow,
+                    ffi::True,
+                    (
+                        ffi::ButtonPressMask
+                        | ffi::ButtonReleaseMask
+                        | ffi::EnterWindowMask
+                        | ffi::LeaveWindowMask
+                        | ffi::PointerMotionMask
+                        | ffi::PointerMotionHintMask
+                        | ffi::Button1MotionMask
+                        | ffi::Button2MotionMask
+                        | ffi::Button3MotionMask
+                        | ffi::Button4MotionMask
+                        | ffi::Button5MotionMask
+                        | ffi::ButtonMotionMask
+                        | ffi::KeymapStateMask
+                    ) as c_uint,
+                    ffi::GrabModeAsync,
+                    ffi::GrabModeAsync,
+                    self.xwindow,
+                    0,
+                    ffi::CurrentTime,
+                )
+            };
 
-        match *cursor_state_lock {
-            Grab => {
-                unsafe {
-                    (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
-                    self.xconn.flush_requests().expect("Failed to call XUngrabPointer");
-                }
-            },
-            Normal => {},
-            Hide => self.update_cursor(self.get_cursor(*self.cursor.lock())),
+            match result {
+                ffi::GrabSuccess => Ok(()),
+                ffi::AlreadyGrabbed => Err("Cursor could not be grabbed: already grabbed by another client"),
+                ffi::GrabInvalidTime => Err("Cursor could not be grabbed: invalid time"),
+                ffi::GrabNotViewable => Err("Cursor could not be grabbed: grab location not viewable"),
+                ffi::GrabFrozen => Err("Cursor could not be grabbed: frozen by another client"),
+                _ => unreachable!(),
+            }.map_err(|err| err.to_owned())
+        } else {
+            self.xconn.flush_requests()
+                .map_err(|err| format!("Failed to call `XUngrabPointer`: {:?}", err))
+        };
+        if result.is_ok() {
+            *grabbed_lock = grab;
         }
+        result
+    }
 
-        match state {
-            Normal => {
-                *cursor_state_lock = state;
-                Ok(())
-            },
-            Hide => {
-                *cursor_state_lock = state;
-                self.update_cursor(
-                    self.create_empty_cursor().expect("Failed to create empty cursor")
-                );
-                Ok(())
-            },
-            Grab => {
-                unsafe {
-                    // Ungrab before grabbing to prevent passive grabs
-                    // from causing AlreadyGrabbed
-                    (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
-
-                    match (self.xconn.xlib.XGrabPointer)(
-                        self.xconn.display, self.xwindow, ffi::True,
-                        (ffi::ButtonPressMask | ffi::ButtonReleaseMask | ffi::EnterWindowMask |
-                        ffi::LeaveWindowMask | ffi::PointerMotionMask | ffi::PointerMotionHintMask |
-                        ffi::Button1MotionMask | ffi::Button2MotionMask | ffi::Button3MotionMask |
-                        ffi::Button4MotionMask | ffi::Button5MotionMask | ffi::ButtonMotionMask |
-                        ffi::KeymapStateMask) as c_uint,
-                        ffi::GrabModeAsync, ffi::GrabModeAsync,
-                        self.xwindow, 0, ffi::CurrentTime
-                    ) {
-                        ffi::GrabSuccess => {
-                            *cursor_state_lock = state;
-                            Ok(())
-                        },
-                        ffi::AlreadyGrabbed | ffi::GrabInvalidTime |
-                        ffi::GrabNotViewable | ffi::GrabFrozen
-                            => Err("cursor could not be grabbed".to_string()),
-                        _ => unreachable!(),
-                    }
-                }
-            },
-        }
+    #[inline]
+    pub fn hide_cursor(&self, hide: bool) {
+        let mut hidden_lock = self.cursor_hidden.lock();
+        if hide == *hidden_lock {return; }
+        let cursor = if hide {
+            self.create_empty_cursor().expect("Failed to create empty cursor")
+        } else {
+            self.get_cursor(*self.cursor.lock())
+        };
+        *hidden_lock = hide;
+        drop(hidden_lock);
+        self.update_cursor(cursor);
     }
 
     #[inline]

@@ -355,7 +355,6 @@ pub enum MouseCursor {
     /// Cursor showing that something cannot be done.
     NotAllowed,
     ContextMenu,
-    NoneCursor,
     Cell,
     VerticalText,
     Alias,
@@ -388,29 +387,6 @@ pub enum MouseCursor {
 impl Default for MouseCursor {
     fn default() -> Self {
         MouseCursor::Default
-    }
-}
-
-/// Describes how winit handles the cursor.
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum CursorState {
-    /// Normal cursor behavior.
-    Normal,
-
-    /// The cursor will be invisible when over the window.
-    Hide,
-
-    /// Grabs the mouse cursor. The cursor's motion will be confined to this
-    /// window and the window has exclusive access to further events regarding
-    /// the cursor.
-    ///
-    /// This is useful for first-person cameras for example.
-    Grab,
-}
-
-impl Default for CursorState {
-    fn default() -> Self {
-        CursorState::Normal
     }
 }
 

@@ -69,7 +69,6 @@ use objc::runtime::{BOOL, Class, Object, Sel, YES};
 
 use {
     CreationError,
-    CursorState,
     Event,
     LogicalPosition,
     LogicalSize,
@@ -394,9 +393,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_state(&self, _cursor_state: CursorState) -> Result<(), String> {
+    pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
+        Err("Cursor grabbing is not possible on iOS.".to_owned())
+    }
+
+    #[inline]
+    pub fn hide_cursor(&self, _hide: bool) {
         // N/A
-        Ok(())
     }
 
     #[inline]

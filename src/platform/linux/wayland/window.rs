@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 
-use {CreationError, CursorState, MouseCursor, WindowAttributes, LogicalPosition, LogicalSize};
+use {CreationError, MouseCursor, WindowAttributes};
+use dpi::{LogicalPosition, LogicalSize};
 use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
 
@@ -237,17 +238,6 @@ impl Window {
     #[inline]
     pub fn set_cursor(&self, _cursor: MouseCursor) {
         // TODO
-    }
-
-    #[inline]
-    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        use CursorState::{Grab, Hide, Normal};
-        // TODO : not yet possible on wayland to grab cursor
-        match state {
-            Grab => Err("Cursor cannot be grabbed on wayland yet.".to_string()),
-            Hide => Err("Cursor cannot be hidden on wayland yet.".to_string()),
-            Normal => Ok(()),
-        }
     }
 
     #[inline]
