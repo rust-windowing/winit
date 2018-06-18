@@ -342,7 +342,6 @@ impl Window {
         cur.cursor = Cursor(cursor_id);
     }
 
-    #[allow(dead_code)]
     unsafe fn cursor_is_grabbed(&self) -> Result<bool, String> {
         let mut client_rect: RECT = mem::uninitialized();
         let mut clip_rect: RECT = mem::uninitialized();
@@ -362,7 +361,7 @@ impl Window {
         Ok(util::rect_eq(&client_rect, &clip_rect))
     }
 
-    unsafe fn grab_cursor_inner(window: &WindowWrapper, grab: bool) -> Result<(), String> {
+    pub(crate) unsafe fn grab_cursor_inner(window: &WindowWrapper, grab: bool) -> Result<(), String> {
         if grab {
             let mut rect = mem::uninitialized();
             if winuser::GetClientRect(window.0, &mut rect) == 0 {
@@ -388,9 +387,17 @@ impl Window {
 
     #[inline]
     pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
-        let (tx, rx) = channel();
-        let window = self.window.clone();
+        let currently_grabbed = unsafe { self.cursor_is_grabbed() }?;
         let window_state = Arc::clone(&self.window_state);
+        {
+            let window_state_lock = window_state.lock().unwrap();
+            if currently_grabbed == grab
+            && grab == window_state_lock.cursor_grabbed {
+                return Ok(());
+            }
+        }
+        let window = self.window.clone();
+        let (tx, rx) = channel();
         self.events_loop_proxy.execute_in_thread(move |_| {
             let result = unsafe { Self::grab_cursor_inner(&window, grab) };
             if result.is_ok() {
@@ -401,18 +408,25 @@ impl Window {
         rx.recv().unwrap()
     }
 
+    pub(crate) unsafe fn hide_cursor_inner(hide: bool) {
+        if hide {
+            winuser::ShowCursor(FALSE);
+        } else {
+            winuser::ShowCursor(TRUE);
+        }
+    }
+
     #[inline]
     pub fn hide_cursor(&self, hide: bool) {
         let window_state = Arc::clone(&self.window_state);
-        // We don't want to increment/decrement the display count more than once!
-        if hide == window_state.lock().unwrap().cursor_hidden { return; }
+        {
+            let window_state_lock = window_state.lock().unwrap();
+            // We don't want to increment/decrement the display count more than once!
+            if hide == window_state_lock.cursor_hidden { return; }
+        }
         let (tx, rx) = channel();
         self.events_loop_proxy.execute_in_thread(move |_| {
-            if hide {
-                unsafe { winuser::ShowCursor(FALSE) };
-            } else {
-                unsafe { winuser::ShowCursor(TRUE) };
-            }
+            unsafe { Self::hide_cursor_inner(hide) };
             window_state.lock().unwrap().cursor_hidden = hide;
             let _ = tx.send(());
         });
@@ -497,26 +511,28 @@ impl Window {
     }
 
     unsafe fn restore_saved_window(&self) {
-        let mut window_state = self.window_state.lock().unwrap();
+        let (rect, mut style, ex_style) = {
+            let mut window_state_lock = self.window_state.lock().unwrap();
 
-        // 'saved_window_info' can be None if the window has never been
-        // in fullscreen mode before this method gets called.
-        if window_state.saved_window_info.is_none() {
-            return;
-        }
+            // 'saved_window_info' can be None if the window has never been
+            // in fullscreen mode before this method gets called.
+            if window_state_lock.saved_window_info.is_none() {
+                return;
+            }
 
-        // Reset original window style and size.  The multiple window size/moves
-        // here are ugly, but if SetWindowPos() doesn't redraw, the taskbar won't be
-        // repainted.  Better-looking methods welcome.
-        {
-            let saved_window_info = window_state.saved_window_info.as_mut().unwrap();
+            let saved_window_info = window_state_lock.saved_window_info.as_mut().unwrap();
+
+            // Reset original window style and size.  The multiple window size/moves
+            // here are ugly, but if SetWindowPos() doesn't redraw, the taskbar won't be
+            // repainted.  Better-looking methods welcome.
             saved_window_info.is_fullscreen = false;
-        }
-        let saved_window_info = window_state.saved_window_info.as_ref().unwrap();
 
-        let rect = saved_window_info.rect.clone();
+            let rect = saved_window_info.rect.clone();
+            let (style, ex_style) = (saved_window_info.style, saved_window_info.ex_style);
+            (rect, style, ex_style)
+        };
         let window = self.window.clone();
-        let (mut style, ex_style) = (saved_window_info.style, saved_window_info.ex_style);
+        let window_state = Arc::clone(&self.window_state);
 
         let maximized = self.maximized.get();
         let resizable = self.resizable.get();
@@ -524,6 +540,8 @@ impl Window {
         // We're restoring the window to its size and position from before being fullscreened.
         // `ShowWindow` resizes the window, so it must be called from the main thread.
         self.events_loop_proxy.execute_in_thread(move |_| {
+            let _ = Self::grab_cursor_inner(&window, false);
+
             if resizable {
                 style |= winuser::WS_SIZEBOX as LONG;
             } else {
@@ -556,6 +574,9 @@ impl Window {
             );
 
             mark_fullscreen(window.0, false);
+
+            let window_state_lock = window_state.lock().unwrap();
+            let _ = Self::grab_cursor_inner(&window, window_state_lock.cursor_grabbed);
         });
     }
 
@@ -567,10 +588,13 @@ impl Window {
                     let (x, y): (i32, i32) = inner.get_position().into();
                     let (width, height): (u32, u32) = inner.get_dimensions().into();
                     let window = self.window.clone();
+                    let window_state = Arc::clone(&self.window_state);
 
                     let (style, ex_style) = self.set_fullscreen_style();
 
                     self.events_loop_proxy.execute_in_thread(move |_| {
+                        let _ = Self::grab_cursor_inner(&window, false);
+
                         winuser::SetWindowLongW(
                             window.0,
                             winuser::GWL_STYLE,
@@ -601,6 +625,9 @@ impl Window {
                         );
 
                         mark_fullscreen(window.0, true);
+
+                        let window_state_lock = window_state.lock().unwrap();
+                        let _ = Self::grab_cursor_inner(&window, window_state_lock.cursor_grabbed);
                     });
                 }
                 &None => {
