@@ -15,6 +15,7 @@
 - `EventsLoop::get_available_monitors` and `EventsLoop::get_primary_monitor` now have identical counterparts on `Window`, so this information can be acquired without an `EventsLoop` borrow.
 - `AvailableMonitorsIter` now implements `Debug`.
 - Fixed quirk on macOS where certain keys would generate characters at twice the normal rate when held down.
+- On X11, all event loops now share the same `XConnection`.
 
 # Version 0.15.1 (2018-06-13)
 
