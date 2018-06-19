@@ -1,5 +1,6 @@
 # Unreleased
 
+- Windows additionally has `WindowBuilderExt::with_no_redirection_bitmap`.
 - **Breaking:** Removed `VirtualKeyCode::LMenu` and `VirtualKeyCode::RMenu`; Windows now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead.
 - On X11, exiting fullscreen no longer leaves the window in the monitor's top left corner.
 - **Breaking:** `Window::hidpi_factor` has been renamed to `Window::get_hidpi_factor` for better consistency. `WindowEvent::HiDPIFactorChanged` has been renamed to `WindowEvent::HiDpiFactorChanged`. DPI factors are always represented as `f64` instead of `f32` now.
