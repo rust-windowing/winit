@@ -17,7 +17,7 @@
 - Fixed quirk on macOS where certain keys would generate characters at twice the normal rate when held down.
 - On X11, all event loops now share the same `XConnection`.
 - **Breaking:** `Window::set_cursor_state` and `CursorState` enum removed in favor of the more composable `Window::grab_cursor` and `Window::hide_cursor`. As a result, grabbing the cursor no longer automatically hides it; you must call both methods to retain the old behavior on Windows and macOS. `Cursor::NoneCursor` has been removed, as it's no longer useful.
-- `Window::set_cursor_position` now returns `Result<(), String>` and allows for error conversion via `?`.
+- **Breaking:** `Window::set_cursor_position` now returns `Result<(), String>`, thus allowing for `Box<Error>` conversion via `?`.
 
 # Version 0.15.1 (2018-06-13)
 
