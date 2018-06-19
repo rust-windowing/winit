@@ -269,22 +269,22 @@ impl Window {
 
     #[inline]
     pub fn set_cursor(&self, _cursor: MouseCursor) {
-        unimplemented!("Set cursor is not yet possible on Wayland.")
+        // TODO
     }
 
     #[inline]
     pub fn hide_cursor(&self, _hide: bool) {
-        unimplemented!("Cursor hiding is not yet possible on Wayland.")
+        // TODO
     }
 
     #[inline]
     pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
-        unimplemented!("Cursor grabbing is not yet possible on Wayland.")
+        Err("Cursor grabbing is not yet possible on Wayland.".to_owned())
     }
 
     #[inline]
     pub fn set_cursor_position(&self, _pos: LogicalPosition) -> Result<(), String> {
-        unimplemented!("Setting the cursor position is not yet possible on Wayland.")
+        Err("Setting the cursor position is not yet possible on Wayland.".to_owned())
     }
 
     pub fn get_display(&self) -> &Display {
