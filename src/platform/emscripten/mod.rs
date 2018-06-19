@@ -559,8 +559,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ()> {
-        Err(())
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
+        Err("Setting cursor position is not possible on Emscripten.".to_owned())
     }
 
     #[inline]

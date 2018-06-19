@@ -1025,17 +1025,18 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, cursor_position: LogicalPosition) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, cursor_position: LogicalPosition) -> Result<(), String> {
         let window_position = self.get_inner_position()
-            .expect("`get_inner_position` failed");
+            .ok_or("`get_inner_position` failed".to_owned())?;
         let point = appkit::CGPoint {
             x: (cursor_position.x + window_position.x) as CGFloat,
             y: (cursor_position.y + window_position.y) as CGFloat,
         };
         CGDisplay::warp_mouse_cursor_position(point)
-            .expect("`CGWarpMouseCursorPosition` failed");
+            .map_err(|e| format!("`CGWarpMouseCursorPosition` failed: {:?}", e))?;
         CGDisplay::associate_mouse_and_mouse_cursor_position(true)
-            .expect("`CGAssociateMouseAndMouseCursorPosition` failed");
+            .map_err(|e| format!("`CGAssociateMouseAndMouseCursorPosition` failed: {:?}", e))?;
+
         Ok(())
     }
 

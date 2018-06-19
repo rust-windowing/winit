@@ -438,21 +438,21 @@ impl Window {
         get_window_scale_factor(self.window.0, self.window.1)
     }
 
-    fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ()> {
+    fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), String> {
         let mut point = POINT { x, y };
         unsafe {
             if winuser::ClientToScreen(self.window.0, &mut point) == 0 {
-                return Err(());
+                return Err("`ClientToScreen` failed".to_owned());
             }
             if winuser::SetCursorPos(point.x, point.y) == 0 {
-                return Err(());
+                return Err("`SetCursorPos` failed".to_owned());
             }
         }
         Ok(())
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), ()> {
+    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), String> {
         let dpi_factor = self.get_hidpi_factor();
         let (x, y) = logical_position.to_physical(dpi_factor).into();
         self.set_cursor_position_physical(x, y)
