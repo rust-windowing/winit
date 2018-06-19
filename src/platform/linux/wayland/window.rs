@@ -274,7 +274,7 @@ impl Window {
 
     #[inline]
     pub fn hide_cursor(&self, _hide: bool) {
-        // TODO
+        // TODO: This isn't possible on Wayland yet
     }
 
     #[inline]
