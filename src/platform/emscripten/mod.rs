@@ -9,7 +9,8 @@ use std::os::raw::{c_char, c_void, c_double, c_ulong, c_int};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, Arc};
 
-use {LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use window::MonitorId as RootMonitorId;
 
 const DOCUMENT_NAME: &'static str = "#document\0";
 
@@ -149,7 +150,8 @@ impl EventsLoop {
 pub struct WindowId(usize);
 
 pub struct Window2 {
-    cursor_state: Mutex<::CursorState>,
+    cursor_grabbed: Mutex<bool>,
+    cursor_hidden: Mutex<bool>,
     is_fullscreen: bool,
     events: Box<Mutex<VecDeque<::Event>>>,
 }
@@ -373,7 +375,8 @@ impl Window {
         }
 
         let w = Window2 {
-            cursor_state: Default::default(),
+            cursor_grabbed: Default::default(),
+            cursor_hidden: Default::default(),
             events: Default::default(),
             is_fullscreen: attribs.fullscreen.is_some(),
         };
@@ -497,48 +500,57 @@ impl Window {
     }
 
     #[inline]
-    pub fn show(&self) {}
-    #[inline]
-    pub fn hide(&self) {}
+    pub fn show(&self) {
+        // N/A
+    }
 
     #[inline]
-    pub fn set_cursor(&self, _cursor: ::MouseCursor) {}
+    pub fn hide(&self) {
+        // N/A
+    }
 
     #[inline]
-    pub fn set_cursor_state(&self, state: ::CursorState) -> Result<(), String> {
+    pub fn set_cursor(&self, _cursor: ::MouseCursor) {
+        // N/A
+    }
+
+    #[inline]
+    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+        let mut grabbed_lock = self.window.cursor_grabbed.lock().unwrap();
+        if grab == *grabbed_lock { return Ok(()); }
         unsafe {
-            use ::CursorState::*;
-
-            let mut old_state = self.window.cursor_state.lock().unwrap();
-            if state == *old_state {
-                return Ok(());
+            if grab {
+                em_try(ffi::emscripten_set_pointerlockchange_callback(
+                    ptr::null(),
+                    0 as *mut c_void,
+                    ffi::EM_FALSE,
+                    Some(pointerlockchange_callback),
+                ))?;
+                em_try(ffi::emscripten_request_pointerlock(ptr::null(), ffi::EM_TRUE))?;
+            } else {
+                em_try(ffi::emscripten_set_pointerlockchange_callback(
+                    ptr::null(),
+                    0 as *mut c_void,
+                    ffi::EM_FALSE,
+                    None,
+                ))?;
+                em_try(ffi::emscripten_exit_pointerlock())?;
             }
-
-            // Set or unset grab callback
-            match state {
-                Hide | Normal => em_try(ffi::emscripten_set_pointerlockchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, None))?,
-                Grab => em_try(ffi::emscripten_set_pointerlockchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, Some(pointerlockchange_callback)))?,
-            }
-
-            // Go back to normal cursor state
-            match *old_state {
-                Hide => show_mouse(),
-                Grab => em_try(ffi::emscripten_exit_pointerlock())?,
-                Normal => (),
-            }
-
-            // Set cursor from normal cursor state
-            match state {
-                Hide => ffi::emscripten_hide_mouse(),
-                Grab => em_try(ffi::emscripten_request_pointerlock(ptr::null(), ffi::EM_TRUE))?,
-                Normal => (),
-            }
-
-            // Update
-            *old_state = state;
-
-            Ok(())
         }
+        *grabbed_lock = grab;
+        Ok(())
+    }
+
+    #[inline]
+    pub fn hide_cursor(&self, hide: bool) {
+        let mut hidden_lock = self.window.cursor_hidden.lock().unwrap();
+        if hide == *hidden_lock { return; }
+        if hide {
+            unsafe { ffi::emscripten_hide_mouse() };
+        } else {
+            show_mouse();
+        }
+        *hidden_lock = hide;
     }
 
     #[inline]
@@ -582,8 +594,20 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> ::MonitorId {
-        ::MonitorId{inner: MonitorId}
+    pub fn get_current_monitor(&self) -> RootMonitorId {
+        RootMonitorId { inner: MonitorId }
+    }
+
+    #[inline]
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+        let mut list = VecDeque::with_capacity(1);
+        list.push_back(MonitorId);
+        list
+    }
+
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId
     }
 }
 
@@ -597,7 +621,8 @@ impl Drop for Window {
 
         unsafe {
             // Return back to normal cursor state
-            let _ = self.set_cursor_state(::CursorState::Normal);
+            self.hide_cursor(false);
+            self.grab_cursor(false);
 
             // Exit fullscreen if on
             if self.window.is_fullscreen {

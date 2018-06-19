@@ -17,7 +17,6 @@ use winapi::um::winnt::{LONG, LPCWSTR};
 
 use {
     CreationError,
-    CursorState,
     Icon,
     LogicalPosition,
     LogicalSize,
@@ -26,9 +25,9 @@ use {
     PhysicalSize,
     WindowAttributes,
 };
-use platform::platform::{Cursor, EventsLoop, PlatformSpecificWindowBuilderAttributes, WindowId};
+use platform::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, WindowId};
 use platform::platform::dpi::{BASE_DPI, dpi_to_scale_factor, get_window_dpi, get_window_scale_factor};
-use platform::platform::events_loop::{self, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID};
+use platform::platform::events_loop::{self, DESTROY_MSG_ID, EventsLoop, INITIAL_DPI_MSG_ID};
 use platform::platform::icon::{self, IconType, WinIcon};
 use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
 use platform::platform::util;
@@ -336,7 +335,6 @@ impl Window {
             MouseCursor::Wait => winuser::IDC_WAIT,
             MouseCursor::Progress => winuser::IDC_APPSTARTING,
             MouseCursor::Help => winuser::IDC_HELP,
-            MouseCursor::NoneCursor => ptr::null(),
             _ => winuser::IDC_ARROW, // use arrow for the missing cases.
         };
 
@@ -363,79 +361,74 @@ impl Window {
         Ok(util::rect_eq(&client_rect, &clip_rect))
     }
 
-    fn change_cursor_state(
-        window: &WindowWrapper,
-        current_state: CursorState,
-        state: CursorState,
-    ) -> Result<CursorState, String> {
-        match (current_state, state) {
-            (CursorState::Normal, CursorState::Normal)
-            | (CursorState::Hide, CursorState::Hide)
-            | (CursorState::Grab, CursorState::Grab) => (), // no-op
-
-            (CursorState::Normal, CursorState::Hide) => unsafe {
-                winuser::ShowCursor(FALSE);
-            },
-
-            (CursorState::Grab, CursorState::Hide) => unsafe {
-                if winuser::ClipCursor(ptr::null()) == 0 {
-                    return Err("`ClipCursor` failed".to_owned());
-                }
-            },
-
-            (CursorState::Hide, CursorState::Normal) => unsafe {
-                winuser::ShowCursor(TRUE);
-            },
-
-            (CursorState::Normal, CursorState::Grab)
-            | (CursorState::Hide, CursorState::Grab) => unsafe {
-                let mut rect = mem::uninitialized();
-                if winuser::GetClientRect(window.0, &mut rect) == 0 {
-                    return Err("`GetClientRect` failed".to_owned());
-                }
-                if winuser::ClientToScreen(window.0, &mut rect.left as *mut _ as LPPOINT) == 0 {
-                    return Err("`ClientToScreen` (left, top) failed".to_owned());
-                }
-                if winuser::ClientToScreen(window.0, &mut rect.right as *mut _ as LPPOINT) == 0 {
-                    return Err("`ClientToScreen` (right, bottom) failed".to_owned());
-                }
-                if winuser::ClipCursor(&rect) == 0 {
-                    return Err("`ClipCursor` failed".to_owned());
-                }
-                if current_state != CursorState::Hide {
-                    winuser::ShowCursor(FALSE);
-                }
-            },
-
-            (CursorState::Grab, CursorState::Normal) => unsafe {
-                if winuser::ClipCursor(ptr::null()) == 0 {
-                    return Err("`ClipCursor` failed".to_owned());
-                }
-                winuser::ShowCursor(TRUE);
-            },
-        };
-        Ok(state)
+    pub(crate) unsafe fn grab_cursor_inner(window: &WindowWrapper, grab: bool) -> Result<(), String> {
+        if grab {
+            let mut rect = mem::uninitialized();
+            if winuser::GetClientRect(window.0, &mut rect) == 0 {
+                return Err("`GetClientRect` failed".to_owned());
+            }
+            // A `POINT` is two `LONG`s (x, y), and the `RECT` field after `left` is `top`.
+            if winuser::ClientToScreen(window.0, &mut rect.left as *mut _ as LPPOINT) == 0 {
+                return Err("`ClientToScreen` (left, top) failed".to_owned());
+            }
+            if winuser::ClientToScreen(window.0, &mut rect.right as *mut _ as LPPOINT) == 0 {
+                return Err("`ClientToScreen` (right, bottom) failed".to_owned());
+            }
+            if winuser::ClipCursor(&rect) == 0 {
+                return Err("`ClipCursor` failed".to_owned());
+            }
+        } else {
+            if winuser::ClipCursor(ptr::null()) == 0 {
+                return Err("`ClipCursor` failed".to_owned());
+            }
+        }
+        Ok(())
     }
 
-    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        let is_grabbed = unsafe { self.cursor_is_grabbed() }?;
-        let (tx, rx) = channel();
-        let window = self.window.clone();
+    #[inline]
+    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+        let currently_grabbed = unsafe { self.cursor_is_grabbed() }?;
         let window_state = Arc::clone(&self.window_state);
+        {
+            let window_state_lock = window_state.lock().unwrap();
+            if currently_grabbed == grab
+            && grab == window_state_lock.cursor_grabbed {
+                return Ok(());
+            }
+        }
+        let window = self.window.clone();
+        let (tx, rx) = channel();
         self.events_loop_proxy.execute_in_thread(move |_| {
-            let mut window_state_lock = window_state.lock().unwrap();
-            // We should probably also check if the cursor is hidden,
-            // but `GetCursorInfo` isn't in winapi-rs yet, and it doesn't seem to matter as much.
-            let current_state = match window_state_lock.cursor_state {
-                CursorState::Normal if is_grabbed => CursorState::Grab,
-                CursorState::Grab if !is_grabbed => CursorState::Normal,
-                current_state => current_state,
-            };
-            let result = Self::change_cursor_state(&window, current_state, state)
-                .map(|_| {
-                    window_state_lock.cursor_state = state;
-                });
+            let result = unsafe { Self::grab_cursor_inner(&window, grab) };
+            if result.is_ok() {
+                window_state.lock().unwrap().cursor_grabbed = grab;
+            }
             let _ = tx.send(result);
+        });
+        rx.recv().unwrap()
+    }
+
+    pub(crate) unsafe fn hide_cursor_inner(hide: bool) {
+        if hide {
+            winuser::ShowCursor(FALSE);
+        } else {
+            winuser::ShowCursor(TRUE);
+        }
+    }
+
+    #[inline]
+    pub fn hide_cursor(&self, hide: bool) {
+        let window_state = Arc::clone(&self.window_state);
+        {
+            let window_state_lock = window_state.lock().unwrap();
+            // We don't want to increment/decrement the display count more than once!
+            if hide == window_state_lock.cursor_hidden { return; }
+        }
+        let (tx, rx) = channel();
+        self.events_loop_proxy.execute_in_thread(move |_| {
+            unsafe { Self::hide_cursor_inner(hide) };
+            window_state.lock().unwrap().cursor_hidden = hide;
+            let _ = tx.send(());
         });
         rx.recv().unwrap()
     }
@@ -518,26 +511,28 @@ impl Window {
     }
 
     unsafe fn restore_saved_window(&self) {
-        let mut window_state = self.window_state.lock().unwrap();
+        let (rect, mut style, ex_style) = {
+            let mut window_state_lock = self.window_state.lock().unwrap();
 
-        // 'saved_window_info' can be None if the window has never been
-        // in fullscreen mode before this method gets called.
-        if window_state.saved_window_info.is_none() {
-            return;
-        }
+            // 'saved_window_info' can be None if the window has never been
+            // in fullscreen mode before this method gets called.
+            if window_state_lock.saved_window_info.is_none() {
+                return;
+            }
 
-        // Reset original window style and size.  The multiple window size/moves
-        // here are ugly, but if SetWindowPos() doesn't redraw, the taskbar won't be
-        // repainted.  Better-looking methods welcome.
-        {
-            let saved_window_info = window_state.saved_window_info.as_mut().unwrap();
+            let saved_window_info = window_state_lock.saved_window_info.as_mut().unwrap();
+
+            // Reset original window style and size.  The multiple window size/moves
+            // here are ugly, but if SetWindowPos() doesn't redraw, the taskbar won't be
+            // repainted.  Better-looking methods welcome.
             saved_window_info.is_fullscreen = false;
-        }
-        let saved_window_info = window_state.saved_window_info.as_ref().unwrap();
 
-        let rect = saved_window_info.rect.clone();
+            let rect = saved_window_info.rect.clone();
+            let (style, ex_style) = (saved_window_info.style, saved_window_info.ex_style);
+            (rect, style, ex_style)
+        };
         let window = self.window.clone();
-        let (mut style, ex_style) = (saved_window_info.style, saved_window_info.ex_style);
+        let window_state = Arc::clone(&self.window_state);
 
         let maximized = self.maximized.get();
         let resizable = self.resizable.get();
@@ -545,6 +540,8 @@ impl Window {
         // We're restoring the window to its size and position from before being fullscreened.
         // `ShowWindow` resizes the window, so it must be called from the main thread.
         self.events_loop_proxy.execute_in_thread(move |_| {
+            let _ = Self::grab_cursor_inner(&window, false);
+
             if resizable {
                 style |= winuser::WS_SIZEBOX as LONG;
             } else {
@@ -577,6 +574,9 @@ impl Window {
             );
 
             mark_fullscreen(window.0, false);
+
+            let window_state_lock = window_state.lock().unwrap();
+            let _ = Self::grab_cursor_inner(&window, window_state_lock.cursor_grabbed);
         });
     }
 
@@ -588,10 +588,13 @@ impl Window {
                     let (x, y): (i32, i32) = inner.get_position().into();
                     let (width, height): (u32, u32) = inner.get_dimensions().into();
                     let window = self.window.clone();
+                    let window_state = Arc::clone(&self.window_state);
 
                     let (style, ex_style) = self.set_fullscreen_style();
 
                     self.events_loop_proxy.execute_in_thread(move |_| {
+                        let _ = Self::grab_cursor_inner(&window, false);
+
                         winuser::SetWindowLongW(
                             window.0,
                             winuser::GWL_STYLE,
@@ -622,6 +625,9 @@ impl Window {
                         );
 
                         mark_fullscreen(window.0, true);
+
+                        let window_state_lock = window_state.lock().unwrap();
+                        let _ = Self::grab_cursor_inner(&window, window_state_lock.cursor_grabbed);
                     });
                 }
                 &None => {
@@ -983,7 +989,8 @@ unsafe fn init(
             .map(|logical_size| PhysicalSize::from_logical(logical_size, dpi_factor));
         let mut window_state = events_loop::WindowState {
             cursor: Cursor(winuser::IDC_ARROW), // use arrow by default
-            cursor_state: CursorState::Normal,
+            cursor_grabbed: false,
+            cursor_hidden: false,
             max_size,
             min_size,
             mouse_in_window: false,

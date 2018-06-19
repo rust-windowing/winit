@@ -2,7 +2,6 @@ use std::collections::vec_deque::IntoIter as VecDequeIter;
 
 use {
     CreationError,
-    CursorState,
     EventsLoop,
     Icon,
     LogicalPosition,
@@ -327,12 +326,31 @@ impl Window {
         self.window.set_cursor_position(position)
     }
 
-    /// Sets how winit handles the cursor. See the documentation of `CursorState` for details.
+    /// Grabs the cursor, preventing it from leaving the window.
     ///
-    /// Has no effect on Android.
+    /// ## Platform-specific
+    ///
+    /// On macOS, this presently merely locks the cursor in a fixed location, which looks visually awkward.
+    ///
+    /// This has no effect on Android or iOS.
     #[inline]
-    pub fn set_cursor_state(&self, state: CursorState) -> Result<(), String> {
-        self.window.set_cursor_state(state)
+    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+        self.window.grab_cursor(grab)
+    }
+
+    /// Hides the cursor, making it invisible but still usable.
+    ///
+    /// ## Platform-specific
+    ///
+    /// On Windows and X11, the cursor is only hidden within the confines of the window.
+    ///
+    /// On macOS, the cursor is hidden as long as the window has input focus, even if the cursor is outside of the
+    /// window.
+    ///
+    /// This has no effect on Android or iOS.
+    #[inline]
+    pub fn hide_cursor(&self, hide: bool) {
+        self.window.hide_cursor(hide)
     }
 
     /// Sets the window to maximized or back
@@ -384,6 +402,23 @@ impl Window {
         self.window.get_current_monitor()
     }
 
+    /// Returns the list of all the monitors available on the system.
+    ///
+    /// This is the same as `EventsLoop::get_available_monitors`, and is provided for convenience.
+    #[inline]
+    pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
+        let data = self.window.get_available_monitors();
+        AvailableMonitorsIter { data: data.into_iter() }
+    }
+
+    /// Returns the primary monitor of the system.
+    ///
+    /// This is the same as `EventsLoop::get_primary_monitor`, and is provided for convenience.
+    #[inline]
+    pub fn get_primary_monitor(&self) -> MonitorId {
+        MonitorId { inner: self.window.get_primary_monitor() }
+    }
+
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.id())
@@ -393,6 +428,7 @@ impl Window {
 /// An iterator for the list of available monitors.
 // Implementation note: we retrieve the list once, then serve each element by one by one.
 // This may change in the future.
+#[derive(Debug)]
 pub struct AvailableMonitorsIter {
     pub(crate) data: VecDequeIter<platform::MonitorId>,
 }

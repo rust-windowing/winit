@@ -396,11 +396,14 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
                         .unwrap()
                         .push_back(window_event);
                 }
+            } else {
+                // Some keys (and only *some*, with no known reason) don't trigger `insertText`, while others do...
+                // So, we don't give repeats the opportunity to trigger that, since otherwise our hack will cause some
+                // keys to generate twice as many characters.
+                let array: id = msg_send![class("NSArray"), arrayWithObject:event];
+                let (): _ = msg_send![this, interpretKeyEvents:array];
             }
         }
-
-        let array: id = msg_send![class("NSArray"), arrayWithObject:event];
-        let (): _ = msg_send![this, interpretKeyEvents:array];
     }
 }
 

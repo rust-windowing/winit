@@ -40,7 +40,6 @@ use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
 use {
     ControlFlow,
-    CursorState,
     Event,
     EventsLoopClosed,
     KeyboardInput,
@@ -83,8 +82,8 @@ pub struct SavedWindowInfo {
 pub struct WindowState {
     /// Cursor to set at the next `WM_SETCURSOR` event received.
     pub cursor: Cursor,
-    /// Cursor state to set at the next `WM_SETCURSOR` event received.
-    pub cursor_state: CursorState,
+    pub cursor_grabbed: bool,
+    pub cursor_hidden: bool,
     /// Used by `WM_GETMINMAXINFO`.
     pub max_size: Option<PhysicalSize>,
     pub min_size: Option<PhysicalSize>,

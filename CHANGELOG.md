@@ -12,6 +12,11 @@
 - **Breaking:** The entire API for sizes, positions, etc. has changed. In the majority of cases, winit produces and consumes positions and sizes as `LogicalPosition` and `LogicalSize`, respectively. The notable exception is `MonitorId` methods, which deal in `PhysicalPosition` and `PhysicalSize`. See the documentation for specifics and explanations of the types. Additionally, winit automatically conserves logical size when the DPI factor changes.
 - **Breaking:** All deprecated methods have been removed. For `Window::platform_display` and `Window::platform_window`, switch to the appropriate platform-specific `WindowExt` methods. For `Window::get_inner_size_points` and `Window::get_inner_size_pixels`, use the `LogicalSize` returned by `Window::get_inner_size` and convert as needed.
 - HiDPI support for Wayland.
+- `EventsLoop::get_available_monitors` and `EventsLoop::get_primary_monitor` now have identical counterparts on `Window`, so this information can be acquired without an `EventsLoop` borrow.
+- `AvailableMonitorsIter` now implements `Debug`.
+- Fixed quirk on macOS where certain keys would generate characters at twice the normal rate when held down.
+- On X11, all event loops now share the same `XConnection`.
+- **Breaking:** `Window::set_cursor_state` and `CursorState` enum removed in favor of the more composable `Window::grab_cursor` and `Window::hide_cursor`. As a result, grabbing the cursor no longer automatically hides it; you must call both methods to retain the old behavior on Windows and macOS. `Cursor::NoneCursor` has been removed, as it's no longer useful.
 
 # Version 0.15.1 (2018-06-13)
 
