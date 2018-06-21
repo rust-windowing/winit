@@ -57,7 +57,7 @@ pub trait WindowBuilderExt {
     fn with_taskbar_icon(self, taskbar_icon: Option<Icon>) -> WindowBuilder;
 
     /// This sets `WS_EX_NOREDIRECTIONBITMAP`.
-    fn with_no_redirection_bitmap(self) -> WindowBuilder;
+    fn with_no_redirection_bitmap(self, flag: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -74,8 +74,8 @@ impl WindowBuilderExt for WindowBuilder {
     }
 
     #[inline]
-    fn with_no_redirection_bitmap(mut self) -> WindowBuilder {
-        self.platform_specific.no_redirection_bitmap = true;
+    fn with_no_redirection_bitmap(mut self, flag: bool) -> WindowBuilder {
+        self.platform_specific.no_redirection_bitmap = flag;
         self
     }
 }
