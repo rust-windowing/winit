@@ -1002,7 +1002,7 @@ unsafe fn init(
     };
 
     // making the window transparent
-    if attributes.transparent {
+    if attributes.transparent && !pl_attribs.no_redirection_bitmap {
         let bb = dwmapi::DWM_BLURBEHIND {
             dwFlags: 0x1, // FIXME: DWM_BB_ENABLE;
             fEnable: 1,
