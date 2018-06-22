@@ -29,9 +29,7 @@ pub struct Window {
 
 impl Window {
     pub fn new(evlp: &EventsLoop, attributes: WindowAttributes) -> Result<Window, CreationError> {
-        // TODO: Update for new DPI API
-        //let (width, height) = attributes.dimensions.unwrap_or((800, 600));
-        let (width, height) = (64, 64);
+        let (width, height) = attributes.dimensions.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
 
