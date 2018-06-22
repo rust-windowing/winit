@@ -129,9 +129,8 @@ impl Window {
         frame.set_decorate(attributes.decorations);
 
         // min-max dimensions
-        // TODO: Update for new DPI API
-        //frame.set_min_size(attributes.min_dimensions);
-        //frame.set_max_size(attributes.max_dimensions);
+        frame.set_min_size(attributes.min_dimensions.map(Into::into));
+        frame.set_max_size(attributes.max_dimensions.map(Into::into));
 
         let kill_switch = Arc::new(Mutex::new(false));
         let need_frame_refresh = Arc::new(Mutex::new(true));
