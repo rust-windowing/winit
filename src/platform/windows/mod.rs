@@ -11,6 +11,7 @@ pub use self::window::Window;
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub parent: Option<HWND>,
     pub taskbar_icon: Option<::Icon>,
+    pub no_redirection_bitmap: bool,
 }
 
 unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}

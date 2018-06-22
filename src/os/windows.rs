@@ -55,6 +55,9 @@ pub trait WindowBuilderExt {
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn with_taskbar_icon(self, taskbar_icon: Option<Icon>) -> WindowBuilder;
+
+    /// This sets `WS_EX_NOREDIRECTIONBITMAP`.
+    fn with_no_redirection_bitmap(self, flag: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -67,6 +70,12 @@ impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> WindowBuilder {
         self.platform_specific.taskbar_icon = taskbar_icon;
+        self
+    }
+
+    #[inline]
+    fn with_no_redirection_bitmap(mut self, flag: bool) -> WindowBuilder {
+        self.platform_specific.no_redirection_bitmap = flag;
         self
     }
 }
