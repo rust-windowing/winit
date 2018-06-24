@@ -29,9 +29,7 @@ pub struct Window {
 
 impl Window {
     pub fn new(evlp: &EventsLoop, attributes: WindowAttributes) -> Result<Window, CreationError> {
-        // TODO: Update for new DPI API
-        //let (width, height) = attributes.dimensions.unwrap_or((800, 600));
-        let (width, height) = (64, 64);
+        let (width, height) = attributes.dimensions.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
 
@@ -131,9 +129,8 @@ impl Window {
         frame.set_decorate(attributes.decorations);
 
         // min-max dimensions
-        // TODO: Update for new DPI API
-        //frame.set_min_size(attributes.min_dimensions);
-        //frame.set_max_size(attributes.max_dimensions);
+        frame.set_min_size(attributes.min_dimensions.map(Into::into));
+        frame.set_max_size(attributes.max_dimensions.map(Into::into));
 
         let kill_switch = Arc::new(Mutex::new(false));
         let need_frame_refresh = Arc::new(Mutex::new(true));
