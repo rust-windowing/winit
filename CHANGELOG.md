@@ -1,5 +1,7 @@
 # Unreleased
 
+# Version 0.16.0 (2018-06-25)
+
 - Windows additionally has `WindowBuilderExt::with_no_redirection_bitmap`.
 - **Breaking:** Removed `VirtualKeyCode::LMenu` and `VirtualKeyCode::RMenu`; Windows now generates `VirtualKeyCode::LAlt` and `VirtualKeyCode::RAlt` instead.
 - On X11, exiting fullscreen no longer leaves the window in the monitor's top left corner.
