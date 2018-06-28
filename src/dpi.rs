@@ -19,10 +19,10 @@
 //! small.
 //!
 //! That's a description of what happens when the button is 100x100 *physical* pixels. Instead, let's try using 100x100
-//! *logical* pixels. To map logical pixels to physical pixels, we simply multiply by the DPI factor. On a "typical"
-//! desktop display, the DPI factor will be 1.0, so 100x100 logical pixels equates to 100x100 physical pixels. However,
-//! a 1440p display may have a DPI factor of 1.25, so the button is rendered as 125x125 physical pixels. Ideally, the
-//! button now has approximately the same perceived size across varying displays.
+//! *logical* pixels. To map logical pixels to physical pixels, we simply multiply by the DPI (dots per inch) factor. 
+//! On a "typical" desktop display, the DPI factor will be 1.0, so 100x100 logical pixels equates to 100x100 physical 
+//! pixels. However, a 1440p display may have a DPI factor of 1.25, so the button is rendered as 125x125 physical pixels. 
+//! Ideally, the button now has approximately the same perceived size across varying displays.
 //!
 //! Failure to account for the DPI factor can create a badly degraded user experience. Most notably, it can make users
 //! feel like they have bad eyesight, which will potentially cause them to think about growing elderly, resulting in
