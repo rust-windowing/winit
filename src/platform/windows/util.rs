@@ -2,8 +2,8 @@ use std::{self, mem, ptr, slice};
 use std::ops::BitAnd;
 
 use winapi::ctypes::wchar_t;
-use winapi::shared::minwindef::DWORD;
-use winapi::shared::windef::{HWND, RECT};
+use winapi::shared::minwindef::{BOOL, DWORD};
+use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::winbase::{
     FormatMessageW,
@@ -38,13 +38,21 @@ pub fn wchar_ptr_to_string(wchar: *const wchar_t) -> String {
     wchar_to_string(wchar_slice)
 }
 
-pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {
-    let mut rect: RECT = unsafe { mem::uninitialized() };
-    if unsafe { winuser::GetWindowRect(hwnd, &mut rect) } != 0 {
-        Some(rect)
+pub unsafe fn status_map<T, F: FnMut(&mut T) -> BOOL>(mut fun: F) -> Option<T> {
+    let mut data: T = mem::uninitialized();
+    if fun(&mut data) != 0 {
+        Some(data)
     } else {
         None
     }
+}
+
+pub fn get_cursor_pos() -> Option<POINT> {
+    unsafe { status_map(|cursor_pos| winuser::GetCursorPos(cursor_pos)) }
+}
+
+pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {
+    unsafe { status_map(|rect| winuser::GetWindowRect(hwnd, rect)) }
 }
 
 // This won't be needed anymore if we just add a derive to winapi.

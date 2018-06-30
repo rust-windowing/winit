@@ -94,6 +94,7 @@ impl UnownedWindow {
                         for monitor in &monitors {
                             if monitor.rect.contains_point(x, y) {
                                 dpi_factor = Some(monitor.get_hidpi_factor());
+                                break;
                             }
                         }
                         dpi_factor
