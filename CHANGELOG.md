@@ -1,5 +1,8 @@
 # Unreleased
 
+- Added logging through `log`. Logging will become more extensive over time.
+- On X11, the window's DPI factor is guessed before creating the window. This *greatly* cuts back on unsightly auto-resizing that would occur immediately after window creation.
+
 # Version 0.16.0 (2018-06-25)
 
 - Windows additionally has `WindowBuilderExt::with_no_redirection_bitmap`.

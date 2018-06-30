@@ -55,7 +55,7 @@ pub struct MonitorId {
     /// The DPI scale factor
     pub(crate) hidpi_factor: f64,
     /// Used to determine which windows are on this monitor
-    pub(crate) rect: util::Rect,
+    pub(crate) rect: util::AaRect,
 }
 
 impl MonitorId {
@@ -68,7 +68,7 @@ impl MonitorId {
     ) -> Self {
         let (name, hidpi_factor) = unsafe { xconn.get_output_info(resources, &repr) };
         let (dimensions, position) = unsafe { (repr.get_dimensions(), repr.get_position()) };
-        let rect = util::Rect::new(position, dimensions);
+        let rect = util::AaRect::new(position, dimensions);
         MonitorId {
             id,
             name,
@@ -104,7 +104,7 @@ impl MonitorId {
 }
 
 impl XConnection {
-    pub fn get_monitor_for_window(&self, window_rect: Option<util::Rect>) -> MonitorId {
+    pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>) -> MonitorId {
         let monitors = self.get_available_monitors();
         let default = monitors
             .get(0)

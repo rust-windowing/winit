@@ -482,36 +482,37 @@ impl EventsLoop {
                         shared_state_lock.position.unwrap()
                     };
 
-                    // If we don't use the existing adjusted value when available, then the user can screw up the
-                    // resizing by dragging across monitors *without* dropping the window.
-                    let (width, height) = shared_state_lock.dpi_adjusted
-                        .unwrap_or_else(|| (xev.width as f64, xev.height as f64));
-                    let last_hidpi_factor = if shared_state_lock.is_new_window {
-                        shared_state_lock.is_new_window = false;
-                        1.0
-                    } else {
-                        shared_state_lock.last_monitor
-                            .as_ref()
-                            .map(|last_monitor| last_monitor.hidpi_factor)
-                            .unwrap_or(1.0)
-                    };
-                    let new_hidpi_factor = {
-                        let window_rect = util::Rect::new(new_outer_position, new_inner_size);
-                        let monitor = self.xconn.get_monitor_for_window(Some(window_rect));
-                        let new_hidpi_factor = monitor.hidpi_factor;
-                        shared_state_lock.last_monitor = Some(monitor);
-                        new_hidpi_factor
-                    };
-                    if last_hidpi_factor != new_hidpi_factor {
-                        events.dpi_changed = Some(WindowEvent::HiDpiFactorChanged(new_hidpi_factor));
-                        let (new_width, new_height, flusher) = window.adjust_for_dpi(
-                            last_hidpi_factor,
-                            new_hidpi_factor,
-                            width,
-                            height,
-                        );
-                        flusher.queue();
-                        shared_state_lock.dpi_adjusted = Some((new_width, new_height));
+                    if is_synthetic {
+                        // If we don't use the existing adjusted value when available, then the user can screw up the
+                        // resizing by dragging across monitors *without* dropping the window.
+                        let (width, height) = shared_state_lock.dpi_adjusted
+                            .unwrap_or_else(|| (xev.width as f64, xev.height as f64));
+                        let last_hidpi_factor = shared_state_lock.guessed_dpi
+                            .take()
+                            .unwrap_or_else(|| {
+                                shared_state_lock.last_monitor
+                                    .as_ref()
+                                    .map(|last_monitor| last_monitor.hidpi_factor)
+                                    .unwrap_or(1.0)
+                            });
+                        let new_hidpi_factor = {
+                            let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
+                            let monitor = self.xconn.get_monitor_for_window(Some(window_rect));
+                            let new_hidpi_factor = monitor.hidpi_factor;
+                            shared_state_lock.last_monitor = Some(monitor);
+                            new_hidpi_factor
+                        };
+                        if last_hidpi_factor != new_hidpi_factor {
+                            events.dpi_changed = Some(WindowEvent::HiDpiFactorChanged(new_hidpi_factor));
+                            let (new_width, new_height, flusher) = window.adjust_for_dpi(
+                                last_hidpi_factor,
+                                new_hidpi_factor,
+                                width,
+                                height,
+                            );
+                            flusher.queue();
+                            shared_state_lock.dpi_adjusted = Some((new_width, new_height));
+                        }
                     }
 
                     events
@@ -592,7 +593,7 @@ impl EventsLoop {
 
                 // Standard virtual core keyboard ID. XInput2 needs to be used to get a reliable
                 // value, though this should only be an issue under multiseat configurations.
-                let device = 3;
+                let device = util::VIRTUAL_CORE_KEYBOARD;
                 let device_id = mkdid(device);
 
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
