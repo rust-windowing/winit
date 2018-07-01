@@ -26,9 +26,10 @@ use {
     WindowAttributes,
 };
 use platform::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, WindowId};
-use platform::platform::dpi::{BASE_DPI, dpi_to_scale_factor, get_window_dpi, get_window_scale_factor};
+use platform::platform::dpi::{dpi_to_scale_factor, get_window_dpi, get_window_scale_factor};
 use platform::platform::events_loop::{self, DESTROY_MSG_ID, EventsLoop, INITIAL_DPI_MSG_ID};
 use platform::platform::icon::{self, IconType, WinIcon};
+use platform::platform::monitor::get_available_monitors;
 use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
 use platform::platform::util;
 
@@ -858,9 +859,38 @@ unsafe fn init(
     // registering the window class
     let class_name = register_window_class(&window_icon, &taskbar_icon);
 
-    let (width, height) = attributes.dimensions
-        .map(Into::into)
-        .unwrap_or((1024, 768));
+    let guessed_dpi_factor = {
+        let monitors = get_available_monitors();
+        let dpi_factor = if !monitors.is_empty() {
+            let mut dpi_factor = Some(monitors[0].get_hidpi_factor());
+            for monitor in &monitors {
+                if Some(monitor.get_hidpi_factor()) != dpi_factor {
+                    dpi_factor = None;
+                }
+            }
+            dpi_factor
+        } else {
+            unreachable!("There are no detected monitors, which should've already caused a panic.");
+        };
+        dpi_factor.unwrap_or_else(|| {
+            util::get_cursor_pos()
+                .and_then(|cursor_pos| {
+                    let mut dpi_factor = None;
+                    for monitor in &monitors {
+                        if monitor.contains_point(&cursor_pos) {
+                            dpi_factor = Some(monitor.get_hidpi_factor());
+                            break;
+                        }
+                    }
+                    dpi_factor
+                })
+                .unwrap_or(1.0)
+        })
+    };
+    info!("Guessed window DPI factor: {}", guessed_dpi_factor);
+
+    let dimensions = attributes.dimensions.unwrap_or_else(|| (1024, 768).into());
+    let (width, height): (u32, u32) = dimensions.to_physical(guessed_dpi_factor).into();
     // building a RECT object with coordinates
     let mut rect = RECT {
         left: 0,
@@ -899,11 +929,11 @@ unsafe fn init(
     let real_window = {
         let (adjusted_width, adjusted_height) = if attributes.dimensions.is_some() {
             let min_dimensions = attributes.min_dimensions
-                .map(|logical_size| PhysicalSize::from_logical(logical_size, 1.0))
+                .map(|logical_size| PhysicalSize::from_logical(logical_size, guessed_dpi_factor))
                 .map(|physical_size| adjust_size(physical_size, style, ex_style))
                 .unwrap_or((0, 0));
             let max_dimensions = attributes.max_dimensions
-                .map(|logical_size| PhysicalSize::from_logical(logical_size, 1.0))
+                .map(|logical_size| PhysicalSize::from_logical(logical_size, guessed_dpi_factor))
                 .map(|physical_size| adjust_size(physical_size, style, ex_style))
                 .unwrap_or((c_int::max_value(), c_int::max_value()));
             (
@@ -968,7 +998,8 @@ unsafe fn init(
 
     let dpi = get_window_dpi(real_window.0, real_window.1);
     let dpi_factor = dpi_to_scale_factor(dpi);
-    if dpi != BASE_DPI {
+    if dpi_factor != guessed_dpi_factor {
+        let (width, height): (u32, u32) = dimensions.into();
         let mut packed_dimensions = 0;
         // MAKELPARAM isn't provided by winapi yet.
         let ptr = &mut packed_dimensions as *mut LPARAM as *mut WORD;

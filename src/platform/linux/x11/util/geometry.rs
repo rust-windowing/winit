@@ -3,34 +3,34 @@ use std::cmp;
 use super::*;
 use {LogicalPosition, LogicalSize};
 
+// Friendly neighborhood axis-aligned rectangle
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Rect {
-    left: i64,
-    right: i64,
-    top: i64,
-    bottom: i64,
+pub struct AaRect {
+    x: i64,
+    y: i64,
+    width: i64,
+    height: i64,
 }
 
-impl Rect {
+impl AaRect {
     pub fn new((x, y): (i32, i32), (width, height): (u32, u32)) -> Self {
         let (x, y) = (x as i64, y as i64);
         let (width, height) = (width as i64, height as i64);
-        Rect {
-            left: x,
-            right: x + width,
-            top: y,
-            bottom: y + height,
-        }
+        AaRect { x, y, width, height }
+    }
+
+    pub fn contains_point(&self, x: i64, y: i64) -> bool {
+        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
     }
 
     pub fn get_overlapping_area(&self, other: &Self) -> i64 {
         let x_overlap = cmp::max(
             0,
-            cmp::min(self.right, other.right) - cmp::max(self.left, other.left),
+            cmp::min(self.x + self.width, other.x + other.width) - cmp::max(self.x, other.x),
         );
         let y_overlap = cmp::max(
             0,
-            cmp::min(self.bottom, other.bottom) - cmp::max(self.top, other.top),
+            cmp::min(self.y + self.height, other.y + other.height) - cmp::max(self.y, other.y),
         );
         x_overlap * y_overlap
     }

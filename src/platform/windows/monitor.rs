@@ -1,5 +1,6 @@
 use winapi::shared::minwindef::{BOOL, DWORD, LPARAM, TRUE};
 use winapi::shared::windef::{HDC, HMONITOR, HWND, LPRECT, POINT};
+use winapi::um::winnt::LONG;
 use winapi::um::winuser;
 
 use std::{mem, ptr};
@@ -49,7 +50,7 @@ unsafe extern "system" fn monitor_enum_proc(
     TRUE // continue enumeration
 }
 
-fn get_available_monitors() -> VecDeque<MonitorId> {
+pub fn get_available_monitors() -> VecDeque<MonitorId> {
     let mut monitors: VecDeque<MonitorId> = VecDeque::new();
     unsafe {
         winuser::EnumDisplayMonitors(
@@ -62,7 +63,7 @@ fn get_available_monitors() -> VecDeque<MonitorId> {
     monitors
 }
 
-fn get_primary_monitor() -> MonitorId {
+pub fn get_primary_monitor() -> MonitorId {
     const ORIGIN: POINT = POINT { x: 0, y: 0 };
     let hmonitor = unsafe {
         winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY)
@@ -130,6 +131,14 @@ impl MonitorId {
             dimensions,
             hidpi_factor: dpi_to_scale_factor(get_monitor_dpi(hmonitor).unwrap_or(96)),
         }
+    }
+
+    pub(crate) fn contains_point(&self, point: &POINT) -> bool {
+        let left = self.position.0 as LONG;
+        let right = left + self.dimensions.0 as LONG;
+        let top = self.position.1 as LONG;
+        let bottom = top + self.dimensions.1 as LONG;
+        point.x >= left && point.x <= right && point.y >= top && point.y <= bottom
     }
 
     #[inline]

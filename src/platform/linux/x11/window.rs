@@ -29,13 +29,12 @@ unsafe extern "C" fn visibility_predicate(
 
 #[derive(Debug, Default)]
 pub struct SharedState {
-    // Window creation assumes a DPI factor of 1.0, so we use this flag to handle that special case.
-    pub is_new_window: bool,
     pub cursor_pos: Option<(f64, f64)>,
     pub size: Option<(u32, u32)>,
     pub position: Option<(i32, i32)>,
     pub inner_position: Option<(i32, i32)>,
     pub inner_position_rel_parent: Option<(i32, i32)>,
+    pub guessed_dpi: Option<f64>,
     pub last_monitor: Option<X11MonitorId>,
     pub dpi_adjusted: Option<(f64, f64)>,
     // Used to restore position after exiting fullscreen.
@@ -46,9 +45,9 @@ pub struct SharedState {
 }
 
 impl SharedState {
-    fn new() -> Mutex<Self> {
+    fn new(dpi_factor: f64) -> Mutex<Self> {
         let mut shared_state = SharedState::default();
-        shared_state.is_new_window = true;
+        shared_state.guessed_dpi = Some(dpi_factor);
         Mutex::new(shared_state)
     }
 }
@@ -78,15 +77,51 @@ impl UnownedWindow {
         let xconn = &event_loop.xconn;
         let root = event_loop.root;
 
-        let max_dimensions: Option<(u32, u32)> = window_attrs.max_dimensions.map(Into::into);
-        let min_dimensions: Option<(u32, u32)> = window_attrs.min_dimensions.map(Into::into);
+        let monitors = xconn.get_available_monitors();
+        let dpi_factor = if !monitors.is_empty() {
+            let mut dpi_factor = Some(monitors[0].get_hidpi_factor());
+            for monitor in &monitors {
+                if Some(monitor.get_hidpi_factor()) != dpi_factor {
+                    dpi_factor = None;
+                }
+            }
+            dpi_factor.unwrap_or_else(|| {
+                xconn.query_pointer(root, util::VIRTUAL_CORE_POINTER)
+                    .ok()
+                    .and_then(|pointer_state| {
+                        let (x, y) = (pointer_state.root_x as i64, pointer_state.root_y as i64);
+                        let mut dpi_factor = None;
+                        for monitor in &monitors {
+                            if monitor.rect.contains_point(x, y) {
+                                dpi_factor = Some(monitor.get_hidpi_factor());
+                                break;
+                            }
+                        }
+                        dpi_factor
+                    })
+                    .unwrap_or(1.0)
+            })
+        } else {
+            unreachable!("There are no detected monitors, which should've already caused a panic.");
+        };
+
+        info!("Guessed window DPI factor: {}", dpi_factor);
+
+        let max_dimensions: Option<(u32, u32)> = window_attrs.max_dimensions.map(|size| {
+            size.to_physical(dpi_factor).into()
+        });
+        let min_dimensions: Option<(u32, u32)> = window_attrs.min_dimensions.map(|size| {
+            size.to_physical(dpi_factor).into()
+        });
 
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
             // by the user, so we have to manually apply the initial constraints
-            let mut dimensions = window_attrs.dimensions
+            let mut dimensions: (u32, u32) = window_attrs.dimensions
+                .or_else(|| Some((800, 600).into()))
+                .map(|size| size.to_physical(dpi_factor))
                 .map(Into::into)
-                .unwrap_or((800, 600));
+                .unwrap();
             if let Some(max) = max_dimensions {
                 dimensions.0 = cmp::min(dimensions.0, max.0);
                 dimensions.1 = cmp::min(dimensions.1, max.1);
@@ -95,6 +130,7 @@ impl UnownedWindow {
                 dimensions.0 = cmp::max(dimensions.0, min.0);
                 dimensions.1 = cmp::max(dimensions.1, min.1);
             }
+            debug!("Calculated physical dimensions: {}x{}", dimensions.0, dimensions.1);
             dimensions
         };
 
@@ -166,7 +202,7 @@ impl UnownedWindow {
             cursor_hidden: Default::default(),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             multitouch: window_attrs.multitouch,
-            shared_state: SharedState::new(),
+            shared_state: SharedState::new(dpi_factor),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -240,13 +276,17 @@ impl UnownedWindow {
             {
                 let mut min_dimensions = window_attrs.min_dimensions;
                 let mut max_dimensions = window_attrs.max_dimensions;
-                if !window_attrs.resizable && !util::wm_name_is_one_of(&["Xfwm4"]) {
-                    max_dimensions = Some(dimensions.into());
-                    min_dimensions = Some(dimensions.into());
+                if !window_attrs.resizable {
+                    if util::wm_name_is_one_of(&["Xfwm4"]) {
+                        warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
+                    } else {
+                        max_dimensions = Some(dimensions.into());
+                        min_dimensions = Some(dimensions.into());
 
-                    let mut shared_state_lock = window.shared_state.lock();
-                    shared_state_lock.min_dimensions = window_attrs.min_dimensions;
-                    shared_state_lock.max_dimensions = window_attrs.max_dimensions;
+                        let mut shared_state_lock = window.shared_state.lock();
+                        shared_state_lock.min_dimensions = window_attrs.min_dimensions;
+                        shared_state_lock.max_dimensions = window_attrs.max_dimensions;
+                    }
                 }
 
                 let mut normal_hints = util::NormalHints::new(xconn);
@@ -482,10 +522,10 @@ impl UnownedWindow {
         self.invalidate_cached_frame_extents();
     }
 
-    fn get_rect(&self) -> Option<util::Rect> {
+    fn get_rect(&self) -> Option<util::AaRect> {
         // TODO: This might round-trip more times than needed.
         if let (Some(position), Some(size)) = (self.get_position_physical(), self.get_outer_size_physical()) {
-            Some(util::Rect::new(position, size))
+            Some(util::AaRect::new(position, size))
         } else {
             None
         }
@@ -853,6 +893,7 @@ impl UnownedWindow {
             // Making the window unresizable on Xfwm prevents further changes to `WM_NORMAL_HINTS` from being detected.
             // This makes it impossible for resizing to be re-enabled, and also breaks DPI scaling. As such, we choose
             // the lesser of two evils and do nothing.
+            warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
             return;
         }
 

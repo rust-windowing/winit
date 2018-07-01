@@ -3,6 +3,9 @@ use std::str;
 use super::*;
 use events::ModifiersState;
 
+pub const VIRTUAL_CORE_POINTER: c_int = 2;
+pub const VIRTUAL_CORE_KEYBOARD: c_int = 3;
+
 // A base buffer size of 1kB uses a negligible amount of RAM while preventing us from having to
 // re-allocate (and make another round-trip) in the *vast* majority of cases.
 // To test if `lookup_utf8` works correctly, set this to 1.
@@ -24,8 +27,8 @@ pub struct PointerState<'a> {
     xconn: &'a XConnection,
     root: ffi::Window,
     child: ffi::Window,
-    root_x: c_double,
-    root_y: c_double,
+    pub root_x: c_double,
+    pub root_y: c_double,
     win_x: c_double,
     win_y: c_double,
     buttons: ffi::XIButtonState,
