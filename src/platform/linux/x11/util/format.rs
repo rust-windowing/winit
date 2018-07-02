@@ -50,7 +50,7 @@ pub trait Formattable: Debug + Clone + Copy + PartialEq + PartialOrd {
 }
 
 // You might be surprised by the absence of c_int, but not as surprised as X11 would be by the presence of it.
-impl Formattable for c_char { const FORMAT: Format = Format::Char; }
+impl Formattable for c_schar { const FORMAT: Format = Format::Char; }
 impl Formattable for c_uchar { const FORMAT: Format = Format::Char; }
 impl Formattable for c_short { const FORMAT: Format = Format::Short; }
 impl Formattable for c_ushort { const FORMAT: Format = Format::Short; }
