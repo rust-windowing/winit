@@ -14,12 +14,15 @@ categories = ["gui"]
 features = ["icon_loading"]
 
 [features]
+default = ["stdweb"]
+
 icon_loading = ["image"]
 
 [dependencies]
 lazy_static = "1"
 libc = "0.2"
 image = { version = "0.19", optional = true }
+stdweb = { version = "0.4", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
 version = "0.2"
