@@ -1,5 +1,7 @@
 # Unreleased
 
+# Version 0.16.1 (2018-07-02)
+
 - Added logging through `log`. Logging will become more extensive over time.
 - On X11 and Windows, the window's DPI factor is guessed before creating the window. This *greatly* cuts back on unsightly auto-resizing that would occur immediately after window creation.
 - Fixed X11 backend compilation for environments where `c_char` is unsigned.
