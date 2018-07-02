@@ -22,7 +22,7 @@ icon_loading = ["image"]
 lazy_static = "1"
 libc = "0.2"
 image = { version = "0.19", optional = true }
-stdweb = { version = "0.4", optional = true }
+stdweb = { git = "https://github.com/koute/stdweb", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
 version = "0.2"

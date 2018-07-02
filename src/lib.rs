@@ -111,7 +111,6 @@ extern crate percent_encoding;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "openbsd"))]
 extern crate smithay_client_toolkit as sctk;
 #[cfg(all(feature = "stdweb", target_arch = "wasm32"))]
-#[macro_use]
 extern crate stdweb;
 
 pub(crate) use dpi::*; // TODO: Actually change the imports throughout the codebase.

@@ -1,23 +1,22 @@
 #![cfg(all(feature = "stdweb", target_arch = "wasm32"))]
 
-use std::{mem, ptr, str};
+use std::{ptr, str};
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::os::raw::{c_char, c_void, c_double, c_ulong, c_int};
+use std::os::raw::c_void;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, Arc};
 
 use stdweb::{
-    Value,
     unstable::TryInto,
     web::{
-        document, window,
-        event::{BlurEvent, ConcreteEvent, FocusEvent, GamepadConnectedEvent,
-                GamepadDisconnectedEvent, IKeyboardEvent, IMouseEvent, IGamepadEvent,
-                KeyboardLocation, KeyDownEvent, KeyUpEvent, MouseButton, 
-                MouseDownEvent, MouseMoveEvent, MouseOverEvent, MouseOutEvent, MouseUpEvent},
-        html_element::CanvasElement, 
-        IEventTarget, IParentNode, IWindowOrWorker,
+        Element, IEventTarget, IParentNode, 
+        document, event::{
+            IKeyboardEvent, IMouseEvent, KeyboardLocation, KeyDownEvent, KeyUpEvent,
+            MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent
+        },
+        html_element::CanvasElement,
+        window,
     }
 };
 
@@ -26,6 +25,14 @@ use window::MonitorId as RootMonitorId;
 
 fn get_hidpi_factor() -> f64 {
     window().device_pixel_ratio()
+}
+
+fn canvas() -> Option<CanvasElement> {
+    let element: Element = document().query_selector("#canvas").unwrap()?;
+    match element.try_into() {
+        Ok(canvas) => Some(canvas),
+        Err(_) => None
+    }
 }
 
 #[derive(Clone, Default)]
@@ -68,14 +75,14 @@ impl MonitorId {
 
 thread_local!(static MAIN_LOOP_CALLBACK: RefCell<*mut c_void> = RefCell::new(ptr::null_mut()));
 
-pub fn set_main_loop_callback<F>(callback : F) where F : FnMut() {
+pub fn set_main_loop_callback<F>(callback : F) where F: FnMut() + 'static {
     MAIN_LOOP_CALLBACK.with(|log| {
         *log.borrow_mut() = &callback as *const _ as *mut c_void;
     });
 
    window().request_animation_frame(wrapper::<F>);
 
-    fn wrapper<F>(_: f64) where F : FnMut() {
+    fn wrapper<F>(_: f64) where F: FnMut() + 'static {
         MAIN_LOOP_CALLBACK.with(|z| {
             let closure = *z.borrow_mut() as *mut F;
             (*closure)();
@@ -141,7 +148,7 @@ impl EventsLoop {
     }
 
     pub fn run_forever<F>(&self, mut callback: F)
-        where F: FnMut(::Event) -> ::ControlFlow
+        where F: FnMut(::Event) -> ::ControlFlow + 'static
     {
         self.interrupted.store(false, Ordering::Relaxed);
 
@@ -171,36 +178,9 @@ pub struct Window {
     window: Arc<Window2>,
 }
 
-fn show_mouse() {
-    //TODO: show_mouse
-    // Hide mouse hasn't show mouse equivalent.
-    // There is a pull request on emscripten that hasn't been merged #4616
-    // that contains:
-    //
-    // var styleSheet = document.styleSheets[0];
-    // var rules = styleSheet.cssRules;
-    // for (var i = 0; i < rules.length; i++) {
-    //   if (rules[i].cssText.substr(0, 6) == 'canvas') {
-    //     styleSheet.deleteRule(i);
-    //     i--;
-    //   }
-    // }
-    // styleSheet.insertRule('canvas.emscripten { border: none; cursor: auto; }', 0);
-    js! {
-        var styleSheet = document.styleSheets[0];
-        var rules = styleSheet.cssRules;
-        for (var i = 0; i < rules.length; i++) {
-            if (rules[i].cssText.substr(0, 6) == "canvas") {
-                styleSheet.deleteRule(i); i--;
-            }
-        }
-        styleSheet.insertRule("canvas.emscripten { border: none; cursor: auto; }", 0);
-    }
-}
-
 fn mouse_modifier_state(event: &impl IMouseEvent) -> ::ModifiersState {
     ::ModifiersState {
-        shift: event.shitft_key(),
+        shift: event.shift_key(),
         ctrl: event.ctrl_key(),
         alt: event.alt_key(),
         logo: event.meta_key()
@@ -225,7 +205,7 @@ fn mouse_move_callback(event: MouseMoveEvent, queue: &Mutex<VecDeque<::Event>>) 
     queue.lock().unwrap().push_back(::Event::DeviceEvent {
         device_id: ::DeviceId(DeviceId),
         event: ::DeviceEvent::MouseMotion {
-            delta: (event.movement_x(), event.movement_y()),
+            delta: (event.movement_x() as f64, event.movement_y() as f64),
         }
     });
 }
@@ -234,7 +214,7 @@ fn mouse_button_callback(event: impl IMouseEvent, queue: &Mutex<VecDeque<::Event
     let modifiers = mouse_modifier_state(&event);
     let button = match event.button() {
         MouseButton::Left => ::MouseButton::Left,
-        MouseButton::Middle => ::MouseButton::Middle,
+        MouseButton::Wheel => ::MouseButton::Middle,
         MouseButton::Right => ::MouseButton::Right,
         MouseButton::Button4 => ::MouseButton::Other(4),
         MouseButton::Button5 => ::MouseButton::Other(5),
@@ -260,14 +240,14 @@ fn mouse_up_callback(event: MouseUpEvent, queue: &Mutex<VecDeque<::Event>>) {
 
 fn keyboard_modifier_state(event: &impl IKeyboardEvent) -> ::ModifiersState {
     ::ModifiersState {
-        shift: event.shitft_key(),
+        shift: event.shift_key(),
         ctrl: event.ctrl_key(),
         alt: event.alt_key(),
         logo: event.meta_key()
     }
 }
 
-fn keyboard_callback(event: KeyDownEvent, queue: &Mutex<VecDeque<::Event>>, state: ::ElementState) {
+fn keyboard_callback(event: impl IKeyboardEvent, queue: &Mutex<VecDeque<::Event>>, state: ::ElementState) {
     let modifiers = keyboard_modifier_state(&event);
 
     queue.lock().unwrap().push_back(::Event::WindowEvent {
@@ -285,11 +265,11 @@ fn keyboard_callback(event: KeyDownEvent, queue: &Mutex<VecDeque<::Event>>, stat
 }
 
 fn keyboard_down_callback(event: KeyDownEvent, queue: &Mutex<VecDeque<::Event>>) {
-    keyboard_callback(event, queue, ElementState::Pressed);
+    keyboard_callback(event, queue, ::ElementState::Pressed);
 }
 
 fn keyboard_up_callback(event: KeyUpEvent, queue: &Mutex<VecDeque<::Event>>) {
-    keyboard_callback(event, queue, ElementState::Released);
+    keyboard_callback(event, queue, ::ElementState::Released);
 }
 
 /*
@@ -430,17 +410,9 @@ impl Window {
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<LogicalSize> {
-        match document.query_selector("#canvas").unwrap()?.try_into() {
-            Ok(Some(elem)) => match elem.try_into::<CanvasElement>() {
-                Ok(canvas) => {
-                    let dpi_factor = self.get_hidpi_factor();
-                    let logical = LogicalSize::from_physical((canvas.width(), canvas.height()), dpi_factor);
-                    Some(logical)
-                }
-                Err(_) => None
-            }
-            Err(_) => None
-        }
+        let mut canvas = canvas()?;
+        let dpi_factor = self.get_hidpi_factor();
+        Some(LogicalSize::from_physical((canvas.width(), canvas.height()), dpi_factor))
     }
 
     #[inline]
@@ -453,15 +425,9 @@ impl Window {
         let dpi_factor = self.get_hidpi_factor();
         let physical = PhysicalSize::from_logical(size, dpi_factor);
         let (width, height): (u32, u32) = physical.into();
-        match document.query_selector("#canvas").unwrap()?.try_into() {
-            Ok(Some(elem)) => match elem.try_into::<CanvasElement>() {
-                Ok(mut canvas) => {
-                    canvas.set_width(width);
-                    canvas.set_height(height);
-                }
-                Err(_) => ()
-            }
-            Err(_) => ()
+        if let Some(mut canvas) = canvas() {
+            canvas.set_width(width);
+            canvas.set_height(height);
         }
     }
 
@@ -511,7 +477,7 @@ impl Window {
         if hide {
             // TODO: hide mouse with stdweb
         } else {
-            show_mouse();
+            // TODO: show mouse with stdweb
         }
         *hidden_lock = hide;
     }
@@ -594,7 +560,7 @@ impl Drop for Window {
     }
 }
 
-fn key_translate(input: String) -> u8 {
+fn key_translate(key: String) -> u8 {
     if key.chars().count() == 1 {
         key.as_bytes()[0]
     } else {
@@ -602,11 +568,11 @@ fn key_translate(input: String) -> u8 {
     }
 }
 
-fn key_translate_virt(input: &str,
+fn key_translate_virt(input: String,
                       location: KeyboardLocation) -> Option<::VirtualKeyCode>
 {
     use VirtualKeyCode::*;
-    match input {
+    match input.as_str() {
         "Alt" => match location {
             KeyboardLocation::Left => Some(LAlt),
             KeyboardLocation::Right => Some(RAlt),
