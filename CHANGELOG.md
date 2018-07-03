@@ -1,6 +1,6 @@
 # Unreleased
 
-- Disabled maximize button on non-resizable windows in win32
+- On Windows, non-resizable windows now have the maximization button disabled. This is consistent with behavior on macOS and popular X11 WMs.
 
 # Version 0.16.1 (2018-07-02)
 
