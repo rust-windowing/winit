@@ -72,7 +72,8 @@ impl MonitorId {
     }
 }
 
-
+/*
+TODO: Animation-frame based callback with stdweb
 thread_local!(static MAIN_LOOP_CALLBACK: RefCell<*mut c_void> = RefCell::new(ptr::null_mut()));
 
 pub fn set_main_loop_callback<F>(callback : F) where F: FnMut() + 'static {
@@ -89,7 +90,7 @@ pub fn set_main_loop_callback<F>(callback : F) where F: FnMut() + 'static {
         });
         window().request_animation_frame(wrapper::<F>);
     }
-}
+}*/
 
 
 #[derive(Clone)]
@@ -465,7 +466,7 @@ impl Window {
     pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         let mut grabbed_lock = self.window.cursor_grabbed.lock().unwrap();
         if grab == *grabbed_lock { return Ok(()); }
-        //TODO: if grab if applicable, set the appropriate callback
+        //TODO: if grab if applicable, set the pointerlock
         *grabbed_lock = grab;
         Ok(())
     }
