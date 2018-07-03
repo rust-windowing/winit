@@ -1,4 +1,5 @@
 # Unreleased
+
 - Disabled maximize button on non-resizable windows (currently Windows only).
 
 # Version 0.16.1 (2018-07-02)
