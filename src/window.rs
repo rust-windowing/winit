@@ -56,8 +56,6 @@ impl WindowBuilder {
     /// This only has an effect on desktop platforms.
     ///
     /// Due to a bug in XFCE, this has no effect on Xfwm.
-    ///
-    /// On Windows the maximize button will also be disabled.
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> WindowBuilder {
         self.window.resizable = resizable;
@@ -297,8 +295,6 @@ impl Window {
     /// This only has an effect on desktop platforms.
     ///
     /// Due to a bug in XFCE, this has no effect on Xfwm.
-    ///
-    /// On Windows the maximize button will also be disabled.
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)

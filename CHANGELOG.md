@@ -1,6 +1,6 @@
 # Unreleased
 
-- Disabled maximize button on non-resizable windows (currently Windows only).
+- Disabled maximize button on non-resizable windows in win32
 
 # Version 0.16.1 (2018-07-02)
 
