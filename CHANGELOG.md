@@ -1,5 +1,7 @@
 # Unreleased
 
+- On Windows, non-resizable windows now have the maximization button disabled. This is consistent with behavior on macOS and popular X11 WMs.
+
 # Version 0.16.1 (2018-07-02)
 
 - Added logging through `log`. Logging will become more extensive over time.

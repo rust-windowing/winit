@@ -33,6 +33,8 @@ use platform::platform::monitor::get_available_monitors;
 use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
 use platform::platform::util;
 
+const WS_RESIZABLE: DWORD = winuser::WS_SIZEBOX | winuser::WS_MAXIMIZEBOX;
+
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
     /// Main handle for the window.
@@ -294,9 +296,9 @@ impl Window {
             winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE)
         };
         if resizable {
-            style |= winuser::WS_SIZEBOX as LONG;
+            style |= WS_RESIZABLE as LONG;
         } else {
-            style &= !winuser::WS_SIZEBOX as LONG;
+            style &= !WS_RESIZABLE as LONG;
         }
 
         unsafe {
@@ -544,9 +546,9 @@ impl Window {
             let _ = Self::grab_cursor_inner(&window, false);
 
             if resizable {
-                style |= winuser::WS_SIZEBOX as LONG;
+                style |= WS_RESIZABLE as LONG;
             } else {
-                style &= !winuser::WS_SIZEBOX as LONG;
+                style &= !WS_RESIZABLE as LONG;
             }
             winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
             winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
@@ -951,7 +953,7 @@ unsafe fn init(
         };
 
         if !attributes.resizable {
-            style &= !winuser::WS_SIZEBOX;
+            style &= !WS_RESIZABLE;
         }
 
         if pl_attribs.parent.is_some() {
