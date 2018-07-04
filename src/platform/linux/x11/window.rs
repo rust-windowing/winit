@@ -102,7 +102,7 @@ impl UnownedWindow {
                     .unwrap_or(1.0)
             })
         } else {
-            unreachable!("There are no detected monitors, which should've already caused a panic.");
+            return Err(OsError(format!("No monitors were detected.")));
         };
 
         info!("Guessed window DPI factor: {}", dpi_factor);

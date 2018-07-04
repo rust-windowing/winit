@@ -1,6 +1,7 @@
 # Unreleased
 
 - On Windows, non-resizable windows now have the maximization button disabled. This is consistent with behavior on macOS and popular X11 WMs.
+- Corrected incorrect `unreachable!` usage when guessing the DPI factor with no detected monitors.
 
 # Version 0.16.1 (2018-07-02)
 
