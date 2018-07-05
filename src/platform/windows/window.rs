@@ -872,7 +872,7 @@ unsafe fn init(
             }
             dpi_factor
         } else {
-            unreachable!("There are no detected monitors, which should've already caused a panic.");
+            return Err(CreationError::OsError(format!("No monitors were detected.")));
         };
         dpi_factor.unwrap_or_else(|| {
             util::get_cursor_pos()
