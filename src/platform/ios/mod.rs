@@ -489,7 +489,7 @@ fn create_delegate_class() {
             let view: id = msg_send![view_class, alloc];
             let view: id = msg_send![view, initForGl:&bounds];
 
-            msg_send![view_controller, setView: view];
+            let _: () = msg_send![view_controller, setView:view];
 
             let _: () = msg_send![window, setRootViewController:view_controller];
             let _: () = msg_send![window, makeKeyAndVisible];
