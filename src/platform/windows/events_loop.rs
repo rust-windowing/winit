@@ -57,6 +57,7 @@ use platform::platform::dpi::{
     enable_non_client_dpi_scaling,
     get_hwnd_scale_factor,
 };
+use platform::platform::icon::WinIcon;
 use platform::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
 use platform::platform::raw_input::{get_raw_input_data, get_raw_mouse_button_state};
 use platform::platform::window::adjust_size;
@@ -94,6 +95,9 @@ pub struct WindowState {
     // This is different from the value in `SavedWindowInfo`! That one represents the DPI saved upon entering
     // fullscreen. This will always be the most recent DPI for the window.
     pub dpi_factor: f64,
+    pub fullscreen: Option<::MonitorId>,
+    pub window_icon: Option<WinIcon>,
+    pub taskbar_icon: Option<WinIcon>,
 }
 
 impl WindowState {

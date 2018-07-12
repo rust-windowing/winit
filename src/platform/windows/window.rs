@@ -1,19 +1,20 @@
 #![cfg(target_os = "windows")]
 
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::ffi::OsStr;
-use std::{io, mem, ptr};
 use std::os::windows::ffi::OsStrExt;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{Ordering, AtomicBool};
 use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex};
+use std::{io, mem, ptr};
 
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{BOOL, DWORD, FALSE, LPARAM, TRUE, UINT, WORD, WPARAM};
 use winapi::shared::windef::{HDC, HWND, LPPOINT, POINT, RECT};
-use winapi::um::{combaseapi, dwmapi, libloaderapi, winuser};
-use winapi::um::objbase::{COINIT_MULTITHREADED};
+use winapi::um::objbase::COINIT_MULTITHREADED;
 use winapi::um::shobjidl_core::{CLSID_TaskbarList, ITaskbarList2};
 use winapi::um::winnt::{LONG, LPCWSTR};
+use winapi::um::{combaseapi, dwmapi, libloaderapi, winuser};
 
 use {
     CreationError,
@@ -27,7 +28,7 @@ use {
 };
 use platform::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, WindowId};
 use platform::platform::dpi::{dpi_to_scale_factor, get_window_dpi, get_window_scale_factor};
-use platform::platform::events_loop::{self, DESTROY_MSG_ID, EventsLoop, INITIAL_DPI_MSG_ID};
+use platform::platform::events_loop::{self, EventsLoop, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID};
 use platform::platform::icon::{self, IconType, WinIcon};
 use platform::platform::monitor::get_available_monitors;
 use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
@@ -40,24 +41,17 @@ pub struct Window {
     /// Main handle for the window.
     window: WindowWrapper,
 
-    decorations: Cell<bool>,
-    maximized: Cell<bool>,
-    resizable: Cell<bool>,
-    fullscreen: RefCell<Option<::MonitorId>>,
-    always_on_top: Cell<bool>,
+    decorations: AtomicBool,
+    maximized: AtomicBool,
+    resizable: AtomicBool,
+    always_on_top: AtomicBool,
 
     /// The current window state.
     window_state: Arc<Mutex<events_loop::WindowState>>,
 
-    window_icon: Cell<Option<WinIcon>>,
-    taskbar_icon: Cell<Option<WinIcon>>,
-
     // The events loop proxy.
     events_loop_proxy: events_loop::EventsLoopProxy,
 }
-
-unsafe impl Send for Window {}
-unsafe impl Sync for Window {}
 
 // https://blogs.msdn.microsoft.com/oldnewthing/20131017-00/?p=2903
 // The idea here is that we use the Adjust­Window­Rect­Ex function to calculate how much additional
@@ -283,18 +277,16 @@ impl Window {
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
-        if resizable == self.resizable.get() {
+        if resizable == self.resizable.load(Ordering::Acquire) {
             return;
         }
-        if self.fullscreen.borrow().is_some() {
+        if self.window_state.lock().unwrap().fullscreen.is_some() {
             // If we're in fullscreen, update stored configuration but don't apply anything.
-            self.resizable.replace(resizable);
+            self.resizable.store(resizable, Ordering::Release);
             return;
         }
 
-        let mut style = unsafe {
-            winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE)
-        };
+        let mut style = unsafe { winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE) };
         if resizable {
             style |= WS_RESIZABLE as LONG;
         } else {
@@ -302,13 +294,9 @@ impl Window {
         }
 
         unsafe {
-            winuser::SetWindowLongW(
-                self.window.0,
-                winuser::GWL_STYLE,
-                style as _,
-            );
+            winuser::SetWindowLongW(self.window.0, winuser::GWL_STYLE, style as _);
         };
-        self.resizable.replace(resizable);
+        self.resizable.store(resizable, Ordering::Release);
     }
 
     /// Returns the `hwnd` of this window.
@@ -468,9 +456,11 @@ impl Window {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        self.maximized.replace(maximized);
+        self.maximized.store(maximized, Ordering::SeqCst);
         // We only maximize if we're not in fullscreen.
-        if self.fullscreen.borrow().is_some() { return; }
+        if self.window_state.lock().unwrap().fullscreen.is_some() {
+            return;
+        }
 
         let window = self.window.clone();
         unsafe {
@@ -491,7 +481,7 @@ impl Window {
     unsafe fn set_fullscreen_style(&self) -> (LONG, LONG) {
         let mut window_state = self.window_state.lock().unwrap();
 
-        if self.fullscreen.borrow().is_none() || window_state.saved_window_info.is_none() {
+        if window_state.fullscreen.is_none() || window_state.saved_window_info.is_none() {
             let rect = util::get_window_rect(self.window.0).expect("`GetWindowRect` failed");
             let dpi_factor = Some(self.get_hidpi_factor());
             window_state.saved_window_info = Some(events_loop::SavedWindowInfo {
@@ -507,7 +497,8 @@ impl Window {
         let mut placement: winuser::WINDOWPLACEMENT = mem::zeroed();
         placement.length = mem::size_of::<winuser::WINDOWPLACEMENT>() as u32;
         winuser::GetWindowPlacement(self.window.0, &mut placement);
-        self.maximized.replace(placement.showCmd == (winuser::SW_SHOWMAXIMIZED as u32));
+        self.maximized
+            .store(placement.showCmd == (winuser::SW_SHOWMAXIMIZED as u32), Ordering::SeqCst);
         let saved_window_info = window_state.saved_window_info.as_ref().unwrap();
 
         (saved_window_info.style, saved_window_info.ex_style)
@@ -537,8 +528,8 @@ impl Window {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
-        let maximized = self.maximized.get();
-        let resizable = self.resizable.get();
+        let maximized = self.maximized.load(Ordering::SeqCst);
+        let resizable = self.resizable.load(Ordering::SeqCst);
 
         // We're restoring the window to its size and position from before being fullscreened.
         // `ShowWindow` resizes the window, so it must be called from the main thread.
@@ -639,22 +630,22 @@ impl Window {
             }
         }
 
-        self.fullscreen.replace(monitor);
+        self.window_state.lock().unwrap().fullscreen = monitor;
     }
 
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
-        if self.decorations.get() == decorations {
+        if self.decorations.load(Ordering::Acquire) != decorations {
             return;
         }
 
         let style_flags = (winuser::WS_CAPTION | winuser::WS_THICKFRAME) as LONG;
         let ex_style_flags = (winuser::WS_EX_WINDOWEDGE) as LONG;
 
-        // if we are in fullscreen mode, we only change the saved window info
-        if self.fullscreen.borrow().is_some() {
-            {
-                let mut window_state = self.window_state.lock().unwrap();
+        {
+            let mut window_state = self.window_state.lock().unwrap();
+            // if we are in fullscreen mode, we only change the saved window info
+            if window_state.fullscreen.is_some() {
                 let saved = window_state.saved_window_info.as_mut().unwrap();
 
                 unsafe {
@@ -677,10 +668,10 @@ impl Window {
                         saved.ex_style as _,
                     );
                 }
-            }
 
-            self.decorations.replace(decorations);
-            return;
+                self.decorations.store(decorations, Ordering::Release);
+                return;
+            }
         }
 
         unsafe {
@@ -721,12 +712,12 @@ impl Window {
             });
         }
 
-        self.decorations.replace(decorations);
+        self.decorations.store(decorations, Ordering::Release);
     }
 
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
-        if self.always_on_top.get() == always_on_top {
+        if self.always_on_top.load(Ordering::Acquire) != always_on_top {
             return;
         }
 
@@ -751,7 +742,7 @@ impl Window {
             }
         });
 
-        self.always_on_top.replace(always_on_top);
+        self.always_on_top.store(always_on_top, Ordering::Release);
     }
 
     #[inline]
@@ -771,7 +762,7 @@ impl Window {
         } else {
             icon::unset_for_window(self.window.0, IconType::Small);
         }
-        self.window_icon.replace(window_icon);
+        self.window_state.lock().unwrap().window_icon = window_icon;
     }
 
     #[inline]
@@ -784,7 +775,7 @@ impl Window {
         } else {
             icon::unset_for_window(self.window.0, IconType::Big);
         }
-        self.taskbar_icon.replace(taskbar_icon);
+        self.window_state.lock().unwrap().taskbar_icon = taskbar_icon;
     }
 
     #[inline]
@@ -809,10 +800,11 @@ impl Drop for Window {
 #[derive(Clone)]
 pub struct WindowWrapper(HWND, HDC);
 
-// Send is not implemented for HWND and HDC, we have to wrap it and implement it manually.
+// Send and Sync are not implemented for HWND and HDC, we have to wrap it and implement them manually.
 // For more info see:
 // https://github.com/retep998/winapi-rs/issues/360
 // https://github.com/retep998/winapi-rs/issues/396
+unsafe impl Sync for WindowWrapper {}
 unsafe impl Send for WindowWrapper {}
 
 pub unsafe fn adjust_size(physical_size: PhysicalSize, style: DWORD, ex_style: DWORD) -> (LONG, LONG) {
@@ -1029,6 +1021,9 @@ unsafe fn init(
             mouse_in_window: false,
             saved_window_info: None,
             dpi_factor,
+            fullscreen: attributes.fullscreen.clone(),
+            window_icon: window_icon,
+            taskbar_icon: taskbar_icon,
         };
         // Creating a mutex to track the current window state
         Arc::new(Mutex::new(window_state))
@@ -1049,13 +1044,10 @@ unsafe fn init(
     let win = Window {
         window: real_window,
         window_state: window_state,
-        decorations: Cell::new(attributes.decorations),
-        maximized: Cell::new(attributes.maximized.clone()),
-        resizable: Cell::new(attributes.resizable.clone()),
-        fullscreen: RefCell::new(attributes.fullscreen.clone()),
-        always_on_top: Cell::new(attributes.always_on_top),
-        window_icon: Cell::new(window_icon),
-        taskbar_icon: Cell::new(taskbar_icon),
+        decorations: AtomicBool::new(attributes.decorations),
+        maximized: AtomicBool::new(attributes.maximized),
+        resizable: AtomicBool::new(attributes.resizable),
+        always_on_top: AtomicBool::new(attributes.always_on_top),
         events_loop_proxy,
     };
 
@@ -1111,7 +1103,6 @@ unsafe fn register_window_class(
 
     class_name
 }
-
 
 struct ComInitialized(*mut ());
 impl Drop for ComInitialized {
