@@ -17,9 +17,8 @@ use winapi::shared::basetsd::UINT_PTR;
 use std::rc::Rc;
 use std::{mem, ptr};
 use std::cell::RefCell;
-use std::ffi::OsString;
-use std::os::windows::ffi::OsStringExt;
 use std::sync::{Arc, Mutex};
+use std::collections::VecDeque;
 
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{
@@ -35,14 +34,13 @@ use winapi::shared::minwindef::{
 };
 use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
-use winapi::shared::winerror::S_OK;
-use winapi::um::{winuser, processthreadsapi, ole2, shellapi, commctrl};
-use winapi::um::oleidl::LPDROPTARGET;
+use winapi::um::{winuser, processthreadsapi, ole2, commctrl};
 use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
 use {
     ControlFlow,
     Event,
+    EventHandler,
     EventLoopClosed,
     KeyboardInput,
     LogicalPosition,
@@ -110,13 +108,13 @@ pub struct WindowState {
 
 pub(crate) struct SubclassInput {
     pub window_state: Arc<Mutex<WindowState>>,
-    pub event_queue: Rc<RefCell<Vec<Event>>>,
+    pub event_queue: Rc<RefCell<VecDeque<Event>>>,
     pub file_drop_handler: FileDropHandler
 }
 
 impl SubclassInput {
     fn send_event(&self, event: Event) {
-        self.event_queue.borrow_mut().push(event);
+        self.event_queue.borrow_mut().push_back(event);
     }
 }
 
@@ -136,7 +134,7 @@ impl WindowState {
 pub struct EventLoop {
     // Id of the background thread from the Win32 API.
     thread_id: DWORD,
-    pub(crate) event_queue: Rc<RefCell<Vec<Event>>>
+    pub(crate) event_queue: Rc<RefCell<VecDeque<Event>>>
 }
 
 impl EventLoop {
@@ -151,13 +149,15 @@ impl EventLoop {
 
         EventLoop {
             thread_id,
-            event_queue: Rc::new(RefCell::new(Vec::new()))
+            event_queue: Rc::new(RefCell::new(VecDeque::new()))
         }
     }
 
-    pub fn run_forever<F>(&mut self, mut callback: F)
-        where F: FnMut(Event) -> ControlFlow
-    {
+    pub fn run_forever(self, mut event_handler: impl 'static + EventHandler) -> ! {
+        let event_loop = ::EventLoop {
+            events_loop: self,
+            _marker: ::std::marker::PhantomData
+        };
         unsafe {
             // Calling `PostThreadMessageA` on a thread that does not have an events queue yet
             // will fail. In order to avoid this situation, we call `IsGuiThread` to initialize
@@ -166,17 +166,17 @@ impl EventLoop {
 
             let mut msg = mem::uninitialized();
 
-            loop {
+            'main: loop {
                 if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
                     // Only happens if the message is `WM_QUIT`.
                     debug_assert_eq!(msg.message, winuser::WM_QUIT);
-                    return;
+                    break 'main;
                 }
 
                 match msg.message {
                     x if x == *WAKEUP_MSG_ID => {
-                        if ControlFlow::Break == callback(Event::Awakened) {
-                            return;
+                        if ControlFlow::Break == event_handler.handle_event(Event::Awakened, &event_loop) {
+                            break 'main;
                         }
                     },
                     x if x == *EXEC_MSG_ID => {
@@ -184,20 +184,29 @@ impl EventLoop {
                         function()
                     }
                     _ => {
-                        // Calls `callback` below.
+                        // Calls `event_handler` below.
                         winuser::TranslateMessage(&msg);
                         winuser::DispatchMessageW(&msg);
                     }
                 }
 
-                let mut event_queue = self.event_queue.borrow_mut();
-                for event in event_queue.drain(..) {
-                    if ControlFlow::Break == callback(event) {
-                        return;
+                loop {
+                    // For whatever reason doing this in a `whlie let` loop doesn't drop the `RefMut`,
+                    // so we have to do it like this.
+                    let event = match event_loop.events_loop.event_queue.borrow_mut().pop_front() {
+                        Some(event) => event,
+                        None => break
+                    };
+
+                    if ControlFlow::Break == event_handler.handle_event(event, &event_loop) {
+                        break 'main;
                     }
                 }
             }
         }
+
+        drop(event_handler);
+        ::std::process::exit(0);
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy {

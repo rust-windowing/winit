@@ -1,14 +1,14 @@
 extern crate winit;
 
 fn main() {
-    let mut events_loop = winit::EventLoop::new();
+    let events_loop = winit::EventLoop::new();
 
     let _window = winit::WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&events_loop)
         .unwrap();
 
-    events_loop.run_forever(|event| {
+    events_loop.run_forever(move |event, _: &winit::EventLoop| {
         println!("{:?}", event);
 
         match event {

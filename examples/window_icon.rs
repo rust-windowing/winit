@@ -30,7 +30,7 @@ fn main() {
         .build(&events_loop)
         .unwrap();
 
-    events_loop.run_forever(|event| {
+    events_loop.run_forever(move |event, _: &EventLoop| {
         if let winit::Event::WindowEvent { event, .. } = event {
             use winit::WindowEvent::*;
             match event {

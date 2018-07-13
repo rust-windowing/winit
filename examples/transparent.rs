@@ -9,7 +9,7 @@ fn main() {
 
     window.set_title("A fantastic window!");
 
-    events_loop.run_forever(|event| {
+    events_loop.run_forever(move |event, _: &winit::EventLoop| {
         println!("{:?}", event);
 
         match event {

@@ -35,7 +35,7 @@ fn main() {
     let mut is_maximized = false;
     let mut decorations = true;
 
-    events_loop.run_forever(|event| {
+    events_loop.run_forever(move |event, _: &winit::EventLoop| {
         println!("{:?}", event);
 
         match event {

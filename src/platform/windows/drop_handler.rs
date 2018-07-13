@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{mem, ptr};
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::VecDeque;
 
 use winapi::ctypes::c_void;
 use winapi::shared::guiddef::REFIID;
@@ -25,7 +26,7 @@ pub struct FileDropHandlerData {
     pub interface: IDropTarget,
     refcount: AtomicUsize,
     window: HWND,
-    event_queue: Rc<RefCell<Vec<Event>>>,
+    event_queue: Rc<RefCell<VecDeque<Event>>>,
 }
 
 pub struct FileDropHandler {
@@ -34,7 +35,7 @@ pub struct FileDropHandler {
 
 #[allow(non_snake_case)]
 impl FileDropHandler {
-    pub fn new(window: HWND, event_queue: Rc<RefCell<Vec<Event>>>) -> FileDropHandler {
+    pub fn new(window: HWND, event_queue: Rc<RefCell<VecDeque<Event>>>) -> FileDropHandler {
         let data = Box::new(FileDropHandlerData {
             interface: IDropTarget {
                 lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl,
@@ -187,7 +188,7 @@ impl FileDropHandler {
 
 impl FileDropHandlerData {
     fn send_event(&self, event: Event) {
-        self.event_queue.borrow_mut().push(event);
+        self.event_queue.borrow_mut().push_back(event);
     }
 }
 

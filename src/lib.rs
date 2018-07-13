@@ -62,7 +62,7 @@
 //! # use winit::EventLoop;
 //! # let mut events_loop = EventLoop::new();
 //!
-//! events_loop.run_forever(|event| {
+//! events_loop.run_forever(move |event, _: &EventLoop| {
 //!     match event {
 //!         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
 //!             println!("The close button was pressed; stopping");
@@ -139,7 +139,7 @@ pub mod os;
 /// let mut events_loop = EventLoop::new();
 /// let window = Window::new(&events_loop).unwrap();
 ///
-/// events_loop.run_forever(|event| {
+/// events_loop.run_forever(move |event, _: &EventLoop| {
 ///     match event {
 ///         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
 ///             ControlFlow::Break
@@ -199,6 +199,18 @@ impl std::fmt::Debug for EventLoop {
     }
 }
 
+pub trait EventHandler {
+    fn handle_event(&mut self, event: Event, event_loop: &EventLoop) -> ControlFlow;
+}
+
+impl<F> EventHandler for F
+    where F: FnMut(Event, &EventLoop) -> ControlFlow
+{
+    fn handle_event(&mut self, event: Event, event_loop: &EventLoop) -> ControlFlow {
+        self(event, event_loop)
+    }
+}
+
 /// Returned by the user callback given to the `EventLoop::run_forever` method.
 ///
 /// Indicates whether the `run_forever` method should continue or complete.
@@ -240,19 +252,13 @@ impl EventLoop {
         MonitorId { inner: self.events_loop.get_primary_monitor() }
     }
 
-    /// Calls `callback` every time an event is received. If no event is available, sleeps the
-    /// current thread and waits for an event. If the callback returns `ControlFlow::Break` then
-    /// `run_forever` will immediately return.
+    /// Hijacks the calling thread and initializes the `winit` event loop. Can take a
+    /// `FnMut(Event, &EventLoop) -> ControlFlow` or a custom `EventHandler` type.
     ///
-    /// # Danger!
-    ///
-    /// The callback is run after *every* event, so if its execution time is non-trivial the event queue may not empty
-    /// at a sufficient rate. Rendering in the callback with vsync enabled **will** cause significant lag.
+    /// Any values not passed to this function will *not* be dropped.
     #[inline]
-    pub fn run_forever<F>(&mut self, callback: F)
-        where F: FnMut(Event) -> ControlFlow
-    {
-        self.events_loop.run_forever(callback)
+    pub fn run_forever(self, event_handler: impl 'static + EventHandler) -> ! {
+        self.events_loop.run_forever(event_handler)
     }
 
     /// Creates an `EventLoopProxy` that can be used to wake up the `EventLoop` from another

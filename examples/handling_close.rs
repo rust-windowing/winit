@@ -10,7 +10,7 @@ fn main() {
 
     let mut close_requested = false;
 
-    events_loop.run_forever(|event| {
+    events_loop.run_forever(move |event, _: &winit::EventLoop| {
         use winit::WindowEvent::*;
         use winit::ElementState::Released;
         use winit::VirtualKeyCode::{N, Y};

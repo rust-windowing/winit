@@ -12,7 +12,7 @@ fn main() {
     window.set_min_dimensions(Some(LogicalSize::new(400.0, 200.0)));
     window.set_max_dimensions(Some(LogicalSize::new(800.0, 400.0)));
 
-    events_loop.run_forever(|event| {
+    events_loop.run_forever(move |event, _: &winit::EventLoop| {
         println!("{:?}", event);
 
         match event {

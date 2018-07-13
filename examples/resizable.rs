@@ -12,7 +12,7 @@ fn main() {
         .build(&events_loop)
         .unwrap();
 
-    events_loop.run_forever(|event| {
+    events_loop.run_forever(move |event, _: &winit::EventLoop| {
         match event {
             winit::Event::WindowEvent { event, .. } => match event {
                 winit::WindowEvent::CloseRequested => return winit::ControlFlow::Break,
