@@ -2,7 +2,7 @@
            target_os = "netbsd", target_os = "openbsd"))]
 
 pub use self::window::Window;
-pub use self::event_loop::{EventsLoop, EventsLoopProxy, EventsLoopSink, MonitorId};
+pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopSink, MonitorId};
 
 use sctk::reexports::client::protocol::wl_surface;
 use sctk::reexports::client::Proxy;

@@ -4,7 +4,7 @@ use {ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
 use events::ModifiersState;
 
 use super::DeviceId;
-use super::event_loop::EventsLoopSink;
+use super::event_loop::EventLoopSink;
 use super::window::WindowStore;
 
 use sctk::reexports::client::Proxy;
@@ -14,7 +14,7 @@ use sctk::reexports::client::protocol::wl_seat::RequestsTrait as SeatRequests;
 
 pub fn implement_pointer(
     seat: &Proxy<wl_seat::WlSeat>,
-    sink: Arc<Mutex<EventsLoopSink>>,
+    sink: Arc<Mutex<EventLoopSink>>,
     store: Arc<Mutex<WindowStore>>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
 ) -> Proxy<WlPointer> {

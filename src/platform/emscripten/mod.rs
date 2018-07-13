@@ -75,22 +75,22 @@ pub fn set_main_loop_callback<F>(callback : F) where F : FnMut() {
 }
 
 #[derive(Clone)]
-pub struct EventsLoopProxy;
+pub struct EventLoopProxy;
 
-impl EventsLoopProxy {
-    pub fn wakeup(&self) -> Result<(), ::EventsLoopClosed> {
+impl EventLoopProxy {
+    pub fn wakeup(&self) -> Result<(), ::EventLoopClosed> {
         unimplemented!()
     }
 }
 
-pub struct EventsLoop {
+pub struct EventLoop {
     window: Mutex<Option<Arc<Window2>>>,
     interrupted: AtomicBool,
 }
 
-impl EventsLoop {
-    pub fn new() -> EventsLoop {
-        EventsLoop {
+impl EventLoop {
+    pub fn new() -> EventLoop {
+        EventLoop {
             window: Mutex::new(None),
             interrupted: AtomicBool::new(false),
         }
@@ -102,7 +102,7 @@ impl EventsLoop {
     }
 
     #[inline]
-    pub fn create_proxy(&self) -> EventsLoopProxy {
+    pub fn create_proxy(&self) -> EventLoopProxy {
         unimplemented!()
     }
 
@@ -366,7 +366,7 @@ fn em_try(res: ffi::EMSCRIPTEN_RESULT) -> Result<(), String> {
 }
 
 impl Window {
-    pub fn new(events_loop: &EventsLoop, attribs: ::WindowAttributes,
+    pub fn new(events_loop: &EventLoop, attribs: ::WindowAttributes,
                _pl_attribs: PlatformSpecificWindowBuilderAttributes)
         -> Result<Window, ::CreationError>
     {

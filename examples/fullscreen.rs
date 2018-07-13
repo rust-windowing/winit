@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use winit::{ControlFlow, Event, WindowEvent};
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventLoop::new();
 
     // enumerating monitors
     let monitor = {

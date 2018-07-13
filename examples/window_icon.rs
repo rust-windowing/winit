@@ -20,7 +20,7 @@ fn main() {
     // feature enabled).
     let icon = Icon::from_path(path).expect("Failed to open icon");
 
-    let mut events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventLoop::new();
 
     let window = winit::WindowBuilder::new()
         .with_title("An iconic window!")

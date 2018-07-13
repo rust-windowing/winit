@@ -7,7 +7,7 @@ use cocoa::foundation::{NSString, NSUInteger};
 use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
 
 use {PhysicalPosition, PhysicalSize};
-use super::EventsLoop;
+use super::EventLoop;
 use super::window::{IdRef, Window2};
 
 #[derive(Clone, PartialEq)]
@@ -30,7 +30,7 @@ pub fn get_primary_monitor() -> MonitorId {
     id
 }
 
-impl EventsLoop {
+impl EventLoop {
     #[inline]
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
         get_available_monitors()

@@ -1,17 +1,17 @@
 #![cfg(any(target_os = "android"))]
 
 use std::os::raw::c_void;
-use EventsLoop;
+use EventLoop;
 use Window;
 use WindowBuilder;
 
-/// Additional methods on `EventsLoop` that are specific to Android.
-pub trait EventsLoopExt {
+/// Additional methods on `EventLoop` that are specific to Android.
+pub trait EventLoopExt {
     /// Makes it possible for glutin to register a callback when a suspend event happens on Android
     fn set_suspend_callback(&self, cb: Option<Box<Fn(bool) -> ()>>);
 }
 
-impl EventsLoopExt for EventsLoop {
+impl EventLoopExt for EventLoop {
     fn set_suspend_callback(&self, cb: Option<Box<Fn(bool) -> ()>>) {
         self.events_loop.set_suspend_callback(cb);
     }

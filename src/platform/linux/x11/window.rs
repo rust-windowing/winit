@@ -15,7 +15,7 @@ use platform::PlatformSpecificWindowBuilderAttributes;
 use platform::x11::MonitorId as X11MonitorId;
 use window::MonitorId as RootMonitorId;
 
-use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventsLoop};
+use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventLoop};
 
 unsafe extern "C" fn visibility_predicate(
     _display: *mut ffi::Display,
@@ -70,7 +70,7 @@ pub struct UnownedWindow {
 
 impl UnownedWindow {
     pub fn new(
-        event_loop: &EventsLoop,
+        event_loop: &EventLoop,
         window_attrs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, CreationError> {

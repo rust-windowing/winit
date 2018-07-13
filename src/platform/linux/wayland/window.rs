@@ -13,7 +13,7 @@ use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as Composito
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
 use sctk::output::OutputMgr;
 
-use super::{make_wid, EventsLoop, MonitorId, WindowId};
+use super::{make_wid, EventLoop, MonitorId, WindowId};
 use platform::platform::wayland::event_loop::{get_available_monitors, get_primary_monitor};
 
 pub struct Window {
@@ -28,7 +28,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(evlp: &EventsLoop, attributes: WindowAttributes) -> Result<Window, CreationError> {
+    pub fn new(evlp: &EventLoop, attributes: WindowAttributes) -> Result<Window, CreationError> {
         let (width, height) = attributes.dimensions.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));

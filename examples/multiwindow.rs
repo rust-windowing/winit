@@ -3,7 +3,7 @@ extern crate winit;
 use std::collections::HashMap;
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
+    let mut events_loop = winit::EventLoop::new();
 
     let mut windows = HashMap::new();
     for _ in 0..3 {

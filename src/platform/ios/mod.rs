@@ -204,13 +204,13 @@ pub struct EventsLoop {
 }
 
 #[derive(Clone)]
-pub struct EventsLoopProxy;
+pub struct EventLoopProxy;
 
-impl EventsLoop {
-    pub fn new() -> EventsLoop {
+impl EventLoop {
+    pub fn new() -> EventLoop {
         unsafe {
             if !msg_send![class!(NSThread), isMainThread] {
-                panic!("`EventsLoop` can only be created on the main thread on iOS");
+                panic!("`EventLoop` can only be created on the main thread on iOS");
             }
         }
         EventsLoop { events_queue: Default::default() }
@@ -276,13 +276,13 @@ impl EventsLoop {
         }
     }
 
-    pub fn create_proxy(&self) -> EventsLoopProxy {
-        EventsLoopProxy
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy
     }
 }
 
-impl EventsLoopProxy {
-    pub fn wakeup(&self) -> Result<(), ::EventsLoopClosed> {
+impl EventLoopProxy {
+    pub fn wakeup(&self) -> Result<(), ::EventLoopClosed> {
         unimplemented!()
     }
 }
@@ -310,7 +310,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 // so to be consistent with other platforms we have to change that.
 impl Window {
     pub fn new(
-        ev: &EventsLoop,
+        ev: &EventLoop,
         _attributes: WindowAttributes,
         pl_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, CreationError> {

@@ -5,14 +5,14 @@ use std::ptr;
 use std::sync::Arc;
 
 use {
-    EventsLoop,
+    EventLoop,
     LogicalSize,
     MonitorId,
     Window,
     WindowBuilder,
 };
 use platform::{
-    EventsLoop as LinuxEventsLoop,
+    EventLoop as LinuxEventLoop,
     Window as LinuxWindow,
 };
 use platform::x11::XConnection;
@@ -25,31 +25,31 @@ pub use platform::x11;
 pub use platform::XNotSupported;
 pub use platform::x11::util::WindowType as XWindowType;
 
-/// Additional methods on `EventsLoop` that are specific to Linux.
-pub trait EventsLoopExt {
-    /// Builds a new `EventsLoop` that is forced to use X11.
+/// Additional methods on `EventLoop` that are specific to Linux.
+pub trait EventLoopExt {
+    /// Builds a new `EventLoop` that is forced to use X11.
     fn new_x11() -> Result<Self, XNotSupported>
         where Self: Sized;
 
-    /// Builds a new `EventsLoop` that is forced to use Wayland.
+    /// Builds a new `EventLoop` that is forced to use Wayland.
     fn new_wayland() -> Self
         where Self: Sized;
 
-    /// True if the `EventsLoop` uses Wayland.
+    /// True if the `EventLoop` uses Wayland.
     fn is_wayland(&self) -> bool;
 
-    /// True if the `EventsLoop` uses X11.
+    /// True if the `EventLoop` uses X11.
     fn is_x11(&self) -> bool;
 
     #[doc(hidden)]
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 }
 
-impl EventsLoopExt for EventsLoop {
+impl EventLoopExt for EventLoop {
     #[inline]
     fn new_x11() -> Result<Self, XNotSupported> {
-        LinuxEventsLoop::new_x11().map(|ev|
-            EventsLoop {
+        LinuxEventLoop::new_x11().map(|ev|
+            EventLoop {
                 events_loop: ev,
                 _marker: ::std::marker::PhantomData,
             }
@@ -58,8 +58,8 @@ impl EventsLoopExt for EventsLoop {
 
     #[inline]
     fn new_wayland() -> Self {
-        EventsLoop {
-            events_loop: match LinuxEventsLoop::new_wayland() {
+        EventLoop {
+            events_loop: match LinuxEventLoop::new_wayland() {
                 Ok(e) => e,
                 Err(_) => panic!()      // TODO: propagate
             },

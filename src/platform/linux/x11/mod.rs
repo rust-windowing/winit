@@ -29,7 +29,7 @@ use {
     CreationError,
     DeviceEvent,
     Event,
-    EventsLoopClosed,
+    EventLoopClosed,
     KeyboardInput,
     LogicalPosition,
     LogicalSize,
@@ -41,7 +41,7 @@ use platform::PlatformSpecificWindowBuilderAttributes;
 use self::dnd::{Dnd, DndState};
 use self::ime::{ImeReceiver, ImeSender, ImeCreationError, Ime};
 
-pub struct EventsLoop {
+pub struct EventLoop {
     xconn: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
     dnd: Dnd,
@@ -60,14 +60,14 @@ pub struct EventsLoop {
 }
 
 #[derive(Clone)]
-pub struct EventsLoopProxy {
+pub struct EventLoopProxy {
     pending_wakeup: Weak<AtomicBool>,
     xconn: Weak<XConnection>,
     wakeup_dummy_window: ffi::Window,
 }
 
-impl EventsLoop {
-    pub fn new(xconn: Arc<XConnection>) -> EventsLoop {
+impl EventLoop {
+    pub fn new(xconn: Arc<XConnection>) -> EventLoop {
         let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
 
         let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
@@ -142,7 +142,7 @@ impl EventsLoop {
             )
         };
 
-        let result = EventsLoop {
+        let result = EventLoop {
             xconn,
             wm_delete_window,
             dnd,
@@ -177,8 +177,8 @@ impl EventsLoop {
         &self.xconn
     }
 
-    pub fn create_proxy(&self) -> EventsLoopProxy {
-        EventsLoopProxy {
+    pub fn create_proxy(&self) -> EventLoopProxy {
+        EventLoopProxy {
             pending_wakeup: Arc::downgrade(&self.pending_wakeup),
             xconn: Arc::downgrade(&self.xconn),
             wakeup_dummy_window: self.wakeup_dummy_window,
@@ -1181,15 +1181,15 @@ impl EventsLoop {
     }
 }
 
-impl EventsLoopProxy {
-    pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
-        // Update the `EventsLoop`'s `pending_wakeup` flag.
+impl EventLoopProxy {
+    pub fn wakeup(&self) -> Result<(), EventLoopClosed> {
+        // Update the `EventLoop`'s `pending_wakeup` flag.
         let display = match (self.pending_wakeup.upgrade(), self.xconn.upgrade()) {
             (Some(wakeup), Some(display)) => {
                 wakeup.store(true, atomic::Ordering::Relaxed);
                 display
             },
-            _ => return Err(EventsLoopClosed),
+            _ => return Err(EventLoopClosed),
         };
 
         // Push an event on the X event queue so that methods run_forever will advance.
@@ -1269,7 +1269,7 @@ impl Deref for Window {
 
 impl Window {
     pub fn new(
-        event_loop: &EventsLoop,
+        event_loop: &EventLoop,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes
     ) -> Result<Self, CreationError> {
@@ -1354,7 +1354,7 @@ enum ScrollOrientation {
 }
 
 impl Device {
-    fn new(el: &EventsLoop, info: &ffi::XIDeviceInfo) -> Self {
+    fn new(el: &EventLoop, info: &ffi::XIDeviceInfo) -> Self {
         let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
         let mut scroll_axes = Vec::new();
 
