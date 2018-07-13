@@ -30,7 +30,7 @@
 //!
 //! There are two ways to get the DPI factor:
 //! - You can track the `WindowEvent::HiDpiFactorChanged` event of your windows. This event is sent any
-//!   time the HiDPI factor changes, be it because the window moved to an other monitor, or the
+//!   time the DPI factor changes, be it because the window moved to an other monitor, or the
 //!   user changed the configuration of their screen.
 //! - You can also retrieve the DPI factor of a monitor by calling
 //!   [`MonitorId::get_hidpi_factor`](../struct.MonitorId.html#method.get_hidpi_factor), or the
@@ -38,7 +38,7 @@
 //!   [`Window::get_hidpi_factor`](../struct.Window.html#method.get_hidpi_factor), which is roughly equivalent
 //!   to `window.get_current_monitor().get_hidpi_factor()`.
 //!
-//! Depending on the platorms, the actual DPI factor applied on a window may only be known after
+//! Depending on the platform, the window's actual DPI factor may only be known after
 //! the event loop has started and your window has been drawn once. To properly handle these cases,
 //! the most robust way is to monitor the `WindowEvent::HiDpiFactorChanged` event and dynamically
 //! adapt your drawing logic to follow the DPI factor.
