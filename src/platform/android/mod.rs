@@ -116,7 +116,7 @@ impl EventLoop {
                     // The activity needs to be redrawn.
                     Some(Event::WindowEvent {
                         window_id: RootWindowId(WindowId),
-                        event: WindowEvent::Refresh,
+                        event: WindowEvent::Redraw,
                     })
                 }
                 android_glue::Event::Wake => {

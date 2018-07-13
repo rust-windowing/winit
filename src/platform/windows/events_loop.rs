@@ -480,10 +480,10 @@ pub unsafe extern "system" fn callback(
         },
 
         winuser::WM_PAINT => {
-            use events::WindowEvent::Refresh;
+            use events::WindowEvent::Redraw;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: Refresh,
+                event: Redraw,
             });
             winuser::DefWindowProcW(window, msg, wparam, lparam)
         },

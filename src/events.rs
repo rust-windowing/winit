@@ -91,7 +91,7 @@ pub enum WindowEvent {
     AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
 
     /// The window needs to be redrawn.
-    Refresh,
+    Redraw,
 
     /// Touch event has been received
     Touch(Touch),

@@ -264,7 +264,7 @@ impl EventLoop {
                     sink.send_event(::WindowEvent::HiDpiFactorChanged(dpi as f64), wid);
                 }
                 if refresh {
-                    sink.send_event(::WindowEvent::Refresh, wid);
+                    sink.send_event(::WindowEvent::Redraw, wid);
                 }
                 if closed {
                     sink.send_event(::WindowEvent::CloseRequested, wid);
