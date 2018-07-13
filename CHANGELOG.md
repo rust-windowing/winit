@@ -1,5 +1,7 @@
 # Unreleased
 
+- On iOS, the view is now set correctly. This makes it possible to render things (instead of being stuck on a black screen), and touch events work again.
+
 # Version 0.16.2 (2018-07-07)
 
 - On Windows, non-resizable windows now have the maximization button disabled. This is consistent with behavior on macOS and popular X11 WMs.
