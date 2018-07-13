@@ -3,6 +3,8 @@ use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{mem, ptr};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use winapi::ctypes::c_void;
 use winapi::shared::guiddef::REFIID;
@@ -14,7 +16,6 @@ use winapi::um::oleidl::{IDropTarget, IDropTargetVtbl};
 use winapi::um::winnt::HRESULT;
 use winapi::um::{shellapi, unknwnbase};
 
-use platform::platform::events_loop::send_event;
 use platform::platform::WindowId;
 
 use {Event, WindowId as SuperWindowId};
@@ -24,6 +25,7 @@ pub struct FileDropHandlerData {
     pub interface: IDropTarget,
     refcount: AtomicUsize,
     window: HWND,
+    event_queue: Rc<RefCell<Vec<Event>>>,
 }
 
 pub struct FileDropHandler {
@@ -32,13 +34,14 @@ pub struct FileDropHandler {
 
 #[allow(non_snake_case)]
 impl FileDropHandler {
-    pub fn new(window: HWND) -> FileDropHandler {
+    pub fn new(window: HWND, event_queue: Rc<RefCell<Vec<Event>>>) -> FileDropHandler {
         let data = Box::new(FileDropHandlerData {
             interface: IDropTarget {
                 lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl,
             },
             refcount: AtomicUsize::new(1),
             window,
+            event_queue,
         });
         FileDropHandler {
             data: Box::into_raw(data),
@@ -82,7 +85,7 @@ impl FileDropHandler {
         use events::WindowEvent::HoveredFile;
         let drop_handler = Self::from_interface(this);
         Self::iterate_filenames(pDataObj, |filename| {
-            send_event(Event::WindowEvent {
+            drop_handler.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(drop_handler.window)),
                 event: HoveredFile(filename),
             });
@@ -103,7 +106,7 @@ impl FileDropHandler {
     pub unsafe extern "system" fn DragLeave(this: *mut IDropTarget) -> HRESULT {
         use events::WindowEvent::HoveredFileCancelled;
         let drop_handler = Self::from_interface(this);
-        send_event(Event::WindowEvent {
+        drop_handler.send_event(Event::WindowEvent {
             window_id: SuperWindowId(WindowId(drop_handler.window)),
             event: HoveredFileCancelled,
         });
@@ -121,7 +124,7 @@ impl FileDropHandler {
         use events::WindowEvent::DroppedFile;
         let drop_handler = Self::from_interface(this);
         let hdrop = Self::iterate_filenames(pDataObj, |filename| {
-            send_event(Event::WindowEvent {
+            drop_handler.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(drop_handler.window)),
                 event: DroppedFile(filename),
             });
@@ -179,6 +182,12 @@ impl FileDropHandler {
         // The call to `GetData` must succeed and the file handle must be returned before this
         // point
         unreachable!();
+    }
+}
+
+impl FileDropHandlerData {
+    fn send_event(&self, event: Event) {
+        self.event_queue.borrow_mut().push(event);
     }
 }
 

@@ -240,15 +240,6 @@ impl EventLoop {
         MonitorId { inner: self.events_loop.get_primary_monitor() }
     }
 
-    /// Fetches all the events that are pending, calls the callback function for each of them,
-    /// and returns.
-    #[inline]
-    pub fn poll_events<F>(&mut self, callback: F)
-        where F: FnMut(Event)
-    {
-        self.events_loop.poll_events(callback)
-    }
-
     /// Calls `callback` every time an event is received. If no event is available, sleeps the
     /// current thread and waits for an event. If the callback returns `ControlFlow::Break` then
     /// `run_forever` will immediately return.

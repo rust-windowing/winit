@@ -12,11 +12,14 @@
 //! The closure passed to the `execute_in_thread` method takes an `Inserter` that you can use to
 //! add a `WindowState` entry to a list of window to be used by the callback.
 
-use std::{mem, ptr, thread};
+use winapi::shared::basetsd::DWORD_PTR;
+use winapi::shared::basetsd::UINT_PTR;
+use std::rc::Rc;
+use std::{mem, ptr};
 use std::cell::RefCell;
-use std::collections::HashMap;
-use std::os::windows::io::AsRawHandle;
-use std::sync::{Arc, Barrier, mpsc, Mutex};
+use std::ffi::OsString;
+use std::os::windows::ffi::OsStringExt;
+use std::sync::{Arc, Mutex};
 
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{
@@ -33,7 +36,7 @@ use winapi::shared::minwindef::{
 use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
 use winapi::shared::winerror::S_OK;
-use winapi::um::{winuser, processthreadsapi, ole2};
+use winapi::um::{winuser, processthreadsapi, ole2, shellapi, commctrl};
 use winapi::um::oleidl::LPDROPTARGET;
 use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
@@ -102,6 +105,19 @@ pub struct WindowState {
     pub always_on_top: bool,
     pub maximized: bool,
     pub resizable: bool,
+    pub mouse_buttons_down: u32
+}
+
+pub(crate) struct SubclassInput {
+    pub window_state: Arc<Mutex<WindowState>>,
+    pub event_queue: Rc<RefCell<Vec<Event>>>,
+    pub file_drop_handler: FileDropHandler
+}
+
+impl SubclassInput {
+    fn send_event(&self, event: Event) {
+        self.event_queue.borrow_mut().push(event);
+    }
 }
 
 impl WindowState {
@@ -117,27 +133,10 @@ impl WindowState {
     }
 }
 
-/// Dummy object that allows inserting a window's state.
-// We store a pointer in order to !impl Send and Sync.
-pub struct Inserter(*mut u8);
-
-impl Inserter {
-    /// Inserts a window's state for the callback to use. The state is removed automatically if the
-    /// callback receives a `WM_CLOSE` message for the window.
-    pub fn insert(&self, window: HWND, state: Arc<Mutex<WindowState>>) {
-        CONTEXT_STASH.with(|context_stash| {
-            let mut context_stash = context_stash.borrow_mut();
-            let was_in = context_stash.as_mut().unwrap().windows.insert(window, state);
-            assert!(was_in.is_none());
-        });
-    }
-}
-
 pub struct EventLoop {
     // Id of the background thread from the Win32 API.
     thread_id: DWORD,
-    // Receiver for the events. The sender is in the background thread.
-    receiver: mpsc::Receiver<Event>,
+    pub(crate) event_queue: Rc<RefCell<Vec<Event>>>
 }
 
 impl EventLoop {
@@ -148,101 +147,55 @@ impl EventLoop {
     pub fn with_dpi_awareness(dpi_aware: bool) -> EventLoop {
         become_dpi_aware(dpi_aware);
 
-        // The main events transfer channel.
-        let (tx, rx) = mpsc::channel();
-
-        // Local barrier in order to block the `new()` function until the background thread has
-        // an events queue.
-        let barrier = Arc::new(Barrier::new(2));
-        let barrier_clone = barrier.clone();
-
-        let thread = thread::spawn(move || {
-            CONTEXT_STASH.with(|context_stash| {
-                *context_stash.borrow_mut() = Some(ThreadLocalData {
-                    sender: tx,
-                    windows: HashMap::with_capacity(4),
-                    file_drop_handlers: HashMap::with_capacity(4),
-                    mouse_buttons_down: 0,
-                });
-            });
-
-            unsafe {
-                // Calling `PostThreadMessageA` on a thread that does not have an events queue yet
-                // will fail. In order to avoid this situation, we call `IsGuiThread` to initialize
-                // it.
-                winuser::IsGUIThread(1);
-                // Then only we unblock the `new()` function. We are sure that we don't call
-                // `PostThreadMessageA()` before `new()` returns.
-                barrier_clone.wait();
-                drop(barrier_clone);
-
-                let mut msg = mem::uninitialized();
-
-                loop {
-                    if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
-                        // Only happens if the message is `WM_QUIT`.
-                        debug_assert_eq!(msg.message, winuser::WM_QUIT);
-                        break;
-                    }
-
-                    match msg.message {
-                        x if x == *EXEC_MSG_ID => {
-                            let mut function: Box<Box<FnMut(Inserter)>> = Box::from_raw(msg.wParam as usize as *mut _);
-                            function(Inserter(ptr::null_mut()));
-                        },
-                        x if x == *WAKEUP_MSG_ID => {
-                            send_event(Event::Awakened);
-                        },
-                        _ => {
-                            // Calls `callback` below.
-                            winuser::TranslateMessage(&msg);
-                            winuser::DispatchMessageW(&msg);
-                        }
-                    }
-                }
-            }
-        });
-
-        // Blocks this function until the background thread has an events loop. See other comments.
-        barrier.wait();
-
-        let thread_id = unsafe {
-            let handle = mem::transmute(thread.as_raw_handle());
-            processthreadsapi::GetThreadId(handle)
-        };
+        let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
 
         EventLoop {
             thread_id,
-            receiver: rx,
-        }
-    }
-
-    pub fn poll_events<F>(&mut self, mut callback: F)
-        where F: FnMut(Event)
-    {
-        loop {
-            let event = match self.receiver.try_recv() {
-                Ok(e) => e,
-                Err(_) => return
-            };
-
-            callback(event);
+            event_queue: Rc::new(RefCell::new(Vec::new()))
         }
     }
 
     pub fn run_forever<F>(&mut self, mut callback: F)
         where F: FnMut(Event) -> ControlFlow
     {
-        loop {
-            let event = match self.receiver.recv() {
-                Ok(e) => e,
-                Err(_) => return
-            };
+        unsafe {
+            // Calling `PostThreadMessageA` on a thread that does not have an events queue yet
+            // will fail. In order to avoid this situation, we call `IsGuiThread` to initialize
+            // it.
+            winuser::IsGUIThread(1);
 
-            let flow = callback(event);
-            match flow {
-                ControlFlow::Continue => continue,
-                ControlFlow::Break => break,
+            let mut msg = mem::uninitialized();
+
+            loop {
+                if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
+                    // Only happens if the message is `WM_QUIT`.
+                    debug_assert_eq!(msg.message, winuser::WM_QUIT);
+                    return;
+                }
+
+                match msg.message {
+                    x if x == *WAKEUP_MSG_ID => {
+                        if ControlFlow::Break == callback(Event::Awakened) {
+                            return;
+                        }
+                    },
+                    x if x == *EXEC_MSG_ID => {
+                        let mut function: Box<Box<FnMut()>> = Box::from_raw(msg.wParam as usize as *mut _);
+                        function()
+                    }
+                    _ => {
+                        // Calls `callback` below.
+                        winuser::TranslateMessage(&msg);
+                        winuser::DispatchMessageW(&msg);
+                    }
+                }
+
+                let mut event_queue = self.event_queue.borrow_mut();
+                for event in event_queue.drain(..) {
+                    if ControlFlow::Break == callback(event) {
+                        return;
+                    }
+                }
             }
         }
     }
@@ -251,19 +204,6 @@ impl EventLoop {
         EventLoopProxy {
             thread_id: self.thread_id,
         }
-    }
-
-    /// Executes a function in the background thread.
-    ///
-    /// Note that we use a FnMut instead of a FnOnce because we're too lazy to create an equivalent
-    /// to the unstable FnBox.
-    ///
-    /// The `Inserted` can be used to inject a `WindowState` for the callback to use. The state is
-    /// removed automatically if the callback receives a `WM_CLOSE` message for the window.
-    pub(super) fn execute_in_thread<F>(&self, function: F)
-        where F: FnMut(Inserter) + Send + 'static
-    {
-        self.create_proxy().execute_in_thread(function)
     }
 }
 
@@ -299,11 +239,14 @@ impl EventLoopProxy {
         }
     }
 
-    /// Executes a function in the background thread.
-    ///
-    /// Note that we use FnMut instead of FnOnce because boxing FnOnce won't work on stable Rust
-    /// until 2030 when the design of Box is finally complete.
-    /// https://github.com/rust-lang/rust/issues/28796
+    /// Check to see if we're in the parent event loop's thread.
+    pub(super) fn in_event_loop_thread(&self) -> bool {
+        let cur_thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
+        self.thread_id == cur_thread_id
+    }
+
+    /// Executes a function in the event loop thread. If we're already in the event loop thread,
+    /// we just call the function directly.
     ///
     /// The `Inserted` can be used to inject a `WindowState` for the callback to use. The state is
     /// removed automatically if the callback receives a `WM_CLOSE` message for the window.
@@ -312,25 +255,29 @@ impl EventLoopProxy {
     /// `WindowState` then you should call this within the lock of `WindowState`. Otherwise the
     /// events may be sent to the other thread in different order to the one in which you set
     /// `WindowState`, leaving them out of sync.
-    pub fn execute_in_thread<F>(&self, function: F)
-    where
-        F: FnMut(Inserter) + Send + 'static,
+    ///
+    /// Note that we use a FnMut instead of a FnOnce because we're too lazy to create an equivalent
+    /// to the unstable FnBox.
+    pub(super) fn execute_in_thread<F>(&self, mut function: F)
+        where F: FnMut() + Send + 'static
     {
-        // We are using double-boxing here because it make casting back much easier
-        let double_box = Box::new(Box::new(function) as Box<FnMut(_)>);
-        let raw = Box::into_raw(double_box);
+        unsafe {
+            if self.in_event_loop_thread() {
+                function();
+            } else {
+                // We double-box because the first box is a fat pointer.
+                let boxed = Box::new(function) as Box<FnMut()>;
+                let boxed2 = Box::new(boxed);
 
-        let res = unsafe {
-            winuser::PostThreadMessageA(
-                self.thread_id,
-                *EXEC_MSG_ID,
-                raw as *mut () as usize as WPARAM,
-                0,
-            )
-        };
-        // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen as
-        // the events loop is still alive) or if the queue is full.
-        assert!(res != 0, "PostThreadMessage failed; is the messages queue full?");
+                let raw = Box::into_raw(boxed2);
+
+                let res = winuser::PostThreadMessageA(self.thread_id, *EXEC_MSG_ID,
+                                                     raw as *mut () as usize as WPARAM, 0);
+                // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
+                // as the events loop is still alive) or if the queue is full.
+                assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
+            }
+        }
     }
 }
 
@@ -347,7 +294,7 @@ lazy_static! {
     // and LPARAM is unused.
     static ref EXEC_MSG_ID: u32 = {
         unsafe {
-            winuser::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as LPCSTR)
+            winuser::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as *const i8)
         }
     };
     // Message sent by a `Window` when it wants to be destroyed by the main thread.
@@ -366,49 +313,32 @@ lazy_static! {
     };
 }
 
-// There's no parameters passed to the callback function, so it needs to get its context stashed
-// in a thread-local variable.
-thread_local!(static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::new(None));
-struct ThreadLocalData {
-    sender: mpsc::Sender<Event>,
-    windows: HashMap<HWND, Arc<Mutex<WindowState>>>,
-    file_drop_handlers: HashMap<HWND, FileDropHandler>, // Each window has its own drop handler.
-    mouse_buttons_down: u32,
-}
-
-// Utility function that dispatches an event on the current thread.
-pub fn send_event(event: Event) {
-    CONTEXT_STASH.with(|context_stash| {
-        let context_stash = context_stash.borrow();
-
-        let _ = context_stash.as_ref().unwrap().sender.send(event);   // Ignoring if closed
-    });
-}
-
 /// Capture mouse input, allowing `window` to receive mouse events when the cursor is outside of
 /// the window.
-unsafe fn capture_mouse(window: HWND) {
-    CONTEXT_STASH.with(|context_stash| {
-        let mut context_stash = context_stash.borrow_mut();
-        if let Some(context_stash) = context_stash.as_mut() {
-            context_stash.mouse_buttons_down += 1;
-            winuser::SetCapture(window);
-        }
-    });
+unsafe fn capture_mouse(window: HWND, window_state: &mut WindowState) {
+    window_state.mouse_buttons_down += 1;
+    winuser::SetCapture(window);
 }
 
 /// Release mouse input, stopping windows on this thread from receiving mouse input when the cursor
 /// is outside the window.
-unsafe fn release_mouse() {
-    CONTEXT_STASH.with(|context_stash| {
-        let mut context_stash = context_stash.borrow_mut();
-        if let Some(context_stash) = context_stash.as_mut() {
-            context_stash.mouse_buttons_down = context_stash.mouse_buttons_down.saturating_sub(1);
-            if context_stash.mouse_buttons_down == 0 {
-                winuser::ReleaseCapture();
-            }
-        }
-    });
+unsafe fn release_mouse(window_state: &mut WindowState) {
+    window_state.mouse_buttons_down = window_state.mouse_buttons_down.saturating_sub(1);
+    if window_state.mouse_buttons_down == 0 {
+        winuser::ReleaseCapture();
+    }
+}
+
+const WINDOW_SUBCLASS_ID: UINT_PTR = 0;
+pub(crate) fn subclass_window(window: HWND, subclass_input: SubclassInput) {
+    let input_ptr = Box::into_raw(Box::new(subclass_input));
+    let subclass_result = unsafe{ commctrl::SetWindowSubclass(
+        window,
+        Some(callback),
+        WINDOW_SUBCLASS_ID,
+        input_ptr as DWORD_PTR
+    ) };
+    assert_eq!(subclass_result, 1);
 }
 
 /// Any window whose callback is configured to this function will have its events propagated
@@ -423,40 +353,20 @@ pub unsafe extern "system" fn callback(
     msg: UINT,
     wparam: WPARAM,
     lparam: LPARAM,
+    _: UINT_PTR,
+    subclass_input_ptr: DWORD_PTR
 ) -> LRESULT {
+    let subclass_input = &mut*(subclass_input_ptr as *mut SubclassInput);
+
     match msg {
-        winuser::WM_CREATE => {
-            use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE};
-            let ole_init_result = ole2::OleInitialize(ptr::null_mut());
-            // It is ok if the initialize result is `S_FALSE` because it might happen that
-            // multiple windows are created on the same thread.
-            if ole_init_result == OLE_E_WRONGCOMPOBJ {
-                panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
-            } else if ole_init_result == RPC_E_CHANGED_MODE {
-                panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
-            }
-
-            CONTEXT_STASH.with(|context_stash| {
-                let mut context_stash = context_stash.borrow_mut();
-
-                let drop_handlers = &mut context_stash.as_mut().unwrap().file_drop_handlers;
-                let new_handler = FileDropHandler::new(window);
-                let handler_interface_ptr = &mut (*new_handler.data).interface as LPDROPTARGET;
-                drop_handlers.insert(window, new_handler);
-
-                assert_eq!(ole2::RegisterDragDrop(window, handler_interface_ptr), S_OK);
-            });
-            0
-        },
-
         winuser::WM_NCCREATE => {
             enable_non_client_dpi_scaling(window);
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
         winuser::WM_CLOSE => {
             use events::WindowEvent::CloseRequested;
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: CloseRequested
             });
@@ -465,27 +375,24 @@ pub unsafe extern "system" fn callback(
 
         winuser::WM_DESTROY => {
             use events::WindowEvent::Destroyed;
-            CONTEXT_STASH.with(|context_stash| {
-                let mut context_stash = context_stash.borrow_mut();
-                ole2::RevokeDragDrop(window);
-                let context_stash_mut = context_stash.as_mut().unwrap();
-                context_stash_mut.file_drop_handlers.remove(&window);
-                context_stash_mut.windows.remove(&window);
-            });
-            send_event(Event::WindowEvent {
+            ole2::RevokeDragDrop(window);
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Destroyed
             });
+
+            Box::from_raw(subclass_input);
+            drop(subclass_input);
             0
         },
 
         winuser::WM_PAINT => {
             use events::WindowEvent::Redraw;
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Redraw,
             });
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
         // WM_MOVE supplies client area positions, so we send Moved here instead.
@@ -499,14 +406,14 @@ pub unsafe extern "system" fn callback(
                     ((*windowpos).x, (*windowpos).y),
                     dpi_factor,
                 );
-                send_event(Event::WindowEvent {
+                subclass_input.send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
                     event: Moved(logical_position),
                 });
             }
 
             // This is necessary for us to still get sent WM_SIZE.
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
         winuser::WM_SIZE => {
@@ -514,21 +421,14 @@ pub unsafe extern "system" fn callback(
             let w = LOWORD(lparam as DWORD) as u32;
             let h = HIWORD(lparam as DWORD) as u32;
 
-            // Wait for the parent thread to process the resize event before returning from the
-            // callback.
-            CONTEXT_STASH.with(|context_stash| {
-                let mut context_stash = context_stash.borrow_mut();
-                let cstash = context_stash.as_mut().unwrap();
+            let dpi_factor = get_hwnd_scale_factor(window);
+            let logical_size = LogicalSize::from_physical((w, h), dpi_factor);
+            let event = Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: Resized(logical_size),
+            };
 
-                let dpi_factor = get_hwnd_scale_factor(window);
-                let logical_size = LogicalSize::from_physical((w, h), dpi_factor);
-                let event = Event::WindowEvent {
-                    window_id: SuperWindowId(WindowId(window)),
-                    event: Resized(logical_size),
-                };
-
-                cstash.sender.send(event).ok();
-            });
+            subclass_input.send_event(event);
             0
         },
 
@@ -536,7 +436,7 @@ pub unsafe extern "system" fn callback(
             use std::mem;
             use events::WindowEvent::ReceivedCharacter;
             let chr: char = mem::transmute(wparam as u32);
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: ReceivedCharacter(chr),
             });
@@ -553,23 +453,18 @@ pub unsafe extern "system" fn callback(
 
         winuser::WM_MOUSEMOVE => {
             use events::WindowEvent::{CursorEntered, CursorMoved};
-            let mouse_outside_window = CONTEXT_STASH.with(|context_stash| {
-                let mut context_stash = context_stash.borrow_mut();
-                if let Some(context_stash) = context_stash.as_mut() {
-                    if let Some(w) = context_stash.windows.get_mut(&window) {
-                        let mut w = w.lock().unwrap();
-                        if !w.mouse_in_window {
-                            w.mouse_in_window = true;
-                            return true;
-                        }
-                    }
+            let mouse_outside_window = {
+                let mut window = subclass_input.window_state.lock().unwrap();
+                if !window.mouse_in_window {
+                    window.mouse_in_window = true;
+                    true
+                } else {
+                    false
                 }
-
-                false
-            });
+            };
 
             if mouse_outside_window {
-                send_event(Event::WindowEvent {
+                subclass_input.send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
                     event: CursorEntered { device_id: DEVICE_ID },
                 });
@@ -588,7 +483,7 @@ pub unsafe extern "system" fn callback(
             let dpi_factor = get_hwnd_scale_factor(window);
             let position = LogicalPosition::from_physical((x, y), dpi_factor);
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: CursorMoved { device_id: DEVICE_ID, position, modifiers: event::get_key_mods() },
             });
@@ -598,23 +493,18 @@ pub unsafe extern "system" fn callback(
 
         winuser::WM_MOUSELEAVE => {
             use events::WindowEvent::CursorLeft;
-            let mouse_in_window = CONTEXT_STASH.with(|context_stash| {
-                let mut context_stash = context_stash.borrow_mut();
-                if let Some(context_stash) = context_stash.as_mut() {
-                    if let Some(w) = context_stash.windows.get_mut(&window) {
-                        let mut w = w.lock().unwrap();
-                        if w.mouse_in_window {
-                            w.mouse_in_window = false;
-                            return true;
-                        }
-                    }
+            let mouse_in_window = {
+                let mut window = subclass_input.window_state.lock().unwrap();
+                if window.mouse_in_window {
+                    window.mouse_in_window = false;
+                    true
+                } else {
+                    false
                 }
-
-                false
-            });
+            };
 
             if mouse_in_window {
-                send_event(Event::WindowEvent {
+                subclass_input.send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
                     event: CursorLeft { device_id: DEVICE_ID }
                 });
@@ -631,7 +521,7 @@ pub unsafe extern "system" fn callback(
             let value = value as i32;
             let value = value as f32 / winuser::WHEEL_DELTA as f32;
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: LineDelta(0.0, value), phase: TouchPhase::Moved, modifiers: event::get_key_mods() },
             });
@@ -643,10 +533,10 @@ pub unsafe extern "system" fn callback(
             use events::ElementState::Pressed;
             use events::VirtualKeyCode;
             if msg == winuser::WM_SYSKEYDOWN && wparam as i32 == winuser::VK_F4 {
-                winuser::DefWindowProcW(window, msg, wparam, lparam)
+                commctrl::DefSubclassProc(window, msg, wparam, lparam)
             } else {
                 if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
-                    send_event(Event::WindowEvent {
+                    subclass_input.send_event(Event::WindowEvent {
                         window_id: SuperWindowId(WindowId(window)),
                         event: WindowEvent::KeyboardInput {
                             device_id: DEVICE_ID,
@@ -661,7 +551,7 @@ pub unsafe extern "system" fn callback(
                     // Windows doesn't emit a delete character by default, but in order to make it
                     // consistent with the other platforms we'll emit a delete character here.
                     if vkey == Some(VirtualKeyCode::Delete) {
-                        send_event(Event::WindowEvent {
+                        subclass_input.send_event(Event::WindowEvent {
                             window_id: SuperWindowId(WindowId(window)),
                             event: WindowEvent::ReceivedCharacter('\u{7F}'),
                         });
@@ -674,7 +564,7 @@ pub unsafe extern "system" fn callback(
         winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
             use events::ElementState::Released;
             if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
-                send_event(Event::WindowEvent {
+                subclass_input.send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
                     event: WindowEvent::KeyboardInput {
                         device_id: DEVICE_ID,
@@ -695,9 +585,9 @@ pub unsafe extern "system" fn callback(
             use events::MouseButton::Left;
             use events::ElementState::Pressed;
 
-            capture_mouse(window);
+            capture_mouse(window, &mut *subclass_input.window_state.lock().unwrap());
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Left, modifiers: event::get_key_mods() }
             });
@@ -709,9 +599,9 @@ pub unsafe extern "system" fn callback(
             use events::MouseButton::Left;
             use events::ElementState::Released;
 
-            release_mouse();
+            release_mouse(&mut *subclass_input.window_state.lock().unwrap());
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Left, modifiers: event::get_key_mods() }
             });
@@ -723,9 +613,9 @@ pub unsafe extern "system" fn callback(
             use events::MouseButton::Right;
             use events::ElementState::Pressed;
 
-            capture_mouse(window);
+            capture_mouse(window, &mut *subclass_input.window_state.lock().unwrap());
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Right, modifiers: event::get_key_mods() }
             });
@@ -737,9 +627,9 @@ pub unsafe extern "system" fn callback(
             use events::MouseButton::Right;
             use events::ElementState::Released;
 
-            release_mouse();
+            release_mouse(&mut *subclass_input.window_state.lock().unwrap());
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Right, modifiers: event::get_key_mods() }
             });
@@ -751,9 +641,9 @@ pub unsafe extern "system" fn callback(
             use events::MouseButton::Middle;
             use events::ElementState::Pressed;
 
-            capture_mouse(window);
+            capture_mouse(window, &mut *subclass_input.window_state.lock().unwrap());
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Middle, modifiers: event::get_key_mods() }
             });
@@ -765,9 +655,9 @@ pub unsafe extern "system" fn callback(
             use events::MouseButton::Middle;
             use events::ElementState::Released;
 
-            release_mouse();
+            release_mouse(&mut *subclass_input.window_state.lock().unwrap());
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Middle, modifiers: event::get_key_mods() }
             });
@@ -780,9 +670,9 @@ pub unsafe extern "system" fn callback(
             use events::ElementState::Pressed;
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
 
-            capture_mouse(window);
+            capture_mouse(window, &mut *subclass_input.window_state.lock().unwrap());
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Other(xbutton as u8), modifiers: event::get_key_mods() }
             });
@@ -795,9 +685,9 @@ pub unsafe extern "system" fn callback(
             use events::ElementState::Released;
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
 
-            release_mouse();
+            release_mouse(&mut *subclass_input.window_state.lock().unwrap());
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: MouseInput { device_id: DEVICE_ID, state: Released, button: Other(xbutton as u8), modifiers: event::get_key_mods() }
             });
@@ -811,12 +701,12 @@ pub unsafe extern "system" fn callback(
                 _ => unreachable!(),
             };
 
-            send_event(Event::DeviceEvent {
+            subclass_input.send_event(Event::DeviceEvent {
                 device_id: wrap_device_id(lparam as _),
                 event,
             });
 
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
         winuser::WM_INPUT => {
@@ -835,21 +725,21 @@ pub unsafe extern "system" fn callback(
                         let y = mouse.lLastY as f64;
 
                         if x != 0.0 {
-                            send_event(Event::DeviceEvent {
+                            subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
                                 event: Motion { axis: 0, value: x }
                             });
                         }
 
                         if y != 0.0 {
-                            send_event(Event::DeviceEvent {
+                            subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
                                 event: Motion { axis: 1, value: y }
                             });
                         }
 
                         if x != 0.0 || y != 0.0 {
-                            send_event(Event::DeviceEvent {
+                            subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
                                 event: MouseMotion { delta: (x, y) }
                             });
@@ -858,7 +748,7 @@ pub unsafe extern "system" fn callback(
 
                     if util::has_flag(mouse.usButtonFlags, winuser::RI_MOUSE_WHEEL) {
                         let delta = mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
-                        send_event(Event::DeviceEvent {
+                        subclass_input.send_event(Event::DeviceEvent {
                             device_id,
                             event: MouseWheel { delta: LineDelta(0.0, delta as f32) }
                         });
@@ -872,7 +762,7 @@ pub unsafe extern "system" fn callback(
                             // seem to be anything else reasonable to do for a mouse
                             // button ID.
                             let button = (index + 1) as _;
-                            send_event(Event::DeviceEvent {
+                            subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
                                 event: Button {
                                     button,
@@ -906,7 +796,7 @@ pub unsafe extern "system" fn callback(
                         ) {
                             let virtual_keycode = vkey_to_winit_vkey(vkey);
 
-                            send_event(Event::DeviceEvent {
+                            subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
                                 event: Key(KeyboardInput {
                                     scancode,
@@ -920,7 +810,7 @@ pub unsafe extern "system" fn callback(
                 }
             }
 
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
         winuser::WM_TOUCH => {
@@ -939,7 +829,7 @@ pub unsafe extern "system" fn callback(
                     let x = (input.x as f64) / 100f64;
                     let y = (input.y as f64) / 100f64;
                     let location = LogicalPosition::from_physical((x, y), dpi_factor);
-                    send_event( Event::WindowEvent {
+                    subclass_input.send_event( Event::WindowEvent {
                         window_id: SuperWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {
                             phase:
@@ -965,7 +855,7 @@ pub unsafe extern "system" fn callback(
 
         winuser::WM_SETFOCUS => {
             use events::WindowEvent::{Focused, CursorMoved};
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Focused(true)
             });
@@ -975,7 +865,7 @@ pub unsafe extern "system" fn callback(
             let dpi_factor = get_hwnd_scale_factor(window);
             let position = LogicalPosition::from_physical((x, y), dpi_factor);
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: CursorMoved { device_id: DEVICE_ID, position, modifiers: event::get_key_mods() },
             });
@@ -985,7 +875,7 @@ pub unsafe extern "system" fn callback(
 
         winuser::WM_KILLFOCUS => {
             use events::WindowEvent::Focused;
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Focused(false)
             });
@@ -993,29 +883,22 @@ pub unsafe extern "system" fn callback(
         },
 
         winuser::WM_SETCURSOR => {
-            let call_def_window_proc = CONTEXT_STASH.with(|context_stash| {
-                context_stash
-                    .borrow()
-                    .as_ref()
-                    .and_then(|cstash| cstash.windows.get(&window))
-                    .map(|window_state_mutex| {
-                        let window_state = window_state_mutex.lock().unwrap();
-                        if window_state.mouse_in_window {
-                            let cursor = winuser::LoadCursorW(
-                                ptr::null_mut(),
-                                window_state.cursor.0,
-                            );
-                            winuser::SetCursor(cursor);
-                            false
-                        } else {
-                            true
-                        }
-                    })
-                    .unwrap_or(true)
-            });
+            let call_def_window_proc = {
+                let window_state = subclass_input.window_state.lock().unwrap();
+                if window_state.mouse_in_window {
+                    let cursor = winuser::LoadCursorW(
+                        ptr::null_mut(),
+                        window_state.cursor.0,
+                    );
+                    winuser::SetCursor(cursor);
+                    false
+                } else {
+                    true
+                }
+            };
 
             if call_def_window_proc {
-                winuser::DefWindowProcW(window, msg, wparam, lparam)
+                commctrl::DefSubclassProc(window, msg, wparam, lparam)
             } else {
                 0
             }
@@ -1028,29 +911,21 @@ pub unsafe extern "system" fn callback(
 
         winuser::WM_GETMINMAXINFO => {
             let mmi = lparam as *mut winuser::MINMAXINFO;
-            //(*mmi).max_position = winapi::shared::windef::POINT { x: -8, y: -8 }; // The upper left corner of the window if it were maximized on the primary monitor.
-            //(*mmi).max_size = winapi::shared::windef::POINT { x: .., y: .. }; // The dimensions of the primary monitor.
 
-            CONTEXT_STASH.with(|context_stash| {
-                if let Some(cstash) = context_stash.borrow().as_ref() {
-                    if let Some(wstash) = cstash.windows.get(&window) {
-                        let window_state = wstash.lock().unwrap();
+            let window_state = subclass_input.window_state.lock().unwrap();
 
-                        if window_state.min_size.is_some() || window_state.max_size.is_some() {
-                            let style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
-                            let ex_style = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
-                            if let Some(min_size) = window_state.min_size {
-                                let (width, height) = adjust_size(min_size, style, ex_style);
-                                (*mmi).ptMinTrackSize = POINT { x: width as i32, y: height as i32 };
-                            }
-                            if let Some(max_size) = window_state.max_size {
-                                let (width, height) = adjust_size(max_size, style, ex_style);
-                                (*mmi).ptMaxTrackSize = POINT { x: width as i32, y: height as i32 };
-                            }
-                        }
-                    }
+            if window_state.min_size.is_some() || window_state.max_size.is_some() {
+                let style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
+                let ex_style = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
+                if let Some(min_size) = window_state.min_size {
+                    let (width, height) = adjust_size(min_size, style, ex_style);
+                    (*mmi).ptMinTrackSize = POINT { x: width as i32, y: height as i32 };
                 }
-            });
+                if let Some(max_size) = window_state.max_size {
+                    let (width, height) = adjust_size(max_size, style, ex_style);
+                    (*mmi).ptMaxTrackSize = POINT { x: width as i32, y: height as i32 };
+                }
+            }
 
             0
         },
@@ -1067,34 +942,27 @@ pub unsafe extern "system" fn callback(
             let new_dpi_x = u32::from(LOWORD(wparam as DWORD));
             let new_dpi_factor = dpi_to_scale_factor(new_dpi_x);
 
-            let suppress_resize = CONTEXT_STASH.with(|context_stash| {
-                context_stash
-                    .borrow()
-                    .as_ref()
-                    .and_then(|cstash| cstash.windows.get(&window))
-                    .map(|window_state_mutex| {
-                        let mut window_state = window_state_mutex.lock().unwrap();
-                        let suppress_resize = window_state.saved_window_info
-                            .as_mut()
-                            .map(|saved_window_info| {
-                                let dpi_changed = if !saved_window_info.is_fullscreen {
-                                    saved_window_info.dpi_factor.take() != Some(new_dpi_factor)
-                                } else {
-                                    false
-                                };
-                                !dpi_changed || saved_window_info.is_fullscreen
-                            })
-                            .unwrap_or(false);
-                        // Now we adjust the min/max dimensions for the new DPI.
-                        if !suppress_resize {
-                            let old_dpi_factor = window_state.dpi_factor;
-                            window_state.update_min_max(old_dpi_factor, new_dpi_factor);
-                        }
-                        window_state.dpi_factor = new_dpi_factor;
-                        suppress_resize
+            let suppress_resize = {
+                let mut window_state = subclass_input.window_state.lock().unwrap();
+                let suppress_resize = window_state.saved_window_info
+                    .as_mut()
+                    .map(|saved_window_info| {
+                        let dpi_changed = if !saved_window_info.is_fullscreen {
+                            saved_window_info.dpi_factor.take() != Some(new_dpi_factor)
+                        } else {
+                            false
+                        };
+                        !dpi_changed || saved_window_info.is_fullscreen
                     })
-                    .unwrap_or(false)
-            });
+                    .unwrap_or(false);
+                // Now we adjust the min/max dimensions for the new DPI.
+                if !suppress_resize {
+                    let old_dpi_factor = window_state.dpi_factor;
+                    window_state.update_min_max(old_dpi_factor, new_dpi_factor);
+                }
+                window_state.dpi_factor = new_dpi_factor;
+                suppress_resize
+            };
 
             // This prevents us from re-applying DPI adjustment to the restored size after exiting
             // fullscreen (the restored size is already DPI adjusted).
@@ -1112,7 +980,7 @@ pub unsafe extern "system" fn callback(
                 );
             }
 
-            send_event(Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: HiDpiFactorChanged(new_dpi_factor),
             });
@@ -1127,7 +995,7 @@ pub unsafe extern "system" fn callback(
             } else if msg == *INITIAL_DPI_MSG_ID {
                 use events::WindowEvent::HiDpiFactorChanged;
                 let scale_factor = dpi_to_scale_factor(wparam as u32);
-                send_event(Event::WindowEvent {
+                subclass_input.send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
                     event: HiDpiFactorChanged(scale_factor),
                 });
@@ -1165,7 +1033,7 @@ pub unsafe extern "system" fn callback(
                 );
                 0
             } else {
-                winuser::DefWindowProcW(window, msg, wparam, lparam)
+                commctrl::DefSubclassProc(window, msg, wparam, lparam)
             }
         }
     }
