@@ -98,6 +98,10 @@ pub struct WindowState {
     pub fullscreen: Option<::MonitorId>,
     pub window_icon: Option<WinIcon>,
     pub taskbar_icon: Option<WinIcon>,
+    pub decorations: bool,
+    pub always_on_top: bool,
+    pub maximized: bool,
+    pub resizable: bool,
 }
 
 impl WindowState {
