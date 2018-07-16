@@ -19,9 +19,9 @@
 //! small.
 //!
 //! That's a description of what happens when the button is 100x100 *physical* pixels. Instead, let's try using 100x100
-//! *logical* pixels. To map logical pixels to physical pixels, we simply multiply by the DPI (dots per inch) factor. 
-//! On a "typical" desktop display, the DPI factor will be 1.0, so 100x100 logical pixels equates to 100x100 physical 
-//! pixels. However, a 1440p display may have a DPI factor of 1.25, so the button is rendered as 125x125 physical pixels. 
+//! *logical* pixels. To map logical pixels to physical pixels, we simply multiply by the DPI (dots per inch) factor.
+//! On a "typical" desktop display, the DPI factor will be 1.0, so 100x100 logical pixels equates to 100x100 physical
+//! pixels. However, a 1440p display may have a DPI factor of 1.25, so the button is rendered as 125x125 physical pixels.
 //! Ideally, the button now has approximately the same perceived size across varying displays.
 //!
 //! Failure to account for the DPI factor can create a badly degraded user experience. Most notably, it can make users
@@ -30,7 +30,7 @@
 //!
 //! There are two ways to get the DPI factor:
 //! - You can track the `WindowEvent::HiDpiFactorChanged` event of your windows. This event is sent any
-//!   time the DPI factor changes, be it because the window moved to an other monitor, or the
+//!   time the DPI factor changes, be it because the window moved to another monitor, or because the
 //!   user changed the configuration of their screen.
 //! - You can also retrieve the DPI factor of a monitor by calling
 //!   [`MonitorId::get_hidpi_factor`](../struct.MonitorId.html#method.get_hidpi_factor), or the
