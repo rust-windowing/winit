@@ -1,7 +1,7 @@
 # Unreleased
 
 - On iOS, the view is now set correctly. This makes it possible to render things (instead of being stuck on a black screen), and touch events work again.
-- Supported NetBSD.
+- Added NetBSD support.
 
 # Version 0.16.2 (2018-07-07)
 
