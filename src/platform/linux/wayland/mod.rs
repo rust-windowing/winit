@@ -1,5 +1,5 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd",
-           target_os = "openbsd"))]
+           target_os = "netbsd", target_os = "openbsd"))]
 
 pub use self::window::Window;
 pub use self::event_loop::{EventsLoop, EventsLoopProxy, EventsLoopSink, MonitorId};
