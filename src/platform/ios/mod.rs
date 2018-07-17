@@ -170,7 +170,7 @@ impl fmt::Debug for MonitorId {
 impl MonitorId {
     #[inline]
     pub fn get_uiscreen(&self) -> id {
-        let class = Class::get("UIScreen").expect("Failed to get class `UIScreen`");
+        let class = class!(UIScreen);
         unsafe { msg_send![class, mainScreen] }
     }
 
@@ -209,7 +209,7 @@ impl EventsLoop {
     pub fn new() -> EventsLoop {
         unsafe {
             if setjmp(mem::transmute(&mut JMPBUF)) != 0 {
-                let app_class = Class::get("UIApplication").expect("Failed to get class `UIApplication`");
+                let app_class = class!(UIApplication);
                 let app: id = msg_send![app_class, sharedApplication];
                 let delegate: id = msg_send![app, delegate];
                 let state: *mut c_void = *(&*delegate).get_ivar("winitState");
@@ -469,10 +469,10 @@ impl Window {
 
 fn create_delegate_class() {
     extern fn did_finish_launching(this: &mut Object, _: Sel, _: id, _: id) -> BOOL {
-        let screen_class = Class::get("UIScreen").expect("Failed to get class `UIScreen`");
-        let window_class = Class::get("UIWindow").expect("Failed to get class `UIWindow`");
-        let controller_class = Class::get("MainViewController").expect("Failed to get class `MainViewController`");
-        let view_class = Class::get("MainView").expect("Failed to get class `MainView`");
+        let screen_class = class!(UIScreen);
+        let window_class = class!(UIWindow);
+        let controller_class = class!(MainViewController);
+        let view_class = class!(MainView);
         unsafe {
             let main_screen: id = msg_send![screen_class, mainScreen];
             let bounds: CGRect = msg_send![main_screen, bounds];
@@ -595,7 +595,7 @@ fn create_delegate_class() {
         }
     }
 
-    let ui_responder = Class::get("UIResponder").expect("Failed to get class `UIResponder`");
+    let ui_responder = class!(UIResponder);
     let mut decl = ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
 
     unsafe {
@@ -642,7 +642,7 @@ fn create_delegate_class() {
 
 // TODO: winit shouldn't contain GL-specfiic code
 pub fn create_view_class() {
-    let superclass = Class::get("UIViewController").expect("Failed to get class `UIViewController`");
+    let superclass = class!(UIViewController);
     let decl = ClassDecl::new("MainViewController", superclass).expect("Failed to declare class `MainViewController`");
     decl.register();
 
@@ -663,10 +663,10 @@ pub fn create_view_class() {
     }
 
     extern fn layer_class(_: &Class, _: Sel) -> *const Class {
-        unsafe { mem::transmute(Class::get("CAEAGLLayer").expect("Failed to get class `CAEAGLLayer`")) }
+        class!(CAEAGLLayer)
     }
 
-    let superclass = Class::get("GLKView").expect("Failed to get class `GLKView`");
+    let superclass = class!(GLKView);
     let mut decl = ClassDecl::new("MainView", superclass).expect("Failed to declare class `MainView`");
     unsafe {
         decl.add_method(sel!(initForGl:), init_for_gl as extern fn(&Object, Sel, *const c_void) -> id);

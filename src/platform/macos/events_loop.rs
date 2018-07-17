@@ -180,7 +180,7 @@ impl EventsLoop {
         where F: FnMut(Event),
     {
         unsafe {
-            if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
+            if !msg_send![class!(NSThread), isMainThread] {
                 panic!("Events can only be polled from the main thread on macOS");
             }
         }
@@ -221,7 +221,7 @@ impl EventsLoop {
         where F: FnMut(Event) -> ControlFlow
     {
         unsafe {
-            if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
+            if !msg_send![class!(NSThread), isMainThread] {
                 panic!("Events can only be polled from the main thread on macOS");
             }
         }
