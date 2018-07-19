@@ -15,18 +15,10 @@ pub type Boolean = u32;
 
 pub const kCFRunLoopRunHandledSource: i32 = 4;
 
-pub const UIViewAutoresizingFlexibleWidth: NSUInteger = 1 << 1;
-pub const UIViewAutoresizingFlexibleHeight: NSUInteger = 1 << 4;
-
 #[cfg(target_pointer_width = "32")]
 pub type CGFloat = f32;
 #[cfg(target_pointer_width = "64")]
 pub type CGFloat = f64;
-
-#[cfg(target_pointer_width = "32")]
-pub type NSUInteger = u32;
-#[cfg(target_pointer_width = "64")]
-pub type NSUInteger = u64;
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -75,6 +67,8 @@ extern {
     pub fn setjmp(env: *mut c_void) -> c_int;
     pub fn longjmp(env: *mut c_void, val: c_int);
 }
+
+pub type JmpBuf = [c_int; 27];
 
 pub trait NSString: Sized {
     unsafe fn alloc(_: Self) -> id {
