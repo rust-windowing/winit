@@ -334,6 +334,11 @@ impl EventsLoopProxy {
     ///
     /// The `Inserted` can be used to inject a `WindowState` for the callback to use. The state is
     /// removed automatically if the callback receives a `WM_CLOSE` message for the window.
+    ///
+    /// Note that if you are using this to change some property of a window and updating
+    /// `WindowState` then you should call this within the lock of `WindowState`. Otherwise the
+    /// events may be sent to the other thread in different order to the one in which you set
+    /// `WindowState`, leaving them out of sync.
     pub fn execute_in_thread<F>(&self, function: F)
     where
         F: FnMut(Inserter) + Send + 'static,

@@ -1,4 +1,5 @@
 # Unreleased
+- Fixed some unsoundness around thread-safety on Windows. 
 
 # Version 0.16.2 (2018-07-07)
 
