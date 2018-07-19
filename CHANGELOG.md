@@ -2,6 +2,7 @@
 
 - On iOS, the view is now set correctly. This makes it possible to render things (instead of being stuck on a black screen), and touch events work again.
 - Added NetBSD support.
+- X11 - Dpi scaling factor behavior changed. First, winit tries to read it from "Xft.dpi" XResource, and uses DPI calculation from xrandr dimensions as fallback behavior.
 
 # Version 0.16.2 (2018-07-07)
 
