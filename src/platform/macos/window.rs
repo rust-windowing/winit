@@ -421,7 +421,7 @@ impl WindowDelegate {
 
         INIT.call_once(|| unsafe {
             // Create new NSWindowDelegate
-            let superclass = Class::get("NSObject").unwrap();
+            let superclass = class!(NSObject);
             let mut decl = ClassDecl::new("WinitWindowDelegate", superclass).unwrap();
 
             // Add callback methods
@@ -591,7 +591,7 @@ impl Window2 {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window2, CreationError> {
         unsafe {
-            if !msg_send![cocoa::base::class("NSThread"), isMainThread] {
+            if !msg_send![class!(NSThread), isMainThread] {
                 panic!("Windows can only be created on the main thread on macOS");
             }
         }
@@ -728,7 +728,7 @@ impl Window2 {
         static INIT: std::sync::Once = std::sync::ONCE_INIT;
 
         INIT.call_once(|| unsafe {
-            let window_superclass = Class::get("NSWindow").unwrap();
+            let window_superclass = class!(NSWindow);
             let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
             decl.add_method(sel!(canBecomeMainWindow), yes as extern fn(&Object, Sel) -> BOOL);
             decl.add_method(sel!(canBecomeKeyWindow), yes as extern fn(&Object, Sel) -> BOOL);
@@ -987,7 +987,7 @@ impl Window2 {
             MouseCursor::ZoomOut => "arrowCursor",
         };
         let sel = Sel::register(cursor_name);
-        let cls = Class::get("NSCursor").unwrap();
+        let cls = class!(NSCursor);
         unsafe {
             use objc::Message;
             let cursor: id = cls.send_message(sel, ()).unwrap();
@@ -1004,7 +1004,7 @@ impl Window2 {
 
     #[inline]
     pub fn hide_cursor(&self, hide: bool) {
-        let cursor_class = Class::get("NSCursor").unwrap();
+        let cursor_class = class!(NSCursor);
         // macOS uses a "hide counter" like Windows does, so we avoid incrementing it more than once.
         // (otherwise, `hide_cursor(false)` would need to be called n times!)
         if hide != self.cursor_hidden.get() {

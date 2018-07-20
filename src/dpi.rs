@@ -19,19 +19,29 @@
 //! small.
 //!
 //! That's a description of what happens when the button is 100x100 *physical* pixels. Instead, let's try using 100x100
-//! *logical* pixels. To map logical pixels to physical pixels, we simply multiply by the DPI (dots per inch) factor. 
-//! On a "typical" desktop display, the DPI factor will be 1.0, so 100x100 logical pixels equates to 100x100 physical 
-//! pixels. However, a 1440p display may have a DPI factor of 1.25, so the button is rendered as 125x125 physical pixels. 
+//! *logical* pixels. To map logical pixels to physical pixels, we simply multiply by the DPI (dots per inch) factor.
+//! On a "typical" desktop display, the DPI factor will be 1.0, so 100x100 logical pixels equates to 100x100 physical
+//! pixels. However, a 1440p display may have a DPI factor of 1.25, so the button is rendered as 125x125 physical pixels.
 //! Ideally, the button now has approximately the same perceived size across varying displays.
 //!
 //! Failure to account for the DPI factor can create a badly degraded user experience. Most notably, it can make users
 //! feel like they have bad eyesight, which will potentially cause them to think about growing elderly, resulting in
 //! them entering an existential panic. Once users enter that state, they will no longer be focused on your application.
 //!
-//! There are two ways to get the DPI factor: either by calling
-//! [`MonitorId::get_hidpi_factor`](../struct.MonitorId.html#method.get_hidpi_factor), or
-//! [`Window::get_hidpi_factor`](../struct.Window.html#method.get_hidpi_factor). You'll almost always use the latter,
-//! which is basically equivalent to `window.get_current_monitor().get_hidpi_factor()` anyway.
+//! There are two ways to get the DPI factor:
+//! - You can track the `WindowEvent::HiDpiFactorChanged` event of your windows. This event is sent any
+//!   time the DPI factor changes, be it because the window moved to another monitor, or because the
+//!   user changed the configuration of their screen.
+//! - You can also retrieve the DPI factor of a monitor by calling
+//!   [`MonitorId::get_hidpi_factor`](../struct.MonitorId.html#method.get_hidpi_factor), or the
+//!   current DPI factor applied to a window by calling
+//!   [`Window::get_hidpi_factor`](../struct.Window.html#method.get_hidpi_factor), which is roughly equivalent
+//!   to `window.get_current_monitor().get_hidpi_factor()`.
+//!
+//! Depending on the platform, the window's actual DPI factor may only be known after
+//! the event loop has started and your window has been drawn once. To properly handle these cases,
+//! the most robust way is to monitor the `WindowEvent::HiDpiFactorChanged` event and dynamically
+//! adapt your drawing logic to follow the DPI factor.
 //!
 //! Here's an overview of what sort of DPI factors you can expect, and where they come from:
 //! - **Windows:** On Windows 8 and 10, per-monitor scaling is readily configured by users from the display settings.

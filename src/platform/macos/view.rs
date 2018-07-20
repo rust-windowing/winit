@@ -64,7 +64,7 @@ unsafe impl Sync for ViewClass {}
 
 lazy_static! {
     static ref VIEW_CLASS: ViewClass = unsafe {
-        let superclass = Class::get("NSView").unwrap();
+        let superclass = class!(NSView);
         let mut decl = ClassDecl::new("WinitView", superclass).unwrap();
         decl.add_method(sel!(dealloc), dealloc as extern fn(&Object, Sel));
         decl.add_method(
@@ -191,7 +191,7 @@ extern fn set_marked_text(
         let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
         let _: () = msg_send![(*marked_text_ref), release];
         let marked_text = NSMutableAttributedString::alloc(nil);
-        let has_attr = msg_send![string, isKindOfClass:class("NSAttributedString")];
+        let has_attr = msg_send![string, isKindOfClass:class!(NSAttributedString)];
         if has_attr {
             marked_text.initWithAttributedString(string);
         } else {
@@ -214,7 +214,7 @@ extern fn unmark_text(this: &Object, _sel: Sel) {
 
 extern fn valid_attributes_for_marked_text(_this: &Object, _sel: Sel) -> id {
     //println!("validAttributesForMarkedText");
-    unsafe { msg_send![class("NSArray"), array] }
+    unsafe { msg_send![class!(NSArray), array] }
 }
 
 extern fn attributed_substring_for_proposed_range(
@@ -265,7 +265,7 @@ extern fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: 
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        let has_attr = msg_send![string, isKindOfClass:class("NSAttributedString")];
+        let has_attr = msg_send![string, isKindOfClass:class!(NSAttributedString)];
         let characters = if has_attr {
             // This is a *mut NSAttributedString
             msg_send![string, string]
@@ -282,7 +282,7 @@ extern fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: 
         state.last_insert = Some(string.to_owned());
 
         // We don't need this now, but it's here if that changes.
-        //let event: id = msg_send![class("NSApp"), currentEvent];
+        //let event: id = msg_send![class!(NSApp), currentEvent];
 
         let mut events = VecDeque::with_capacity(characters.len());
         for character in string.chars() {
@@ -400,7 +400,7 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
                 // Some keys (and only *some*, with no known reason) don't trigger `insertText`, while others do...
                 // So, we don't give repeats the opportunity to trigger that, since otherwise our hack will cause some
                 // keys to generate twice as many characters.
-                let array: id = msg_send![class("NSArray"), arrayWithObject:event];
+                let array: id = msg_send![class!(NSArray), arrayWithObject:event];
                 let (): _ = msg_send![this, interpretKeyEvents:array];
             }
         }

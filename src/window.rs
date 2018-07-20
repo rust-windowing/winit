@@ -304,6 +304,10 @@ impl Window {
     ///
     /// See the [`dpi`](dpi/index.html) module for more information.
     ///
+    /// Note that this value can change depending on user action (for example if the window is
+    /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
+    /// the most robust way to track the DPI you need to use to draw.
+    ///
     /// ## Platform-specific
     ///
     /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
