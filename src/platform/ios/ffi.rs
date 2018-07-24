@@ -1,7 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
 use std::ffi::CString;
-use std::mem;
 use std::os::raw::*;
 
 use objc::runtime::Object;

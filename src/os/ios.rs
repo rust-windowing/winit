@@ -40,7 +40,7 @@ pub trait WindowBuilderExt {
 impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_root_view_class(mut self, root_view_class: *const c_void) -> WindowBuilder {
-        self.platform_specific.root_view_class = Some(unsafe {&*(root_view_class as *const _) });
+        self.platform_specific.root_view_class = unsafe {&*(root_view_class as *const _) };
         self
     }
 }

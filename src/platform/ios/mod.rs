@@ -64,7 +64,7 @@ use std::{fmt, mem, ptr};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::os::raw::*;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use objc::declare::ClassDecl;
 use objc::runtime::{BOOL, Class, Object, Sel, YES};
@@ -105,24 +105,12 @@ use self::ffi::{
 static mut JMPBUF: Option<Box<JmpBuf>> = None;
 
 pub struct Window {
-    _events_queue: Rc<RefCell<VecDeque<Event>>>,
-    // TODO: find a way to track ownership of DelegateState
-    delegate_state: *mut DelegateState,
-    _drop_jmpbuf: DropJMPBUF,
+    _events_queue: Arc<RefCell<VecDeque<Event>>>,
+    delegate_state: Box<DelegateState>,
 }
 
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
-
-struct DropJMPBUF;
-
-impl Drop for DropJMPBUF {
-    fn drop(&mut self) {
-        unsafe {
-            JMPBUF.take();
-        }
-    }
-}
 
 #[derive(Debug)]
 struct DelegateState {
@@ -182,7 +170,7 @@ impl fmt::Debug for MonitorId {
 impl MonitorId {
     #[inline]
     pub fn get_uiscreen(&self) -> id {
-        let class = Class::get("UIScreen").expect("Failed to get class `UIScreen`");
+        let class = class!(UIScreen);
         unsafe { msg_send![class, mainScreen] }
     }
 
@@ -211,7 +199,7 @@ impl MonitorId {
 }
 
 pub struct EventsLoop {
-    events_queue: Rc<RefCell<VecDeque<Event>>>,
+    events_queue: Arc<RefCell<VecDeque<Event>>>,
 }
 
 #[derive(Clone)]
@@ -219,7 +207,12 @@ pub struct EventsLoopProxy;
 
 impl EventsLoop {
     pub fn new() -> EventsLoop {
-        EventsLoop { events_queue: Rc::new(RefCell::new(VecDeque::new())) }
+        unsafe {
+            if !msg_send![class!(NSThread), isMainThread] {
+                panic!("`Window` can only be created on the main thread on iOS");
+            }
+        }
+        EventsLoop { events_queue: Arc::new(RefCell::new(VecDeque::new())) }
     }
 
     #[inline]
@@ -307,7 +300,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         PlatformSpecificWindowBuilderAttributes {
-            root_view_class: Class::get("UIView").expect("Failed to get class `UIView"),
+            root_view_class: class!(UIView),
         }
     }
 }
@@ -321,51 +314,42 @@ impl Window {
         pl_alltributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, CreationError> {
         unsafe {
-            if !msg_send![Class::get("NSThread").expect("Failed to get class `NSThread`"), isMainThread] {
-                panic!("`Window` can only be created on the main thread on iOS");
-            }
             debug_assert!(mem::size_of_val(&JMPBUF) == mem::size_of::<Box<JmpBuf>>());
             assert!(mem::replace(&mut JMPBUF, Some(Box::new([0; 27]))).is_none(), "Only one `Window` is supported on iOS");
         }
 
         unsafe {
             if setjmp(mem::transmute_copy(&mut JMPBUF)) != 0 {
-                let _drop_jmpbuf = DropJMPBUF;
-                let app_class = Class::get("UIApplication").expect("Failed to get class `UIApplication`");
+                let app_class = class!(UIApplication);
                 let app: id = msg_send![app_class, sharedApplication];
                 let delegate: id = msg_send![app, delegate];
                 let state: *mut c_void = *(&*delegate).get_ivar("winitState");
-                let delegate_state = state as *mut DelegateState;
+                let mut delegate_state = Box::from_raw(state as *mut DelegateState);
                 let events_queue = &*ev.events_queue;
                 (&mut *delegate).set_ivar("eventsQueue", mem::transmute::<_, *mut c_void>(events_queue));
 
                 // easiest? way to get access to PlatformSpecificWindowBuilderAttributes to configure the view
-                let state = &mut *delegate_state;
                 let rect: CGRect = msg_send![MonitorId.get_uiscreen(), bounds];
 
-                let uiview_class = Class::get("UIView").expect("Failed to get class `UIView");
+                let uiview_class = class!(UIView);
                 let root_view_class = pl_alltributes.root_view_class;
                 let is_uiview: BOOL = msg_send![root_view_class, isSubclassOfClass:uiview_class];
                 assert!(is_uiview == YES, "`root_view_class` must inherit from `UIView`");
 
-                state.view = msg_send![root_view_class, alloc];
-                assert!(!state.view.is_null(), "Failed to create `UIView` instance");
-                state.view = msg_send![state.view, initWithFrame:rect];
+                delegate_state.view = msg_send![root_view_class, alloc];
+                assert!(!delegate_state.view.is_null(), "Failed to create `UIView` instance");
+                delegate_state.view = msg_send![delegate_state.view, initWithFrame:rect];
+                assert!(!delegate_state.view.is_null(), "Failed to initialize `UIView` instance");
 
-                let _: () = msg_send![state.controller, setView:state.view];
-                let _: () = msg_send![state.window, makeKeyAndVisible];
+                let _: () = msg_send![delegate_state.controller, setView:delegate_state.view];
+                let _: () = msg_send![delegate_state.window, makeKeyAndVisible];
 
                 return Ok(Window {
                     _events_queue: ev.events_queue.clone(),
                     delegate_state,
-                    _drop_jmpbuf,
                 });
             }
         }
-
-        // If someone catches a panic in the next few lines, and then tries to call
-        // `EventsLoop::poll_events`, we need to clear out the jmpbuf
-        let _drop_jmpbuf = DropJMPBUF;
 
         create_delegate_class();
         start_app();
@@ -375,12 +359,12 @@ impl Window {
 
     #[inline]
     pub fn get_uiwindow(&self) -> id {
-        unsafe { (*self.delegate_state).window }
+        self.delegate_state.window
     }
 
     #[inline]
     pub fn get_uiview(&self) -> id {
-        unsafe { (*self.delegate_state).view }
+        self.delegate_state.view
     }
 
     #[inline]
@@ -417,7 +401,7 @@ impl Window {
 
     #[inline]
     pub fn get_inner_size(&self) -> Option<LogicalSize> {
-        unsafe { Some((&*self.delegate_state).size) }
+        Some(self.delegate_state.size)
     }
 
     #[inline]
@@ -462,7 +446,7 @@ impl Window {
 
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
-        unsafe { (&*self.delegate_state) }.scale
+        self.delegate_state.scale
     }
 
     #[inline]
@@ -527,9 +511,9 @@ impl Window {
 
 fn create_delegate_class() {
     extern fn did_finish_launching(this: &mut Object, _: Sel, _: id, _: id) -> BOOL {
-        let screen_class = Class::get("UIScreen").expect("Failed to get class `UIScreen`");
-        let window_class = Class::get("UIWindow").expect("Failed to get class `UIWindow`");
-        let controller_class = Class::get("UIViewController").expect("Failed to get class `UIViewController`");
+        let screen_class = class!(UIScreen);
+        let window_class = class!(UIWindow);
+        let controller_class = class!(UIViewController);
         unsafe {
             let main_screen: id = msg_send![screen_class, mainScreen];
             let bounds: CGRect = msg_send![main_screen, bounds];
@@ -648,7 +632,7 @@ fn create_delegate_class() {
         }
     }
 
-    let ui_responder = Class::get("UIResponder").expect("Failed to get class `UIResponder`");
+    let ui_responder = class!(UIResponder);
     let mut decl = ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
 
     unsafe {
