@@ -1,5 +1,7 @@
 # Unreleased
 
+- **Breaking:** On iOS, `UIView` is now the default root view. `WindowBuilderExt::with_root_view_class` can be used to set the root view objective-c class to `GLKView` (OpenGLES) or `MTKView` (Metal/MoltenVK).
+- On iOS, the `UIApplication` is not started until `Window::new` is called.
 - On iOS, the view is now set correctly. This makes it possible to render things (instead of being stuck on a black screen), and touch events work again.
 - Added NetBSD support.
 
