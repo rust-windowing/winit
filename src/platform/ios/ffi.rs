@@ -4,7 +4,7 @@ use std::ffi::CString;
 use std::mem;
 use std::os::raw::*;
 
-use objc::runtime::{Class, Object};
+use objc::runtime::Object;
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;
@@ -72,7 +72,7 @@ pub type JmpBuf = [c_int; 27];
 
 pub trait NSString: Sized {
     unsafe fn alloc(_: Self) -> id {
-        msg_send![class("NSString"), alloc]
+        msg_send![class!(NSString), alloc]
     }
 
     unsafe fn initWithUTF8String_(self, c_string: *const c_char) -> id;
@@ -97,12 +97,5 @@ impl NSString for id {
 
     unsafe fn UTF8String(self) -> *const c_char {
         msg_send![self, UTF8String]
-    }
-}
-
-#[inline]
-pub fn class(name: &str) -> *mut Class {
-    unsafe {
-        mem::transmute(Class::get(name))
     }
 }
