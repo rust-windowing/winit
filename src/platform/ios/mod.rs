@@ -212,7 +212,7 @@ impl EventsLoop {
                 panic!("`Window` can only be created on the main thread on iOS");
             }
         }
-        EventsLoop { events_queue: Arc::new(RefCell::new(VecDeque::new())) }
+        EventsLoop { events_queue: Default::default() }
     }
 
     #[inline]
@@ -311,7 +311,7 @@ impl Window {
     pub fn new(
         ev: &EventsLoop,
         _attributes: WindowAttributes,
-        pl_alltributes: PlatformSpecificWindowBuilderAttributes,
+        pl_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, CreationError> {
         unsafe {
             debug_assert!(mem::size_of_val(&JMPBUF) == mem::size_of::<Box<JmpBuf>>());
@@ -332,7 +332,7 @@ impl Window {
                 let rect: CGRect = msg_send![MonitorId.get_uiscreen(), bounds];
 
                 let uiview_class = class!(UIView);
-                let root_view_class = pl_alltributes.root_view_class;
+                let root_view_class = pl_attributes.root_view_class;
                 let is_uiview: BOOL = msg_send![root_view_class, isSubclassOfClass:uiview_class];
                 assert!(is_uiview == YES, "`root_view_class` must inherit from `UIView`");
 
