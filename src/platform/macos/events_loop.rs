@@ -674,11 +674,15 @@ pub fn event_mods(event: cocoa::base::id) -> ModifiersState {
 unsafe fn modifier_event(
     ns_event: cocoa::base::id,
     keymask: NSEventModifierFlags,
-    key_pressed: bool,
+    was_key_pressed: bool,
 ) -> Option<WindowEvent> {
-    if !key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
-    || key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask) {
-        let state = ElementState::Released;
+    if !was_key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
+    || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask) {
+        let state = if was_key_pressed {
+            ElementState::Released
+        } else {
+            ElementState::Pressed
+        };
         let keycode = NSEvent::keyCode(ns_event);
         let scancode = keycode as u32;
         let virtual_keycode = to_virtual_key_code(keycode);
