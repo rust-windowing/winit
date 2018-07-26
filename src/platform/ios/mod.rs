@@ -92,6 +92,7 @@ use self::ffi::{
     CGPoint,
     CGRect,
     id,
+    JBLEN,
     JmpBuf,
     kCFRunLoopDefaultMode,
     kCFRunLoopRunHandledSource,
@@ -209,7 +210,7 @@ impl EventsLoop {
     pub fn new() -> EventsLoop {
         unsafe {
             if !msg_send![class!(NSThread), isMainThread] {
-                panic!("`Window` can only be created on the main thread on iOS");
+                panic!("`EventsLoop` can only be created on the main thread on iOS");
             }
         }
         EventsLoop { events_queue: Default::default() }
@@ -315,7 +316,7 @@ impl Window {
     ) -> Result<Window, CreationError> {
         unsafe {
             debug_assert!(mem::size_of_val(&JMPBUF) == mem::size_of::<Box<JmpBuf>>());
-            assert!(mem::replace(&mut JMPBUF, Some(Box::new([0; 27]))).is_none(), "Only one `Window` is supported on iOS");
+            assert!(mem::replace(&mut JMPBUF, Some(Box::new([0; JBLEN]))).is_none(), "Only one `Window` is supported on iOS");
         }
 
         unsafe {
