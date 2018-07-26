@@ -5,6 +5,7 @@
 - Added NetBSD support.
 - **Breaking:** On iOS, `UIView` is now the default root view. `WindowBuilderExt::with_root_view_class` can be used to set the root view objective-c class to `GLKView` (OpenGLES) or `MTKView` (Metal/MoltenVK).
 - On iOS, the `UIApplication` is not started until `Window::new` is called.
+- Fixed thread unsafety with cursor hiding on macOS.
 
 # Version 0.16.2 (2018-07-07)
 
