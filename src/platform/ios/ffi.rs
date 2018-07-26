@@ -69,13 +69,13 @@ extern {
 
 // values taken from "setjmp.h" header in xcode iPhoneOS/iPhoneSimulator SDK
 #[cfg(any(target_arch = "x86_64"))]
-pub const JBLEN: usize = ((9 * 2) + 3 + 16);
+pub const JBLEN: usize = (9 * 2) + 3 + 16;
 #[cfg(any(target_arch = "x86"))]
-pub const JBLEN: usize = (18);
+pub const JBLEN: usize = 18;
 #[cfg(target_arch = "arm")]
-pub const JBLEN: usize = (10 + 16 + 2);
+pub const JBLEN: usize = 10 + 16 + 2;
 #[cfg(target_arch = "aarch64")]
-pub const JBLEN: usize = ((14 + 8 + 2) * 2);
+pub const JBLEN: usize = (14 + 8 + 2) * 2;
 
 pub type JmpBuf = [c_int; JBLEN];
 
