@@ -5,7 +5,8 @@
 - Added NetBSD support.
 - **Breaking:** On iOS, `UIView` is now the default root view. `WindowBuilderExt::with_root_view_class` can be used to set the root view objective-c class to `GLKView` (OpenGLES) or `MTKView` (Metal/MoltenVK).
 - On iOS, the `UIApplication` is not started until `Window::new` is called.
-- On iOS, fix the size of the `JmpBuf` type used for `setjmp`/`longjmp` calls. Previously this was a buffer overflow on most architectures.
+- Fixed thread unsafety with cursor hiding on macOS.
+- On iOS, fixed the size of the `JmpBuf` type used for `setjmp`/`longjmp` calls. Previously this was a buffer overflow on most architectures.
 
 # Version 0.16.2 (2018-07-07)
 
