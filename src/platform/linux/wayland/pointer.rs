@@ -1,14 +1,14 @@
 use std::sync::{Arc, Mutex};
 
-use {ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
-use events::ModifiersState;
+use crate::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
+use crate::events::ModifiersState;
 
 use super::DeviceId;
 use super::event_loop::EventsLoopSink;
 use super::window::WindowStore;
 
-use sctk::reexports::client::{NewProxy, Proxy};
-use sctk::reexports::client::protocol::wl_pointer::{self, Event as PtrEvent, WlPointer};
+use crate::sctk::reexports::client::{NewProxy, Proxy};
+use crate::sctk::reexports::client::protocol::wl_pointer::{self, Event as PtrEvent, WlPointer};
 
 pub fn implement_pointer(
     pointer: NewProxy<WlPointer>,
@@ -35,13 +35,13 @@ pub fn implement_pointer(
                     mouse_focus = Some(wid);
                     sink.send_event(
                         WindowEvent::CursorEntered {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            device_id: crate::DeviceId(crate::platform::DeviceId::Wayland(DeviceId)),
                         },
                         wid,
                     );
                     sink.send_event(
                         WindowEvent::CursorMoved {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            device_id: crate::DeviceId(crate::platform::DeviceId::Wayland(DeviceId)),
                             position: (surface_x, surface_y).into(),
                             // TODO: replace dummy value with actual modifier state
                             modifiers: ModifiersState::default(),
@@ -56,7 +56,7 @@ pub fn implement_pointer(
                 if let Some(wid) = wid {
                     sink.send_event(
                         WindowEvent::CursorLeft {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            device_id: crate::DeviceId(crate::platform::DeviceId::Wayland(DeviceId)),
                         },
                         wid,
                     );
@@ -70,7 +70,7 @@ pub fn implement_pointer(
                 if let Some(wid) = mouse_focus {
                     sink.send_event(
                         WindowEvent::CursorMoved {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            device_id: crate::DeviceId(crate::platform::DeviceId::Wayland(DeviceId)),
                             position: (surface_x, surface_y).into(),
                             // TODO: replace dummy value with actual modifier state
                             modifiers: ModifiersState::default(),
@@ -94,7 +94,7 @@ pub fn implement_pointer(
                     };
                     sink.send_event(
                         WindowEvent::MouseInput {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            device_id: crate::DeviceId(crate::platform::DeviceId::Wayland(DeviceId)),
                             state: state,
                             button: button,
                             // TODO: replace dummy value with actual modifier state
@@ -116,7 +116,7 @@ pub fn implement_pointer(
                         }
                         sink.send_event(
                             WindowEvent::MouseWheel {
-                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                device_id: crate::DeviceId(crate::platform::DeviceId::Wayland(DeviceId)),
                                 delta: MouseScrollDelta::PixelDelta((x as f64, y as f64).into()),
                                 phase: TouchPhase::Moved,
                                 // TODO: replace dummy value with actual modifier state
@@ -146,7 +146,7 @@ pub fn implement_pointer(
                     if let Some((x, y)) = axis_discrete_buffer {
                         sink.send_event(
                             WindowEvent::MouseWheel {
-                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                device_id: crate::DeviceId(crate::platform::DeviceId::Wayland(DeviceId)),
                                 delta: MouseScrollDelta::LineDelta(x as f32, y as f32),
                                 phase: axis_state,
                                 // TODO: replace dummy value with actual modifier state
@@ -157,7 +157,7 @@ pub fn implement_pointer(
                     } else if let Some((x, y)) = axis_buffer {
                         sink.send_event(
                             WindowEvent::MouseWheel {
-                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                device_id: crate::DeviceId(crate::platform::DeviceId::Wayland(DeviceId)),
                                 delta: MouseScrollDelta::PixelDelta((x as f64, y as f64).into()),
                                 phase: axis_state,
                                 // TODO: replace dummy value with actual modifier state

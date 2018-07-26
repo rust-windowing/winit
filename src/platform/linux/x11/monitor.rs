@@ -2,7 +2,7 @@ use std::os::raw::*;
 
 use parking_lot::Mutex;
 
-use {PhysicalPosition, PhysicalSize};
+use crate::{PhysicalPosition, PhysicalSize};
 use super::{util, XConnection, XError};
 use super::ffi::{
     RRCrtcChangeNotifyMask,

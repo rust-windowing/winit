@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
 
-use {ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
+use crate::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
 
 use super::{make_wid, DeviceId, EventsLoopSink};
-use sctk::keyboard::{self, map_keyboard_auto, Event as KbEvent};
-use sctk::reexports::client::{NewProxy, Proxy};
-use sctk::reexports::client::protocol::wl_keyboard;
+use crate::sctk::keyboard::{self, map_keyboard_auto, Event as KbEvent};
+use crate::sctk::reexports::client::{NewProxy, Proxy};
+use crate::sctk::reexports::client::protocol::wl_keyboard;
 
 pub fn init_keyboard(
     keyboard: NewProxy<wl_keyboard::WlKeyboard>,
@@ -49,7 +49,7 @@ pub fn init_keyboard(
                 let mut guard = my_sink.lock().unwrap();
                 guard.send_event(
                     WindowEvent::KeyboardInput {
-                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                        device_id: crate::DeviceId(crate::platform::DeviceId::Wayland(DeviceId)),
                         input: KeyboardInput {
                             state: state,
                             scancode: rawkey,
@@ -112,7 +112,7 @@ pub fn init_keyboard(
                         };
                         my_sink.lock().unwrap().send_event(
                             WindowEvent::KeyboardInput {
-                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                device_id: crate::DeviceId(crate::platform::DeviceId::Wayland(DeviceId)),
                                 input: KeyboardInput {
                                     state: state,
                                     scancode: key,
@@ -148,7 +148,7 @@ fn key_to_vkey(rawkey: u32, keysym: u32) -> Option<VirtualKeyCode> {
 }
 
 fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
-    use sctk::keyboard::keysyms;
+    use crate::sctk::keyboard::keysyms;
     match keysym {
         // letters
         keysyms::XKB_KEY_A | keysyms::XKB_KEY_a => Some(VirtualKeyCode::A),

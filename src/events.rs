@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use {DeviceId, LogicalPosition, LogicalSize, WindowId};
+use crate::{DeviceId, LogicalPosition, LogicalSize, WindowId};
 
 /// Describes a generic event.
 #[derive(Clone, Debug)]

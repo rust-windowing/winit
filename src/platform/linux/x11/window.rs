@@ -7,13 +7,13 @@ use std::sync::Arc;
 use libc;
 use parking_lot::Mutex;
 
-use {Icon, MouseCursor, WindowAttributes};
-use CreationError::{self, OsError};
-use dpi::{LogicalPosition, LogicalSize};
-use platform::MonitorId as PlatformMonitorId;
-use platform::PlatformSpecificWindowBuilderAttributes;
-use platform::x11::MonitorId as X11MonitorId;
-use window::MonitorId as RootMonitorId;
+use crate::{Icon, MouseCursor, WindowAttributes};
+use crate::CreationError::{self, OsError};
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::platform::MonitorId as PlatformMonitorId;
+use crate::platform::PlatformSpecificWindowBuilderAttributes;
+use crate::platform::x11::MonitorId as X11MonitorId;
+use crate::window::MonitorId as RootMonitorId;
 
 use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventsLoop};
 

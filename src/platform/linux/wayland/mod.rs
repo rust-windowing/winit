@@ -4,8 +4,8 @@
 pub use self::window::Window;
 pub use self::event_loop::{EventsLoop, EventsLoopProxy, EventsLoopSink, MonitorId};
 
-use sctk::reexports::client::protocol::wl_surface;
-use sctk::reexports::client::Proxy;
+use crate::sctk::reexports::client::protocol::wl_surface;
+use crate::sctk::reexports::client::Proxy;
 
 mod event_loop;
 mod pointer;

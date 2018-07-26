@@ -1,20 +1,20 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 
-use {CreationError, MouseCursor, WindowAttributes};
-use dpi::{LogicalPosition, LogicalSize};
-use platform::MonitorId as PlatformMonitorId;
-use window::MonitorId as RootMonitorId;
+use crate::{CreationError, MouseCursor, WindowAttributes};
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::platform::MonitorId as PlatformMonitorId;
+use crate::window::MonitorId as RootMonitorId;
 
-use sctk::window::{BasicFrame, Event as WEvent, Window as SWindow};
-use sctk::reexports::client::{Display, Proxy};
-use sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_output};
-use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as CompositorRequests;
-use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
-use sctk::output::OutputMgr;
+use crate::sctk::window::{BasicFrame, Event as WEvent, Window as SWindow};
+use crate::sctk::reexports::client::{Display, Proxy};
+use crate::sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_output};
+use crate::sctk::reexports::client::protocol::wl_compositor::RequestsTrait as CompositorRequests;
+use crate::sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
+use crate::sctk::output::OutputMgr;
 
 use super::{make_wid, EventsLoop, MonitorId, WindowId};
-use platform::platform::wayland::event_loop::{get_available_monitors, get_primary_monitor};
+use crate::platform::platform::wayland::event_loop::{get_available_monitors, get_primary_monitor};
 
 pub struct Window {
     surface: Proxy<wl_surface::WlSurface>,

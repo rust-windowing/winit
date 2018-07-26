@@ -24,7 +24,7 @@ use std::sync::atomic::{self, AtomicBool};
 
 use libc::{self, setlocale, LC_CTYPE};
 
-use {
+use crate::{
     ControlFlow,
     CreationError,
     DeviceEvent,
@@ -36,8 +36,8 @@ use {
     WindowAttributes,
     WindowEvent,
 };
-use events::ModifiersState;
-use platform::PlatformSpecificWindowBuilderAttributes;
+use crate::events::ModifiersState;
+use crate::platform::PlatformSpecificWindowBuilderAttributes;
 use self::dnd::{Dnd, DndState};
 use self::ime::{ImeReceiver, ImeSender, ImeCreationError, Ime};
 
@@ -577,7 +577,7 @@ impl EventsLoop {
             }
 
             ffi::KeyPress | ffi::KeyRelease => {
-                use events::ElementState::{Pressed, Released};
+                use crate::events::ElementState::{Pressed, Released};
 
                 // Note that in compose/pre-edit sequences, this will always be Released.
                 let state = if xev.get_type() == ffi::KeyPress {
@@ -658,11 +658,11 @@ impl EventsLoop {
                     return;
                 }
 
-                use events::WindowEvent::{Focused, CursorEntered, MouseInput, CursorLeft, CursorMoved, MouseWheel, AxisMotion};
-                use events::ElementState::{Pressed, Released};
-                use events::MouseButton::{Left, Right, Middle, Other};
-                use events::MouseScrollDelta::LineDelta;
-                use events::{Touch, TouchPhase};
+                use crate::events::WindowEvent::{Focused, CursorEntered, MouseInput, CursorLeft, CursorMoved, MouseWheel, AxisMotion};
+                use crate::events::ElementState::{Pressed, Released};
+                use crate::events::MouseButton::{Left, Right, Middle, Other};
+                use crate::events::MouseScrollDelta::LineDelta;
+                use crate::events::{Touch, TouchPhase};
 
                 match xev.evtype {
                     ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
@@ -1321,8 +1321,8 @@ struct XExtension {
     first_error_id: c_int,
 }
 
-fn mkwid(w: ffi::Window) -> ::WindowId { ::WindowId(::platform::WindowId::X(WindowId(w))) }
-fn mkdid(w: c_int) -> ::DeviceId { ::DeviceId(::platform::DeviceId::X(DeviceId(w))) }
+fn mkwid(w: ffi::Window) -> crate::WindowId { crate::WindowId(crate::platform::WindowId::X(WindowId(w))) }
+fn mkdid(w: c_int) -> crate::DeviceId { crate::DeviceId(crate::platform::DeviceId::X(DeviceId(w))) }
 
 #[derive(Debug)]
 struct Device {

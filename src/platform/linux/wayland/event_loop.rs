@@ -4,22 +4,22 @@ use std::fmt;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use {ControlFlow, EventsLoopClosed, PhysicalPosition, PhysicalSize};
+use crate::{ControlFlow, EventsLoopClosed, PhysicalPosition, PhysicalSize};
 
 use super::WindowId;
 use super::window::WindowStore;
 
-use sctk::Environment;
-use sctk::output::OutputMgr;
-use sctk::reexports::client::{Display, EventQueue, GlobalEvent, Proxy, ConnectError};
-use sctk::reexports::client::commons::Implementation;
-use sctk::reexports::client::protocol::{wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat,
+use crate::sctk::Environment;
+use crate::sctk::output::OutputMgr;
+use crate::sctk::reexports::client::{Display, EventQueue, GlobalEvent, Proxy, ConnectError};
+use crate::sctk::reexports::client::commons::Implementation;
+use crate::sctk::reexports::client::protocol::{wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat,
                                         wl_touch};
 
-use sctk::reexports::client::protocol::wl_display::RequestsTrait as DisplayRequests;
+use crate::sctk::reexports::client::protocol::wl_display::RequestsTrait as DisplayRequests;
 
 pub struct EventsLoopSink {
-    buffer: VecDeque<::Event>,
+    buffer: VecDeque<crate::Event>,
 }
 
 impl EventsLoopSink {
@@ -29,21 +29,21 @@ impl EventsLoopSink {
         }
     }
 
-    pub fn send_event(&mut self, evt: ::WindowEvent, wid: WindowId) {
-        let evt = ::Event::WindowEvent {
+    pub fn send_event(&mut self, evt: crate::WindowEvent, wid: WindowId) {
+        let evt = crate::Event::WindowEvent {
             event: evt,
-            window_id: ::WindowId(::platform::WindowId::Wayland(wid)),
+            window_id: ::WindowId(crate::platform::WindowId::Wayland(wid)),
         };
         self.buffer.push_back(evt);
     }
 
-    pub fn send_raw_event(&mut self, evt: ::Event) {
+    pub fn send_raw_event(&mut self, evt: crate::Event) {
         self.buffer.push_back(evt);
     }
 
     fn empty_with<F>(&mut self, callback: &mut F)
     where
-        F: FnMut(::Event),
+        F: FnMut(crate::Event),
     {
         for evt in self.buffer.drain(..) {
             callback(evt)
@@ -139,7 +139,7 @@ impl EventsLoop {
 
     pub fn poll_events<F>(&mut self, mut callback: F)
     where
-        F: FnMut(::Event),
+        F: FnMut(crate::Event),
     {
         // send pending events to the server
         self.display.flush().expect("Wayland connection lost.");
@@ -164,7 +164,7 @@ impl EventsLoop {
 
     pub fn run_forever<F>(&mut self, mut callback: F)
     where
-        F: FnMut(::Event) -> ControlFlow,
+        F: FnMut(crate::Event) -> ControlFlow,
     {
         // send pending events to the server
         self.display.flush().expect("Wayland connection lost.");
@@ -216,7 +216,7 @@ impl EventsLoop {
         let mut sink = self.sink.lock().unwrap();
         // process a possible pending wakeup call
         if self.pending_wakeup.load(Ordering::Relaxed) {
-            sink.send_raw_event(::Event::Awakened);
+            sink.send_raw_event(crate::Event::Awakened);
             self.pending_wakeup.store(false, Ordering::Relaxed);
         }
         // prune possible dead windows
@@ -226,7 +226,7 @@ impl EventsLoop {
                 let pruned = self.store.lock().unwrap().cleanup();
                 *cleanup_needed = false;
                 for wid in pruned {
-                    sink.send_event(::WindowEvent::Destroyed, wid);
+                    sink.send_event(crate::WindowEvent::Destroyed, wid);
                 }
             }
         }
@@ -237,21 +237,21 @@ impl EventsLoop {
                     if let Some((w, h)) = newsize {
                         frame.resize(w, h);
                         frame.refresh();
-                        let logical_size = ::LogicalSize::new(w as f64, h as f64);
-                        sink.send_event(::WindowEvent::Resized(logical_size), wid);
+                        let logical_size = crate::LogicalSize::new(w as f64, h as f64);
+                        sink.send_event(crate::WindowEvent::Resized(logical_size), wid);
                         *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
                     }
                 }
                 if let Some(dpi) = new_dpi {
-                    sink.send_event(::WindowEvent::HiDpiFactorChanged(dpi as f64), wid);
+                    sink.send_event(crate::WindowEvent::HiDpiFactorChanged(dpi as f64), wid);
                 }
                 if refresh {
-                    sink.send_event(::WindowEvent::Refresh, wid);
+                    sink.send_event(crate::WindowEvent::Refresh, wid);
                 }
                 if closed {
-                    sink.send_event(::WindowEvent::CloseRequested, wid);
+                    sink.send_event(crate::WindowEvent::CloseRequested, wid);
                 }
             },
         )

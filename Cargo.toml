@@ -1,3 +1,5 @@
+cargo-features = ["edition"]
+
 [package]
 name = "winit"
 version = "0.16.2"
@@ -9,6 +11,7 @@ readme = "README.md"
 repository = "https://github.com/tomaka/winit"
 documentation = "https://docs.rs/winit"
 categories = ["gui"]
+edition = "2018"
 
 [package.metadata.docs.rs]
 features = ["icon_loading"]

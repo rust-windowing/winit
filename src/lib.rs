@@ -113,10 +113,10 @@ extern crate percent_encoding;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd"))]
 extern crate smithay_client_toolkit as sctk;
 
-pub(crate) use dpi::*; // TODO: Actually change the imports throughout the codebase.
-pub use events::*;
-pub use window::{AvailableMonitorsIter, MonitorId};
-pub use icon::*;
+pub use crate::dpi::*; // TODO: Actually change the imports throughout the codebase.
+pub use crate::events::*;
+pub use crate::window::{AvailableMonitorsIter, MonitorId};
+pub use crate::icon::*;
 
 pub mod dpi;
 mod events;

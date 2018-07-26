@@ -1,4 +1,4 @@
-use {Icon, Pixel, PIXEL_SIZE};
+use crate::{Icon, Pixel, PIXEL_SIZE};
 use super::*;
 
 impl Pixel {

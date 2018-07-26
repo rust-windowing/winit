@@ -1,6 +1,6 @@
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
-use {
+use crate::{
     CreationError,
     EventsLoop,
     Icon,

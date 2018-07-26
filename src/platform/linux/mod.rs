@@ -7,9 +7,9 @@ use std::os::raw::*;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use sctk::reexports::client::ConnectError;
+use crate::sctk::reexports::client::ConnectError;
 
-use {
+use crate::{
     CreationError,
     EventsLoopClosed,
     Icon,
@@ -17,8 +17,8 @@ use {
     ControlFlow,
     WindowAttributes,
 };
-use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use window::MonitorId as RootMonitorId;
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use crate::window::MonitorId as RootMonitorId;
 use self::x11::{XConnection, XError};
 use self::x11::ffi::XVisualInfo;
 pub use self::x11::XNotSupported;
@@ -487,7 +487,7 @@ r#"Failed to initialize any backend!
     }
 
     pub fn poll_events<F>(&mut self, callback: F)
-        where F: FnMut(::Event)
+        where F: FnMut(crate::Event)
     {
         match *self {
             EventsLoop::Wayland(ref mut evlp) => evlp.poll_events(callback),
@@ -496,7 +496,7 @@ r#"Failed to initialize any backend!
     }
 
     pub fn run_forever<F>(&mut self, callback: F)
-        where F: FnMut(::Event) -> ControlFlow
+        where F: FnMut(crate::Event) -> ControlFlow
     {
         match *self {
             EventsLoop::Wayland(ref mut evlp) => evlp.run_forever(callback),

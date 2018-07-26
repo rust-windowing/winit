@@ -4,26 +4,26 @@ use std::os::raw;
 use std::ptr;
 use std::sync::Arc;
 
-use {
+use crate::{
     EventsLoop,
     LogicalSize,
     MonitorId,
     Window,
     WindowBuilder,
 };
-use platform::{
+use crate::platform::{
     EventsLoop as LinuxEventsLoop,
     Window as LinuxWindow,
 };
-use platform::x11::XConnection;
-use platform::x11::ffi::XVisualInfo;
+use crate::platform::x11::XConnection;
+use crate::platform::x11::ffi::XVisualInfo;
 
 // TODO: stupid hack so that glutin can do its work
 #[doc(hidden)]
-pub use platform::x11;
+pub use crate::platform::x11;
 
-pub use platform::XNotSupported;
-pub use platform::x11::util::WindowType as XWindowType;
+pub use crate::platform::XNotSupported;
+pub use crate::platform::x11::util::WindowType as XWindowType;
 
 /// Additional methods on `EventsLoop` that are specific to Linux.
 pub trait EventsLoopExt {

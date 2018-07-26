@@ -1,6 +1,6 @@
-use {events, libc};
+use crate::{events, libc};
 use super::ffi;
-use VirtualKeyCode;
+use crate::VirtualKeyCode;
 
 pub fn keysym_to_element(keysym: libc::c_uint) -> Option<VirtualKeyCode> {
     Some(match keysym {
