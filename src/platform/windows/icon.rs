@@ -22,10 +22,12 @@ pub enum IconType {
     Big = winuser::ICON_BIG as isize,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct WinIcon {
     pub handle: HICON,
 }
+
+unsafe impl Send for WinIcon {}
 
 impl WinIcon {
     #[allow(dead_code)]

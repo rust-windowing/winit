@@ -58,6 +58,7 @@ use platform::platform::dpi::{
     get_hwnd_scale_factor,
 };
 use platform::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
+use platform::platform::icon::WinIcon;
 use platform::platform::raw_input::{get_raw_input_data, get_raw_mouse_button_state};
 use platform::platform::window::adjust_size;
 
@@ -94,6 +95,13 @@ pub struct WindowState {
     // This is different from the value in `SavedWindowInfo`! That one represents the DPI saved upon entering
     // fullscreen. This will always be the most recent DPI for the window.
     pub dpi_factor: f64,
+    pub fullscreen: Option<::MonitorId>,
+    pub window_icon: Option<WinIcon>,
+    pub taskbar_icon: Option<WinIcon>,
+    pub decorations: bool,
+    pub always_on_top: bool,
+    pub maximized: bool,
+    pub resizable: bool,
 }
 
 impl WindowState {
@@ -326,6 +334,11 @@ impl EventsLoopProxy {
     ///
     /// The `Inserted` can be used to inject a `WindowState` for the callback to use. The state is
     /// removed automatically if the callback receives a `WM_CLOSE` message for the window.
+    ///
+    /// Note that if you are using this to change some property of a window and updating
+    /// `WindowState` then you should call this within the lock of `WindowState`. Otherwise the
+    /// events may be sent to the other thread in different order to the one in which you set
+    /// `WindowState`, leaving them out of sync.
     pub fn execute_in_thread<F>(&self, function: F)
     where
         F: FnMut(Inserter) + Send + 'static,
