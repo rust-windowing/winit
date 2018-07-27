@@ -357,7 +357,7 @@ lazy_static! {
         }
     };
     // Message sent when we want to execute a closure in the thread.
-    // WPARAM contains a Box<Box<FnMut()>> that must be retreived with `Box::from_raw`,
+    // WPARAM contains a Box<Box<FnMut()>> that must be retrieved with `Box::from_raw`,
     // and LPARAM is unused.
     static ref EXEC_MSG_ID: u32 = {
         unsafe {
