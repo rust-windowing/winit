@@ -1,19 +1,19 @@
 #![cfg(target_os = "windows")]
 
+use std::{io, mem, ptr};
 use std::cell::Cell;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
-use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
-use std::{io, mem, ptr};
+use std::sync::mpsc::channel;
 
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{BOOL, DWORD, FALSE, LPARAM, TRUE, UINT, WORD, WPARAM};
 use winapi::shared::windef::{HDC, HWND, LPPOINT, POINT, RECT};
+use winapi::um::{combaseapi, dwmapi, libloaderapi, winuser};
 use winapi::um::objbase::COINIT_MULTITHREADED;
 use winapi::um::shobjidl_core::{CLSID_TaskbarList, ITaskbarList2};
 use winapi::um::winnt::{LONG, LPCWSTR};
-use winapi::um::{combaseapi, dwmapi, libloaderapi, winuser};
 
 use {
     CreationError,
@@ -276,18 +276,20 @@ impl Window {
         if mem::replace(&mut window_state.resizable, resizable) != resizable {
             // If we're in fullscreen, update stored configuration but don't apply anything.
             if window_state.fullscreen.is_none() {
-                let mut style =
-                    unsafe { winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE) };
-        if resizable {
-            style |= WS_RESIZABLE as LONG;
-        } else {
-            style &= !WS_RESIZABLE as LONG;
-        }
+                let mut style = unsafe { 
+                    winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE) 
+                };
 
-        unsafe {
-            winuser::SetWindowLongW(self.window.0, winuser::GWL_STYLE, style as _);
-        };
-    }
+                if resizable {
+                    style |= WS_RESIZABLE as LONG;
+                } else {
+                    style &= !WS_RESIZABLE as LONG;
+                }
+
+                unsafe {
+                    winuser::SetWindowLongW(self.window.0, winuser::GWL_STYLE, style as _);
+                };
+            }
         }
     }
 
@@ -1004,8 +1006,8 @@ unsafe fn init(
             saved_window_info: None,
             dpi_factor,
             fullscreen: attributes.fullscreen.clone(),
-            window_icon: window_icon,
-            taskbar_icon: taskbar_icon,
+            window_icon,
+            taskbar_icon,
             decorations: attributes.decorations,
             maximized: attributes.maximized,
             resizable: attributes.resizable,
@@ -1029,7 +1031,7 @@ unsafe fn init(
 
     let win = Window {
         window: real_window,
-        window_state: window_state,
+        window_state,
         events_loop_proxy,
     };
 

@@ -1,5 +1,6 @@
 # Unreleased
-- Fixed some unsoundness around thread-safety on Windows. 
+
+- Fixed thread-safety issues in several `Window` functions on Windows. 
 
 # Version 0.16.2 (2018-07-07)
 
