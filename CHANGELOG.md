@@ -1,5 +1,7 @@
 # Unreleased
 
+# Version 0.17.0 (2018-07-27)
+
 - Cocoa and core-graphics updates.
 - Fixed thread-safety issues in several `Window` functions on Windows. 
 - On MacOS, the key state for modifiers key events is now properly set.
