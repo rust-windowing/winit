@@ -2,7 +2,7 @@
 
 #![allow(dead_code, non_snake_case, non_upper_case_globals)]
 
-use cocoa::base::{class, id};
+use cocoa::base::id;
 use cocoa::foundation::{NSInteger, NSUInteger};
 use objc;
 

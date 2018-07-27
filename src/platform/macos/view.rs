@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use std::os::raw::*;
 use std::sync::Weak;
 
-use cocoa::base::{class, id, nil};
+use cocoa::base::{id, nil};
 use cocoa::appkit::{NSEvent, NSView, NSWindow};
 use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
 use objc::declare::ClassDecl;
