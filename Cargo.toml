@@ -26,10 +26,10 @@ image = { version = "0.19", optional = true }
 version = "0.2"
 
 [target.'cfg(target_os = "ios")'.dependencies]
-objc = "0.2"
+objc = "0.2.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc = "0.2"
+objc = "0.2.3"
 cocoa = "0.15"
 core-foundation = "0.6"
 core-graphics = "0.14"
@@ -53,9 +53,9 @@ features = [
     "winuser",
 ]
 
-[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
-wayland-client = { version = "0.20.6", features = [ "dlopen", "egl", "cursor"] }
-smithay-client-toolkit = "0.2.2"
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
+wayland-client = { version = "0.20.10", features = [ "dlopen", "egl", "cursor"] }
+smithay-client-toolkit = "0.2.6"
 x11-dl = "2.17.5"
 parking_lot = "0.6"
 percent-encoding = "1.0"

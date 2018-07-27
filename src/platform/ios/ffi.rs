@@ -1,10 +1,9 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
 use std::ffi::CString;
-use std::mem;
 use std::os::raw::*;
 
-use objc::runtime::{Class, Object};
+use objc::runtime::Object;
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;
@@ -15,18 +14,10 @@ pub type Boolean = u32;
 
 pub const kCFRunLoopRunHandledSource: i32 = 4;
 
-pub const UIViewAutoresizingFlexibleWidth: NSUInteger = 1 << 1;
-pub const UIViewAutoresizingFlexibleHeight: NSUInteger = 1 << 4;
-
 #[cfg(target_pointer_width = "32")]
 pub type CGFloat = f32;
 #[cfg(target_pointer_width = "64")]
 pub type CGFloat = f64;
-
-#[cfg(target_pointer_width = "32")]
-pub type NSUInteger = u32;
-#[cfg(target_pointer_width = "64")]
-pub type NSUInteger = u64;
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -73,12 +64,24 @@ extern {
 
 extern {
     pub fn setjmp(env: *mut c_void) -> c_int;
-    pub fn longjmp(env: *mut c_void, val: c_int);
+    pub fn longjmp(env: *mut c_void, val: c_int) -> !;
 }
+
+// values taken from "setjmp.h" header in xcode iPhoneOS/iPhoneSimulator SDK
+#[cfg(any(target_arch = "x86_64"))]
+pub const JBLEN: usize = (9 * 2) + 3 + 16;
+#[cfg(any(target_arch = "x86"))]
+pub const JBLEN: usize = 18;
+#[cfg(target_arch = "arm")]
+pub const JBLEN: usize = 10 + 16 + 2;
+#[cfg(target_arch = "aarch64")]
+pub const JBLEN: usize = (14 + 8 + 2) * 2;
+
+pub type JmpBuf = [c_int; JBLEN];
 
 pub trait NSString: Sized {
     unsafe fn alloc(_: Self) -> id {
-        msg_send![class("NSString"), alloc]
+        msg_send![class!(NSString), alloc]
     }
 
     unsafe fn initWithUTF8String_(self, c_string: *const c_char) -> id;
@@ -103,12 +106,5 @@ impl NSString for id {
 
     unsafe fn UTF8String(self) -> *const c_char {
         msg_send![self, UTF8String]
-    }
-}
-
-#[inline]
-pub fn class(name: &str) -> *mut Class {
-    unsafe {
-        mem::transmute(Class::get(name))
     }
 }

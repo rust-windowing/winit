@@ -35,7 +35,7 @@ unsafe impl objc::Encode for NSRange {
 
 pub trait NSMutableAttributedString: Sized {
     unsafe fn alloc(_: Self) -> id {
-        msg_send![class("NSMutableAttributedString"), alloc]
+        msg_send![class!(NSMutableAttributedString), alloc]
     }
 
     unsafe fn init(self) -> id; // *mut NSMutableAttributedString
