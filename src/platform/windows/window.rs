@@ -9,7 +9,7 @@ use std::sync::mpsc::channel;
 
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{BOOL, DWORD, FALSE, LPARAM, TRUE, UINT, WORD, WPARAM};
-use winapi::shared::windef::{HDC, HWND, LPPOINT, POINT, RECT};
+use winapi::shared::windef::{HWND, LPPOINT, POINT, RECT};
 use winapi::um::{combaseapi, dwmapi, libloaderapi, winuser};
 use winapi::um::objbase::COINIT_MULTITHREADED;
 use winapi::um::shobjidl_core::{CLSID_TaskbarList, ITaskbarList2};
@@ -26,7 +26,7 @@ use {
     WindowAttributes,
 };
 use platform::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, WindowId};
-use platform::platform::dpi::{dpi_to_scale_factor, get_window_dpi, get_window_scale_factor};
+use platform::platform::dpi::{dpi_to_scale_factor, get_hwnd_dpi};
 use platform::platform::events_loop::{self, EventsLoop, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID};
 use platform::platform::events_loop::WindowState;
 use platform::platform::icon::{self, IconType, WinIcon};
@@ -417,7 +417,7 @@ impl Window {
 
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
-        get_window_scale_factor(self.window.0, self.window.1)
+        self.window_state.lock().unwrap().dpi_factor
     }
 
     fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), String> {
@@ -773,7 +773,7 @@ impl Drop for Window {
 /// A simple non-owning wrapper around a window.
 #[doc(hidden)]
 #[derive(Clone)]
-pub struct WindowWrapper(HWND, HDC);
+pub struct WindowWrapper(HWND);
 
 // Send and Sync are not implemented for HWND and HDC, we have to wrap it and implement them manually.
 // For more info see:
@@ -954,13 +954,7 @@ unsafe fn init(
                                               format!("{}", io::Error::last_os_error()))));
         }
 
-        let hdc = winuser::GetDC(handle);
-        if hdc.is_null() {
-            return Err(CreationError::OsError(format!("GetDC function failed: {}",
-                                              format!("{}", io::Error::last_os_error()))));
-        }
-
-        WindowWrapper(handle, hdc)
+        WindowWrapper(handle)
     };
 
     // Set up raw input
@@ -974,7 +968,7 @@ unsafe fn init(
         }
     }
 
-    let dpi = get_window_dpi(real_window.0, real_window.1);
+    let dpi = get_hwnd_dpi(real_window.0);
     let dpi_factor = dpi_to_scale_factor(dpi);
     if dpi_factor != guessed_dpi_factor {
         let (width, height): (u32, u32) = dimensions.into();

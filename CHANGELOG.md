@@ -8,6 +8,7 @@
 - On iOS, the `UIApplication` is not started until `Window::new` is called.
 - Fixed thread unsafety with cursor hiding on macOS.
 - On iOS, fixed the size of the `JmpBuf` type used for `setjmp`/`longjmp` calls. Previously this was a buffer overflow on most architectures.
+- On Windows, use cached window DPI instead of repeatedly querying the system. This fixes sporadic crashes on Windows 7.
 
 # Version 0.16.2 (2018-07-07)
 
