@@ -1,6 +1,9 @@
 # Unreleased
 
-- Fixed thread-safety issues in several `Window` functions on Windows. 
+# Version 0.17.0 (2018-08-02)
+
+- Cocoa and core-graphics updates.
+- Fixed thread-safety issues in several `Window` functions on Windows.
 - On MacOS, the key state for modifiers key events is now properly set.
 - On iOS, the view is now set correctly. This makes it possible to render things (instead of being stuck on a black screen), and touch events work again.
 - Added NetBSD support.
