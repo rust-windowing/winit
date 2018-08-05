@@ -1,6 +1,7 @@
 # Unreleased
 
-* On X11, prevent a compilation failure in release mode for versions of Rust greater than or equal to 1.30.
+- On X11, prevent a compilation failure in release mode for versions of Rust greater than or equal to 1.30.
+- Fixed deadlock that broke fullscreen mode on Windows.
 
 # Version 0.17.0 (2018-08-02)
 

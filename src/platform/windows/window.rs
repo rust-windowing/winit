@@ -276,8 +276,8 @@ impl Window {
         if mem::replace(&mut window_state.resizable, resizable) != resizable {
             // If we're in fullscreen, update stored configuration but don't apply anything.
             if window_state.fullscreen.is_none() {
-                let mut style = unsafe { 
-                    winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE) 
+                let mut style = unsafe {
+                    winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE)
                 };
 
                 if resizable {
@@ -473,7 +473,7 @@ impl Window {
     unsafe fn set_fullscreen_style(&self, window_state: &mut WindowState) -> (LONG, LONG) {
         if window_state.fullscreen.is_none() || window_state.saved_window_info.is_none() {
             let rect = util::get_window_rect(self.window.0).expect("`GetWindowRect` failed");
-            let dpi_factor = Some(self.get_hidpi_factor());
+            let dpi_factor = Some(window_state.dpi_factor);
             window_state.saved_window_info = Some(events_loop::SavedWindowInfo {
                 style: winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE),
                 ex_style: winuser::GetWindowLongW(self.window.0, winuser::GWL_EXSTYLE),
