@@ -55,7 +55,7 @@ features = [
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
 wayland-client = { version = "0.20.10", features = [ "dlopen", "egl", "cursor"] }
-smithay-client-toolkit = "0.2.6"
+smithay-client-toolkit = { git = "https://github.com/Smithay/client-toolkit" }
 x11-dl = "2.18.3"
 parking_lot = "0.6"
 percent-encoding = "1.0"
