@@ -10,6 +10,8 @@ use super::window::WindowStore;
 use super::WindowId;
 
 use sctk::output::OutputMgr;
+use sctk::reexports::client::{Display, EventQueue, GlobalEvent, Proxy, ConnectError};
+use sctk::reexports::client::sys::client::wl_display;
 use sctk::reexports::client::commons::Implementation;
 use sctk::reexports::client::protocol::{
     wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat, wl_touch,
@@ -51,6 +53,10 @@ impl EventsLoopSink {
             callback(evt)
         }
     }
+}
+
+pub struct RawEventsLoopParts {
+    display_ptr: *mut wl_display,
 }
 
 pub struct EventsLoop {
@@ -104,10 +110,19 @@ impl EventsLoopProxy {
 
 impl EventsLoop {
     pub fn new() -> Result<EventsLoop, ConnectError> {
-        let (display, mut event_queue) = Display::connect_to_env()?;
+        let (display, event_queue) = Display::connect_to_env()?;
+        Ok(Self::new_internal(display, event_queue))
+    }
 
+    pub unsafe fn new_from_raw_parts(relp: &RawEventsLoopParts) -> EventsLoop {
+        let (display, event_queue) = Display::from_external_display(relp.display_ptr);
+        Self::new_internal(display, event_queue)
+    }
+
+    fn new_internal(display: Display, mut event_queue: EventQueue) -> EventsLoop {
         let display = Arc::new(display);
         let pending_wakeup = Arc::new(AtomicBool::new(false));
+
         let sink = Arc::new(Mutex::new(EventsLoopSink::new()));
         let store = Arc::new(Mutex::new(WindowStore::new()));
         let seats = Arc::new(Mutex::new(Vec::new()));
@@ -126,7 +141,7 @@ impl EventsLoop {
             },
         ).unwrap();
 
-        Ok(EventsLoop {
+        EventsLoop {
             display,
             evq: RefCell::new(event_queue),
             sink,
@@ -135,7 +150,13 @@ impl EventsLoop {
             env,
             cleanup_needed: Arc::new(Mutex::new(false)),
             seats,
-        })
+        }
+    }
+
+    pub fn get_raw_parts(&self) -> RawEventsLoopParts {
+        RawEventsLoopParts {
+            display_ptr: self.display.c_ptr() as *mut _,
+        }
     }
 
     pub fn create_proxy(&self) -> EventsLoopProxy {
@@ -247,7 +268,7 @@ impl EventsLoop {
                         frame.refresh();
                         let logical_size = ::LogicalSize::new(w as f64, h as f64);
                         sink.send_event(::WindowEvent::Resized(logical_size), wid);
-                        *size = (w, h);
+                        *size = Some((w, h));
                     } else if frame_refresh {
                         frame.refresh();
                         if !refresh {

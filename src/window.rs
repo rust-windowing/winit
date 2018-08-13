@@ -175,6 +175,24 @@ impl Window {
         builder.build(events_loop)
     }
 
+    /// Builds a new window from it's raw parts. Useful for interfacing with C
+    /// libraries.
+    ///
+    /// We don't take "ownership" over the window, as in, some functions might,
+    /// possibly silently, fail, while others might return invalid results. Some
+    /// may even result in unsafe behaviour!
+    #[inline]
+    pub unsafe fn new_from_raw_parts(el: &EventsLoop, rwp: &platform::RawWindowParts) -> Result<Window, CreationError> {
+        platform::Window::new_from_raw_parts(&el.events_loop, rwp)
+            .map(|window| Window { window })
+    }
+
+    /// Returns a window's raw parts. Useful for interfacing with C
+    #[inline]
+    pub fn get_raw_parts(&self) -> platform::RawWindowParts {
+        self.window.get_raw_parts()
+    }
+
     /// Modifies the title of the window.
     ///
     /// This is a no-op if the window has already been closed.

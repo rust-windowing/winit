@@ -117,6 +117,7 @@ pub(crate) use dpi::*; // TODO: Actually change the imports throughout the codeb
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId};
 pub use icon::*;
+pub use platform::raw_parts::*;
 
 pub mod dpi;
 mod events;
@@ -202,11 +203,32 @@ impl EventsLoop {
     /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
     /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
     /// fallback on x11. If this variable is set with any other value, winit will panic.
+    #[inline]
     pub fn new() -> EventsLoop {
         EventsLoop {
             events_loop: platform::EventsLoop::new(),
             _marker: ::std::marker::PhantomData,
         }
+    }
+
+    /// Builds a new events loop from it's raw parts. Useful for interfacing with C
+    /// libraries.
+    ///
+    /// We don't take "ownership" over the window, as in, some functions might,
+    /// possibly silently, fail, while others might return invalid results. Some
+    /// may even result in unsafe behaviour!
+    #[inline]
+    pub unsafe fn new_from_raw_parts(relp: &RawEventsLoopParts) -> EventsLoop {
+        EventsLoop {
+            events_loop: platform::EventsLoop::new_from_raw_parts(relp),
+            _marker: ::std::marker::PhantomData,
+        }
+    }
+
+    /// Returns an events loop's raw parts. Useful for interfacing with C
+    #[inline]
+    pub fn get_raw_parts(&self) -> RawEventsLoopParts {
+        self.events_loop.get_raw_parts()
     }
 
     /// Returns the list of all the monitors available on the system.

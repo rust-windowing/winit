@@ -28,14 +28,7 @@ pub type XErrorHandler = Option<unsafe extern fn(*mut ffi::Display, *mut ffi::XE
 
 impl XConnection {
     pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
-        // opening the libraries
         let xlib = ffi::Xlib::open()?;
-        let xcursor = ffi::Xcursor::open()?;
-        let xrandr = ffi::Xrandr_2_2_0::open()?;
-        let xrandr_1_5 = ffi::Xrandr::open().ok();
-        let xinput2 = ffi::XInput2::open()?;
-        let xlib_xcb = ffi::Xlib_xcb::open()?;
-
         unsafe { (xlib.XInitThreads)() };
         unsafe { (xlib.XSetErrorHandler)(error_handler) };
 
@@ -47,6 +40,17 @@ impl XConnection {
             }
             display
         };
+
+        Self::new_from_display(xlib, display)
+    }
+
+    pub fn new_from_display(xlib: ffi::Xlib, display: *mut ffi::Display) -> Result<XConnection, XNotSupported> {
+        // opening the libraries
+        let xcursor = ffi::Xcursor::open()?;
+        let xrandr = ffi::Xrandr_2_2_0::open()?;
+        let xrandr_1_5 = ffi::Xrandr::open().ok();
+        let xinput2 = ffi::XInput2::open()?;
+        let xlib_xcb = ffi::Xlib_xcb::open()?;
 
         Ok(XConnection {
             xlib,

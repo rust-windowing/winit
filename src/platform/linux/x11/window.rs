@@ -68,6 +68,10 @@ pub struct UnownedWindow {
     pub shared_state: Mutex<SharedState>,
 }
 
+pub struct RawWindowParts {
+    pub xwindow: ffi::Window,
+}
+
 impl UnownedWindow {
     pub fn new(
         event_loop: &EventsLoop,
@@ -344,7 +348,7 @@ impl UnownedWindow {
                     | ffi::XI_LeaveMask
                     | ffi::XI_FocusInMask
                     | ffi::XI_FocusOutMask;
-                if window_attrs.multitouch {
+                if window.multitouch {
                     mask |= ffi::XI_TouchBeginMask
                         | ffi::XI_TouchUpdateMask
                         | ffi::XI_TouchEndMask;
@@ -400,6 +404,84 @@ impl UnownedWindow {
             .map_err(|x_err| OsError(
                 format!("X server returned error while building window: {:?}", x_err)
             ))
+    }
+
+    pub unsafe fn new_from_raw_parts(
+        event_loop: &EventsLoop,
+        rwp: &RawWindowParts,
+    ) -> Result<UnownedWindow, CreationError> {
+        let xconn = &event_loop.xconn;
+        let root = event_loop.root;
+
+        let monitors = xconn.get_available_monitors();
+        let dpi_factor = if !monitors.is_empty() {
+            let mut dpi_factor = Some(monitors[0].get_hidpi_factor());
+            for monitor in &monitors {
+                if Some(monitor.get_hidpi_factor()) != dpi_factor {
+                    dpi_factor = None;
+                }
+            }
+            dpi_factor.unwrap_or_else(|| {
+                xconn.query_pointer(root, util::VIRTUAL_CORE_POINTER)
+                    .ok()
+                    .and_then(|pointer_state| {
+                        let (x, y) = (pointer_state.root_x as i64, pointer_state.root_y as i64);
+                        let mut dpi_factor = None;
+                        for monitor in &monitors {
+                            if monitor.rect.contains_point(x, y) {
+                                dpi_factor = Some(monitor.get_hidpi_factor());
+                                break;
+                            }
+                        }
+                        dpi_factor
+                    })
+                    .unwrap_or(1.0)
+            })
+        } else {
+            return Err(OsError(format!("No monitors were detected.")));
+        };
+
+        let attrs = {
+            let mut attrs = ::std::mem::uninitialized();
+            (xconn.xlib.XGetWindowAttributes)(
+                xconn.display,
+                rwp.xwindow,
+                &mut attrs,
+            );
+            attrs
+        };
+
+        // Not particularly efficient, but it's the only method I can find.
+        let mut screen_id = 0;
+        while attrs.screen != (xconn.xlib.XScreenOfDisplay)(xconn.display, screen_id) {
+            screen_id += 1;
+        }
+
+        let window = UnownedWindow {
+            xconn: Arc::clone(xconn),
+            xwindow: rwp.xwindow,
+            multitouch: false,
+            root: attrs.root,
+            screen_id,
+            cursor: Default::default(),
+            cursor_grabbed: Default::default(),
+            cursor_hidden: Default::default(),
+            ime_sender: Mutex::new(event_loop.ime_sender.clone()),
+            shared_state: SharedState::new(dpi_factor),
+        };
+
+        // We never want to give the user a broken window, since by then, it's too late to handle.
+        xconn.sync_with_server()
+            .map(|_| window)
+            .map_err(|x_err| OsError(
+                format!("X server returned error while building window: {:?}", x_err)
+            ))
+    }
+
+    pub fn get_raw_parts(&self) -> RawWindowParts {
+        RawWindowParts {
+            xwindow: self.xwindow,
+        }
     }
 
     fn logicalize_coords(&self, (x, y): (i32, i32)) -> LogicalPosition {

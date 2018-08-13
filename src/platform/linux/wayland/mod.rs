@@ -1,8 +1,8 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd",
            target_os = "netbsd", target_os = "openbsd"))]
 
-pub use self::window::Window;
-pub use self::event_loop::{EventsLoop, EventsLoopProxy, EventsLoopSink, MonitorId};
+pub use self::window::{Window, RawWindowParts};
+pub use self::event_loop::{EventsLoop, EventsLoopProxy, EventsLoopSink, MonitorId, RawEventsLoopParts};
 
 use sctk::reexports::client::protocol::wl_surface;
 use sctk::reexports::client::Proxy;

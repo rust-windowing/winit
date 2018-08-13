@@ -27,6 +27,11 @@ mod dlopen;
 pub mod wayland;
 pub mod x11;
 
+pub mod raw_parts {
+    pub use super::{RawEventsLoopParts, RawWindowParts};
+    pub use super::x11::XConnection;
+}
+
 /// Environment variable specifying which backend should be used on unix platform.
 ///
 /// Legal values are x11 and wayland. If this variable is set only the named backend
@@ -35,6 +40,16 @@ pub mod x11;
 ///
 /// If this variable is set with any other value, winit will panic.
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
+
+pub enum RawEventsLoopParts {
+    X(x11::RawEventsLoopParts),
+    Wayland(wayland::RawEventsLoopParts),
+}
+
+pub enum RawWindowParts {
+    X(x11::RawWindowParts),
+    Wayland(wayland::RawWindowParts),
+}
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
@@ -132,6 +147,39 @@ impl Window {
             EventsLoop::X(ref events_loop) => {
                 x11::Window::new(events_loop, attribs, pl_attribs).map(Window::X)
             },
+        }
+    }
+
+    #[inline]
+    pub unsafe fn new_from_raw_parts(
+        el: &EventsLoop,
+        rwp: &RawWindowParts,
+    ) -> Result<Self, CreationError> {
+        match (el, rwp) {
+            (&EventsLoop::Wayland(ref el), &RawWindowParts::Wayland(ref rwp)) => {
+                wayland::Window::new_from_raw_parts(el, rwp).map(Window::Wayland)
+            },
+            (&EventsLoop::X(ref el), &RawWindowParts::X(ref rwp)) => {
+                x11::Window::new_from_raw_parts(el, rwp).map(Window::X)
+            },
+            (&EventsLoop::Wayland(_), _) => panic!(
+                "The platform of the raw window parts and the events loop do not
+                match. The creation of a window using a Wayland events loop
+                requires the raw parts of a Wayland window."
+            ),
+            (&EventsLoop::X(_), _) => panic!(
+                "The platform of the raw window parts and the events loop do not
+                match. The creation of a window using a X11 events loop requires
+                the raw parts of a X11 window."
+            ),
+        }
+    }
+
+    #[inline]
+    pub fn get_raw_parts(&self) -> RawWindowParts {
+        match *self {
+            Window::X(ref w) => RawWindowParts::X(w.get_raw_parts()),
+            Window::Wayland(ref w) => RawWindowParts::Wayland(w.get_raw_parts()),
         }
     }
 
@@ -452,6 +500,28 @@ r#"Failed to initialize any backend!
             .map(x11::EventsLoop::new)
             .map(EventsLoop::X)
             .map_err(|err| err.clone())
+    }
+
+    #[inline]
+    pub unsafe fn new_from_raw_parts(
+        relp: &RawEventsLoopParts,
+    ) -> EventsLoop {
+        match *relp {
+            RawEventsLoopParts::Wayland(ref relp) => {
+                EventsLoop::Wayland(wayland::EventsLoop::new_from_raw_parts(relp))
+            },
+            RawEventsLoopParts::X(ref relp) => {
+                EventsLoop::X(x11::EventsLoop::new_from_raw_parts(relp))
+            },
+        }
+    }
+
+    #[inline]
+    pub fn get_raw_parts(&self) -> RawEventsLoopParts {
+        match *self {
+            EventsLoop::X(ref e) => RawEventsLoopParts::X(e.get_raw_parts()),
+            EventsLoop::Wayland(ref e) => RawEventsLoopParts::Wayland(e.get_raw_parts()),
+        }
     }
 
     #[inline]

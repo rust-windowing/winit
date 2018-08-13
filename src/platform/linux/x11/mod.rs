@@ -10,7 +10,7 @@ mod ime;
 pub mod util;
 
 pub use self::monitor::MonitorId;
-pub use self::window::UnownedWindow;
+pub use self::window::{UnownedWindow, RawWindowParts};
 pub use self::xdisplay::{XConnection, XNotSupported, XError};
 
 use std::{mem, ptr, slice};
@@ -59,6 +59,10 @@ pub struct EventsLoop {
     wakeup_dummy_window: ffi::Window,
 }
 
+pub struct RawEventsLoopParts {
+    pub xconn: Arc<XConnection>,
+}
+
 #[derive(Clone)]
 pub struct EventsLoopProxy {
     pending_wakeup: Weak<AtomicBool>,
@@ -67,6 +71,18 @@ pub struct EventsLoopProxy {
 }
 
 impl EventsLoop {
+    #[inline]
+    pub fn new_from_raw_parts(relp: &RawEventsLoopParts) -> EventsLoop {
+        Self::new(Arc::clone(&relp.xconn))
+    }
+
+    #[inline]
+    pub fn get_raw_parts(&self) -> RawEventsLoopParts {
+        RawEventsLoopParts {
+            xconn: Arc::clone(&self.xconn),
+        }
+    }
+
     pub fn new(xconn: Arc<XConnection>) -> EventsLoop {
         let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
 
@@ -1261,6 +1277,7 @@ impl Deref for Window {
 }
 
 impl Window {
+    #[inline]
     pub fn new(
         event_loop: &EventsLoop,
         attribs: WindowAttributes,
@@ -1271,6 +1288,23 @@ impl Window {
             .borrow_mut()
             .insert(window.id(), Arc::downgrade(&window));
         Ok(Window(window))
+    }
+
+    #[inline]
+    pub unsafe fn new_from_raw_parts(
+        event_loop: &EventsLoop,
+        rwp: &RawWindowParts,
+    ) -> Result<Self, CreationError> {
+        let window = Arc::new(UnownedWindow::new_from_raw_parts(&event_loop, rwp)?);
+        event_loop.windows
+            .borrow_mut()
+            .insert(window.id(), Arc::downgrade(&window));
+        Ok(Window(window))
+    }
+
+    #[inline]
+    pub fn get_raw_parts(&self) -> RawWindowParts {
+        self.0.get_raw_parts()
     }
 }
 

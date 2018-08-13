@@ -18,20 +18,62 @@ use platform::platform::wayland::event_loop::{get_available_monitors, get_primar
 
 pub struct Window {
     surface: Proxy<wl_surface::WlSurface>,
-    frame: Arc<Mutex<SWindow<BasicFrame>>>,
+    frame: Arc<Mutex<Option<SWindow<BasicFrame>>>>,
     monitors: Arc<Mutex<MonitorList>>, // Monitors this window is currently on
     outputs: OutputMgr, // Access to info for all monitors
-    size: Arc<Mutex<(u32, u32)>>,
-    kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
+    size: Arc<Mutex<Option<(u32, u32)>>>,
+    kill_switch: Option<(Arc<Mutex<bool>>, Arc<Mutex<bool>>)>,
     display: Arc<Display>,
     need_frame_refresh: Arc<Mutex<bool>>,
 }
 
+pub struct RawWindowParts {
+    pub surface: *mut ::libc::c_void,
+}
+
 impl Window {
+    pub fn new_from_raw_parts(
+        evlp: &EventsLoop,
+        rwp: &RawWindowParts,
+    ) -> Result<Window, CreationError> {
+        let surface = unsafe {
+            Proxy::from_c_ptr(rwp.surface as *mut _)
+        };
+        let frame = Arc::new(Mutex::new(None));
+        let size = Arc::new(Mutex::new(None));
+        let monitor_list = Arc::new(Mutex::new(MonitorList::new()));
+        let need_frame_refresh = Arc::new(Mutex::new(false));
+
+        evlp.store.lock().unwrap().windows.push(InternalWindow {
+            closed: false,
+            newsize: None,
+            size: size.clone(),
+            need_refresh: false,
+            need_frame_refresh: need_frame_refresh.clone(),
+            surface: surface.clone(),
+            kill_switch: None,
+            frame: Arc::downgrade(&frame),
+            current_dpi: 1,
+            new_dpi: None,
+        });
+        evlp.evq.borrow_mut().sync_roundtrip().unwrap();
+
+        Ok(Window {
+            display: evlp.display.clone(),
+            surface,
+            frame,
+            monitors: monitor_list,
+            outputs: evlp.env.outputs.clone(),
+            size,
+            kill_switch: None,
+            need_frame_refresh: need_frame_refresh,
+        })
+    }
+
     pub fn new(evlp: &EventsLoop, attributes: WindowAttributes) -> Result<Window, CreationError> {
         let (width, height) = attributes.dimensions.map(Into::into).unwrap_or((800, 600));
         // Create the window
-        let size = Arc::new(Mutex::new((width, height)));
+        let size = Arc::new(Mutex::new(Some((width, height))));
 
         // monitor tracking
         let monitor_list = Arc::new(Mutex::new(MonitorList::new()));
@@ -134,7 +176,7 @@ impl Window {
 
         let kill_switch = Arc::new(Mutex::new(false));
         let need_frame_refresh = Arc::new(Mutex::new(true));
-        let frame = Arc::new(Mutex::new(frame));
+        let frame = Arc::new(Mutex::new(Some(frame)));
 
         evlp.store.lock().unwrap().windows.push(InternalWindow {
             closed: false,
@@ -143,7 +185,7 @@ impl Window {
             need_refresh: false,
             need_frame_refresh: need_frame_refresh.clone(),
             surface: surface.clone(),
-            kill_switch: kill_switch.clone(),
+            kill_switch: Some(kill_switch.clone()),
             frame: Arc::downgrade(&frame),
             current_dpi: 1,
             new_dpi: None,
@@ -152,14 +194,20 @@ impl Window {
 
         Ok(Window {
             display: evlp.display.clone(),
-            surface: surface,
-            frame: frame,
+            surface,
+            frame,
             monitors: monitor_list,
             outputs: evlp.env.outputs.clone(),
-            size: size,
-            kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
+            size,
+            kill_switch: Some((kill_switch, evlp.cleanup_needed.clone())),
             need_frame_refresh: need_frame_refresh,
         })
+    }
+
+    pub fn get_raw_parts(&self) -> RawWindowParts {
+        RawWindowParts {
+            surface: self.surface.c_ptr() as *mut _,
+        }
     }
 
     #[inline]
@@ -168,7 +216,13 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
-        self.frame.lock().unwrap().set_title(title.into());
+        let mut frame = self.frame
+            .lock()
+            .unwrap();
+        frame
+            .as_mut()
+            .expect("Cannot operate on the frame of a window made from raw parts.")
+            .set_title(title.into());
     }
 
     #[inline]
@@ -199,12 +253,25 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> Option<LogicalSize> {
-        Some(self.size.lock().unwrap().clone().into())
+        let size = self.size
+            .lock()
+            .unwrap();
+        Some(size
+            .as_ref()
+            .expect("Cannot retrive the size of a window made from raw parts.")
+            .clone()
+            .into())
     }
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        let (w, h) = self.size.lock().unwrap().clone();
+        let size = self.size
+            .lock()
+            .unwrap();
+        let (w, h) = size
+            .as_ref()
+            .expect("Cannot retrive the size of a window made from raw parts.")
+            .clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
         Some((w, h).into())
     }
@@ -213,23 +280,47 @@ impl Window {
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, size: LogicalSize) {
         let (w, h) = size.into();
-        self.frame.lock().unwrap().resize(w, h);
-        *(self.size.lock().unwrap()) = (w, h);
+        let mut frame = self.frame
+            .lock()
+            .unwrap();
+        frame
+            .as_mut()
+            .expect("Cannot operate on the frame of a window made from raw parts.")
+            .resize(w, h);
+        *self.size.lock().unwrap() = Some((w, h));
     }
 
     #[inline]
     pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
-        self.frame.lock().unwrap().set_min_size(dimensions.map(Into::into));
+        let mut frame = self.frame
+            .lock()
+            .unwrap();
+        frame
+            .as_mut()
+            .expect("Cannot operate on the frame of a window made from raw parts.")
+            .set_min_size(dimensions.map(Into::into));
     }
 
     #[inline]
     pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
-        self.frame.lock().unwrap().set_max_size(dimensions.map(Into::into));
+        let mut frame = self.frame
+            .lock()
+            .unwrap();
+        frame
+            .as_mut()
+            .expect("Cannot operate on the frame of a window made from raw parts.")
+            .set_max_size(dimensions.map(Into::into));
     }
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
-        self.frame.lock().unwrap().set_resizable(resizable);
+        let mut frame = self.frame
+            .lock()
+            .unwrap();
+        frame
+            .as_mut()
+            .expect("Cannot operate on the frame of a window made from raw parts.")
+            .set_resizable(resizable);
     }
 
     #[inline]
@@ -238,15 +329,33 @@ impl Window {
     }
 
     pub fn set_decorations(&self, decorate: bool) {
-        self.frame.lock().unwrap().set_decorate(decorate);
+        let mut frame = self.frame
+            .lock()
+            .unwrap();
+        frame
+            .as_mut()
+            .expect("Cannot operate on the frame of a window made from raw parts.")
+            .set_decorate(decorate);
         *(self.need_frame_refresh.lock().unwrap()) = true;
     }
 
     pub fn set_maximized(&self, maximized: bool) {
         if maximized {
-            self.frame.lock().unwrap().set_maximized();
+            let mut frame = self.frame
+                .lock()
+                .unwrap();
+            frame
+                .as_mut()
+                .expect("Cannot operate on the frame of a window made from raw parts.")
+                .set_maximized();
         } else {
-            self.frame.lock().unwrap().unset_maximized();
+            let mut frame = self.frame
+                .lock()
+                .unwrap();
+            frame
+                .as_mut()
+                .expect("Cannot operate on the frame of a window made from raw parts.")
+                .unset_maximized();
         }
     }
 
@@ -255,12 +364,21 @@ impl Window {
             inner: PlatformMonitorId::Wayland(ref monitor_id),
         }) = monitor
         {
-            self.frame
+            let mut frame = self.frame
                 .lock()
-                .unwrap()
+                .unwrap();
+            frame
+                .as_mut()
+                .expect("Cannot operate on the frame of a window made from raw parts.")
                 .set_fullscreen(Some(&monitor_id.proxy));
         } else {
-            self.frame.lock().unwrap().unset_fullscreen();
+            let mut frame = self.frame
+                .lock()
+                .unwrap();
+            frame
+                .as_mut()
+                .expect("Cannot operate on the frame of a window made from raw parts.")
+                .unset_fullscreen();
         }
     }
 
@@ -310,8 +428,10 @@ impl Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        *(self.kill_switch.0.lock().unwrap()) = true;
-        *(self.kill_switch.1.lock().unwrap()) = true;
+        if let Some(ref ks) = self.kill_switch {
+            *(ks.0.lock().unwrap()) = true;
+            *(ks.1.lock().unwrap()) = true;
+        }
     }
 }
 
@@ -322,12 +442,12 @@ impl Drop for Window {
 struct InternalWindow {
     surface: Proxy<wl_surface::WlSurface>,
     newsize: Option<(u32, u32)>,
-    size: Arc<Mutex<(u32, u32)>>,
+    size: Arc<Mutex<Option<(u32, u32)>>>,
     need_refresh: bool,
     need_frame_refresh: Arc<Mutex<bool>>,
     closed: bool,
-    kill_switch: Arc<Mutex<bool>>,
-    frame: Weak<Mutex<SWindow<BasicFrame>>>,
+    kill_switch: Option<Arc<Mutex<bool>>>,
+    frame: Weak<Mutex<Option<SWindow<BasicFrame>>>>,
     current_dpi: i32,
     new_dpi: Option<i32>
 }
@@ -355,11 +475,15 @@ impl WindowStore {
     pub fn cleanup(&mut self) -> Vec<WindowId> {
         let mut pruned = Vec::new();
         self.windows.retain(|w| {
-            if *w.kill_switch.lock().unwrap() {
-                // window is dead, cleanup
-                pruned.push(make_wid(&w.surface));
-                w.surface.destroy();
-                false
+            if let Some(ref ks) = w.kill_switch {
+                if *ks.lock().unwrap() {
+                    // window is dead, cleanup
+                    pruned.push(make_wid(&w.surface));
+                    w.surface.destroy();
+                    false
+                } else {
+                    true
+                }
             } else {
                 true
             }
@@ -370,7 +494,13 @@ impl WindowStore {
     pub fn new_seat(&self, seat: &Proxy<wl_seat::WlSeat>) {
         for window in &self.windows {
             if let Some(w) = window.frame.upgrade() {
-                w.lock().unwrap().new_seat(seat);
+                let mut frame = w
+                    .lock()
+                    .unwrap();
+                frame
+                    .as_mut()
+                    .expect("Cannot operate on the frame of a window made from raw parts.")
+                    .new_seat(seat);
             }
         }
     }
@@ -385,7 +515,7 @@ impl WindowStore {
 
     pub fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(Option<(u32, u32)>, &mut (u32, u32), Option<i32>, bool, bool, bool, WindowId, Option<&mut SWindow<BasicFrame>>),
+        F: FnMut(Option<(u32, u32)>, &mut Option<(u32, u32)>, Option<i32>, bool, bool, bool, WindowId, Option<&mut SWindow<BasicFrame>>),
     {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();
@@ -398,7 +528,7 @@ impl WindowStore {
                 ::std::mem::replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
                 make_wid(&window.surface),
-                opt_mutex_lock.as_mut().map(|m| &mut **m),
+                opt_mutex_lock.as_mut().map(|m| &mut **m).and_then(|o| o.as_mut()),
             );
             if let Some(dpi) = window.new_dpi.take() {
                 window.current_dpi = dpi;
