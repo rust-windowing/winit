@@ -319,7 +319,7 @@ impl EventsLoop {
             appkit::NSKeyUp  => {
                 if let Some(key_window) = maybe_key_window() {
                     if event_mods(ns_event).logo {
-                        msg_send![*key_window.window, sendEvent:ns_event];
+                        let _: () = msg_send![*key_window.window, sendEvent:ns_event];
                     }
                 }
                 None
