@@ -314,17 +314,16 @@ impl EventsLoop {
                 is_key_window == cocoa::base::YES
             });
 
-
+        match event_type {
         // https://github.com/glfw/glfw/blob/50eccd298a2bbc272b4977bd162d3e4b55f15394/src/cocoa_window.m#L881
-        if event_type == appkit::NSKeyUp {
+            appkit::NSKeyUp  => {
             if let Some(key_window) = maybe_key_window() {
                 if event_mods(ns_event).logo {
                     msg_send![*key_window.window, sendEvent:ns_event];
                 }
             }
-        }
-
-        match event_type {
+                None
+            },
             appkit::NSFlagsChanged => {
                 let mut events = std::collections::VecDeque::new();
 
