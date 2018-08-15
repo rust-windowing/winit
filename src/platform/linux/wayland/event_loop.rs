@@ -76,6 +76,8 @@ pub struct EventsLoop {
     pub display: Arc<Display>,
     // The list of seats
     pub seats: Arc<Mutex<Vec<(u32, Proxy<wl_seat::WlSeat>)>>>,
+    // The display ptr
+    pub display_ptr: *mut wl_display,
 }
 
 // A handle that can be sent across threads and used to wake up the `EventsLoop`.
@@ -111,15 +113,16 @@ impl EventsLoopProxy {
 impl EventsLoop {
     pub fn new() -> Result<EventsLoop, ConnectError> {
         let (display, event_queue) = Display::connect_to_env()?;
-        Ok(Self::new_internal(display, event_queue))
+        let display_ptr = display.c_ptr();
+        Ok(Self::new_internal(display, event_queue, display_ptr as *mut _))
     }
 
     pub unsafe fn new_from_raw_parts(relp: &RawEventsLoopParts) -> EventsLoop {
         let (display, event_queue) = Display::from_external_display(relp.display_ptr);
-        Self::new_internal(display, event_queue)
+        Self::new_internal(display, event_queue, relp.display_ptr)
     }
 
-    fn new_internal(display: Display, mut event_queue: EventQueue) -> EventsLoop {
+    fn new_internal(display: Display, mut event_queue: EventQueue, display_ptr: *mut wl_display) -> EventsLoop {
         let display = Arc::new(display);
         let pending_wakeup = Arc::new(AtomicBool::new(false));
 
@@ -150,12 +153,13 @@ impl EventsLoop {
             env,
             cleanup_needed: Arc::new(Mutex::new(false)),
             seats,
+            display_ptr,
         }
     }
 
     pub fn get_raw_parts(&self) -> RawEventsLoopParts {
         RawEventsLoopParts {
-            display_ptr: self.display.c_ptr() as *mut _,
+            display_ptr: self.display_ptr,
         }
     }
 
@@ -268,7 +272,7 @@ impl EventsLoop {
                         frame.refresh();
                         let logical_size = ::LogicalSize::new(w as f64, h as f64);
                         sink.send_event(::WindowEvent::Resized(logical_size), wid);
-                        *size = Some((w, h));
+                        *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
                         if !refresh {

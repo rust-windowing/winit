@@ -7,7 +7,8 @@ use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
 
 use sctk::window::{BasicFrame, Event as WEvent, Window as SWindow};
-use sctk::reexports::client::{Display, Proxy};
+use sctk::reexports::client::Proxy;
+use sctk::reexports::client::sys::client::wl_display;
 use sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_output};
 use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as CompositorRequests;
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
@@ -21,14 +22,16 @@ pub struct Window {
     frame: Arc<Mutex<Option<SWindow<BasicFrame>>>>,
     monitors: Arc<Mutex<MonitorList>>, // Monitors this window is currently on
     outputs: OutputMgr, // Access to info for all monitors
-    size: Arc<Mutex<Option<(u32, u32)>>>,
+    size: Arc<Mutex<(u32, u32)>>,
     kill_switch: Option<(Arc<Mutex<bool>>, Arc<Mutex<bool>>)>,
-    display: Arc<Display>,
     need_frame_refresh: Arc<Mutex<bool>>,
+    display_ptr: *mut wl_display,
 }
 
 pub struct RawWindowParts {
     pub surface: *mut ::libc::c_void,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Window {
@@ -40,7 +43,7 @@ impl Window {
             Proxy::from_c_ptr(rwp.surface as *mut _)
         };
         let frame = Arc::new(Mutex::new(None));
-        let size = Arc::new(Mutex::new(None));
+        let size = Arc::new(Mutex::new((rwp.width, rwp.height)));
         let monitor_list = Arc::new(Mutex::new(MonitorList::new()));
         let need_frame_refresh = Arc::new(Mutex::new(false));
 
@@ -59,7 +62,6 @@ impl Window {
         evlp.evq.borrow_mut().sync_roundtrip().unwrap();
 
         Ok(Window {
-            display: evlp.display.clone(),
             surface,
             frame,
             monitors: monitor_list,
@@ -67,13 +69,14 @@ impl Window {
             size,
             kill_switch: None,
             need_frame_refresh: need_frame_refresh,
+            display_ptr: evlp.display_ptr,
         })
     }
 
     pub fn new(evlp: &EventsLoop, attributes: WindowAttributes) -> Result<Window, CreationError> {
         let (width, height) = attributes.dimensions.map(Into::into).unwrap_or((800, 600));
         // Create the window
-        let size = Arc::new(Mutex::new(Some((width, height))));
+        let size = Arc::new(Mutex::new((width, height)));
 
         // monitor tracking
         let monitor_list = Arc::new(Mutex::new(MonitorList::new()));
@@ -193,7 +196,6 @@ impl Window {
         evlp.evq.borrow_mut().sync_roundtrip().unwrap();
 
         Ok(Window {
-            display: evlp.display.clone(),
             surface,
             frame,
             monitors: monitor_list,
@@ -201,12 +203,16 @@ impl Window {
             size,
             kill_switch: Some((kill_switch, evlp.cleanup_needed.clone())),
             need_frame_refresh: need_frame_refresh,
+            display_ptr: evlp.display_ptr,
         })
     }
 
     pub fn get_raw_parts(&self) -> RawWindowParts {
+        let size = self.size.lock().unwrap();
         RawWindowParts {
             surface: self.surface.c_ptr() as *mut _,
+            width: size.0,
+            height: size.1,
         }
     }
 
@@ -253,25 +259,12 @@ impl Window {
     }
 
     pub fn get_inner_size(&self) -> Option<LogicalSize> {
-        let size = self.size
-            .lock()
-            .unwrap();
-        Some(size
-            .as_ref()
-            .expect("Cannot retrive the size of a window made from raw parts.")
-            .clone()
-            .into())
+        Some(self.size.lock().unwrap().clone().into())
     }
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        let size = self.size
-            .lock()
-            .unwrap();
-        let (w, h) = size
-            .as_ref()
-            .expect("Cannot retrive the size of a window made from raw parts.")
-            .clone();
+        let (w, h) = self.size.lock().unwrap().clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
         Some((w, h).into())
     }
@@ -280,6 +273,7 @@ impl Window {
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, size: LogicalSize) {
         let (w, h) = size.into();
+
         let mut frame = self.frame
             .lock()
             .unwrap();
@@ -287,7 +281,7 @@ impl Window {
             .as_mut()
             .expect("Cannot operate on the frame of a window made from raw parts.")
             .resize(w, h);
-        *self.size.lock().unwrap() = Some((w, h));
+        *(self.size.lock().unwrap()) = (w, h);
     }
 
     #[inline]
@@ -402,8 +396,8 @@ impl Window {
         Err("Setting the cursor position is not yet possible on Wayland.".to_owned())
     }
 
-    pub fn get_display(&self) -> &Display {
-        &*self.display
+    pub fn get_display(&self) -> *mut wl_display {
+        self.display_ptr
     }
 
     pub fn get_surface(&self) -> &Proxy<wl_surface::WlSurface> {
@@ -442,7 +436,7 @@ impl Drop for Window {
 struct InternalWindow {
     surface: Proxy<wl_surface::WlSurface>,
     newsize: Option<(u32, u32)>,
-    size: Arc<Mutex<Option<(u32, u32)>>>,
+    size: Arc<Mutex<(u32, u32)>>,
     need_refresh: bool,
     need_frame_refresh: Arc<Mutex<bool>>,
     closed: bool,
@@ -515,7 +509,7 @@ impl WindowStore {
 
     pub fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(Option<(u32, u32)>, &mut Option<(u32, u32)>, Option<i32>, bool, bool, bool, WindowId, Option<&mut SWindow<BasicFrame>>),
+        F: FnMut(Option<(u32, u32)>, &mut (u32, u32), Option<i32>, bool, bool, bool, WindowId, Option<&mut SWindow<BasicFrame>>),
     {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();

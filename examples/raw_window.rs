@@ -1,7 +1,5 @@
 extern crate winit;
 
-use std::sync::Mutex;
-
 fn main() {
     let mut evlp = winit::EventsLoop::new();
     let win = winit::WindowBuilder::new()
@@ -15,7 +13,7 @@ fn main() {
     // Replace the code above with some *other* magical way to make your raw parts.
     // I.e. some C library.
 
-    let mut evlp_raw = unsafe {
+    let evlp_raw = unsafe {
         winit::EventsLoop::new_from_raw_parts(&evlp_raw)
     };
 
@@ -23,9 +21,10 @@ fn main() {
         winit::Window::new_from_raw_parts(&evlp_raw, &win_raw).unwrap()
     };
 
-    let running = Mutex::new(true);
-    while *running.lock().unwrap() {
-        let event_handler = |event| {
+    let mut running = true;
+    while running {
+        evlp.poll_events(|event| {
+            println!("Evlp {:?}", event);
             if let winit::Event::WindowEvent { event, .. } = event {
                 match event {
                     winit::WindowEvent::KeyboardInput {
@@ -36,19 +35,10 @@ fn main() {
                             },
                         ..
                     }
-                    | winit::WindowEvent::CloseRequested => *running.lock().unwrap() = false,
+                    | winit::WindowEvent::CloseRequested => running = false,
                     _ => (),
                 }
             }
-        };
-
-        evlp.poll_events(|event| {
-            println!("Evlp {:?}", event);
-            event_handler(event)
-        });
-        evlp_raw.poll_events(|event| {
-            println!("Raw Evlp {:?}", event);
-            event_handler(event)
         });
     }
 }
