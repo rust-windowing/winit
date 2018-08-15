@@ -315,14 +315,29 @@ impl EventsLoop {
             });
 
         match event_type {
-        // https://github.com/glfw/glfw/blob/50eccd298a2bbc272b4977bd162d3e4b55f15394/src/cocoa_window.m#L881
+            // https://github.com/glfw/glfw/blob/50eccd298a2bbc272b4977bd162d3e4b55f15394/src/cocoa_window.m#L881
             appkit::NSKeyUp  => {
-            if let Some(key_window) = maybe_key_window() {
-                if event_mods(ns_event).logo {
-                    msg_send![*key_window.window, sendEvent:ns_event];
+                if let Some(key_window) = maybe_key_window() {
+                    if event_mods(ns_event).logo {
+                        msg_send![*key_window.window, sendEvent:ns_event];
+                    }
                 }
-            }
                 None
+            },
+            // similar to above, but for `<Cmd-.>`, the keyDown is suppressed instead of the
+            // KeyUp, and the above trick does not appear to work.
+            appkit::NSKeyDown => {
+                let modifiers = event_mods(ns_event);
+                let keycode = NSEvent::keyCode(ns_event);
+                if modifiers.logo && keycode == 47 {
+                    modifier_event(
+                        ns_event,
+                        NSEventModifierFlags::NSCommandKeyMask,
+                        false,
+                    ).map(into_event)
+                } else {
+                    None
+                }
             },
             appkit::NSFlagsChanged => {
                 let mut events = std::collections::VecDeque::new();
