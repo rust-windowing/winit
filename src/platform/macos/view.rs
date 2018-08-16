@@ -11,7 +11,7 @@ use cocoa::base::{id, nil};
 use cocoa::appkit::{NSEvent, NSView, NSWindow};
 use cocoa::foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger};
 use objc::declare::ClassDecl;
-use objc::runtime::{Class, Object, Protocol, Sel, BOOL};
+use objc::runtime::{Class, Object, Protocol, Sel, BOOL, YES};
 
 use {ElementState, Event, KeyboardInput, MouseButton, WindowEvent, WindowId};
 use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code};
@@ -122,6 +122,7 @@ lazy_static! {
         decl.add_method(sel!(mouseDragged:), mouse_dragged as extern fn(&Object, Sel, id));
         decl.add_method(sel!(rightMouseDragged:), right_mouse_dragged as extern fn(&Object, Sel, id));
         decl.add_method(sel!(otherMouseDragged:), other_mouse_dragged as extern fn(&Object, Sel, id));
+        decl.add_method(sel!(_wantsKeyDownForEvent:), wants_key_down_for_event as extern fn(&Object, Sel, id) -> BOOL);
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
@@ -565,4 +566,9 @@ extern fn right_mouse_dragged(this: &Object, _sel: Sel, event: id) {
 
 extern fn other_mouse_dragged(this: &Object, _sel: Sel, event: id) {
     mouse_motion(this, event);
+}
+
+// https://github.com/chromium/chromium/blob/a86a8a6bcfa438fa3ac2eba6f02b3ad1f8e0756f/ui/views/cocoa/bridged_content_view.mm#L816
+extern fn wants_key_down_for_event(_this: &Object, _se: Sel, _event: id) -> BOOL {
+    YES
 }

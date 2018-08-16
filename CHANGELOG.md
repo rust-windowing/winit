@@ -1,6 +1,9 @@
 # Unreleased
 
+- On macOS, fix `<C-Tab>` so applications receive the event.
+- On macOS, fix `<Cmd-{key}>` so applications receive the event.
 - On Wayland, key press events will now be repeated.
+
 # Version 0.17.1 (2018-08-05)
 
 - On X11, prevent a compilation failure in release mode for versions of Rust greater than or equal to 1.30.
