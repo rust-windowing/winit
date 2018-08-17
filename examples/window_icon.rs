@@ -20,7 +20,7 @@ fn main() {
     // feature enabled).
     let icon = Icon::from_path(path).expect("Failed to open icon");
 
-    let mut events_loop = winit::EventLoop::new();
+    let events_loop = winit::EventLoop::new();
 
     let window = winit::WindowBuilder::new()
         .with_title("An iconic window!")
@@ -30,11 +30,12 @@ fn main() {
         .build(&events_loop)
         .unwrap();
 
-    events_loop.run_forever(move |event, _: &EventLoop| {
+    events_loop.run(move |event, _, control_flow| {
+        *control_flow = winit::ControlFlow::Wait;
         if let winit::Event::WindowEvent { event, .. } = event {
             use winit::WindowEvent::*;
             match event {
-                CloseRequested => return winit::ControlFlow::Break,
+                CloseRequested => *control_flow = winit::ControlFlow::Exit,
                 DroppedFile(path) => {
                     use image::GenericImageView;
 
@@ -81,7 +82,6 @@ fn main() {
                 _ => (),
             }
         }
-        winit::ControlFlow::Continue
     });
 }
 

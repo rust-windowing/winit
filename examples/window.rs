@@ -8,15 +8,15 @@ fn main() {
         .build(&events_loop)
         .unwrap();
 
-    events_loop.run_forever(move |event, _: &winit::EventLoop| {
+    events_loop.run(move |event, _, control_flow| {
         println!("{:?}", event);
 
         match event {
             winit::Event::WindowEvent {
                 event: winit::WindowEvent::CloseRequested,
                 ..
-            } => winit::ControlFlow::Break,
-            _ => winit::ControlFlow::Continue,
+            } => *control_flow = winit::ControlFlow::Exit,
+            _ => *control_flow = winit::ControlFlow::Wait,
         }
     });
 }

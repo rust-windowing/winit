@@ -1,18 +1,19 @@
 extern crate winit;
 
 fn main() {
-    let mut events_loop = winit::EventLoop::new();
+    let events_loop = winit::EventLoop::new();
 
     let window = winit::WindowBuilder::new()
         .with_title("Super Cursor Grab'n'Hide Simulator 9000")
         .build(&events_loop)
         .unwrap();
 
-    events_loop.run_forever(move |event, _: &winit::EventLoop| {
+    events_loop.run(move |event, _, control_flow| {
+        *control_flow = winit::ControlFlow::Wait;
         if let winit::Event::WindowEvent { event, .. } = event {
             use winit::WindowEvent::*;
             match event {
-                CloseRequested => return winit::ControlFlow::Break,
+                CloseRequested => *control_flow = winit::ControlFlow::Exit,
                 KeyboardInput {
                     input: winit::KeyboardInput {
                         state: winit::ElementState::Released,
@@ -24,7 +25,7 @@ fn main() {
                 } => {
                     use winit::VirtualKeyCode::*;
                     match key {
-                        Escape => return winit::ControlFlow::Break,
+                        Escape => *control_flow = winit::ControlFlow::Exit,
                         G => window.grab_cursor(!modifiers.shift).unwrap(),
                         H => window.hide_cursor(!modifiers.shift),
                         _ => (),
@@ -33,6 +34,5 @@ fn main() {
                 _ => (),
             }
         }
-        winit::ControlFlow::Continue
     });
 }

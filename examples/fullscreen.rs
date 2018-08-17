@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use winit::{ControlFlow, Event, WindowEvent};
 
 fn main() {
-    let mut events_loop = winit::EventLoop::new();
+    let events_loop = winit::EventLoop::new();
 
     // enumerating monitors
     let monitor = {
@@ -35,12 +35,13 @@ fn main() {
     let mut is_maximized = false;
     let mut decorations = true;
 
-    events_loop.run_forever(move |event, _: &winit::EventLoop| {
+    events_loop.run(move |event, _, control_flow| {
         println!("{:?}", event);
+        *control_flow = ControlFlow::Wait;
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => return ControlFlow::Break,
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::KeyboardInput {
                     input:
                         winit::KeyboardInput {
@@ -50,7 +51,7 @@ fn main() {
                         },
                     ..
                 } => match (virtual_code, state) {
-                    (winit::VirtualKeyCode::Escape, _) => return ControlFlow::Break,
+                    (winit::VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
                     (winit::VirtualKeyCode::F, winit::ElementState::Pressed) => {
                         is_fullscreen = !is_fullscreen;
                         if !is_fullscreen {
@@ -73,7 +74,5 @@ fn main() {
             },
             _ => {}
         }
-
-        ControlFlow::Continue
     });
 }

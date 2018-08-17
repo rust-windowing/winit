@@ -3,7 +3,7 @@ extern crate winit;
 use std::collections::HashMap;
 
 fn main() {
-    let mut events_loop = winit::EventLoop::new();
+    let events_loop = winit::EventLoop::new();
 
     let mut windows = HashMap::new();
     for _ in 0..3 {
@@ -11,7 +11,8 @@ fn main() {
         windows.insert(window.id(), window);
     }
 
-    events_loop.run_forever(move |event, events_loop: &winit::EventLoop| {
+    events_loop.run(move |event, events_loop, control_flow| {
+        *control_flow = winit::ControlFlow::Wait;
         match event {
             winit::Event::WindowEvent { event, window_id } => {
                 match event {
@@ -22,7 +23,7 @@ fn main() {
                         windows.remove(&window_id);
 
                         if windows.is_empty() {
-                            return winit::ControlFlow::Break;
+                            *control_flow = winit::ControlFlow::Exit;
                         }
                     },
                     winit::WindowEvent::KeyboardInput{..} => {
@@ -34,6 +35,5 @@ fn main() {
             }
             _ => (),
         }
-        winit::ControlFlow::Continue
     })
 }

@@ -19,6 +19,7 @@ use std::{mem, ptr};
 use std::cell::RefCell;
 use std::sync::Arc;
 use std::collections::VecDeque;
+use std::time::{Duration, Instant};
 use parking_lot::Mutex;
 
 use winapi::ctypes::c_int;
@@ -35,13 +36,12 @@ use winapi::shared::minwindef::{
 };
 use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
-use winapi::um::{winuser, processthreadsapi, ole2, commctrl};
+use winapi::um::{winuser, winbase, processthreadsapi, ole2, commctrl};
 use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
 use {
     ControlFlow,
     Event,
-    EventHandler,
     EventLoopClosed,
     KeyboardInput,
     LogicalPosition,
@@ -50,7 +50,7 @@ use {
     WindowEvent,
     WindowId as SuperWindowId,
 };
-use events::{DeviceEvent, Touch, TouchPhase};
+use events::{DeviceEvent, Touch, TouchPhase, StartCause};
 use platform::platform::{event, Cursor, WindowId, DEVICE_ID, wrap_device_id, util};
 use platform::platform::dpi::{
     become_dpi_aware,
@@ -154,11 +154,16 @@ impl EventLoop {
         }
     }
 
-    pub fn run_forever(self, mut event_handler: impl 'static + EventHandler) -> ! {
+    pub fn run<F>(self, mut event_handler: F) -> !
+        where F: 'static + FnMut(Event, &::EventLoop, &mut ControlFlow)
+    {
         let event_loop = ::EventLoop {
             events_loop: self,
             _marker: ::std::marker::PhantomData
         };
+        let mut control_flow = ControlFlow::default();
+        let mut timer_handle = 0;
+
         unsafe {
             // Calling `PostThreadMessageA` on a thread that does not have an events queue yet
             // will fail. In order to avoid this situation, we call `IsGuiThread` to initialize
@@ -168,44 +173,109 @@ impl EventLoop {
             let mut msg = mem::uninitialized();
 
             'main: loop {
-                if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
-                    // Only happens if the message is `WM_QUIT`.
-                    debug_assert_eq!(msg.message, winuser::WM_QUIT);
-                    break 'main;
-                }
-
-                match msg.message {
-                    x if x == *WAKEUP_MSG_ID => {
-                        if ControlFlow::Break == event_handler.handle_event(Event::Awakened, &event_loop) {
+                macro_rules! call_event_handler {
+                    ($event:expr) => {{
+                        event_handler($event, &event_loop, &mut control_flow);
+                        if ControlFlow::Exit == control_flow {
                             break 'main;
                         }
-                    },
-                    x if x == *EXEC_MSG_ID => {
-                        let mut function: Box<Box<FnMut()>> = Box::from_raw(msg.wParam as usize as *mut _);
-                        function()
-                    }
-                    _ => {
-                        // Calls `event_handler` below.
-                        winuser::TranslateMessage(&msg);
-                        winuser::DispatchMessageW(&msg);
-                    }
+                    }}
                 }
 
-                loop {
-                    // For whatever reason doing this in a `whlie let` loop doesn't drop the `RefMut`,
-                    // so we have to do it like this.
-                    let event = match event_loop.events_loop.event_queue.borrow_mut().pop_front() {
-                        Some(event) => event,
-                        None => break
-                    };
+                let mut has_message = true;
+                let new_events_cause: StartCause;
+                match control_flow {
+                    ControlFlow::Wait => {
+                        let wait_start = Instant::now();
+                        if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
+                            // Only happens if the message is `WM_QUIT`.
+                            debug_assert_eq!(msg.message, winuser::WM_QUIT);
+                            break 'main;
+                        }
+                        new_events_cause =
+                            StartCause::WaitCancelled {
+                                start: wait_start,
+                                requested_duration: None
+                            };
+                    }
+                    ControlFlow::WaitTimeout(duration) => {
+                        let new_handle = winuser::SetTimer(ptr::null_mut(), timer_handle, dur2timeout(duration), None);
+                        if timer_handle == 0 {
+                            timer_handle = new_handle;
+                        }
+                        let wait_start = Instant::now();
+                        if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
+                            // Only happens if the message is `WM_QUIT`.
+                            debug_assert_eq!(msg.message, winuser::WM_QUIT);
+                            break 'main;
+                        }
+                        if msg.message == winuser::WM_TIMER && msg.wParam == timer_handle {
+                            new_events_cause =
+                                StartCause::TimeoutExpired {
+                                    start: wait_start,
+                                    requested_duration: duration,
+                                };
+                            if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
+                                has_message = false;
+                            }
+                        } else {
+                            new_events_cause =
+                                StartCause::WaitCancelled {
+                                    start: wait_start,
+                                    requested_duration: Some(duration)
+                                };
+                        }
+                    }
+                    ControlFlow::Poll => {
+                        if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
+                            has_message = false;
+                        }
+                        new_events_cause = StartCause::Poll;
+                    }
+                    ControlFlow::Exit => break 'main
+                }
+                call_event_handler!(Event::NewEvents(new_events_cause));
 
-                    if ControlFlow::Break == event_handler.handle_event(event, &event_loop) {
-                        break 'main;
+                while has_message {
+                    match msg.message {
+                        x if x == *WAKEUP_MSG_ID => {
+                            call_event_handler!(Event::Awakened);
+                        },
+                        x if x == *EXEC_MSG_ID => {
+                            let mut function: Box<Box<FnMut()>> = Box::from_raw(msg.wParam as usize as *mut _);
+                            function()
+                        }
+                        _ => {
+                            // Calls `event_handler` below.
+                            winuser::TranslateMessage(&msg);
+                            winuser::DispatchMessageW(&msg);
+                        }
+                    }
+
+                    loop {
+                        // For whatever reason doing this in a `whlie let` loop doesn't drop the `RefMut`,
+                        // so we have to do it like this.
+                        let event = match event_loop.events_loop.event_queue.borrow_mut().pop_front() {
+                            Some(event) => event,
+                            None => break
+                        };
+
+                        call_event_handler!(event);
+                    }
+
+                    if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
+                        has_message = false;
                     }
                 }
+                call_event_handler!(Event::EventsCleared);
+            }
+
+            if timer_handle != 0 {
+                winuser::KillTimer(ptr::null_mut(), timer_handle);
             }
         }
 
+        event_handler(Event::LoopDestroyed, &event_loop, &mut control_flow);
         drop(event_handler);
         ::std::process::exit(0);
     }
@@ -215,6 +285,28 @@ impl EventLoop {
             thread_id: self.thread_id,
         }
     }
+}
+
+// Implementation taken from https://github.com/rust-lang/rust/blob/db5476571d9b27c862b95c1e64764b0ac8980e23/src/libstd/sys/windows/mod.rs
+pub fn dur2timeout(dur: Duration) -> DWORD {
+    // Note that a duration is a (u64, u32) (seconds, nanoseconds) pair, and the
+    // timeouts in windows APIs are typically u32 milliseconds. To translate, we
+    // have two pieces to take care of:
+    //
+    // * Nanosecond precision is rounded up
+    // * Greater than u32::MAX milliseconds (50 days) is rounded up to INFINITE
+    //   (never time out).
+    dur.as_secs().checked_mul(1000).and_then(|ms| {
+        ms.checked_add((dur.subsec_nanos() as u64) / 1_000_000)
+    }).and_then(|ms| {
+        ms.checked_add(if dur.subsec_nanos() % 1_000_000 > 0 {1} else {0})
+    }).map(|ms| {
+        if ms > DWORD::max_value() as u64 {
+            winbase::INFINITE
+        } else {
+            ms as DWORD
+        }
+    }).unwrap_or(winbase::INFINITE)
 }
 
 impl Drop for EventLoop {

@@ -1,3 +1,4 @@
+use std::time::{Duration, Instant};
 use std::path::PathBuf;
 
 use {DeviceId, LogicalPosition, LogicalSize, WindowId};
@@ -14,11 +15,45 @@ pub enum Event {
         event: DeviceEvent,
     },
     Awakened,
+    /// Emitted when new events arrive from the OS to be processed.
+    NewEvents(StartCause),
+    /// Emitted when all of the event loop's events have been processed and control flow is about
+    /// to be taken away from the program.
+    EventsCleared,
+
+    /// Emitted when the event loop is being shut down. This is irreversable - if this event is
+    /// emitted, it is guaranteed to be the last event emitted.
+    LoopDestroyed,
 
     /// The application has been suspended or resumed.
     ///
     /// The parameter is true if app was suspended, and false if it has been resumed.
     Suspended(bool),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StartCause {
+    /// Sent if the time specified by `ControlFlow::WaitTimeout` has been elapsed. Contains the
+    /// moment the timeout was requested and the requested duration of the timeout. The actual
+    /// duration is guaranteed to be greater than or equal to the requested timeout.
+    TimeoutExpired {
+        start: Instant,
+        requested_duration: Duration,
+    },
+
+    /// Sent if the OS has new events to send to the window, after a wait was requested. Contains
+    /// the moment the wait was requested, and if a wait timout was requested, its duration.
+    WaitCancelled {
+        start: Instant,
+        requested_duration: Option<Duration>
+    },
+
+    /// Sent if the event loop is being resumed after the loop's control flow was set to
+    /// `ControlFlow::Poll`.
+    Poll,
+
+    /// Sent once, immediately after `run` is called. Indicates that the loop was just initialized.
+    Init
 }
 
 /// Describes an event from a `Window`.
