@@ -1,6 +1,6 @@
 # Unreleased
 
-# Version 0.17.2 (2018-08-16)
+# Version 0.17.2 (2018-08-19)
 
 - On macOS, fix `<C-Tab>` so applications receive the event.
 - On macOS, fix `<Cmd-{key}>` so applications receive the event.
