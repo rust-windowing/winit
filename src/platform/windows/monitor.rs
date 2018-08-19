@@ -71,17 +71,17 @@ pub fn get_primary_monitor() -> MonitorId {
     MonitorId::from_hmonitor(hmonitor)
 }
 
-impl EventLoop {
+pub fn get_current_monitor(hwnd: HWND) -> MonitorId {
+    let hmonitor = unsafe {
+        winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST)
+    };
+    MonitorId::from_hmonitor(hmonitor)
+}
+
+impl<T> EventLoop<T> {
     // TODO: Investigate opportunities for caching
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
         get_available_monitors()
-    }
-
-    pub fn get_current_monitor(hwnd: HWND) -> MonitorId {
-        let hmonitor = unsafe {
-            winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST)
-        };
-        MonitorId::from_hmonitor(hmonitor)
     }
 
     pub fn get_primary_monitor(&self) -> MonitorId {

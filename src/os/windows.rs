@@ -15,7 +15,7 @@ pub trait EventLoopExt {
     fn new_dpi_unaware() -> Self where Self: Sized;
 }
 
-impl EventLoopExt for EventLoop {
+impl<T> EventLoopExt for EventLoop<T> {
     #[inline]
     fn new_dpi_unaware() -> Self {
         EventLoop {

@@ -32,7 +32,7 @@ use platform::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, Window
 use platform::platform::dpi::{dpi_to_scale_factor, get_hwnd_dpi};
 use platform::platform::events_loop::{self, DESTROY_MSG_ID, EventLoop, INITIAL_DPI_MSG_ID, WindowState};
 use platform::platform::icon::{self, IconType, WinIcon};
-use platform::platform::monitor::get_available_monitors;
+use platform::platform::monitor;
 use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
 use platform::platform::drop_handler::FileDropHandler;
 use platform::platform::util;
@@ -48,7 +48,7 @@ pub struct Window {
     window_state: Arc<Mutex<WindowState>>,
 
     // The events loop proxy.
-    events_loop_proxy: events_loop::EventLoopProxy,
+    thread_executor: events_loop::EventLoopThreadExecutor,
 }
 
 // https://blogs.msdn.microsoft.com/oldnewthing/20131017-00/?p=2903
@@ -74,8 +74,8 @@ unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> B
 }
 
 impl Window {
-    pub fn new(
-        events_loop: &EventLoop,
+    pub fn new<T>(
+        events_loop: &EventLoop<T>,
         w_attr: WindowAttributes,
         pl_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, CreationError> {
@@ -322,7 +322,7 @@ impl Window {
             _ => winuser::IDC_ARROW, // use arrow for the missing cases.
         });
         self.window_state.lock().cursor = cursor_id;
-        self.events_loop_proxy.execute_in_thread(move || unsafe {
+        self.thread_executor.execute_in_thread(move || unsafe {
             let cursor = winuser::LoadCursorW(
                 ptr::null_mut(),
                 cursor_id.0,
@@ -384,7 +384,7 @@ impl Window {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
         let (tx, rx) = channel();
-        self.events_loop_proxy.execute_in_thread(move || {
+        self.thread_executor.execute_in_thread(move || {
             let result = unsafe { Self::grab_cursor_inner(&window, grab) };
             if result.is_ok() {
                 window_state.lock().cursor_grabbed = grab;
@@ -410,7 +410,7 @@ impl Window {
         if hide == window_state_lock.cursor_hidden { return; }
         let (tx, rx) = channel();
         let window_state = Arc::clone(&self.window_state);
-        self.events_loop_proxy.execute_in_thread(move || {
+        self.thread_executor.execute_in_thread(move || {
             unsafe { Self::hide_cursor_inner(hide) };
             window_state.lock().cursor_hidden = hide;
             let _ = tx.send(());
@@ -458,7 +458,7 @@ impl Window {
                 let window = self.window.clone();
                 unsafe {
                     // `ShowWindow` resizes the window, so it must be called from the main thread.
-                    self.events_loop_proxy.execute_in_thread(move || {
+                    self.thread_executor.execute_in_thread(move || {
                         winuser::ShowWindow(
                             window.0,
                             if maximized {
@@ -524,7 +524,7 @@ impl Window {
         drop(window_state_lock);
         // We're restoring the window to its size and position from before being fullscreened.
         // `ShowWindow` resizes the window, so it must be called from the main thread.
-        self.events_loop_proxy.execute_in_thread(move || {
+        self.thread_executor.execute_in_thread(move || {
             let _ = Self::grab_cursor_inner(&window, false);
 
             if resizable {
@@ -585,7 +585,7 @@ impl Window {
                     window_state_lock.fullscreen = monitor;
                     drop(window_state_lock);
 
-                    self.events_loop_proxy.execute_in_thread(move || {
+                    self.thread_executor.execute_in_thread(move || {
                         let _ = Self::grab_cursor_inner(&window, false);
 
                         winuser::SetWindowLongW(
@@ -681,7 +681,7 @@ impl Window {
 
                     let window = self.window.clone();
 
-                    self.events_loop_proxy.execute_in_thread(move || {
+                    self.thread_executor.execute_in_thread(move || {
                         winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
                         winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
                         winuser::AdjustWindowRectEx(&mut rect, style as _, 0, ex_style as _);
@@ -709,7 +709,7 @@ impl Window {
         let mut window_state = self.window_state.lock();
         if mem::replace(&mut window_state.always_on_top, always_on_top) != always_on_top {
             let window = self.window.clone();
-            self.events_loop_proxy.execute_in_thread(move || {
+            self.thread_executor.execute_in_thread(move || {
                 let insert_after = if always_on_top {
                     winuser::HWND_TOPMOST
                 } else {
@@ -734,7 +734,7 @@ impl Window {
     #[inline]
     pub fn get_current_monitor(&self) -> RootMonitorId {
         RootMonitorId {
-            inner: EventLoop::get_current_monitor(self.window.0),
+            inner: monitor::get_current_monitor(self.window.0),
         }
     }
 
@@ -809,10 +809,10 @@ pub unsafe fn adjust_size(
     (rect.right - rect.left, rect.bottom - rect.top)
 }
 
-unsafe fn init(
+unsafe fn init<T>(
     mut attributes: WindowAttributes,
     mut pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    event_loop: &events_loop::EventLoop,
+    event_loop: &events_loop::EventLoop<T>,
 ) -> Result<Window, CreationError> {
     let title = OsStr::new(&attributes.title)
         .encode_wide()
@@ -848,7 +848,7 @@ unsafe fn init(
     let class_name = register_window_class(&window_icon, &taskbar_icon);
 
     let guessed_dpi_factor = {
-        let monitors = get_available_monitors();
+        let monitors = monitor::get_available_monitors();
         let dpi_factor = if !monitors.is_empty() {
             let mut dpi_factor = Some(monitors[0].get_hidpi_factor());
             for monitor in &monitors {
@@ -1055,7 +1055,7 @@ unsafe fn init(
     let win = Window {
         window: real_window,
         window_state,
-        events_loop_proxy: event_loop.create_proxy(),
+        thread_executor: event_loop.create_thread_executor(),
     };
 
     win.set_maximized(attributes.maximized);
@@ -1076,7 +1076,7 @@ unsafe fn init(
             panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
         }
 
-        let file_drop_handler = FileDropHandler::new(win.window.0, event_loop.event_queue.clone());
+        let file_drop_handler = FileDropHandler::new(win.window.0, event_loop.event_send.clone());
         let handler_interface_ptr = &mut (*file_drop_handler.data).interface as LPDROPTARGET;
 
         assert_eq!(ole2::RegisterDragDrop(win.window.0, handler_interface_ptr), S_OK);
@@ -1085,8 +1085,8 @@ unsafe fn init(
 
     let subclass_input = events_loop::SubclassInput {
         window_state: win.window_state.clone(),
-        event_queue: event_loop.event_queue.clone(),
-        file_drop_handler
+        event_send: event_loop.event_send.clone(),
+        file_drop_handler,
     };
 
     events_loop::subclass_window(win.window.0, subclass_input);

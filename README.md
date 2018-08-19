@@ -26,10 +26,10 @@ another library.
 extern crate winit;
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
-    let window = winit::Window::new(&events_loop).unwrap();
+    let mut event_loop = winit::EventLoop::new();
+    let window = winit::Window::new(&event_loop).unwrap();
 
-    events_loop.run_forever(|event| {
+    event_loop.run(|event| {
         match event {
             winit::Event::WindowEvent {
               event: winit::WindowEvent::CloseRequested,

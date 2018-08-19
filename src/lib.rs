@@ -72,6 +72,9 @@ extern crate serde;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
+#[cfg(target_os = "windows")]
+#[macro_use]
+extern crate crossbeam_channel;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;
@@ -163,12 +166,12 @@ pub struct DeviceId(platform::DeviceId);
 /// forbiding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
 /// `EventLoopProxy` allows you to wakeup an `EventLoop` from an other thread.
-pub struct EventLoop {
-    events_loop: platform::EventLoop,
+pub struct EventLoop<T> {
+    events_loop: platform::EventLoop<T>,
     _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
 }
 
-impl std::fmt::Debug for EventLoop {
+impl<T> std::fmt::Debug for EventLoop<T> {
     fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmtr.pad("EventLoop { .. }")
     }
@@ -199,14 +202,20 @@ impl Default for ControlFlow {
     }
 }
 
-impl EventLoop {
+impl EventLoop<()> {
+    pub fn new() -> EventLoop<()> {
+        EventLoop::<()>::new_user_event()
+    }
+}
+
+impl<T> EventLoop<T> {
     /// Builds a new events loop.
     ///
     /// Usage will result in display backend initialisation, this can be controlled on linux
     /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
     /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
     /// fallback on x11. If this variable is set with any other value, winit will panic.
-    pub fn new() -> EventLoop {
+    pub fn new_user_event() -> EventLoop<T> {
         EventLoop {
             events_loop: platform::EventLoop::new(),
             _marker: ::std::marker::PhantomData,
@@ -234,14 +243,14 @@ impl EventLoop {
     /// Any values not passed to this function will *not* be dropped.
     #[inline]
     pub fn run<F>(self, event_handler: F) -> !
-        where F: 'static + FnMut(Event, &EventLoop, &mut ControlFlow)
+        where F: 'static + FnMut(Event<T>, &EventLoop<T>, &mut ControlFlow)
     {
         self.events_loop.run(event_handler)
     }
 
     /// Creates an `EventLoopProxy` that can be used to wake up the `EventLoop` from another
     /// thread.
-    pub fn create_proxy(&self) -> EventLoopProxy {
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             events_loop_proxy: self.events_loop.create_proxy(),
         }
@@ -250,24 +259,24 @@ impl EventLoop {
 
 /// Used to wake up the `EventLoop` from another thread.
 #[derive(Clone)]
-pub struct EventLoopProxy {
-    events_loop_proxy: platform::EventLoopProxy,
+pub struct EventLoopProxy<T> {
+    events_loop_proxy: platform::EventLoopProxy<T>,
 }
 
-impl std::fmt::Debug for EventLoopProxy {
+impl<T> std::fmt::Debug for EventLoopProxy<T> {
     fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmtr.pad("EventLoopProxy { .. }")
     }
 }
 
-impl EventLoopProxy {
-    /// Wake up the `EventLoop` from which this proxy was created.
-    ///
-    /// This causes the `EventLoop` to emit an `Awakened` event.
+impl<T> EventLoopProxy<T> {
+    /// Send an event to the `EventLoop` from which this proxy was created. This emits a
+    /// `UserEvent(event)` event in the event loop, where `event` is the value passed to this
+    /// function.
     ///
     /// Returns an `Err` if the associated `EventLoop` no longer exists.
-    pub fn wakeup(&self) -> Result<(), EventLoopClosed> {
-        self.events_loop_proxy.wakeup()
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+        self.events_loop_proxy.send_event(event)
     }
 }
 

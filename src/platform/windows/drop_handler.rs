@@ -3,9 +3,7 @@ use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{mem, ptr};
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::collections::VecDeque;
+use crossbeam_channel::Sender;
 
 use winapi::ctypes::c_void;
 use winapi::shared::guiddef::REFIID;
@@ -26,7 +24,7 @@ pub struct FileDropHandlerData {
     pub interface: IDropTarget,
     refcount: AtomicUsize,
     window: HWND,
-    event_queue: Rc<RefCell<VecDeque<Event>>>,
+    event_sender: Sender<Event<()>>
 }
 
 pub struct FileDropHandler {
@@ -35,14 +33,14 @@ pub struct FileDropHandler {
 
 #[allow(non_snake_case)]
 impl FileDropHandler {
-    pub fn new(window: HWND, event_queue: Rc<RefCell<VecDeque<Event>>>) -> FileDropHandler {
+    pub fn new(window: HWND, event_sender: Sender<Event<()>>) -> FileDropHandler {
         let data = Box::new(FileDropHandlerData {
             interface: IDropTarget {
                 lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl,
             },
             refcount: AtomicUsize::new(1),
             window,
-            event_queue,
+            event_sender,
         });
         FileDropHandler {
             data: Box::into_raw(data),
@@ -187,8 +185,8 @@ impl FileDropHandler {
 }
 
 impl FileDropHandlerData {
-    fn send_event(&self, event: Event) {
-        self.event_queue.borrow_mut().push_back(event);
+    fn send_event(&self, event: Event<()>) {
+        self.event_sender.send(event).ok();
     }
 }
 

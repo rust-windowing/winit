@@ -142,7 +142,7 @@ impl WindowBuilder {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     /// out of memory, etc.
     #[inline]
-    pub fn build(mut self, events_loop: &EventLoop) -> Result<Window, CreationError> {
+    pub fn build<T>(mut self, events_loop: &EventLoop<T>) -> Result<Window, CreationError> {
         self.window.dimensions = Some(self.window.dimensions.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
@@ -170,7 +170,7 @@ impl Window {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     #[inline]
-    pub fn new(events_loop: &EventLoop) -> Result<Window, CreationError> {
+    pub fn new<T>(events_loop: &EventLoop<T>) -> Result<Window, CreationError> {
         let builder = WindowBuilder::new();
         builder.build(events_loop)
     }

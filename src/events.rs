@@ -5,7 +5,7 @@ use {DeviceId, LogicalPosition, LogicalSize, WindowId};
 
 /// Describes a generic event.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Event {
+pub enum Event<T> {
     WindowEvent {
         window_id: WindowId,
         event: WindowEvent,
@@ -14,7 +14,7 @@ pub enum Event {
         device_id: DeviceId,
         event: DeviceEvent,
     },
-    Awakened,
+    UserEvent(T),
     /// Emitted when new events arrive from the OS to be processed.
     NewEvents(StartCause),
     /// Emitted when all of the event loop's events have been processed and control flow is about
@@ -29,6 +29,21 @@ pub enum Event {
     ///
     /// The parameter is true if app was suspended, and false if it has been resumed.
     Suspended(bool),
+}
+
+impl<T> Event<T> {
+    pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
+        use self::Event::*;
+        match self {
+            UserEvent(_) => Err(self),
+            WindowEvent{window_id, event} => Ok(WindowEvent{window_id, event}),
+            DeviceEvent{device_id, event} => Ok(DeviceEvent{device_id, event}),
+            NewEvents(cause) => Ok(NewEvents(cause)),
+            EventsCleared => Ok(EventsCleared),
+            LoopDestroyed => Ok(LoopDestroyed),
+            Suspended(suspended) => Ok(Suspended(suspended)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

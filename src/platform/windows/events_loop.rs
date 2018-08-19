@@ -14,13 +14,11 @@
 
 use winapi::shared::basetsd::DWORD_PTR;
 use winapi::shared::basetsd::UINT_PTR;
-use std::rc::Rc;
 use std::{mem, ptr};
-use std::cell::RefCell;
 use std::sync::Arc;
-use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 use parking_lot::Mutex;
+use crossbeam_channel::{self, Sender, Receiver};
 
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{
@@ -107,18 +105,6 @@ pub struct WindowState {
     pub mouse_buttons_down: u32
 }
 
-pub(crate) struct SubclassInput {
-    pub window_state: Arc<Mutex<WindowState>>,
-    pub event_queue: Rc<RefCell<VecDeque<Event>>>,
-    pub file_drop_handler: FileDropHandler
-}
-
-impl SubclassInput {
-    fn send_event(&self, event: Event) {
-        self.event_queue.borrow_mut().push_back(event);
-    }
-}
-
 impl WindowState {
     pub fn update_min_max(&mut self, old_dpi_factor: f64, new_dpi_factor: f64) {
         let scale_factor = new_dpi_factor / old_dpi_factor;
@@ -132,30 +118,55 @@ impl WindowState {
     }
 }
 
-pub struct EventLoop {
-    // Id of the background thread from the Win32 API.
-    thread_id: DWORD,
-    pub(crate) event_queue: Rc<RefCell<VecDeque<Event>>>
+pub(crate) struct SubclassInput {
+    pub window_state: Arc<Mutex<WindowState>>,
+    pub event_send: Sender<Event<()>>,
+    pub file_drop_handler: FileDropHandler
 }
 
-impl EventLoop {
-    pub fn new() -> EventLoop {
+impl SubclassInput {
+    fn send_event(&self, event: Event<()>) {
+        self.event_send.send(event).ok();
+    }
+}
+
+pub struct EventLoop<T> {
+    // Id of the background thread from the Win32 API.
+    thread_id: DWORD,
+
+    pub(crate) event_send: Sender<Event<()>>,
+    pub(crate) user_event_send: Sender<T>,
+
+    event_recv: Receiver<Event<()>>,
+    user_event_recv: Receiver<T>
+}
+
+impl<T> EventLoop<T> {
+    pub fn new() -> EventLoop<T> {
         Self::with_dpi_awareness(true)
     }
 
-    pub fn with_dpi_awareness(dpi_aware: bool) -> EventLoop {
+    pub fn with_dpi_awareness(dpi_aware: bool) -> EventLoop<T> {
         become_dpi_aware(dpi_aware);
 
         let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
 
+        let (event_send, event_recv) = crossbeam_channel::unbounded();
+        let (user_event_send, user_event_recv) = crossbeam_channel::unbounded();
+
         EventLoop {
             thread_id,
-            event_queue: Rc::new(RefCell::new(VecDeque::new()))
+
+            event_send,
+            event_recv,
+
+            user_event_send,
+            user_event_recv,
         }
     }
 
     pub fn run<F>(self, mut event_handler: F) -> !
-        where F: 'static + FnMut(Event, &::EventLoop, &mut ControlFlow)
+        where F: 'static + FnMut(Event<T>, &::EventLoop<T>, &mut ControlFlow)
     {
         let event_loop = ::EventLoop {
             events_loop: self,
@@ -239,9 +250,8 @@ impl EventLoop {
 
                 while has_message {
                     match msg.message {
-                        x if x == *WAKEUP_MSG_ID => {
-                            call_event_handler!(Event::Awakened);
-                        },
+                        // Handler is called in loop below.
+                        x if x == *WAKEUP_MSG_ID => (),
                         x if x == *EXEC_MSG_ID => {
                             let mut function: Box<Box<FnMut()>> = Box::from_raw(msg.wParam as usize as *mut _);
                             function()
@@ -254,14 +264,16 @@ impl EventLoop {
                     }
 
                     loop {
-                        // For whatever reason doing this in a `whlie let` loop doesn't drop the `RefMut`,
-                        // so we have to do it like this.
-                        let event = match event_loop.events_loop.event_queue.borrow_mut().pop_front() {
-                            Some(event) => event,
-                            None => break
+                        let full_event: Option<Event<T>> = select! {
+                            recv(event_loop.events_loop.event_recv) -> event =>
+                                event.ok().map(|e| e.map_nonuser_event().expect("User event sent through nonuser channel")),
+                            recv(event_loop.events_loop.user_event_recv) -> user_event =>
+                                user_event.ok().map(|e| Event::UserEvent(e)),
+                            default => break
                         };
-
-                        call_event_handler!(event);
+                        if let Some(full_event) = full_event {
+                            call_event_handler!(full_event);
+                        }
                     }
 
                     if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
@@ -281,9 +293,17 @@ impl EventLoop {
         ::std::process::exit(0);
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy {
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             thread_id: self.thread_id,
+            event_send: self.user_event_send.clone()
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
+        EventLoopThreadExecutor {
+            thread_id: self.thread_id
         }
     }
 }
@@ -310,7 +330,7 @@ pub fn dur2timeout(dur: Duration) -> DWORD {
     }).unwrap_or(winbase::INFINITE)
 }
 
-impl Drop for EventLoop {
+impl<T> Drop for EventLoop<T> {
     fn drop(&mut self) {
         unsafe {
             // Posting `WM_QUIT` will cause `GetMessage` to stop.
@@ -319,29 +339,11 @@ impl Drop for EventLoop {
     }
 }
 
-#[derive(Clone)]
-pub struct EventLoopProxy {
-    thread_id: DWORD,
+pub(crate) struct EventLoopThreadExecutor {
+    thread_id: DWORD
 }
 
-impl EventLoopProxy {
-    pub fn wakeup(&self) -> Result<(), EventLoopClosed> {
-        unsafe {
-            if winuser::PostThreadMessageA(self.thread_id, *WAKEUP_MSG_ID, 0, 0) != 0 {
-                Ok(())
-            } else {
-                // https://msdn.microsoft.com/fr-fr/library/windows/desktop/ms644946(v=vs.85).aspx
-                // > If the function fails, the return value is zero. To get extended error
-                // > information, call GetLastError. GetLastError returns ERROR_INVALID_THREAD_ID
-                // > if idThread is not a valid thread identifier, or if the thread specified by
-                // > idThread does not have a message queue. GetLastError returns
-                // > ERROR_NOT_ENOUGH_QUOTA when the message limit is hit.
-                // TODO: handle ERROR_NOT_ENOUGH_QUOTA
-                Err(EventLoopClosed)
-            }
-        }
-    }
-
+impl EventLoopThreadExecutor {
     /// Check to see if we're in the parent event loop's thread.
     pub(super) fn in_event_loop_thread(&self) -> bool {
         let cur_thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
@@ -379,6 +381,32 @@ impl EventLoopProxy {
                 // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
                 // as the events loop is still alive) or if the queue is full.
                 assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct EventLoopProxy<T> {
+    thread_id: DWORD,
+    event_send: Sender<T>
+}
+
+impl<T> EventLoopProxy<T> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+        unsafe {
+            if winuser::PostThreadMessageA(self.thread_id, *WAKEUP_MSG_ID, 0, 0) != 0 {
+                self.event_send.send(event).ok();
+                Ok(())
+            } else {
+                // https://msdn.microsoft.com/fr-fr/library/windows/desktop/ms644946(v=vs.85).aspx
+                // > If the function fails, the return value is zero. To get extended error
+                // > information, call GetLastError. GetLastError returns ERROR_INVALID_THREAD_ID
+                // > if idThread is not a valid thread identifier, or if the thread specified by
+                // > idThread does not have a message queue. GetLastError returns
+                // > ERROR_NOT_ENOUGH_QUOTA when the message limit is hit.
+                // TODO: handle ERROR_NOT_ENOUGH_QUOTA
+                Err(EventLoopClosed)
             }
         }
     }
