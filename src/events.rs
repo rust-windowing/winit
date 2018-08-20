@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::path::PathBuf;
 
 use {DeviceId, LogicalPosition, LogicalSize, WindowId};
@@ -48,19 +48,19 @@ impl<T> Event<T> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StartCause {
-    /// Sent if the time specified by `ControlFlow::WaitTimeout` has been elapsed. Contains the
-    /// moment the timeout was requested and the requested duration of the timeout. The actual
-    /// duration is guaranteed to be greater than or equal to the requested timeout.
-    TimeoutExpired {
+    /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the
+    /// moment the timeout was requested and the requested resume time. The actual resume time is
+    /// guaranteed to be equal to or after the requested resume time.
+    ResumeTimeReached {
         start: Instant,
-        requested_duration: Duration,
+        requested_resume: Instant
     },
 
     /// Sent if the OS has new events to send to the window, after a wait was requested. Contains
-    /// the moment the wait was requested, and if a wait timout was requested, its duration.
+    /// the moment the wait was requested and the resume time, if requested.
     WaitCancelled {
         start: Instant,
-        requested_duration: Option<Duration>
+        requested_resume: Option<Instant>
     },
 
     /// Sent if the event loop is being resumed after the loop's control flow was set to

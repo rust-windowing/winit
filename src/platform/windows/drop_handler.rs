@@ -24,7 +24,7 @@ pub struct FileDropHandlerData {
     pub interface: IDropTarget,
     refcount: AtomicUsize,
     window: HWND,
-    event_sender: Sender<Event<()>>
+    // event_sender: Sender<Event<()>>
 }
 
 pub struct FileDropHandler {
@@ -33,14 +33,14 @@ pub struct FileDropHandler {
 
 #[allow(non_snake_case)]
 impl FileDropHandler {
-    pub fn new(window: HWND, event_sender: Sender<Event<()>>) -> FileDropHandler {
+    pub fn new(window: HWND/*, event_sender: Sender<Event<()>>*/) -> FileDropHandler {
         let data = Box::new(FileDropHandlerData {
             interface: IDropTarget {
                 lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl,
             },
             refcount: AtomicUsize::new(1),
             window,
-            event_sender,
+            // event_sender,
         });
         FileDropHandler {
             data: Box::into_raw(data),
@@ -186,7 +186,7 @@ impl FileDropHandler {
 
 impl FileDropHandlerData {
     fn send_event(&self, event: Event<()>) {
-        self.event_sender.send(event).ok();
+        // self.event_sender.send(event).ok();
     }
 }
 

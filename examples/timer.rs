@@ -1,5 +1,6 @@
 extern crate winit;
 use std::time::{Duration, Instant};
+use winit::{Event, WindowEvent, StartCause, ControlFlow};
 
 fn main() {
     let events_loop = winit::EventLoop::new();
@@ -13,20 +14,16 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            winit::Event::NewEvents(winit::StartCause::Init) =>
-                *control_flow = winit::ControlFlow::WaitTimeout(Duration::new(1, 0)),
-            winit::Event::NewEvents(winit::StartCause::TimeoutExpired{..}) => {
-                *control_flow = winit::ControlFlow::WaitTimeout(Duration::new(1, 0));
+            Event::NewEvents(StartCause::Init) =>
+                *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0)),
+            Event::NewEvents(StartCause::ResumeTimeReached{..}) => {
+                *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0));
                 println!("\nTimer\n");
             },
-            winit::Event::NewEvents(winit::StartCause::WaitCancelled{start, requested_duration}) => {
-                println!("{:?}", Instant::now() - start);
-                *control_flow = winit::ControlFlow::WaitTimeout(requested_duration.unwrap().checked_sub(Instant::now() - start).unwrap_or(Duration::new(0, 0)));
-            }
-            winit::Event::WindowEvent {
-                event: winit::WindowEvent::CloseRequested,
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
                 ..
-            } => *control_flow = winit::ControlFlow::Exit,
+            } => *control_flow = ControlFlow::Exit,
             _ => ()
         }
     });

@@ -17,6 +17,8 @@ use winapi::shared::basetsd::UINT_PTR;
 use std::{mem, ptr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::rc::Rc;
+use std::cell::RefCell;
 use parking_lot::Mutex;
 use crossbeam_channel::{self, Sender, Receiver};
 
@@ -34,7 +36,7 @@ use winapi::shared::minwindef::{
 };
 use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
-use winapi::um::{winuser, winbase, processthreadsapi, ole2, commctrl};
+use winapi::um::{winuser, winbase, ole2, processthreadsapi, commctrl, libloaderapi};
 use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
 use {
@@ -102,7 +104,8 @@ pub struct WindowState {
     pub always_on_top: bool,
     pub maximized: bool,
     pub resizable: bool,
-    pub mouse_buttons_down: u32
+    pub mouse_buttons_down: u32,
+    pub modal_timer_handle: UINT_PTR
 }
 
 impl WindowState {
@@ -118,27 +121,45 @@ impl WindowState {
     }
 }
 
-pub(crate) struct SubclassInput {
+pub(crate) struct SubclassInput<T> {
     pub window_state: Arc<Mutex<WindowState>>,
-    pub event_send: Sender<Event<()>>,
-    pub file_drop_handler: FileDropHandler
+    pub event_loop_runner: EventLoopRunnerShared<T>,
+    pub file_drop_handler: FileDropHandler,
 }
 
-impl SubclassInput {
-    fn send_event(&self, event: Event<()>) {
-        self.event_send.send(event).ok();
+impl<T> SubclassInput<T> {
+    unsafe fn send_event(&self, event: Event<T>) {
+        let runner = self.event_loop_runner.borrow_mut();
+        if let Some(runner) = *runner {
+            (*runner).process_event(event);
+        } else {
+            panic!("Attempted to send event without active runner");
+        }
+    }
+}
+
+struct ThreadMsgTargetSubclassInput<T> {
+    event_loop_runner: EventLoopRunnerShared<T>,
+    user_event_receiver: Receiver<T>
+}
+
+impl<T> ThreadMsgTargetSubclassInput<T> {
+    unsafe fn send_event(&self, event: Event<T>) {
+        let runner = self.event_loop_runner.borrow_mut();
+        if let Some(runner) = *runner {
+            (*runner).process_event(event);
+        } else {
+            panic!("Attempted to send event without active runner");
+        }
     }
 }
 
 pub struct EventLoop<T> {
     // Id of the background thread from the Win32 API.
     thread_id: DWORD,
-
-    pub(crate) event_send: Sender<Event<()>>,
-    pub(crate) user_event_send: Sender<T>,
-
-    event_recv: Receiver<Event<()>>,
-    user_event_recv: Receiver<T>
+    thread_msg_target: HWND,
+    thread_msg_sender: Sender<T>,
+    pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
 
 impl<T> EventLoop<T> {
@@ -150,153 +171,88 @@ impl<T> EventLoop<T> {
         become_dpi_aware(dpi_aware);
 
         let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
-
-        let (event_send, event_recv) = crossbeam_channel::unbounded();
-        let (user_event_send, user_event_recv) = crossbeam_channel::unbounded();
+        let runner_shared = Rc::new(RefCell::new(None));
+        let (thread_msg_target, thread_msg_sender) = thread_event_target_window(runner_shared.clone());
 
         EventLoop {
             thread_id,
-
-            event_send,
-            event_recv,
-
-            user_event_send,
-            user_event_recv,
+            thread_msg_target, thread_msg_sender,
+            runner_shared
         }
     }
 
     pub fn run<F>(self, mut event_handler: F) -> !
         where F: 'static + FnMut(Event<T>, &::EventLoop<T>, &mut ControlFlow)
     {
-        let event_loop = ::EventLoop {
-            events_loop: self,
-            _marker: ::std::marker::PhantomData
-        };
-        let mut control_flow = ControlFlow::default();
-        let mut timer_handle = 0;
-
         unsafe {
-            // Calling `PostThreadMessageA` on a thread that does not have an events queue yet
-            // will fail. In order to avoid this situation, we call `IsGuiThread` to initialize
-            // it.
             winuser::IsGUIThread(1);
 
+            let mut runner = EventLoopRunner {
+                event_loop: ::EventLoop {
+                    events_loop: self,
+                    _marker: ::std::marker::PhantomData
+                },
+                control_flow: ControlFlow::default(),
+                runner_state: RunnerState::New,
+                modal_loop_data: None,
+                event_handler: &mut event_handler
+            };
+            *runner.event_loop.events_loop.runner_shared.borrow_mut() = Some(&mut runner);
+            let timer_handle = winuser::SetTimer(ptr::null_mut(), 0, 0x7FFFFFFF, None);
+
             let mut msg = mem::uninitialized();
+            let mut msg_unprocessed = false;
 
-            event_handler(Event::NewEvents(StartCause::Init), &event_loop, &mut control_flow);
             'main: loop {
-                macro_rules! call_event_handler {
-                    ($event:expr) => {{
-                        event_handler($event, &event_loop, &mut control_flow);
-                        if ControlFlow::Exit == control_flow {
-                            break 'main;
-                        }
-                    }}
-                }
-
-                let mut has_message = true;
-                let new_events_cause: StartCause;
-                match control_flow {
-                    ControlFlow::Wait => {
-                        let wait_start = Instant::now();
-                        if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
-                            // Only happens if the message is `WM_QUIT`.
-                            debug_assert_eq!(msg.message, winuser::WM_QUIT);
-                            break 'main;
-                        }
-                        new_events_cause =
-                            StartCause::WaitCancelled {
-                                start: wait_start,
-                                requested_duration: None
-                            };
-                    }
-                    ControlFlow::WaitTimeout(duration) => {
-                        let new_handle = winuser::SetTimer(ptr::null_mut(), timer_handle, dur2timeout(duration), None);
-                        if timer_handle == 0 {
-                            timer_handle = new_handle;
-                        }
-                        let wait_start = Instant::now();
-                        if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
-                            // Only happens if the message is `WM_QUIT`.
-                            debug_assert_eq!(msg.message, winuser::WM_QUIT);
-                            break 'main;
-                        }
-                        if msg.message == winuser::WM_TIMER && msg.wParam == timer_handle {
-                            new_events_cause =
-                                StartCause::TimeoutExpired {
-                                    start: wait_start,
-                                    requested_duration: duration,
-                                };
-                            if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
-                                has_message = false;
-                            }
-                        } else {
-                            new_events_cause =
-                                StartCause::WaitCancelled {
-                                    start: wait_start,
-                                    requested_duration: Some(duration)
-                                };
-                        }
-                    }
-                    ControlFlow::Poll => {
+                runner.new_events();
+                loop {
+                    if !msg_unprocessed {
                         if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
-                            has_message = false;
+                            break;
                         }
-                        new_events_cause = StartCause::Poll;
                     }
-                    ControlFlow::Exit => break 'main
+                    winuser::TranslateMessage(&mut msg);
+                    winuser::DispatchMessageW(&mut msg);
+                    msg_unprocessed = false;
                 }
-                call_event_handler!(Event::NewEvents(new_events_cause));
+                runner.events_cleared();
 
-                while has_message {
-                    match msg.message {
-                        // Handler is called in loop below.
-                        x if x == *WAKEUP_MSG_ID => (),
-                        x if x == *EXEC_MSG_ID => {
-                            let mut function: Box<Box<FnMut()>> = Box::from_raw(msg.wParam as usize as *mut _);
-                            function()
+                match runner.control_flow {
+                    ControlFlow::Exit => break 'main,
+                    ControlFlow::Wait => {
+                        if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
+                            break 'main
                         }
-                        _ => {
-                            // Calls `event_handler` below.
-                            winuser::TranslateMessage(&msg);
-                            winuser::DispatchMessageW(&msg);
+                        msg_unprocessed = true;
+                    }
+                    ControlFlow::WaitUntil(resume_time) => {
+                        let now = Instant::now();
+                        if now <= resume_time {
+                            let duration = resume_time - now;
+                            winuser::SetTimer(ptr::null_mut(), timer_handle, dur2timeout(duration), None);
+                            if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
+                                break 'main
+                            }
+                            winuser::SetTimer(ptr::null_mut(), timer_handle, 0x7FFFFFFF, None);
+                            msg_unprocessed = true;
                         }
-                    }
-
-                    loop {
-                        let full_event: Option<Event<T>> = select! {
-                            recv(event_loop.events_loop.event_recv) -> event =>
-                                event.ok().map(|e| e.map_nonuser_event().expect("User event sent through nonuser channel")),
-                            recv(event_loop.events_loop.user_event_recv) -> user_event =>
-                                user_event.ok().map(|e| Event::UserEvent(e)),
-                            default => break
-                        };
-                        if let Some(full_event) = full_event {
-                            call_event_handler!(full_event);
-                        }
-                    }
-
-                    if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
-                        has_message = false;
-                    }
+                    },
+                    ControlFlow::Poll => ()
                 }
-                call_event_handler!(Event::EventsCleared);
             }
 
-            if timer_handle != 0 {
-                winuser::KillTimer(ptr::null_mut(), timer_handle);
-            }
+            runner.call_event_handler(Event::LoopDestroyed);
+            *runner.event_loop.events_loop.runner_shared.borrow_mut() = None;
         }
 
-        event_handler(Event::LoopDestroyed, &event_loop, &mut control_flow);
         drop(event_handler);
         ::std::process::exit(0);
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            thread_id: self.thread_id,
-            event_send: self.user_event_send.clone()
+            target_window: self.thread_msg_target,
+            event_send: self.thread_msg_sender.clone()
         }
     }
 
@@ -308,8 +264,201 @@ impl<T> EventLoop<T> {
     }
 }
 
+pub(crate) type EventLoopRunnerShared<T> = Rc<RefCell<Option<*mut EventLoopRunner<T>>>>;
+pub(crate) struct EventLoopRunner<T> {
+    event_loop: ::EventLoop<T>,
+    control_flow: ControlFlow,
+    runner_state: RunnerState,
+    modal_loop_data: Option<ModalLoopData>,
+    event_handler: *mut FnMut(Event<T>, &::EventLoop<T>, &mut ControlFlow)
+}
+
+struct ModalLoopData {
+    hwnd: HWND,
+    timer_handle: UINT_PTR
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RunnerState {
+    /// The event loop has just been created, and an `Init` event must be sent.
+    New,
+    /// The event loop is idling, and began idling at the given instant.
+    Idle(Instant),
+    /// The event loop has received a signal from the OS that the loop may resume, but no winit
+    /// events have been generated yet. We're waiting for an event to be processed or the events
+    /// to be marked as cleared to send `NewEvents`, depending on the current `ControlFlow`.
+    DeferredNewEvents(Instant),
+    /// The event loop is handling the OS's events and sending them to the user's callback.
+    /// `NewEvents` has been sent, and `EventsCleared` hasn't.
+    HandlingEvents,
+}
+
+impl<T> EventLoopRunner<T> {
+    unsafe fn new_events(&mut self) {
+        self.runner_state = match self.runner_state {
+            // If we're already handling events or have deferred `NewEvents`, we don't need to do
+            // do any processing.
+            RunnerState::HandlingEvents |
+            RunnerState::DeferredNewEvents(..) => self.runner_state,
+
+            // Send the `Init` `NewEvents` and immediately move into event processing.
+            RunnerState::New => {
+                self.call_event_handler(Event::NewEvents(StartCause::Init));
+                RunnerState::HandlingEvents
+            },
+
+            // When `NewEvents` gets sent after an idle depends on the control flow...
+            RunnerState::Idle(wait_start) => {
+                match self.control_flow {
+                    // If we're polling, send `NewEvents` and immediately move into event processing.
+                    ControlFlow::Poll => {
+                        self.call_event_handler(Event::NewEvents(StartCause::Poll));
+                        RunnerState::HandlingEvents
+                    },
+                    // If the user was waiting until a specific time, the `NewEvents` call gets sent
+                    // at varying times depending on the current time.
+                    ControlFlow::WaitUntil(resume_time) => {
+                        match Instant::now() >= resume_time {
+                            // If the current time is later than the requested resume time, we can tell the
+                            // user that the resume time has been reached with `NewEvents` and immdiately move
+                            // into event processing.
+                            true => {
+                                self.call_event_handler(Event::NewEvents(StartCause::ResumeTimeReached {
+                                    start: wait_start,
+                                    requested_resume: resume_time
+                                }));
+                                RunnerState::HandlingEvents
+                            },
+                            // However, if the current time is EARLIER than the requested resume time, we
+                            // don't want to send the `WaitCancelled` event until we know an event is being
+                            // sent. Defer.
+                            false => RunnerState::DeferredNewEvents(wait_start)
+                        }
+                    },
+                    // If we're waiting, `NewEvents` doesn't get sent until winit gets an event, so
+                    // we defer.
+                    ControlFlow::Wait |
+                    // `Exit` shouldn't really ever get sent here, but if it does do something somewhat sane.
+                    ControlFlow::Exit => RunnerState::DeferredNewEvents(wait_start),
+                }
+            }
+        };
+    }
+
+    unsafe fn process_event(&mut self, event: Event<T>) {
+        if let Some(ModalLoopData{hwnd, timer_handle}) = self.modal_loop_data {
+            if !self.event_processing_active() {
+                winuser::SetTimer(hwnd, timer_handle, 0, None);
+            }
+        }
+
+        // If new event processing has to be done (i.e. call NewEvents or defer), do it. If we're
+        // already in processing nothing happens with this call.
+        self.new_events();
+
+        // Now that an event has been received, we have to send any `NewEvents` calls that were
+        // deferred.
+        if let RunnerState::DeferredNewEvents(wait_start) = self.runner_state {
+            match self.control_flow {
+                ControlFlow::Wait => self.call_event_handler(
+                    Event::NewEvents(StartCause::WaitCancelled {
+                        start: wait_start,
+                        requested_resume: None
+                    })
+                ),
+                ControlFlow::WaitUntil(resume_time) => {
+                    let start_cause = match Instant::now() >= resume_time {
+                        // If the current time is later than the requested resume time, the resume time
+                        // has been reached.
+                        true => StartCause::ResumeTimeReached {
+                            start: wait_start,
+                            requested_resume: resume_time
+                        },
+                        // Otherwise, the requested resume time HASN'T been reached and we send a WaitCancelled.
+                        false => StartCause::WaitCancelled {
+                            start: wait_start,
+                            requested_resume: Some(resume_time)
+                        },
+                    };
+                    self.call_event_handler(Event::NewEvents(start_cause));
+                },
+                ControlFlow::Poll |
+                ControlFlow::Exit => unreachable!()
+            }
+
+            self.runner_state = RunnerState::HandlingEvents;
+        }
+
+        self.call_event_handler(event);
+    }
+
+    unsafe fn events_cleared(&mut self) {
+        match self.runner_state {
+            // If we were handling events, send the EventsCleared message.
+            RunnerState::HandlingEvents => {
+                self.call_event_handler(Event::EventsCleared);
+                self.runner_state = RunnerState::Idle(Instant::now());
+            },
+
+            // If we *weren't* handling events, we don't have to do anything.
+            RunnerState::New |
+            RunnerState::Idle(..) => (),
+
+            // Some control flows require a NewEvents call even if no events were received. This
+            // branch handles those.
+            RunnerState::DeferredNewEvents(wait_start) => {
+                match self.control_flow {
+                    // If we had deferred a Poll, send the Poll NewEvents and EventsCleared.
+                    ControlFlow::Poll => {
+                        self.call_event_handler(Event::NewEvents(StartCause::Poll));
+                        self.call_event_handler(Event::EventsCleared);
+                    },
+                    // If we had deferred a WaitUntil and the resume time has since been reached,
+                    // send the resume notification and EventsCleared event.
+                    ControlFlow::WaitUntil(resume_time) => {
+                        if Instant::now() >= resume_time {
+                            self.call_event_handler(Event::NewEvents(StartCause::ResumeTimeReached {
+                                start: wait_start,
+                                requested_resume: resume_time
+                            }));
+                            self.call_event_handler(Event::EventsCleared);
+                        }
+                    },
+                    // If we deferred a wait and no events were received, the user doesn't have to
+                    // get an event.
+                    ControlFlow::Wait |
+                    ControlFlow::Exit => ()
+                }
+                // Mark that we've entered an idle state.
+                self.runner_state = RunnerState::Idle(wait_start)
+            },
+        }
+    }
+
+    unsafe fn call_event_handler(&mut self, event: Event<T>) {
+        if self.event_handler != mem::zeroed() {
+            if self.control_flow != ControlFlow::Exit {
+                (*self.event_handler)(event, &self.event_loop, &mut self.control_flow);
+            } else {
+                (*self.event_handler)(event, &self.event_loop, &mut ControlFlow::Exit);
+            }
+        } else {
+            panic!("Tried to call event handler with null handler");
+        }
+    }
+
+    fn event_processing_active(&self) -> bool {
+        match self.runner_state {
+            RunnerState::HandlingEvents => true,
+            RunnerState::DeferredNewEvents(..) |
+            RunnerState::New |
+            RunnerState::Idle(..) => false
+        }
+    }
+}
+
 // Implementation taken from https://github.com/rust-lang/rust/blob/db5476571d9b27c862b95c1e64764b0ac8980e23/src/libstd/sys/windows/mod.rs
-pub fn dur2timeout(dur: Duration) -> DWORD {
+fn dur2timeout(dur: Duration) -> DWORD {
     // Note that a duration is a (u64, u32) (seconds, nanoseconds) pair, and the
     // timeouts in windows APIs are typically u32 milliseconds. To translate, we
     // have two pieces to take care of:
@@ -333,6 +482,7 @@ pub fn dur2timeout(dur: Duration) -> DWORD {
 impl<T> Drop for EventLoop<T> {
     fn drop(&mut self) {
         unsafe {
+            winuser::DestroyWindow(self.thread_msg_target);
             // Posting `WM_QUIT` will cause `GetMessage` to stop.
             winuser::PostThreadMessageA(self.thread_id, winuser::WM_QUIT, 0, 0);
         }
@@ -388,24 +538,18 @@ impl EventLoopThreadExecutor {
 
 #[derive(Clone)]
 pub struct EventLoopProxy<T> {
-    thread_id: DWORD,
+    target_window: HWND,
     event_send: Sender<T>
 }
+unsafe impl<T: Send> Send for EventLoopProxy<T> {}
 
 impl<T> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
         unsafe {
-            if winuser::PostThreadMessageA(self.thread_id, *WAKEUP_MSG_ID, 0, 0) != 0 {
+            if winuser::PostMessageW(self.target_window, *USER_EVENT_MSG_ID, 0, 0) != 0 {
                 self.event_send.send(event).ok();
                 Ok(())
             } else {
-                // https://msdn.microsoft.com/fr-fr/library/windows/desktop/ms644946(v=vs.85).aspx
-                // > If the function fails, the return value is zero. To get extended error
-                // > information, call GetLastError. GetLastError returns ERROR_INVALID_THREAD_ID
-                // > if idThread is not a valid thread identifier, or if the thread specified by
-                // > idThread does not have a message queue. GetLastError returns
-                // > ERROR_NOT_ENOUGH_QUOTA when the message limit is hit.
-                // TODO: handle ERROR_NOT_ENOUGH_QUOTA
                 Err(EventLoopClosed)
             }
         }
@@ -415,7 +559,7 @@ impl<T> EventLoopProxy<T> {
 lazy_static! {
     // Message sent by the `EventLoopProxy` when we want to wake up the thread.
     // WPARAM and LPARAM are unused.
-    static ref WAKEUP_MSG_ID: u32 = {
+    static ref USER_EVENT_MSG_ID: u32 = {
         unsafe {
             winuser::RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr() as LPCSTR)
         }
@@ -442,6 +586,68 @@ lazy_static! {
             winuser::RegisterWindowMessageA("Winit::InitialDpiMsg\0".as_ptr() as LPCSTR)
         }
     };
+    static ref THREAD_EVENT_TARGET_WINDOW_CLASS: Vec<u16> = unsafe {
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+
+        let class_name: Vec<_> = OsStr::new("Winit Thread Event Target")
+            .encode_wide()
+            .chain(Some(0).into_iter())
+            .collect();
+
+        let class = winuser::WNDCLASSEXW {
+            cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
+            style: 0,
+            lpfnWndProc: Some(winuser::DefWindowProcW),
+            cbClsExtra: 0,
+            cbWndExtra: 0,
+            hInstance: libloaderapi::GetModuleHandleW(ptr::null()),
+            hIcon: ptr::null_mut(),
+            hCursor: ptr::null_mut(), // must be null in order for cursor state to work properly
+            hbrBackground: ptr::null_mut(),
+            lpszMenuName: ptr::null(),
+            lpszClassName: class_name.as_ptr(),
+            hIconSm: ptr::null_mut(),
+        };
+
+        winuser::RegisterClassExW(&class);
+
+        class_name
+    };
+}
+
+fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) -> (HWND, Sender<T>) {
+    unsafe {
+        let window = winuser::CreateWindowExW(
+            0,
+            THREAD_EVENT_TARGET_WINDOW_CLASS.as_ptr(),
+            ptr::null_mut(),
+            0,
+            0, 0,
+            0, 0,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            libloaderapi::GetModuleHandleW(ptr::null()),
+            ptr::null_mut()
+        );
+
+        let (tx, rx) = crossbeam_channel::unbounded();
+
+        let subclass_input = ThreadMsgTargetSubclassInput {
+            event_loop_runner,
+            user_event_receiver: rx
+        };
+        let input_ptr = Box::into_raw(Box::new(subclass_input));
+        let subclass_result = commctrl::SetWindowSubclass(
+            window,
+            Some(thread_event_target_callback::<T>),
+            THREAD_EVENT_TARGET_SUBCLASS_ID,
+            input_ptr as DWORD_PTR
+        );
+        assert_eq!(subclass_result, 1);
+
+        (window, tx)
+    }
 }
 
 /// Capture mouse input, allowing `window` to receive mouse events when the cursor is outside of
@@ -461,11 +667,12 @@ unsafe fn release_mouse(window_state: &mut WindowState) {
 }
 
 const WINDOW_SUBCLASS_ID: UINT_PTR = 0;
-pub(crate) fn subclass_window(window: HWND, subclass_input: SubclassInput) {
+const THREAD_EVENT_TARGET_SUBCLASS_ID: UINT_PTR = 1;
+pub(crate) fn subclass_window<T>(window: HWND, subclass_input: SubclassInput<T>) {
     let input_ptr = Box::into_raw(Box::new(subclass_input));
     let subclass_result = unsafe{ commctrl::SetWindowSubclass(
         window,
-        Some(callback),
+        Some(public_window_callback::<T>),
         WINDOW_SUBCLASS_ID,
         input_ptr as DWORD_PTR
     ) };
@@ -479,7 +686,7 @@ pub(crate) fn subclass_window(window: HWND, subclass_input: SubclassInput) {
 //
 // Returning 0 tells the Win32 API that the message has been processed.
 // FIXME: detect WM_DWMCOMPOSITIONCHANGED and call DwmEnableBlurBehindWindow if necessary
-pub unsafe extern "system" fn callback(
+unsafe extern "system" fn public_window_callback<T>(
     window: HWND,
     msg: UINT,
     wparam: WPARAM,
@@ -487,9 +694,70 @@ pub unsafe extern "system" fn callback(
     _: UINT_PTR,
     subclass_input_ptr: DWORD_PTR
 ) -> LRESULT {
-    let subclass_input = &mut*(subclass_input_ptr as *mut SubclassInput);
+    let subclass_input = &mut*(subclass_input_ptr as *mut SubclassInput<T>);
 
     match msg {
+        winuser::WM_SYSCOMMAND => {
+            {
+                let mut window_state = subclass_input.window_state.lock();
+                if window_state.modal_timer_handle == 0 {
+                    window_state.modal_timer_handle = winuser::SetTimer(window, 0, 0x7FFFFFFF, None);
+                }
+            }
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
+        }
+        winuser::WM_ENTERSIZEMOVE => {
+            let modal_timer_handle = subclass_input.window_state.lock().modal_timer_handle;
+            if let Some(runner) = *subclass_input.event_loop_runner.borrow_mut() {
+                (*runner).modal_loop_data = Some(ModalLoopData {
+                    hwnd: window,
+                    timer_handle: modal_timer_handle
+                });
+            }
+            winuser::SetTimer(window, modal_timer_handle, 0, None);
+            0
+        },
+        winuser::WM_EXITSIZEMOVE => {
+            let modal_timer_handle = subclass_input.window_state.lock().modal_timer_handle;
+            if let Some(runner) = *subclass_input.event_loop_runner.borrow_mut() {
+                (*runner).modal_loop_data = None;
+            }
+            winuser::SetTimer(window, modal_timer_handle, 0x7FFFFFFF, None);
+            0
+        },
+        winuser::WM_TIMER => {
+            let modal_timer_handle = subclass_input.window_state.lock().modal_timer_handle;
+            if wparam == modal_timer_handle {
+                let runner = subclass_input.event_loop_runner.borrow_mut();
+                if let Some(runner) = *runner {
+                    let runner = &mut *runner;
+                    if runner.modal_loop_data.is_some() {
+                        runner.events_cleared();
+                        match runner.control_flow {
+                            ControlFlow::Exit => (),
+                            ControlFlow::Wait => {
+                                winuser::SetTimer(window, modal_timer_handle, 0x7FFFFFFF, None);
+                            },
+                            ControlFlow::WaitUntil(resume_time) => {
+                                let now = Instant::now();
+                                let duration = match now <= resume_time {
+                                    true => dur2timeout(resume_time - now),
+                                    false => 0
+                                };
+                                winuser::SetTimer(window, modal_timer_handle, duration, None);
+                            },
+                            ControlFlow::Poll => {
+                                winuser::SetTimer(window, modal_timer_handle, 0, None);
+                            }
+                        }
+
+                        runner.new_events();
+                    }
+                }
+            }
+            0
+        }
+
         winuser::WM_NCCREATE => {
             enable_non_client_dpi_scaling(window);
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
@@ -507,6 +775,12 @@ pub unsafe extern "system" fn callback(
         winuser::WM_DESTROY => {
             use events::WindowEvent::Destroyed;
             ole2::RevokeDragDrop(window);
+            {
+                let window_state = subclass_input.window_state.lock();
+                if window_state.modal_timer_handle != 0 {
+                    winuser::KillTimer(window, window_state.modal_timer_handle);
+                }
+            }
             subclass_input.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Destroyed
@@ -1167,5 +1441,35 @@ pub unsafe extern "system" fn callback(
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             }
         }
+    }
+}
+
+unsafe extern "system" fn thread_event_target_callback<T>(
+    window: HWND,
+    msg: UINT,
+    wparam: WPARAM,
+    lparam: LPARAM,
+    _: UINT_PTR,
+    subclass_input_ptr: DWORD_PTR
+) -> LRESULT {
+    let subclass_input = &mut*(subclass_input_ptr as *mut ThreadMsgTargetSubclassInput<T>);
+    match msg {
+        winuser::WM_DESTROY => {
+            Box::from_raw(subclass_input);
+            drop(subclass_input);
+            0
+        },
+        _ if msg == *USER_EVENT_MSG_ID => {
+            if let Ok(event) = subclass_input.user_event_receiver.recv() {
+                subclass_input.send_event(Event::UserEvent(event));
+            }
+            0
+        }
+        _ if msg == *EXEC_MSG_ID => {
+            let mut function: Box<Box<FnMut()>> = Box::from_raw(wparam as usize as *mut _);
+            function();
+            0
+        }
+        _ => commctrl::DefSubclassProc(window, msg, wparam, lparam)
     }
 }

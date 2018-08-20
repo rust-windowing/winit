@@ -75,7 +75,7 @@ unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> B
 
 impl Window {
     pub fn new<T>(
-        events_loop: &EventLoop<T>,
+        event_loop: &EventLoop<T>,
         w_attr: WindowAttributes,
         pl_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, CreationError> {
@@ -83,7 +83,37 @@ impl Window {
         // First person to remove the need for cloning here gets a cookie!
         //
         // done. you owe me -- ossi
-        unsafe { init(w_attr, pl_attr, events_loop) }
+        unsafe {
+            init(w_attr, pl_attr, event_loop).map(|win| {
+                let file_drop_handler = {
+                    use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
+
+                    let ole_init_result = ole2::OleInitialize(ptr::null_mut());
+                    // It is ok if the initialize result is `S_FALSE` because it might happen that
+                    // multiple windows are created on the same thread.
+                    if ole_init_result == OLE_E_WRONGCOMPOBJ {
+                        panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
+                    } else if ole_init_result == RPC_E_CHANGED_MODE {
+                        panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
+                    }
+
+                    let file_drop_handler = FileDropHandler::new(win.window.0/*, event_loop.event_send.clone()*/);
+                    let handler_interface_ptr = &mut (*file_drop_handler.data).interface as LPDROPTARGET;
+
+                    assert_eq!(ole2::RegisterDragDrop(win.window.0, handler_interface_ptr), S_OK);
+                    file_drop_handler
+                };
+
+                let subclass_input = events_loop::SubclassInput {
+                    window_state: win.window_state.clone(),
+                    event_loop_runner: event_loop.runner_shared.clone(),
+                    file_drop_handler,
+                };
+
+                events_loop::subclass_window(win.window.0, subclass_input);
+                win
+            })
+        }
     }
 
     pub fn set_title(&self, text: &str) {
@@ -1004,22 +1034,24 @@ unsafe fn init<T>(
         let min_size = attributes.min_dimensions
             .map(|logical_size| PhysicalSize::from_logical(logical_size, dpi_factor));
         let mut window_state = events_loop::WindowState {
-            cursor: Cursor(winuser::IDC_ARROW), // use arrow by default
-            cursor_grabbed: false,
-            cursor_hidden: false,
             max_size,
             min_size,
-            mouse_in_window: false,
-            saved_window_info: None,
             dpi_factor,
-            fullscreen: attributes.fullscreen.clone(),
             window_icon,
             taskbar_icon,
+            fullscreen: attributes.fullscreen.clone(),
             decorations: attributes.decorations,
             maximized: attributes.maximized,
             resizable: attributes.resizable,
             always_on_top: attributes.always_on_top,
-            mouse_buttons_down: 0
+
+            cursor: Cursor(winuser::IDC_ARROW), // use arrow by default
+            cursor_grabbed: false,
+            cursor_hidden: false,
+            mouse_in_window: false,
+            saved_window_info: None,
+            mouse_buttons_down: 0,
+            modal_timer_handle: 0
         };
         // Creating a mutex to track the current window state
         Arc::new(Mutex::new(window_state))
@@ -1063,33 +1095,6 @@ unsafe fn init<T>(
         win.set_fullscreen(attributes.fullscreen);
         force_window_active(win.window.0);
     }
-
-    let file_drop_handler = {
-        use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
-
-        let ole_init_result = ole2::OleInitialize(ptr::null_mut());
-        // It is ok if the initialize result is `S_FALSE` because it might happen that
-        // multiple windows are created on the same thread.
-        if ole_init_result == OLE_E_WRONGCOMPOBJ {
-            panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
-        } else if ole_init_result == RPC_E_CHANGED_MODE {
-            panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
-        }
-
-        let file_drop_handler = FileDropHandler::new(win.window.0, event_loop.event_send.clone());
-        let handler_interface_ptr = &mut (*file_drop_handler.data).interface as LPDROPTARGET;
-
-        assert_eq!(ole2::RegisterDragDrop(win.window.0, handler_interface_ptr), S_OK);
-        file_drop_handler
-    };
-
-    let subclass_input = events_loop::SubclassInput {
-        window_state: win.window_state.clone(),
-        event_send: event_loop.event_send.clone(),
-        file_drop_handler,
-    };
-
-    events_loop::subclass_window(win.window.0, subclass_input);
 
     Ok(win)
 }

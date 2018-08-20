@@ -93,7 +93,7 @@ extern crate percent_encoding;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 extern crate smithay_client_toolkit as sctk;
 
-use std::time::Duration;
+use std::time::Instant;
 pub(crate) use dpi::*; // TODO: Actually change the imports throughout the codebase.
 pub use events::*;
 pub use window::{AvailableMonitorsIter, MonitorId};
@@ -186,8 +186,8 @@ pub enum ControlFlow {
     /// When the current loop iteration finishes, suspend the thread until another event arrives.
     Wait,
     /// When the current loop iteration finishes, suspend the thread until either another event
-    /// arrives or the timeout expires.
-    WaitTimeout(Duration),
+    /// arrives or the given time is reached.
+    WaitUntil(Instant),
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
     Poll,
