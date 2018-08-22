@@ -30,7 +30,8 @@ use {
 };
 use platform::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, WindowId};
 use platform::platform::dpi::{dpi_to_scale_factor, get_hwnd_dpi};
-use platform::platform::events_loop::{self, DESTROY_MSG_ID, EventLoop, INITIAL_DPI_MSG_ID, WindowState};
+use platform::platform::events_loop::{self, EventLoop, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID, REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID};
+use platform::platform::events_loop::WindowState;
 use platform::platform::icon::{self, IconType, WinIcon};
 use platform::platform::monitor;
 use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
@@ -137,6 +138,22 @@ impl Window {
     pub fn hide(&self) {
         unsafe {
             winuser::ShowWindow(self.window.0, winuser::SW_HIDE);
+        }
+    }
+
+    #[inline]
+    pub fn request_redraw(&self) {
+        unsafe {
+            if self.thread_executor.trigger_newevents_on_redraw() {
+                winuser::RedrawWindow(
+                    self.window.0,
+                    ptr::null(),
+                    ptr::null_mut(),
+                    winuser::RDW_INTERNALPAINT
+                );
+            } else {
+                winuser::PostMessageW(self.window.0, *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID, 0, 0);
+            }
         }
     }
 

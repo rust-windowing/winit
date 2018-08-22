@@ -205,6 +205,21 @@ impl Window {
         self.window.hide()
     }
 
+    /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
+    /// events have been processed by the event loop.
+    ///
+    /// This is the **strongly encouraged** method of redrawing windows, as it can integrates with
+    /// OS-requested redraws (e.g. when a window gets resized).
+    ///
+    /// This function can cause `RedrawRequested` events to be emitted after `Event::EventsCleared`
+    /// but before `Event::NewEvents` if called in the following circumstances:
+    /// * While processing `EventsCleared`.
+    /// * While processing a `RedrawRequested` event that was sent during `EventsCleared` or any
+    ///   directly subsequent `RedrawRequested` event.
+    pub fn request_redraw(&self) {
+        self.window.request_redraw()
+    }
+
     /// Returns the position of the top-left hand corner of the window relative to the
     ///  top-left hand corner of the desktop.
     ///

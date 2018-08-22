@@ -140,8 +140,8 @@ pub enum WindowEvent {
     /// Motion on some analog axis. May report data redundant to other, more specific events.
     AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
 
-    /// The window needs to be redrawn.
-    Redraw,
+    /// The OS or application has requested that the window be redrawn.
+    RedrawRequested,
 
     /// Touch event has been received
     Touch(Touch),

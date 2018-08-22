@@ -16,6 +16,7 @@ use winapi::shared::basetsd::DWORD_PTR;
 use winapi::shared::basetsd::UINT_PTR;
 use std::{mem, ptr};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -129,11 +130,10 @@ pub(crate) struct SubclassInput<T> {
 
 impl<T> SubclassInput<T> {
     unsafe fn send_event(&self, event: Event<T>) {
-        let runner = self.event_loop_runner.borrow_mut();
-        if let Some(runner) = *runner {
-            (*runner).process_event(event);
-        } else {
-            panic!("Attempted to send event without active runner");
+        let mut runner = self.event_loop_runner.borrow_mut();
+        match *runner {
+            ELRSharedOption::Runner(runner) => (*runner).process_event(event),
+            ELRSharedOption::Buffer(ref mut buffer) => buffer.push(event)
         }
     }
 }
@@ -145,11 +145,10 @@ struct ThreadMsgTargetSubclassInput<T> {
 
 impl<T> ThreadMsgTargetSubclassInput<T> {
     unsafe fn send_event(&self, event: Event<T>) {
-        let runner = self.event_loop_runner.borrow_mut();
-        if let Some(runner) = *runner {
-            (*runner).process_event(event);
-        } else {
-            panic!("Attempted to send event without active runner");
+        let mut runner = self.event_loop_runner.borrow_mut();
+        match *runner {
+            ELRSharedOption::Runner(runner) => (*runner).process_event(event),
+            ELRSharedOption::Buffer(ref mut buffer) => buffer.push(event)
         }
     }
 }
@@ -159,6 +158,7 @@ pub struct EventLoop<T> {
     thread_id: DWORD,
     thread_msg_target: HWND,
     thread_msg_sender: Sender<T>,
+    trigger_newevents_on_redraw: Arc<AtomicBool>,
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
 
@@ -171,12 +171,13 @@ impl<T> EventLoop<T> {
         become_dpi_aware(dpi_aware);
 
         let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
-        let runner_shared = Rc::new(RefCell::new(None));
+        let runner_shared = Rc::new(RefCell::new(ELRSharedOption::Buffer(vec![])));
         let (thread_msg_target, thread_msg_sender) = thread_event_target_window(runner_shared.clone());
 
         EventLoop {
             thread_id,
             thread_msg_target, thread_msg_sender,
+            trigger_newevents_on_redraw: Arc::new(AtomicBool::new(true)),
             runner_shared
         }
     }
@@ -197,7 +198,19 @@ impl<T> EventLoop<T> {
                 modal_loop_data: None,
                 event_handler: &mut event_handler
             };
-            *runner.event_loop.events_loop.runner_shared.borrow_mut() = Some(&mut runner);
+            {
+                let runner_shared = runner.event_loop.events_loop.runner_shared.clone();
+                let mut runner_shared = runner_shared.borrow_mut();
+                let mut event_buffer = vec![];
+                if let ELRSharedOption::Buffer(ref mut buffer) = *runner_shared {
+                    mem::swap(buffer, &mut event_buffer);
+                }
+                for event in event_buffer.drain(..) {
+                    runner.process_event(event);
+                }
+                *runner_shared = ELRSharedOption::Runner(&mut runner);
+            }
+
             let timer_handle = winuser::SetTimer(ptr::null_mut(), 0, 0x7FFFFFFF, None);
 
             let mut msg = mem::uninitialized();
@@ -242,7 +255,7 @@ impl<T> EventLoop<T> {
             }
 
             runner.call_event_handler(Event::LoopDestroyed);
-            *runner.event_loop.events_loop.runner_shared.borrow_mut() = None;
+            *runner.event_loop.events_loop.runner_shared.borrow_mut() = ELRSharedOption::Buffer(vec![]);
         }
 
         drop(event_handler);
@@ -259,12 +272,17 @@ impl<T> EventLoop<T> {
     #[inline(always)]
     pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
         EventLoopThreadExecutor {
-            thread_id: self.thread_id
+            thread_id: self.thread_id,
+            trigger_newevents_on_redraw: self.trigger_newevents_on_redraw.clone()
         }
     }
 }
 
-pub(crate) type EventLoopRunnerShared<T> = Rc<RefCell<Option<*mut EventLoopRunner<T>>>>;
+pub(crate) type EventLoopRunnerShared<T> = Rc<RefCell<ELRSharedOption<T>>>;
+pub(crate) enum ELRSharedOption<T> {
+    Runner(*mut EventLoopRunner<T>),
+    Buffer(Vec<Event<T>>)
+}
 pub(crate) struct EventLoopRunner<T> {
     event_loop: ::EventLoop<T>,
     control_flow: ControlFlow,
@@ -346,8 +364,10 @@ impl<T> EventLoopRunner<T> {
     }
 
     unsafe fn process_event(&mut self, event: Event<T>) {
+        // If we're in the middle of a modal loop, only set the timer for zero if it hasn't been
+        // reset in a prior call to `process_event`.
         if let Some(ModalLoopData{hwnd, timer_handle}) = self.modal_loop_data {
-            if !self.event_processing_active() {
+            if self.runner_state != RunnerState::HandlingEvents {
                 winuser::SetTimer(hwnd, timer_handle, 0, None);
             }
         }
@@ -385,10 +405,9 @@ impl<T> EventLoopRunner<T> {
                 ControlFlow::Poll |
                 ControlFlow::Exit => unreachable!()
             }
-
-            self.runner_state = RunnerState::HandlingEvents;
         }
 
+        self.runner_state = RunnerState::HandlingEvents;
         self.call_event_handler(event);
     }
 
@@ -437,6 +456,12 @@ impl<T> EventLoopRunner<T> {
 
     unsafe fn call_event_handler(&mut self, event: Event<T>) {
         if self.event_handler != mem::zeroed() {
+            match event {
+                Event::NewEvents(_) => self.event_loop.events_loop.trigger_newevents_on_redraw.store(true, Ordering::Relaxed),
+                Event::EventsCleared => self.event_loop.events_loop.trigger_newevents_on_redraw.store(false, Ordering::Relaxed),
+                _ => ()
+            }
+
             if self.control_flow != ControlFlow::Exit {
                 (*self.event_handler)(event, &self.event_loop, &mut self.control_flow);
             } else {
@@ -444,15 +469,6 @@ impl<T> EventLoopRunner<T> {
             }
         } else {
             panic!("Tried to call event handler with null handler");
-        }
-    }
-
-    fn event_processing_active(&self) -> bool {
-        match self.runner_state {
-            RunnerState::HandlingEvents => true,
-            RunnerState::DeferredNewEvents(..) |
-            RunnerState::New |
-            RunnerState::Idle(..) => false
         }
     }
 }
@@ -490,7 +506,8 @@ impl<T> Drop for EventLoop<T> {
 }
 
 pub(crate) struct EventLoopThreadExecutor {
-    thread_id: DWORD
+    thread_id: DWORD,
+    trigger_newevents_on_redraw: Arc<AtomicBool>
 }
 
 impl EventLoopThreadExecutor {
@@ -498,6 +515,10 @@ impl EventLoopThreadExecutor {
     pub(super) fn in_event_loop_thread(&self) -> bool {
         let cur_thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
         self.thread_id == cur_thread_id
+    }
+
+    pub(super) fn trigger_newevents_on_redraw(&self) -> bool {
+        !self.in_event_loop_thread() || self.trigger_newevents_on_redraw.load(Ordering::Relaxed)
     }
 
     /// Executes a function in the event loop thread. If we're already in the event loop thread,
@@ -584,6 +605,12 @@ lazy_static! {
     pub static ref INITIAL_DPI_MSG_ID: u32 = {
         unsafe {
             winuser::RegisterWindowMessageA("Winit::InitialDpiMsg\0".as_ptr() as LPCSTR)
+        }
+    };
+    // Message sent by a `Window` if it's requesting a redraw without sending a NewEvents.
+    pub static ref REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID: u32 = {
+        unsafe {
+            winuser::RegisterWindowMessageA("Winit::RequestRedrawNoNewevents\0".as_ptr() as LPCSTR)
         }
     };
     static ref THREAD_EVENT_TARGET_WINDOW_CLASS: Vec<u16> = unsafe {
@@ -708,7 +735,7 @@ unsafe extern "system" fn public_window_callback<T>(
         }
         winuser::WM_ENTERSIZEMOVE => {
             let modal_timer_handle = subclass_input.window_state.lock().modal_timer_handle;
-            if let Some(runner) = *subclass_input.event_loop_runner.borrow_mut() {
+            if let ELRSharedOption::Runner(runner) = *subclass_input.event_loop_runner.borrow_mut() {
                 (*runner).modal_loop_data = Some(ModalLoopData {
                     hwnd: window,
                     timer_handle: modal_timer_handle
@@ -719,7 +746,7 @@ unsafe extern "system" fn public_window_callback<T>(
         },
         winuser::WM_EXITSIZEMOVE => {
             let modal_timer_handle = subclass_input.window_state.lock().modal_timer_handle;
-            if let Some(runner) = *subclass_input.event_loop_runner.borrow_mut() {
+            if let ELRSharedOption::Runner(runner) = *subclass_input.event_loop_runner.borrow_mut() {
                 (*runner).modal_loop_data = None;
             }
             winuser::SetTimer(window, modal_timer_handle, 0x7FFFFFFF, None);
@@ -729,7 +756,7 @@ unsafe extern "system" fn public_window_callback<T>(
             let modal_timer_handle = subclass_input.window_state.lock().modal_timer_handle;
             if wparam == modal_timer_handle {
                 let runner = subclass_input.event_loop_runner.borrow_mut();
-                if let Some(runner) = *runner {
+                if let ELRSharedOption::Runner(runner) = *runner {
                     let runner = &mut *runner;
                     if runner.modal_loop_data.is_some() {
                         runner.events_cleared();
@@ -791,12 +818,44 @@ unsafe extern "system" fn public_window_callback<T>(
             0
         },
 
+        _ if msg == *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID => {
+            use events::WindowEvent::RedrawRequested;
+            let runner = subclass_input.event_loop_runner.borrow_mut();
+            if let ELRSharedOption::Runner(runner) = *runner {
+                let runner = &mut *runner;
+                match runner.runner_state {
+                    RunnerState::Idle(..) |
+                    RunnerState::DeferredNewEvents(..) => runner.call_event_handler(Event::WindowEvent {
+                        window_id: SuperWindowId(WindowId(window)),
+                        event: RedrawRequested,
+                    }),
+                    _ => ()
+                }
+            }
+            0
+        },
         winuser::WM_PAINT => {
-            use events::WindowEvent::Redraw;
-            subclass_input.send_event(Event::WindowEvent {
+            use events::WindowEvent::RedrawRequested;
+            let event = || Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
-                event: Redraw,
-            });
+                event: RedrawRequested,
+            };
+
+            let mut send_event = false;
+            {
+                let runner = subclass_input.event_loop_runner.borrow_mut();
+                if let ELRSharedOption::Runner(runner) = *runner {
+                    let runner = &mut *runner;
+                    match runner.runner_state {
+                        RunnerState::Idle(..) |
+                        RunnerState::DeferredNewEvents(..) => runner.call_event_handler(event()),
+                        _ => send_event = true
+                    }
+                }
+            }
+            if send_event {
+                subclass_input.send_event(event());
+            }
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
