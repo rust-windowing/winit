@@ -10,9 +10,9 @@ use parking_lot::Mutex;
 use {Icon, MouseCursor, WindowAttributes};
 use CreationError::{self, OsError};
 use dpi::{LogicalPosition, LogicalSize};
-use platform::MonitorId as PlatformMonitorId;
-use platform::PlatformSpecificWindowBuilderAttributes;
-use platform::x11::MonitorId as X11MonitorId;
+use platform_impl::MonitorId as PlatformMonitorId;
+use platform_impl::PlatformSpecificWindowBuilderAttributes;
+use platform_impl::x11::MonitorId as X11MonitorId;
 use window::MonitorId as RootMonitorId;
 
 use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventLoop};

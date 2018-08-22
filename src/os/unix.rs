@@ -11,19 +11,19 @@ use {
     Window,
     WindowBuilder,
 };
-use platform::{
+use platform_impl::{
     EventLoop as LinuxEventLoop,
     Window as LinuxWindow,
 };
-use platform::x11::XConnection;
-use platform::x11::ffi::XVisualInfo;
+use platform_impl::x11::XConnection;
+use platform_impl::x11::ffi::XVisualInfo;
 
 // TODO: stupid hack so that glutin can do its work
 #[doc(hidden)]
-pub use platform::x11;
+pub use platform_impl::x11;
 
-pub use platform::XNotSupported;
-pub use platform::x11::util::WindowType as XWindowType;
+pub use platform_impl::XNotSupported;
+pub use platform_impl::x11::util::WindowType as XWindowType;
 
 /// Additional methods on `EventLoop` that are specific to Linux.
 pub trait EventLoopExt {

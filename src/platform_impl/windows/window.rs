@@ -28,15 +28,15 @@ use {
     PhysicalSize,
     WindowAttributes,
 };
-use platform::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, WindowId};
-use platform::platform::dpi::{dpi_to_scale_factor, get_hwnd_dpi};
-use platform::platform::events_loop::{self, EventLoop, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID, REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID};
-use platform::platform::events_loop::WindowState;
-use platform::platform::icon::{self, IconType, WinIcon};
-use platform::platform::monitor;
-use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
-use platform::platform::drop_handler::FileDropHandler;
-use platform::platform::util;
+use platform_impl::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, WindowId};
+use platform_impl::platform::dpi::{dpi_to_scale_factor, get_hwnd_dpi};
+use platform_impl::platform::events_loop::{self, EventLoop, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID, REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID};
+use platform_impl::platform::events_loop::WindowState;
+use platform_impl::platform::icon::{self, IconType, WinIcon};
+use platform_impl::platform::monitor;
+use platform_impl::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
+use platform_impl::platform::drop_handler::FileDropHandler;
+use platform_impl::platform::util;
 
 const WS_RESIZABLE: DWORD = winuser::WS_SIZEBOX | winuser::WS_MAXIMIZEBOX;
 

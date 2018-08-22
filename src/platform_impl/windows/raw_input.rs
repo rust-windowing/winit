@@ -31,7 +31,7 @@ use winapi::um::winuser::{
     RID_INPUT,
 };
 
-use platform::platform::util;
+use platform_impl::platform::util;
 use events::ElementState;
 
 #[allow(dead_code)]

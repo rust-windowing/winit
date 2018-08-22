@@ -6,7 +6,7 @@ use libc;
 use winapi::shared::windef::HWND;
 
 use {DeviceId, EventLoop, Icon, MonitorId, Window, WindowBuilder};
-use platform::EventLoop as WindowsEventLoop;
+use platform_impl::EventLoop as WindowsEventLoop;
 
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopExt {

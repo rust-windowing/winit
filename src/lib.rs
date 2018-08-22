@@ -102,7 +102,7 @@ pub use icon::*;
 pub mod dpi;
 mod events;
 mod icon;
-mod platform;
+mod platform_impl;
 mod window;
 
 pub mod os;
@@ -127,7 +127,7 @@ pub mod os;
 /// });
 /// ```
 pub struct Window {
-    window: platform::Window,
+    window: platform_impl::Window,
 }
 
 impl std::fmt::Debug for Window {
@@ -143,7 +143,7 @@ impl std::fmt::Debug for Window {
 /// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(platform::WindowId);
+pub struct WindowId(platform_impl::WindowId);
 
 /// Identifier of an input device.
 ///
@@ -151,7 +151,7 @@ pub struct WindowId(platform::WindowId);
 /// identifies its origin. Note that devices may be virtual (representing an on-screen cursor and keyboard focus) or
 /// physical. Virtual devices typically aggregate inputs from multiple physical devices.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(platform::DeviceId);
+pub struct DeviceId(platform_impl::DeviceId);
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -167,7 +167,7 @@ pub struct DeviceId(platform::DeviceId);
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
 /// `EventLoopProxy` allows you to wakeup an `EventLoop` from an other thread.
 pub struct EventLoop<T> {
-    events_loop: platform::EventLoop<T>,
+    events_loop: platform_impl::EventLoop<T>,
     _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
 }
 
@@ -217,7 +217,7 @@ impl<T> EventLoop<T> {
     /// fallback on x11. If this variable is set with any other value, winit will panic.
     pub fn new_user_event() -> EventLoop<T> {
         EventLoop {
-            events_loop: platform::EventLoop::new(),
+            events_loop: platform_impl::EventLoop::new(),
             _marker: ::std::marker::PhantomData,
         }
     }
@@ -260,7 +260,7 @@ impl<T> EventLoop<T> {
 /// Used to wake up the `EventLoop` from another thread.
 #[derive(Clone)]
 pub struct EventLoopProxy<T> {
-    events_loop_proxy: platform::EventLoopProxy<T>,
+    events_loop_proxy: platform_impl::EventLoopProxy<T>,
 }
 
 impl<T> std::fmt::Debug for EventLoopProxy<T> {
@@ -304,7 +304,7 @@ pub struct WindowBuilder {
     pub window: WindowAttributes,
 
     // Platform-specific configuration. Private.
-    platform_specific: platform::PlatformSpecificWindowBuilderAttributes,
+    platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
 }
 
 impl std::fmt::Debug for WindowBuilder {

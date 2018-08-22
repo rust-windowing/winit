@@ -8,8 +8,8 @@ use std::collections::VecDeque;
 
 use super::{EventLoop, util};
 use dpi::{PhysicalPosition, PhysicalSize};
-use platform::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
-use platform::platform::window::Window;
+use platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
+use platform_impl::platform::window::Window;
 
 /// Win32 implementation of the main `MonitorId` object.
 #[derive(Debug, Clone)]

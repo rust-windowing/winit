@@ -9,7 +9,7 @@ use {
     MouseCursor,
     PhysicalPosition,
     PhysicalSize,
-    platform,
+    platform_impl,
     Window,
     WindowBuilder,
     WindowId,
@@ -154,7 +154,7 @@ impl WindowBuilder {
         }));
 
         // building
-        platform::Window::new(
+        platform_impl::Window::new(
             &events_loop.events_loop,
             self.window,
             self.platform_specific,
@@ -449,7 +449,7 @@ impl Window {
 // This may change in the future.
 #[derive(Debug)]
 pub struct AvailableMonitorsIter {
-    pub(crate) data: VecDequeIter<platform::MonitorId>,
+    pub(crate) data: VecDequeIter<platform_impl::MonitorId>,
 }
 
 impl Iterator for AvailableMonitorsIter {
@@ -469,7 +469,7 @@ impl Iterator for AvailableMonitorsIter {
 /// Identifier for a monitor.
 #[derive(Debug, Clone)]
 pub struct MonitorId {
-    pub(crate) inner: platform::MonitorId
+    pub(crate) inner: platform_impl::MonitorId
 }
 
 impl MonitorId {

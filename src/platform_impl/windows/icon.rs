@@ -8,7 +8,7 @@ use winapi::shared::windef::{HICON, HWND};
 use winapi::um::winuser;
 
 use {Pixel, PIXEL_SIZE, Icon};
-use platform::platform::util;
+use platform_impl::platform::util;
 
 impl Pixel {
     fn to_bgra(&mut self) {

@@ -15,7 +15,7 @@ use winapi::um::oleidl::{IDropTarget, IDropTargetVtbl};
 use winapi::um::winnt::HRESULT;
 use winapi::um::{shellapi, unknwnbase};
 
-use platform::platform::WindowId;
+use platform_impl::platform::WindowId;
 
 use {Event, WindowId as SuperWindowId};
 

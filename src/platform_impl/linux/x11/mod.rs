@@ -37,7 +37,7 @@ use {
     WindowEvent,
 };
 use events::ModifiersState;
-use platform::PlatformSpecificWindowBuilderAttributes;
+use platform_impl::PlatformSpecificWindowBuilderAttributes;
 use self::dnd::{Dnd, DndState};
 use self::ime::{ImeReceiver, ImeSender, ImeCreationError, Ime};
 
