@@ -105,7 +105,7 @@ mod icon;
 mod platform_impl;
 mod window;
 
-pub mod os;
+pub mod platform;
 
 /// Represents a window.
 ///

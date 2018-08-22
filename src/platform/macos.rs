@@ -4,7 +4,7 @@ use std::os::raw::c_void;
 use {LogicalSize, MonitorId, Window, WindowBuilder};
 
 /// Additional methods on `Window` that are specific to MacOS.
-pub trait WindowExt {
+pub trait WindowExtMacOS {
     /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
@@ -24,7 +24,7 @@ pub trait WindowExt {
     fn request_user_attention(&self, is_critical: bool);
 }
 
-impl WindowExt for Window {
+impl WindowExtMacOS for Window {
     #[inline]
     fn get_nswindow(&self) -> *mut c_void {
         self.window.get_nswindow()
@@ -68,7 +68,7 @@ impl Default for ActivationPolicy {
 ///  - `with_titlebar_hidden`
 ///  - `with_titlebar_buttons_hidden`
 ///  - `with_fullsize_content_view`
-pub trait WindowBuilderExt {
+pub trait WindowBuilderExtMacOS {
     /// Sets the activation policy for the window being built.
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
@@ -87,7 +87,7 @@ pub trait WindowBuilderExt {
     fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
 }
 
-impl WindowBuilderExt for WindowBuilder {
+impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_activation_policy(mut self, activation_policy: ActivationPolicy) -> WindowBuilder {
         self.platform_specific.activation_policy = activation_policy;
@@ -138,14 +138,14 @@ impl WindowBuilderExt for WindowBuilder {
 }
 
 /// Additional methods on `MonitorId` that are specific to MacOS.
-pub trait MonitorIdExt {
+pub trait MonitorIdExtMacOS {
     /// Returns the identifier of the monitor for Cocoa.
     fn native_id(&self) -> u32;
     /// Returns a pointer to the NSScreen representing this monitor.
     fn get_nsscreen(&self) -> Option<*mut c_void>;
 }
 
-impl MonitorIdExt for MonitorId {
+impl MonitorIdExtMacOS for MonitorId {
     #[inline]
     fn native_id(&self) -> u32 {
         self.inner.get_native_identifier()
