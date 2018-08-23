@@ -11,7 +11,7 @@ fn main() {
         .build(&events_loop)
         .unwrap();
 
-    events_loop.run(move |event, _, control_flow| {
+    events_loop.run(|event, _, control_flow| {
         println!("{:?}", event);
 
         match event {
