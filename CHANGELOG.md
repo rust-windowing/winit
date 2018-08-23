@@ -1,5 +1,7 @@
 # Unreleased
 
+- Fixed graphical glitches when resizing on Wayland
+
 # Version 0.17.2 (2018-08-19)
 
 - On macOS, fix `<C-Tab>` so applications receive the event.
