@@ -7,7 +7,7 @@ use winapi::shared::minwindef::{BYTE, LPARAM, WPARAM};
 use winapi::shared::windef::{HICON, HWND};
 use winapi::um::winuser;
 
-use {Pixel, PIXEL_SIZE, Icon};
+use icon::{Pixel, PIXEL_SIZE, Icon};
 use platform_impl::platform::util;
 
 impl Pixel {

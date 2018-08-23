@@ -1,11 +1,13 @@
 extern crate winit;
 use std::time::{Duration, Instant};
-use winit::{Event, WindowEvent, StartCause, ControlFlow};
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent, StartCause};
+use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = winit::EventLoop::new();
+    let events_loop = EventLoop::new();
 
-    let _window = winit::WindowBuilder::new()
+    let _window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&events_loop)
         .unwrap();

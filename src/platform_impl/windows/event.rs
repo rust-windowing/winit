@@ -1,13 +1,10 @@
 use std::char;
 use std::os::raw::c_int;
 
-use events::VirtualKeyCode;
-use events::ModifiersState;
+use event::{ScanCode, ModifiersState, VirtualKeyCode};
 
 use winapi::shared::minwindef::{WPARAM, LPARAM, UINT};
 use winapi::um::winuser;
-
-use ScanCode;
 
 pub fn get_key_mods() -> ModifiersState {
     let mut mods = ModifiersState::default();

@@ -1,10 +1,12 @@
 extern crate winit;
 
 use std::io::{self, Write};
-use winit::{ControlFlow, Event, WindowEvent};
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState, KeyboardInput};
+use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = winit::EventLoop::new();
+    let events_loop = EventLoop::new();
 
     // enumerating monitors
     let monitor = {
@@ -25,7 +27,7 @@ fn main() {
         monitor
     };
 
-    let window = winit::WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("Hello world!")
         .with_fullscreen(Some(monitor))
         .build(&events_loop)
@@ -44,15 +46,15 @@ fn main() {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::KeyboardInput {
                     input:
-                        winit::KeyboardInput {
+                        KeyboardInput {
                             virtual_keycode: Some(virtual_code),
                             state,
                             ..
                         },
                     ..
                 } => match (virtual_code, state) {
-                    (winit::VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
-                    (winit::VirtualKeyCode::F, winit::ElementState::Pressed) => {
+                    (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
+                    (VirtualKeyCode::F, ElementState::Pressed) => {
                         is_fullscreen = !is_fullscreen;
                         if !is_fullscreen {
                             window.set_fullscreen(None);
@@ -60,11 +62,11 @@ fn main() {
                             window.set_fullscreen(Some(window.get_current_monitor()));
                         }
                     }
-                    (winit::VirtualKeyCode::M, winit::ElementState::Pressed) => {
+                    (VirtualKeyCode::M, ElementState::Pressed) => {
                         is_maximized = !is_maximized;
                         window.set_maximized(is_maximized);
                     }
-                    (winit::VirtualKeyCode::D, winit::ElementState::Pressed) => {
+                    (VirtualKeyCode::D, ElementState::Pressed) => {
                         decorations = !decorations;
                         window.set_decorations(decorations);
                     }

@@ -1,11 +1,14 @@
 extern crate winit;
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState, KeyboardInput};
+use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = winit::EventLoop::new();
+    let events_loop = EventLoop::new();
 
     let mut resizable = false;
 
-    let window = winit::WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("Hit space to toggle resizability.")
         .with_dimensions((400, 200).into())
         .with_resizable(resizable)
@@ -13,15 +16,15 @@ fn main() {
         .unwrap();
 
     events_loop.run(move |event, _, control_flow| {
-        *control_flow = winit::ControlFlow::Wait;
+        *control_flow = ControlFlow::Wait;
         match event {
-            winit::Event::WindowEvent { event, .. } => match event {
-                winit::WindowEvent::CloseRequested => *control_flow = winit::ControlFlow::Exit,
-                winit::WindowEvent::KeyboardInput {
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::KeyboardInput {
                     input:
-                        winit::KeyboardInput {
-                            virtual_keycode: Some(winit::VirtualKeyCode::Space),
-                            state: winit::ElementState::Released,
+                        KeyboardInput {
+                            virtual_keycode: Some(VirtualKeyCode::Space),
+                            state: ElementState::Released,
                             ..
                         },
                     ..

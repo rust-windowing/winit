@@ -1,9 +1,13 @@
 extern crate winit;
 
-fn main() {
-    let events_loop = winit::EventLoop::new();
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent, KeyboardInput};
+use winit::event_loop::{EventLoop, ControlFlow};
 
-    let _window = winit::WindowBuilder::new()
+fn main() {
+    let events_loop = EventLoop::new();
+
+    let _window = WindowBuilder::new()
         .with_title("Your faithful window")
         .build(&events_loop)
         .unwrap();
@@ -11,13 +15,12 @@ fn main() {
     let mut close_requested = false;
 
     events_loop.run(move |event, _, control_flow| {
-        use winit::WindowEvent::*;
-        use winit::ElementState::Released;
-        use winit::VirtualKeyCode::{N, Y};
+        use winit::event::ElementState::Released;
+        use winit::event::VirtualKeyCode::{N, Y};
 
         match event {
-            winit::Event::WindowEvent { event, .. } => match event {
-                CloseRequested => {
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => {
                     // `CloseRequested` is sent when the close button on the window is pressed (or
                     // through whatever other mechanisms the window manager provides for closing a
                     // window). If you don't handle this event, the close button won't actually do
@@ -34,9 +37,9 @@ fn main() {
                     // closing the window. How to close the window is detailed in the handler for
                     // the Y key.
                 }
-                KeyboardInput {
+                WindowEvent::KeyboardInput {
                     input:
-                        winit::KeyboardInput {
+                        KeyboardInput {
                             virtual_keycode: Some(virtual_code),
                             state: Released,
                             ..
@@ -53,7 +56,7 @@ fn main() {
                             // event loop (i.e. if it's a multi-window application), you need to
                             // drop the window. That closes it, and results in `Destroyed` being
                             // sent.
-                            *control_flow = winit::ControlFlow::Exit;
+                            *control_flow = ControlFlow::Exit;
                         }
                     }
                     N => {
@@ -69,6 +72,6 @@ fn main() {
             _ => (),
         }
 
-        *control_flow = winit::ControlFlow::Wait;
+        *control_flow = ControlFlow::Wait;
     });
 }

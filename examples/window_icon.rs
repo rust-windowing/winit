@@ -8,7 +8,14 @@ extern crate image;
 
 #[cfg(feature = "icon_loading")]
 fn main() {
+<<<<<<< HEAD
     use winit::Icon;
+=======
+    use winit::window::{WindowBuilder, Icon};
+    use winit::event::Event;
+    use winit::event_loop::{EventLoop, ControlFlow};
+
+>>>>>>> Re-organize into module structure
     // You'll have to choose an icon size at your own discretion. On X11, the desired size varies
     // by WM, and on Windows, you still have to account for screen scaling. Here we use 32px,
     // since it seems to work well enough in most cases. Be careful about going too high, or
@@ -20,9 +27,9 @@ fn main() {
     // feature enabled).
     let icon = Icon::from_path(path).expect("Failed to open icon");
 
-    let events_loop = winit::EventLoop::new();
+    let events_loop = EventLoop::new();
 
-    let window = winit::WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("An iconic window!")
         // At present, this only does anything on Windows and X11, so if you want to save load
         // time, you can put icon loading behind a function that returns `None` on other platforms.
@@ -31,11 +38,11 @@ fn main() {
         .unwrap();
 
     events_loop.run(move |event, _, control_flow| {
-        *control_flow = winit::ControlFlow::Wait;
-        if let winit::Event::WindowEvent { event, .. } = event {
-            use winit::WindowEvent::*;
+        *control_flow = ControlFlow::Wait;
+        if let Event::WindowEvent { event, .. } = event {
+            use winit::event::WindowEvent::*;
             match event {
-                CloseRequested => *control_flow = winit::ControlFlow::Exit,
+                CloseRequested => *control_flow = ControlFlow::Exit,
                 DroppedFile(path) => {
                     use image::GenericImageView;
 

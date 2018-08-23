@@ -1,5 +1,7 @@
 extern crate winit;
-use winit::{EventLoop, WindowBuilder};
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
     let events_loop: EventLoop<i32> = EventLoop::new_user_event();
@@ -24,9 +26,9 @@ fn main() {
     events_loop.run(move |event, _, control_flow| {
         println!("{:?}", event);
         match event {
-            winit::Event::WindowEvent { event: winit::WindowEvent::CloseRequested, .. } =>
-                *control_flow = winit::ControlFlow::Exit,
-            _ => *control_flow = winit::ControlFlow::Wait,
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } =>
+                *control_flow = ControlFlow::Exit,
+            _ => *control_flow = ControlFlow::Wait,
         }
     });
 }

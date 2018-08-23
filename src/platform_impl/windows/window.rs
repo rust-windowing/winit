@@ -18,16 +18,9 @@ use winapi::um::wingdi::{CreateRectRgn, DeleteObject};
 use winapi::um::oleidl::LPDROPTARGET;
 use winapi::um::winnt::{LONG, LPCWSTR};
 
-use {
-    CreationError,
-    Icon,
-    LogicalPosition,
-    LogicalSize,
-    MonitorId as RootMonitorId,
-    MouseCursor,
-    PhysicalSize,
-    WindowAttributes,
-};
+use window::{CreationError, Icon, WindowAttributes, MouseCursor};
+use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
+use monitor::MonitorId as RootMonitorId;
 use platform_impl::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, WindowId};
 use platform_impl::platform::dpi::{dpi_to_scale_factor, get_hwnd_dpi};
 use platform_impl::platform::events_loop::{self, EventLoop, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID, REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID};

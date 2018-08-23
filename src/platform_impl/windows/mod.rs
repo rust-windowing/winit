@@ -7,10 +7,13 @@ pub use self::events_loop::{EventLoop, EventLoopProxy};
 pub use self::monitor::MonitorId;
 pub use self::window::Window;
 
+use window::Icon;
+use event::DeviceId as RootDeviceId;
+
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub parent: Option<HWND>,
-    pub taskbar_icon: Option<::Icon>,
+    pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
 }
 
@@ -37,10 +40,10 @@ impl DeviceId {
 }
 
 // Constant device ID, to be removed when this backend is updated to report real device IDs.
-const DEVICE_ID: ::DeviceId = ::DeviceId(DeviceId(0));
+const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId(0));
 
-fn wrap_device_id(id: u32) -> ::DeviceId {
-    ::DeviceId(DeviceId(id))
+fn wrap_device_id(id: u32) -> RootDeviceId {
+    RootDeviceId(DeviceId(id))
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

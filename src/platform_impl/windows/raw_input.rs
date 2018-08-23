@@ -32,7 +32,7 @@ use winapi::um::winuser::{
 };
 
 use platform_impl::platform::util;
-use events::ElementState;
+use event::ElementState;
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {

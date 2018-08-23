@@ -17,7 +17,8 @@ use winapi::um::{shellapi, unknwnbase};
 
 use platform_impl::platform::WindowId;
 
-use {Event, WindowId as SuperWindowId};
+use event::Event;
+use window::WindowId as SuperWindowId;
 
 #[repr(C)]
 pub struct FileDropHandlerData {
@@ -81,7 +82,7 @@ impl FileDropHandler {
         _pt: *const POINTL,
         _pdwEffect: *mut DWORD,
     ) -> HRESULT {
-        use events::WindowEvent::HoveredFile;
+        use event::WindowEvent::HoveredFile;
         let drop_handler = Self::from_interface(this);
         Self::iterate_filenames(pDataObj, |filename| {
             drop_handler.send_event(Event::WindowEvent {
@@ -103,7 +104,7 @@ impl FileDropHandler {
     }
 
     pub unsafe extern "system" fn DragLeave(this: *mut IDropTarget) -> HRESULT {
-        use events::WindowEvent::HoveredFileCancelled;
+        use event::WindowEvent::HoveredFileCancelled;
         let drop_handler = Self::from_interface(this);
         drop_handler.send_event(Event::WindowEvent {
             window_id: SuperWindowId(WindowId(drop_handler.window)),
@@ -120,7 +121,7 @@ impl FileDropHandler {
         _pt: *const POINTL,
         _pdwEffect: *mut DWORD,
     ) -> HRESULT {
-        use events::WindowEvent::DroppedFile;
+        use event::WindowEvent::DroppedFile;
         let drop_handler = Self::from_interface(this);
         let hdrop = Self::iterate_filenames(pDataObj, |filename| {
             drop_handler.send_event(Event::WindowEvent {

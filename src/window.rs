@@ -1,20 +1,160 @@
-use std::collections::vec_deque::IntoIter as VecDequeIter;
+use std::{fmt, error};
 
-use {
-    CreationError,
-    EventLoop,
-    Icon,
-    LogicalPosition,
-    LogicalSize,
-    MouseCursor,
-    PhysicalPosition,
-    PhysicalSize,
-    platform_impl,
-    Window,
-    WindowBuilder,
-    WindowId,
-};
+use platform_impl;
+use event_loop::EventLoop;
+use monitor::{AvailableMonitorsIter, MonitorId};
+use dpi::{LogicalPosition, LogicalSize};
 
+pub use icon::*;
+
+/// Represents a window.
+///
+/// # Example
+///
+/// ```no_run
+/// use winit::window::Window;
+/// use winit::event::{Event, WindowEvent};
+/// use winit::event_loop::{EventLoop, ControlFlow};
+///
+/// let mut events_loop = EventLoop::new();
+/// let window = Window::new(&events_loop).unwrap();
+///
+/// events_loop.run(move |event, _, control_flow| {
+///     match event {
+///         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+///             *control_flow = ControlFlow::Exit
+///         },
+///         _ => *control_flow = ControlFlow::Wait,
+///     }
+/// });
+/// ```
+pub struct Window {
+    pub(crate) window: platform_impl::Window,
+}
+
+impl std::fmt::Debug for Window {
+    fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmtr.pad("Window { .. }")
+    }
+}
+
+/// Identifier of a window. Unique for each window.
+///
+/// Can be obtained with `window.id()`.
+///
+/// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
+/// can then compare to the ids of your windows.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct WindowId(pub(crate) platform_impl::WindowId);
+
+/// Object that allows you to build windows.
+#[derive(Clone)]
+pub struct WindowBuilder {
+    /// The attributes to use to create the window.
+    pub window: WindowAttributes,
+
+    // Platform-specific configuration. Private.
+    pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
+}
+
+impl std::fmt::Debug for WindowBuilder {
+    fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmtr.debug_struct("WindowBuilder")
+            .field("window", &self.window)
+            .finish()
+    }
+}
+
+/// Attributes to use when creating a window.
+#[derive(Debug, Clone)]
+pub struct WindowAttributes {
+    /// The dimensions of the window. If this is `None`, some platform-specific dimensions will be
+    /// used.
+    ///
+    /// The default is `None`.
+    pub dimensions: Option<LogicalSize>,
+
+    /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
+    ///
+    /// The default is `None`.
+    pub min_dimensions: Option<LogicalSize>,
+
+    /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
+    ///
+    /// The default is `None`.
+    pub max_dimensions: Option<LogicalSize>,
+
+    /// Whether the window is resizable or not.
+    ///
+    /// The default is `true`.
+    pub resizable: bool,
+
+    /// Whether the window should be set as fullscreen upon creation.
+    ///
+    /// The default is `None`.
+    pub fullscreen: Option<MonitorId>,
+
+    /// The title of the window in the title bar.
+    ///
+    /// The default is `"winit window"`.
+    pub title: String,
+
+    /// Whether the window should be maximized upon creation.
+    ///
+    /// The default is `false`.
+    pub maximized: bool,
+
+    /// Whether the window should be immediately visible upon creation.
+    ///
+    /// The default is `true`.
+    pub visible: bool,
+
+    /// Whether the the window should be transparent. If this is true, writing colors
+    /// with alpha values different than `1.0` will produce a transparent window.
+    ///
+    /// The default is `false`.
+    pub transparent: bool,
+
+    /// Whether the window should have borders and bars.
+    ///
+    /// The default is `true`.
+    pub decorations: bool,
+
+    /// Whether the window should always be on top of other windows.
+    ///
+    /// The default is `false`.
+    pub always_on_top: bool,
+
+    /// The window icon.
+    ///
+    /// The default is `None`.
+    pub window_icon: Option<Icon>,
+
+    /// [iOS only] Enable multitouch,
+    /// see [multipleTouchEnabled](https://developer.apple.com/documentation/uikit/uiview/1622519-multipletouchenabled)
+    pub multitouch: bool,
+}
+
+impl Default for WindowAttributes {
+    #[inline]
+    fn default() -> WindowAttributes {
+        WindowAttributes {
+            dimensions: None,
+            min_dimensions: None,
+            max_dimensions: None,
+            resizable: true,
+            title: "winit window".to_owned(),
+            maximized: false,
+            fullscreen: None,
+            visible: true,
+            transparent: false,
+            decorations: true,
+            always_on_top: false,
+            window_icon: None,
+            multitouch: false,
+        }
+    }
+}
 impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
@@ -444,66 +584,94 @@ impl Window {
     }
 }
 
-/// An iterator for the list of available monitors.
-// Implementation note: we retrieve the list once, then serve each element by one by one.
-// This may change in the future.
-#[derive(Debug)]
-pub struct AvailableMonitorsIter {
-    pub(crate) data: VecDequeIter<platform_impl::MonitorId>,
-}
-
-impl Iterator for AvailableMonitorsIter {
-    type Item = MonitorId;
-
-    #[inline]
-    fn next(&mut self) -> Option<MonitorId> {
-        self.data.next().map(|id| MonitorId { inner: id })
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.data.size_hint()
-    }
-}
-
-/// Identifier for a monitor.
+/// Error that can happen while creating a window or a headless renderer.
 #[derive(Debug, Clone)]
-pub struct MonitorId {
-    pub(crate) inner: platform_impl::MonitorId
+pub enum CreationError {
+    OsError(String),
+    /// TODO: remove this error
+    NotSupported,
 }
 
-impl MonitorId {
-    /// Returns a human-readable name of the monitor.
-    ///
-    /// Returns `None` if the monitor doesn't exist anymore.
-    #[inline]
-    pub fn get_name(&self) -> Option<String> {
-        self.inner.get_name()
+impl CreationError {
+    fn to_string(&self) -> &str {
+        match *self {
+            CreationError::OsError(ref text) => &text,
+            CreationError::NotSupported => "Some of the requested attributes are not supported",
+        }
     }
+}
 
-    /// Returns the monitor's resolution.
-    #[inline]
-    pub fn get_dimensions(&self) -> PhysicalSize {
-        self.inner.get_dimensions()
+impl fmt::Display for CreationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        formatter.write_str(self.to_string())
     }
+}
 
-    /// Returns the top-left corner position of the monitor relative to the larger full
-    /// screen area.
-    #[inline]
-    pub fn get_position(&self) -> PhysicalPosition {
-        self.inner.get_position()
+impl error::Error for CreationError {
+    fn description(&self) -> &str {
+        self.to_string()
     }
+}
 
-    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
-    ///
-    /// See the [`dpi`](dpi/index.html) module for more information.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
-    /// - **Android:** Always returns 1.0.
-    #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
-        self.inner.get_hidpi_factor()
+/// Describes the appearance of the mouse cursor.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum MouseCursor {
+    /// The platform-dependent default cursor.
+    Default,
+    /// A simple crosshair.
+    Crosshair,
+    /// A hand (often used to indicate links in web browsers).
+    Hand,
+    /// Self explanatory.
+    Arrow,
+    /// Indicates something is to be moved.
+    Move,
+    /// Indicates text that may be selected or edited.
+    Text,
+    /// Program busy indicator.
+    Wait,
+    /// Help indicator (often rendered as a "?")
+    Help,
+    /// Progress indicator. Shows that processing is being done. But in contrast
+    /// with "Wait" the user may still interact with the program. Often rendered
+    /// as a spinning beach ball, or an arrow with a watch or hourglass.
+    Progress,
+
+    /// Cursor showing that something cannot be done.
+    NotAllowed,
+    ContextMenu,
+    Cell,
+    VerticalText,
+    Alias,
+    Copy,
+    NoDrop,
+    Grab,
+    Grabbing,
+    AllScroll,
+    ZoomIn,
+    ZoomOut,
+
+    /// Indicate that some edge is to be moved. For example, the 'SeResize' cursor
+    /// is used when the movement starts from the south-east corner of the box.
+    EResize,
+    NResize,
+    NeResize,
+    NwResize,
+    SResize,
+    SeResize,
+    SwResize,
+    WResize,
+    EwResize,
+    NsResize,
+    NeswResize,
+    NwseResize,
+    ColResize,
+    RowResize,
+}
+
+impl Default for MouseCursor {
+    fn default() -> Self {
+        MouseCursor::Default
     }
 }

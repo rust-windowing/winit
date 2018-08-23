@@ -1,11 +1,14 @@
 extern crate winit;
-use winit::{Event, WindowEvent};
 use std::time::{Instant, Duration};
 
-fn main() {
-    let events_loop = winit::EventLoop::new();
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::{EventLoop, ControlFlow};
 
-    let window = winit::WindowBuilder::new()
+fn main() {
+    let events_loop = EventLoop::new();
+
+    let window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&events_loop)
         .unwrap();
@@ -17,10 +20,10 @@ fn main() {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => *control_flow = winit::ControlFlow::Exit,
+            } => *control_flow = ControlFlow::Exit,
             Event::EventsCleared => {
                 window.request_redraw();
-                *control_flow = winit::ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0))
+                *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0))
             },
             _ => ()
         }

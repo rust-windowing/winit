@@ -5,7 +5,10 @@ use std::os::raw::c_void;
 use libc;
 use winapi::shared::windef::HWND;
 
-use {DeviceId, EventLoop, Icon, MonitorId, Window, WindowBuilder};
+use event::DeviceId;
+use monitor::MonitorId;
+use event_loop::EventLoop;
+use window::{Icon, Window, WindowBuilder};
 use platform_impl::EventLoop as WindowsEventLoop;
 
 /// Additional methods on `EventLoop` that are specific to Windows.

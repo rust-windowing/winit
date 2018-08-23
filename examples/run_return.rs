@@ -1,10 +1,14 @@
 extern crate winit;
+
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::{EventLoop, ControlFlow};
 use winit::platform::desktop::EventLoopExtDesktop;
 
 fn main() {
-    let mut events_loop = winit::EventLoop::new();
+    let mut events_loop = EventLoop::new();
 
-    let window = winit::WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&events_loop)
         .unwrap();
@@ -12,16 +16,16 @@ fn main() {
     println!("Close the window to continue.");
     events_loop.run_return(|event, _, control_flow| {
         match event {
-            winit::Event::WindowEvent {
-                event: winit::WindowEvent::CloseRequested,
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
                 ..
-            } => *control_flow = winit::ControlFlow::Exit,
-            _ => *control_flow = winit::ControlFlow::Wait,
+            } => *control_flow = ControlFlow::Exit,
+            _ => *control_flow = ControlFlow::Wait,
         }
     });
     drop(window);
 
-    let _window_2 = winit::WindowBuilder::new()
+    let _window_2 = WindowBuilder::new()
         .with_title("A second, fantasticer window!")
         .build(&events_loop)
         .unwrap();
@@ -29,11 +33,11 @@ fn main() {
     println!("Wa ha ha! You thought that closing the window would finish this?!");
     events_loop.run_return(|event, _, control_flow| {
         match event {
-            winit::Event::WindowEvent {
-                event: winit::WindowEvent::CloseRequested,
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
                 ..
-            } => *control_flow = winit::ControlFlow::Exit,
-            _ => *control_flow = winit::ControlFlow::Wait,
+            } => *control_flow = ControlFlow::Exit,
+            _ => *control_flow = ControlFlow::Wait,
         }
     });
 

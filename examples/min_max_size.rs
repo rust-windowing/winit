@@ -1,11 +1,14 @@
 extern crate winit;
 
 use winit::dpi::LogicalSize;
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = winit::EventLoop::new();
+    let events_loop = EventLoop::new();
 
-    let window = winit::WindowBuilder::new()
+    let window = WindowBuilder::new()
         .build(&events_loop)
         .unwrap();
 
@@ -16,9 +19,9 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            winit::Event::WindowEvent { event: winit::WindowEvent::CloseRequested, .. } =>
-                *control_flow = winit::ControlFlow::Exit,
-            _ => *control_flow = winit::ControlFlow::Wait,
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } =>
+                *control_flow = ControlFlow::Exit,
+            _ => *control_flow = ControlFlow::Wait,
         }
     });
 }
