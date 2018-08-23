@@ -1,5 +1,6 @@
 # Unreleased
-- On Windows, fix freezes when performing certain actions after a window resize has been triggered.
+
+- On Windows, fix freezes when performing certain actions after a window resize has been triggered. Reintroduces some visual artifacts when resizing.
 
 # Version 0.17.2 (2018-08-19)
 
