@@ -1,3 +1,4 @@
+//! The `Window` struct and associated types.
 use std::{fmt, error};
 
 use platform_impl;
@@ -578,6 +579,7 @@ impl Window {
         MonitorId { inner: self.window.get_primary_monitor() }
     }
 
+    /// Returns an identifier unique to the window.
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.id())

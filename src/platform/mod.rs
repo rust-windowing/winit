@@ -1,6 +1,6 @@
 //! Contains traits with platform-specific methods in them.
 //!
-//! Contains the follow modules:
+//! Contains the follow OS-specific modules:
 //!
 //!  - `android`
 //!  - `ios`
@@ -8,8 +8,12 @@
 //!  - `unix`
 //!  - `windows`
 //!
-//! However only the module corresponding to the platform you're compiling to will be available.
+//! And the following platform-specific module:
 //!
+//! - `desktop` (available on `windows`, `unix`, and `macos`)
+//!
+//! However only the module corresponding to the platform you're compiling to will be available.
+
 pub mod android;
 pub mod ios;
 pub mod macos;

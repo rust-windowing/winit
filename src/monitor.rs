@@ -1,9 +1,28 @@
+//! Types useful for interacting with a user's monitors.
+//!
+//! If you want to get basic information about a monitor, you can use the [`MonitorId`][monitor_id]
+//! type. This is retreived from an [`AvailableMonitorsIter`][monitor_iter], which can be acquired
+//! with:
+//! - [`EventLoop::get_available_monitors`][loop_get]
+//! - [`Window::get_available_monitors`][window_get].
+//!
+//! [monitor_id]: ./struct.MonitorId.html
+//! [monitor_iter]: ./struct.AvailableMonitorsIter.html
+//! [loop_get]: ../event_loop/struct.EventLoop.html#method.get_available_monitors
+//! [window_get]: ../window/struct.Window.html#method.get_available_monitors
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
 use platform_impl;
 use dpi::{PhysicalPosition, PhysicalSize};
 
-/// An iterator for the list of available monitors.
+/// An iterator over all available monitors.
+///
+/// Can be acquired with:
+/// - [`EventLoop::get_available_monitors`][loop_get]
+/// - [`Window::get_available_monitors`][window_get].
+///
+/// [loop_get]: ../event_loop/struct.EventLoop.html#method.get_available_monitors
+/// [window_get]: ../window/struct.Window.html#method.get_available_monitors
 // Implementation note: we retrieve the list once, then serve each element by one by one.
 // This may change in the future.
 #[derive(Debug)]

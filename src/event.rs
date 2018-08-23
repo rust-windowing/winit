@@ -1,3 +1,9 @@
+//! The `Event` enum and assorted supporting types.
+//!
+//! These are sent to the closure given to [`EventLoop::run(...)`][event_loop_run], where they get
+//! processed and used to modify the program state. For more details, see the root-level documentation.
+//!
+//! [event_loop_run]: ../event_loop/struct.EventLoop.html#method.run
 use std::time::Instant;
 use std::path::PathBuf;
 
@@ -8,14 +14,17 @@ use platform_impl;
 /// Describes a generic event.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event<T> {
+    /// Emitted when the OS sends an event to a winit window.
     WindowEvent {
         window_id: WindowId,
         event: WindowEvent,
     },
+    /// Emitted when the OS sends an event to a device.
     DeviceEvent {
         device_id: DeviceId,
         event: DeviceEvent,
     },
+    /// Emitted when an event is sent from [`EventLoopProxy::send_event`](../event_loop/struct.EventLoopProxy.html#method.send_event)
     UserEvent(T),
     /// Emitted when new events arrive from the OS to be processed.
     NewEvents(StartCause),
@@ -27,7 +36,7 @@ pub enum Event<T> {
     /// emitted, it is guaranteed to be the last event emitted.
     LoopDestroyed,
 
-    /// The application has been suspended or resumed.
+    /// Emitted when the application has been suspended or resumed.
     ///
     /// The parameter is true if app was suspended, and false if it has been resumed.
     Suspended(bool),
@@ -48,6 +57,7 @@ impl<T> Event<T> {
     }
 }
 
+/// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StartCause {
     /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the

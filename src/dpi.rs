@@ -33,9 +33,9 @@
 //!   windows. This event is sent any time the DPI factor changes, either because the window moved to another monitor,
 //!   or because the user changed the configuration of their screen.
 //! - You can also retrieve the DPI factor of a monitor by calling
-//!   [`MonitorId::get_hidpi_factor`](../struct.MonitorId.html#method.get_hidpi_factor), or the
+//!   [`MonitorId::get_hidpi_factor`](../monitor/struct.MonitorId.html#method.get_hidpi_factor), or the
 //!   current DPI factor applied to a window by calling
-//!   [`Window::get_hidpi_factor`](../struct.Window.html#method.get_hidpi_factor), which is roughly equivalent
+//!   [`Window::get_hidpi_factor`](../window/struct.Window.html#method.get_hidpi_factor), which is roughly equivalent
 //!   to `window.get_current_monitor().get_hidpi_factor()`.
 //!
 //! Depending on the platform, the window's actual DPI factor may only be known after
@@ -59,9 +59,9 @@
 //!
 //! The window's logical size is conserved across DPI changes, resulting in the physical size changing instead. This
 //! may be surprising on X11, but is quite standard elsewhere. Physical size changes always produce a
-//! [`Resized`](../enum.WindowEvent.html#variant.Resized) event, even on platforms where no resize actually occurs,
+//! [`Resized`](../event/enum.WindowEvent.html#variant.Resized) event, even on platforms where no resize actually occurs,
 //! such as macOS and Wayland. As a result, it's not necessary to separately handle
-//! [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged) if you're only listening for size.
+//! [`HiDpiFactorChanged`](../event/enum.WindowEvent.html#variant.HiDpiFactorChanged) if you're only listening for size.
 //!
 //! Your GPU has no awareness of the concept of logical pixels, and unless you like wasting pixel density, your
 //! framebuffer's size should be in physical pixels.

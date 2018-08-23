@@ -1,3 +1,14 @@
+//! The `EventLoop` struct and assorted supporting types, including `ControlFlow`.
+//!
+//! If you want to send custom events to the event loop, use [`EventLoop::create_proxy()`][create_proxy]
+//! to acquire an [`EventLoopProxy`][event_loop_proxy] and call its [`send_event`][send_event] method.
+//!
+//! See the root-level documentation for information on how to create and use an event loop to
+//! handle events.
+//!
+//! [create_proxy]: ./struct.EventLoop.html#method.create_proxy
+//! [event_loop_proxy]: ./struct.EventLoopProxy.html
+//! [send_event]: ./struct.EventLoopProxy.html#method.send_event
 use std::{fmt, error};
 use std::time::Instant;
 
@@ -29,9 +40,12 @@ impl<T> std::fmt::Debug for EventLoop<T> {
     }
 }
 
-/// Returned by the user callback given to the `EventLoop::run_forever` method.
+/// Set by the user callback given to the `EventLoop::run` method.
 ///
-/// Indicates whether the `run_forever` method should continue or complete.
+/// Indicates the desired behavior of the event loop after [`Event::EventsCleared`][events_cleared]
+/// is emitted.
+///
+/// [events_cleared]: ../event/enum.Event.html#variant.EventsCleared
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ControlFlow {
@@ -43,7 +57,8 @@ pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
     Poll,
-    /// Send a `LoopDestroyed` event and stop the event loop.
+    /// Send a `LoopDestroyed` event and stop the event loop. Once set, `control_flow` cannot be
+    /// changed from `Exit`.
     Exit
 }
 
@@ -55,13 +70,14 @@ impl Default for ControlFlow {
 }
 
 impl EventLoop<()> {
+    /// Builds a new event loop with a `()` as the user event type.
     pub fn new() -> EventLoop<()> {
         EventLoop::<()>::new_user_event()
     }
 }
 
 impl<T> EventLoop<T> {
-    /// Builds a new events loop.
+    /// Builds a new event loop.
     ///
     /// Usage will result in display backend initialisation, this can be controlled on linux
     /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
@@ -109,7 +125,7 @@ impl<T> EventLoop<T> {
     }
 }
 
-/// Used to wake up the `EventLoop` from another thread.
+/// Used to send custom events to `EventLoop`.
 #[derive(Clone)]
 pub struct EventLoopProxy<T> {
     events_loop_proxy: platform_impl::EventLoopProxy<T>,

@@ -9,11 +9,13 @@ use event_loop::{EventLoop, ControlFlow};
 
 /// Additional methods on `EventLoop` that are specific to desktop platforms.
 pub trait EventLoopExtDesktop {
+    /// A type provided by the user that can be passed through `Event::UserEvent`.
     type UserEvent;
+
     /// Initializes the `winit` event loop.
     ///
-    /// Unlikes `run`, this function *does* return control flow to the caller when `control_flow`
-    /// is set to `ControlFlow::Exit`.
+    /// Unlikes `run`, this function accepts non-`'static` closures and  returns control flow to the
+    /// caller when `control_flow` is set to `ControlFlow::Exit`.
     fn run_return<F>(&mut self, event_handler: F)
         where F: FnMut(Event<Self::UserEvent>, &EventLoop<Self::UserEvent>, &mut ControlFlow);
 }
