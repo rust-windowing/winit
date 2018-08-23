@@ -182,35 +182,44 @@ impl<T> EventLoop<T> {
         }
     }
 
-    pub fn run<F>(self, mut event_handler: F) -> !
+    pub fn run<F>(mut self, event_handler: F) -> !
         where F: 'static + FnMut(Event<T>, &::EventLoop<T>, &mut ControlFlow)
     {
-        unsafe {
-            winuser::IsGUIThread(1);
+        self.run_return(event_handler);
+        ::std::process::exit(0);
+    }
 
-            let mut runner = EventLoopRunner {
-                event_loop: ::EventLoop {
-                    events_loop: self,
-                    _marker: ::std::marker::PhantomData
-                },
-                control_flow: ControlFlow::default(),
-                runner_state: RunnerState::New,
-                modal_loop_data: None,
-                event_handler: &mut event_handler
-            };
-            {
-                let runner_shared = runner.event_loop.events_loop.runner_shared.clone();
-                let mut runner_shared = runner_shared.borrow_mut();
-                let mut event_buffer = vec![];
-                if let ELRSharedOption::Buffer(ref mut buffer) = *runner_shared {
-                    mem::swap(buffer, &mut event_buffer);
-                }
-                for event in event_buffer.drain(..) {
-                    runner.process_event(event);
-                }
-                *runner_shared = ELRSharedOption::Runner(&mut runner);
+    pub fn run_return<F>(&mut self, mut event_handler: F)
+        where F: FnMut(Event<T>, &::EventLoop<T>, &mut ControlFlow)
+    {
+        unsafe{ winuser::IsGUIThread(1); }
+        let mut runner = EventLoopRunner {
+            event_loop: self,
+            control_flow: ControlFlow::default(),
+            runner_state: RunnerState::New,
+            modal_loop_data: None,
+            event_handler: unsafe {
+                // Transmute used to erase lifetimes.
+                mem::transmute::<
+                    &mut FnMut(Event<T>, &::EventLoop<T>, &mut ControlFlow),
+                    *mut FnMut(Event<T>, &::EventLoop<T>, &mut ControlFlow)
+                >(&mut event_handler)
             }
+        };
+        {
+            let runner_shared = self.runner_shared.clone();
+            let mut runner_shared = runner_shared.borrow_mut();
+            let mut event_buffer = vec![];
+            if let ELRSharedOption::Buffer(ref mut buffer) = *runner_shared {
+                mem::swap(buffer, &mut event_buffer);
+            }
+            for event in event_buffer.drain(..) {
+                unsafe{ runner.process_event(event); }
+            }
+            *runner_shared = ELRSharedOption::Runner(&mut runner);
+        }
 
+        unsafe {
             let timer_handle = winuser::SetTimer(ptr::null_mut(), 0, 0x7FFFFFFF, None);
 
             let mut msg = mem::uninitialized();
@@ -253,13 +262,10 @@ impl<T> EventLoop<T> {
                     ControlFlow::Poll => ()
                 }
             }
-
-            runner.call_event_handler(Event::LoopDestroyed);
-            *runner.event_loop.events_loop.runner_shared.borrow_mut() = ELRSharedOption::Buffer(vec![]);
         }
 
-        drop(event_handler);
-        ::std::process::exit(0);
+        unsafe{ runner.call_event_handler(Event::LoopDestroyed) }
+        *self.runner_shared.borrow_mut() = ELRSharedOption::Buffer(vec![]);
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
@@ -284,7 +290,7 @@ pub(crate) enum ELRSharedOption<T> {
     Buffer(Vec<Event<T>>)
 }
 pub(crate) struct EventLoopRunner<T> {
-    event_loop: ::EventLoop<T>,
+    event_loop: *const EventLoop<T>,
     control_flow: ControlFlow,
     runner_state: RunnerState,
     modal_loop_data: Option<ModalLoopData>,
@@ -457,15 +463,18 @@ impl<T> EventLoopRunner<T> {
     unsafe fn call_event_handler(&mut self, event: Event<T>) {
         if self.event_handler != mem::zeroed() {
             match event {
-                Event::NewEvents(_) => self.event_loop.events_loop.trigger_newevents_on_redraw.store(true, Ordering::Relaxed),
-                Event::EventsCleared => self.event_loop.events_loop.trigger_newevents_on_redraw.store(false, Ordering::Relaxed),
+                Event::NewEvents(_) => (*self.event_loop).trigger_newevents_on_redraw.store(true, Ordering::Relaxed),
+                Event::EventsCleared => (*self.event_loop).trigger_newevents_on_redraw.store(false, Ordering::Relaxed),
                 _ => ()
             }
 
+            assert_eq!(mem::size_of::<::EventLoop<T>>(), mem::size_of::<EventLoop<T>>());
+            let event_loop_ref = &*(self.event_loop as *const ::EventLoop<T>);
+
             if self.control_flow != ControlFlow::Exit {
-                (*self.event_handler)(event, &self.event_loop, &mut self.control_flow);
+                (*self.event_handler)(event, event_loop_ref, &mut self.control_flow);
             } else {
-                (*self.event_handler)(event, &self.event_loop, &mut ControlFlow::Exit);
+                (*self.event_handler)(event, event_loop_ref, &mut ControlFlow::Exit);
             }
         } else {
             panic!("Tried to call event handler with null handler");
