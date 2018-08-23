@@ -18,6 +18,7 @@ use sctk::reexports::client::{ConnectError, Display, EventQueue, GlobalEvent, Pr
 use sctk::Environment;
 
 use sctk::reexports::client::protocol::wl_display::RequestsTrait as DisplayRequests;
+use sctk::reexports::client::protocol::wl_surface::RequestsTrait;
 
 pub struct EventsLoopSink {
     buffer: VecDeque<::Event>,
@@ -249,6 +250,9 @@ impl EventsLoop {
                         *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
+                        if !refresh {
+                            frame.surface().commit()
+                        }
                     }
                 }
                 if let Some(dpi) = new_dpi {
