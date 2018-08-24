@@ -22,7 +22,7 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
     #[inline]
     fn new_dpi_unaware() -> Self {
         EventLoop {
-            events_loop: WindowsEventLoop::with_dpi_awareness(false),
+            event_loop: WindowsEventLoop::with_dpi_awareness(false),
             _marker: ::std::marker::PhantomData,
         }
     }

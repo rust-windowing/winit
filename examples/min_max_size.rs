@@ -6,16 +6,16 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = EventLoop::new();
+    let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
 
     window.set_min_dimensions(Some(LogicalSize::new(400.0, 200.0)));
     window.set_max_dimensions(Some(LogicalSize::new(800.0, 400.0)));
 
-    events_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, _, control_flow| {
         println!("{:?}", event);
 
         match event {

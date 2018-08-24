@@ -3,7 +3,7 @@ extern crate winit;
 fn needs_send<T:Send>() {}
 
 #[test]
-fn events_loop_proxy_send() {
+fn event_loop_proxy_send() {
     // ensures that `winit::EventLoopProxy` implements `Send`
     needs_send::<winit::event_loop::EventLoopProxy<()>>();
 }

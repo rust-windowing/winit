@@ -122,16 +122,16 @@ impl MonitorId {
 impl Window {
     #[inline]
     pub fn new(
-        events_loop: &EventLoop,
+        event_loop: &EventLoop,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, CreationError> {
-        match *events_loop {
-            EventLoop::Wayland(ref events_loop) => {
-                wayland::Window::new(events_loop, attribs).map(Window::Wayland)
+        match *event_loop {
+            EventLoop::Wayland(ref event_loop) => {
+                wayland::Window::new(event_loop, attribs).map(Window::Wayland)
             },
-            EventLoop::X(ref events_loop) => {
-                x11::Window::new(events_loop, attribs, pl_attribs).map(Window::X)
+            EventLoop::X(ref event_loop) => {
+                x11::Window::new(event_loop, attribs, pl_attribs).map(Window::X)
             },
         }
     }

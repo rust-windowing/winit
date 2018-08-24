@@ -6,15 +6,15 @@ use winit::event::{Event, WindowEvent, ElementState, KeyboardInput};
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = EventLoop::new();
+    let event_loop = EventLoop::new();
 
     let mut windows = HashMap::new();
     for _ in 0..3 {
-        let window = Window::new(&events_loop).unwrap();
+        let window = Window::new(&event_loop).unwrap();
         windows.insert(window.id(), window);
     }
 
-    events_loop.run(move |event, events_loop, control_flow| {
+    event_loop.run(move |event, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
             Event::WindowEvent { event, window_id } => {
@@ -30,7 +30,7 @@ fn main() {
                         }
                     },
                     WindowEvent::KeyboardInput { input: KeyboardInput { state: ElementState::Pressed, .. }, .. } => {
-                        let window = Window::new(&events_loop).unwrap();
+                        let window = Window::new(&event_loop).unwrap();
                         windows.insert(window.id(), window);
                     },
                     _ => ()

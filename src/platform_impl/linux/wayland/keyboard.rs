@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use super::{make_wid, DeviceId, EventsLoopProxy, EventsLoopSink};
+use super::{make_wid, DeviceId, EventLoopProxy, EventLoopSink};
 use sctk::keyboard::{
     self, map_keyboard_auto_with_repeat, Event as KbEvent, KeyRepeatEvent, KeyRepeatKind,
 };
@@ -14,7 +14,7 @@ use {ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
 pub fn init_keyboard(
     seat: &Proxy<wl_seat::WlSeat>,
     sink: Arc<Mutex<EventLoopSink>>,
-    events_loop_proxy: EventLoopProxy,
+    event_loop_proxy: EventLoopProxy,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
 ) -> Proxy<wl_keyboard::WlKeyboard> {
     // { variables to be captured by the closures
@@ -108,7 +108,7 @@ pub fn init_keyboard(
                         guard.send_event(WindowEvent::ReceivedCharacter(chr), wid);
                     }
                 }
-                events_loop_proxy.wakeup().unwrap();
+                event_loop_proxy.wakeup().unwrap();
             }
         },
     );

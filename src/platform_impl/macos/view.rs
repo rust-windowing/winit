@@ -14,7 +14,7 @@ use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Protocol, Sel, BOOL, YES};
 
 use {ElementState, Event, KeyboardInput, MouseButton, WindowEvent, WindowId};
-use platform_impl::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code, check_additional_virtual_key_codes};
+use platform_impl::platform::event_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code, check_additional_virtual_key_codes};
 use platform_impl::platform::util;
 use platform_impl::platform::ffi::*;
 use platform_impl::platform::window::{get_window_id, IdRef};

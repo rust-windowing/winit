@@ -5,16 +5,16 @@ use winit::event::{Event, WindowEvent, KeyboardInput};
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = EventLoop::new();
+    let event_loop = EventLoop::new();
 
     let _window = WindowBuilder::new()
         .with_title("Your faithful window")
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
 
     let mut close_requested = false;
 
-    events_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, _, control_flow| {
         use winit::event::ElementState::Released;
         use winit::event::VirtualKeyCode::{N, Y};
 

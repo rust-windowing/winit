@@ -5,14 +5,14 @@ use winit::event::{Event, WindowEvent, ElementState, KeyboardInput};
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = EventLoop::new();
+    let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_title("Super Cursor Grab'n'Hide Simulator 9000")
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
 
-    events_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         if let Event::WindowEvent { event, .. } = event {
             match event {

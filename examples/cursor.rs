@@ -5,14 +5,14 @@ use winit::event::{Event, WindowEvent, ElementState, KeyboardInput};
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = EventLoop::new();
+    let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new().build(&events_loop).unwrap();
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
     window.set_title("A fantastic window!");
 
     let mut cursor_idx = 0;
 
-    events_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, _, control_flow| {
         match event {
             Event::WindowEvent { event: WindowEvent::KeyboardInput { input: KeyboardInput { state: ElementState::Pressed, .. }, .. }, .. } => {
                 println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);

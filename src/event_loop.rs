@@ -30,7 +30,7 @@ use monitor::{AvailableMonitorsIter, MonitorId};
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
 /// `EventLoopProxy` allows you to wakeup an `EventLoop` from an other thread.
 pub struct EventLoop<T> {
-    pub(crate) events_loop: platform_impl::EventLoop<T>,
+    pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
 }
 
@@ -85,7 +85,7 @@ impl<T> EventLoop<T> {
     /// fallback on x11. If this variable is set with any other value, winit will panic.
     pub fn new_user_event() -> EventLoop<T> {
         EventLoop {
-            events_loop: platform_impl::EventLoop::new(),
+            event_loop: platform_impl::EventLoop::new(),
             _marker: ::std::marker::PhantomData,
         }
     }
@@ -95,14 +95,14 @@ impl<T> EventLoop<T> {
     // Note: should be replaced with `-> impl Iterator` once stable.
     #[inline]
     pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
-        let data = self.events_loop.get_available_monitors();
+        let data = self.event_loop.get_available_monitors();
         AvailableMonitorsIter{ data: data.into_iter() }
     }
 
     /// Returns the primary monitor of the system.
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId { inner: self.events_loop.get_primary_monitor() }
+        MonitorId { inner: self.event_loop.get_primary_monitor() }
     }
 
     /// Hijacks the calling thread and initializes the `winit` event loop with the provided
@@ -114,14 +114,14 @@ impl<T> EventLoop<T> {
     pub fn run<F>(self, event_handler: F) -> !
         where F: 'static + FnMut(Event<T>, &EventLoop<T>, &mut ControlFlow)
     {
-        self.events_loop.run(event_handler)
+        self.event_loop.run(event_handler)
     }
 
     /// Creates an `EventLoopProxy` that can be used to wake up the `EventLoop` from another
     /// thread.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            events_loop_proxy: self.events_loop.create_proxy(),
+            event_loop_proxy: self.event_loop.create_proxy(),
         }
     }
 }
@@ -129,7 +129,7 @@ impl<T> EventLoop<T> {
 /// Used to send custom events to `EventLoop`.
 #[derive(Clone)]
 pub struct EventLoopProxy<T> {
-    events_loop_proxy: platform_impl::EventLoopProxy<T>,
+    event_loop_proxy: platform_impl::EventLoopProxy<T>,
 }
 
 impl<T> EventLoopProxy<T> {
@@ -139,7 +139,7 @@ impl<T> EventLoopProxy<T> {
     ///
     /// Returns an `Err` if the associated `EventLoop` no longer exists.
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
-        self.events_loop_proxy.send_event(event)
+        self.event_loop_proxy.send_event(event)
     }
 }
 

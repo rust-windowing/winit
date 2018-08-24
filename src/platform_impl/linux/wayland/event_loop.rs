@@ -131,7 +131,7 @@ impl EventLoop {
             },
         ).unwrap();
 
-        Ok(EventsLoop {
+        Ok(EventLoop {
             display,
             evq: RefCell::new(event_queue),
             sink,
@@ -282,7 +282,7 @@ struct SeatManager {
     sink: Arc<Mutex<EventLoopSink>>,
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, Proxy<wl_seat::WlSeat>)>>>,
-    events_loop_proxy: EventsLoopProxy,
+    event_loop_proxy: EventLoopProxy,
 }
 
 impl SeatManager {
@@ -308,12 +308,25 @@ impl SeatManager {
                     modifiers_tracker: Arc::new(Mutex::new(ModifiersState::default())),
                 };
                 let seat = registry
+<<<<<<< HEAD
                     .bind(min(version, 5), id, move |seat| {
                         seat.implement(move |event, seat| {
                             seat_data.receive(event, seat)
                         }, ())
                     })
                     .unwrap();
+=======
+                    .bind::<wl_seat::WlSeat>(min(version, 5), id)
+                    .unwrap()
+                    .implement(SeatData {
+                        sink: self.sink.clone(),
+                        store: self.store.clone(),
+                        pointer: None,
+                        keyboard: None,
+                        touch: None,
+                        event_loop_proxy: self.event_loop_proxy.clone(),
+                    });
+>>>>>>> Change instances of "events_loop" to "event_loop"
                 self.store.lock().unwrap().new_seat(&seat);
                 self.seats.lock().unwrap().push((id, seat));
             }
@@ -337,8 +350,12 @@ struct SeatData {
     pointer: Option<Proxy<wl_pointer::WlPointer>>,
     keyboard: Option<Proxy<wl_keyboard::WlKeyboard>>,
     touch: Option<Proxy<wl_touch::WlTouch>>,
+<<<<<<< HEAD
     events_loop_proxy: EventsLoopProxy,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
+=======
+    event_loop_proxy: EventLoopProxy,
+>>>>>>> Change instances of "events_loop" to "event_loop"
 }
 
 impl SeatData {
@@ -369,8 +386,12 @@ impl SeatData {
                     self.keyboard = Some(super::keyboard::init_keyboard(
                         &seat,
                         self.sink.clone(),
+<<<<<<< HEAD
                         self.events_loop_proxy.clone(),
                         self.modifiers_tracker.clone(),
+=======
+                        self.event_loop_proxy.clone(),
+>>>>>>> Change instances of "events_loop" to "event_loop"
                     ))
                 }
                 // destroy keyboard if applicable

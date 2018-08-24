@@ -1,6 +1,6 @@
 #![cfg(target_os = "macos")]
 
-pub use self::events_loop::{EventLoop, Proxy as EventLoopProxy};
+pub use self::event_loop::{EventLoop, Proxy as EventLoopProxy};
 pub use self::monitor::MonitorId;
 pub use self::window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, Window2};
 use std::sync::Arc;
@@ -24,20 +24,20 @@ impl ::std::ops::Deref for Window {
 
 impl Window {
 
-    pub fn new(events_loop: &EventLoop,
+    pub fn new(event_loop: &EventLoop,
                attributes: ::WindowAttributes,
                pl_attribs: PlatformSpecificWindowBuilderAttributes) -> Result<Self, CreationError>
     {
-        let weak_shared = Arc::downgrade(&events_loop.shared);
+        let weak_shared = Arc::downgrade(&event_loop.shared);
         let window = Arc::new(try!(Window2::new(weak_shared, attributes, pl_attribs)));
         let weak_window = Arc::downgrade(&window);
-        events_loop.shared.windows.lock().unwrap().push(weak_window);
+        event_loop.shared.windows.lock().unwrap().push(weak_window);
         Ok(Window { window: window })
     }
 
 }
 
-mod events_loop;
+mod event_loop;
 mod ffi;
 mod monitor;
 mod util;

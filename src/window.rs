@@ -17,10 +17,10 @@ pub use icon::*;
 /// use winit::event::{Event, WindowEvent};
 /// use winit::event_loop::{EventLoop, ControlFlow};
 ///
-/// let mut events_loop = EventLoop::new();
-/// let window = Window::new(&events_loop).unwrap();
+/// let mut event_loop = EventLoop::new();
+/// let window = Window::new(&event_loop).unwrap();
 ///
-/// events_loop.run(move |event, _, control_flow| {
+/// event_loop.run(move |event, _, control_flow| {
 ///     match event {
 ///         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
 ///             *control_flow = ControlFlow::Exit
@@ -283,7 +283,7 @@ impl WindowBuilder {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     /// out of memory, etc.
     #[inline]
-    pub fn build<T>(mut self, events_loop: &EventLoop<T>) -> Result<Window, CreationError> {
+    pub fn build<T>(mut self, event_loop: &EventLoop<T>) -> Result<Window, CreationError> {
         self.window.dimensions = Some(self.window.dimensions.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
@@ -296,7 +296,7 @@ impl WindowBuilder {
 
         // building
         platform_impl::Window::new(
-            &events_loop.events_loop,
+            &event_loop.event_loop,
             self.window,
             self.platform_specific,
         ).map(|window| Window { window })
@@ -306,14 +306,14 @@ impl WindowBuilder {
 impl Window {
     /// Creates a new Window for platforms where this is appropriate.
     ///
-    /// This function is equivalent to `WindowBuilder::new().build(events_loop)`.
+    /// This function is equivalent to `WindowBuilder::new().build(event_loop)`.
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     #[inline]
-    pub fn new<T>(events_loop: &EventLoop<T>) -> Result<Window, CreationError> {
+    pub fn new<T>(event_loop: &EventLoop<T>) -> Result<Window, CreationError> {
         let builder = WindowBuilder::new();
-        builder.build(events_loop)
+        builder.build(event_loop)
     }
 
     /// Modifies the title of the window.

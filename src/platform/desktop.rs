@@ -26,6 +26,6 @@ impl<T> EventLoopExtDesktop for EventLoop<T> {
     fn run_return<F>(&mut self, event_handler: F)
         where F: FnMut(Event<T>, &EventLoop<T>, &mut ControlFlow)
     {
-        self.events_loop.run_return(event_handler)
+        self.event_loop.run_return(event_handler)
     }
 }

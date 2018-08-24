@@ -199,7 +199,7 @@ impl MonitorId {
     }
 }
 
-pub struct EventsLoop {
+pub struct EventLoop {
     events_queue: Arc<RefCell<VecDeque<Event>>>,
 }
 
@@ -213,7 +213,7 @@ impl EventLoop {
                 panic!("`EventLoop` can only be created on the main thread on iOS");
             }
         }
-        EventsLoop { events_queue: Default::default() }
+        EventLoop { events_queue: Default::default() }
     }
 
     #[inline]
@@ -238,7 +238,7 @@ impl EventLoop {
 
         unsafe {
             // jump hack, so we won't quit on willTerminate event before processing it
-            assert!(JMPBUF.is_some(), "`EventsLoop::poll_events` must be called after window creation on iOS");
+            assert!(JMPBUF.is_some(), "`EventLoop::poll_events` must be called after window creation on iOS");
             if setjmp(mem::transmute_copy(&mut JMPBUF)) != 0 {
                 if let Some(event) = self.events_queue.borrow_mut().pop_front() {
                     callback(event);

@@ -6,15 +6,15 @@ use winit::event_loop::{EventLoop, ControlFlow};
 use winit::platform::desktop::EventLoopExtDesktop;
 
 fn main() {
-    let mut events_loop = EventLoop::new();
+    let mut event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
 
     println!("Close the window to continue.");
-    events_loop.run_return(|event, _, control_flow| {
+    event_loop.run_return(|event, _, control_flow| {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -27,11 +27,11 @@ fn main() {
 
     let _window_2 = WindowBuilder::new()
         .with_title("A second, fantasticer window!")
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
 
     println!("Wa ha ha! You thought that closing the window would finish this?!");
-    events_loop.run_return(|event, _, control_flow| {
+    event_loop.run_return(|event, _, control_flow| {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,

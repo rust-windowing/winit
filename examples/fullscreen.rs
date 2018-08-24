@@ -6,11 +6,11 @@ use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState, KeyboardInp
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = EventLoop::new();
+    let event_loop = EventLoop::new();
 
     // enumerating monitors
     let monitor = {
-        for (num, monitor) in events_loop.get_available_monitors().enumerate() {
+        for (num, monitor) in event_loop.get_available_monitors().enumerate() {
             println!("Monitor #{}: {:?}", num, monitor.get_name());
         }
 
@@ -20,7 +20,7 @@ fn main() {
         let mut num = String::new();
         io::stdin().read_line(&mut num).unwrap();
         let num = num.trim().parse().ok().expect("Please enter a number");
-        let monitor = events_loop.get_available_monitors().nth(num).expect("Please enter a valid ID");
+        let monitor = event_loop.get_available_monitors().nth(num).expect("Please enter a valid ID");
 
         println!("Using {:?}", monitor.get_name());
 
@@ -30,14 +30,14 @@ fn main() {
     let window = WindowBuilder::new()
         .with_title("Hello world!")
         .with_fullscreen(Some(monitor))
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
 
     let mut is_fullscreen = true;
     let mut is_maximized = false;
     let mut decorations = true;
 
-    events_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, _, control_flow| {
         println!("{:?}", event);
         *control_flow = ControlFlow::Wait;
 

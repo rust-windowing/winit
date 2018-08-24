@@ -4,7 +4,7 @@ use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState, KeyboardInp
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let events_loop = EventLoop::new();
+    let event_loop = EventLoop::new();
 
     let mut resizable = false;
 
@@ -12,10 +12,10 @@ fn main() {
         .with_title("Hit space to toggle resizability.")
         .with_dimensions((400, 200).into())
         .with_resizable(resizable)
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
 
-    events_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
             Event::WindowEvent { event, .. } => match event {
