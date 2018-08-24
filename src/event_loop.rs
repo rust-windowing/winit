@@ -14,7 +14,7 @@ use std::time::Instant;
 
 use platform_impl;
 use event::Event;
-use monitor::{AvailableMonitorsIter, MonitorId};
+use monitor::{AvailableMonitorsIter, MonitorHandle};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -101,8 +101,8 @@ impl<T> EventLoop<T> {
 
     /// Returns the primary monitor of the system.
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId { inner: self.event_loop.get_primary_monitor() }
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle { inner: self.event_loop.get_primary_monitor() }
     }
 
     /// Hijacks the calling thread and initializes the `winit` event loop with the provided

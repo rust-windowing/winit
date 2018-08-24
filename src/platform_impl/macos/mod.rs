@@ -1,7 +1,7 @@
 #![cfg(target_os = "macos")]
 
 pub use self::event_loop::{EventLoop, Proxy as EventLoopProxy};
-pub use self::monitor::MonitorId;
+pub use self::monitor::MonitorHandle;
 pub use self::window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, Window2};
 use std::sync::Arc;
 

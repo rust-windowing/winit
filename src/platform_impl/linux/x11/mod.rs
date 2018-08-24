@@ -9,7 +9,7 @@ mod dnd;
 mod ime;
 pub mod util;
 
-pub use self::monitor::MonitorId;
+pub use self::monitor::MonitorHandle;
 pub use self::window::UnownedWindow;
 pub use self::xdisplay::{XConnection, XNotSupported, XError};
 

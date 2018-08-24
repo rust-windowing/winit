@@ -20,7 +20,7 @@ use winapi::um::winnt::{LONG, LPCWSTR};
 
 use window::{CreationError, Icon, WindowAttributes, MouseCursor};
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
-use monitor::MonitorId as RootMonitorId;
+use monitor::MonitorHandle as RootMonitorHandle;
 use platform_impl::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, WindowId};
 use platform_impl::platform::dpi::{dpi_to_scale_factor, get_hwnd_dpi};
 use platform_impl::platform::event_loop::{self, EventLoop, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID, REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID};
@@ -606,11 +606,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
         let mut window_state_lock = self.window_state.lock();
         unsafe {
             let monitor_rect = monitor.as_ref()
-                .map(|RootMonitorId{ ref inner }| {
+                .map(|RootMonitorHandle{ ref inner }| {
                     let (x, y): (i32, i32) = inner.get_position().into();
                     let (width, height): (u32, u32) = inner.get_dimensions().into();
                     (x, y, width, height)
@@ -772,8 +772,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorId {
-        RootMonitorId {
+    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle {
             inner: monitor::get_current_monitor(self.window.0),
         }
     }

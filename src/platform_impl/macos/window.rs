@@ -44,7 +44,7 @@ use os::macos::{ActivationPolicy, WindowExt};
 use platform_impl::platform::{ffi, util};
 use platform_impl::platform::event_loop::{EventLoop, Shared};
 use platform_impl::platform::view::{new_view, set_ime_spot};
-use window::MonitorId as RootMonitorId;
+use window::MonitorHandle as RootMonitorHandle;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub usize);
@@ -537,13 +537,13 @@ pub struct Window2 {
 unsafe impl Send for Window2 {}
 unsafe impl Sync for Window2 {}
 
-unsafe fn get_current_monitor(window: id) -> RootMonitorId {
+unsafe fn get_current_monitor(window: id) -> RootMonitorHandle {
     let screen: id = msg_send![window, screen];
     let desc = NSScreen::deviceDescription(screen);
     let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
     let value = NSDictionary::valueForKey_(desc, *key);
     let display_id = msg_send![value, unsignedIntegerValue];
-    RootMonitorId { inner: EventLoop::make_monitor_from_display(display_id) }
+    RootMonitorHandle { inner: EventLoop::make_monitor_from_display(display_id) }
 }
 
 impl Drop for Window2 {
@@ -1084,7 +1084,7 @@ impl Window2 {
     #[inline]
     /// TODO: Right now set_fullscreen do not work on switching monitors
     /// in fullscreen mode
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
         let state = &self.delegate.state;
         let current = {
             let win_attribs = state.win_attribs.borrow_mut();
@@ -1186,7 +1186,7 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorId {
+    pub fn get_current_monitor(&self) -> RootMonitorHandle {
         unsafe {
             self::get_current_monitor(*self.window)
         }

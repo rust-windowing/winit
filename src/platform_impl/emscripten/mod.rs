@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, Arc};
 
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use window::MonitorId as RootMonitorId;
+use window::MonitorHandle as RootMonitorHandle;
 
 const DOCUMENT_NAME: &'static str = "#document\0";
 
@@ -31,9 +31,9 @@ pub struct DeviceId;
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 #[derive(Debug, Clone)]
-pub struct MonitorId;
+pub struct MonitorHandle;
 
-impl MonitorId {
+impl MonitorHandle {
     #[inline]
     pub fn get_name(&self) -> Option<String> {
         Some("Canvas".to_owned())
@@ -107,15 +107,15 @@ impl EventLoop {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut list = VecDeque::with_capacity(1);
-        list.push_back(MonitorId);
+        list.push_back(MonitorHandle);
         list
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle
     }
 
     pub fn poll_events<F>(&self, mut callback: F)
@@ -569,7 +569,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, _monitor: Option<::MonitorId>) {
+    pub fn set_fullscreen(&self, _monitor: Option<::MonitorHandle>) {
         // iOS has single screen maximized apps so nothing to do
     }
 
@@ -594,20 +594,20 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorId {
-        RootMonitorId { inner: MonitorId }
+    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle { inner: MonitorHandle }
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut list = VecDeque::with_capacity(1);
-        list.push_back(MonitorId);
+        list.push_back(MonitorHandle);
         list
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle
     }
 }
 

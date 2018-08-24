@@ -41,7 +41,7 @@ use winapi::um::{winuser, winbase, ole2, processthreadsapi, commctrl, libloadera
 use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
 use window::WindowId as RootWindowId;
-use monitor::MonitorId;
+use monitor::MonitorHandle;
 use event_loop::{ControlFlow, EventLoop as RootEventLoop, EventLoopClosed};
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use event::{DeviceEvent, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent};
@@ -91,7 +91,7 @@ pub struct WindowState {
     // This is different from the value in `SavedWindowInfo`! That one represents the DPI saved upon entering
     // fullscreen. This will always be the most recent DPI for the window.
     pub dpi_factor: f64,
-    pub fullscreen: Option<MonitorId>,
+    pub fullscreen: Option<MonitorHandle>,
     pub window_icon: Option<WinIcon>,
     pub taskbar_icon: Option<WinIcon>,
     pub decorations: bool,

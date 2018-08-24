@@ -19,5 +19,5 @@ fn ids_send() {
     // ensures that the various `..Id` types implement `Send`
     needs_send::<winit::window::WindowId>();
     needs_send::<winit::event::DeviceId>();
-    needs_send::<winit::monitor::MonitorId>();
+    needs_send::<winit::monitor::MonitorHandle>();
 }

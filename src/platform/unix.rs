@@ -7,7 +7,7 @@ use std::sync::Arc;
 use {
     EventLoop,
     LogicalSize,
-    MonitorId,
+    MonitorHandle,
     Window,
     WindowBuilder,
 };
@@ -279,13 +279,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 }
 
-/// Additional methods on `MonitorId` that are specific to Linux.
-pub trait MonitorIdExtUnix {
+/// Additional methods on `MonitorHandle` that are specific to Linux.
+pub trait MonitorHandleExtUnix {
     /// Returns the inner identifier of the monitor.
     fn native_id(&self) -> u32;
 }
 
-impl MonitorIdExtUnix for MonitorId {
+impl MonitorHandleExtUnix for MonitorHandle {
     #[inline]
     fn native_id(&self) -> u32 {
         self.inner.get_native_identifier()

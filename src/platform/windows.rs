@@ -6,7 +6,7 @@ use libc;
 use winapi::shared::windef::HWND;
 
 use event::DeviceId;
-use monitor::MonitorId;
+use monitor::MonitorHandle;
 use event_loop::EventLoop;
 use window::{Icon, Window, WindowBuilder};
 use platform_impl::EventLoop as WindowsEventLoop;
@@ -83,8 +83,8 @@ impl WindowBuilderExtWindows for WindowBuilder {
     }
 }
 
-/// Additional methods on `MonitorId` that are specific to Windows.
-pub trait MonitorIdExtWindows {
+/// Additional methods on `MonitorHandle` that are specific to Windows.
+pub trait MonitorHandleExtWindows {
     /// Returns the name of the monitor adapter specific to the Win32 API.
     fn native_id(&self) -> String;
 
@@ -92,7 +92,7 @@ pub trait MonitorIdExtWindows {
     fn hmonitor(&self) -> *mut c_void;
 }
 
-impl MonitorIdExtWindows for MonitorId {
+impl MonitorHandleExtWindows for MonitorHandle {
     #[inline]
     fn native_id(&self) -> String {
         self.inner.get_native_identifier()

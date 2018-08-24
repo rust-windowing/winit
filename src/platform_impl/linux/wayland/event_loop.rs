@@ -211,11 +211,11 @@ impl EventLoop {
         }
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorId {
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
         get_primary_monitor(&self.env.outputs)
     }
 
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         get_available_monitors(&self.env.outputs)
     }
 }
@@ -452,24 +452,24 @@ impl Drop for SeatData {
  * Monitor stuff
  */
 
-pub struct MonitorId {
+pub struct MonitorHandle {
     pub(crate) proxy: Proxy<wl_output::WlOutput>,
     pub(crate) mgr: OutputMgr,
 }
 
-impl Clone for MonitorId {
-    fn clone(&self) -> MonitorId {
-        MonitorId {
+impl Clone for MonitorHandle {
+    fn clone(&self) -> MonitorHandle {
+        MonitorHandle {
             proxy: self.proxy.clone(),
             mgr: self.mgr.clone(),
         }
     }
 }
 
-impl fmt::Debug for MonitorId {
+impl fmt::Debug for MonitorHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         #[derive(Debug)]
-        struct MonitorId {
+        struct MonitorHandle {
             name: Option<String>,
             native_identifier: u32,
             dimensions: PhysicalSize,
@@ -477,7 +477,7 @@ impl fmt::Debug for MonitorId {
             hidpi_factor: i32,
         }
 
-        let monitor_id_proxy = MonitorId {
+        let monitor_id_proxy = MonitorHandle {
             name: self.get_name(),
             native_identifier: self.get_native_identifier(),
             dimensions: self.get_dimensions(),
@@ -489,7 +489,7 @@ impl fmt::Debug for MonitorId {
     }
 }
 
-impl MonitorId {
+impl MonitorHandle {
     pub fn get_name(&self) -> Option<String> {
         self.mgr.with_info(&self.proxy, |_, info| {
             format!("{} ({})", info.model, info.make)
@@ -528,10 +528,10 @@ impl MonitorId {
     }
 }
 
-pub fn get_primary_monitor(outputs: &OutputMgr) -> MonitorId {
+pub fn get_primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
     outputs.with_all(|list| {
         if let Some(&(_, ref proxy, _)) = list.first() {
-            MonitorId {
+            MonitorHandle {
                 proxy: proxy.clone(),
                 mgr: outputs.clone(),
             }
@@ -541,10 +541,10 @@ pub fn get_primary_monitor(outputs: &OutputMgr) -> MonitorId {
     })
 }
 
-pub fn get_available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorId> {
+pub fn get_available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorHandle> {
     outputs.with_all(|list| {
         list.iter()
-            .map(|&(_, ref proxy, _)| MonitorId {
+            .map(|&(_, ref proxy, _)| MonitorHandle {
                 proxy: proxy.clone(),
                 mgr: outputs.clone(),
             })

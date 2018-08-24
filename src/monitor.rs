@@ -1,12 +1,12 @@
 //! Types useful for interacting with a user's monitors.
 //!
-//! If you want to get basic information about a monitor, you can use the [`MonitorId`][monitor_id]
+//! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_id]
 //! type. This is retreived from an [`AvailableMonitorsIter`][monitor_iter], which can be acquired
 //! with:
 //! - [`EventLoop::get_available_monitors`][loop_get]
 //! - [`Window::get_available_monitors`][window_get].
 //!
-//! [monitor_id]: ./struct.MonitorId.html
+//! [monitor_id]: ./struct.MonitorHandle.html
 //! [monitor_iter]: ./struct.AvailableMonitorsIter.html
 //! [loop_get]: ../event_loop/struct.EventLoop.html#method.get_available_monitors
 //! [window_get]: ../window/struct.Window.html#method.get_available_monitors
@@ -27,15 +27,15 @@ use dpi::{PhysicalPosition, PhysicalSize};
 // This may change in the future.
 #[derive(Debug)]
 pub struct AvailableMonitorsIter {
-    pub(crate) data: VecDequeIter<platform_impl::MonitorId>,
+    pub(crate) data: VecDequeIter<platform_impl::MonitorHandle>,
 }
 
 impl Iterator for AvailableMonitorsIter {
-    type Item = MonitorId;
+    type Item = MonitorHandle;
 
     #[inline]
-    fn next(&mut self) -> Option<MonitorId> {
-        self.data.next().map(|id| MonitorId { inner: id })
+    fn next(&mut self) -> Option<MonitorHandle> {
+        self.data.next().map(|id| MonitorHandle { inner: id })
     }
 
     #[inline]
@@ -44,13 +44,17 @@ impl Iterator for AvailableMonitorsIter {
     }
 }
 
-/// Identifier for a monitor.
+/// Handle to a monitor.
+///
+/// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
+///
+/// [`Window`]: ../window/struct.Window.html
 #[derive(Debug, Clone)]
-pub struct MonitorId {
-    pub(crate) inner: platform_impl::MonitorId
+pub struct MonitorHandle {
+    pub(crate) inner: platform_impl::MonitorHandle
 }
 
-impl MonitorId {
+impl MonitorHandle {
     /// Returns a human-readable name of the monitor.
     ///
     /// Returns `None` if the monitor doesn't exist anymore.

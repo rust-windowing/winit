@@ -11,9 +11,9 @@ use dpi::{PhysicalPosition, PhysicalSize};
 use platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use platform_impl::platform::window::Window;
 
-/// Win32 implementation of the main `MonitorId` object.
+/// Win32 implementation of the main `MonitorHandle` object.
 #[derive(Debug, Clone)]
-pub struct MonitorId {
+pub struct MonitorHandle {
     /// Monitor handle.
     hmonitor: HMonitor,
     /// The system name of the monitor.
@@ -45,13 +45,13 @@ unsafe extern "system" fn monitor_enum_proc(
     _place: LPRECT,
     data: LPARAM,
 ) -> BOOL {
-    let monitors = data as *mut VecDeque<MonitorId>;
-    (*monitors).push_back(MonitorId::from_hmonitor(hmonitor));
+    let monitors = data as *mut VecDeque<MonitorHandle>;
+    (*monitors).push_back(MonitorHandle::from_hmonitor(hmonitor));
     TRUE // continue enumeration
 }
 
-pub fn get_available_monitors() -> VecDeque<MonitorId> {
-    let mut monitors: VecDeque<MonitorId> = VecDeque::new();
+pub fn get_available_monitors() -> VecDeque<MonitorHandle> {
+    let mut monitors: VecDeque<MonitorHandle> = VecDeque::new();
     unsafe {
         winuser::EnumDisplayMonitors(
             ptr::null_mut(),
@@ -63,38 +63,38 @@ pub fn get_available_monitors() -> VecDeque<MonitorId> {
     monitors
 }
 
-pub fn get_primary_monitor() -> MonitorId {
+pub fn get_primary_monitor() -> MonitorHandle {
     const ORIGIN: POINT = POINT { x: 0, y: 0 };
     let hmonitor = unsafe {
         winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY)
     };
-    MonitorId::from_hmonitor(hmonitor)
+    MonitorHandle::from_hmonitor(hmonitor)
 }
 
-pub fn get_current_monitor(hwnd: HWND) -> MonitorId {
+pub fn get_current_monitor(hwnd: HWND) -> MonitorHandle {
     let hmonitor = unsafe {
         winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST)
     };
-    MonitorId::from_hmonitor(hmonitor)
+    MonitorHandle::from_hmonitor(hmonitor)
 }
 
 impl<T> EventLoop<T> {
     // TODO: Investigate opportunities for caching
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         get_available_monitors()
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorId {
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
         get_primary_monitor()
     }
 }
 
 impl Window {
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         get_available_monitors()
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorId {
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
         get_primary_monitor()
     }
 }
@@ -115,7 +115,7 @@ fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINFOEXW, util:
     }
 }
 
-impl MonitorId {
+impl MonitorHandle {
     pub(crate) fn from_hmonitor(hmonitor: HMONITOR) -> Self {
         let monitor_info = get_monitor_info(hmonitor).expect("`GetMonitorInfoW` failed");
         let place = monitor_info.rcMonitor;
@@ -123,7 +123,7 @@ impl MonitorId {
             (place.right - place.left) as u32,
             (place.bottom - place.top) as u32,
         );
-        MonitorId {
+        MonitorHandle {
             hmonitor: HMonitor(hmonitor),
             monitor_name: util::wchar_ptr_to_string(monitor_info.szDevice.as_ptr()),
             primary: util::has_flag(monitor_info.dwFlags, winuser::MONITORINFOF_PRIMARY),

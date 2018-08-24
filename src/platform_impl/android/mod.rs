@@ -24,7 +24,7 @@ use {
 };
 use CreationError::OsError;
 use events::{Touch, TouchPhase};
-use window::MonitorId as RootMonitorId;
+use window::MonitorHandle as RootMonitorHandle;
 
 pub struct EventLoop {
     event_rx: Receiver<android_glue::Event>,
@@ -45,15 +45,15 @@ impl EventLoop {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut rb = VecDeque::with_capacity(1);
-        rb.push_back(MonitorId);
+        rb.push_back(MonitorHandle);
         rb
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle
     }
 
     pub fn poll_events<F>(&mut self, mut callback: F)
@@ -62,7 +62,7 @@ impl EventLoop {
         while let Ok(event) = self.event_rx.try_recv() {
             let e = match event{
                 android_glue::Event::EventMotion(motion) => {
-                    let dpi_factor = MonitorId.get_hidpi_factor();
+                    let dpi_factor = MonitorHandle.get_hidpi_factor();
                     let location = LogicalPosition::from_physical(
                         (motion.x as f64, motion.y as f64),
                         dpi_factor,
@@ -103,8 +103,8 @@ impl EventLoop {
                     if native_window.is_null() {
                         None
                     } else {
-                        let dpi_factor = MonitorId.get_hidpi_factor();
-                        let physical_size = MonitorId.get_dimensions();
+                        let dpi_factor = MonitorHandle.get_hidpi_factor();
+                        let physical_size = MonitorHandle.get_dimensions();
                         let size = LogicalSize::from_physical(physical_size, dpi_factor);
                         Some(Event::WindowEvent {
                             window_id: RootWindowId(WindowId),
@@ -178,19 +178,19 @@ pub struct Window {
 }
 
 #[derive(Clone)]
-pub struct MonitorId;
+pub struct MonitorHandle;
 
-impl fmt::Debug for MonitorId {
+impl fmt::Debug for MonitorHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         #[derive(Debug)]
-        struct MonitorId {
+        struct MonitorHandle {
             name: Option<String>,
             dimensions: PhysicalSize,
             position: PhysicalPosition,
             hidpi_factor: f64,
         }
 
-        let monitor_id_proxy = MonitorId {
+        let monitor_id_proxy = MonitorHandle {
             name: self.get_name(),
             dimensions: self.get_dimensions(),
             position: self.get_position(),
@@ -201,7 +201,7 @@ impl fmt::Debug for MonitorId {
     }
 }
 
-impl MonitorId {
+impl MonitorHandle {
     #[inline]
     pub fn get_name(&self) -> Option<String> {
         Some("Primary".to_string())
@@ -357,7 +357,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorHandle>) {
         // N/A
         // Android has single screen maximized apps so nothing to do
     }
@@ -383,20 +383,20 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorId {
-        RootMonitorId { inner: MonitorId }
+    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle { inner: MonitorHandle }
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut rb = VecDeque::with_capacity(1);
-        rb.push_back(MonitorId);
+        rb.push_back(MonitorHandle);
         rb
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle
     }
 
     #[inline]

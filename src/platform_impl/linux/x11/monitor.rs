@@ -20,7 +20,7 @@ const DISABLE_MONITOR_LIST_CACHING: bool = false;
 
 lazy_static! {
     static ref XRANDR_VERSION: Mutex<Option<(c_int, c_int)>> = Mutex::default();
-    static ref MONITORS: Mutex<Option<Vec<MonitorId>>> = Mutex::default();
+    static ref MONITORS: Mutex<Option<Vec<MonitorHandle>>> = Mutex::default();
 }
 
 fn version_is_at_least(major: c_int, minor: c_int) -> bool {
@@ -35,13 +35,13 @@ fn version_is_at_least(major: c_int, minor: c_int) -> bool {
     }
 }
 
-pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorId>> {
+pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorHandle>> {
     // We update this lazily.
     (*MONITORS.lock()).take()
 }
 
 #[derive(Debug, Clone)]
-pub struct MonitorId {
+pub struct MonitorHandle {
     /// The actual id
     id: u32,
     /// The name of the monitor
@@ -58,7 +58,7 @@ pub struct MonitorId {
     pub(crate) rect: util::AaRect,
 }
 
-impl MonitorId {
+impl MonitorHandle {
     fn from_repr(
         xconn: &XConnection,
         resources: *mut XRRScreenResources,
@@ -69,7 +69,7 @@ impl MonitorId {
         let (name, hidpi_factor) = unsafe { xconn.get_output_info(resources, &repr) };
         let (dimensions, position) = unsafe { (repr.get_dimensions(), repr.get_position()) };
         let rect = util::AaRect::new(position, dimensions);
-        MonitorId {
+        MonitorHandle {
             id,
             name,
             hidpi_factor,
@@ -104,7 +104,7 @@ impl MonitorId {
 }
 
 impl XConnection {
-    pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>) -> MonitorId {
+    pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>) -> MonitorHandle {
         let monitors = self.get_available_monitors();
         let default = monitors
             .get(0)
@@ -128,7 +128,7 @@ impl XConnection {
         matched_monitor.to_owned()
     }
 
-    fn query_monitor_list(&self) -> Vec<MonitorId> {
+    fn query_monitor_list(&self) -> Vec<MonitorHandle> {
         unsafe {
             let root = (self.xlib.XDefaultRootWindow)(self.display);
             // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
@@ -153,7 +153,7 @@ impl XConnection {
                     let monitor = monitors.offset(monitor_index as isize);
                     let is_primary = (*monitor).primary != 0;
                     has_primary |= is_primary;
-                    available.push(MonitorId::from_repr(
+                    available.push(MonitorHandle::from_repr(
                         self,
                         resources,
                         monitor_index as u32,
@@ -176,7 +176,7 @@ impl XConnection {
                         let crtc = util::MonitorRepr::from(crtc);
                         let is_primary = crtc.get_output() == primary;
                         has_primary |= is_primary;
-                        available.push(MonitorId::from_repr(
+                        available.push(MonitorHandle::from_repr(
                             self,
                             resources,
                             crtc_id as u32,
@@ -201,7 +201,7 @@ impl XConnection {
         }
     }
 
-    pub fn get_available_monitors(&self) -> Vec<MonitorId> {
+    pub fn get_available_monitors(&self) -> Vec<MonitorHandle> {
         let mut monitors_lock = MONITORS.lock();
         (*monitors_lock)
             .as_ref()
@@ -217,7 +217,7 @@ impl XConnection {
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
         self.get_available_monitors()
             .into_iter()
             .find(|monitor| monitor.primary)

@@ -11,13 +11,13 @@ use super::EventLoop;
 use super::window::{IdRef, Window2};
 
 #[derive(Clone, PartialEq)]
-pub struct MonitorId(CGDirectDisplayID);
+pub struct MonitorHandle(CGDirectDisplayID);
 
-fn get_available_monitors() -> VecDeque<MonitorId> {
+fn get_available_monitors() -> VecDeque<MonitorHandle> {
     if let Ok(displays) = CGDisplay::active_displays() {
         let mut monitors = VecDeque::with_capacity(displays.len());
         for d in displays {
-            monitors.push_back(MonitorId(d));
+            monitors.push_back(MonitorHandle(d));
         }
         monitors
     } else {
@@ -25,44 +25,44 @@ fn get_available_monitors() -> VecDeque<MonitorId> {
     }
 }
 
-pub fn get_primary_monitor() -> MonitorId {
-    let id = MonitorId(CGDisplay::main().id);
+pub fn get_primary_monitor() -> MonitorHandle {
+    let id = MonitorHandle(CGDisplay::main().id);
     id
 }
 
 impl EventLoop {
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         get_available_monitors()
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
         get_primary_monitor()
     }
 
-    pub fn make_monitor_from_display(id: CGDirectDisplayID) -> MonitorId {
-        let id = MonitorId(id);
+    pub fn make_monitor_from_display(id: CGDirectDisplayID) -> MonitorHandle {
+        let id = MonitorHandle(id);
         id
     }
 }
 
 impl Window2 {
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         get_available_monitors()
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
         get_primary_monitor()
     }
 }
 
-impl fmt::Debug for MonitorId {
+impl fmt::Debug for MonitorHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         #[derive(Debug)]
-        struct MonitorId {
+        struct MonitorHandle {
             name: Option<String>,
             native_identifier: u32,
             dimensions: PhysicalSize,
@@ -70,7 +70,7 @@ impl fmt::Debug for MonitorId {
             hidpi_factor: f64,
         }
 
-        let monitor_id_proxy = MonitorId {
+        let monitor_id_proxy = MonitorHandle {
             name: self.get_name(),
             native_identifier: self.get_native_identifier(),
             dimensions: self.get_dimensions(),
@@ -82,9 +82,9 @@ impl fmt::Debug for MonitorId {
     }
 }
 
-impl MonitorId {
+impl MonitorHandle {
     pub fn get_name(&self) -> Option<String> {
-        let MonitorId(display_id) = *self;
+        let MonitorHandle(display_id) = *self;
         let screen_num = CGDisplay::new(display_id).model_number();
         Some(format!("Monitor #{}", screen_num))
     }
@@ -95,7 +95,7 @@ impl MonitorId {
     }
 
     pub fn get_dimensions(&self) -> PhysicalSize {
-        let MonitorId(display_id) = *self;
+        let MonitorHandle(display_id) = *self;
         let display = CGDisplay::new(display_id);
         let height = display.pixels_high();
         let width = display.pixels_wide();

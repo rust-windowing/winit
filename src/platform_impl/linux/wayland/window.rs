@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex, Weak};
 
 use {CreationError, MouseCursor, WindowAttributes};
 use dpi::{LogicalPosition, LogicalSize};
-use platform_impl::MonitorId as PlatformMonitorId;
-use window::MonitorId as RootMonitorId;
+use platform_impl::MonitorHandle as PlatformMonitorHandle;
+use window::MonitorHandle as RootMonitorHandle;
 
 use sctk::window::{ConceptFrame, Event as WEvent, Window as SWindow};
 use sctk::reexports::client::{Display, Proxy};
@@ -13,7 +13,7 @@ use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as Composito
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
 use sctk::output::OutputMgr;
 
-use super::{make_wid, EventLoop, MonitorId, WindowId};
+use super::{make_wid, EventLoop, MonitorHandle, WindowId};
 use platform_impl::platform::wayland::event_loop::{get_available_monitors, get_primary_monitor};
 
 pub struct Window {
@@ -42,7 +42,7 @@ impl Window {
             let window_store = evlp.store.clone();
             surface.implement(move |event, surface| match event {
                 wl_surface::Event::Enter { output } => {
-                    let dpi_change = list.lock().unwrap().add_output(MonitorId {
+                    let dpi_change = list.lock().unwrap().add_output(MonitorHandle {
                         proxy: output,
                         mgr: omgr.clone(),
                     });
@@ -111,8 +111,8 @@ impl Window {
         }
 
         // Check for fullscreen requirements
-        if let Some(RootMonitorId {
-            inner: PlatformMonitorId::Wayland(ref monitor_id),
+        if let Some(RootMonitorHandle {
+            inner: PlatformMonitorHandle::Wayland(ref monitor_id),
         }) = attributes.fullscreen
         {
             frame.set_fullscreen(Some(&monitor_id.proxy));
@@ -247,9 +247,9 @@ impl Window {
         }
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
-        if let Some(RootMonitorId {
-            inner: PlatformMonitorId::Wayland(ref monitor_id),
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+        if let Some(RootMonitorHandle {
+            inner: PlatformMonitorHandle::Wayland(ref monitor_id),
         }) = monitor
         {
             self.frame
@@ -289,18 +289,18 @@ impl Window {
         &self.surface
     }
 
-    pub fn get_current_monitor(&self) -> MonitorId {
+    pub fn get_current_monitor(&self) -> MonitorHandle {
         // we don't know how much each monitor sees us so...
         // just return the most recent one ?
         let guard = self.monitors.lock().unwrap();
         guard.monitors.last().unwrap().clone()
     }
 
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         get_available_monitors(&self.outputs)
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorId {
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
         get_primary_monitor(&self.outputs)
     }
 }
@@ -412,7 +412,7 @@ impl WindowStore {
  */
 
 struct MonitorList {
-    monitors: Vec<MonitorId>
+    monitors: Vec<MonitorHandle>
 }
 
 impl MonitorList {
@@ -431,7 +431,7 @@ impl MonitorList {
         factor
     }
 
-    fn add_output(&mut self, monitor: MonitorId) -> Option<i32> {
+    fn add_output(&mut self, monitor: MonitorHandle) -> Option<i32> {
         let old_dpi = self.compute_hidpi_factor();
         let monitor_dpi = monitor.get_hidpi_factor();
         self.monitors.push(monitor);

@@ -3,7 +3,7 @@ use std::{fmt, error};
 
 use platform_impl;
 use event_loop::EventLoop;
-use monitor::{AvailableMonitorsIter, MonitorId};
+use monitor::{AvailableMonitorsIter, MonitorHandle};
 use dpi::{LogicalPosition, LogicalSize};
 
 pub use icon::*;
@@ -93,7 +93,7 @@ pub struct WindowAttributes {
     /// Whether the window should be set as fullscreen upon creation.
     ///
     /// The default is `None`.
-    pub fullscreen: Option<MonitorId>,
+    pub fullscreen: Option<MonitorHandle>,
 
     /// The title of the window in the title bar.
     ///
@@ -210,10 +210,10 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets the window fullscreen state. None means a normal window, Some(MonitorId)
+    /// Sets the window fullscreen state. None means a normal window, Some(MonitorHandle)
     /// means a fullscreen window on that specific monitor
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: Option<MonitorId>) -> WindowBuilder {
+    pub fn with_fullscreen(mut self, monitor: Option<MonitorHandle>) -> WindowBuilder {
         self.window.fullscreen = monitor;
         self
     }
@@ -521,7 +521,7 @@ impl Window {
 
     /// Sets the window to fullscreen or back
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<MonitorId>) {
+    pub fn set_fullscreen(&self, monitor: Option<MonitorHandle>) {
         self.window.set_fullscreen(monitor)
     }
 
@@ -558,7 +558,7 @@ impl Window {
 
     /// Returns the monitor on which the window currently resides
     #[inline]
-    pub fn get_current_monitor(&self) -> MonitorId {
+    pub fn get_current_monitor(&self) -> MonitorHandle {
         self.window.get_current_monitor()
     }
 
@@ -575,8 +575,8 @@ impl Window {
     ///
     /// This is the same as `EventLoop::get_primary_monitor`, and is provided for convenience.
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId { inner: self.window.get_primary_monitor() }
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle { inner: self.window.get_primary_monitor() }
     }
 
     /// Returns an identifier unique to the window.

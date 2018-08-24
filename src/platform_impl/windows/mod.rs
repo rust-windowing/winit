@@ -4,7 +4,7 @@ use winapi;
 use winapi::shared::windef::HWND;
 
 pub use self::event_loop::{EventLoop, EventLoopProxy};
-pub use self::monitor::MonitorId;
+pub use self::monitor::MonitorHandle;
 pub use self::window::Window;
 
 use window::Icon;

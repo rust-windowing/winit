@@ -10,10 +10,10 @@ use parking_lot::Mutex;
 use {Icon, MouseCursor, WindowAttributes};
 use CreationError::{self, OsError};
 use dpi::{LogicalPosition, LogicalSize};
-use platform_impl::MonitorId as PlatformMonitorId;
+use platform_impl::MonitorHandle as PlatformMonitorHandle;
 use platform_impl::PlatformSpecificWindowBuilderAttributes;
-use platform_impl::x11::MonitorId as X11MonitorId;
-use window::MonitorId as RootMonitorId;
+use platform_impl::x11::MonitorHandle as X11MonitorHandle;
+use window::MonitorHandle as RootMonitorHandle;
 
 use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventLoop};
 
@@ -35,7 +35,7 @@ pub struct SharedState {
     pub inner_position: Option<(i32, i32)>,
     pub inner_position_rel_parent: Option<(i32, i32)>,
     pub guessed_dpi: Option<f64>,
-    pub last_monitor: Option<X11MonitorId>,
+    pub last_monitor: Option<X11MonitorHandle>,
     pub dpi_adjusted: Option<(f64, f64)>,
     // Used to restore position after exiting fullscreen.
     pub restore_position: Option<(i32, i32)>,
@@ -511,7 +511,7 @@ impl UnownedWindow {
         self.set_netwm(fullscreen.into(), (fullscreen_atom as c_long, 0, 0, 0))
     }
 
-    fn set_fullscreen_inner(&self, monitor: Option<RootMonitorId>) -> util::Flusher {
+    fn set_fullscreen_inner(&self, monitor: Option<RootMonitorHandle>) -> util::Flusher {
         match monitor {
             None => {
                 let flusher = self.set_fullscreen_hint(false);
@@ -520,7 +520,7 @@ impl UnownedWindow {
                 }
                 flusher
             },
-            Some(RootMonitorId { inner: PlatformMonitorId::X(monitor) }) => {
+            Some(RootMonitorHandle { inner: PlatformMonitorHandle::X(monitor) }) => {
                 let window_position = self.get_position_physical();
                 self.shared_state.lock().restore_position = window_position;
                 let monitor_origin: (i32, i32) = monitor.get_position().into();
@@ -532,7 +532,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
         self.set_fullscreen_inner(monitor)
             .flush()
             .expect("Failed to change window fullscreen state");
@@ -549,7 +549,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> X11MonitorId {
+    pub fn get_current_monitor(&self) -> X11MonitorHandle {
         let monitor = self.shared_state
             .lock()
             .last_monitor
@@ -563,11 +563,11 @@ impl UnownedWindow {
             })
     }
 
-    pub fn get_available_monitors(&self) -> Vec<X11MonitorId> {
+    pub fn get_available_monitors(&self) -> Vec<X11MonitorHandle> {
         self.xconn.get_available_monitors()
     }
 
-    pub fn get_primary_monitor(&self) -> X11MonitorId {
+    pub fn get_primary_monitor(&self) -> X11MonitorHandle {
         self.xconn.get_primary_monitor()
     }
 

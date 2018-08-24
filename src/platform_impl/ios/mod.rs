@@ -82,7 +82,7 @@ use {
     WindowId as RootEventId,
 };
 use events::{Touch, TouchPhase};
-use window::MonitorId as RootMonitorId;
+use window::MonitorHandle as RootMonitorHandle;
 
 mod ffi;
 use self::ffi::{
@@ -145,19 +145,19 @@ impl Drop for DelegateState {
 }
 
 #[derive(Clone)]
-pub struct MonitorId;
+pub struct MonitorHandle;
 
-impl fmt::Debug for MonitorId {
+impl fmt::Debug for MonitorHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         #[derive(Debug)]
-        struct MonitorId {
+        struct MonitorHandle {
             name: Option<String>,
             dimensions: PhysicalSize,
             position: PhysicalPosition,
             hidpi_factor: f64,
         }
 
-        let monitor_id_proxy = MonitorId {
+        let monitor_id_proxy = MonitorHandle {
             name: self.get_name(),
             dimensions: self.get_dimensions(),
             position: self.get_position(),
@@ -168,7 +168,7 @@ impl fmt::Debug for MonitorId {
     }
 }
 
-impl MonitorId {
+impl MonitorHandle {
     #[inline]
     pub fn get_uiscreen(&self) -> id {
         let class = class!(UIScreen);
@@ -217,15 +217,15 @@ impl EventLoop {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut rb = VecDeque::with_capacity(1);
-        rb.push_back(MonitorId);
+        rb.push_back(MonitorHandle);
         rb
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle
     }
 
     pub fn poll_events<F>(&mut self, mut callback: F)
@@ -330,7 +330,7 @@ impl Window {
                 (&mut *delegate).set_ivar("eventsQueue", mem::transmute::<_, *mut c_void>(events_queue));
 
                 // easiest? way to get access to PlatformSpecificWindowBuilderAttributes to configure the view
-                let rect: CGRect = msg_send![MonitorId.get_uiscreen(), bounds];
+                let rect: CGRect = msg_send![MonitorHandle.get_uiscreen(), bounds];
 
                 let uiview_class = class!(UIView);
                 let root_view_class = pl_attributes.root_view_class;
@@ -462,7 +462,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorHandle>) {
         // N/A
         // iOS has single screen maximized apps so nothing to do
     }
@@ -488,20 +488,20 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorId {
-        RootMonitorId { inner: MonitorId }
+    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle { inner: MonitorHandle }
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut rb = VecDeque::with_capacity(1);
-        rb.push_back(MonitorId);
+        rb.push_back(MonitorHandle);
         rb
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle
     }
 
     #[inline]

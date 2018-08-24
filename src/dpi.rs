@@ -33,7 +33,7 @@
 //!   windows. This event is sent any time the DPI factor changes, either because the window moved to another monitor,
 //!   or because the user changed the configuration of their screen.
 //! - You can also retrieve the DPI factor of a monitor by calling
-//!   [`MonitorId::get_hidpi_factor`](../monitor/struct.MonitorId.html#method.get_hidpi_factor), or the
+//!   [`MonitorHandle::get_hidpi_factor`](../monitor/struct.MonitorHandle.html#method.get_hidpi_factor), or the
 //!   current DPI factor applied to a window by calling
 //!   [`Window::get_hidpi_factor`](../window/struct.Window.html#method.get_hidpi_factor), which is roughly equivalent
 //!   to `window.get_current_monitor().get_hidpi_factor()`.
