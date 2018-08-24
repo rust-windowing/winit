@@ -105,8 +105,9 @@ impl<T> EventLoop<T> {
         MonitorId { inner: self.events_loop.get_primary_monitor() }
     }
 
-    /// Hijacks the calling thread and initializes the `winit` event loop. Can take a
-    /// `FnMut(Event, &EventLoop) -> ControlFlow` or a custom `EventHandler` type.
+    /// Hijacks the calling thread and initializes the `winit` event loop with the provided
+    /// closure. Since the closure is `'static`, it must be a `move` closure if it needs to
+    /// access any data from the calling context.
     ///
     /// Any values not passed to this function will *not* be dropped.
     #[inline]
