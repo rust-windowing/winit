@@ -1,4 +1,40 @@
 # Unreleased
+- Changes below are considered **breaking**.
+- Change all occurrences of `EventsLoop` to `EventLoop`.
+- Previously flat API is now exposed through `event`, `event_loop`, `monitor`, and `window` modules.
+- `os` module changes:
+  - Renamed to `platform`.
+  - All traits now have platform-specific suffixes.
+  - Exposes new `desktop` module on Windows, Mac, and Linux.
+- Changes to event loop types:
+  - `EventLoopProxy::wakeup` has been removed in favor of `send_event`.
+  - **Major:** New `run` method drives winit event loop.
+    - Returns `!` to ensure API behaves identically across all supported platforms.
+      - This allows `emscripten` implementation to work without lying about the API.
+    - `ControlFlow`'s variants have been replaced with `Wait`, `WaitUntil(Instant)`, `Poll`, and `Exit`.
+      - Is read after `EventsCleared` is processed.
+      - `Wait` waits until new events are available.
+      - `WaitUntil` waits until either new events are available or the provided time has been reached.
+      - `Poll` instantly resumes the event loop.
+      - `Exit` aborts the event loop.
+    - Takes a closure that implements `'static + FnMut(Event<T>, &EventLoop<T>, &mut ControlFlow)`.
+      - `&EventLoop<T>` is provided to allow new `Window`s to be created.
+  - **Major:** `platform::desktop` module exposes `EventLoopExtDesktop` trait with `run_return` method.
+    - Behaves identically to `run`, but returns control flow to the calling context can take non-`'static` closures.
+  - `EventLoop`'s `poll_events` and `run_forever` methods have been removed in favor of `run` and `run_return`.
+- Changes to events:
+  - Remove `Event::Awakened` in favor of `Event::UserEvent(T)`.
+    - Can be sent with `EventLoopProxy::send_event`.
+  - Rename `WindowEvent::Refresh` to `WindowEvent::RedrawRequested`.
+    - `RedrawRequested` can be sent by the user with the `Window::request_redraw` method.
+  - `EventLoop`, `EventLoopProxy`, and `Event` are now generic over `T`, for use in `UserEvent`.
+  - **Major:** Add `NewEvents(StartCause)`, `EventsCleared`, and `LoopDestroyed` variants to `Event`.
+    - `NewEvents` is emitted when new events are ready to be processed by event loop.
+      - `StartCause` describes why new events are available, with `ResumeTimeReached`, `Poll`, `WaitCancelled`, and `Init` (sent once at start of loop).
+    - `EventsCleared` is emitted when all available events have been processed.
+      - Can be used to perform logic that depends on all events being processed (e.g. an iteration of a game loop).
+    - `LoopDestroyed` is emitted when the `run` or `run_return` method is about to exit.
+- Rename `MonitorId` to `MonitorHandle`.
 
 # Version 0.18.0 (2018-11-07)
 
