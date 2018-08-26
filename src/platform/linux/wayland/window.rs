@@ -7,8 +7,7 @@ use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
 
 use sctk::window::{BasicFrame, Event as WEvent, Window as SWindow};
-use sctk::reexports::client::Proxy;
-use sctk::reexports::client::sys::client::wl_display;
+use sctk::reexports::client::{Display, Proxy};
 use sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_output};
 use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as CompositorRequests;
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
@@ -23,9 +22,9 @@ pub struct Window {
     monitors: Arc<Mutex<MonitorList>>, // Monitors this window is currently on
     outputs: OutputMgr, // Access to info for all monitors
     size: Arc<Mutex<(u32, u32)>>,
-    kill_switch: Option<(Arc<Mutex<bool>>, Arc<Mutex<bool>>)>,
+    kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
+    display: Arc<Display>,
     need_frame_refresh: Arc<Mutex<bool>>,
-    display_ptr: *mut wl_display,
 }
 
 pub struct RawWindowParts {
@@ -46,6 +45,7 @@ impl Window {
         let size = Arc::new(Mutex::new((rwp.width, rwp.height)));
         let monitor_list = Arc::new(Mutex::new(MonitorList::new()));
         let need_frame_refresh = Arc::new(Mutex::new(false));
+        let kill_switch = Arc::new(Mutex::new(false));
 
         evlp.store.lock().unwrap().windows.push(InternalWindow {
             closed: false,
@@ -54,22 +54,23 @@ impl Window {
             need_refresh: false,
             need_frame_refresh: need_frame_refresh.clone(),
             surface: surface.clone(),
-            kill_switch: None,
+            kill_switch: kill_switch.clone(),
             frame: Arc::downgrade(&frame),
             current_dpi: 1,
             new_dpi: None,
+            should_kill: false,
         });
         evlp.evq.borrow_mut().sync_roundtrip().unwrap();
 
         Ok(Window {
+            display: evlp.display.clone(),
             surface,
             frame,
             monitors: monitor_list,
             outputs: evlp.env.outputs.clone(),
             size,
-            kill_switch: None,
+            kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
             need_frame_refresh: need_frame_refresh,
-            display_ptr: evlp.display_ptr,
         })
     }
 
@@ -188,22 +189,23 @@ impl Window {
             need_refresh: false,
             need_frame_refresh: need_frame_refresh.clone(),
             surface: surface.clone(),
-            kill_switch: Some(kill_switch.clone()),
+            kill_switch: kill_switch.clone(),
             frame: Arc::downgrade(&frame),
             current_dpi: 1,
             new_dpi: None,
+            should_kill: false,
         });
         evlp.evq.borrow_mut().sync_roundtrip().unwrap();
 
         Ok(Window {
+            display: evlp.display.clone(),
             surface,
             frame,
             monitors: monitor_list,
             outputs: evlp.env.outputs.clone(),
             size,
-            kill_switch: Some((kill_switch, evlp.cleanup_needed.clone())),
+            kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
             need_frame_refresh: need_frame_refresh,
-            display_ptr: evlp.display_ptr,
         })
     }
 
@@ -396,8 +398,8 @@ impl Window {
         Err("Setting the cursor position is not yet possible on Wayland.".to_owned())
     }
 
-    pub fn get_display(&self) -> *mut wl_display {
-        self.display_ptr
+    pub fn get_display(&self) -> &Display {
+        &*self.display
     }
 
     pub fn get_surface(&self) -> &Proxy<wl_surface::WlSurface> {
@@ -422,10 +424,8 @@ impl Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        if let Some(ref ks) = self.kill_switch {
-            *(ks.0.lock().unwrap()) = true;
-            *(ks.1.lock().unwrap()) = true;
-        }
+        *(self.kill_switch.0.lock().unwrap()) = true;
+        *(self.kill_switch.1.lock().unwrap()) = true;
     }
 }
 
@@ -440,10 +440,11 @@ struct InternalWindow {
     need_refresh: bool,
     need_frame_refresh: Arc<Mutex<bool>>,
     closed: bool,
-    kill_switch: Option<Arc<Mutex<bool>>>,
+    kill_switch: Arc<Mutex<bool>>,
     frame: Weak<Mutex<Option<SWindow<BasicFrame>>>>,
     current_dpi: i32,
-    new_dpi: Option<i32>
+    new_dpi: Option<i32>,
+    should_kill: bool,
 }
 
 pub struct WindowStore {
@@ -469,15 +470,14 @@ impl WindowStore {
     pub fn cleanup(&mut self) -> Vec<WindowId> {
         let mut pruned = Vec::new();
         self.windows.retain(|w| {
-            if let Some(ref ks) = w.kill_switch {
-                if *ks.lock().unwrap() {
-                    // window is dead, cleanup
+            if *w.kill_switch.lock().unwrap() {
+                // window is dead, cleanup
+                if w.should_kill {
                     pruned.push(make_wid(&w.surface));
                     w.surface.destroy();
-                    false
-                } else {
-                    true
                 }
+
+                false
             } else {
                 true
             }

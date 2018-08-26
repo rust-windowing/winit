@@ -16,7 +16,6 @@ use sctk::reexports::client::commons::Implementation;
 use sctk::reexports::client::protocol::{
     wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat, wl_touch,
 };
-use sctk::reexports::client::{ConnectError, Display, EventQueue, GlobalEvent, Proxy};
 use sctk::Environment;
 
 use sctk::reexports::client::protocol::wl_display::RequestsTrait as DisplayRequests;
@@ -56,7 +55,7 @@ impl EventsLoopSink {
 }
 
 pub struct RawEventsLoopParts {
-    display_ptr: *mut wl_display,
+    pub display_ptr: *mut wl_display,
 }
 
 pub struct EventsLoop {
@@ -76,8 +75,6 @@ pub struct EventsLoop {
     pub display: Arc<Display>,
     // The list of seats
     pub seats: Arc<Mutex<Vec<(u32, Proxy<wl_seat::WlSeat>)>>>,
-    // The display ptr
-    pub display_ptr: *mut wl_display,
 }
 
 // A handle that can be sent across threads and used to wake up the `EventsLoop`.
@@ -113,16 +110,15 @@ impl EventsLoopProxy {
 impl EventsLoop {
     pub fn new() -> Result<EventsLoop, ConnectError> {
         let (display, event_queue) = Display::connect_to_env()?;
-        let display_ptr = display.c_ptr();
-        Ok(Self::new_internal(display, event_queue, display_ptr as *mut _))
+        Ok(Self::new_internal(display, event_queue))
     }
 
     pub unsafe fn new_from_raw_parts(relp: &RawEventsLoopParts) -> EventsLoop {
         let (display, event_queue) = Display::from_external_display(relp.display_ptr);
-        Self::new_internal(display, event_queue, relp.display_ptr)
+        Self::new_internal(display, event_queue)
     }
 
-    fn new_internal(display: Display, mut event_queue: EventQueue, display_ptr: *mut wl_display) -> EventsLoop {
+    fn new_internal(display: Display, mut event_queue: EventQueue) -> EventsLoop {
         let display = Arc::new(display);
         let pending_wakeup = Arc::new(AtomicBool::new(false));
 
@@ -153,13 +149,12 @@ impl EventsLoop {
             env,
             cleanup_needed: Arc::new(Mutex::new(false)),
             seats,
-            display_ptr,
         }
     }
 
     pub fn get_raw_parts(&self) -> RawEventsLoopParts {
         RawEventsLoopParts {
-            display_ptr: self.display_ptr,
+            display_ptr: self.display.get_display_ptr(),
         }
     }
 

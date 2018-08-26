@@ -7,7 +7,7 @@ use std::os::raw::*;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use sctk::reexports::client::ConnectError;
+pub use sctk::reexports::client::ConnectError;
 
 use {
     CreationError,
@@ -19,7 +19,7 @@ use {
 };
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use window::MonitorId as RootMonitorId;
-use self::x11::{XConnection, XError};
+pub use self::x11::{XConnection, XError};
 use self::x11::ffi::XVisualInfo;
 pub use self::x11::XNotSupported;
 

@@ -1266,13 +1266,16 @@ pub struct WindowId(ffi::Window);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
 
-pub struct Window(Arc<UnownedWindow>);
+pub struct Window {
+    inner: Arc<UnownedWindow>,
+    should_free: bool,
+}
 
 impl Deref for Window {
     type Target = UnownedWindow;
     #[inline]
     fn deref(&self) -> &UnownedWindow {
-        &*self.0
+        &*self.inner
     }
 }
 
@@ -1283,11 +1286,14 @@ impl Window {
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes
     ) -> Result<Self, CreationError> {
-        let window = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
+        let inner = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
         event_loop.windows
             .borrow_mut()
-            .insert(window.id(), Arc::downgrade(&window));
-        Ok(Window(window))
+            .insert(inner.id(), Arc::downgrade(&inner));
+        Ok(Window{
+            inner,
+            should_free: true,
+        })
     }
 
     #[inline]
@@ -1295,27 +1301,32 @@ impl Window {
         event_loop: &EventsLoop,
         rwp: &RawWindowParts,
     ) -> Result<Self, CreationError> {
-        let window = Arc::new(UnownedWindow::new_from_raw_parts(&event_loop, rwp)?);
+        let inner = Arc::new(UnownedWindow::new_from_raw_parts(&event_loop, rwp)?);
         event_loop.windows
             .borrow_mut()
-            .insert(window.id(), Arc::downgrade(&window));
-        Ok(Window(window))
+            .insert(inner.id(), Arc::downgrade(&inner));
+        Ok(Window{
+            inner,
+            should_free: false,
+        })
     }
 
     #[inline]
     pub fn get_raw_parts(&self) -> RawWindowParts {
-        self.0.get_raw_parts()
+        self.inner.get_raw_parts()
     }
 }
 
 impl Drop for Window {
     fn drop(&mut self) {
-        let window = self.deref();
-        let xconn = &window.xconn;
-        unsafe {
-            (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0);
-            // If the window was somehow already destroyed, we'll get a `BadWindow` error, which we don't care about.
-            let _ = xconn.check_errors();
+        if self.should_free {
+            let window = self.deref();
+            let xconn = &window.xconn;
+            unsafe {
+                (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0);
+                // If the window was somehow already destroyed, we'll get a `BadWindow` error, which we don't care about.
+                let _ = xconn.check_errors();
+            }
         }
     }
 }

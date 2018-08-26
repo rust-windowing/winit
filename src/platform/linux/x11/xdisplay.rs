@@ -17,8 +17,9 @@ pub struct XConnection {
     pub xcursor: ffi::Xcursor,
     pub xinput2: ffi::XInput2,
     pub xlib_xcb: ffi::Xlib_xcb,
-    pub display: *mut ffi::Display,
     pub latest_error: Mutex<Option<XError>>,
+    pub display: *mut ffi::Display,
+    pub free_display: bool,
 }
 
 unsafe impl Send for XConnection {}
@@ -27,6 +28,11 @@ unsafe impl Sync for XConnection {}
 pub type XErrorHandler = Option<unsafe extern fn(*mut ffi::Display, *mut ffi::XErrorEvent) -> libc::c_int>;
 
 impl XConnection {
+    pub fn new_xlib_ptrs() -> Result<ffi::Xlib, XNotSupported> {
+        let xlib = ffi::Xlib::open()?;
+        Ok(xlib)
+    }
+
     pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
         let xlib = ffi::Xlib::open()?;
         unsafe { (xlib.XInitThreads)() };
@@ -41,9 +47,12 @@ impl XConnection {
             display
         };
 
-        Self::new_from_display(xlib, display)
+        let mut ret = Self::new_from_display(xlib, display)?;
+        ret.free_display = true;
+        Ok(ret)
     }
 
+    /// NOTE: We will not free the display you pass in. That's your job.
     pub fn new_from_display(xlib: ffi::Xlib, display: *mut ffi::Display) -> Result<XConnection, XNotSupported> {
         // opening the libraries
         let xcursor = ffi::Xcursor::open()?;
@@ -60,6 +69,7 @@ impl XConnection {
             xinput2,
             xlib_xcb,
             display,
+            free_display: false,
             latest_error: Mutex::new(None),
         })
     }
@@ -91,7 +101,9 @@ impl fmt::Debug for XConnection {
 impl Drop for XConnection {
     #[inline]
     fn drop(&mut self) {
-        unsafe { (self.xlib.XCloseDisplay)(self.display) };
+        if self.free_display {
+            unsafe { (self.xlib.XCloseDisplay)(self.display); }
+        }
     }
 }
 

@@ -17,6 +17,7 @@ use platform::{
 };
 use platform::x11::XConnection;
 use platform::x11::ffi::XVisualInfo;
+pub use sctk::reexports::client::ConnectError;
 
 // TODO: stupid hack so that glutin can do its work
 #[doc(hidden)]
@@ -32,7 +33,7 @@ pub trait EventsLoopExt {
         where Self: Sized;
 
     /// Builds a new `EventsLoop` that is forced to use Wayland.
-    fn new_wayland() -> Self
+    fn new_wayland() -> Result<Self, ConnectError>
         where Self: Sized;
 
     /// True if the `EventsLoop` uses Wayland.
@@ -57,14 +58,11 @@ impl EventsLoopExt for EventsLoop {
     }
 
     #[inline]
-    fn new_wayland() -> Self {
-        EventsLoop {
-            events_loop: match LinuxEventsLoop::new_wayland() {
-                Ok(e) => e,
-                Err(_) => panic!()      // TODO: propagate
-            },
+    fn new_wayland() -> Result<Self, ConnectError> {
+        Ok(EventsLoop {
+            events_loop: LinuxEventsLoop::new_wayland()?,
             _marker: ::std::marker::PhantomData,
-        }
+        })
     }
 
     #[inline]
@@ -197,7 +195,7 @@ impl WindowExt for Window {
     #[inline]
     fn get_wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::Wayland(ref w) => Some(w.get_display() as *mut _),
+            LinuxWindow::Wayland(ref w) => Some(w.get_display().get_display_ptr() as *mut _),
             _ => None
         }
     }
