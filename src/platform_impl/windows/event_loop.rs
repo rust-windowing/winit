@@ -99,7 +99,6 @@ pub struct WindowState {
     pub maximized: bool,
     pub resizable: bool,
     pub mouse_buttons_down: u32,
-    pub modal_timer_handle: UINT_PTR
 }
 
 impl WindowState {
@@ -190,7 +189,8 @@ impl<T> EventLoop<T> {
             event_loop: self,
             control_flow: ControlFlow::default(),
             runner_state: RunnerState::New,
-            modal_loop_data: None,
+            in_modal_loop: false,
+            modal_redraw_window: self.thread_msg_target,
             event_handler: unsafe {
                 // Transmute used to erase lifetimes.
                 mem::transmute::<
@@ -213,8 +213,6 @@ impl<T> EventLoop<T> {
         }
 
         unsafe {
-            let timer_handle = winuser::SetTimer(ptr::null_mut(), 0, 0x7FFFFFFF, None);
-
             let mut msg = mem::uninitialized();
             let mut msg_unprocessed = false;
 
@@ -241,16 +239,7 @@ impl<T> EventLoop<T> {
                         msg_unprocessed = true;
                     }
                     ControlFlow::WaitUntil(resume_time) => {
-                        let now = Instant::now();
-                        if now <= resume_time {
-                            let duration = resume_time - now;
-                            winuser::SetTimer(ptr::null_mut(), timer_handle, dur2timeout(duration), None);
-                            if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
-                                break 'main
-                            }
-                            winuser::SetTimer(ptr::null_mut(), timer_handle, 0x7FFFFFFF, None);
-                            msg_unprocessed = true;
-                        }
+                        wait_until_time_or_msg(resume_time);
                     },
                     ControlFlow::Poll => ()
                 }
@@ -286,13 +275,9 @@ pub(crate) struct EventLoopRunner<T> {
     event_loop: *const EventLoop<T>,
     control_flow: ControlFlow,
     runner_state: RunnerState,
-    modal_loop_data: Option<ModalLoopData>,
+    modal_redraw_window: HWND,
+    in_modal_loop: bool,
     event_handler: *mut FnMut(Event<T>, &RootEventLoop<T>, &mut ControlFlow)
-}
-
-struct ModalLoopData {
-    hwnd: HWND,
-    timer_handle: UINT_PTR
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -363,12 +348,18 @@ impl<T> EventLoopRunner<T> {
     }
 
     unsafe fn process_event(&mut self, event: Event<T>) {
-        // If we're in the middle of a modal loop, only set the timer for zero if it hasn't been
-        // reset in a prior call to `process_event`.
-        if let Some(ModalLoopData{hwnd, timer_handle}) = self.modal_loop_data {
-            if self.runner_state != RunnerState::HandlingEvents {
-                winuser::SetTimer(hwnd, timer_handle, 0, None);
-            }
+        // If we're in the modal loop, we need to have some mechanism for finding when the event
+        // queue has been cleared so we can call `events_cleared`. Windows doesn't give any utilities
+        // for doing this, but it DOES guarantee that WM_PAINT will only occur after input events have
+        // been processed. So, we send WM_PAINT to a dummy window which calls `events_cleared` when
+        // the events queue has been emptied.
+        if self.in_modal_loop {
+            winuser::RedrawWindow(
+                self.modal_redraw_window,
+                ptr::null(),
+                ptr::null_mut(),
+                winuser::RDW_INTERNALPAINT
+            );
         }
 
         // If new event processing has to be done (i.e. call NewEvents or defer), do it. If we're
@@ -475,6 +466,29 @@ impl<T> EventLoopRunner<T> {
     }
 }
 
+// Returns true if the wait time was reached, and false if a message must be processed.
+unsafe fn wait_until_time_or_msg(wait_until: Instant) -> bool {
+    let mut msg = mem::uninitialized();
+    let now = Instant::now();
+    if now <= wait_until {
+        // MsgWaitForMultipleObjects tends to overshoot just a little bit. We subtract 1 millisecond
+        // from the requested time and spinlock for the remainder to compensate for that.
+        winuser::MsgWaitForMultipleObjects(
+            0,
+            ptr::null(),
+            1,
+            dur2timeout(wait_until - now).saturating_sub(1),
+            winuser::QS_ALLINPUT
+        );
+        while Instant::now() < wait_until {
+            if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
 // Implementation taken from https://github.com/rust-lang/rust/blob/db5476571d9b27c862b95c1e64764b0ac8980e23/src/libstd/sys/windows/mod.rs
 fn dur2timeout(dur: Duration) -> DWORD {
     // Note that a duration is a (u64, u32) (seconds, nanoseconds) pair, and the
@@ -648,7 +662,7 @@ lazy_static! {
 fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) -> (HWND, Sender<T>) {
     unsafe {
         let window = winuser::CreateWindowExW(
-            0,
+            winuser::WS_EX_NOACTIVATE | winuser::WS_EX_TRANSPARENT | winuser::WS_EX_LAYERED,
             THREAD_EVENT_TARGET_WINDOW_CLASS.as_ptr(),
             ptr::null_mut(),
             0,
@@ -658,6 +672,14 @@ fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) ->
             ptr::null_mut(),
             libloaderapi::GetModuleHandleW(ptr::null()),
             ptr::null_mut()
+        );
+        winuser::SetWindowLongPtrW(
+            window,
+            winuser::GWL_STYLE,
+            // The window technically has to be visible to receive WM_PAINT messages (which are used
+            // for delivering events during resizes), but it isn't displayed to the user because of
+            // the LAYERED style.
+            (winuser::WS_VISIBLE | winuser::WS_POPUP) as _
         );
 
         let (tx, rx) = crossbeam_channel::unbounded();
@@ -726,67 +748,20 @@ unsafe extern "system" fn public_window_callback<T>(
     let subclass_input = &mut*(subclass_input_ptr as *mut SubclassInput<T>);
 
     match msg {
-        winuser::WM_SYSCOMMAND => {
-            {
-                let mut window_state = subclass_input.window_state.lock();
-                if window_state.modal_timer_handle == 0 {
-                    window_state.modal_timer_handle = winuser::SetTimer(window, 0, 0x7FFFFFFF, None);
-                }
-            }
-            commctrl::DefSubclassProc(window, msg, wparam, lparam)
-        }
         winuser::WM_ENTERSIZEMOVE => {
-            let modal_timer_handle = subclass_input.window_state.lock().modal_timer_handle;
-            if let ELRSharedOption::Runner(runner) = *subclass_input.event_loop_runner.borrow_mut() {
-                (*runner).modal_loop_data = Some(ModalLoopData {
-                    hwnd: window,
-                    timer_handle: modal_timer_handle
-                });
+            let runner = subclass_input.event_loop_runner.borrow_mut();
+            if let ELRSharedOption::Runner(runner) = *runner {
+                (*runner).in_modal_loop = true;
             }
-            winuser::SetTimer(window, modal_timer_handle, 0, None);
             0
         },
         winuser::WM_EXITSIZEMOVE => {
-            let modal_timer_handle = subclass_input.window_state.lock().modal_timer_handle;
-            if let ELRSharedOption::Runner(runner) = *subclass_input.event_loop_runner.borrow_mut() {
-                (*runner).modal_loop_data = None;
+            let runner = subclass_input.event_loop_runner.borrow_mut();
+            if let ELRSharedOption::Runner(runner) = *runner {
+                (*runner).in_modal_loop = false;
             }
-            winuser::SetTimer(window, modal_timer_handle, 0x7FFFFFFF, None);
             0
         },
-        winuser::WM_TIMER => {
-            let modal_timer_handle = subclass_input.window_state.lock().modal_timer_handle;
-            if wparam == modal_timer_handle {
-                let runner = subclass_input.event_loop_runner.borrow_mut();
-                if let ELRSharedOption::Runner(runner) = *runner {
-                    let runner = &mut *runner;
-                    if runner.modal_loop_data.is_some() {
-                        runner.events_cleared();
-                        match runner.control_flow {
-                            ControlFlow::Exit => (),
-                            ControlFlow::Wait => {
-                                winuser::SetTimer(window, modal_timer_handle, 0x7FFFFFFF, None);
-                            },
-                            ControlFlow::WaitUntil(resume_time) => {
-                                let now = Instant::now();
-                                let duration = match now <= resume_time {
-                                    true => dur2timeout(resume_time - now),
-                                    false => 0
-                                };
-                                winuser::SetTimer(window, modal_timer_handle, duration, None);
-                            },
-                            ControlFlow::Poll => {
-                                winuser::SetTimer(window, modal_timer_handle, 0, None);
-                            }
-                        }
-
-                        runner.new_events();
-                    }
-                }
-            }
-            0
-        }
-
         winuser::WM_NCCREATE => {
             enable_non_client_dpi_scaling(window);
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
@@ -804,12 +779,6 @@ unsafe extern "system" fn public_window_callback<T>(
         winuser::WM_DESTROY => {
             use event::WindowEvent::Destroyed;
             ole2::RevokeDragDrop(window);
-            {
-                let window_state = subclass_input.window_state.lock();
-                if window_state.modal_timer_handle != 0 {
-                    winuser::KillTimer(window, window_state.modal_timer_handle);
-                }
-            }
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: Destroyed
@@ -1520,6 +1489,76 @@ unsafe extern "system" fn thread_event_target_callback<T>(
             drop(subclass_input);
             0
         },
+        // Because WM_PAINT comes after all other messages, we use it during modal loops to detect
+        // when the event queue has been emptied. See `process_event` for more details.
+        winuser::WM_PAINT => {
+            winuser::ValidateRect(window, ptr::null());
+            let queue_call_again = || {
+                winuser::RedrawWindow(
+                    window,
+                    ptr::null(),
+                    ptr::null_mut(),
+                    winuser::RDW_INTERNALPAINT
+                );
+            };
+            let in_modal_loop = {
+                let runner = subclass_input.event_loop_runner.borrow_mut();
+                if let ELRSharedOption::Runner(runner) = *runner {
+                    (*runner).in_modal_loop
+                } else {
+                    false
+                }
+            };
+            if in_modal_loop {
+                let mut msg = mem::uninitialized();
+                loop {
+                    if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
+                        break;
+                    }
+                    // Clear all paint/timer messages from the queue before sending the events cleared message.
+                    match msg.message {
+                        // Flush the event queue of WM_PAINT messages.
+                        winuser::WM_PAINT |
+                        winuser::WM_TIMER => {
+                            // Remove the message from the message queue.
+                            winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1);
+
+                            if msg.hwnd != window {
+                                winuser::TranslateMessage(&mut msg);
+                                winuser::DispatchMessageW(&mut msg);
+                            }
+                        },
+                        // If the message isn't one of those three, it may be handled by the modal
+                        // loop so we should return control flow to it.
+                        _ => {
+                            queue_call_again();
+                            return 0;
+                        }
+                    }
+                }
+
+                let runner = subclass_input.event_loop_runner.borrow_mut();
+                if let ELRSharedOption::Runner(runner) = *runner {
+                    let runner = &mut *runner;
+                    runner.events_cleared();
+                    match runner.control_flow {
+                        // Waiting is handled by the modal loop.
+                        ControlFlow::Exit |
+                        ControlFlow::Wait => runner.new_events(),
+                        ControlFlow::WaitUntil(resume_time) => {
+                            wait_until_time_or_msg(resume_time);
+                            runner.new_events();
+                            queue_call_again();
+                        },
+                        ControlFlow::Poll => {
+                            runner.new_events();
+                            queue_call_again();
+                        }
+                    }
+                }
+            }
+            0
+        }
         _ if msg == *USER_EVENT_MSG_ID => {
             if let Ok(event) = subclass_input.user_event_receiver.recv() {
                 subclass_input.send_event(Event::UserEvent(event));
