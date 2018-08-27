@@ -321,6 +321,7 @@ pub enum VirtualKeyCode {
     F17,
     F18,
     F19,
+    F20,
 
     /// Print Screen/SysRq.
     Snapshot,

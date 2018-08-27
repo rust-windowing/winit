@@ -636,7 +636,7 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
         0x57 => events::VirtualKeyCode::Numpad5,
         0x58 => events::VirtualKeyCode::Numpad6,
         0x59 => events::VirtualKeyCode::Numpad7,
-        //0x5a => F20 Key,
+        0x5a => events::VirtualKeyCode::F20,
         0x5b => events::VirtualKeyCode::Numpad8,
         0x5c => events::VirtualKeyCode::Numpad9,
         //0x5d => unkown,

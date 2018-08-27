@@ -125,7 +125,7 @@ pub fn keysym_to_element(keysym: libc::c_uint) -> Option<VirtualKeyCode> {
         //ffi::XK_L8 => events::VirtualKeyCode::L8,
         ffi::XK_F19 => events::VirtualKeyCode::F19,
         //ffi::XK_L9 => events::VirtualKeyCode::L9,
-        //ffi::XK_F20 => events::VirtualKeyCode::F20,
+        ffi::XK_F20 => events::VirtualKeyCode::F20,
         //ffi::XK_L10 => events::VirtualKeyCode::L10,
         //ffi::XK_F21 => events::VirtualKeyCode::F21,
         //ffi::XK_R1 => events::VirtualKeyCode::R1,

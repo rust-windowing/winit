@@ -814,7 +814,7 @@ fn key_translate_virt(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES
         "F17" => Some(F17),
         "F18" => Some(F18),
         "F19" => Some(F19),
-        "F20" => None,
+        "F20" => Some(F20),
         "Soft1" => None,
         "Soft2" => None,
         "Soft3" => None,
