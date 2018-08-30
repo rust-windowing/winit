@@ -62,6 +62,8 @@ use platform::platform::icon::WinIcon;
 use platform::platform::raw_input::{get_raw_input_data, get_raw_mouse_button_state};
 use platform::platform::window::adjust_size;
 
+pub struct RawEventsLoopParts;
+
 /// Contains saved window info for switching between fullscreen
 #[derive(Clone)]
 pub struct SavedWindowInfo {
@@ -244,6 +246,18 @@ impl EventsLoop {
                 ControlFlow::Break => break,
             }
         }
+    }
+
+    #[inline]
+    pub unsafe fn new_from_raw_parts(
+        _relp: &RawEventsLoopParts,
+    ) -> EventsLoop {
+        Self::new()
+    }
+
+    #[inline]
+    pub fn get_raw_parts(&self) -> RawEventsLoopParts {
+        RawEventsLoopParts
     }
 
     pub fn create_proxy(&self) -> EventsLoopProxy {

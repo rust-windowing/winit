@@ -7,6 +7,14 @@ pub use self::events_loop::{EventsLoop, EventsLoopProxy};
 pub use self::monitor::MonitorId;
 pub use self::window::Window;
 
+pub mod raw_parts {
+    pub use super::{RawEventsLoopParts, RawWindowParts};
+    pub use winapi::shared::windef::HWND;
+}
+
+pub use self::events_loop::RawEventsLoopParts;
+pub use self::window::RawWindowParts;
+
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub parent: Option<HWND>,
