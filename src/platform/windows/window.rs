@@ -444,7 +444,12 @@ impl Window {
 
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
-        self.window_state.as_ref().unwrap().lock().unwrap().dpi_factor
+        if let Some(ref ws) = self.window_state {
+            ws.lock().unwrap().dpi_factor
+        } else {
+            let dpi = unsafe { get_hwnd_dpi(self.window.0) };
+            dpi_to_scale_factor(dpi)
+        }
     }
 
     fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), String> {
