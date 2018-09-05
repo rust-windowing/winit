@@ -121,7 +121,7 @@ pub use icon::*;
 pub mod dpi;
 mod events;
 mod icon;
-mod platform;
+pub mod platform;
 mod window;
 
 pub mod os;
