@@ -37,7 +37,7 @@ use winapi::shared::minwindef::{
     WPARAM,
 };
 use winapi::shared::windef::{HWND, POINT, RECT};
-use winapi::shared::windowsx;
+use winapi::shared::{windowsx, winerror};
 use winapi::um::{winuser, winbase, ole2, processthreadsapi, commctrl, libloaderapi};
 use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
@@ -481,16 +481,19 @@ unsafe fn wait_until_time_or_msg(wait_until: Instant) -> bool {
     if now <= wait_until {
         // MsgWaitForMultipleObjects tends to overshoot just a little bit. We subtract 1 millisecond
         // from the requested time and spinlock for the remainder to compensate for that.
-        winuser::MsgWaitForMultipleObjects(
+        let resume_reason = winuser::MsgWaitForMultipleObjectsEx(
             0,
             ptr::null(),
-            1,
             dur2timeout(wait_until - now).saturating_sub(1),
-            winuser::QS_ALLINPUT
+            winuser::QS_ALLEVENTS,
+            winuser::MWMO_INPUTAVAILABLE
         );
-        while Instant::now() < wait_until {
-            if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
-                return false;
+
+        if resume_reason == winerror::WAIT_TIMEOUT {
+            while Instant::now() < wait_until {
+                if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
+                    return false;
+                }
             }
         }
     }
