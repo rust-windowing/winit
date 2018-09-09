@@ -231,6 +231,10 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         keysyms::XKB_KEY_F18 => Some(VirtualKeyCode::F18),
         keysyms::XKB_KEY_F19 => Some(VirtualKeyCode::F19),
         keysyms::XKB_KEY_F20 => Some(VirtualKeyCode::F20),
+        keysyms::XKB_KEY_F21 => Some(VirtualKeyCode::F21),
+        keysyms::XKB_KEY_F22 => Some(VirtualKeyCode::F22),
+        keysyms::XKB_KEY_F23 => Some(VirtualKeyCode::F23),
+        keysyms::XKB_KEY_F24 => Some(VirtualKeyCode::F24),
         // flow control
         keysyms::XKB_KEY_Print => Some(VirtualKeyCode::Snapshot),
         keysyms::XKB_KEY_Scroll_Lock => Some(VirtualKeyCode::Scroll),
