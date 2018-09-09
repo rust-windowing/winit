@@ -400,7 +400,9 @@ impl<T> EventLoopRunner<T> {
                     };
                     self.call_event_handler(Event::NewEvents(start_cause));
                 },
-                ControlFlow::Poll |
+                // This can be reached if the control flow is changed to poll during a `RedrawRequested`
+                // that was sent after `EventsCleared`.
+                ControlFlow::Poll => self.call_event_handler(Event::NewEvents(StartCause::Poll)),
                 ControlFlow::Exit => unreachable!()
             }
         }
