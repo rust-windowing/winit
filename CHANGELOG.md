@@ -1,5 +1,5 @@
 # Unreleased
-- Added support for F16-F20 keys.
+- Added support for F16-F24 keys.
 - Fixed graphical glitches when resizing on Wayland.
 - On Windows, fix freezes when performing certain actions after a window resize has been triggered. Reintroduces some visual artifacts when resizing.
 
