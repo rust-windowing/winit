@@ -25,10 +25,10 @@ use monitor::{AvailableMonitorsIter, MonitorHandle};
 ///
 /// To wake up an `EventLoop` from a another thread, see the `EventLoopProxy` docs.
 ///
-/// Note that the `EventLoop` cannot be shared accross threads (due to platform-dependant logic
-/// forbiding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
+/// Note that the `EventLoop` cannot be shared across threads (due to platform-dependant logic
+/// forbidding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
-/// `EventLoopProxy` allows you to wakeup an `EventLoop` from an other thread.
+/// `EventLoopProxy` allows you to wake up an `EventLoop` from an other thread.
 pub struct EventLoop<T> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
@@ -43,22 +43,29 @@ impl<T> std::fmt::Debug for EventLoop<T> {
 /// Set by the user callback given to the `EventLoop::run` method.
 ///
 /// Indicates the desired behavior of the event loop after [`Event::EventsCleared`][events_cleared]
-/// is emitted.
+/// is emitted. Defaults to `Poll`.
+///
+/// ## Persistency
+/// Almost every change is persistent between multiple calls to the event loop closure within a
+/// given run loop. The only exception to this is `Exit` which, once set, cannot be unset. Changes
+/// are **not** persistent between multiple calls to `run_return` - issuing a new call will reset
+/// the control flow to `Poll`.
 ///
 /// [events_cleared]: ../event/enum.Event.html#variant.EventsCleared
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ControlFlow {
+    /// When the current loop iteration finishes, immediately begin a new iteration regardless of
+    /// whether or not new events are available to process.
+    Poll,
     /// When the current loop iteration finishes, suspend the thread until another event arrives.
     Wait,
     /// When the current loop iteration finishes, suspend the thread until either another event
     /// arrives or the given time is reached.
     WaitUntil(Instant),
-    /// When the current loop iteration finishes, immediately begin a new iteration regardless of
-    /// whether or not new events are available to process.
-    Poll,
-    /// Send a `LoopDestroyed` event and stop the event loop. Once set, `control_flow` cannot be
-    /// changed from `Exit`.
+    /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
+    /// `control_flow` cannot be changed from `Exit`, and any future attempts to do so will result
+    /// in the `control_flow` parameter being reset to `Exit`.
     Exit
 }
 
@@ -109,7 +116,12 @@ impl<T> EventLoop<T> {
     /// closure. Since the closure is `'static`, it must be a `move` closure if it needs to
     /// access any data from the calling context.
     ///
+    /// See the [`ControlFlow`] docs for information on how changes to `&mut ControlFlow` impact the
+    /// event loop's behavior.
+    ///
     /// Any values not passed to this function will *not* be dropped.
+    ///
+    /// [`ControlFlow`]: ./enum.ControlFlow.html
     #[inline]
     pub fn run<F>(self, event_handler: F) -> !
         where F: 'static + FnMut(Event<T>, &EventLoop<T>, &mut ControlFlow)
