@@ -17,6 +17,7 @@ fn main() {
     event_loop.run(move |event, _, control_flow| {
         use winit::event::ElementState::Released;
         use winit::event::VirtualKeyCode::{N, Y};
+        *control_flow = ControlFlow::Wait;
 
         match event {
             Event::WindowEvent { event, .. } => match event {
@@ -71,7 +72,5 @@ fn main() {
             },
             _ => (),
         }
-
-        *control_flow = ControlFlow::Wait;
     });
 }

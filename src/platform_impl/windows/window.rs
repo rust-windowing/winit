@@ -448,6 +448,7 @@ impl Window {
         let window_state_lock = self.window_state.lock();
         // We don't want to increment/decrement the display count more than once!
         if hide == window_state_lock.cursor_hidden { return; }
+        drop(window_state_lock);
         let (tx, rx) = channel();
         let window_state = Arc::clone(&self.window_state);
         self.thread_executor.execute_in_thread(move || {
@@ -455,7 +456,6 @@ impl Window {
             window_state.lock().cursor_hidden = hide;
             let _ = tx.send(());
         });
-        drop(window_state_lock);
         rx.recv().unwrap()
     }
 
