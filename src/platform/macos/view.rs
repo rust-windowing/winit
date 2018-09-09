@@ -14,7 +14,7 @@ use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Protocol, Sel, BOOL, YES};
 
 use {ElementState, Event, KeyboardInput, MouseButton, WindowEvent, WindowId};
-use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code};
+use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code, to_virtual_key_code_ex};
 use platform::platform::util;
 use platform::platform::ffi::*;
 use platform::platform::window::{get_window_id, IdRef};
@@ -351,8 +351,27 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
         let state = &mut *(state_ptr as *mut ViewState);
         let window_id = WindowId(get_window_id(state.window));
 
+        state.raw_characters = {
+            let characters: id = msg_send![event, characters];
+            let slice = slice::from_raw_parts(
+                characters.UTF8String() as *const c_uchar,
+                characters.len(),
+            );
+            let string = str::from_utf8_unchecked(slice);
+            Some(string.to_owned())
+        };
+
         let keycode: c_ushort = msg_send![event, keyCode];
-        let virtual_keycode = to_virtual_key_code(keycode);
+        let virtual_keycode = {
+            let mut v_code = to_virtual_key_code(keycode);
+            if v_code.is_none() {
+                // We are checkig here for F21-F24 keys, since their keycode
+                // can vary, but we know that they are encoded
+                // in characters property.
+                v_code = to_virtual_key_code_ex(&state.raw_characters);
+            }
+            v_code
+        };
         let scancode = keycode as u32;
         let is_repeat = msg_send![event, isARepeat];
 
@@ -367,16 +386,6 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
                     modifiers: event_mods(event),
                 },
             },
-        };
-
-        state.raw_characters = {
-            let characters: id = msg_send![event, characters];
-            let slice = slice::from_raw_parts(
-                characters.UTF8String() as *const c_uchar,
-                characters.len(),
-            );
-            let string = str::from_utf8_unchecked(slice);
-            Some(string.to_owned())
         };
 
         if let Some(shared) = state.shared.upgrade() {
@@ -416,8 +425,27 @@ extern fn key_up(this: &Object, _sel: Sel, event: id) {
 
         state.last_insert = None;
 
+        // We need characters here to check for additional keys such as
+        // F21-F24.
+        state.raw_characters = {
+            let characters: id = msg_send![event, characters];
+            let slice = slice::from_raw_parts(
+                characters.UTF8String() as *const c_uchar,
+                characters.len(),
+            );
+            let string = str::from_utf8_unchecked(slice);
+            Some(string.to_owned())
+        };
+
         let keycode: c_ushort = msg_send![event, keyCode];
-        let virtual_keycode = to_virtual_key_code(keycode);
+        let virtual_keycode = {
+            let mut v_code = to_virtual_key_code(keycode);
+            if v_code.is_none() {
+                // The same trick to get F21-F24 as in `key_down`.
+                v_code = to_virtual_key_code_ex(&state.raw_characters);
+            }
+            v_code
+        };
         let scancode = keycode as u32;
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.window)),

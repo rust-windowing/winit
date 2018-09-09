@@ -680,6 +680,23 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
     })
 }
 
+pub fn to_virtual_key_code_ex(
+    s: &Option<String>
+) -> Option<events::VirtualKeyCode> {
+    if let Some(s) = s {
+        if let Some(ch) = s.encode_utf16().next() {
+            return Some(match ch {
+                0xf718 => events::VirtualKeyCode::F21,
+                0xf719 => events::VirtualKeyCode::F22,
+                0xf71a => events::VirtualKeyCode::F23,
+                0xf71b => events::VirtualKeyCode::F24,
+                _ => return None,
+            })
+        }
+    }
+    None
+}
+
 pub fn event_mods(event: cocoa::base::id) -> ModifiersState {
     let flags = unsafe {
         NSEvent::modifierFlags(event)
