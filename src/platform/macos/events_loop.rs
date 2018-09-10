@@ -683,7 +683,7 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
 pub fn to_virtual_key_code_ex(
     s: &Option<String>
 ) -> Option<events::VirtualKeyCode> {
-    if let Some(s) = s {
+    if let Some(ref s) = s {
         if let Some(ch) = s.encode_utf16().next() {
             return Some(match ch {
                 0xf718 => events::VirtualKeyCode::F21,
