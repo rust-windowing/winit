@@ -22,7 +22,7 @@ impl From<bool> for StateOperation {
 }
 
 /// X window type. Maps directly to
-/// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/1.3/ar01s05.html).
+/// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum WindowType {
     /// A desktop feature. This can include a single window containing desktop icons with the same dimensions as the
@@ -41,6 +41,24 @@ pub enum WindowType {
     Splash,
     /// This is a dialog window.
     Dialog,
+    /// A dropdown menu that usually appears when the user clicks on an item in a menu bar.
+    /// This property is typically used on override-redirect windows.
+    DropdownMenu,
+    /// A popup menu that usually appears when the user right clicks on an object.
+    /// This property is typically used on override-redirect windows.
+    PopupMenu,
+    /// A tooltip window. Usually used to show additional information when hovering over an object with the cursor.
+    /// This property is typically used on override-redirect windows.
+    Tooltip,
+    /// The window is a notification.
+    /// This property is typically used on override-redirect windows.
+    Notification,
+    /// This should be used on the windows that are popped up by combo boxes.
+    /// This property is typically used on override-redirect windows.
+    Combo,
+    /// This indicates the the window is being dragged.
+    /// This property is typically used on override-redirect windows.
+    Dnd,
     /// This is a normal, top-level window.
     Normal,
 }
@@ -62,6 +80,12 @@ impl WindowType {
             &Utility => b"_NET_WM_WINDOW_TYPE_UTILITY\0",
             &Splash => b"_NET_WM_WINDOW_TYPE_SPLASH\0",
             &Dialog => b"_NET_WM_WINDOW_TYPE_DIALOG\0",
+            &DropdownMenu => b"_NET_WM_WINDOW_TYPE_DROPDOWN_MENU\0",
+            &PopupMenu => b"_NET_WM_WINDOW_TYPE_POPUP_MENU\0",
+            &Tooltip => b"_NET_WM_WINDOW_TYPE_TOOLTIP\0",
+            &Notification => b"_NET_WM_WINDOW_TYPE_NOTIFICATION\0",
+            &Combo => b"_NET_WM_WINDOW_TYPE_COMBO\0",
+            &Dnd => b"_NET_WM_WINDOW_TYPE_DND\0",
             &Normal => b"_NET_WM_WINDOW_TYPE_NORMAL\0",
         };
         unsafe { xconn.get_atom_unchecked(atom_name) }
