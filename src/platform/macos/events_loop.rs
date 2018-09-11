@@ -680,7 +680,7 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
     })
 }
 
-pub fn to_virtual_key_code_ex(
+pub fn check_additional_virtual_key_codes(
     s: &Option<String>
 ) -> Option<events::VirtualKeyCode> {
     if let &Some(ref s) = s {
