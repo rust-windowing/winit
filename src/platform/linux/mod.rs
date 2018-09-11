@@ -6,7 +6,11 @@ use std::ffi::CStr;
 use std::os::raw::*;
 use std::sync::Arc;
 
+#[cfg(feature = "parking_lot_mutex")]
 use parking_lot::Mutex;
+#[cfg(not(feature = "parking_lot_mutex"))]
+use std::sync::Mutex;
+
 use sctk::reexports::client::ConnectError;
 
 use {

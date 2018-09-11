@@ -15,6 +15,7 @@ features = ["icon_loading"]
 
 [features]
 icon_loading = ["image"]
+parking_lot_mutex = ["parking_lot"]
 
 [dependencies]
 lazy_static = "1"
@@ -57,5 +58,5 @@ features = [
 wayland-client = { version = "0.20.10", features = [ "dlopen", "egl", "cursor"] }
 smithay-client-toolkit = "0.3.0"
 x11-dl = "2.18.3"
-parking_lot = "0.6"
 percent-encoding = "1.0"
+parking_lot = { version = "0.6", optional = true }

@@ -3,7 +3,11 @@ use std::fmt;
 use std::error::Error;
 
 use libc;
+
+#[cfg(feature = "parking_lot_mutex")]
 use parking_lot::Mutex;
+#[cfg(not(feature = "parking_lot_mutex"))]
+use std::sync::Mutex;
 
 use super::ffi;
 

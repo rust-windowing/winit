@@ -3,7 +3,10 @@ use std::ffi::{CStr, CString};
 use std::fmt::Debug;
 use std::os::raw::*;
 
+#[cfg(feature = "parking_lot_mutex")]
 use parking_lot::Mutex;
+#[cfg(not(feature = "parking_lot_mutex"))]
+use std::sync::Mutex;
 
 use super::*;
 

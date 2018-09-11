@@ -5,7 +5,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use libc;
+#[cfg(feature = "parking_lot_mutex")]
 use parking_lot::Mutex;
+#[cfg(not(feature = "parking_lot_mutex"))]
+use std::sync::Mutex;
 
 use {Icon, MouseCursor, WindowAttributes};
 use CreationError::{self, OsError};

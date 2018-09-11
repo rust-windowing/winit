@@ -5,7 +5,10 @@ use std::sync::Arc;
 use std::os::raw::c_char;
 use std::ffi::{CStr, CString, IntoStringError};
 
+#[cfg(feature = "parking_lot_mutex")]
 use parking_lot::Mutex;
+#[cfg(not(feature = "parking_lot_mutex"))]
+use std::sync::Mutex;
 
 use super::{ffi, util, XConnection, XError};
 
