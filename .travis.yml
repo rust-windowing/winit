@@ -21,7 +21,7 @@ matrix:
           packages: *i686_packages
     - env: TARGET=i686-unknown-linux-gnu
       os: linux
-      rust: 1.24.1
+      rust: 1.26.2
       addons:
         apt:
           packages: *i686_packages
@@ -35,7 +35,7 @@ matrix:
       rust: stable
     - env: TARGET=x86_64-unknown-linux-gnu
       os: linux
-      rust: 1.24.1
+      rust: 1.26.2
 
     # macOS
     - env: TARGET=x86_64-apple-darwin
@@ -46,7 +46,7 @@ matrix:
       rust: stable
     - env: TARGET=x86_64-apple-darwin
       os: osx
-      rust: 1.24.1
+      rust: 1.26.2
 
     # iOS
     - env: TARGET=x86_64-apple-ios
@@ -57,7 +57,7 @@ matrix:
       rust: stable
     - env: TARGET=x86_64-apple-ios
       os: osx
-      rust: 1.24.1
+      rust: 1.26.2
 
 install:
   - rustup self update
