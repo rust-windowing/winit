@@ -67,7 +67,7 @@ impl XConnection {
     /// Checks whether an error has been triggered by the previous function calls.
     #[inline]
     pub fn check_errors(&self) -> Result<(), XError> {
-        let error = self.latest_error.lock().take();
+        let error = lock_mutex!(self.latest_error).take();
         if let Some(error) = error {
             Err(error)
         } else {
@@ -78,7 +78,7 @@ impl XConnection {
     /// Ignores any previous error.
     #[inline]
     pub fn ignore_error(&self) {
-        *self.latest_error.lock() = None;
+        *lock_mutex!(self.latest_error) = None;
     }
 }
 

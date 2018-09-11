@@ -27,7 +27,7 @@ lazy_static! {
 }
 
 fn version_is_at_least(major: c_int, minor: c_int) -> bool {
-    if let Some((avail_major, avail_minor)) = *XRANDR_VERSION.lock() {
+    if let Some((avail_major, avail_minor)) = *lock_mutex!(XRANDR_VERSION) {
         if avail_major == major {
             avail_minor >= minor
         } else {
@@ -40,7 +40,7 @@ fn version_is_at_least(major: c_int, minor: c_int) -> bool {
 
 pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorId>> {
     // We update this lazily.
-    (*MONITORS.lock()).take()
+    (*lock_mutex!(MONITORS)).take()
 }
 
 #[derive(Debug, Clone)]
@@ -205,7 +205,7 @@ impl XConnection {
     }
 
     pub fn get_available_monitors(&self) -> Vec<MonitorId> {
-        let mut monitors_lock = MONITORS.lock();
+        let mut monitors_lock = lock_mutex!(MONITORS);
         (*monitors_lock)
             .as_ref()
             .cloned()
@@ -229,7 +229,7 @@ impl XConnection {
 
     pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, XError> {
         {
-            let mut version_lock = XRANDR_VERSION.lock();
+            let mut version_lock = lock_mutex!(XRANDR_VERSION);
             if version_lock.is_none() {
                 let mut major = 0;
                 let mut minor = 0;

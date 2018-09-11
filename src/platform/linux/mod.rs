@@ -27,6 +27,17 @@ use self::x11::{XConnection, XError};
 use self::x11::ffi::XVisualInfo;
 pub use self::x11::XNotSupported;
 
+macro_rules! lock_mutex {
+    ($mutex:expr) => ({
+        #[cfg(feature = "parking_lot_mutex")] {
+            ($mutex.lock())
+        }
+        #[cfg(not(feature = "parking_lot_mutex"))] {
+            ($mutex.lock().unwrap())
+        }
+    })
+}
+
 mod dlopen;
 pub mod wayland;
 pub mod x11;
@@ -366,7 +377,7 @@ unsafe extern "C" fn x_error_callback(
     display: *mut x11::ffi::Display,
     event: *mut x11::ffi::XErrorEvent,
 ) -> c_int {
-    let xconn_lock = X11_BACKEND.lock();
+    let xconn_lock = lock_mutex!(X11_BACKEND);
     if let Ok(ref xconn) = *xconn_lock {
         let mut buf: [c_char; 1024] = mem::uninitialized();
         (xconn.xlib.XGetErrorText)(
@@ -386,7 +397,7 @@ unsafe extern "C" fn x_error_callback(
 
         eprintln!("[winit X11 error] {:#?}", error);
 
-        *xconn.latest_error.lock() = Some(error);
+        *lock_mutex!(xconn.latest_error) = Some(error);
     }
     // Fun fact: this return value is completely ignored.
     0
@@ -449,8 +460,7 @@ r#"Failed to initialize any backend!
     }
 
     pub fn new_x11() -> Result<EventsLoop, XNotSupported> {
-        X11_BACKEND
-            .lock()
+        lock_mutex!(X11_BACKEND)
             .as_ref()
             .map(Arc::clone)
             .map(x11::EventsLoop::new)

@@ -20,7 +20,7 @@ unsafe fn open_im(
     xconn: &Arc<XConnection>,
     locale_modifiers: &CStr,
 ) -> Option<ffi::XIM> {
-    let _lock = GLOBAL_LOCK.lock();
+    let _lock = lock_mutex!(GLOBAL_LOCK);
 
     // XSetLocaleModifiers returns...
     // * The current locale modifiers if it's given a NULL pointer.
