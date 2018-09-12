@@ -202,7 +202,7 @@ impl std::fmt::Debug for EventsLoop {
 /// Returned by the user callback given to the `EventsLoop::run_forever` method.
 ///
 /// Indicates whether the `run_forever` method should continue or complete.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ControlFlow {
     /// Continue looping and waiting for events.
@@ -361,7 +361,7 @@ impl std::error::Error for CreationError {
 }
 
 /// Describes the appearance of the mouse cursor.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseCursor {
     /// The platform-dependent default cursor.

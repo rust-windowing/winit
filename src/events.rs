@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use {DeviceId, LogicalPosition, LogicalSize, WindowId};
 
 /// Describes a generic event.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     WindowEvent {
         window_id: WindowId,
@@ -22,7 +22,7 @@ pub enum Event {
 }
 
 /// Describes an event from a `Window`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(LogicalSize),
@@ -116,7 +116,7 @@ pub enum WindowEvent {
 /// may not match.
 ///
 /// Note that these events are delivered regardless of input focus.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DeviceEvent {
     Added,
     Removed,
@@ -147,7 +147,7 @@ pub enum DeviceEvent {
 }
 
 /// Describes a keyboard input event.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyboardInput {
     /// Identifies the physical key pressed
@@ -196,7 +196,7 @@ pub enum TouchPhase {
 /// as previously received End event is a new finger and has nothing to do with an old one.
 ///
 /// Touch may be cancelled if for example window lost focus.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
