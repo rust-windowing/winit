@@ -21,6 +21,7 @@
 - On X11, now a `Resized` event will always be generated after a DPI change to ensure the window's logical size is consistent with the new DPI.
 - Added further clarifications to the DPI docs.
 - On Linux, if neither X11 nor Wayland manage to initialize, the corresponding panic now consists of a single line only.
+- Add optional `serde` feature with implementations of `Serialize`/`Deserialize` for DPI types, various event types, and `WindowAttributes`.
 
 # Version 0.17.2 (2018-08-19)
 
