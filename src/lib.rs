@@ -452,7 +452,7 @@ pub struct WindowAttributes {
     /// Whether the window should be set as fullscreen upon creation.
     ///
     /// The default is `None`.
-    #[cfg_attr(feature = "serde", doc("\n This field does not currently get serialized or deserialized."))]
+    #[cfg_attr(feature = "serde", doc("\nThis field does not currently get serialized or deserialized."))]
     #[cfg_attr(feature = "serde", serde(skip))] // TODO: FIGURE OUT HOW TO SERIALIZE THIS
     pub fullscreen: Option<MonitorId>,
 
@@ -490,7 +490,7 @@ pub struct WindowAttributes {
     /// The window icon.
     ///
     /// The default is `None`.
-    #[cfg_attr(feature = "serde", doc("\n This field does not currently get serialized or deserialized."))]
+    #[cfg_attr(feature = "serde", doc("\nThis field does not currently get serialized or deserialized."))]
     #[cfg_attr(feature = "serde", serde(skip))] // TODO: FIGURE OUT HOW TO SERIALIZE THIS
     pub window_icon: Option<Icon>,
 
