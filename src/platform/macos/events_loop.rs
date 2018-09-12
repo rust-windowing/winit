@@ -610,7 +610,7 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
         0x3d => events::VirtualKeyCode::RAlt,
         0x3e => events::VirtualKeyCode::RControl,
         //0x3f => Fn key,
-        //0x40 => F17 Key,
+        0x40 => events::VirtualKeyCode::F17,
         0x41 => events::VirtualKeyCode::Decimal,
         //0x42 -> unkown,
         0x43 => events::VirtualKeyCode::Multiply,
@@ -625,8 +625,8 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
         0x4c => events::VirtualKeyCode::NumpadEnter,
         //0x4d => unkown,
         0x4e => events::VirtualKeyCode::Subtract,
-        //0x4f => F18 key,
-        //0x50 => F19 Key,
+        0x4f => events::VirtualKeyCode::F18,
+        0x50 => events::VirtualKeyCode::F19,
         0x51 => events::VirtualKeyCode::NumpadEquals,
         0x52 => events::VirtualKeyCode::Numpad0,
         0x53 => events::VirtualKeyCode::Numpad1,
@@ -636,7 +636,7 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
         0x57 => events::VirtualKeyCode::Numpad5,
         0x58 => events::VirtualKeyCode::Numpad6,
         0x59 => events::VirtualKeyCode::Numpad7,
-        //0x5a => F20 Key,
+        0x5a => events::VirtualKeyCode::F20,
         0x5b => events::VirtualKeyCode::Numpad8,
         0x5c => events::VirtualKeyCode::Numpad9,
         //0x5d => unkown,
@@ -652,7 +652,7 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
         0x67 => events::VirtualKeyCode::F11,
         //0x68 => unkown,
         0x69 => events::VirtualKeyCode::F13,
-        //0x6a => F16 Key,
+        0x6a => events::VirtualKeyCode::F16,
         0x6b => events::VirtualKeyCode::F14,
         //0x6c => unkown,
         0x6d => events::VirtualKeyCode::F10,
@@ -678,6 +678,23 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
         0xa => events::VirtualKeyCode::Caret,
         _ => return None,
     })
+}
+
+pub fn check_additional_virtual_key_codes(
+    s: &Option<String>
+) -> Option<events::VirtualKeyCode> {
+    if let &Some(ref s) = s {
+        if let Some(ch) = s.encode_utf16().next() {
+            return Some(match ch {
+                0xf718 => events::VirtualKeyCode::F21,
+                0xf719 => events::VirtualKeyCode::F22,
+                0xf71a => events::VirtualKeyCode::F23,
+                0xf71b => events::VirtualKeyCode::F24,
+                _ => return None,
+            })
+        }
+    }
+    None
 }
 
 pub fn event_mods(event: cocoa::base::id) -> ModifiersState {

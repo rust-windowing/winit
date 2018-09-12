@@ -148,7 +148,7 @@ pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
         winuser::VK_F13 => Some(VirtualKeyCode::F13),
         winuser::VK_F14 => Some(VirtualKeyCode::F14),
         winuser::VK_F15 => Some(VirtualKeyCode::F15),
-        /*winuser::VK_F16 => Some(VirtualKeyCode::F16),
+        winuser::VK_F16 => Some(VirtualKeyCode::F16),
         winuser::VK_F17 => Some(VirtualKeyCode::F17),
         winuser::VK_F18 => Some(VirtualKeyCode::F18),
         winuser::VK_F19 => Some(VirtualKeyCode::F19),
@@ -156,7 +156,7 @@ pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
         winuser::VK_F21 => Some(VirtualKeyCode::F21),
         winuser::VK_F22 => Some(VirtualKeyCode::F22),
         winuser::VK_F23 => Some(VirtualKeyCode::F23),
-        winuser::VK_F24 => Some(VirtualKeyCode::F24),*/
+        winuser::VK_F24 => Some(VirtualKeyCode::F24),
         winuser::VK_NUMLOCK => Some(VirtualKeyCode::Numlock),
         winuser::VK_SCROLL => Some(VirtualKeyCode::Scroll),
         winuser::VK_BROWSER_BACK => Some(VirtualKeyCode::NavigateBackward),
