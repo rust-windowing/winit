@@ -92,6 +92,9 @@ extern crate libc;
 extern crate log;
 #[cfg(feature = "icon_loading")]
 extern crate image;
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate serde;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
@@ -200,6 +203,7 @@ impl std::fmt::Debug for EventsLoop {
 ///
 /// Indicates whether the `run_forever` method should continue or complete.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ControlFlow {
     /// Continue looping and waiting for events.
     Continue,
@@ -358,6 +362,7 @@ impl std::error::Error for CreationError {
 
 /// Describes the appearance of the mouse cursor.
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseCursor {
     /// The platform-dependent default cursor.
     Default,
@@ -420,6 +425,8 @@ impl Default for MouseCursor {
 
 /// Attributes to use when creating a window.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 pub struct WindowAttributes {
     /// The dimensions of the window. If this is `None`, some platform-specific dimensions will be
     /// used.
@@ -445,6 +452,8 @@ pub struct WindowAttributes {
     /// Whether the window should be set as fullscreen upon creation.
     ///
     /// The default is `None`.
+    #[cfg_attr(feature = "serde", doc("\n This field does not currently get serialized or deserialized."))]
+    #[cfg_attr(feature = "serde", serde(skip))] // TODO: FIGURE OUT HOW TO SERIALIZE THIS
     pub fullscreen: Option<MonitorId>,
 
     /// The title of the window in the title bar.
@@ -481,6 +490,8 @@ pub struct WindowAttributes {
     /// The window icon.
     ///
     /// The default is `None`.
+    #[cfg_attr(feature = "serde", doc("\n This field does not currently get serialized or deserialized."))]
+    #[cfg_attr(feature = "serde", serde(skip))] // TODO: FIGURE OUT HOW TO SERIALIZE THIS
     pub window_icon: Option<Icon>,
 
     /// [iOS only] Enable multitouch,

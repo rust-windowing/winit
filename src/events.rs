@@ -148,6 +148,7 @@ pub enum DeviceEvent {
 
 /// Describes a keyboard input event.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyboardInput {
     /// Identifies the physical key pressed
     ///
@@ -215,6 +216,7 @@ pub type ButtonId = u32;
 
 /// Describes the input state of a key.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ElementState {
     Pressed,
     Released,
@@ -222,6 +224,7 @@ pub enum ElementState {
 
 /// Describes a button of a mouse controller.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseButton {
     Left,
     Right,
@@ -231,6 +234,7 @@ pub enum MouseButton {
 
 /// Describes a difference in the mouse scroll wheel state.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseScrollDelta {
 	/// Amount in lines or rows to scroll in the horizontal
 	/// and vertical directions.
@@ -250,6 +254,7 @@ pub enum MouseScrollDelta {
 /// Symbolic name for a keyboard key.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum VirtualKeyCode {
     /// The '1' key over the letters.
     Key1,
@@ -449,6 +454,8 @@ pub enum VirtualKeyCode {
 ///
 /// Each field of this struct represents a modifier and is `true` if this modifier is active.
 #[derive(Default, Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 pub struct ModifiersState {
     /// The "shift" key
     pub shift: bool,
