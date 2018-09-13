@@ -413,7 +413,7 @@ impl EventsLoop {
                     let new_inner_position = (xev.x as i32, xev.y as i32);
 
                     let monitor = window.get_current_monitor(); // This must be done *before* locking!
-                    let mut shared_state_lock = window.shared_state.lock();
+                    let mut shared_state_lock = lock_mutex!(window.shared_state);
 
                     let (resized, moved) = {
                         let resized = util::maybe_change(&mut shared_state_lock.size, new_inner_size);
@@ -754,7 +754,7 @@ impl EventsLoop {
                         let modifiers = ModifiersState::from(xev.mods);
 
                         let cursor_moved = self.with_window(xev.event, |window| {
-                            let mut shared_state_lock = window.shared_state.lock();
+                            let mut shared_state_lock = lock_mutex!(window.shared_state);
                             util::maybe_change(&mut shared_state_lock.cursor_pos, new_cursor_pos)
                         });
                         if cursor_moved == Some(true) {

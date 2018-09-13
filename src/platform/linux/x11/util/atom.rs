@@ -3,7 +3,10 @@ use std::ffi::{CStr, CString};
 use std::fmt::Debug;
 use std::os::raw::*;
 
+#[cfg(feature = "parking_lot_mutex")]
 use parking_lot::Mutex;
+#[cfg(not(feature = "parking_lot_mutex"))]
+use std::sync::Mutex;
 
 use super::*;
 
@@ -16,7 +19,7 @@ lazy_static! {
 impl XConnection {
     pub fn get_atom<T: AsRef<CStr> + Debug>(&self, name: T) -> ffi::Atom {
         let name = name.as_ref();
-        let mut atom_cache_lock = ATOM_CACHE.lock();
+        let mut atom_cache_lock = lock_mutex!(ATOM_CACHE);
         let cached_atom = (*atom_cache_lock).get(name).cloned();
         if let Some(atom) = cached_atom {
             atom
