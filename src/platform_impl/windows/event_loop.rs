@@ -205,7 +205,11 @@ impl<T> EventLoop<T> {
                     None => break
                 }
             }
-            *runner_ref = Some(&mut runner);
+            *runner_ref = Some(runner);
+        }
+
+        macro_rules! runner {
+            () => {{ self.runner_shared.runner.borrow_mut().as_mut().unwrap() }};
         }
 
         unsafe {
@@ -213,7 +217,7 @@ impl<T> EventLoop<T> {
             let mut msg_unprocessed = false;
 
             'main: loop {
-                runner.new_events();
+                runner!().new_events();
                 loop {
                     if !msg_unprocessed {
                         if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
@@ -224,9 +228,9 @@ impl<T> EventLoop<T> {
                     winuser::DispatchMessageW(&mut msg);
                     msg_unprocessed = false;
                 }
-                runner.events_cleared();
+                runner!().events_cleared();
 
-                match runner.control_flow {
+                match runner!().control_flow {
                     ControlFlow::Exit => break 'main,
                     ControlFlow::Wait => {
                         if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
@@ -242,7 +246,7 @@ impl<T> EventLoop<T> {
             }
         }
 
-        unsafe{ runner.call_event_handler(Event::LoopDestroyed) }
+        unsafe{ runner!().call_event_handler(Event::LoopDestroyed) }
         *self.runner_shared.runner.borrow_mut() = None;
     }
 
@@ -264,7 +268,7 @@ impl<T> EventLoop<T> {
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
 pub(crate) struct ELRShared<T> {
-    runner: RefCell<Option<*mut EventLoopRunner<T>>>,
+    runner: RefCell<Option<EventLoopRunner<T>>>,
     buffer: RefCell<VecDeque<Event<T>>>
 }
 pub(crate) struct EventLoopRunner<T> {
@@ -278,9 +282,9 @@ pub(crate) struct EventLoopRunner<T> {
 
 impl<T> ELRShared<T> {
     unsafe fn send_event(&self, event: Event<T>) {
-        if let Ok(runner_ref) = self.runner.try_borrow_mut() {
-            if let Some(runner) = *runner_ref {
-                (*runner).process_event(event);
+        if let Ok(mut runner_ref) = self.runner.try_borrow_mut() {
+            if let Some(ref mut runner) = *runner_ref {
+                runner.process_event(event);
                 return;
             }
         }
@@ -378,12 +382,14 @@ impl<T> EventLoopRunner<T> {
         // deferred.
         if let RunnerState::DeferredNewEvents(wait_start) = self.runner_state {
             match self.control_flow {
-                ControlFlow::Wait => self.call_event_handler(
-                    Event::NewEvents(StartCause::WaitCancelled {
-                        start: wait_start,
-                        requested_resume: None
-                    })
-                ),
+                ControlFlow::Wait => {
+                    self.call_event_handler(
+                        Event::NewEvents(StartCause::WaitCancelled {
+                            start: wait_start,
+                            requested_resume: None
+                        })
+                    )
+                },
                 ControlFlow::WaitUntil(resume_time) => {
                     let start_cause = match Instant::now() >= resume_time {
                         // If the current time is later than the requested resume time, the resume time
@@ -402,7 +408,9 @@ impl<T> EventLoopRunner<T> {
                 },
                 // This can be reached if the control flow is changed to poll during a `RedrawRequested`
                 // that was sent after `EventsCleared`.
-                ControlFlow::Poll => self.call_event_handler(Event::NewEvents(StartCause::Poll)),
+                ControlFlow::Poll => {
+                    self.call_event_handler(Event::NewEvents(StartCause::Poll))
+                },
                 ControlFlow::Exit => unreachable!()
             }
         }
@@ -455,23 +463,19 @@ impl<T> EventLoopRunner<T> {
     }
 
     unsafe fn call_event_handler(&mut self, event: Event<T>) {
-        if self.event_handler != mem::zeroed() {
-            match event {
-                Event::NewEvents(_) => (*self.event_loop).trigger_newevents_on_redraw.store(true, Ordering::Relaxed),
-                Event::EventsCleared => (*self.event_loop).trigger_newevents_on_redraw.store(false, Ordering::Relaxed),
-                _ => ()
-            }
+        match event {
+            Event::NewEvents(_) => (*self.event_loop).trigger_newevents_on_redraw.store(true, Ordering::Relaxed),
+            Event::EventsCleared => (*self.event_loop).trigger_newevents_on_redraw.store(false, Ordering::Relaxed),
+            _ => ()
+        }
 
-            assert_eq!(mem::size_of::<RootEventLoop<T>>(), mem::size_of::<EventLoop<T>>());
-            let event_loop_ref = &*(self.event_loop as *const RootEventLoop<T>);
+        assert_eq!(mem::size_of::<RootEventLoop<T>>(), mem::size_of::<EventLoop<T>>());
+        let event_loop_ref = &*(self.event_loop as *const RootEventLoop<T>);
 
-            if self.control_flow != ControlFlow::Exit {
-                (*self.event_handler)(event, event_loop_ref, &mut self.control_flow);
-            } else {
-                (*self.event_handler)(event, event_loop_ref, &mut ControlFlow::Exit);
-            }
+        if self.control_flow != ControlFlow::Exit {
+            (*self.event_handler)(event, event_loop_ref, &mut self.control_flow);
         } else {
-            panic!("Tried to call event handler with null handler");
+            (*self.event_handler)(event, event_loop_ref, &mut ControlFlow::Exit);
         }
     }
 }
@@ -762,16 +766,16 @@ unsafe extern "system" fn public_window_callback<T>(
 
     match msg {
         winuser::WM_ENTERSIZEMOVE => {
-            let runner = subclass_input.event_loop_runner.runner.borrow_mut();
-            if let Some(runner) = *runner {
-                (*runner).in_modal_loop = true;
+            let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
+            if let Some(ref mut runner) = *runner {
+                runner.in_modal_loop = true;
             }
             0
         },
         winuser::WM_EXITSIZEMOVE => {
-            let runner = subclass_input.event_loop_runner.runner.borrow_mut();
-            if let Some(runner) = *runner {
-                (*runner).in_modal_loop = false;
+            let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
+            if let Some(ref mut runner) = *runner {
+                runner.in_modal_loop = false;
             }
             0
         },
@@ -804,9 +808,8 @@ unsafe extern "system" fn public_window_callback<T>(
 
         _ if msg == *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID => {
             use event::WindowEvent::RedrawRequested;
-            let runner = subclass_input.event_loop_runner.runner.borrow_mut();
-            if let Some(runner) = *runner {
-                let runner = &mut *runner;
+            let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
+            if let Some(ref mut runner) = *runner {
                 match runner.runner_state {
                     RunnerState::Idle(..) |
                     RunnerState::DeferredNewEvents(..) => runner.call_event_handler(Event::WindowEvent {
@@ -827,9 +830,8 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let mut send_event = false;
             {
-                let runner = subclass_input.event_loop_runner.runner.borrow_mut();
-                if let Some(runner) = *runner {
-                    let runner = &mut *runner;
+                let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
+                if let Some(ref mut runner) = *runner {
                     match runner.runner_state {
                         RunnerState::Idle(..) |
                         RunnerState::DeferredNewEvents(..) => runner.call_event_handler(event()),
@@ -1154,7 +1156,8 @@ unsafe extern "system" fn public_window_callback<T>(
                 event,
             });
 
-            commctrl::DefSubclassProc(window, msg, wparam, lparam)
+            0
+            // commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
         winuser::WM_INPUT => {
@@ -1516,8 +1519,8 @@ unsafe extern "system" fn thread_event_target_callback<T>(
             };
             let in_modal_loop = {
                 let runner = subclass_input.event_loop_runner.runner.borrow_mut();
-                if let Some(runner) = *runner {
-                    (*runner).in_modal_loop
+                if let Some(ref runner) = *runner {
+                    runner.in_modal_loop
                 } else {
                     false
                 }
@@ -1550,9 +1553,8 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                     }
                 }
 
-                let runner = subclass_input.event_loop_runner.runner.borrow_mut();
-                if let Some(runner) = *runner {
-                    let runner = &mut *runner;
+                let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
+                if let Some(ref mut runner) = *runner {
                     runner.events_cleared();
                     match runner.control_flow {
                         // Waiting is handled by the modal loop.
