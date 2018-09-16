@@ -1,4 +1,5 @@
 # Unreleased
+- On Wayland, windows will use server-side decorations when appropriate.
 - Added support for F16-F24 keys.
 - Fixed graphical glitches when resizing on Wayland.
 - On Windows, fix freezes when performing certain actions after a window resize has been triggered. Reintroduces some visual artifacts when resizing.
