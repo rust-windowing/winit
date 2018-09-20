@@ -600,7 +600,7 @@ impl UnownedWindow {
                 wm_name_atom,
                 utf8_atom,
                 util::PropMode::Replace,
-                title.as_bytes_with_nul(),
+                title.as_bytes(),
             )
         }
     }
