@@ -301,7 +301,7 @@ impl Window {
 
     #[inline]
     pub fn set_cursor(&self, cursor: MouseCursor) {
-        let cursor_id = match cursor {
+        let cursor_id = Cursor(match cursor {
             MouseCursor::Arrow | MouseCursor::Default => winuser::IDC_ARROW,
             MouseCursor::Hand => winuser::IDC_HAND,
             MouseCursor::Crosshair => winuser::IDC_CROSS,
@@ -321,10 +321,15 @@ impl Window {
             MouseCursor::Progress => winuser::IDC_APPSTARTING,
             MouseCursor::Help => winuser::IDC_HELP,
             _ => winuser::IDC_ARROW, // use arrow for the missing cases.
-        };
-
-        let mut cur = self.window_state.lock().unwrap();
-        cur.cursor = Cursor(cursor_id);
+        });
+        self.window_state.lock().unwrap().cursor = cursor_id;
+        self.events_loop_proxy.execute_in_thread(move |_| unsafe {
+            let cursor = winuser::LoadCursorW(
+                ptr::null_mut(),
+                cursor_id.0,
+            );
+            winuser::SetCursor(cursor);
+        });
     }
 
     unsafe fn cursor_is_grabbed(&self) -> Result<bool, String> {
