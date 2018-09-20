@@ -69,13 +69,10 @@ impl Window {
 
         let window_store = evlp.store.clone();
         let my_surface = surface.clone();
-        let mut frame = SWindow::<BasicFrame>::init(
+        let mut frame = SWindow::<BasicFrame>::init_from_env(
+            &evlp.env,
             surface.clone(),
             (width, height),
-            &evlp.env.compositor,
-            &evlp.env.subcompositor,
-            &evlp.env.shm,
-            &evlp.env.shell,
             move |event, ()| match event {
                 WEvent::Configure { new_size, .. } => {
                     let mut store = window_store.lock().unwrap();
