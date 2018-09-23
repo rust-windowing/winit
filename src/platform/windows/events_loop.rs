@@ -16,11 +16,13 @@ use std::{mem, ptr, thread};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::OsString;
+use std::path::PathBuf;
 use std::os::windows::ffi::OsStringExt;
 use std::os::windows::io::AsRawHandle;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier, Condvar, mpsc, Mutex};
 
-use winapi::ctypes::c_int;
+use winapi::ctypes::{c_int, c_void};
 use winapi::shared::minwindef::{
     BOOL,
     DWORD,
@@ -31,12 +33,18 @@ use winapi::shared::minwindef::{
     LRESULT,
     MAX_PATH,
     UINT,
+    ULONG,
+    LPVOID,
     WPARAM,
 };
-use winapi::shared::windef::{HWND, POINT, RECT};
+use winapi::shared::guiddef::REFIID;
+use winapi::shared::windef::{HWND, POINT, RECT, POINTL};
 use winapi::shared::windowsx;
-use winapi::um::{winuser, shellapi, processthreadsapi};
-use winapi::um::winnt::{LONG, LPCSTR, SHORT};
+use winapi::shared::winerror::S_OK;
+use winapi::um::{winuser, shellapi, processthreadsapi, ole2, unknwnbase};
+use winapi::um::oleidl::{IDropTarget, IDropTargetVtbl, LPDROPTARGET};
+use winapi::um::objidl::IDataObject;
+use winapi::um::winnt::{LONG, LPCSTR, SHORT, HRESULT};
 
 use {
     ControlFlow,
@@ -133,6 +141,179 @@ impl Inserter {
     }
 }
 
+#[repr(C)]
+struct FileDropHandlerData {
+    interface: IDropTarget,
+    refcount: AtomicUsize,
+    window: HWND,
+}
+
+struct FileDropHandler {
+    data: *mut FileDropHandlerData
+}
+
+#[allow(non_snake_case)]
+impl FileDropHandler {
+    fn new(window: HWND) -> FileDropHandler {
+        use std::boxed::Box;
+        let data = Box::new(FileDropHandlerData {
+            interface: IDropTarget {
+                lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl
+            },
+            refcount: AtomicUsize::new(1),
+            window
+        });
+        FileDropHandler {
+            data: Box::into_raw(data)
+        }
+    }
+
+    // Implement IUnknown
+    pub unsafe extern "system" fn QueryInterface(
+        _this: *mut unknwnbase::IUnknown,
+        _riid: REFIID,
+        _ppvObject: *mut *mut c_void,
+    ) -> HRESULT {
+        unimplemented!();
+    }
+
+    pub unsafe extern "system" fn AddRef(this: *mut unknwnbase::IUnknown) -> ULONG {
+        let drop_handler_data = Self::from_interface(this);
+        let count = drop_handler_data.refcount.fetch_add(1, Ordering::Release) + 1;
+        count as ULONG
+    }
+
+    pub unsafe extern "system" fn Release(this: *mut unknwnbase::IUnknown) -> ULONG {
+        let drop_handler = Self::from_interface(this);
+        let count = drop_handler.refcount.fetch_sub(1, Ordering::Release) - 1;
+        if count == 0 {
+            // Destroy the underlying data
+            let _ = Box::from_raw(drop_handler as *mut FileDropHandlerData);
+        }
+        count as ULONG
+    }
+
+    pub unsafe extern "system" fn DragEnter(
+        this: *mut IDropTarget,
+        pDataObj: *const IDataObject,
+        _grfKeyState: DWORD,
+        _pt: *const POINTL,
+        _pdwEffect: *mut DWORD
+    ) -> HRESULT {
+        use events::WindowEvent::HoveredFile;
+        let drop_handler = Self::from_interface(this);
+        Self::iterate_filenames(pDataObj, |filename| {
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(drop_handler.window)),
+                event: HoveredFile(filename)
+            });
+        });
+
+        S_OK
+    }
+                       
+    pub unsafe extern "system" fn DragOver(
+        _this: *mut IDropTarget,
+        _grfKeyState: DWORD,
+        _pt: *const POINTL,
+        _pdwEffect: *mut DWORD
+    ) -> HRESULT {
+        S_OK
+    }
+                                            
+    pub unsafe extern "system" fn DragLeave(this: *mut IDropTarget) -> HRESULT {
+        use events::WindowEvent::HoveredFileCancelled;
+        let drop_handler = Self::from_interface(this);
+        send_event(Event::WindowEvent {
+            window_id: SuperWindowId(WindowId(drop_handler.window)),
+            event: HoveredFileCancelled
+        });
+
+        S_OK
+    }
+                       
+    pub unsafe extern "system" fn Drop(
+        this: *mut IDropTarget,
+        pDataObj: *const IDataObject,
+        _grfKeyState: DWORD,
+        _pt: *const POINTL,
+        _pdwEffect: *mut DWORD
+    ) -> HRESULT {
+        use events::WindowEvent::DroppedFile;
+        let drop_handler = Self::from_interface(this);
+        let hdrop = Self::iterate_filenames(pDataObj, |filename| {
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(drop_handler.window)),
+                event: DroppedFile(filename)
+            });
+        });
+        shellapi::DragFinish(hdrop);
+        
+        S_OK
+    }
+
+    unsafe fn from_interface<'a, InterfaceT>(this: *mut InterfaceT) -> &'a mut FileDropHandlerData {
+        (&mut *(mem::transmute::<*mut InterfaceT, *mut FileDropHandlerData>(this)))
+            as &mut FileDropHandlerData
+    }
+
+    unsafe fn iterate_filenames<F>(data_obj: *const IDataObject, callback: F) -> shellapi::HDROP
+    where F: Fn(PathBuf) {
+        use winapi::um::objidl::{FORMATETC, DVTARGETDEVICE, TYMED_HGLOBAL};
+        use winapi::shared::wtypes::{DVASPECT_CONTENT};
+        use winapi::um::winuser::CF_HDROP;
+        use winapi::shared::winerror::SUCCEEDED;
+        use winapi::um::shellapi::DragQueryFileW;
+
+        let mut drop_format = FORMATETC {
+            cfFormat: CF_HDROP as u16,
+            ptd: 0 as *const DVTARGETDEVICE,
+            dwAspect: DVASPECT_CONTENT,
+            lindex: 0 as LONG,
+            tymed: TYMED_HGLOBAL,
+        };
+
+        let mut medium = mem::uninitialized();
+        if SUCCEEDED((*data_obj).GetData(&mut drop_format, &mut medium)) {
+            let hglobal = (*medium.u).hGlobal();
+            let hdrop = (*hglobal) as shellapi::HDROP;
+            let item_count = DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0);
+
+            let mut pathbuf: [u16; MAX_PATH] = mem::uninitialized();
+
+            for i in 0..item_count {
+                let nch = DragQueryFileW(hdrop, i, pathbuf.as_mut_ptr(), MAX_PATH as u32) as usize;
+                
+                if nch > 0 {
+                    callback(OsString::from_wide(&pathbuf[0..nch]).into());
+                }
+            }
+            
+            return hdrop;
+        }
+        
+        unreachable!();
+    }
+}
+
+impl Drop for FileDropHandler {
+    fn drop(&mut self) {
+        unsafe { FileDropHandler::Release(self.data as *mut unknwnbase::IUnknown); }
+    }
+}
+
+static DROP_TARGET_VTBL: IDropTargetVtbl = IDropTargetVtbl {
+    parent: unknwnbase::IUnknownVtbl {
+        QueryInterface: FileDropHandler::QueryInterface,
+        AddRef: FileDropHandler::AddRef,
+        Release: FileDropHandler::Release,
+    },
+    DragEnter: FileDropHandler::DragEnter,
+    DragOver: FileDropHandler::DragOver,
+    DragLeave: FileDropHandler::DragLeave,
+    Drop: FileDropHandler::Drop,
+};
+
 pub struct EventsLoop {
     // Id of the background thread from the Win32 API.
     thread_id: DWORD,
@@ -168,7 +349,8 @@ impl EventsLoop {
                     sender: tx,
                     windows: HashMap::with_capacity(4),
                     win32_block_loop: win32_block_loop_child,
-                    mouse_buttons_down: 0
+                    mouse_buttons_down: 0,
+                    file_drop_handlers: Vec::new(),
                 });
             });
 
@@ -400,7 +582,8 @@ struct ThreadLocalData {
     sender: mpsc::Sender<Event>,
     windows: HashMap<HWND, Arc<Mutex<WindowState>>>,
     win32_block_loop: Arc<(Mutex<bool>, Condvar)>,
-    mouse_buttons_down: u32
+    mouse_buttons_down: u32,
+    file_drop_handlers: Vec<FileDropHandler>, // Each window has their own drop handler.
 }
 
 // Utility function that dispatches an event on the current thread.
@@ -452,6 +635,28 @@ pub unsafe extern "system" fn callback(
     lparam: LPARAM,
 ) -> LRESULT {
     match msg {
+        winuser::WM_CREATE => {
+            use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE};
+            let ole_init_result = ole2::OleInitialize(0 as LPVOID);
+            // It is ok if the initialize result is S_FALSE because it might happen that
+            // multiple windows are created on the same thread.
+            if ole_init_result == OLE_E_WRONGCOMPOBJ {
+                panic!("OleInitialize failed! Result was: OLE_E_WRONGCOMPOBJ");
+            } else if ole_init_result == RPC_E_CHANGED_MODE {
+                panic!("OleInitialize failed! Result was: RPC_E_CHANGED_MODE");
+            }
+
+            CONTEXT_STASH.with(|context_stash| {
+                let mut context_stash = context_stash.borrow_mut();
+
+                let drop_handlers = &mut context_stash.as_mut().unwrap().file_drop_handlers;
+                drop_handlers.push(FileDropHandler::new(window));
+
+                ole2::RegisterDragDrop(window, &mut (*drop_handlers.last_mut().unwrap().data).interface as LPDROPTARGET);
+            });
+            0
+        },
+
         winuser::WM_NCCREATE => {
             enable_non_client_dpi_scaling(window);
             winuser::DefWindowProcW(window, msg, wparam, lparam)
@@ -470,6 +675,7 @@ pub unsafe extern "system" fn callback(
             use events::WindowEvent::Destroyed;
             CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
+                ole2::RevokeDragDrop(window); // Not sure if this is necessary...
                 context_stash.as_mut().unwrap().windows.remove(&window);
             });
             send_event(Event::WindowEvent {
@@ -1039,24 +1245,7 @@ pub unsafe extern "system" fn callback(
         },
 
         winuser::WM_DROPFILES => {
-            use events::WindowEvent::DroppedFile;
-
-            let hdrop = wparam as shellapi::HDROP;
-            let mut pathbuf: [u16; MAX_PATH] = mem::uninitialized();
-            let num_drops = shellapi::DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0);
-
-            for i in 0..num_drops {
-                let nch = shellapi::DragQueryFileW(hdrop, i, pathbuf.as_mut_ptr(),
-                                                  MAX_PATH as u32) as usize;
-                if nch > 0 {
-                    send_event(Event::WindowEvent {
-                        window_id: SuperWindowId(WindowId(window)),
-                        event: DroppedFile(OsString::from_wide(&pathbuf[0..nch]).into())
-                    });
-                }
-            }
-
-            shellapi::DragFinish(hdrop);
+            // See FileDropHandler for implementation.
             0
         },
 
