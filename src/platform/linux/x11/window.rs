@@ -272,6 +272,10 @@ impl UnownedWindow {
                 window.set_window_type(pl_attribs.x11_window_type).queue();
             }
 
+            if let Some(variant) = pl_attribs.gtk_theme_variant {
+                window.set_gtk_theme_variant(variant).queue();
+            }
+
             // set size hints
             {
                 let mut min_dimensions = window_attrs.min_dimensions;
@@ -457,6 +461,19 @@ impl UnownedWindow {
         )
     }
 
+    fn set_gtk_theme_variant(&self, variant: String) -> util::Flusher {
+        let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_GTK_THEME_VARIANT\0") };
+        let utf8_atom = unsafe { self.xconn.get_atom_unchecked(b"UTF8_STRING\0") };
+        let variant = CString::new(variant).expect("`_GTK_THEME_VARIANT` contained null byte");
+        self.xconn.change_property(
+            self.xwindow,
+            hint_atom,
+            utf8_atom,
+            util::PropMode::Replace,
+            variant.as_bytes(),
+        )
+    }
+
     #[inline]
     pub fn set_urgent(&self, is_urgent: bool) {
         let mut wm_hints = self.xconn.get_wm_hints(self.xwindow).expect("`XGetWMHints` failed");
@@ -583,7 +600,7 @@ impl UnownedWindow {
                 wm_name_atom,
                 utf8_atom,
                 util::PropMode::Replace,
-                title.as_bytes_with_nul(),
+                title.as_bytes(),
             )
         }
     }

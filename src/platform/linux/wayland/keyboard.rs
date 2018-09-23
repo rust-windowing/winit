@@ -1,77 +1,110 @@
 use std::sync::{Arc, Mutex};
 
-use {ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
-
-use super::{make_wid, DeviceId, EventsLoopSink};
-use sctk::keyboard::{self, map_keyboard_auto, Event as KbEvent};
-use sctk::reexports::client::{NewProxy, Proxy};
+use super::{make_wid, DeviceId, EventsLoopProxy, EventsLoopSink};
+use sctk::keyboard::{
+    self, map_keyboard_auto_with_repeat, Event as KbEvent, KeyRepeatEvent, KeyRepeatKind,
+};
 use sctk::reexports::client::protocol::wl_keyboard;
+use sctk::reexports::client::{NewProxy, Proxy};
+use {ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
 
 pub fn init_keyboard(
     keyboard: NewProxy<wl_keyboard::WlKeyboard>,
     sink: Arc<Mutex<EventsLoopSink>>,
+    events_loop_proxy: EventsLoopProxy,
 ) -> Proxy<wl_keyboard::WlKeyboard> {
-    // { variables to be captured by the closure
-    let mut target = None;
+    // { variables to be captured by the closures
+    let target = Arc::new(Mutex::new(None));
     let my_sink = sink.clone();
+    let repeat_sink = sink.clone();
+    let repeat_target = target.clone();
     // }
-    let ret = map_keyboard_auto(keyboard, move |evt: KbEvent, _| match evt {
-        KbEvent::Enter { surface, .. } => {
-            let wid = make_wid(&surface);
-            my_sink
-                .lock()
-                .unwrap()
-                .send_event(WindowEvent::Focused(true), wid);
-            target = Some(wid);
-        }
-        KbEvent::Leave { surface, .. } => {
-            let wid = make_wid(&surface);
-            my_sink
-                .lock()
-                .unwrap()
-                .send_event(WindowEvent::Focused(false), wid);
-            target = None;
-        }
-        KbEvent::Key {
-            modifiers,
-            rawkey,
-            keysym,
-            state,
-            utf8,
-            ..
-        } => {
-            if let Some(wid) = target {
-                let state = match state {
-                    wl_keyboard::KeyState::Pressed => ElementState::Pressed,
-                    wl_keyboard::KeyState::Released => ElementState::Released,
-                };
-                let vkcode = key_to_vkey(rawkey, keysym);
-                let mut guard = my_sink.lock().unwrap();
+    let ret = map_keyboard_auto_with_repeat(
+        keyboard,
+        KeyRepeatKind::System,
+        move |evt: KbEvent, _| match evt {
+            KbEvent::Enter { surface, .. } => {
+                let wid = make_wid(&surface);
+                my_sink
+                    .lock()
+                    .unwrap()
+                    .send_event(WindowEvent::Focused(true), wid);
+                *target.lock().unwrap() = Some(wid);
+            }
+            KbEvent::Leave { surface, .. } => {
+                let wid = make_wid(&surface);
+                my_sink
+                    .lock()
+                    .unwrap()
+                    .send_event(WindowEvent::Focused(false), wid);
+                *target.lock().unwrap() = None;
+            }
+            KbEvent::Key {
+                modifiers,
+                rawkey,
+                keysym,
+                state,
+                utf8,
+                ..
+            } => {
+                if let Some(wid) = *target.lock().unwrap() {
+                    let state = match state {
+                        wl_keyboard::KeyState::Pressed => ElementState::Pressed,
+                        wl_keyboard::KeyState::Released => ElementState::Released,
+                    };
+                    let vkcode = key_to_vkey(rawkey, keysym);
+                    let mut guard = my_sink.lock().unwrap();
+                    guard.send_event(
+                        WindowEvent::KeyboardInput {
+                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            input: KeyboardInput {
+                                state: state,
+                                scancode: rawkey,
+                                virtual_keycode: vkcode,
+                                modifiers: modifiers.into(),
+                            },
+                        },
+                        wid,
+                    );
+                    // send char event only on key press, not release
+                    if let ElementState::Released = state {
+                        return;
+                    }
+                    if let Some(txt) = utf8 {
+                        for chr in txt.chars() {
+                            guard.send_event(WindowEvent::ReceivedCharacter(chr), wid);
+                        }
+                    }
+                }
+            }
+            KbEvent::RepeatInfo { .. } => { /* Handled by smithay client toolkit */ }
+        },
+        move |repeat_event: KeyRepeatEvent, _| {
+            if let Some(wid) = *repeat_target.lock().unwrap() {
+                let state = ElementState::Pressed;
+                let vkcode = key_to_vkey(repeat_event.rawkey, repeat_event.keysym);
+                let mut guard = repeat_sink.lock().unwrap();
                 guard.send_event(
                     WindowEvent::KeyboardInput {
                         device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                         input: KeyboardInput {
                             state: state,
-                            scancode: rawkey,
+                            scancode: repeat_event.rawkey,
                             virtual_keycode: vkcode,
-                            modifiers: modifiers.into(),
+                            modifiers: repeat_event.modifiers.into(),
                         },
                     },
                     wid,
                 );
-                // send char event only on key press, not release
-                if let ElementState::Released = state {
-                    return;
-                }
-                if let Some(txt) = utf8 {
+                if let Some(txt) = repeat_event.utf8 {
                     for chr in txt.chars() {
                         guard.send_event(WindowEvent::ReceivedCharacter(chr), wid);
                     }
                 }
+                events_loop_proxy.wakeup().unwrap();
             }
-        }
-        KbEvent::RepeatInfo { .. } => { /* TODO: handle repeat info */ }
-    });
+        },
+    );
 
     match ret {
         Ok(keyboard) => keyboard,
@@ -193,6 +226,15 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         keysyms::XKB_KEY_F13 => Some(VirtualKeyCode::F13),
         keysyms::XKB_KEY_F14 => Some(VirtualKeyCode::F14),
         keysyms::XKB_KEY_F15 => Some(VirtualKeyCode::F15),
+        keysyms::XKB_KEY_F16 => Some(VirtualKeyCode::F16),
+        keysyms::XKB_KEY_F17 => Some(VirtualKeyCode::F17),
+        keysyms::XKB_KEY_F18 => Some(VirtualKeyCode::F18),
+        keysyms::XKB_KEY_F19 => Some(VirtualKeyCode::F19),
+        keysyms::XKB_KEY_F20 => Some(VirtualKeyCode::F20),
+        keysyms::XKB_KEY_F21 => Some(VirtualKeyCode::F21),
+        keysyms::XKB_KEY_F22 => Some(VirtualKeyCode::F22),
+        keysyms::XKB_KEY_F23 => Some(VirtualKeyCode::F23),
+        keysyms::XKB_KEY_F24 => Some(VirtualKeyCode::F24),
         // flow control
         keysyms::XKB_KEY_Print => Some(VirtualKeyCode::Snapshot),
         keysyms::XKB_KEY_Scroll_Lock => Some(VirtualKeyCode::Scroll),

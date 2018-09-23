@@ -1,6 +1,29 @@
 # Unreleased
 
-- Fixed thread-safety issues in several `Window` functions on Windows. 
+- On Wayland, windows will use server-side decorations when available.
+- Added support for F16-F24 keys.
+- Fixed graphical glitches when resizing on Wayland.
+- On Windows, fix freezes when performing certain actions after a window resize has been triggered. Reintroduces some visual artifacts when resizing.
+- Updated window manager hints under X11 to v1.5 of [Extended Window Manager Hints](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html#idm140200472629520).
+- Added `WindowBuilderExt::with_gtk_theme_variant` to X11-specific `WindowBuilder` functions.
+- Fixed UTF8 handling bug in X11 `set_title` function.
+- On Windows, `Window::set_cursor` now applies immediately instead of requiring specific events to occur first.
+
+# Version 0.17.2 (2018-08-19)
+
+- On macOS, fix `<C-Tab>` so applications receive the event.
+- On macOS, fix `<Cmd-{key}>` so applications receive the event.
+- On Wayland, key press events will now be repeated.
+
+# Version 0.17.1 (2018-08-05)
+
+- On X11, prevent a compilation failure in release mode for versions of Rust greater than or equal to 1.30.
+- Fixed deadlock that broke fullscreen mode on Windows.
+
+# Version 0.17.0 (2018-08-02)
+
+- Cocoa and core-graphics updates.
+- Fixed thread-safety issues in several `Window` functions on Windows.
 - On MacOS, the key state for modifiers key events is now properly set.
 - On iOS, the view is now set correctly. This makes it possible to render things (instead of being stuck on a black screen), and touch events work again.
 - Added NetBSD support.
@@ -8,6 +31,7 @@
 - On iOS, the `UIApplication` is not started until `Window::new` is called.
 - Fixed thread unsafety with cursor hiding on macOS.
 - On iOS, fixed the size of the `JmpBuf` type used for `setjmp`/`longjmp` calls. Previously this was a buffer overflow on most architectures.
+- On Windows, use cached window DPI instead of repeatedly querying the system. This fixes sporadic crashes on Windows 7.
 
 # Version 0.16.2 (2018-07-07)
 

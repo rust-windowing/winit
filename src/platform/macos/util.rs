@@ -1,5 +1,5 @@
 use cocoa::appkit::NSWindowStyleMask;
-use cocoa::base::{class, id, nil};
+use cocoa::base::{id, nil};
 use cocoa::foundation::{NSRect, NSUInteger};
 use core_graphics::display::CGDisplay;
 

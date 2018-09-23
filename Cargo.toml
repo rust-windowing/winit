@@ -1,7 +1,7 @@
 [package]
 name = "winit"
-version = "0.16.2"
-authors = ["The winit contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
+version = "0.17.2"
+authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
 license = "Apache-2.0"
@@ -30,9 +30,9 @@ objc = "0.2.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2.3"
-cocoa = "0.15"
+cocoa = "0.17"
 core-foundation = "0.6"
-core-graphics = "0.14"
+core-graphics = "0.16"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
 version = "0.3.6"
@@ -59,7 +59,7 @@ features = [
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
 wayland-client = { version = "0.20.10", features = [ "dlopen", "egl", "cursor"] }
-smithay-client-toolkit = "0.2.6"
-x11-dl = "2.17.5"
+smithay-client-toolkit = "0.3.0"
+x11-dl = "2.18.3"
 parking_lot = "0.6"
 percent-encoding = "1.0"

@@ -45,6 +45,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub class: Option<(String, String)>,
     pub override_redirect: bool,
     pub x11_window_type: x11::util::WindowType,
+    pub gtk_theme_variant: Option<String>,
 }
 
 lazy_static!(

@@ -8,7 +8,6 @@ use winapi::shared::minwindef::{BOOL, UINT, FALSE};
 use winapi::shared::windef::{
     DPI_AWARENESS_CONTEXT,
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE,
-    HDC,
     HMONITOR,
     HWND,
 };
@@ -145,7 +144,11 @@ pub fn dpi_to_scale_factor(dpi: u32) -> f64 {
     dpi as f64 / BASE_DPI as f64
 }
 
-pub unsafe fn get_window_dpi(hwnd: HWND, hdc: HDC) -> u32 {
+pub unsafe fn get_hwnd_dpi(hwnd: HWND) -> u32 {
+    let hdc = winuser::GetDC(hwnd);
+    if hdc.is_null() {
+        panic!("[winit] `GetDC` returned null!");
+    }
     if let Some(GetDpiForWindow) = *GET_DPI_FOR_WINDOW {
         // We are on Windows 10 Anniversary Update (1607) or later.
         match GetDpiForWindow(hwnd) {
@@ -181,16 +184,6 @@ pub unsafe fn get_window_dpi(hwnd: HWND, hdc: HDC) -> u32 {
     }
 }
 
-// Use this when you have both the HWND and HDC on hand (i.e. window methods)
-pub fn get_window_scale_factor(hwnd: HWND, hdc: HDC) -> f64 {
-    dpi_to_scale_factor(unsafe { get_window_dpi(hwnd, hdc) })
-}
-
-// Use this when you only have the HWND (i.e. event handling)
 pub fn get_hwnd_scale_factor(hwnd: HWND) -> f64 {
-    let hdc = unsafe { winuser::GetDC(hwnd) };
-    if hdc.is_null() {
-        panic!("[winit] `GetDC` returned null!");
-    }
-    unsafe { get_window_scale_factor(hwnd, hdc) }
+    dpi_to_scale_factor(unsafe { get_hwnd_dpi(hwnd) })
 }

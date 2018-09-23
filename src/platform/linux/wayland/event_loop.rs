@@ -1,22 +1,24 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt;
-use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, Weak};
 
 use {ControlFlow, EventsLoopClosed, PhysicalPosition, PhysicalSize};
 
-use super::WindowId;
 use super::window::WindowStore;
+use super::WindowId;
 
-use sctk::Environment;
 use sctk::output::OutputMgr;
-use sctk::reexports::client::{Display, EventQueue, GlobalEvent, Proxy, ConnectError};
 use sctk::reexports::client::commons::Implementation;
-use sctk::reexports::client::protocol::{wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat,
-                                        wl_touch};
+use sctk::reexports::client::protocol::{
+    wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat, wl_touch,
+};
+use sctk::reexports::client::{ConnectError, Display, EventQueue, GlobalEvent, Proxy};
+use sctk::Environment;
 
 use sctk::reexports::client::protocol::wl_display::RequestsTrait as DisplayRequests;
+use sctk::reexports::client::protocol::wl_surface::RequestsTrait;
 
 pub struct EventsLoopSink {
     buffer: VecDeque<::Event>,
@@ -104,6 +106,8 @@ impl EventsLoop {
     pub fn new() -> Result<EventsLoop, ConnectError> {
         let (display, mut event_queue) = Display::connect_to_env()?;
 
+        let display = Arc::new(display);
+        let pending_wakeup = Arc::new(AtomicBool::new(false));
         let sink = Arc::new(Mutex::new(EventsLoopSink::new()));
         let store = Arc::new(Mutex::new(WindowStore::new()));
         let seats = Arc::new(Mutex::new(Vec::new()));
@@ -115,18 +119,22 @@ impl EventsLoop {
                 sink: sink.clone(),
                 store: store.clone(),
                 seats: seats.clone(),
+                events_loop_proxy: EventsLoopProxy {
+                    display: Arc::downgrade(&display),
+                    pending_wakeup: Arc::downgrade(&pending_wakeup),
+                },
             },
         ).unwrap();
 
         Ok(EventsLoop {
-            display: Arc::new(display),
+            display,
             evq: RefCell::new(event_queue),
-            sink: sink,
-            pending_wakeup: Arc::new(AtomicBool::new(false)),
-            store: store,
-            env: env,
+            sink,
+            pending_wakeup,
+            store,
+            env,
             cleanup_needed: Arc::new(Mutex::new(false)),
-            seats: seats,
+            seats,
         })
     }
 
@@ -242,6 +250,9 @@ impl EventsLoop {
                         *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
+                        if !refresh {
+                            frame.surface().commit()
+                        }
                     }
                 }
                 if let Some(dpi) = new_dpi {
@@ -266,6 +277,7 @@ struct SeatManager {
     sink: Arc<Mutex<EventsLoopSink>>,
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, Proxy<wl_seat::WlSeat>)>>>,
+    events_loop_proxy: EventsLoopProxy,
 }
 
 impl Implementation<Proxy<wl_registry::WlRegistry>, GlobalEvent> for SeatManager {
@@ -289,6 +301,7 @@ impl Implementation<Proxy<wl_registry::WlRegistry>, GlobalEvent> for SeatManager
                         pointer: None,
                         keyboard: None,
                         touch: None,
+                        events_loop_proxy: self.events_loop_proxy.clone(),
                     });
                 self.store.lock().unwrap().new_seat(&seat);
                 self.seats.lock().unwrap().push((id, seat));
@@ -313,6 +326,7 @@ struct SeatData {
     pointer: Option<Proxy<wl_pointer::WlPointer>>,
     keyboard: Option<Proxy<wl_keyboard::WlKeyboard>>,
     touch: Option<Proxy<wl_touch::WlTouch>>,
+    events_loop_proxy: EventsLoopProxy,
 }
 
 impl Implementation<Proxy<wl_seat::WlSeat>, wl_seat::Event> for SeatData {
@@ -343,6 +357,7 @@ impl Implementation<Proxy<wl_seat::WlSeat>, wl_seat::Event> for SeatData {
                     self.keyboard = Some(super::keyboard::init_keyboard(
                         seat.get_keyboard().unwrap(),
                         self.sink.clone(),
+                        self.events_loop_proxy.clone(),
                     ))
                 }
                 // destroy keyboard if applicable

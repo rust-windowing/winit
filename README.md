@@ -1,15 +1,13 @@
 # winit - Cross-platform window creation and management in Rust
 
 [![](http://meritbadge.herokuapp.com/winit)](https://crates.io/crates/winit)
-
 [![Docs.rs](https://docs.rs/winit/badge.svg)](https://docs.rs/winit)
-
 [![Build Status](https://travis-ci.org/tomaka/winit.svg?branch=master)](https://travis-ci.org/tomaka/winit)
 [![Build status](https://ci.appveyor.com/api/projects/status/5h87hj0g4q2xe3j9/branch/master?svg=true)](https://ci.appveyor.com/project/tomaka/winit/branch/master)
 
 ```toml
 [dependencies]
-winit = "0.16"
+winit = "0.17"
 ```
 
 ## [Documentation](https://docs.rs/winit)
