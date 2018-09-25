@@ -9,8 +9,10 @@ use std::sync::atomic::{Ordering, AtomicBool};
 use cocoa::appkit::{
     self,
     CGFloat,
+    NSApp,
     NSApplication,
     NSColor,
+    NSRequestUserAttentionType,
     NSScreen,
     NSView,
     NSWindow,
@@ -584,6 +586,19 @@ impl WindowExt for Window2 {
     #[inline]
     fn get_nsview(&self) -> *mut c_void {
         *self.view as *mut c_void
+    }
+
+    #[inline]
+    fn request_user_attention(&self, is_critical: bool) {
+        let request_type = if is_critical {
+            NSRequestUserAttentionType::NSCriticalRequest
+        } else {
+            NSRequestUserAttentionType::NSInformationalRequest
+        };
+
+        unsafe {
+            NSApp().requestUserAttention_(request_type);
+        }
     }
 }
 

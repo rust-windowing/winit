@@ -14,6 +14,9 @@ pub trait WindowExt {
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
     fn get_nsview(&self) -> *mut c_void;
+
+    /// Request user attention. Only relevant on macOS.
+    fn request_user_attention(&self, critical: bool);
 }
 
 impl WindowExt for Window {
@@ -25,6 +28,11 @@ impl WindowExt for Window {
     #[inline]
     fn get_nsview(&self) -> *mut c_void {
         self.window.get_nsview()
+    }
+
+    #[inline]
+    fn request_user_attention(&self, is_critical: bool) {
+        self.window.request_user_attention(is_critical)
     }
 }
 
