@@ -412,10 +412,10 @@ impl EventsLoop {
                     let new_inner_size = (xev.width as u32, xev.height as u32);
                     let new_inner_position = (xev.x as i32, xev.y as i32);
 
-                    let monitor = window.get_current_monitor(); // This must be done *before* locking!
+                    let mut monitor = window.get_current_monitor(); // This must be done *before* locking!
                     let mut shared_state_lock = window.shared_state.lock();
 
-                    let (resized, moved) = {
+                    let (mut resized, moved) = {
                         let resized = util::maybe_change(&mut shared_state_lock.size, new_inner_size);
                         let moved = if is_synthetic {
                             util::maybe_change(&mut shared_state_lock.inner_position, new_inner_position)
@@ -435,31 +435,7 @@ impl EventsLoop {
                         (resized, moved)
                     };
 
-                    // This is a hack to ensure that the DPI adjusted resize is actually applied on all WMs. KWin
-                    // doesn't need this, but Xfwm does.
-                    if let Some(adjusted_size) = shared_state_lock.dpi_adjusted {
-                        let rounded_size = (adjusted_size.0.round() as u32, adjusted_size.1.round() as u32);
-                        if new_inner_size == rounded_size {
-                            // When this finally happens, the event will not be synthetic.
-                            shared_state_lock.dpi_adjusted = None;
-                        } else {
-                            unsafe {
-                                (self.xconn.xlib.XResizeWindow)(
-                                    self.xconn.display,
-                                    xwindow,
-                                    rounded_size.0 as c_uint,
-                                    rounded_size.1 as c_uint,
-                                );
-                            }
-                        }
-                    }
-
                     let mut events = Events::default();
-
-                    if resized {
-                        let logical_size = LogicalSize::from_physical(new_inner_size, monitor.hidpi_factor);
-                        events.resized = Some(WindowEvent::Resized(logical_size));
-                    }
 
                     let new_outer_position = if moved || shared_state_lock.position.is_none() {
                         // We need to convert client area position to window position.
@@ -497,9 +473,9 @@ impl EventsLoop {
                             });
                         let new_hidpi_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
-                            let monitor = self.xconn.get_monitor_for_window(Some(window_rect));
+                            monitor = self.xconn.get_monitor_for_window(Some(window_rect));
                             let new_hidpi_factor = monitor.hidpi_factor;
-                            shared_state_lock.last_monitor = Some(monitor);
+                            shared_state_lock.last_monitor = Some(monitor.clone());
                             new_hidpi_factor
                         };
                         if last_hidpi_factor != new_hidpi_factor {
@@ -512,7 +488,34 @@ impl EventsLoop {
                             );
                             flusher.queue();
                             shared_state_lock.dpi_adjusted = Some((new_width, new_height));
+                            // if the DPI factor changed, force a resize event to ensure the logical
+                            // size is computed with the right DPI factor
+                            resized = true;
                         }
+                    }
+
+                    // This is a hack to ensure that the DPI adjusted resize is actually applied on all WMs. KWin
+                    // doesn't need this, but Xfwm does.
+                    if let Some(adjusted_size) = shared_state_lock.dpi_adjusted {
+                        let rounded_size = (adjusted_size.0.round() as u32, adjusted_size.1.round() as u32);
+                        if new_inner_size == rounded_size {
+                            // When this finally happens, the event will not be synthetic.
+                            shared_state_lock.dpi_adjusted = None;
+                        } else {
+                            unsafe {
+                                (self.xconn.xlib.XResizeWindow)(
+                                    self.xconn.display,
+                                    xwindow,
+                                    rounded_size.0 as c_uint,
+                                    rounded_size.1 as c_uint,
+                                );
+                            }
+                        }
+                    }
+
+                    if resized {
+                        let logical_size = LogicalSize::from_physical(new_inner_size, monitor.hidpi_factor);
+                        events.resized = Some(WindowEvent::Resized(logical_size));
                     }
 
                     events
@@ -520,13 +523,13 @@ impl EventsLoop {
 
                 if let Some(events) = events {
                     let window_id = mkwid(xwindow);
+                    if let Some(event) = events.dpi_changed {
+                        callback(Event::WindowEvent { window_id, event });
+                    }
                     if let Some(event) = events.resized {
                         callback(Event::WindowEvent { window_id, event });
                     }
                     if let Some(event) = events.moved {
-                        callback(Event::WindowEvent { window_id, event });
-                    }
-                    if let Some(event) = events.dpi_changed {
                         callback(Event::WindowEvent { window_id, event });
                     }
                 }

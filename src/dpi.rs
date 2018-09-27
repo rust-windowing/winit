@@ -53,7 +53,7 @@
 //! - **X11:** On X11, we calcuate the DPI factor based on the millimeter dimensions provided by XRandR. This can
 //! result in a wide range of possible values, including some interesting ones like 1.0833333333333333. This can be
 //! overridden using the `WINIT_HIDPI_FACTOR` environment variable, though that's not recommended.
-//! - **Wayland:** On Wayland, DPI factors are very much at the discretion of the user.
+//! - **Wayland:** On Wayland, DPI factors set per-screen by the server, and are always integers (most often 1 or 2).
 //! - **iOS:** DPI factors are both constant and device-specific on iOS.
 //! - **Android:** This feature isn't yet implemented on Android, so the DPI factor will always be returned as 1.0.
 //!
@@ -65,6 +65,14 @@
 //!
 //! Your GPU has no awareness of the concept of logical pixels, and unless you like wasting pixel density, your
 //! framebuffer's size should be in physical pixels.
+//!
+//! Winit will send `Resized` events whenever the logical size of your window changes, and `HiDPIFactorChanged` events
+//! whenever the DPI factor changes. Receiving any of these events means the physical size of your window has changed,
+//! and you should recompute it using the latest value your received for each. If both the logical size and the DPI
+//! factor changed at once, winit will send both events in the same batch. It is thus recommended to buffer these
+//! events and process them at once at the end of each batch.
+//!
+//! If you never received any `HiDPIFactorChanged` event, then the DPI factor of your window is 1.
 
 /// Checks that the DPI factor is a normal positive `f64`.
 ///

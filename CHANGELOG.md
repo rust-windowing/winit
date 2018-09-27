@@ -16,6 +16,9 @@
 - On Windows 10, fix transparency (#260).
 - on macOS, fix modifiers during key repeat.
 - Implemented the `Debug` trait for `Window`, `EventsLoop`, `EventsLoopProxy` and `WindowBuilder`.
+- X11 backend will now always generate a `Resized` event after a DPI change, to ensure consistency
+  of the logical size of the window
+- Some clarifications of the DPI docs
 
 # Version 0.17.2 (2018-08-19)
 
