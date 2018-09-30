@@ -24,7 +24,7 @@ struct ViewState {
     shared: Weak<Shared>,
     ime_spot: Option<(f64, f64)>,
     raw_characters: Option<String>,
-    last_insert: Option<String>,
+    is_key_down: bool,
 }
 
 pub fn new_view(window: id, shared: Weak<Shared>) -> IdRef {
@@ -33,7 +33,7 @@ pub fn new_view(window: id, shared: Weak<Shared>) -> IdRef {
         shared,
         ime_spot: None,
         raw_characters: None,
-        last_insert: None,
+        is_key_down: false,
     };
     unsafe {
         // This is free'd in `dealloc`
@@ -280,7 +280,7 @@ extern fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: 
             characters.len(),
         );
         let string = str::from_utf8_unchecked(slice);
-        state.last_insert = Some(string.to_owned());
+        state.is_key_down = true;
 
         // We don't need this now, but it's here if that changes.
         //let event: id = msg_send![class!(NSApp), currentEvent];
@@ -389,15 +389,25 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
             },
         };
 
+        let characters: id = msg_send![event, characters];
+        let slice = slice::from_raw_parts(
+            characters.UTF8String() as *const c_uchar,
+            characters.len(),
+            );
+        let string = str::from_utf8_unchecked(slice);
+
+        state.raw_characters = {
+            Some(string.to_owned())
+        };
+
         if let Some(shared) = state.shared.upgrade() {
             shared.pending_events
                 .lock()
                 .unwrap()
                 .push_back(window_event);
             // Emit `ReceivedCharacter` for key repeats
-            if is_repeat && state.last_insert.is_some() {
-                let last_insert = state.last_insert.as_ref().unwrap();
-                for character in last_insert.chars() {
+            if is_repeat && state.is_key_down{
+                for character in string.chars() {
                     let window_event = Event::WindowEvent {
                         window_id,
                         event: WindowEvent::ReceivedCharacter(character),
@@ -424,7 +434,7 @@ extern fn key_up(this: &Object, _sel: Sel, event: id) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        state.last_insert = None;
+        state.is_key_down = false;
 
         // We need characters here to check for additional keys such as
         // F21-F24.

@@ -12,6 +12,7 @@
 - Fixed UTF8 handling bug in X11 `set_title` function.
 - On Windows, `Window::set_cursor` now applies immediately instead of requiring specific events to occur first.
 - On Windows, fix window.set_maximized().
+- on macOS, fix modifiers during key repeat.
 
 # Version 0.17.2 (2018-08-19)
 
