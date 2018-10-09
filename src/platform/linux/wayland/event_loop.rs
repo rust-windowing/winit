@@ -92,7 +92,7 @@ impl EventsLoopProxy {
                 // Update the `EventsLoop`'s `pending_wakeup` flag.
                 wakeup.store(true, Ordering::Relaxed);
                 // Cause the `EventsLoop` to break from `dispatch` if it is currently blocked.
-                let _ = display.sync(|callback| {callback.implement(|_, _| {}, ())});
+                let _ = display.sync(|callback| callback.implement(|_, _| {}, ()));
                 display.flush().map_err(|_| EventsLoopClosed)?;
                 Ok(())
             }
@@ -111,24 +111,21 @@ impl EventsLoop {
         let store = Arc::new(Mutex::new(WindowStore::new()));
         let seats = Arc::new(Mutex::new(Vec::new()));
 
-        let my_display = display.clone();
-        let my_sink = sink.clone();
-        let my_store = store.clone();
-        let my_seats = seats.clone();
-        let my_pending_wakeup = pending_wakeup.clone();
+        let mut seat_manager = SeatManager {
+            sink: sink.clone(),
+            store: store.clone(),
+            seats: seats.clone(),
+            events_loop_proxy: EventsLoopProxy {
+                display: Arc::downgrade(&display),
+                pending_wakeup: Arc::downgrade(&pending_wakeup),
+            },
+        };
+
         let env = Environment::from_display_with_cb(
             &display,
             &mut event_queue,
             move |event, registry| { 
-                SeatManager {
-                    sink: my_sink.clone(),
-                    store: my_store.clone(),
-                    seats: my_seats.clone(),
-                    events_loop_proxy: EventsLoopProxy {
-                        display: Arc::downgrade(&my_display),
-                        pending_wakeup: Arc::downgrade(&my_pending_wakeup),
-                    },
-                }.receive(event, registry)
+                seat_manager.receive(event, registry)
             },
         ).unwrap();
 
@@ -299,18 +296,18 @@ impl SeatManager {
             {
                 use std::cmp::min;
 
-                let seat_data = Arc::new(Mutex::new(SeatData {
+                let mut seat_data = SeatData {
                     sink: self.sink.clone(),
                     store: self.store.clone(),
                     pointer: None,
                     keyboard: None,
                     touch: None,
                     events_loop_proxy: self.events_loop_proxy.clone(),
-                }));
+                };
                 let seat = registry
                     .bind(min(version, 5), id, move |seat| {
                         seat.implement(move |event, seat| {
-                            seat_data.lock().unwrap().receive(event, seat)
+                            seat_data.receive(event, seat)
                         }, ())
                     })
                     .unwrap();
