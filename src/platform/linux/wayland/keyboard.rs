@@ -5,11 +5,14 @@ use sctk::keyboard::{
     self, map_keyboard_auto_with_repeat, Event as KbEvent, KeyRepeatEvent, KeyRepeatKind,
 };
 use sctk::reexports::client::protocol::wl_keyboard;
-use sctk::reexports::client::{NewProxy, Proxy};
+use sctk::reexports::client::Proxy;
+use sctk::reexports::client::protocol::wl_seat;
+use sctk::reexports::client::protocol::wl_seat::RequestsTrait as SeatRequests;
+
 use {ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
 
 pub fn init_keyboard(
-    keyboard: NewProxy<wl_keyboard::WlKeyboard>,
+    seat: &Proxy<wl_seat::WlSeat>,
     sink: Arc<Mutex<EventsLoopSink>>,
     events_loop_proxy: EventsLoopProxy,
 ) -> Proxy<wl_keyboard::WlKeyboard> {
@@ -18,9 +21,11 @@ pub fn init_keyboard(
     let my_sink = sink.clone();
     let repeat_sink = sink.clone();
     let repeat_target = target.clone();
+    let modifiers = Arc::new(Mutex::new(ModifiersState::default()));
+    let my_modifiers = modifiers.clone();
     // }
     let ret = map_keyboard_auto_with_repeat(
-        keyboard,
+        seat,
         KeyRepeatKind::System,
         move |evt: KbEvent, _| match evt {
             KbEvent::Enter { surface, .. } => {
@@ -40,7 +45,6 @@ pub fn init_keyboard(
                 *target.lock().unwrap() = None;
             }
             KbEvent::Key {
-                modifiers,
                 rawkey,
                 keysym,
                 state,
@@ -61,7 +65,7 @@ pub fn init_keyboard(
                                 state: state,
                                 scancode: rawkey,
                                 virtual_keycode: vkcode,
-                                modifiers: modifiers.into(),
+                                modifiers: modifiers.lock().unwrap().clone(),
                             },
                         },
                         wid,
@@ -78,6 +82,9 @@ pub fn init_keyboard(
                 }
             }
             KbEvent::RepeatInfo { .. } => { /* Handled by smithay client toolkit */ }
+            KbEvent::Modifiers { modifiers: event_modifiers } => {
+                *modifiers.lock().unwrap() = event_modifiers.into()
+            }
         },
         move |repeat_event: KeyRepeatEvent, _| {
             if let Some(wid) = *repeat_target.lock().unwrap() {
@@ -91,7 +98,7 @@ pub fn init_keyboard(
                             state: state,
                             scancode: repeat_event.rawkey,
                             virtual_keycode: vkcode,
-                            modifiers: repeat_event.modifiers.into(),
+                            modifiers: my_modifiers.lock().unwrap().clone(),
                         },
                     },
                     wid,
@@ -108,7 +115,7 @@ pub fn init_keyboard(
 
     match ret {
         Ok(keyboard) => keyboard,
-        Err((_, keyboard)) => {
+        Err(_) => {
             // This is a fallback impl if libxkbcommon was not available
             // This case should probably never happen, as most wayland
             // compositors _need_ libxkbcommon anyway...
@@ -120,45 +127,47 @@ pub fn init_keyboard(
             let mut target = None;
             let my_sink = sink;
             // }
-            keyboard.implement(move |evt, _| match evt {
-                wl_keyboard::Event::Enter { surface, .. } => {
-                    let wid = make_wid(&surface);
-                    my_sink
-                        .lock()
-                        .unwrap()
-                        .send_event(WindowEvent::Focused(true), wid);
-                    target = Some(wid);
-                }
-                wl_keyboard::Event::Leave { surface, .. } => {
-                    let wid = make_wid(&surface);
-                    my_sink
-                        .lock()
-                        .unwrap()
-                        .send_event(WindowEvent::Focused(false), wid);
-                    target = None;
-                }
-                wl_keyboard::Event::Key { key, state, .. } => {
-                    if let Some(wid) = target {
-                        let state = match state {
-                            wl_keyboard::KeyState::Pressed => ElementState::Pressed,
-                            wl_keyboard::KeyState::Released => ElementState::Released,
-                        };
-                        my_sink.lock().unwrap().send_event(
-                            WindowEvent::KeyboardInput {
-                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
-                                input: KeyboardInput {
-                                    state: state,
-                                    scancode: key,
-                                    virtual_keycode: None,
-                                    modifiers: ModifiersState::default(),
-                                },
-                            },
-                            wid,
-                        );
+            seat.get_keyboard(|keyboard| {
+                keyboard.implement(move |evt, _| match evt {
+                    wl_keyboard::Event::Enter { surface, .. } => {
+                        let wid = make_wid(&surface);
+                        my_sink
+                            .lock()
+                            .unwrap()
+                            .send_event(WindowEvent::Focused(true), wid);
+                        target = Some(wid);
                     }
-                }
-                _ => (),
-            })
+                    wl_keyboard::Event::Leave { surface, .. } => {
+                        let wid = make_wid(&surface);
+                        my_sink
+                            .lock()
+                            .unwrap()
+                            .send_event(WindowEvent::Focused(false), wid);
+                        target = None;
+                    }
+                    wl_keyboard::Event::Key { key, state, .. } => {
+                        if let Some(wid) = target {
+                            let state = match state {
+                                wl_keyboard::KeyState::Pressed => ElementState::Pressed,
+                                wl_keyboard::KeyState::Released => ElementState::Released,
+                            };
+                            my_sink.lock().unwrap().send_event(
+                                WindowEvent::KeyboardInput {
+                                    device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                    input: KeyboardInput {
+                                        state: state,
+                                        scancode: key,
+                                        virtual_keycode: None,
+                                        modifiers: ModifiersState::default(),
+                                    },
+                                },
+                                wid,
+                            );
+                        }
+                    }
+                    _ => (),
+                }, ())
+            }).unwrap()
         }
     }
 }

@@ -1,5 +1,8 @@
 # Unreleased
 
+- On Wayland, titles will now be displayed in the window header decoration
+- On Wayland, key repetition is now ended when keyboard loses focus
+- On Wayland, windows will now use more stylish and modern client side decorations.
 - On Wayland, windows will use server-side decorations when available.
 - Added support for F16-F24 keys.
 - Fixed graphical glitches when resizing on Wayland.
