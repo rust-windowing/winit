@@ -453,9 +453,9 @@ impl Window {
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let mut window_state = self.window_state.lock().unwrap();
-        window_state.maximized = true;
+        window_state.maximized = maximized;
         // We only maximize if we're not in fullscreen.
-        if window_state.fullscreen.is_none() {
+        if window_state.fullscreen.is_some() {
             return;
         }
 
