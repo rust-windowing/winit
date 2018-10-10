@@ -453,25 +453,24 @@ impl Window {
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let mut window_state = self.window_state.lock().unwrap();
-        window_state.maximized = maximized;
-        // We only maximize if we're not in fullscreen.
-        if window_state.fullscreen.is_some() {
-            return;
-        }
-
-        let window = self.window.clone();
-        unsafe {
-            // `ShowWindow` resizes the window, so it must be called from the main thread.
-            self.events_loop_proxy.execute_in_thread(move |_| {
-                winuser::ShowWindow(
-                    window.0,
-                    if maximized {
-                        winuser::SW_MAXIMIZE
-                    } else {
-                        winuser::SW_RESTORE
-                    },
-                );
-            });
+        if mem::replace(&mut window_state.maximized, maximized) != maximized {
+            // We only maximize if we're not in fullscreen.
+            if window_state.fullscreen.is_none() {
+                let window = self.window.clone();
+                unsafe {
+                    // `ShowWindow` resizes the window, so it must be called from the main thread.
+                    self.events_loop_proxy.execute_in_thread(move |_| {
+                        winuser::ShowWindow(
+                            window.0,
+                            if maximized {
+                                winuser::SW_MAXIMIZE
+                            } else {
+                                winuser::SW_RESTORE
+                            },
+                        );
+                    });
+                }
+            }
         }
     }
 
