@@ -894,7 +894,7 @@ unsafe fn init(
             }
         )
     } else {
-        (winuser::WS_EX_APPWINDOW | winuser::WS_EX_WINDOWEDGE | winuser::WS_EX_LAYERED,
+        (winuser::WS_EX_APPWINDOW | winuser::WS_EX_WINDOWEDGE,
             winuser::WS_OVERLAPPEDWINDOW | winuser::WS_CLIPSIBLINGS | winuser::WS_CLIPCHILDREN)
     };
 
@@ -903,6 +903,9 @@ unsafe fn init(
     }
     if pl_attribs.no_redirection_bitmap {
         ex_style |= winuser::WS_EX_NOREDIRECTIONBITMAP;
+    }
+    if attributes.transparent && attributes.decorations {
+        ex_style |= winuser::WS_EX_LAYERED;
     }
 
     // adjusting the window coordinates using the style
