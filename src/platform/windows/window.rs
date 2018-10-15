@@ -13,8 +13,8 @@ use winapi::shared::windef::{HWND, LPPOINT, POINT, RECT};
 use winapi::um::{combaseapi, dwmapi, libloaderapi, winuser};
 use winapi::um::objbase::COINIT_MULTITHREADED;
 use winapi::um::shobjidl_core::{CLSID_TaskbarList, ITaskbarList2};
+use winapi::um::wingdi::{CreateRectRgn, DeleteObject};
 use winapi::um::winnt::{LONG, LPCWSTR};
-use winapi::um::wingdi::CreateRectRgn;
 
 use {
     CreationError,
@@ -1021,14 +1021,17 @@ unsafe fn init(
 
     // making the window transparent
     if attributes.transparent && !pl_attribs.no_redirection_bitmap {
+        let region = CreateRectRgn(0, 0, -1, -1); // makes the window transparent
+
         let bb = dwmapi::DWM_BLURBEHIND {
             dwFlags: dwmapi::DWM_BB_ENABLE | dwmapi::DWM_BB_BLURREGION,
             fEnable: 1,
-            hRgnBlur: CreateRectRgn(0, 0, -1, -1), // makes the window transparent
+            hRgnBlur: region,
             fTransitionOnMaximized: 0,
         };
 
         dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
+        DeleteObject(region as _);
 
         if attributes.decorations {
             // HACK: When opaque (opacity 255), there is a trail whenever
@@ -1036,7 +1039,10 @@ unsafe fn init(
             // the window is rendered properly.
             let opacity = 254;
 
-            winuser::SetLayeredWindowAttributes(real_window.0, 0x0030c100, opacity, winuser::LWA_ALPHA);
+            // The color key can be any value except for black (0x0).
+            let color_key = 0x0030c100;
+
+            winuser::SetLayeredWindowAttributes(real_window.0, color_key, opacity, winuser::LWA_ALPHA);
         }
     }
 
