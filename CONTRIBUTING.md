@@ -6,7 +6,7 @@ Winit aims to provide a generic platform abstracting the main graphic platforms 
 Wayland, Android, iOS and the web platform via Emscripten).
 
 Most platform expose capabilities that cannot be meaningfully transposed to the others. Winit does not
-aim at supporting every single functionnaly of every platform, but rather abstract the set of 
+aim at supporting every single functionaly of every platform, but rather abstract the set of 
 capabilities that is common to all platforms. In this context, APIs exposed in winit can be split into
 different "support levels":
 
@@ -45,7 +45,7 @@ When making a code contribution to winit, before opening your pull request, plea
 
 Once your PR is open, you can ask for review by a maintainer of your platform. Winit's merging policy
 is that a PR must be approved by at least two maintainers of winit before being merged, including
-at least a maintainer of the platoform (a maintainer making a PR themselves counts as approving it).
+at least a maintainer of the platform (a maintainer making a PR themselves counts as approving it).
 
 ## Maintainers & Testers
 
