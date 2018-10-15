@@ -10,7 +10,6 @@ use super::window::WindowStore;
 use super::WindowId;
 
 use sctk::output::OutputMgr;
-use sctk::reexports::client::commons::Implementation;
 use sctk::reexports::client::protocol::{
     wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat, wl_touch,
 };
@@ -93,7 +92,7 @@ impl EventsLoopProxy {
                 // Update the `EventsLoop`'s `pending_wakeup` flag.
                 wakeup.store(true, Ordering::Relaxed);
                 // Cause the `EventsLoop` to break from `dispatch` if it is currently blocked.
-                let _ = display.sync();
+                let _ = display.sync(|callback| callback.implement(|_, _| {}, ()));
                 display.flush().map_err(|_| EventsLoopClosed)?;
                 Ok(())
             }
@@ -112,17 +111,21 @@ impl EventsLoop {
         let store = Arc::new(Mutex::new(WindowStore::new()));
         let seats = Arc::new(Mutex::new(Vec::new()));
 
-        let env = Environment::from_registry_with_cb(
-            display.get_registry().unwrap(),
+        let mut seat_manager = SeatManager {
+            sink: sink.clone(),
+            store: store.clone(),
+            seats: seats.clone(),
+            events_loop_proxy: EventsLoopProxy {
+                display: Arc::downgrade(&display),
+                pending_wakeup: Arc::downgrade(&pending_wakeup),
+            },
+        };
+
+        let env = Environment::from_display_with_cb(
+            &display,
             &mut event_queue,
-            SeatManager {
-                sink: sink.clone(),
-                store: store.clone(),
-                seats: seats.clone(),
-                events_loop_proxy: EventsLoopProxy {
-                    display: Arc::downgrade(&display),
-                    pending_wakeup: Arc::downgrade(&pending_wakeup),
-                },
+            move |event, registry| { 
+                seat_manager.receive(event, registry)
             },
         ).unwrap();
 
@@ -280,7 +283,7 @@ struct SeatManager {
     events_loop_proxy: EventsLoopProxy,
 }
 
-impl Implementation<Proxy<wl_registry::WlRegistry>, GlobalEvent> for SeatManager {
+impl SeatManager {
     fn receive(&mut self, evt: GlobalEvent, registry: Proxy<wl_registry::WlRegistry>) {
         use self::wl_registry::RequestsTrait as RegistryRequests;
         use self::wl_seat::RequestsTrait as SeatRequests;
@@ -292,17 +295,22 @@ impl Implementation<Proxy<wl_registry::WlRegistry>, GlobalEvent> for SeatManager
             } if interface == "wl_seat" =>
             {
                 use std::cmp::min;
+
+                let mut seat_data = SeatData {
+                    sink: self.sink.clone(),
+                    store: self.store.clone(),
+                    pointer: None,
+                    keyboard: None,
+                    touch: None,
+                    events_loop_proxy: self.events_loop_proxy.clone(),
+                };
                 let seat = registry
-                    .bind::<wl_seat::WlSeat>(min(version, 5), id)
-                    .unwrap()
-                    .implement(SeatData {
-                        sink: self.sink.clone(),
-                        store: self.store.clone(),
-                        pointer: None,
-                        keyboard: None,
-                        touch: None,
-                        events_loop_proxy: self.events_loop_proxy.clone(),
-                    });
+                    .bind(min(version, 5), id, move |seat| {
+                        seat.implement(move |event, seat| {
+                            seat_data.receive(event, seat)
+                        }, ())
+                    })
+                    .unwrap();
                 self.store.lock().unwrap().new_seat(&seat);
                 self.seats.lock().unwrap().push((id, seat));
             }
@@ -329,16 +337,15 @@ struct SeatData {
     events_loop_proxy: EventsLoopProxy,
 }
 
-impl Implementation<Proxy<wl_seat::WlSeat>, wl_seat::Event> for SeatData {
+impl SeatData {
     fn receive(&mut self, evt: wl_seat::Event, seat: Proxy<wl_seat::WlSeat>) {
-        use self::wl_seat::RequestsTrait as SeatRequests;
         match evt {
             wl_seat::Event::Name { .. } => (),
             wl_seat::Event::Capabilities { capabilities } => {
                 // create pointer if applicable
                 if capabilities.contains(wl_seat::Capability::Pointer) && self.pointer.is_none() {
                     self.pointer = Some(super::pointer::implement_pointer(
-                        seat.get_pointer().unwrap(),
+                        &seat,
                         self.sink.clone(),
                         self.store.clone(),
                     ))
@@ -355,7 +362,7 @@ impl Implementation<Proxy<wl_seat::WlSeat>, wl_seat::Event> for SeatData {
                 // create keyboard if applicable
                 if capabilities.contains(wl_seat::Capability::Keyboard) && self.keyboard.is_none() {
                     self.keyboard = Some(super::keyboard::init_keyboard(
-                        seat.get_keyboard().unwrap(),
+                        &seat,
                         self.sink.clone(),
                         self.events_loop_proxy.clone(),
                     ))
@@ -372,7 +379,7 @@ impl Implementation<Proxy<wl_seat::WlSeat>, wl_seat::Event> for SeatData {
                 // create touch if applicable
                 if capabilities.contains(wl_seat::Capability::Touch) && self.touch.is_none() {
                     self.touch = Some(super::touch::implement_touch(
-                        seat.get_touch().unwrap(),
+                        &seat,
                         self.sink.clone(),
                         self.store.clone(),
                     ))

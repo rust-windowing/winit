@@ -6,7 +6,7 @@ use dpi::{LogicalPosition, LogicalSize};
 use platform::MonitorId as PlatformMonitorId;
 use window::MonitorId as RootMonitorId;
 
-use sctk::window::{BasicFrame, Event as WEvent, Window as SWindow};
+use sctk::window::{ConceptFrame, Event as WEvent, Window as SWindow};
 use sctk::reexports::client::{Display, Proxy};
 use sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_output};
 use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as CompositorRequests;
@@ -18,7 +18,7 @@ use platform::platform::wayland::event_loop::{get_available_monitors, get_primar
 
 pub struct Window {
     surface: Proxy<wl_surface::WlSurface>,
-    frame: Arc<Mutex<SWindow<BasicFrame>>>,
+    frame: Arc<Mutex<SWindow<ConceptFrame>>>,
     monitors: Arc<Mutex<MonitorList>>, // Monitors this window is currently on
     outputs: OutputMgr, // Access to info for all monitors
     size: Arc<Mutex<(u32, u32)>>,
@@ -36,11 +36,11 @@ impl Window {
         // monitor tracking
         let monitor_list = Arc::new(Mutex::new(MonitorList::new()));
 
-        let surface = evlp.env.compositor.create_surface().unwrap().implement({
+        let surface = evlp.env.compositor.create_surface(|surface| {
             let list = monitor_list.clone();
             let omgr = evlp.env.outputs.clone();
             let window_store = evlp.store.clone();
-            move |event, surface: Proxy<wl_surface::WlSurface>| match event {
+            surface.implement(move |event, surface| match event {
                 wl_surface::Event::Enter { output } => {
                     let dpi_change = list.lock().unwrap().add_output(MonitorId {
                         proxy: output,
@@ -64,16 +64,16 @@ impl Window {
                         }
                     }
                 }
-            }
-        });
+            }, ())
+        }).unwrap();
 
         let window_store = evlp.store.clone();
         let my_surface = surface.clone();
-        let mut frame = SWindow::<BasicFrame>::init_from_env(
+        let mut frame = SWindow::<ConceptFrame>::init_from_env(
             &evlp.env,
             surface.clone(),
             (width, height),
-            move |event, ()| match event {
+            move |event| match event {
                 WEvent::Configure { new_size, .. } => {
                     let mut store = window_store.lock().unwrap();
                     for window in &mut store.windows {
@@ -324,7 +324,7 @@ struct InternalWindow {
     need_frame_refresh: Arc<Mutex<bool>>,
     closed: bool,
     kill_switch: Arc<Mutex<bool>>,
-    frame: Weak<Mutex<SWindow<BasicFrame>>>,
+    frame: Weak<Mutex<SWindow<ConceptFrame>>>,
     current_dpi: i32,
     new_dpi: Option<i32>
 }
@@ -382,7 +382,7 @@ impl WindowStore {
 
     pub fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(Option<(u32, u32)>, &mut (u32, u32), Option<i32>, bool, bool, bool, WindowId, Option<&mut SWindow<BasicFrame>>),
+        F: FnMut(Option<(u32, u32)>, &mut (u32, u32), Option<i32>, bool, bool, bool, WindowId, Option<&mut SWindow<ConceptFrame>>),
     {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();

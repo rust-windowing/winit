@@ -1,5 +1,8 @@
 # Unreleased
 
+- On Wayland, titles will now be displayed in the window header decoration
+- On Wayland, key repetition is now ended when keyboard loses focus
+- On Wayland, windows will now use more stylish and modern client side decorations.
 - On Wayland, windows will use server-side decorations when available.
 - Added support for F16-F24 keys.
 - Fixed graphical glitches when resizing on Wayland.
@@ -9,6 +12,7 @@
 - Fixed UTF8 handling bug in X11 `set_title` function.
 - On Windows, `Window::set_cursor` now applies immediately instead of requiring specific events to occur first.
 - On Windows, the `HoveredFile` and `HoveredFileCancelled` events are now implemented.
+- On Windows, fix window.set_maximized().
 
 # Version 0.17.2 (2018-08-19)
 
