@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Wayland, pointer events will now provide the current modifiers state
 - On Wayland, titles will now be displayed in the window header decoration
 - On Wayland, key repetition is now ended when keyboard loses focus
 - On Wayland, windows will now use more stylish and modern client side decorations.

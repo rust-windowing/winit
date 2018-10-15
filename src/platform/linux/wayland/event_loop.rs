@@ -19,6 +19,8 @@ use sctk::Environment;
 use sctk::reexports::client::protocol::wl_display::RequestsTrait as DisplayRequests;
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait;
 
+use ModifiersState;
+
 pub struct EventsLoopSink {
     buffer: VecDeque<::Event>,
 }
@@ -303,6 +305,7 @@ impl SeatManager {
                     keyboard: None,
                     touch: None,
                     events_loop_proxy: self.events_loop_proxy.clone(),
+                    modifiers_tracker: Arc::new(Mutex::new(ModifiersState::default())),
                 };
                 let seat = registry
                     .bind(min(version, 5), id, move |seat| {
@@ -335,6 +338,7 @@ struct SeatData {
     keyboard: Option<Proxy<wl_keyboard::WlKeyboard>>,
     touch: Option<Proxy<wl_touch::WlTouch>>,
     events_loop_proxy: EventsLoopProxy,
+    modifiers_tracker: Arc<Mutex<ModifiersState>>,
 }
 
 impl SeatData {
@@ -348,6 +352,7 @@ impl SeatData {
                         &seat,
                         self.sink.clone(),
                         self.store.clone(),
+                        self.modifiers_tracker.clone(),
                     ))
                 }
                 // destroy pointer if applicable
@@ -365,6 +370,7 @@ impl SeatData {
                         &seat,
                         self.sink.clone(),
                         self.events_loop_proxy.clone(),
+                        self.modifiers_tracker.clone(),
                     ))
                 }
                 // destroy keyboard if applicable
