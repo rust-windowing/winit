@@ -8,6 +8,7 @@
 - Added `WindowBuilderExt::with_gtk_theme_variant` to X11-specific `WindowBuilder` functions.
 - Fixed UTF8 handling bug in X11 `set_title` function.
 - On Windows, `Window::set_cursor` now applies immediately instead of requiring specific events to occur first.
+- On Windows, the `HoveredFile` and `HoveredFileCancelled` events are now implemented.
 
 # Version 0.17.2 (2018-08-19)
 
