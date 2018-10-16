@@ -277,7 +277,7 @@ pub struct EventsLoopProxy {
 
 impl std::fmt::Debug for EventsLoopProxy {
     fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
-        fmtr.pad("EventsLoopProxy { ... }")
+        fmtr.pad("EventsLoopProxy { .. }")
     }
 }
 
