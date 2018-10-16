@@ -149,6 +149,12 @@ pub struct Window {
     window: platform::Window,
 }
 
+impl std::fmt::Debug for Window {
+    fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmtr.pad("Window { .. }")
+    }
+}
+
 /// Identifier of a window. Unique for each window.
 ///
 /// Can be obtained with `window.id()`.
@@ -182,6 +188,12 @@ pub struct DeviceId(platform::DeviceId);
 pub struct EventsLoop {
     events_loop: platform::EventsLoop,
     _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
+}
+
+impl std::fmt::Debug for EventsLoop {
+    fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmtr.pad("EventsLoop { .. }")
+    }
 }
 
 /// Returned by the user callback given to the `EventsLoop::run_forever` method.
@@ -263,6 +275,12 @@ pub struct EventsLoopProxy {
     events_loop_proxy: platform::EventsLoopProxy,
 }
 
+impl std::fmt::Debug for EventsLoopProxy {
+    fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmtr.pad("EventsLoopProxy { ... }")
+    }
+}
+
 impl EventsLoopProxy {
     /// Wake up the `EventsLoop` from which this proxy was created.
     ///
@@ -299,6 +317,14 @@ pub struct WindowBuilder {
 
     // Platform-specific configuration. Private.
     platform_specific: platform::PlatformSpecificWindowBuilderAttributes,
+}
+
+impl std::fmt::Debug for WindowBuilder {
+    fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmtr.debug_struct("WindowBuilder")
+            .field("window", &self.window)
+            .finish()
+    }
 }
 
 /// Error that can happen while creating a window or a headless renderer.
