@@ -12,6 +12,7 @@
 - Fixed UTF8 handling bug in X11 `set_title` function.
 - On Windows, `Window::set_cursor` now applies immediately instead of requiring specific events to occur first.
 - On Windows, fix window.set_maximized().
+- On Windows, fix transparency (#260).
 
 # Version 0.17.2 (2018-08-19)
 
