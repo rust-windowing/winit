@@ -16,6 +16,7 @@ pub fn implement_pointer(
     seat: &Proxy<wl_seat::WlSeat>,
     sink: Arc<Mutex<EventsLoopSink>>,
     store: Arc<Mutex<WindowStore>>,
+    modifiers_tracker: Arc<Mutex<ModifiersState>>,
 ) -> Proxy<WlPointer> {
     let mut mouse_focus = None;
     let mut axis_buffer = None;
@@ -46,8 +47,7 @@ pub fn implement_pointer(
                             WindowEvent::CursorMoved {
                                 device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                                 position: (surface_x, surface_y).into(),
-                                // TODO: replace dummy value with actual modifier state
-                                modifiers: ModifiersState::default(),
+                                modifiers: modifiers_tracker.lock().unwrap().clone(),
                             },
                             wid,
                         );
@@ -75,8 +75,7 @@ pub fn implement_pointer(
                             WindowEvent::CursorMoved {
                                 device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                                 position: (surface_x, surface_y).into(),
-                                // TODO: replace dummy value with actual modifier state
-                                modifiers: ModifiersState::default(),
+                                modifiers: modifiers_tracker.lock().unwrap().clone(),
                             },
                             wid,
                         );
@@ -100,8 +99,7 @@ pub fn implement_pointer(
                                 device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                                 state: state,
                                 button: button,
-                                // TODO: replace dummy value with actual modifier state
-                                modifiers: ModifiersState::default(),
+                                modifiers: modifiers_tracker.lock().unwrap().clone(),
                             },
                             wid,
                         );
@@ -122,8 +120,7 @@ pub fn implement_pointer(
                                     device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                                     delta: MouseScrollDelta::PixelDelta((x as f64, y as f64).into()),
                                     phase: TouchPhase::Moved,
-                                    // TODO: replace dummy value with actual modifier state
-                                    modifiers: ModifiersState::default(),
+                                    modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
                             );
@@ -152,8 +149,7 @@ pub fn implement_pointer(
                                     device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                                     delta: MouseScrollDelta::LineDelta(x as f32, y as f32),
                                     phase: axis_state,
-                                    // TODO: replace dummy value with actual modifier state
-                                    modifiers: ModifiersState::default(),
+                                    modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
                             );
@@ -163,8 +159,7 @@ pub fn implement_pointer(
                                     device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
                                     delta: MouseScrollDelta::PixelDelta((x as f64, y as f64).into()),
                                     phase: axis_state,
-                                    // TODO: replace dummy value with actual modifier state
-                                    modifiers: ModifiersState::default(),
+                                    modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
                             );
