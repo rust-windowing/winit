@@ -15,14 +15,14 @@ pub fn init_keyboard(
     seat: &Proxy<wl_seat::WlSeat>,
     sink: Arc<Mutex<EventsLoopSink>>,
     events_loop_proxy: EventsLoopProxy,
+    modifiers_tracker: Arc<Mutex<ModifiersState>>,
 ) -> Proxy<wl_keyboard::WlKeyboard> {
     // { variables to be captured by the closures
     let target = Arc::new(Mutex::new(None));
     let my_sink = sink.clone();
     let repeat_sink = sink.clone();
     let repeat_target = target.clone();
-    let modifiers = Arc::new(Mutex::new(ModifiersState::default()));
-    let my_modifiers = modifiers.clone();
+    let my_modifiers = modifiers_tracker.clone();
     // }
     let ret = map_keyboard_auto_with_repeat(
         seat,
@@ -65,7 +65,7 @@ pub fn init_keyboard(
                                 state: state,
                                 scancode: rawkey,
                                 virtual_keycode: vkcode,
-                                modifiers: modifiers.lock().unwrap().clone(),
+                                modifiers: modifiers_tracker.lock().unwrap().clone(),
                             },
                         },
                         wid,
@@ -83,7 +83,7 @@ pub fn init_keyboard(
             }
             KbEvent::RepeatInfo { .. } => { /* Handled by smithay client toolkit */ }
             KbEvent::Modifiers { modifiers: event_modifiers } => {
-                *modifiers.lock().unwrap() = event_modifiers.into()
+                *modifiers_tracker.lock().unwrap() = event_modifiers.into()
             }
         },
         move |repeat_event: KeyRepeatEvent, _| {
