@@ -5,14 +5,15 @@
 Winit aims to provide a generic platform abstracting the main graphic platforms (Windows, MacOS, x11, 
 Wayland, Android, iOS and the web platform via Emscripten).
 
-Most platform expose capabilities that cannot be meaningfully transposed to the others. Winit does not
-aim at supporting every single functionaly of every platform, but rather abstract the set of 
+Most platforms expose capabilities that cannot be meaningfully transposed to the others. Winit does not
+aim to support every single functionality of every platform, but rather to abstract the set of
 capabilities that is common to all platforms. In this context, APIs exposed in winit can be split into
 different "support levels":
 
 - Tier 1: features which are in the main scope of winit. They are part of the common API of winit, and
-  are taken care of by the maintainers, and them not working correctly is considered a bug in winit.
-- Tier 2: some platform specific features can be sufficiently fundamental to the platform that winit can
+  are taken care of by the maintainers. Any part of these features that is not working correctly is
+  considered a bug in winit.
+- Tier 2: some platform-specific features can be sufficiently fundamental to the platform that winit can
   integrate support for them in the platform-specific part of the API. These features are not considered
   directly handled by the maintainers of winit. If you have a strong incentive to have such a feature
   integrated in winit, consider implementing it and proposing yourself to maintain it in the future.
@@ -38,10 +39,11 @@ your description of the issue as detailed as possible:
 When making a code contribution to winit, before opening your pull request, please make sure that:
 
 - you tested your modifications on all the platforms impacted, or if not possible detail which platforms
-  were not tested, and what should be tested, so that a maintainer or an other contributor can test them
+  were not tested, and what should be tested, so that a maintainer or another contributor can test them
 - you updated any relevant documentation in winit
 - you left comments in your code explaining any part that is not straightforward, so that the 
   maintainers and future contributors don't have to try to guess what your code is supposed to do
+- your PR adds an entry to the changelog file
 
 Once your PR is open, you can ask for review by a maintainer of your platform. Winit's merging policy
 is that a PR must be approved by at least two maintainers of winit before being merged, including
