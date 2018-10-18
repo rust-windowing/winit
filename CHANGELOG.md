@@ -1,8 +1,8 @@
 # Unreleased
 
-- On Wayland, pointer events will now provide the current modifiers state
-- On Wayland, titles will now be displayed in the window header decoration
-- On Wayland, key repetition is now ended when keyboard loses focus
+- On Wayland, pointer events will now provide the current modifiers state.
+- On Wayland, titles will now be displayed in the window header decoration.
+- On Wayland, key repetition is now ended when keyboard loses focus.
 - On Wayland, windows will now use more stylish and modern client side decorations.
 - On Wayland, windows will use server-side decorations when available.
 - Added support for F16-F24 keys.
@@ -12,7 +12,9 @@
 - Added `WindowBuilderExt::with_gtk_theme_variant` to X11-specific `WindowBuilder` functions.
 - Fixed UTF8 handling bug in X11 `set_title` function.
 - On Windows, `Window::set_cursor` now applies immediately instead of requiring specific events to occur first.
-- On Windows, fix window.set_maximized().
+- On Windows, fix `Window::set_maximized`.
+- On Windows, fix transparency (#260).
+- on macOS, fix modifiers during key repeat.
 
 # Version 0.17.2 (2018-08-19)
 

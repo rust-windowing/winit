@@ -5,7 +5,6 @@ use std::os::raw::c_void;
 use std::sync::Weak;
 use std::sync::atomic::{Ordering, AtomicBool};
 
-use cocoa;
 use cocoa::appkit::{
     self,
     CGFloat,
