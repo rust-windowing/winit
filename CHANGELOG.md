@@ -14,8 +14,10 @@
 - On Windows, `Window::set_cursor` now applies immediately instead of requiring specific events to occur first.
 - On Windows, fix `Window::set_maximized`.
 - On Windows 10, fix transparency (#260).
-- on macOS, fix modifiers during key repeat.
+- On macOS, fix modifiers during key repeat.
 - Implemented the `Debug` trait for `Window`, `EventsLoop`, `EventsLoopProxy` and `WindowBuilder`.
+- On X11, now a `Resized` event will always be generated after a DPI change to ensure the window's logical size is consistent with the new DPI.
+- Added further clarifications to the DPI docs.
 
 # Version 0.17.2 (2018-08-19)
 
