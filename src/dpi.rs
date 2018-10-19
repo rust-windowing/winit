@@ -29,9 +29,9 @@
 //! them entering an existential panic. Once users enter that state, they will no longer be focused on your application.
 //!
 //! There are two ways to get the DPI factor:
-//! - You can track the `WindowEvent::HiDpiFactorChanged` event of your windows. This event is sent any
-//!   time the DPI factor changes, be it because the window moved to another monitor, or because the
-//!   user changed the configuration of their screen.
+//! - You can track the [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged) event of your
+//!   windows. This event is sent any time the DPI factor changes, either because the window moved to another monitor,
+//!   or because the user changed the configuration of their screen.
 //! - You can also retrieve the DPI factor of a monitor by calling
 //!   [`MonitorId::get_hidpi_factor`](../struct.MonitorId.html#method.get_hidpi_factor), or the
 //!   current DPI factor applied to a window by calling
@@ -40,8 +40,8 @@
 //!
 //! Depending on the platform, the window's actual DPI factor may only be known after
 //! the event loop has started and your window has been drawn once. To properly handle these cases,
-//! the most robust way is to monitor the `WindowEvent::HiDpiFactorChanged` event and dynamically
-//! adapt your drawing logic to follow the DPI factor.
+//! the most robust way is to monitor the [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged)
+//! event and dynamically adapt your drawing logic to follow the DPI factor.
 //!
 //! Here's an overview of what sort of DPI factors you can expect, and where they come from:
 //! - **Windows:** On Windows 8 and 10, per-monitor scaling is readily configured by users from the display settings.
@@ -53,12 +53,12 @@
 //! - **X11:** On X11, we calcuate the DPI factor based on the millimeter dimensions provided by XRandR. This can
 //! result in a wide range of possible values, including some interesting ones like 1.0833333333333333. This can be
 //! overridden using the `WINIT_HIDPI_FACTOR` environment variable, though that's not recommended.
-//! - **Wayland:** On Wayland, DPI factors set per-screen by the server, and are always integers (most often 1 or 2).
+//! - **Wayland:** On Wayland, DPI factors are set per-screen by the server, and are always integers (most often 1 or 2).
 //! - **iOS:** DPI factors are both constant and device-specific on iOS.
 //! - **Android:** This feature isn't yet implemented on Android, so the DPI factor will always be returned as 1.0.
 //!
 //! The window's logical size is conserved across DPI changes, resulting in the physical size changing instead. This
-//! may be surprising on X11, but is quite standard elsewhere. Physical size changes produce a
+//! may be surprising on X11, but is quite standard elsewhere. Physical size changes always produce a
 //! [`Resized`](../enum.WindowEvent.html#variant.Resized) event, even on platforms where no resize actually occurs,
 //! such as macOS and Wayland. As a result, it's not necessary to separately handle
 //! [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged) if you're only listening for size.
@@ -66,13 +66,15 @@
 //! Your GPU has no awareness of the concept of logical pixels, and unless you like wasting pixel density, your
 //! framebuffer's size should be in physical pixels.
 //!
-//! Winit will send `Resized` events whenever the logical size of your window changes, and `HiDPIFactorChanged` events
-//! whenever the DPI factor changes. Receiving any of these events means the physical size of your window has changed,
-//! and you should recompute it using the latest value your received for each. If both the logical size and the DPI
-//! factor changed at once, winit will send both events in the same batch. It is thus recommended to buffer these
-//! events and process them at once at the end of each batch.
+//! `winit` will send [`Resized`](../enum.WindowEvent.html#variant.Resized) events whenever a window's logical size
+//! changes, and [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged) events
+//! whenever the DPI factor changes. Receiving either of these events means that the physical size of your window has
+//! changed, and you should recompute it using the latest values you received for each. If the logical size and the
+//! DPI factor change simultaneously, `winit` will send both events together; thus, it's recommended to buffer
+//! these events and process them at the end of the queue.
 //!
-//! If you never received any `HiDPIFactorChanged` event, then the DPI factor of your window is 1.
+//! If you never received any [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged) events,
+//! then your window's DPI factor is 1.
 
 /// Checks that the DPI factor is a normal positive `f64`.
 ///
