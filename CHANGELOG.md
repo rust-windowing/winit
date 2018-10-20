@@ -8,7 +8,7 @@
 - On Wayland, key repetition is now ended when keyboard loses focus.
 - On Wayland, windows will now use more stylish and modern client side decorations.
 - On Wayland, windows will use server-side decorations when available.
-- Added support for F16-F24 keys.
+- **Breaking:** Added support for F16-F24 keys (variants were added to the `VirtualKeyCode` enum).
 - Fixed graphical glitches when resizing on Wayland.
 - On Windows, fix freezes when performing certain actions after a window resize has been triggered. Reintroduces some visual artifacts when resizing.
 - Updated window manager hints under X11 to v1.5 of [Extended Window Manager Hints](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html#idm140200472629520).
