@@ -1,5 +1,7 @@
 # Unreleased
 
+# Version 0.17.3 (2018-10-19)
+
 - On Wayland, pointer events will now provide the current modifiers state.
 - On Wayland, titles will now be displayed in the window header decoration.
 - On Wayland, key repetition is now ended when keyboard loses focus.
