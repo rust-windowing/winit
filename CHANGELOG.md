@@ -1,7 +1,8 @@
 # Unreleased
 
-- On Wayland, titles will now be displayed in the window header decoration
-- On Wayland, key repetition is now ended when keyboard loses focus
+- On Wayland, pointer events will now provide the current modifiers state.
+- On Wayland, titles will now be displayed in the window header decoration.
+- On Wayland, key repetition is now ended when keyboard loses focus.
 - On Wayland, windows will now use more stylish and modern client side decorations.
 - On Wayland, windows will use server-side decorations when available.
 - Added support for F16-F24 keys.
@@ -12,7 +13,12 @@
 - Fixed UTF8 handling bug in X11 `set_title` function.
 - On Windows, `Window::set_cursor` now applies immediately instead of requiring specific events to occur first.
 - On Windows, the `HoveredFile` and `HoveredFileCancelled` events are now implemented.
-- On Windows, fix window.set_maximized().
+- On Windows, fix `Window::set_maximized`.
+- On Windows 10, fix transparency (#260).
+- On macOS, fix modifiers during key repeat.
+- Implemented the `Debug` trait for `Window`, `EventsLoop`, `EventsLoopProxy` and `WindowBuilder`.
+- On X11, now a `Resized` event will always be generated after a DPI change to ensure the window's logical size is consistent with the new DPI.
+- Added further clarifications to the DPI docs.
 
 # Version 0.17.2 (2018-08-19)
 
