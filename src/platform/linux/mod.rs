@@ -430,10 +430,7 @@ impl EventsLoop {
         };
 
         let err_string = format!(
-r#"Failed to initialize any backend!
-    Wayland status: {:#?}
-    X11 status: {:#?}
-"#,
+            "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
             wayland_err,
             x11_err,
         );
