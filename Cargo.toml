@@ -20,7 +20,7 @@ icon_loading = ["image"]
 lazy_static = "1"
 libc = "0.2"
 log = "0.4"
-image = { version = "0.19", optional = true }
+image = { version = "0.20", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
 version = "0.2"

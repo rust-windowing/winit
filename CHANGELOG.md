@@ -1,5 +1,6 @@
 # Unreleased
 
+- **Breaking:** `image` crate upgraded to 0.20. This is exposed as part of the `icon_loading` API.
 - On Wayland, pointer events will now provide the current modifiers state.
 - On Wayland, titles will now be displayed in the window header decoration.
 - On Wayland, key repetition is now ended when keyboard loses focus.

@@ -146,7 +146,7 @@ impl Icon {
 /// Requires the `icon_loading` feature.
 impl From<image::DynamicImage> for Icon {
     fn from(image: image::DynamicImage) -> Self {
-        use image::{GenericImage, Pixel};
+        use image::{GenericImageView, Pixel};
         let (width, height) = image.dimensions();
         let mut rgba = Vec::with_capacity((width * height) as usize * PIXEL_SIZE);
         for (_, _, pixel) in image.pixels() {
