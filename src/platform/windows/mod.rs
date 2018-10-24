@@ -49,6 +49,7 @@ unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 
 mod dpi;
+mod drop_handler;
 mod event;
 mod events_loop;
 mod icon;
