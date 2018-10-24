@@ -15,8 +15,6 @@
 use std::{mem, ptr, thread};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ffi::OsString;
-use std::os::windows::ffi::OsStringExt;
 use std::os::windows::io::AsRawHandle;
 use std::sync::{Arc, Barrier, mpsc, Mutex};
 
@@ -29,13 +27,14 @@ use winapi::shared::minwindef::{
     LOWORD,
     LPARAM,
     LRESULT,
-    MAX_PATH,
     UINT,
     WPARAM,
 };
 use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
-use winapi::um::{winuser, shellapi, processthreadsapi};
+use winapi::shared::winerror::S_OK;
+use winapi::um::{winuser, processthreadsapi, ole2};
+use winapi::um::oleidl::LPDROPTARGET;
 use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
 use {
@@ -57,6 +56,7 @@ use platform::platform::dpi::{
     enable_non_client_dpi_scaling,
     get_hwnd_scale_factor,
 };
+use platform::platform::drop_handler::FileDropHandler;
 use platform::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
 use platform::platform::icon::WinIcon;
 use platform::platform::raw_input::{get_raw_input_data, get_raw_mouse_button_state};
@@ -161,7 +161,8 @@ impl EventsLoop {
                 *context_stash.borrow_mut() = Some(ThreadLocalData {
                     sender: tx,
                     windows: HashMap::with_capacity(4),
-                    mouse_buttons_down: 0
+                    file_drop_handlers: HashMap::with_capacity(4),
+                    mouse_buttons_down: 0,
                 });
             });
 
@@ -371,11 +372,12 @@ thread_local!(static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::
 struct ThreadLocalData {
     sender: mpsc::Sender<Event>,
     windows: HashMap<HWND, Arc<Mutex<WindowState>>>,
-    mouse_buttons_down: u32
+    file_drop_handlers: HashMap<HWND, FileDropHandler>, // Each window has its own drop handler.
+    mouse_buttons_down: u32,
 }
 
 // Utility function that dispatches an event on the current thread.
-fn send_event(event: Event) {
+pub fn send_event(event: Event) {
     CONTEXT_STASH.with(|context_stash| {
         let context_stash = context_stash.borrow();
 
@@ -423,6 +425,30 @@ pub unsafe extern "system" fn callback(
     lparam: LPARAM,
 ) -> LRESULT {
     match msg {
+        winuser::WM_CREATE => {
+            use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE};
+            let ole_init_result = ole2::OleInitialize(ptr::null_mut());
+            // It is ok if the initialize result is `S_FALSE` because it might happen that
+            // multiple windows are created on the same thread.
+            if ole_init_result == OLE_E_WRONGCOMPOBJ {
+                panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
+            } else if ole_init_result == RPC_E_CHANGED_MODE {
+                panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
+            }
+
+            CONTEXT_STASH.with(|context_stash| {
+                let mut context_stash = context_stash.borrow_mut();
+
+                let drop_handlers = &mut context_stash.as_mut().unwrap().file_drop_handlers;
+                let new_handler = FileDropHandler::new(window);
+                let handler_interface_ptr = &mut (*new_handler.data).interface as LPDROPTARGET;
+                drop_handlers.insert(window, new_handler);
+
+                assert_eq!(ole2::RegisterDragDrop(window, handler_interface_ptr), S_OK);
+            });
+            0
+        },
+
         winuser::WM_NCCREATE => {
             enable_non_client_dpi_scaling(window);
             winuser::DefWindowProcW(window, msg, wparam, lparam)
@@ -441,7 +467,10 @@ pub unsafe extern "system" fn callback(
             use events::WindowEvent::Destroyed;
             CONTEXT_STASH.with(|context_stash| {
                 let mut context_stash = context_stash.borrow_mut();
-                context_stash.as_mut().unwrap().windows.remove(&window);
+                ole2::RevokeDragDrop(window);
+                let context_stash_mut = context_stash.as_mut().unwrap();
+                context_stash_mut.file_drop_handlers.remove(&window);
+                context_stash_mut.windows.remove(&window);
             });
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
@@ -993,24 +1022,7 @@ pub unsafe extern "system" fn callback(
         },
 
         winuser::WM_DROPFILES => {
-            use events::WindowEvent::DroppedFile;
-
-            let hdrop = wparam as shellapi::HDROP;
-            let mut pathbuf: [u16; MAX_PATH] = mem::uninitialized();
-            let num_drops = shellapi::DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0);
-
-            for i in 0..num_drops {
-                let nch = shellapi::DragQueryFileW(hdrop, i, pathbuf.as_mut_ptr(),
-                                                  MAX_PATH as u32) as usize;
-                if nch > 0 {
-                    send_event(Event::WindowEvent {
-                        window_id: SuperWindowId(WindowId(window)),
-                        event: DroppedFile(OsString::from_wide(&pathbuf[0..nch]).into())
-                    });
-                }
-            }
-
-            shellapi::DragFinish(hdrop);
+            // See `FileDropHandler` for implementation.
             0
         },
 
