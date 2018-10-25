@@ -71,6 +71,7 @@ lazy_static! {
             sel!(initWithWinit:),
             init_with_winit as extern fn(&Object, Sel, *mut c_void) -> id,
         );
+        decl.add_method(sel!(wantsUpdateLayer), wants_update_layer as extern fn(&Object, Sel) -> BOOL);
         decl.add_method(sel!(hasMarkedText), has_marked_text as extern fn(&Object, Sel) -> BOOL);
         decl.add_method(
             sel!(markedRange),
@@ -152,6 +153,10 @@ extern fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> id {
         }
         this
     }
+}
+
+extern fn wants_update_layer(this: &Object, _self: Sel) -> BOOL {
+    true as BOOL
 }
 
 extern fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
