@@ -174,6 +174,7 @@ pub struct KeyboardInput {
 
 /// Describes touch-screen input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TouchPhase {
     Started,
     Moved,
