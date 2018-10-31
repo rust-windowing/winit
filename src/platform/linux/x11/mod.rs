@@ -278,25 +278,25 @@ impl EventsLoop {
                     }
                 } else if client_msg.message_type == self.dnd.atoms.position {
                     // This event occurs every time the mouse moves while a file's being dragged
-                    // over our window. We emit HoveredFile in response; while the Mac OS X backend
-                    // does that upon a drag entering, XDnD doesn't have access to the actual drop
+                    // over our window. We emit HoveredFile in response; while the macOS backend
+                    // does that upon a drag entering, XDND doesn't have access to the actual drop
                     // data until this event. For parity with other platforms, we only emit
-                    // HoveredFile the first time, though if winit's API is later extended to
-                    // supply position updates with HoveredFile or another event, implementing
+                    // `HoveredFile` the first time, though if winit's API is later extended to
+                    // supply position updates with `HoveredFile` or another event, implementing
                     // that here would be trivial.
 
                     let source_window = client_msg.data.get_long(0) as c_ulong;
 
-                    // Equivalent to (x << shift) | y
-                    // where shift = mem::size_of::<c_short>() * 8
+                    // Equivalent to `(x << shift) | y`
+                    // where `shift = mem::size_of::<c_short>() * 8`
                     // Note that coordinates are in "desktop space", not "window space"
-                    // (in x11 parlance, they're root window coordinates)
+                    // (in X11 parlance, they're root window coordinates)
                     //let packed_coordinates = client_msg.data.get_long(2);
                     //let shift = mem::size_of::<libc::c_short>() * 8;
                     //let x = packed_coordinates >> shift;
                     //let y = packed_coordinates & !(x << shift);
 
-                    // By our own state flow, version should never be None at this point.
+                    // By our own state flow, `version` should never be `None` at this point.
                     let version = self.dnd.version.unwrap_or(5);
 
                     // Action is specified in versions 2 and up, though we don't need it anyway.
@@ -318,23 +318,21 @@ impl EventsLoop {
                                     // In version 0, time isn't specified
                                     ffi::CurrentTime
                                 };
-                                // This results in the SelectionNotify event below
+                                // This results in the `SelectionNotify` event below
                                 self.dnd.convert_selection(window, time);
                             }
                             self.dnd.send_status(window, source_window, DndState::Accepted)
-                                .expect("Failed to send XDnD status message.");
+                                .expect("Failed to send `XdndStatus` message.");
                         }
                     } else {
                         unsafe {
                             self.dnd.send_status(window, source_window, DndState::Rejected)
-                                .expect("Failed to send XDnD status message.");
-                            self.dnd.send_finished(window, source_window, DndState::Rejected)
-                                .expect("Failed to send XDnD finished message.");
+                                .expect("Failed to send `XdndStatus` message.");
                         }
                         self.dnd.reset();
                     }
                 } else if client_msg.message_type == self.dnd.atoms.drop {
-                    if let Some(source_window) = self.dnd.source_window {
+                    let (source_window, state) = if let Some(source_window) = self.dnd.source_window {
                         if let Some(Ok(ref path_list)) = self.dnd.result {
                             for path in path_list {
                                 callback(Event::WindowEvent {
@@ -343,10 +341,16 @@ impl EventsLoop {
                                 });
                             }
                         }
-                        unsafe {
-                            self.dnd.send_finished(window, source_window, DndState::Accepted)
-                                .expect("Failed to send XDnD finished message.");
-                        }
+                        (source_window, DndState::Accepted)
+                    } else {
+                        // `source_window` won't be part of our DND state if we already rejected the drop in our
+                        // `XdndPosition` handler.
+                        let source_window = client_msg.data.get_long(0) as c_ulong;
+                        (source_window, DndState::Rejected)
+                    };
+                    unsafe {
+                        self.dnd.send_finished(window, source_window, state)
+                            .expect("Failed to send `XdndFinished` message.");
                     }
                     self.dnd.reset();
                 } else if client_msg.message_type == self.dnd.atoms.leave {
