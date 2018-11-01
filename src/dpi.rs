@@ -92,6 +92,7 @@ pub fn validate_hidpi_factor(dpi_factor: f64) -> bool {
 /// which can cause noticable issues. To help with that, an `Into<(i32, i32)>` implementation is provided which
 /// does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalPosition {
     pub x: f64,
     pub y: f64,
@@ -152,6 +153,7 @@ impl Into<(i32, i32)> for LogicalPosition {
 /// which can cause noticable issues. To help with that, an `Into<(i32, i32)>` implementation is provided which
 /// does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalPosition {
     pub x: f64,
     pub y: f64,
@@ -212,6 +214,7 @@ impl Into<(i32, i32)> for PhysicalPosition {
 /// which can cause noticable issues. To help with that, an `Into<(u32, u32)>` implementation is provided which
 /// does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalSize {
     pub width: f64,
     pub height: f64,
@@ -272,6 +275,7 @@ impl Into<(u32, u32)> for LogicalSize {
 /// which can cause noticable issues. To help with that, an `Into<(u32, u32)>` implementation is provided which
 /// does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalSize {
     pub width: f64,
     pub height: f64,

@@ -22,3 +22,5 @@ build: false
 
 test_script:
   - cargo test --verbose
+  - cargo test --features serde --verbose
+  - cargo test --features icon_loading --verbose
