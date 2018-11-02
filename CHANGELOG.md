@@ -23,6 +23,7 @@
 - On Linux, if neither X11 nor Wayland manage to initialize, the corresponding panic now consists of a single line only.
 - Add optional `serde` feature with implementations of `Serialize`/`Deserialize` for DPI types and various event types.
 - Add `PartialEq`, `Eq`, and `Hash` implementations on public types that could have them but were missing them.
+- On X11, drag-and-drop receiving an unsupported drop type can no longer cause the WM to freeze.
 
 # Version 0.17.2 (2018-08-19)
 
