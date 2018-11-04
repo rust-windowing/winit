@@ -57,6 +57,7 @@ backends of winit. As such, depending on your platform of interest, your contact
 This table summarizes who can be contacted in which case, with the following legend:
 
 - `M`: is a main maintainer for this platform
+- `R`: can review code for this platform
 - `T`: has the ability of testing the platform
 - ` `: knows nothing of this platform
 
