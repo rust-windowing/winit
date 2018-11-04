@@ -46,7 +46,7 @@ pub fn id_from_name(name: &str) -> Option<DWORD> {
 }
 
 #[derive(Debug)]
-enum Stick {
+enum Side {
     Left,
     Right,
 }
@@ -77,18 +77,41 @@ impl XInputGamepad {
         }
     }
 
+    fn check_trigger_digital(
+        events: &mut Vec<(u32, Option<ButtonHint>, ElementState)>,
+        value: bool,
+        prev_value: Option<bool>,
+        side: Side,
+    ) {
+        const LEFT_TRIGGER_ID: u32 = /*BUTTONS.len() as _*/ 16;
+        const RIGHT_TRIGGER_ID: u32 = LEFT_TRIGGER_ID + 1;
+        if Some(value) != prev_value {
+            let state = if value { ElementState::Pressed } else { ElementState::Released };
+            let (id, hint) = match side {
+                Side::Left => (LEFT_TRIGGER_ID, ButtonHint::LeftTrigger),
+                Side::Right => (RIGHT_TRIGGER_ID, ButtonHint::RightTrigger),
+            };
+            events.push((id, Some(hint), state));
+        }
+    }
+
     pub fn get_changed_buttons(&self) -> Vec<(u32, Option<ButtonHint>, ElementState)> {
-        let buttons = match self.state
-            .as_ref()
-            .map(|state| state.raw.Gamepad.wButtons)
-        {
-            Some(buttons) => buttons,
+        let (buttons, left_trigger, right_trigger) = match self.state.as_ref() {
+            Some(state) => (
+                state.raw.Gamepad.wButtons,
+                state.left_trigger_bool(),
+                state.right_trigger_bool(),
+            ),
             None => return Vec::with_capacity(0),
         };
-        let prev_buttons = self.prev_state
+        let (prev_buttons, prev_left, prev_right) = self.prev_state
             .as_ref()
-            .map(|state| state.raw.Gamepad.wButtons)
-            .unwrap_or(0);
+            .map(|state| (
+                state.raw.Gamepad.wButtons,
+                Some(state.left_trigger_bool()),
+                Some(state.right_trigger_bool()),
+            ))
+            .unwrap_or_else(|| (0, None, None));
         /*
         A = buttons
         B = prev_buttons
@@ -104,7 +127,7 @@ impl XInputGamepad {
         let changed = buttons ^ prev_buttons;
         let pressed = changed & buttons;
         let released = changed & prev_buttons;
-        let mut events = Vec::with_capacity(BUTTONS.len());
+        let mut events = Vec::with_capacity(BUTTONS.len() + 2);
         for &(flag, id, hint) in BUTTONS {
             if util::has_flag(pressed, flag) {
                 events.push((id, Some(hint), ElementState::Pressed));
@@ -112,7 +135,26 @@ impl XInputGamepad {
                 events.push((id, Some(hint), ElementState::Released));
             }
         }
+        Self::check_trigger_digital(&mut events, left_trigger, prev_left, Side::Left);
+        Self::check_trigger_digital(&mut events, right_trigger, prev_right, Side::Right);
         events
+    }
+
+    fn check_trigger(
+        events: &mut Vec<(u32, Option<AxisHint>, f64)>,
+        value: u8,
+        prev_value: Option<u8>,
+        side: Side,
+    ) {
+        const LEFT_TRIGGER_ID: u32 = 4;
+        const RIGHT_TRIGGER_ID: u32 = LEFT_TRIGGER_ID + 1;
+        if Some(value) != prev_value {
+            let (id, hint) = match side {
+                Side::Left => (LEFT_TRIGGER_ID, AxisHint::LeftTrigger),
+                Side::Right => (RIGHT_TRIGGER_ID, AxisHint::RightTrigger),
+            };
+            events.push((id, Some(hint), value as f64 / u8::max_value() as f64));
+        }
     }
 
     fn check_axis(
@@ -121,8 +163,15 @@ impl XInputGamepad {
         prev_value: Option<f32>,
         id: u32,
         hint: AxisHint,
+        flip: bool,
     ) {
         if Some(value) != prev_value {
+            let value = f64::from(if flip && value != 0.0 {
+                // Flip the Y axis so the top left is (-1, -1)
+                -value
+            } else {
+                value
+            });
             events.push((id, Some(hint), f64::from(value)));
         }
     }
@@ -131,36 +180,52 @@ impl XInputGamepad {
         events: &mut Vec<(u32, Option<AxisHint>, f64)>,
         value: (f32, f32),
         prev_value: Option<(f32, f32)>,
-        stick: Stick,
+        stick: Side,
     ) {
         let (id, hint) = match stick {
-            Stick::Left => ((0, 1), (AxisHint::LeftStickX, AxisHint::LeftStickY)),
-            Stick::Right => ((2, 3), (AxisHint::RightStickX, AxisHint::RightStickY)),
+            Side::Left => ((0, 1), (AxisHint::LeftStickX, AxisHint::LeftStickY)),
+            Side::Right => ((2, 3), (AxisHint::RightStickX, AxisHint::RightStickY)),
         };
         let prev_x = prev_value.map(|prev| prev.0);
         let prev_y = prev_value.map(|prev| prev.1);
-        Self::check_axis(events, value.0, prev_x, id.0, hint.0);
-        Self::check_axis(events, value.1, prev_y, id.1, hint.1);
+        Self::check_axis(events, value.0, prev_x, id.0, hint.0, false);
+        Self::check_axis(events, value.1, prev_y, id.1, hint.1, true);
     }
 
     pub fn get_changed_axes(&self) -> Vec<(u32, Option<AxisHint>, f64)> {
-        // TODO: triggers
-        let (left_stick, right_stick) = match self.state {
+        let (
+            left_stick,
+            right_stick,
+            left_trigger,
+            right_trigger,
+        ) = match self.state {
             Some(ref state) => (
                 state.left_stick_normalized(),
                 state.right_stick_normalized(),
+                state.left_trigger(),
+                state.right_trigger(),
             ),
             None => return Vec::with_capacity(0),
         };
-        let mut events = Vec::with_capacity(4);
-        let prev_left_stick = self.prev_state
+        let mut events = Vec::with_capacity(6);
+        let (
+            prev_left_stick,
+            prev_right_stick,
+            prev_left_trigger,
+            prev_right_trigger,
+        ) = self.prev_state
             .as_ref()
-            .map(|prev| prev.left_stick_normalized());
-        let prev_right_stick = self.prev_state
-            .as_ref()
-            .map(|prev| prev.right_stick_normalized());
-        Self::check_stick(&mut events, left_stick, prev_left_stick, Stick::Left);
-        Self::check_stick(&mut events, right_stick, prev_right_stick, Stick::Right);
+            .map(|state| (
+                Some(state.left_stick_normalized()),
+                Some(state.right_stick_normalized()),
+                Some(state.left_trigger()),
+                Some(state.right_trigger()),
+            ))
+            .unwrap_or_else(|| (None, None, None, None));
+        Self::check_stick(&mut events, left_stick, prev_left_stick, Side::Left);
+        Self::check_stick(&mut events, right_stick, prev_right_stick, Side::Right);
+        Self::check_trigger(&mut events, left_trigger, prev_left_trigger, Side::Left);
+        Self::check_trigger(&mut events, right_trigger, prev_right_trigger, Side::Right);
         events
     }
 

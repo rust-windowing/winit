@@ -324,9 +324,9 @@ pub fn get_raw_mouse_button_state(button_flags: USHORT) -> [Option<ElementState>
 
 pub struct Axis {
     caps: HIDP_VALUE_CAPS,
-    pub value: f64,
-    pub prev_value: f64,
-    //active: bool,
+    value: f64,
+    prev_value: f64,
+    hint: Option<AxisHint>,
 }
 
 impl fmt::Debug for Axis {
@@ -335,11 +335,13 @@ impl fmt::Debug for Axis {
         struct Axis {
             value: f64,
             prev_value: f64,
+            hint: Option<AxisHint>,
         }
 
         let axis_proxy = Axis {
             value: self.value,
             prev_value: self.prev_value,
+            hint: self.hint,
         };
 
         axis_proxy.fmt(f)
@@ -404,7 +406,20 @@ impl RawGamepad {
                 caps: axis_cap,
                 value: 0.0,
                 prev_value: 0.0,
-                //active: true,
+                hint: match unsafe { axis_cap.u.Range().UsageMin } {
+                    0x30 => Some(AxisHint::LeftStickX),
+                    0x31 => Some(AxisHint::LeftStickY),
+                    0x32 => Some(AxisHint::RightStickX),
+                    0x33 => Some(AxisHint::LeftTrigger),
+                    0x34 => Some(AxisHint::RightTrigger),
+                    0x35 => Some(AxisHint::RightStickY),
+                    0x39 => Some(AxisHint::HatSwitch),
+                    0x90 => Some(AxisHint::DPadUp),
+                    0x91 => Some(AxisHint::DPadDown),
+                    0x92 => Some(AxisHint::DPadRight),
+                    0x93 => Some(AxisHint::DPadLeft),
+                    _ => None,
+                },
             });
             axis_count = max(axis_count, axis_index + 1);
         }
@@ -531,12 +546,11 @@ impl RawGamepad {
     }
 
     pub fn get_changed_axes(&self) -> Vec<(u32, Option<AxisHint>, f64)> {
-        // TODO: hints
         self.axis_state
             .iter()
             .enumerate()
             .filter(|&(_, axis)| axis.value != axis.prev_value)
-            .map(|(index, axis)| (index as _, None, axis.value))
+            .map(|(index, axis)| (index as _, axis.hint, axis.value))
             .collect()
     }
 

@@ -188,6 +188,15 @@ pub enum AxisHint {
 
     LeftTrigger,
     RightTrigger,
+
+    /// This is supposed to have a specialized meaning, referring to a point-of-view switch present on joysticks used
+    /// for flight simulation. However, Xbox 360 controllers (and their derivatives) use a hat switch for the D-pad.
+    HatSwitch,
+
+    DPadUp,
+    DPadDown,
+    DPadLeft,
+    DPadRight,
 }
 
 impl AxisHint {
