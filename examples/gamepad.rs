@@ -11,11 +11,8 @@ fn main() {
     events_loop.run_forever(|event| {
         match event {
             winit::Event::DeviceEvent { device_id, event } => match event {
-                winit::DeviceEvent::Button { button, state } => {
-                    println!("[{:?}] {:#?}", device_id, event);
-                    winit::ControlFlow::Continue
-                },
-                winit::DeviceEvent::Motion { axis, value } => {
+                winit::DeviceEvent::Button { .. }
+                | winit::DeviceEvent::Motion { .. } => {
                     println!("[{:?}] {:#?}", device_id, event);
                     winit::ControlFlow::Continue
                 },

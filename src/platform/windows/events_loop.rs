@@ -835,10 +835,12 @@ pub unsafe extern "system" fn callback(
             use events::ElementState::{Pressed, Released};
 
             if let Some(mut data) = get_raw_input_data(lparam as _) {
-                let device_id = wrap_device_id(data.header.hDevice as _);
+                let input = data.as_mut_ptr() as *mut winuser::RAWINPUT;
 
-                if data.header.dwType == winuser::RIM_TYPEMOUSE {
-                    let mouse = data.data.mouse();
+                let device_id = wrap_device_id((*input).header.hDevice as _);
+
+                if (*input).header.dwType == winuser::RIM_TYPEMOUSE {
+                    let mouse = (*input).data.mouse();
 
                     if util::has_flag(mouse.usFlags, winuser::MOUSE_MOVE_RELATIVE) {
                         let x = mouse.lLastX as f64;
@@ -891,8 +893,8 @@ pub unsafe extern "system" fn callback(
                             });
                         }
                     }
-                } else if data.header.dwType == winuser::RIM_TYPEKEYBOARD {
-                    let keyboard = data.data.keyboard();
+                } else if (*input).header.dwType == winuser::RIM_TYPEKEYBOARD {
+                    let keyboard = (*input).data.keyboard();
 
                     let pressed = keyboard.Message == winuser::WM_KEYDOWN
                         || keyboard.Message == winuser::WM_SYSKEYDOWN;
@@ -927,8 +929,8 @@ pub unsafe extern "system" fn callback(
                             });
                         }
                     }
-                } else if data.header.dwType == winuser::RIM_TYPEHID {
-                    let handle = data.header.hDevice;
+                } else if (*input).header.dwType == winuser::RIM_TYPEHID {
+                    let handle = (*input).header.hDevice;
                     let key = handle as isize;
                     let mut gamepad_mutex = GAMEPADS.lock().unwrap();
                     let gamepad_registered = gamepad_mutex.contains_key(&key);
@@ -940,7 +942,7 @@ pub unsafe extern "system" fn callback(
                     gamepad_mutex
                         .get_mut(&key)
                         .and_then(|gamepad| gamepad
-                            .update_state(data)
+                            .update_state(input)
                             .map(|_| gamepad))
                         .map(|gamepad| {
                             for (index, (button, prev_button)) in gamepad.button_state

@@ -3,7 +3,7 @@ use std::cmp::max;
 use std::mem::{self, size_of};
 
 use winapi::ctypes::wchar_t;
-use winapi::shared::minwindef::{TRUE, UINT, USHORT};
+use winapi::shared::minwindef::{BYTE, TRUE, UINT, USHORT};
 use winapi::shared::hidpi::{
     HidP_GetButtonCaps,
     HidP_GetCaps,
@@ -53,8 +53,8 @@ use winapi::um::winuser::{
     RIM_TYPEHID,
 };
 
-use platform::platform::util;
 use events::ElementState;
+use platform::platform::util;
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
@@ -110,14 +110,7 @@ impl From<RID_DEVICE_INFO> for RawDeviceInfo {
     }
 }
 
-#[derive(Debug)]
-#[repr(usize)]
-pub enum RawDeviceInfoComamnd {
-    Info = RIDI_DEVICEINFO as _,
-    Name = RIDI_DEVICENAME as _,
-    PreParseData = RIDI_PREPARSEDDATA as _,
-}
-
+#[allow(dead_code)]
 pub fn get_raw_input_device_info(handle: HANDLE) -> Option<RawDeviceInfo> {
     let mut info: RID_DEVICE_INFO = unsafe { mem::uninitialized() };
     let info_size = size_of::<RID_DEVICE_INFO>() as UINT;
@@ -220,8 +213,8 @@ pub fn register_raw_input_devices(devices: &[RAWINPUTDEVICE]) -> bool {
 }
 
 pub fn register_for_raw_input(window_handle: HWND) -> bool {
-    // RIDEV_DEVNOTIFY: receive hotplug events
-    // RIDEV_INPUTSINK: receive events even if we're not in the foreground
+    // `RIDEV_DEVNOTIFY`: receive hotplug events
+    // `RIDEV_INPUTSINK`: receive events even if we're not in the foreground
     let flags = RIDEV_DEVNOTIFY | RIDEV_INPUTSINK;
 
     let devices: [RAWINPUTDEVICE; 5] = [
@@ -260,15 +253,29 @@ pub fn register_for_raw_input(window_handle: HWND) -> bool {
     register_raw_input_devices(&devices)
 }
 
-pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
-    let mut data: RAWINPUT = unsafe { mem::uninitialized() };
-    let mut data_size = size_of::<RAWINPUT>() as UINT;
+pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<Vec<BYTE>> {
+    let mut data_size = 0;
     let header_size = size_of::<RAWINPUTHEADER>() as UINT;
+
+    unsafe { winuser::GetRawInputData(
+        handle,
+        RID_INPUT,
+        ptr::null_mut(),
+        &mut data_size,
+        header_size,
+    ) };
+
+    let alignment_remainder = data_size % 8;
+    if alignment_remainder != 0 {
+        data_size += 8 - alignment_remainder;
+    }
+
+    let mut data = Vec::with_capacity(data_size as _);
 
     let status = unsafe { winuser::GetRawInputData(
         handle,
         RID_INPUT,
-        &mut data as *mut _  as _,
+        data.as_mut_ptr() as _,
         &mut data_size,
         header_size,
     ) };
@@ -276,6 +283,8 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
     if status == UINT::max_value() || status == 0 {
         return None;
     }
+
+    unsafe { data.set_len(data_size as _) };
 
     Some(data)
 }
@@ -348,6 +357,7 @@ pub struct Gamepad {
     pub axis_state: Vec<Axis>,
 }
 
+// Reference: https://chromium.googlesource.com/chromium/chromium/+/trunk/content/browser/gamepad/raw_input_data_fetcher_win.cc
 impl Gamepad {
     pub fn new(handle: HANDLE) -> Option<Gamepad> {
         let pre_parsed_data = get_raw_input_pre_parse_info(handle)?;
@@ -497,11 +507,11 @@ impl Gamepad {
         Some(())
     }
 
-    pub fn update_state(&mut self, mut input: RAWINPUT) -> Option<()> {
-        if input.header.dwType != winuser::RIM_TYPEHID {
+    pub unsafe fn update_state(&mut self, input: *mut RAWINPUT) -> Option<()> {
+        if (*input).header.dwType != winuser::RIM_TYPEHID {
             return None;
         }
-        let hid = unsafe { input.data.hid_mut() };
+        let hid = (*input).data.hid_mut();
         self.update_button_state(hid)?;
         self.update_axis_state(hid)?;
         Some(())
