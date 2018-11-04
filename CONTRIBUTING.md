@@ -63,5 +63,6 @@ This table summarizes who can be contacted in which case, with the following leg
 | Platform | Windows | MacOS | x11 | Wayland | Android | iOS | Emscripten |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | @francesca64 | ? | ? | ? | ? | ? | ? | ? |
-| @mitchmindtree | ? | ? | ? | ? | ? | ? | ? |
+| @mitchmindtree | T |  | T | T |  |  |  |
+| @Osspial | M |  | T | T | T |  | T |
 | @vberger |  |  | T | M |  |  |  |
