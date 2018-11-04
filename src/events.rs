@@ -108,6 +108,104 @@ pub enum WindowEvent {
     HiDpiFactorChanged(f64),
 }
 
+/// A hint suggesting the type of button that was pressed.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum ButtonHint {
+    LeftMouse,
+    MiddleMouse,
+    RightMouse,
+
+    Start,
+    Select,
+
+    /// The north face button.
+    ///
+    /// * Nintendo: X
+    /// * Playstation: Triangle
+    /// * XBox: Y
+    North,
+    /// The south face button.
+    ///
+    /// * Nintendo: B
+    /// * Playstation: X
+    /// * XBox: A
+    South,
+    /// The east face button.
+    ///
+    /// * Nintendo: A
+    /// * Playstation: Circle
+    /// * XBox: B
+    East,
+    /// The west face button.
+    ///
+    /// * Nintendo: Y
+    /// * Playstation: Square
+    /// * XBox: X
+    West,
+
+    LeftStick,
+    RightStick,
+
+    LeftTrigger,
+    RightTrigger,
+
+    LeftShoulder,
+    RightShoulder,
+
+    DPadUp,
+    DPadDown,
+    DPadLeft,
+    DPadRight,
+}
+
+impl ButtonHint {
+    #[inline]
+    pub fn is_mouse_button(&self) -> bool {
+        use ButtonHint::*;
+        match *self {
+            LeftMouse | MiddleMouse | RightMouse => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_gamepad_button(&self) -> bool {
+        !self.is_mouse_button()
+    }
+}
+
+/// A hint suggesting the type of axis that moved.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum AxisHint {
+    MouseX,
+    MouseY,
+
+    LeftStickX,
+    LeftStickY,
+
+    RightStickX,
+    RightStickY,
+
+    LeftTrigger,
+    RightTrigger,
+}
+
+impl AxisHint {
+    #[inline]
+    pub fn is_mouse_axis(&self) -> bool {
+        use AxisHint::*;
+        match *self {
+            MouseX | MouseY => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_gamepad_axis(&self) -> bool {
+        !self.is_mouse_axis()
+    }
+}
+
 /// Represents raw hardware events that are not associated with any particular window.
 ///
 /// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
@@ -139,9 +237,17 @@ pub enum DeviceEvent {
     /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
     /// that winit supports on this platform, including mouse devices.  If the device is a mouse
     /// device then this will be reported alongside the MouseMotion event.
-    Motion { axis: AxisId, value: f64 },
+    Motion {
+        axis: AxisId,
+        hint: Option<AxisHint>,
+        value: f64,
+    },
 
-    Button { button: ButtonId, state: ElementState },
+    Button {
+        button: ButtonId,
+        hint: Option<ButtonHint>,
+        state: ElementState,
+    },
     Key(KeyboardInput),
     Text { codepoint: char },
 }

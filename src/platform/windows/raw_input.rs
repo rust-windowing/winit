@@ -53,7 +53,7 @@ use winapi::um::winuser::{
     RIM_TYPEHID,
 };
 
-use events::ElementState;
+use events::{AxisHint, ButtonHint, ElementState};
 use platform::platform::util;
 
 #[allow(dead_code)]
@@ -347,7 +347,7 @@ impl fmt::Debug for Axis {
 }
 
 #[derive(Debug)]
-pub struct Gamepad {
+pub struct RawGamepad {
     handle: HANDLE,
     pre_parsed_data: Vec<u8>,
     button_count: usize,
@@ -358,8 +358,8 @@ pub struct Gamepad {
 }
 
 // Reference: https://chromium.googlesource.com/chromium/chromium/+/trunk/content/browser/gamepad/raw_input_data_fetcher_win.cc
-impl Gamepad {
-    pub fn new(handle: HANDLE) -> Option<Gamepad> {
+impl RawGamepad {
+    pub fn new(handle: HANDLE) -> Option<Self> {
         let pre_parsed_data = get_raw_input_pre_parse_info(handle)?;
         let data_ptr = pre_parsed_data.as_ptr() as PHIDP_PREPARSED_DATA;
         let mut caps = unsafe { mem::uninitialized() };
@@ -408,7 +408,7 @@ impl Gamepad {
             });
             axis_count = max(axis_count, axis_index + 1);
         }
-        Some(Gamepad {
+        Some(RawGamepad {
             handle,
             pre_parsed_data,
             button_count: button_count as usize,
@@ -516,7 +516,33 @@ impl Gamepad {
         self.update_axis_state(hid)?;
         Some(())
     }
-}
 
-unsafe impl Send for Gamepad {}
-unsafe impl Sync for Gamepad {}
+    pub fn get_changed_buttons(&self) -> Vec<(u32, Option<ButtonHint>, ElementState)> {
+        self.button_state
+            .iter()
+            .zip(self.prev_button_state.iter())
+            .enumerate()
+            .filter(|&(_, (button, prev_button))| button != prev_button)
+            .map(|(index, (button, _))| {
+                let state = if *button { ElementState::Pressed } else { ElementState::Released };
+                (index as _, None, state)
+            })
+            .collect()
+    }
+
+    pub fn get_changed_axes(&self) -> Vec<(u32, Option<AxisHint>, f64)> {
+        // TODO: hints
+        self.axis_state
+            .iter()
+            .enumerate()
+            .filter(|&(_, axis)| axis.value != axis.prev_value)
+            .map(|(index, axis)| (index as _, None, axis.value))
+            .collect()
+    }
+
+    pub fn rumble(&mut self, _left_speed: u16, _right_speed: u16) {
+        // Even though I can't read German, this is still the most useful resource I found:
+        // https://zfx.info/viewtopic.php?t=3574&f=7
+        // I'm not optimistic about it being possible to implement this.
+    }
+}

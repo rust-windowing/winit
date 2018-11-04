@@ -1,3 +1,12 @@
+use std::ops::BitAnd;
+
+pub fn has_flag<T>(bitset: T, flag: T) -> bool
+where T:
+    Copy + PartialEq + BitAnd<T, Output = T>
+{
+    bitset & flag == flag
+}
+
 pub fn clamp(value: f64, min: f64, max: f64) -> f64 {
     if value > max {
         max

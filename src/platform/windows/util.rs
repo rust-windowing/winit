@@ -1,5 +1,4 @@
 use std::{self, mem, ptr, slice};
-use std::ops::BitAnd;
 
 use winapi::ctypes::wchar_t;
 use winapi::shared::minwindef::{BOOL, DWORD};
@@ -22,13 +21,6 @@ use winapi::um::winnt::{
 use winapi::um::winuser;
 
 pub use util::*;
-
-pub fn has_flag<T>(bitset: T, flag: T) -> bool
-where T:
-    Copy + PartialEq + BitAnd<T, Output = T>
-{
-    bitset & flag == flag
-}
 
 pub fn wchar_to_string(wchar: &[wchar_t]) -> String {
     String::from_utf16_lossy(wchar).to_string()

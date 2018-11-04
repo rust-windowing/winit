@@ -97,6 +97,10 @@ extern crate image;
 extern crate serde;
 
 #[cfg(target_os = "windows")]
+extern crate regex;
+#[cfg(target_os = "windows")]
+extern crate rusty_xinput;
+#[cfg(target_os = "windows")]
 extern crate winapi;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
