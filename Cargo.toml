@@ -41,6 +41,7 @@ features = [
     "combaseapi",
     "dwmapi",
     "errhandlingapi",
+    "hidpi",
     "hidusage",
     "libloaderapi",
     "objbase",

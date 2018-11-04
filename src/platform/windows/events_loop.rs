@@ -59,7 +59,11 @@ use platform::platform::dpi::{
 use platform::platform::drop_handler::FileDropHandler;
 use platform::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
 use platform::platform::icon::WinIcon;
-use platform::platform::raw_input::{get_raw_input_data, get_raw_mouse_button_state};
+use platform::platform::raw_input::{
+    Gamepad,
+    get_raw_input_data,
+    get_raw_mouse_button_state,
+};
 use platform::platform::window::adjust_size;
 
 /// Contains saved window info for switching between fullscreen
@@ -138,6 +142,12 @@ pub struct EventsLoop {
     thread_id: DWORD,
     // Receiver for the events. The sender is in the background thread.
     receiver: mpsc::Receiver<Event>,
+}
+
+lazy_static! {
+    pub static ref GAMEPADS: Arc<Mutex<HashMap<isize, Gamepad>>> = Arc::new(Mutex::new(
+        HashMap::with_capacity(4)
+    ));
 }
 
 impl EventsLoop {
@@ -824,7 +834,7 @@ pub unsafe extern "system" fn callback(
             use events::MouseScrollDelta::LineDelta;
             use events::ElementState::{Pressed, Released};
 
-            if let Some(data) = get_raw_input_data(lparam as _) {
+            if let Some(mut data) = get_raw_input_data(lparam as _) {
                 let device_id = wrap_device_id(data.header.hDevice as _);
 
                 if data.header.dwType == winuser::RIM_TYPEMOUSE {
@@ -917,6 +927,56 @@ pub unsafe extern "system" fn callback(
                             });
                         }
                     }
+                } else if data.header.dwType == winuser::RIM_TYPEHID {
+                    let handle = data.header.hDevice;
+                    let key = handle as isize;
+                    let mut gamepad_mutex = GAMEPADS.lock().unwrap();
+                    let gamepad_registered = gamepad_mutex.contains_key(&key);
+                    if !gamepad_registered {
+                        if let Some(gamepad) = Gamepad::new(handle) {
+                            gamepad_mutex.insert(key, gamepad);
+                        }
+                    }
+                    gamepad_mutex
+                        .get_mut(&key)
+                        .and_then(|gamepad| gamepad
+                            .update_state(data)
+                            .map(|_| gamepad))
+                        .map(|gamepad| {
+                            for (index, (button, prev_button)) in gamepad.button_state
+                                .iter()
+                                .zip(gamepad.prev_button_state.iter())
+                                .enumerate()
+                            {
+                                if button != prev_button {
+                                    let state = if *button { Pressed } else { Released };
+                                    send_event(Event::DeviceEvent {
+                                        device_id,
+                                        event: Button {
+                                            button: index as _,
+                                            state,
+                                        },
+                                    });
+                                }
+                            }
+
+                            for (index, axis) in gamepad.axis_state
+                                .iter()
+                                .enumerate()
+                            {
+                                if axis.value != axis.prev_value {
+                                    send_event(Event::DeviceEvent {
+                                        device_id,
+                                        event: Motion {
+                                            axis: index as _,
+                                            value: axis.value,
+                                        },
+                                    });
+                                }
+                            }
+                        });
+                } else {
+                    unreachable!();
                 }
             }
 

@@ -32,7 +32,7 @@ use platform::platform::events_loop::{self, EventsLoop, DESTROY_MSG_ID, INITIAL_
 use platform::platform::events_loop::WindowState;
 use platform::platform::icon::{self, IconType, WinIcon};
 use platform::platform::monitor::get_available_monitors;
-use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input;
+use platform::platform::raw_input::register_for_raw_input;
 use platform::platform::util;
 
 const WS_RESIZABLE: DWORD = winuser::WS_SIZEBOX | winuser::WS_MAXIMIZEBOX;
@@ -966,7 +966,7 @@ unsafe fn init(
     };
 
     // Set up raw input
-    register_all_mice_and_keyboards_for_raw_input(real_window.0);
+    register_for_raw_input(real_window.0);
 
     // Register for touch events if applicable
     {

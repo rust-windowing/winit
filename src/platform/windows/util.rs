@@ -21,6 +21,8 @@ use winapi::um::winnt::{
 };
 use winapi::um::winuser;
 
+pub use util::*;
+
 pub fn has_flag<T>(bitset: T, flag: T) -> bool
 where T:
     Copy + PartialEq + BitAnd<T, Output = T>

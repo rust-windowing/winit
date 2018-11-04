@@ -124,10 +124,10 @@ pub use icon::*;
 pub mod dpi;
 mod events;
 mod icon;
-mod platform;
-mod window;
-
 pub mod os;
+mod platform;
+mod util;
+mod window;
 
 /// Represents a window.
 ///
