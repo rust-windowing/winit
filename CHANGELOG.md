@@ -24,6 +24,7 @@
 - Add optional `serde` feature with implementations of `Serialize`/`Deserialize` for DPI types and various event types.
 - Add `PartialEq`, `Eq`, and `Hash` implementations on public types that could have them but were missing them.
 - On X11, drag-and-drop receiving an unsupported drop type can no longer cause the WM to freeze.
+- Added gamepad support on Windows via raw input and XInput.
 
 # Version 0.17.2 (2018-08-19)
 
