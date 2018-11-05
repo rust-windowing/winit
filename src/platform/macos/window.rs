@@ -1,5 +1,6 @@
 use std;
 use std::cell::{Cell, RefCell};
+use std::f64;
 use std::ops::Deref;
 use std::os::raw::c_void;
 use std::sync::Weak;
@@ -859,6 +860,16 @@ impl Window2 {
             let view = new_view(window, shared);
             view.non_nil().map(|view| {
                 view.setWantsBestResolutionOpenGLSurface_(YES);
+
+                // On Mojave, views automatically become layer-backed shortly after being added to
+                // a window. Changing the layer-backedness of a view breaks the association between
+                // the view and its associated OpenGL context. To work around this, on Mojave we
+                // explicitly make the view layer-backed up front so that AppKit doesn't do it
+                // itself and break the association with its context.
+                if f64::floor(appkit::NSAppKitVersionNumber) > appkit::NSAppKitVersionNumber10_12 {
+                    view.setWantsLayer(YES);
+                }
+
                 window.setContentView_(*view);
                 window.makeFirstResponder_(*view);
                 view
