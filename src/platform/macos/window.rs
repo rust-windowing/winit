@@ -16,6 +16,7 @@ use cocoa::appkit::{
     NSWindow,
     NSWindowButton,
     NSWindowStyleMask,
+    NSApplicationActivationPolicy,
 };
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize, NSString};
@@ -718,7 +719,15 @@ impl Window2 {
             if app == nil {
                 None
             } else {
-                app.setActivationPolicy_(activation_policy.into());
+                let ns_activation_policy = match activation_policy {
+                    ActivationPolicy::Regular =>
+                        NSApplicationActivationPolicy::NSApplicationActivationPolicyRegular,
+                    ActivationPolicy::Accessory =>
+                        NSApplicationActivationPolicy::NSApplicationActivationPolicyAccessory,
+                    ActivationPolicy::Prohibited =>
+                        NSApplicationActivationPolicy::NSApplicationActivationPolicyProhibited,
+                };
+                app.setActivationPolicy_(ns_activation_policy);
                 app.finishLaunching();
                 Some(app)
             }

@@ -25,6 +25,7 @@
 - Add `PartialEq`, `Eq`, and `Hash` implementations on public types that could have them but were missing them.
 - On X11, drag-and-drop receiving an unsupported drop type can no longer cause the WM to freeze.
 - Fix issue whereby the OpenGL context would not appear at startup on macOS Mojave (#1069).
+- **Breaking:** Removed `From<NSApplicationActivationPolicy>` impl from `ActivationPolicy` on macOS.
 
 # Version 0.17.2 (2018-08-19)
 

@@ -1,8 +1,6 @@
 #![cfg(target_os = "macos")]
 
-use std::convert::From;
 use std::os::raw::c_void;
-use cocoa::appkit::NSApplicationActivationPolicy;
 use {LogicalSize, MonitorId, Window, WindowBuilder};
 
 /// Additional methods on `Window` that are specific to MacOS.
@@ -44,19 +42,6 @@ pub enum ActivationPolicy {
 impl Default for ActivationPolicy {
     fn default() -> Self {
         ActivationPolicy::Regular
-    }
-}
-
-impl From<ActivationPolicy> for NSApplicationActivationPolicy {
-    fn from(activation_policy: ActivationPolicy) -> Self {
-        match activation_policy {
-            ActivationPolicy::Regular =>
-                NSApplicationActivationPolicy::NSApplicationActivationPolicyRegular,
-            ActivationPolicy::Accessory =>
-                NSApplicationActivationPolicy::NSApplicationActivationPolicyAccessory,
-            ActivationPolicy::Prohibited =>
-                NSApplicationActivationPolicy::NSApplicationActivationPolicyProhibited,
-        }
     }
 }
 
