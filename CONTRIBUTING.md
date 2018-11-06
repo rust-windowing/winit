@@ -63,7 +63,10 @@ This table summarizes who can be contacted in which case, with the following leg
 
 | Platform | Windows | MacOS | x11 | Wayland | Android | iOS | Emscripten |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| @francesca64 | ? | ? | ? | ? | ? | ? | ? |
+| @francesca64 | R | (M) | M |  | (M) | (M) | |
 | @mitchmindtree | T |  | T | T |  |  |  |
 | @Osspial | M |  | T | T | T |  | T |
 | @vberger |  |  | T | M |  |  |  |
+
+Platforms MacOS, Android and iOS are currently being handled by @francesca64, but we are looking for
+maintainers for these!
