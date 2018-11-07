@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.17.2"
+version = "0.18.0"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
@@ -20,7 +20,7 @@ icon_loading = ["image"]
 lazy_static = "1"
 libc = "0.2"
 log = "0.4"
-image = { version = "0.20", optional = true }
+image = { version = "0.20.1", optional = true }
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
