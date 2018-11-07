@@ -15,8 +15,13 @@ pub trait WindowExt {
     /// The pointer will become invalid when the `Window` is destroyed.
     fn get_nsview(&self) -> *mut c_void;
 
-    /// Request user attention. Only relevant on macOS.
-    fn request_user_attention(&self, critical: bool);
+    /// Request user attention, causing the application's dock icon to bounce.
+    /// Note that this has no effect if the application is already focused.
+    ///
+    /// The `is_critical` flag has the following effects:
+    /// - `false`: the dock icon will only bounce once.
+    /// - `true`: the dock icon will bounce until the application is focused.
+    fn request_user_attention(&self, is_critical: bool);
 }
 
 impl WindowExt for Window {
