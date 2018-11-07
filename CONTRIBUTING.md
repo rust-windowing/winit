@@ -2,7 +2,7 @@
 
 ## Scope
 
-Winit aims to provide a generic platform abstracting the main graphic platforms (Windows, MacOS, x11, 
+Winit aims to provide a generic platform abstracting the main graphic platforms (Windows, macOS, X11,
 Wayland, Android, iOS and the web platform via Emscripten).
 
 Most platforms expose capabilities that cannot be meaningfully transposed to the others. Winit does not
@@ -43,7 +43,7 @@ When making a code contribution to winit, before opening your pull request, plea
 - you updated any relevant documentation in winit
 - you left comments in your code explaining any part that is not straightforward, so that the 
   maintainers and future contributors don't have to try to guess what your code is supposed to do
-- your PR adds an entry to the changelog file
+- your PR adds an entry to the changelog file if the introduced change is relevant to winit users
 
 Once your PR is open, you can ask for review by a maintainer of your platform. Winit's merging policy
 is that a PR must be approved by at least two maintainers of winit before being merged, including
@@ -61,12 +61,12 @@ This table summarizes who can be contacted in which case, with the following leg
 - `T`: has the ability of testing the platform
 - ` `: knows nothing of this platform
 
-| Platform | Windows | MacOS | x11 | Wayland | Android | iOS | Emscripten |
+| Platform | Windows | macOS | X11 | Wayland | Android | iOS | Emscripten |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | @francesca64 | R | (M) | M |  | (M) | (M) | |
 | @mitchmindtree | T |  | T | T |  |  |  |
 | @Osspial | M |  | T | T | T |  | T |
 | @vberger |  |  | T | M |  |  |  |
 
-Platforms MacOS, Android and iOS are currently being handled by @francesca64, but we are looking for
+Platforms macOS, Android and iOS are currently being handled by @francesca64, but we are looking for
 maintainers for these!
