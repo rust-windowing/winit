@@ -1,6 +1,7 @@
 # Unreleased
 
 - On X11, fixed panic caused by dropping the window before running the event loop.
+- on macOS, added a new simple fullscreen mode which does not require a separate space
 
 # Version 0.18.0 (2018-11-07)
 
