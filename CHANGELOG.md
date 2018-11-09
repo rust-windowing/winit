@@ -35,6 +35,7 @@
       - Can be used to perform logic that depends on all events being processed (e.g. an iteration of a game loop).
     - `LoopDestroyed` is emitted when the `run` or `run_return` method is about to exit.
 - Rename `MonitorId` to `MonitorHandle`.
+- Removed `serde` implementations from `ControlFlow`.
 
 # Version 0.18.0 (2018-11-07)
 

@@ -53,7 +53,6 @@ impl<T> std::fmt::Debug for EventLoop<T> {
 ///
 /// [events_cleared]: ../event/enum.Event.html#variant.EventsCleared
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.

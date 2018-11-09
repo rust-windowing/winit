@@ -3,8 +3,8 @@
 extern crate serde;
 extern crate winit;
 
-use winit::{ControlFlow, MouseCursor};
-use winit::{
+use winit::window::{MouseCursor};
+use winit::event::{
     KeyboardInput, TouchPhase, ElementState, MouseButton, MouseScrollDelta, VirtualKeyCode,
     ModifiersState
 };
@@ -14,8 +14,7 @@ use serde::{Serialize, Deserialize};
 fn needs_serde<S: Serialize + Deserialize<'static>>() {}
 
 #[test]
-fn root_serde() {
-    needs_serde::<ControlFlow>();
+fn window_serde() {
     needs_serde::<MouseCursor>();
 }
 
