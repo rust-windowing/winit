@@ -864,20 +864,26 @@ impl EventsLoop {
                             event: CursorEntered { device_id },
                         });
 
-                        // The mods field on this event isn't actually populated, so query the
-                        // pointer device. In the future, we can likely remove this round-trip by
-                        // relying on Xkb for modifier values.
-                        let modifiers = self.xconn.query_pointer(xev.event, xev.deviceid)
-                            .expect("Failed to query pointer device").get_modifier_state();
-
-                        let dpi_factor = self.with_window(xev.event, |window| {
+                        if let Some(dpi_factor) = self.with_window(xev.event, |window| {
                             window.get_hidpi_factor()
-                        });
-                        if let Some(dpi_factor) = dpi_factor {
+                        }) {
                             let position = LogicalPosition::from_physical(
                                 (xev.event_x as f64, xev.event_y as f64),
                                 dpi_factor,
                             );
+
+                            // The mods field on this event isn't actually populated, so query the
+                            // pointer device. In the future, we can likely remove this round-trip by
+                            // relying on `Xkb` for modifier values.
+                            //
+                            // This needs to only be done after confirming the window still exists,
+                            // since otherwise we risk getting a `BadWindow` error if the window was
+                            // dropped with queued events.
+                            let modifiers = self.xconn
+                                .query_pointer(xev.event, xev.deviceid)
+                                .expect("Failed to query pointer device")
+                                .get_modifier_state();
+
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: CursorMoved {
