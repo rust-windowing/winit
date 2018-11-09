@@ -29,7 +29,7 @@ use monitor::{AvailableMonitorsIter, MonitorHandle};
 /// forbidding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
 /// `EventLoopProxy` allows you to wake up an `EventLoop` from an other thread.
-pub struct EventLoop<T> {
+pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
 }

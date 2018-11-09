@@ -68,7 +68,7 @@ unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> B
 }
 
 impl Window {
-    pub fn new<T>(
+    pub fn new<T: 'static>(
         event_loop: &EventLoop<T>,
         w_attr: WindowAttributes,
         pl_attr: PlatformSpecificWindowBuilderAttributes,
@@ -91,7 +91,11 @@ impl Window {
                         panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
                     }
 
-                    let file_drop_handler = FileDropHandler::new(win.window.0/*, event_loop.event_send.clone()*/);
+                    let file_drop_runner = event_loop.runner_shared.clone();
+                    let file_drop_handler = FileDropHandler::new(
+                        win.window.0,
+                        Box::new(move |event| if let Ok(e) = event.map_nonuser_event() {file_drop_runner.send_event(e)})
+                    );
                     let handler_interface_ptr = &mut (*file_drop_handler.data).interface as LPDROPTARGET;
 
                     assert_eq!(ole2::RegisterDragDrop(win.window.0, handler_interface_ptr), S_OK);
@@ -849,7 +853,7 @@ pub unsafe fn adjust_size(
     (rect.right - rect.left, rect.bottom - rect.top)
 }
 
-unsafe fn init<T>(
+unsafe fn init<T: 'static>(
     mut attributes: WindowAttributes,
     mut pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &event_loop::EventLoop<T>,

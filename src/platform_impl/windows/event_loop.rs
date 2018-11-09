@@ -17,12 +17,12 @@ use winapi::shared::basetsd::UINT_PTR;
 use std::{mem, ptr};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Sender, Receiver};
 use std::time::{Duration, Instant};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use parking_lot::Mutex;
-use crossbeam_channel::{self, Sender, Receiver};
 
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{
@@ -147,7 +147,7 @@ pub struct EventLoop<T> {
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
 
-impl<T> EventLoop<T> {
+impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
         Self::with_dpi_awareness(true)
     }
@@ -181,27 +181,24 @@ impl<T> EventLoop<T> {
         where F: FnMut(Event<T>, &RootEventLoop<T>, &mut ControlFlow)
     {
         unsafe{ winuser::IsGUIThread(1); }
-        let mut runner = EventLoopRunner {
-            event_loop: self,
-            control_flow: ControlFlow::default(),
-            runner_state: RunnerState::New,
-            in_modal_loop: false,
-            modal_redraw_window: self.thread_msg_target,
-            event_handler: unsafe {
-                // Transmute used to erase lifetimes.
-                mem::transmute::<
-                    &mut FnMut(Event<T>, &RootEventLoop<T>, &mut ControlFlow),
-                    *mut FnMut(Event<T>, &RootEventLoop<T>, &mut ControlFlow)
-                >(&mut event_handler)
+
+        assert_eq!(mem::size_of::<RootEventLoop<T>>(), mem::size_of::<EventLoop<T>>());
+        let self_ptr = self as *const EventLoop<T>;
+
+        let mut runner = unsafe{ EventLoopRunner::new(
+            self,
+            move |event, control_flow| {
+                let event_loop_ref = &*(self_ptr as *const RootEventLoop<T>);
+                event_handler(event, event_loop_ref, control_flow)
             }
-        };
+        ) };
         {
             let runner_shared = self.runner_shared.clone();
             let mut runner_ref = runner_shared.runner.borrow_mut();
             loop {
                 let event = runner_shared.buffer.borrow_mut().pop_front();
                 match event {
-                    Some(e) => unsafe{ runner.process_event(e); },
+                    Some(e) => { runner.process_event(e); },
                     None => break
                 }
             }
@@ -246,7 +243,7 @@ impl<T> EventLoop<T> {
             }
         }
 
-        unsafe{ runner!().call_event_handler(Event::LoopDestroyed) }
+        runner!().call_event_handler(Event::LoopDestroyed);
         *self.runner_shared.runner.borrow_mut() = None;
     }
 
@@ -272,16 +269,16 @@ pub(crate) struct ELRShared<T> {
     buffer: RefCell<VecDeque<Event<T>>>
 }
 pub(crate) struct EventLoopRunner<T> {
-    event_loop: *const EventLoop<T>,
+    trigger_newevents_on_redraw: Arc<AtomicBool>,
     control_flow: ControlFlow,
     runner_state: RunnerState,
     modal_redraw_window: HWND,
     in_modal_loop: bool,
-    event_handler: *mut FnMut(Event<T>, &RootEventLoop<T>, &mut ControlFlow)
+    event_handler: Box<FnMut(Event<T>, &mut ControlFlow)>
 }
 
 impl<T> ELRShared<T> {
-    unsafe fn send_event(&self, event: Event<T>) {
+    pub(crate) unsafe fn send_event(&self, event: Event<T>) {
         if let Ok(mut runner_ref) = self.runner.try_borrow_mut() {
             if let Some(ref mut runner) = *runner_ref {
                 runner.process_event(event);
@@ -308,7 +305,23 @@ enum RunnerState {
 }
 
 impl<T> EventLoopRunner<T> {
-    unsafe fn new_events(&mut self) {
+    unsafe fn new<F>(event_loop: &EventLoop<T>, f: F) -> EventLoopRunner<T>
+        where F: FnMut(Event<T>, &mut ControlFlow)
+    {
+        EventLoopRunner {
+            trigger_newevents_on_redraw: event_loop.trigger_newevents_on_redraw.clone(),
+            control_flow: ControlFlow::default(),
+            runner_state: RunnerState::New,
+            in_modal_loop: false,
+            modal_redraw_window: event_loop.thread_msg_target,
+            event_handler: mem::transmute::<
+                Box<FnMut(Event<T>, &mut ControlFlow)>,
+                Box<FnMut(Event<T>, &mut ControlFlow)>
+            >(Box::new(f))
+        }
+    }
+
+    fn new_events(&mut self) {
         self.runner_state = match self.runner_state {
             // If we're already handling events or have deferred `NewEvents`, we don't need to do
             // do any processing.
@@ -359,19 +372,21 @@ impl<T> EventLoopRunner<T> {
         };
     }
 
-    unsafe fn process_event(&mut self, event: Event<T>) {
+    fn process_event(&mut self, event: Event<T>) {
         // If we're in the modal loop, we need to have some mechanism for finding when the event
         // queue has been cleared so we can call `events_cleared`. Windows doesn't give any utilities
         // for doing this, but it DOES guarantee that WM_PAINT will only occur after input events have
         // been processed. So, we send WM_PAINT to a dummy window which calls `events_cleared` when
         // the events queue has been emptied.
         if self.in_modal_loop {
-            winuser::RedrawWindow(
-                self.modal_redraw_window,
-                ptr::null(),
-                ptr::null_mut(),
-                winuser::RDW_INTERNALPAINT
-            );
+            unsafe {
+                winuser::RedrawWindow(
+                    self.modal_redraw_window,
+                    ptr::null(),
+                    ptr::null_mut(),
+                    winuser::RDW_INTERNALPAINT
+                );
+            }
         }
 
         // If new event processing has to be done (i.e. call NewEvents or defer), do it. If we're
@@ -419,7 +434,7 @@ impl<T> EventLoopRunner<T> {
         self.call_event_handler(event);
     }
 
-    unsafe fn events_cleared(&mut self) {
+    fn events_cleared(&mut self) {
         match self.runner_state {
             // If we were handling events, send the EventsCleared message.
             RunnerState::HandlingEvents => {
@@ -462,20 +477,18 @@ impl<T> EventLoopRunner<T> {
         }
     }
 
-    unsafe fn call_event_handler(&mut self, event: Event<T>) {
+    fn call_event_handler(&mut self, event: Event<T>) {
         match event {
-            Event::NewEvents(_) => (*self.event_loop).trigger_newevents_on_redraw.store(true, Ordering::Relaxed),
-            Event::EventsCleared => (*self.event_loop).trigger_newevents_on_redraw.store(false, Ordering::Relaxed),
+            Event::NewEvents(_) => self.trigger_newevents_on_redraw.store(true, Ordering::Relaxed),
+            Event::EventsCleared => self.trigger_newevents_on_redraw.store(false, Ordering::Relaxed),
             _ => ()
         }
 
-        assert_eq!(mem::size_of::<RootEventLoop<T>>(), mem::size_of::<EventLoop<T>>());
-        let event_loop_ref = &*(self.event_loop as *const RootEventLoop<T>);
 
         if self.control_flow != ControlFlow::Exit {
-            (*self.event_handler)(event, event_loop_ref, &mut self.control_flow);
+            (*self.event_handler)(event, &mut self.control_flow);
         } else {
-            (*self.event_handler)(event, event_loop_ref, &mut ControlFlow::Exit);
+            (*self.event_handler)(event, &mut ControlFlow::Exit);
         }
     }
 }
@@ -699,7 +712,7 @@ fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) ->
             (winuser::WS_VISIBLE | winuser::WS_POPUP) as _
         );
 
-        let (tx, rx) = crossbeam_channel::unbounded();
+        let (tx, rx) = mpsc::channel();
 
         let subclass_input = ThreadMsgTargetSubclassInput {
             event_loop_runner,

@@ -89,9 +89,6 @@ extern crate serde;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
-#[cfg(target_os = "windows")]
-#[macro_use]
-extern crate crossbeam_channel;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;
