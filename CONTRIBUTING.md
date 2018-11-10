@@ -2,7 +2,8 @@
 
 ## Scope
 [See `FEATURES.md`](./FEATURES.md). New features should fall into one of the three feature categories
-described in that document.
+described in that document. If your PR adds a new feature, it should be included in one of the feature
+lists in that document.
 
 ## Reporting an issue
 

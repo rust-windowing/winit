@@ -13,7 +13,7 @@ be used to create both games and applications. It supports the main graphical pl
   - Android
 - Web
   - via Emscripten
-  - via WASM ***// TODO: DO WE WANT TO SUPPORT THIS?***
+  - via WASM ***//DISCUSS: DO WE WANT TO SUPPORT THIS?***
 
 Most platforms expose capabilities that cannot be meaningfully transposed to the others. Winit does not
 aim to support every single functionality of every platform, but rather to abstract the set of
@@ -44,6 +44,7 @@ a separate crate that extends Winit's API to add that functionality.
 When all core features are implemented to the satisfaction of the Winit maintainers, Winit 1.0 will
 be released and the library will enter maintenance mode. For the most part, new core features will not
 be added past this point. New platform features may be accepted and exposed through point releases.
+***//DISCUSS: IS THIS ACCURATE?***
 
 ### Tier upgrades
 Some platform features could in theory be exposed across multiple platforms, but have not gone
@@ -51,6 +52,7 @@ through the implementation work necessary to function on all platforms. When one
 gets implemented across all platforms, a PR can be opened to upgrade the feature to a core feature.
 If that gets accepted, the platform-specific functions gets deprecated and become permanently
 exposed through the core, cross-platform API.
+***//DISCUSS: DO WE WANT TO HAVE THIS BE AN OFFICIAL PROCESS, OR NO?***
 
 # Features
 
