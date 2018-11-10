@@ -1,5 +1,7 @@
 # Unreleased
 
+- On X11, fixed panic caused by dropping the window before running the event loop.
+
 # Version 0.18.0 (2018-11-07)
 
 - **Breaking:** `image` crate upgraded to 0.20. This is exposed as part of the `icon_loading` API.
