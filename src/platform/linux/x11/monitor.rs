@@ -65,11 +65,11 @@ impl MonitorId {
         id: u32,
         repr: util::MonitorRepr,
         primary: bool,
-    ) -> Self {
-        let (name, hidpi_factor) = unsafe { xconn.get_output_info(resources, &repr) };
+    ) -> Option<Self> {
+        let (name, hidpi_factor) = unsafe { xconn.get_output_info(resources, &repr)? };
         let (dimensions, position) = unsafe { (repr.get_dimensions(), repr.get_position()) };
         let rect = util::AaRect::new(position, dimensions);
-        MonitorId {
+        Some(MonitorId {
             id,
             name,
             hidpi_factor,
@@ -77,7 +77,7 @@ impl MonitorId {
             position,
             primary,
             rect,
-        }
+        })
     }
 
     pub fn get_name(&self) -> Option<String> {
@@ -153,13 +153,13 @@ impl XConnection {
                     let monitor = monitors.offset(monitor_index as isize);
                     let is_primary = (*monitor).primary != 0;
                     has_primary |= is_primary;
-                    available.push(MonitorId::from_repr(
+                    MonitorId::from_repr(
                         self,
                         resources,
                         monitor_index as u32,
                         monitor.into(),
                         is_primary,
-                    ));
+                    ).map(|monitor_id| available.push(monitor_id));
                 }
                 (xrandr_1_5.XRRFreeMonitors)(monitors);
             } else {
@@ -176,13 +176,13 @@ impl XConnection {
                         let crtc = util::MonitorRepr::from(crtc);
                         let is_primary = crtc.get_output() == primary;
                         has_primary |= is_primary;
-                        available.push(MonitorId::from_repr(
+                        MonitorId::from_repr(
                             self,
                             resources,
                             crtc_id as u32,
                             crtc,
                             is_primary,
-                        ));
+                        ).map(|monitor_id| available.push(monitor_id));
                     }
                     (self.xrandr.XRRFreeCrtcInfo)(crtc);
                 }
