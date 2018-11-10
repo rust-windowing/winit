@@ -147,7 +147,8 @@ Legend:
   ***//DISCUSS: SHOULD THIS BE SUPPORTED?***
 
 ### Pending API Reworks
-Here are listed Changes in the API that have been merged but are still stubbed out in some platforms
+Changes in the API that have been agreed upon but aren't implemented across all platforms.
+
 |Feature                         |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
 |------------------------------  | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
 |New API for HiDPI (#315 #319)   |✔️    |✔️    |✔️       |✔️          |▢*#??* |✔️    |✔️        |
