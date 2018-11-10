@@ -1,7 +1,8 @@
 # Winit Contributing Guidelines
 
 ## Scope
-[See `SCOPE.md`](./SCOPE.md)
+[See `FEATURES.md`](./FEATURES.md). New features should fall into one of the three feature categories
+described in that document.
 
 ## Reporting an issue
 

@@ -13,7 +13,7 @@ be used to create both games and applications. It supports the main graphical pl
   - Android
 - Web
   - via Emscripten
-  - via WASM ***// TODO: DO WE ACTUALLY WANT TO SUPPORT THIS?***
+  - via WASM ***// TODO: DO WE WANT TO SUPPORT THIS?***
 
 Most platforms expose capabilities that cannot be meaningfully transposed to the others. Winit does not
 aim to support every single functionality of every platform, but rather to abstract the set of
@@ -29,8 +29,8 @@ different "support levels":
   usability improvements and cannot be reasonably implemented in an external crate. These are
   generally optional and exposed through Cargo features.
 
-Core features are taken care of by the core Winit maintainers. Platform  features are not.
-When a Platform feature is submitted, the submitter is considered the expert in the
+Core features are taken care of by the core Winit maintainers. Platform features are not.
+When a platform feature is submitted, the submitter is considered the expert in the
 feature and may be asked to support the feature should it break in the future.
 
 Winit ***does not*** directly expose functionality for drawing inside windows or creating native
@@ -42,8 +42,8 @@ a separate crate that extends Winit's API to add that functionality.
 ## `1.0` and stability
 
 When all core features are implemented to the satisfaction of the Winit maintainers, Winit 1.0 will
-be released and the library will enter maintenance mode. New core features will for the most part not
-be added past this point. New Platform features may be accepted and exposed through point releases.
+be released and the library will enter maintenance mode. For the most part, new core features will not
+be added past this point. New platform features may be accepted and exposed through point releases.
 
 ### Tier upgrades
 Some platform features could in theory be exposed across multiple platforms, but have not gone
@@ -114,16 +114,16 @@ Legend:
 ### Input handling
 |Feature                                 |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
 |--------------------------------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|Mouse events                            |✔️    |▢ #63 |✔️       |✔️          |**N/A**|**N/A**|✔️       |
+|Mouse events                            |✔️    |▢#63  |✔️       |✔️          |**N/A**|**N/A**|✔️       |
 |Mouse set location                      |✔️    |✔️    |✔️       |❓           |**N/A**|**N/A**|**N/A**  |
-|Cursor grab                             |✔️    |▢ #165|▢ #242   |❌ #306     |**N/A**|**N/A**|✔️       |
-|Cursor icon                             |✔️    |✔️    |✔️       |❌ #306     |**N/A**|**N/A**|❌       |
+|Cursor grab                             |✔️    |▢#165 |▢#242    |❌#306      |**N/A**|**N/A**|✔️       |
+|Cursor icon                             |✔️    |✔️    |✔️       |❌#306      |**N/A**|**N/A**|❌       |
 |Touch events                            |✔️    |❌    |✔️       |✔️          |✔️    |✔️     |✔️       |
 |Multitouch                              |❓     |❌    |✔️       |✔️          |❓     |❌     |❌       |
 |Keyboard events                         |✔️    |✔️    |✔️       |✔️          |❓     |❌     |✔️       |
-|Drag & Drop                             |✔️    |✔️    |✔️       |❌ #306     |❌    |❌     |❌       |
+|Drag & Drop                             |✔️    |✔️    |✔️       |❌#306      |❌    |❌     |❌       |
 |Clipboard #162                          |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
-|Raw Device Events                       |▢     |▢     |▢        |❌          |❌    |❌     |❌       |
+|Raw Device Events                       |▢*#??*|▢*#??*|▢*#??*   |❌          |❌    |❌     |❌       |
 |Gamepad/Joystick events ***//DISCUSS*** |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
 |Device movement events ***//DISCUSS***  |❓     |❓     |❓       |❓           |❌    |❌     |❌       |
 
@@ -150,7 +150,7 @@ Legend:
 Here are listed Changes in the API that have been merged but are still stubbed out in some platforms
 |Feature                         |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
 |------------------------------  | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|New API for HiDPI (#315 #319)   |✔️    |✔️    |✔️       |✔️          |▢      |✔️    |✔️        |
+|New API for HiDPI (#315 #319)   |✔️    |✔️    |✔️       |✔️          |▢*#??* |✔️    |✔️        |
 |Event Loop 2.0 (#459)           |❌#638|❌    |❌       |❌          |❌     |❌    |❌        |
 
 ## Platform
@@ -167,14 +167,14 @@ Here are listed Changes in the API that have been merged but are still stubbed o
 * Hidden titlebar (Maintainer: ***???***)
 * Hidden titlebar buttons (Maintainer: ***???***)
 * Full-size content view (Maintainer: ***???***)
-* Resize increments (Maintainer: ***???***)
+* Resize increments (Maintainer: ***???***) ***//DISCUSS: SHOULD RESIZE INCREMENTS BE CORE?***
 
 ### Unix
 * Window urgency (Maintainer: ***???***)
 * X11 Window Class (Maintainer: ***???***)
 * X11 Override Redirect Flag (Maintainer: ***???***)
 * GTK Theme Variant (Maintainer: ***???***)
-* Resize increments (Maintainer: ***???***)
+* Resize increments (Maintainer: ***???***) ***//DISCUSS: SHOULD RESIZE INCREMENTS BE CORE?***
 * Base window size (Maintainer: ***???***)
 
 ## Usability
