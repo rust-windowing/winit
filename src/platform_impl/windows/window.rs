@@ -614,7 +614,7 @@ impl Window {
         let mut window_state_lock = self.window_state.lock();
         unsafe {
             let monitor_rect = monitor.as_ref()
-                .map(|RootMonitorHandle{ ref inner }| {
+                .map(|&RootMonitorHandle{ ref inner }| {
                     let (x, y): (i32, i32) = inner.get_position().into();
                     let (width, height): (u32, u32) = inner.get_dimensions().into();
                     (x, y, width, height)

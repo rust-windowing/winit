@@ -33,8 +33,8 @@ pub struct Window {
     pub(crate) window: platform_impl::Window,
 }
 
-impl std::fmt::Debug for Window {
-    fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Debug for Window {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
         fmtr.pad("Window { .. }")
     }
 }
@@ -58,8 +58,8 @@ pub struct WindowBuilder {
     pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
 }
 
-impl std::fmt::Debug for WindowBuilder {
-    fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Debug for WindowBuilder {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
         fmtr.debug_struct("WindowBuilder")
             .field("window", &self.window)
             .finish()

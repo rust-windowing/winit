@@ -34,8 +34,8 @@ pub struct EventLoop<T: 'static> {
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
 }
 
-impl<T> std::fmt::Debug for EventLoop<T> {
-    fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl<T> fmt::Debug for EventLoop<T> {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
         fmtr.pad("EventLoop { .. }")
     }
 }
@@ -154,8 +154,8 @@ impl<T> EventLoopProxy<T> {
     }
 }
 
-impl<T> std::fmt::Debug for EventLoopProxy<T> {
-    fn fmt(&self, fmtr: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl<T> fmt::Debug for EventLoopProxy<T> {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
         fmtr.pad("EventLoopProxy { .. }")
     }
 }
