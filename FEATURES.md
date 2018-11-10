@@ -15,10 +15,9 @@ be used to create both games and applications. It supports the main graphical pl
   - via Emscripten
   - via WASM ***//DISCUSS: DO WE WANT TO SUPPORT THIS?***
 
-Most platforms expose capabilities that cannot be meaningfully transposed to the others. Winit does not
-aim to support every single functionality of every platform, but rather to abstract the set of
-capabilities that is common to all platforms. In this context, APIs exposed in winit can be split into
-different "support levels":
+Most platforms expose capabilities that cannot be meaningfully transposed onto others. Winit does not
+aim to support every single feature of every platform, but rather to abstract over the common features
+available everywhere. In this context, APIs exposed in winit can be split into different "support tiers":
 
 - **Core:** Features that are essential to providing a well-formed abstraction over each platform's
   windowing and input APIs.
@@ -35,9 +34,7 @@ feature and may be asked to support the feature should it break in the future.
 
 Winit ***does not*** directly expose functionality for drawing inside windows or creating native
 menus, but ***does*** commit to providing APIs that higher-level crates can use to implement that
-functionality. When requesting or implementing a new Winit feature, you should consider whether or
-not it's directly related to window creation or input handling. If it isn't, it may be worth creating
-a separate crate that extends Winit's API to add that functionality.
+functionality.
 
 ## `1.0` and stability
 

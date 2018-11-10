@@ -1,9 +1,10 @@
 # Winit Contributing Guidelines
 
 ## Scope
-[See `FEATURES.md`](./FEATURES.md). New features should fall into one of the three feature categories
-described in that document. If your PR adds a new feature, it should be included in one of the feature
-lists in that document.
+[See `FEATURES.md`](./FEATURES.md). When requesting or implementing a new Winit feature, you should
+consider whether or not it's directly related to window creation or input handling. If it isn't, it
+may be worth creating a separate crate that extends Winit's API to add that functionality.
+
 
 ## Reporting an issue
 
