@@ -20,22 +20,18 @@ aim to support every single functionality of every platform, but rather to abstr
 capabilities that is common to all platforms. In this context, APIs exposed in winit can be split into
 different "support levels":
 
-- Tier 1: Features that are essential to providing a well-formed abstraction over each platform's
+- **Core:** Features that are essential to providing a well-formed abstraction over each platform's
   windowing and input APIs.
-- Tier 2: Platform-specific features. There are two classes of Tier 2 features:
-  - Tier 2A: Features that can't be meaningfully exposed through a common API and
-    cannot be implemented outside of Winit without exposing a significant amount of Winit's internals
-    or interfering with Winit's abstractions.
-  - Tier 2B: Features that could in theory be exposed across multiple platforms, but have not gone
-    through the implementation work necessary to function on all platforms. Winit provides no
-    stability guarantees for these features.
-- Tier 3: Features that are not strictly essential to Winit's functionality, but provide meaningful
+- **Platform:** Platform-specific features that can't be meaningfully exposed through a common API and
+  cannot be implemented outside of Winit without exposing a significant amount of Winit's internals
+  or interfering with Winit's abstractions.
+- **Usability:** Features that are not strictly essential to Winit's functionality, but provide meaningful
   usability improvements and cannot be reasonably implemented in an external crate. These are
   generally optional and exposed through Cargo features.
 
-Tier 1 features are taken care of by the core Winit maintainers. Tier 2 and 3 features are not. When
-a Tier 2 or 3 feature is submitted, the submitter is considered the expert in the feature and may be
-asked to support the feature should it break in the future.
+Core features are taken care of by the core Winit maintainers. Platform  features are not.
+When a Platform feature is submitted, the submitter is considered the expert in the
+feature and may be asked to support the feature should it break in the future.
 
 Winit ***does not*** directly expose functionality for drawing inside windows or creating native
 menus, but ***does*** commit to providing APIs that higher-level crates can use to implement that
@@ -43,19 +39,22 @@ functionality. When requesting or implementing a new Winit feature, you should c
 not it's directly related to window creation or input handling. If it isn't, it may be worth creating
 a separate crate that extends Winit's API to add that functionality.
 
-## Tier upgrades
-In some cases, Tier 2 features get implemented across enough platforms that a common API *can* be
-exposed. When this happens, these features may be moved out of their platform module and into the
-core Winit API.
+## `1.0` and stability
 
-## The `1.0` release
-When all Tier 1 features are implemented to the satisfaction of the Winit maintainers, Winit will
-enter maintenance mode. New Tier 1 features will, for the most part, not be added past this point.
-New Tier 2 and 3 features may be accepted and exposed through point releases.
+When all core features are implemented to the satisfaction of the Winit maintainers, Winit 1.0 will
+be released and the library will enter maintenance mode. New core features will for the most part not
+be added past this point. New Platform features may be accepted and exposed through point releases.
+
+### Tier upgrades
+Some platform features could in theory be exposed across multiple platforms, but have not gone
+through the implementation work necessary to function on all platforms. When one of these features
+gets implemented across all platforms, a PR can be opened to upgrade the feature to a core feature.
+If that gets accepted, the platform-specific functions gets deprecated and become permanently
+exposed through the core, cross-platform API.
 
 # Features
 
-## Tier 1
+## Core
 Each section includes a collapsed description of the features it lists.
 
 Legend:
@@ -102,6 +101,7 @@ Legend:
   creation.
 - **Child windows**: Windows can be created relative to the client area of other windows, and parent
   windows can be disabled in favor of child windows.
+  ***//DISCUSS: SHOULD THIS BE SUPPORTED?***
 
 ### System information
 |Feature      |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
@@ -153,7 +153,7 @@ Here are listed Changes in the API that have been merged but are still stubbed o
 |New API for HiDPI (#315 #319)   |✔️    |✔️    |✔️       |✔️          |▢      |✔️    |✔️        |
 |Event Loop 2.0 (#459)           |❌#638|❌    |❌       |❌          |❌     |❌    |❌        |
 
-## Tier 2
+## Platform
 ### Windows
 * Setting the taskbar icon (Maintainer: ***???***)
 * Setting the parent window (Maintainer: ***???***)
@@ -170,13 +170,13 @@ Here are listed Changes in the API that have been merged but are still stubbed o
 * Resize increments (Maintainer: ***???***)
 
 ### Unix
-* Window urgency
-* X11 Window Class
-* X11 Override Redirect Flag
-* GTK Theme Variant
-* Resize increment
-* Base window size
+* Window urgency (Maintainer: ***???***)
+* X11 Window Class (Maintainer: ***???***)
+* X11 Override Redirect Flag (Maintainer: ***???***)
+* GTK Theme Variant (Maintainer: ***???***)
+* Resize increments (Maintainer: ***???***)
+* Base window size (Maintainer: ***???***)
 
-## Tier 3
+## Usability
 * `icon_loading`: Enables loading window icons directly from files. (Maintainer: @francesca64)
 * `serde`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
