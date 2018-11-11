@@ -63,6 +63,17 @@ install:
   - rustup self update
   - rustup target add $TARGET; true
 
+before_script:
+  - |
+      if [ "$TRAVIS_RUST_VERSION" == "1.24.1" ]; then
+        # Some of winit's transitive dependencies have made semver-compatible releases that actually
+        # break their compatibility with rust 1.24.1. We freeze them to their last compatible version to
+        # ensure that winit still compiles fine on this rust version.
+        cargo update
+        cargo update -p stb_truetype --precise 0.2.2
+        cargo update -p rusttype --precise 0.7.1
+      fi
+
 script:
   - cargo build --target $TARGET --verbose
   - cargo build --target $TARGET --features serde --verbose
