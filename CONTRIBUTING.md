@@ -26,6 +26,9 @@ When making a code contribution to winit, before opening your pull request, plea
 - you left comments in your code explaining any part that is not straightforward, so that the
   maintainers and future contributors don't have to try to guess what your code is supposed to do
 - your PR adds an entry to the changelog file if the introduced change is relevant to winit users
+- if your PR affects the platform compatibility of one or more features or adds another feature, the
+  relevant table in the wiki should be updated
+  ***//TODO: LINKY***
 
 Once your PR is open, you can ask for review by a maintainer of your platform. Winit's merging policy
 is that a PR must be approved by at least two maintainers of winit before being merged, including

@@ -139,6 +139,7 @@ Legend:
 - ❌: Missing feature or large bugs making it unusable
 - **N/A**: Not applicable for this platform
 - ❓: Unknown status
+
 ## Windowing
 |Feature                          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
 |-------------------------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
