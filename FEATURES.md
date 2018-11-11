@@ -54,35 +54,10 @@ exposed through the core, cross-platform API.
 # Features
 
 ## Core
-Each section includes a collapsed description of the features it lists.
 
-Legend:
-
-- ✔️: Works as intended
-- ▢: Mostly works but some bugs are known
-- ❌: Missing feature or large bugs making it unusable
-- **N/A**: Not applicable for this platform
-- ❓: Unknown status
-
+Tables detailing feature compatibility across platforms can be found in the wiki ***//TODO: MAKE LINK***
 
 ### Windowing
-|Feature                          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
-|-------------------------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|Window initialization            |✔️    |✔️    |▢#5      |✔️          |▢#33   |▢#33  |❓        |
-|Providing pointer to init OpenGL |✔️    |✔️    |✔️       |✔️          |✔️     |✔️    |❓        |
-|Providing pointer to init Vulkan |✔️    |✔️    |✔️       |✔️          |✔️     |❓     |**N/A**   |
-|Window decorations               |✔️    |✔️    |✔️       |▢#306       |**N/A**|**N/A**|**N/A**   |
-|Window decorations toggle        |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
-|Window resizing                  |✔️    |▢#219 |✔️       |▢#306       |**N/A**|**N/A**|❓        |
-|Window transparency              |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
-|Window maximization              |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
-|Window maximization toggle       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
-|Fullscreen                       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
-|Fullscreen toggle                |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
-|HiDPI support #105               |✔️    |✔️    |✔️       |✔️          |▢      |✔️    |✔️        |
-|Child windows ***//DISCUSS***    |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
-
-#### Details
 - **Window initialization**: Winit allows the creation of a window
 - **Pointer to OpenGL**: Winit provides the necessary pointers to initialize a working opengl context
 - **Pointer to Vulkan**: Same as OpenGL but for Vulkan
@@ -102,31 +77,11 @@ Legend:
   windows can be disabled in favor of child windows.
   ***//DISCUSS: SHOULD THIS BE SUPPORTED?***
 
-### System information
-|Feature      |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
-|------------ | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|Monitor list |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
 
-#### Details
+### System Information
 - **Monitor list**: Retrieve the list of monitors and their metada, including which one is primary is applicable
 
-### Input handling
-|Feature                                 |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
-|--------------------------------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|Mouse events                            |✔️    |▢#63  |✔️       |✔️          |**N/A**|**N/A**|✔️       |
-|Mouse set location                      |✔️    |✔️    |✔️       |❓           |**N/A**|**N/A**|**N/A**  |
-|Cursor grab                             |✔️    |▢#165 |▢#242    |❌#306      |**N/A**|**N/A**|✔️       |
-|Cursor icon                             |✔️    |✔️    |✔️       |❌#306      |**N/A**|**N/A**|❌       |
-|Touch events                            |✔️    |❌    |✔️       |✔️          |✔️    |✔️     |✔️       |
-|Multitouch                              |❓     |❌    |✔️       |✔️          |❓     |❌     |❌       |
-|Keyboard events                         |✔️    |✔️    |✔️       |✔️          |❓     |❌     |✔️       |
-|Drag & Drop                             |✔️    |✔️    |✔️       |❌#306      |❌    |❌     |❌       |
-|Clipboard #162                          |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
-|Raw Device Events                       |▢*#??*|▢*#??*|▢*#??*   |❌          |❌    |❌     |❌       |
-|Gamepad/Joystick events ***//DISCUSS*** |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
-|Device movement events ***//DISCUSS***  |❓     |❓     |❓       |❓           |❌    |❌     |❌       |
-
-#### Details
+### Input Handling
 - **Mouse events**: Generating mouse events associated with pointer motion, click, and scrolling events.
 - **Mouse set location**: Forcibly changing the location of the pointer.
 - **Cursor grab**: Locking the cursor so it cannot exit the client area of a window.
@@ -144,14 +99,6 @@ Legend:
   ***//DISCUSS: SHOULD THIS BE SUPPORTED?***
 - **Device movement events:**: Capturing input from the device gyroscope and accelerometer.
   ***//DISCUSS: SHOULD THIS BE SUPPORTED?***
-
-### Pending API Reworks
-Changes in the API that have been agreed upon but aren't implemented across all platforms.
-
-|Feature                         |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
-|------------------------------  | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|New API for HiDPI (#315 #319)   |✔️    |✔️    |✔️       |✔️          |▢*#??* |✔️    |✔️        |
-|Event Loop 2.0 (#459)           |❌#638|❌    |❌       |❌          |❌     |❌    |❌        |
 
 ## Platform
 ### Windows
@@ -180,3 +127,60 @@ Changes in the API that have been agreed upon but aren't implemented across all 
 ## Usability
 * `icon_loading`: Enables loading window icons directly from files. (Maintainer: @francesca64)
 * `serde`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
+
+# Compatibility Matrix - Move to wiki on merge
+
+Each section includes a collapsed description of the features it lists.
+
+Legend:
+
+- ✔️: Works as intended
+- ▢: Mostly works but some bugs are known
+- ❌: Missing feature or large bugs making it unusable
+- **N/A**: Not applicable for this platform
+- ❓: Unknown status
+## Windowing
+|Feature                          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
+|-------------------------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
+|Window initialization            |✔️    |✔️    |▢#5      |✔️          |▢#33   |▢#33  |❓        |
+|Providing pointer to init OpenGL |✔️    |✔️    |✔️       |✔️          |✔️     |✔️    |❓        |
+|Providing pointer to init Vulkan |✔️    |✔️    |✔️       |✔️          |✔️     |❓     |**N/A**   |
+|Window decorations               |✔️    |✔️    |✔️       |▢#306       |**N/A**|**N/A**|**N/A**   |
+|Window decorations toggle        |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
+|Window resizing                  |✔️    |▢#219 |✔️       |▢#306       |**N/A**|**N/A**|❓        |
+|Window transparency              |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
+|Window maximization              |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
+|Window maximization toggle       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
+|Fullscreen                       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
+|Fullscreen toggle                |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
+|HiDPI support #105               |✔️    |✔️    |✔️       |✔️          |▢      |✔️    |✔️        |
+|Child windows ***//DISCUSS***    |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
+
+## System information
+|Feature      |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
+|------------ | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
+|Monitor list |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
+
+## Input handling
+|Feature                                 |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
+|--------------------------------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
+|Mouse events                            |✔️    |▢#63  |✔️       |✔️          |**N/A**|**N/A**|✔️       |
+|Mouse set location                      |✔️    |✔️    |✔️       |❓           |**N/A**|**N/A**|**N/A**  |
+|Cursor grab                             |✔️    |▢#165 |▢#242    |❌#306      |**N/A**|**N/A**|✔️       |
+|Cursor icon                             |✔️    |✔️    |✔️       |❌#306      |**N/A**|**N/A**|❌       |
+|Touch events                            |✔️    |❌    |✔️       |✔️          |✔️    |✔️     |✔️       |
+|Multitouch                              |❓     |❌    |✔️       |✔️          |❓     |❌     |❌       |
+|Keyboard events                         |✔️    |✔️    |✔️       |✔️          |❓     |❌     |✔️       |
+|Drag & Drop                             |✔️    |✔️    |✔️       |❌#306      |❌    |❌     |❌       |
+|Clipboard #162                          |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
+|Raw Device Events                       |▢*#??*|▢*#??*|▢*#??*   |❌          |❌    |❌     |❌       |
+|Gamepad/Joystick events ***//DISCUSS*** |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
+|Device movement events ***//DISCUSS***  |❓     |❓     |❓       |❓           |❌    |❌     |❌       |
+
+## Pending API Reworks
+Changes in the API that have been agreed upon but aren't implemented across all platforms.
+
+|Feature                         |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
+|------------------------------  | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
+|New API for HiDPI (#315 #319)   |✔️    |✔️    |✔️       |✔️          |▢*#??* |✔️    |✔️        |
+|Event Loop 2.0 (#459)           |❌#638|❌    |❌       |❌          |❌     |❌    |❌        |
