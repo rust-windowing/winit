@@ -12,7 +12,8 @@
 //! The closure passed to the `execute_in_thread` method takes an `Inserter` that you can use to
 //! add a `WindowState` entry to a list of window to be used by the callback.
 
-use std::{mem, ptr, thread};
+use std::{mem, ptr, thread, panic};
+use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::os::windows::io::AsRawHandle;
@@ -163,6 +164,7 @@ impl EventsLoop {
                     windows: HashMap::with_capacity(4),
                     file_drop_handlers: HashMap::with_capacity(4),
                     mouse_buttons_down: 0,
+                    panic_error: None
                 });
             });
 
@@ -184,6 +186,10 @@ impl EventsLoop {
                         debug_assert_eq!(msg.message, winuser::WM_QUIT);
                         break;
                     }
+
+                    if let Some(panic_payload) = CONTEXT_STASH.with(|stash| stash.borrow_mut().as_mut().and_then(|s| s.panic_error.take())) {
+                        panic::resume_unwind(panic_payload);
+                    };
 
                     match msg.message {
                         x if x == *EXEC_MSG_ID => {
@@ -374,6 +380,7 @@ struct ThreadLocalData {
     windows: HashMap<HWND, Arc<Mutex<WindowState>>>,
     file_drop_handlers: HashMap<HWND, FileDropHandler>, // Each window has its own drop handler.
     mouse_buttons_down: u32,
+    panic_error: Option<Box<Any + Send + 'static>>
 }
 
 // Utility function that dispatches an event on the current thread.
@@ -411,6 +418,28 @@ unsafe fn release_mouse() {
     });
 }
 
+pub unsafe fn run_catch_panic<F, R>(error: R, f: F) -> R
+    where F: panic::UnwindSafe + FnOnce() -> R
+{
+    // If a panic has been triggered, cancel all future operations in the function.
+    if CONTEXT_STASH.with(|stash| stash.borrow_mut().as_ref().map(|s| s.panic_error.is_some()).unwrap_or(false)) {
+        return error;
+    }
+
+    let callback_result = panic::catch_unwind(f);
+    match callback_result {
+        Ok(lresult) => lresult,
+        Err(err) => CONTEXT_STASH.with(|context_stash| {
+            let mut context_stash = context_stash.borrow_mut();
+            if let Some(context_stash) = context_stash.as_mut() {
+                context_stash.panic_error = Some(err);
+                winuser::PostQuitMessage(-1);
+            }
+            error
+        })
+    }
+}
+
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
 //
@@ -419,6 +448,15 @@ unsafe fn release_mouse() {
 // Returning 0 tells the Win32 API that the message has been processed.
 // FIXME: detect WM_DWMCOMPOSITIONCHANGED and call DwmEnableBlurBehindWindow if necessary
 pub unsafe extern "system" fn callback(
+    window: HWND,
+    msg: UINT,
+    wparam: WPARAM,
+    lparam: LPARAM
+) -> LRESULT {
+    run_catch_panic(-1, || callback_inner(window, msg, wparam, lparam))
+}
+
+unsafe fn callback_inner(
     window: HWND,
     msg: UINT,
     wparam: WPARAM,
