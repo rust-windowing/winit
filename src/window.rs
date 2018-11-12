@@ -369,13 +369,6 @@ impl Window {
         self.window.set_fullscreen(monitor)
     }
 
-    /// Sets the window to fullscreen or back without using a different space
-    #[cfg(target_os = "macos")]
-    #[inline]
-    pub fn set_simple_fullscreen(&self, monitor: Option<MonitorId>) {
-        self.window.set_simple_fullscreen(monitor)
-    }
-
     /// Turn window decorations on or off.
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {

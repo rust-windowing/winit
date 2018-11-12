@@ -36,12 +36,10 @@ fn main() {
                 } => match (virtual_code, state) {
                     (winit::VirtualKeyCode::Escape, _) => return ControlFlow::Break,
                     (winit::VirtualKeyCode::F, winit::ElementState::Pressed) => {
+                        use winit::os::macos::WindowExt;
+
                         is_simple_fullscreen = !is_simple_fullscreen;
-                        if !is_simple_fullscreen {
-                            window.set_simple_fullscreen(None);
-                        } else {
-                            window.set_simple_fullscreen(Some(window.get_current_monitor()));
-                        }
+                        WindowExt::set_simple_fullscreen(&window, is_simple_fullscreen);
                     }
                     (winit::VirtualKeyCode::M, winit::ElementState::Pressed) => {
                         is_maximized = !is_maximized;

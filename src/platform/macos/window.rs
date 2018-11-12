@@ -607,6 +607,52 @@ impl WindowExt for Window2 {
             NSApp().requestUserAttention_(request_type);
         }
     }
+
+    #[inline]
+    fn set_simple_fullscreen(&self, enable: bool) {
+        let state = &self.delegate.state;
+
+        unsafe {
+            let app = NSApp();
+            if enable {
+                // Remember the original window's settings
+                state.standard_frame.set(Some(NSWindow::frame(*self.window)));
+                state.save_style_mask.set(Some(self.window.styleMask()));
+                state.save_presentation_opts.set(Some(app.presentationOptions_()));
+
+                // Simulate pre-Lion fullscreen by hiding the dock and menu bar
+                let presentation_options =
+                    NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock |
+                    NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
+                app.setPresentationOptions_(presentation_options);
+
+                // Hide the titlebar
+                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSTitledWindowMask, false);
+
+                // Set the window frame to the screen frame size
+                let screen = self.window.screen();
+                let screen_frame = NSScreen::frame(screen);
+                NSWindow::setFrame_display_(*self.window, screen_frame, YES);
+
+                // Fullscreen windows can't be resized, minimized, or moved
+                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSMiniaturizableWindowMask, false);
+                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSResizableWindowMask, false);
+                NSWindow::setMovable_(*self.window, NO);
+            } else {
+                let win_attribs = state.win_attribs.borrow();
+                let saved_style_mask = state.saved_style_mask(win_attribs.resizable);
+                util::set_style_mask(*self.window, *self.view, saved_style_mask);
+
+                if let Some(presentation_opts) = state.save_presentation_opts.get() {
+                    app.setPresentationOptions_(presentation_opts);
+                }
+
+                let frame = state.saved_standard_frame();
+                NSWindow::setFrame_display_(*self.window, frame, YES);
+                NSWindow::setMovable_(*self.window, YES);
+            }
+        }
+    }
 }
 
 impl Window2 {
@@ -1087,55 +1133,6 @@ impl Window2 {
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.delegate.state.perform_maximized(maximized)
-    }
-
-    #[inline]
-    /// A fullscreen mode that doesn't use a different space. This is how fullscreen
-    /// used to work on macOS in versions before Lion.
-    pub fn set_simple_fullscreen(&self, monitor: Option<RootMonitorId>) {
-        let state = &self.delegate.state;
-        let should_toggle_simple_fullscreen = monitor.is_some();
-
-        unsafe {
-            let app = NSApp();
-            if should_toggle_simple_fullscreen {
-                // Remember the original window's settings
-                state.standard_frame.set(Some(NSWindow::frame(*self.window)));
-                state.save_style_mask.set(Some(self.window.styleMask()));
-                state.save_presentation_opts.set(Some(app.presentationOptions_()));
-
-                // Simulate pre-Lion fullscreen by hiding the dock and menu bar
-                let presentation_options =
-                    NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock |
-                    NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
-                app.setPresentationOptions_(presentation_options);
-
-                // Hide the titlebar
-                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSTitledWindowMask, false);
-
-                // Set the window frame to the screen frame size
-                let screen = self.window.screen();
-                let screen_frame = NSScreen::frame(screen);
-                NSWindow::setFrame_display_(*self.window, screen_frame, YES);
-
-                // Fullscreen windows can't be resized, minimized, or moved
-                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSMiniaturizableWindowMask, false);
-                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSResizableWindowMask, false);
-                NSWindow::setMovable_(*self.window, NO);
-            } else {
-                let win_attribs = state.win_attribs.borrow();
-                let saved_style_mask = state.saved_style_mask(win_attribs.resizable);
-                util::set_style_mask(*self.window, *self.view, saved_style_mask);
-
-                if let Some(presentation_opts) = state.save_presentation_opts.get() {
-                    app.setPresentationOptions_(presentation_opts);
-                }
-
-                let frame = state.saved_standard_frame();
-                NSWindow::setFrame_display_(*self.window, frame, YES);
-                NSWindow::setMovable_(*self.window, YES);
-            }
-        }
     }
 
     #[inline]
