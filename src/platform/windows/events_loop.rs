@@ -138,7 +138,12 @@ pub struct EventsLoop {
     // Id of the background thread from the Win32 API.
     thread_id: DWORD,
     // Receiver for the events. The sender is in the background thread.
-    receiver: mpsc::Receiver<Event>,
+    receiver: mpsc::Receiver<EventsLoopEvent>,
+}
+
+enum EventsLoopEvent {
+    WinitEvent(Event),
+    Panic(PanicError)
 }
 
 impl EventsLoop {
@@ -158,6 +163,7 @@ impl EventsLoop {
         let barrier_clone = barrier.clone();
 
         let thread = thread::spawn(move || {
+            let panic_sender = tx.clone();
             CONTEXT_STASH.with(|context_stash| {
                 *context_stash.borrow_mut() = Some(ThreadLocalData {
                     sender: tx,
@@ -182,14 +188,14 @@ impl EventsLoop {
 
                 loop {
                     if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
+                        if let Some(panic_payload) = CONTEXT_STASH.with(|stash| stash.borrow_mut().as_mut().and_then(|s| s.panic_error.take())) {
+                            panic_sender.send(EventsLoopEvent::Panic(panic_payload)).unwrap();
+                        };
+
                         // Only happens if the message is `WM_QUIT`.
                         debug_assert_eq!(msg.message, winuser::WM_QUIT);
                         break;
                     }
-
-                    if let Some(panic_payload) = CONTEXT_STASH.with(|stash| stash.borrow_mut().as_mut().and_then(|s| s.panic_error.take())) {
-                        panic::resume_unwind(panic_payload);
-                    };
 
                     match msg.message {
                         x if x == *EXEC_MSG_ID => {
@@ -228,8 +234,12 @@ impl EventsLoop {
     {
         loop {
             let event = match self.receiver.try_recv() {
-                Ok(e) => e,
-                Err(_) => return
+                Ok(EventsLoopEvent::WinitEvent(e)) => e,
+                Ok(EventsLoopEvent::Panic(panic)) => {
+                    eprintln!("resume child thread unwind at {:?}", backtrace::Backtrace::new());
+                    panic::resume_unwind(panic)
+                },
+                Err(_) => break
             };
 
             callback(event);
@@ -241,8 +251,12 @@ impl EventsLoop {
     {
         loop {
             let event = match self.receiver.recv() {
-                Ok(e) => e,
-                Err(_) => return
+                Ok(EventsLoopEvent::WinitEvent(e)) => e,
+                Ok(EventsLoopEvent::Panic(panic)) => {
+                    eprintln!("resume child thread unwind at {:?}", backtrace::Backtrace::new());
+                    panic::resume_unwind(panic)
+                },
+                Err(_) => break
             };
 
             let flow = callback(event);
@@ -376,53 +390,63 @@ lazy_static! {
 // in a thread-local variable.
 thread_local!(static CONTEXT_STASH: RefCell<Option<ThreadLocalData>> = RefCell::new(None));
 struct ThreadLocalData {
-    sender: mpsc::Sender<Event>,
+    sender: mpsc::Sender<EventsLoopEvent>,
     windows: HashMap<HWND, Arc<Mutex<WindowState>>>,
     file_drop_handlers: HashMap<HWND, FileDropHandler>, // Each window has its own drop handler.
     mouse_buttons_down: u32,
-    panic_error: Option<Box<Any + Send + 'static>>
+    panic_error: Option<PanicError>
 }
+type PanicError = Box<Any + Send + 'static>;
 
 // Utility function that dispatches an event on the current thread.
 pub fn send_event(event: Event) {
     CONTEXT_STASH.with(|context_stash| {
         let context_stash = context_stash.borrow();
 
-        let _ = context_stash.as_ref().unwrap().sender.send(event);   // Ignoring if closed
+        let _ = context_stash.as_ref().unwrap().sender.send(EventsLoopEvent::WinitEvent(event));   // Ignoring if closed
     });
 }
 
 /// Capture mouse input, allowing `window` to receive mouse events when the cursor is outside of
 /// the window.
 unsafe fn capture_mouse(window: HWND) {
-    CONTEXT_STASH.with(|context_stash| {
+    let set_capture = CONTEXT_STASH.with(|context_stash| {
         let mut context_stash = context_stash.borrow_mut();
         if let Some(context_stash) = context_stash.as_mut() {
             context_stash.mouse_buttons_down += 1;
-            winuser::SetCapture(window);
+            true
+        } else {
+            false
         }
     });
+    if set_capture {
+        winuser::SetCapture(window);
+    }
 }
 
 /// Release mouse input, stopping windows on this thread from receiving mouse input when the cursor
 /// is outside the window.
 unsafe fn release_mouse() {
-    CONTEXT_STASH.with(|context_stash| {
+    let release_capture = CONTEXT_STASH.with(|context_stash| {
         let mut context_stash = context_stash.borrow_mut();
         if let Some(context_stash) = context_stash.as_mut() {
             context_stash.mouse_buttons_down = context_stash.mouse_buttons_down.saturating_sub(1);
             if context_stash.mouse_buttons_down == 0 {
-                winuser::ReleaseCapture();
+                return true;
             }
         }
+        false
     });
+    if release_capture {
+        winuser::ReleaseCapture();
+    }
 }
 
 pub unsafe fn run_catch_panic<F, R>(error: R, f: F) -> R
     where F: panic::UnwindSafe + FnOnce() -> R
 {
     // If a panic has been triggered, cancel all future operations in the function.
-    if CONTEXT_STASH.with(|stash| stash.borrow_mut().as_ref().map(|s| s.panic_error.is_some()).unwrap_or(false)) {
+    if CONTEXT_STASH.with(|stash| stash.borrow().as_ref().map(|s| s.panic_error.is_some()).unwrap_or(false)) {
         return error;
     }
 
@@ -430,6 +454,7 @@ pub unsafe fn run_catch_panic<F, R>(error: R, f: F) -> R
     match callback_result {
         Ok(lresult) => lresult,
         Err(err) => CONTEXT_STASH.with(|context_stash| {
+            println!("catch panic!");
             let mut context_stash = context_stash.borrow_mut();
             if let Some(context_stash) = context_stash.as_mut() {
                 context_stash.panic_error = Some(err);
@@ -565,7 +590,7 @@ unsafe fn callback_inner(
                     event: Resized(logical_size),
                 };
 
-                cstash.sender.send(event).ok();
+                cstash.sender.send(EventsLoopEvent::WinitEvent(event)).ok();
             });
             0
         },
