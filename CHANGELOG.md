@@ -1,4 +1,5 @@
 # Unreleased
+- On Windows, catch panics in event loop child thread and forward them to the parent thread.
 
 - On X11, fixed panic caused by dropping the window before running the event loop.
 - Introduce `WindowBuilderExt::with_app_id` to allow setting the application ID on Wayland.
