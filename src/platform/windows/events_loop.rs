@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::os::windows::io::AsRawHandle;
 use std::sync::{Arc, Barrier, mpsc, Mutex};
 
+use backtrace::Backtrace;
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{
     BOOL,
@@ -236,7 +237,7 @@ impl EventsLoop {
             let event = match self.receiver.try_recv() {
                 Ok(EventsLoopEvent::WinitEvent(e)) => e,
                 Ok(EventsLoopEvent::Panic(panic)) => {
-                    eprintln!("resume child thread unwind at {:?}", backtrace::Backtrace::new());
+                    eprintln!("resume child thread unwind at {:?}", Backtrace::new());
                     panic::resume_unwind(panic)
                 },
                 Err(_) => break
@@ -253,7 +254,7 @@ impl EventsLoop {
             let event = match self.receiver.recv() {
                 Ok(EventsLoopEvent::WinitEvent(e)) => e,
                 Ok(EventsLoopEvent::Panic(panic)) => {
-                    eprintln!("resume child thread unwind at {:?}", backtrace::Backtrace::new());
+                    eprintln!("resume child thread unwind at {:?}", Backtrace::new());
                     panic::resume_unwind(panic)
                 },
                 Err(_) => break
