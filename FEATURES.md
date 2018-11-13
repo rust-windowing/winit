@@ -41,7 +41,6 @@ functionality.
 When all core features are implemented to the satisfaction of the Winit maintainers, Winit 1.0 will
 be released and the library will enter maintenance mode. For the most part, new core features will not
 be added past this point. New platform features may be accepted and exposed through point releases.
-***//DISCUSS: IS THIS ACCURATE?***
 
 ### Tier upgrades
 Some platform features could in theory be exposed across multiple platforms, but have not gone
@@ -49,7 +48,6 @@ through the implementation work necessary to function on all platforms. When one
 gets implemented across all platforms, a PR can be opened to upgrade the feature to a core feature.
 If that gets accepted, the platform-specific functions gets deprecated and become permanently
 exposed through the core, cross-platform API.
-***//DISCUSS: DO WE WANT TO HAVE THIS BE AN OFFICIAL PROCESS, OR NO?***
 
 # Features
 
@@ -93,7 +91,6 @@ Tables detailing feature compatibility across platforms can be found in the wiki
 - **Drag & Drop**: Dragging content into winit, detecting when content enters, drops, or if the drop is cancelled.
   ***//DISCUSS: WINIT SUPPORTS FILE DROPS, BUT NOT TEXT OR IMAGE DROPS***
 - **Clipboard**: Winit supports copy-pasting content to and from winit.
-  ***//DISCUSS: AN ISSUE SHOULD BE OPENED REGARDING HOW THIS API SHOULD WORK***
 - **Raw Device Events**: Capturing input from input devices without any OS filtering.
 - **Gamepad/Joystick events**: Capturing input from gampads and joysticks.
   ***//DISCUSS: SHOULD THIS BE SUPPORTED?***
