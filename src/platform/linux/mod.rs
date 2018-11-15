@@ -46,6 +46,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub override_redirect: bool,
     pub x11_window_type: x11::util::WindowType,
     pub gtk_theme_variant: Option<String>,
+    pub app_id: Option<String>
 }
 
 lazy_static!(
@@ -128,7 +129,7 @@ impl Window {
     ) -> Result<Self, CreationError> {
         match *events_loop {
             EventsLoop::Wayland(ref events_loop) => {
-                wayland::Window::new(events_loop, attribs).map(Window::Wayland)
+                wayland::Window::new(events_loop, attribs, pl_attribs).map(Window::Wayland)
             },
             EventsLoop::X(ref events_loop) => {
                 x11::Window::new(events_loop, attribs, pl_attribs).map(Window::X)
