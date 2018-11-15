@@ -1,6 +1,7 @@
 # Unreleased
 
 - On X11, fixed panic caused by dropping the window before running the event loop.
+- Introduce `WindowBuilderExt::with_app_id` to allow setting the application ID on Wayland.
 - On X11, fixed a segfault when using virtual monitors with XRandR.
 
 # Version 0.18.0 (2018-11-07)

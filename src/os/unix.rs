@@ -225,6 +225,13 @@ pub trait WindowBuilderExt {
     fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
     /// Build window with base size hint. Only implemented on X11.
     fn with_base_size(self, base_size: LogicalSize) -> WindowBuilder;
+
+    /// Build window with a given application ID. It should match the `.desktop` file distributed with
+    /// your program. Only relevant on Wayland.
+    ///
+    /// For details about application ID conventions, see the
+    /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
+    fn with_app_id(self, app_id: String) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -275,6 +282,12 @@ impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_gtk_theme_variant(mut self, variant: String) -> WindowBuilder {
         self.platform_specific.gtk_theme_variant = Some(variant);
+        self
+    }
+
+    #[inline]
+    fn with_app_id(mut self, app_id: String) -> WindowBuilder {
+        self.platform_specific.app_id = Some(app_id);
         self
     }
 }

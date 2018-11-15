@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex, Weak};
 
 use {CreationError, MouseCursor, WindowAttributes};
 use dpi::{LogicalPosition, LogicalSize};
-use platform::MonitorId as PlatformMonitorId;
+use platform::{MonitorId as PlatformMonitorId, PlatformSpecificWindowBuilderAttributes as PlAttributes};
 use window::MonitorId as RootMonitorId;
 
 use sctk::window::{ConceptFrame, Event as WEvent, Window as SWindow};
@@ -28,7 +28,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(evlp: &EventsLoop, attributes: WindowAttributes) -> Result<Window, CreationError> {
+    pub fn new(evlp: &EventsLoop, attributes: WindowAttributes, pl_attribs: PlAttributes) -> Result<Window, CreationError> {
         let (width, height) = attributes.dimensions.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
@@ -105,6 +105,10 @@ impl Window {
                 }
             },
         ).unwrap();
+
+        if let Some(app_id) = pl_attribs.app_id {
+            frame.set_app_id(app_id);
+        }
 
         for &(_, ref seat) in evlp.seats.lock().unwrap().iter() {
             frame.new_seat(seat);
