@@ -725,6 +725,7 @@ impl Window {
 
                     let window = self.window.clone();
 
+                    drop(window_state);
                     self.thread_executor.execute_in_thread(move || {
                         winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
                         winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
