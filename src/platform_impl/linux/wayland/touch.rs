@@ -1,15 +1,13 @@
 use std::sync::{Arc, Mutex};
 
-use {TouchPhase, WindowEvent};
+use event::{TouchPhase, WindowEvent};
 
 use super::{DeviceId, WindowId};
-use super::event_loop::EventLoopSink;
+use super::event_loop::WindowEventsSink;
 use super::window::WindowStore;
 
-use sctk::reexports::client::Proxy;
 use sctk::reexports::client::protocol::wl_touch::{Event as TouchEvent, WlTouch};
 use sctk::reexports::client::protocol::wl_seat;
-use sctk::reexports::client::protocol::wl_seat::RequestsTrait as SeatRequests;
 
 struct TouchPoint {
     wid: WindowId,
@@ -18,13 +16,13 @@ struct TouchPoint {
 }
 
 pub(crate) fn implement_touch(
-    seat: &Proxy<wl_seat::WlSeat>,
-    sink: Arc<Mutex<EventLoopSink>>,
+    seat: &wl_seat::WlSeat,
+    sink: Arc<Mutex<WindowEventsSink>>,
     store: Arc<Mutex<WindowStore>>,
-) -> Proxy<WlTouch> {
+) -> WlTouch {
     let mut pending_ids = Vec::new();
     seat.get_touch(|touch| {
-        touch.implement(move |evt, _| {
+        touch.implement_closure(move |evt, _| {
             let mut sink = sink.lock().unwrap();
             let store = store.lock().unwrap();
             match evt {
@@ -34,8 +32,8 @@ pub(crate) fn implement_touch(
                     let wid = store.find_wid(&surface);
                     if let Some(wid) = wid {
                         sink.send_event(
-                            WindowEvent::Touch(::Touch {
-                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            WindowEvent::Touch(::event::Touch {
+                                device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
                                 phase: TouchPhase::Started,
                                 location: (x, y).into(),
                                 id: id as u64,
@@ -54,8 +52,8 @@ pub(crate) fn implement_touch(
                     if let Some(idx) = idx {
                         let pt = pending_ids.remove(idx);
                         sink.send_event(
-                            WindowEvent::Touch(::Touch {
-                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            WindowEvent::Touch(::event::Touch {
+                                device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
                                 phase: TouchPhase::Ended,
                                 location: pt.location.into(),
                                 id: id as u64,
@@ -69,8 +67,8 @@ pub(crate) fn implement_touch(
                     if let Some(pt) = pt {
                         pt.location = (x, y);
                         sink.send_event(
-                            WindowEvent::Touch(::Touch {
-                                device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                            WindowEvent::Touch(::event::Touch {
+                                device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
                                 phase: TouchPhase::Moved,
                                 location: (x, y).into(),
                                 id: id as u64,
@@ -82,8 +80,8 @@ pub(crate) fn implement_touch(
                 TouchEvent::Frame => (),
                 TouchEvent::Cancel => for pt in pending_ids.drain(..) {
                     sink.send_event(
-                        WindowEvent::Touch(::Touch {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                        WindowEvent::Touch(::event::Touch {
+                            device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
                             phase: TouchPhase::Cancelled,
                             location: pt.location.into(),
                             id: pt.id as u64,
@@ -91,6 +89,7 @@ pub(crate) fn implement_touch(
                         pt.wid,
                     );
                 },
+                _ => unreachable!()
             }
         }, ())
     }).unwrap()
