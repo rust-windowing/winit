@@ -11,6 +11,7 @@
 //! [send_event]: ./struct.EventLoopProxy.html#method.send_event
 use std::{fmt, error};
 use std::time::Instant;
+use std::ops::Deref;
 
 use platform_impl;
 use event::Event;
@@ -31,6 +32,11 @@ use monitor::{AvailableMonitorsIter, MonitorHandle};
 /// `EventLoopProxy` allows you to wake up an `EventLoop` from an other thread.
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
+    pub(crate) _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
+}
+
+pub struct EventLoopWindowTarget<T: 'static> {
+    pub(crate) p: platform_impl::EventLoopWindowTarget<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
 }
 
@@ -123,7 +129,7 @@ impl<T> EventLoop<T> {
     /// [`ControlFlow`]: ./enum.ControlFlow.html
     #[inline]
     pub fn run<F>(self, event_handler: F) -> !
-        where F: 'static + FnMut(Event<T>, &EventLoop<T>, &mut ControlFlow)
+        where F: 'static + FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow)
     {
         self.event_loop.run(event_handler)
     }
@@ -134,6 +140,13 @@ impl<T> EventLoop<T> {
         EventLoopProxy {
             event_loop_proxy: self.event_loop.create_proxy(),
         }
+    }
+}
+
+impl<T> Deref for EventLoop<T> {
+    type Target = EventLoopWindowTarget<T>;
+    fn deref(&self) -> &EventLoopWindowTarget<T> {
+        self.event_loop.window_target()
     }
 }
 

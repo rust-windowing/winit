@@ -22,6 +22,7 @@ use std::time::{Duration, Instant};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::marker::PhantomData;
 use parking_lot::Mutex;
 
 use winapi::ctypes::c_int;
@@ -43,7 +44,7 @@ use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
 use window::WindowId as RootWindowId;
 use monitor::MonitorHandle;
-use event_loop::{ControlFlow, EventLoop as RootEventLoop, EventLoopClosed};
+use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use event::{DeviceEvent, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent};
 use platform_impl::platform::{event, Cursor, WindowId, DEVICE_ID, wrap_device_id, util};
@@ -138,11 +139,15 @@ impl<T> ThreadMsgTargetSubclassInput<T> {
     }
 }
 
-pub struct EventLoop<T> {
+pub struct EventLoop<T: 'static> {
     // Id of the background thread from the Win32 API.
-    thread_id: DWORD,
     thread_msg_target: HWND,
     thread_msg_sender: Sender<T>,
+    window_target: RootELW<T>
+}
+
+pub struct EventLoopWindowTarget<T> {
+    thread_id: DWORD,
     trigger_newevents_on_redraw: Arc<AtomicBool>,
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
@@ -150,6 +155,10 @@ pub struct EventLoop<T> {
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
         Self::with_dpi_awareness(true)
+    }
+
+    pub fn window_target(&self) -> &RootELW<T> {
+        &self.window_target
     }
 
     pub fn with_dpi_awareness(dpi_aware: bool) -> EventLoop<T> {
@@ -163,37 +172,40 @@ impl<T: 'static> EventLoop<T> {
         let (thread_msg_target, thread_msg_sender) = thread_event_target_window(runner_shared.clone());
 
         EventLoop {
-            thread_id,
             thread_msg_target, thread_msg_sender,
-            trigger_newevents_on_redraw: Arc::new(AtomicBool::new(true)),
-            runner_shared
+            window_target: RootELW {
+                p: EventLoopWindowTarget {
+                    thread_id,
+                    trigger_newevents_on_redraw: Arc::new(AtomicBool::new(true)),
+                    runner_shared
+                },
+                _marker: PhantomData
+            }
         }
     }
 
     pub fn run<F>(mut self, event_handler: F) -> !
-        where F: 'static + FnMut(Event<T>, &RootEventLoop<T>, &mut ControlFlow)
+        where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         self.run_return(event_handler);
         ::std::process::exit(0);
     }
 
     pub fn run_return<F>(&mut self, mut event_handler: F)
-        where F: FnMut(Event<T>, &RootEventLoop<T>, &mut ControlFlow)
+        where F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         unsafe{ winuser::IsGUIThread(1); }
 
-        assert_eq!(mem::size_of::<RootEventLoop<T>>(), mem::size_of::<EventLoop<T>>());
-        let self_ptr = self as *const EventLoop<T>;
+        let event_loop_windows_ref = &self.window_target;
 
         let mut runner = unsafe{ EventLoopRunner::new(
             self,
             move |event, control_flow| {
-                let event_loop_ref = &*(self_ptr as *const RootEventLoop<T>);
-                event_handler(event, event_loop_ref, control_flow)
+                event_handler(event, event_loop_windows_ref, control_flow)
             }
         ) };
         {
-            let runner_shared = self.runner_shared.clone();
+            let runner_shared = self.window_target.p.runner_shared.clone();
             let mut runner_ref = runner_shared.runner.borrow_mut();
             loop {
                 let event = runner_shared.buffer.borrow_mut().pop_front();
@@ -206,7 +218,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         macro_rules! runner {
-            () => {{ self.runner_shared.runner.borrow_mut().as_mut().unwrap() }};
+            () => {{ self.window_target.p.runner_shared.runner.borrow_mut().as_mut().unwrap() }};
         }
 
         unsafe {
@@ -244,7 +256,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         runner!().call_event_handler(Event::LoopDestroyed);
-        *self.runner_shared.runner.borrow_mut() = None;
+        *self.window_target.p.runner_shared.runner.borrow_mut() = None;
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
@@ -253,7 +265,9 @@ impl<T: 'static> EventLoop<T> {
             event_send: self.thread_msg_sender.clone()
         }
     }
+}
 
+impl<T> EventLoopWindowTarget<T> {
     #[inline(always)]
     pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
         EventLoopThreadExecutor {
@@ -309,7 +323,7 @@ impl<T> EventLoopRunner<T> {
         where F: FnMut(Event<T>, &mut ControlFlow)
     {
         EventLoopRunner {
-            trigger_newevents_on_redraw: event_loop.trigger_newevents_on_redraw.clone(),
+            trigger_newevents_on_redraw: event_loop.window_target.p.trigger_newevents_on_redraw.clone(),
             control_flow: ControlFlow::default(),
             runner_state: RunnerState::New,
             in_modal_loop: false,
@@ -545,8 +559,6 @@ impl<T> Drop for EventLoop<T> {
     fn drop(&mut self) {
         unsafe {
             winuser::DestroyWindow(self.thread_msg_target);
-            // Posting `WM_QUIT` will cause `GetMessage` to stop.
-            winuser::PostThreadMessageA(self.thread_id, winuser::WM_QUIT, 0, 0);
         }
     }
 }

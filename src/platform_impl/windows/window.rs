@@ -23,7 +23,7 @@ use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use monitor::MonitorHandle as RootMonitorHandle;
 use platform_impl::platform::{Cursor, PlatformSpecificWindowBuilderAttributes, WindowId};
 use platform_impl::platform::dpi::{dpi_to_scale_factor, get_hwnd_dpi};
-use platform_impl::platform::event_loop::{self, EventLoop, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID, REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID};
+use platform_impl::platform::event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID, REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID};
 use platform_impl::platform::event_loop::WindowState;
 use platform_impl::platform::icon::{self, IconType, WinIcon};
 use platform_impl::platform::monitor;
@@ -69,7 +69,7 @@ unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> B
 
 impl Window {
     pub fn new<T: 'static>(
-        event_loop: &EventLoop<T>,
+        event_loop: &EventLoopWindowTarget<T>,
         w_attr: WindowAttributes,
         pl_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, CreationError> {
@@ -857,7 +857,7 @@ pub unsafe fn adjust_size(
 unsafe fn init<T: 'static>(
     mut attributes: WindowAttributes,
     mut pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    event_loop: &event_loop::EventLoop<T>,
+    event_loop: &EventLoopWindowTarget<T>,
 ) -> Result<Window, CreationError> {
     let title = OsStr::new(&attributes.title)
         .encode_wide()
