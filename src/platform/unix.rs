@@ -6,13 +6,11 @@ use std::sync::Arc;
 
 use sctk::window::{ButtonState, Theme};
 
-use {
-    EventLoop,
-    LogicalSize,
-    MonitorHandle,
-    Window,
-    WindowBuilder,
-};
+use dpi::LogicalSize;
+use event_loop::EventLoop;
+use monitor::MonitorHandle;
+use window::{Window, WindowBuilder};
+
 use platform_impl::{
     EventLoop as LinuxEventLoop,
     Window as LinuxWindow,
@@ -115,7 +113,7 @@ pub trait EventLoopExtUnix {
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 }
 
-impl EventLoopExtUnix for EventLoop {
+impl<T> EventLoopExtUnix for EventLoop<T> {
     #[inline]
     fn new_x11() -> Result<Self, XNotSupported> {
         LinuxEventLoop::new_x11().map(|ev|
