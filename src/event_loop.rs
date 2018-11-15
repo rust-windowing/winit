@@ -35,6 +35,11 @@ pub struct EventLoop<T: 'static> {
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
 }
 
+/// Target that associates windows with an `EventLoop`.
+///
+/// This type exists to allow you to create new windows while Winit executes your callback.
+/// `EventLoop` will coerce into this type, so functions that take this as a parameter can also
+/// take `&EventLoop`.
 pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) p: platform_impl::EventLoopWindowTarget<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
@@ -43,6 +48,12 @@ pub struct EventLoopWindowTarget<T: 'static> {
 impl<T> fmt::Debug for EventLoop<T> {
     fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
         fmtr.pad("EventLoop { .. }")
+    }
+}
+
+impl<T> fmt::Debug for EventLoopWindowTarget<T> {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+        fmtr.pad("EventLoopWindowTarget { .. }")
     }
 }
 
