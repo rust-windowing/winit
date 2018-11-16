@@ -425,6 +425,7 @@ impl Window {
         if currently_grabbed == grab && grab == window_state_lock.cursor_grabbed {
             return Ok(());
         }
+        drop(window_state_lock);
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
         let (tx, rx) = channel();
@@ -435,7 +436,6 @@ impl Window {
             }
             let _ = tx.send(result);
         });
-        drop(window_state_lock);
         rx.recv().unwrap()
     }
 
@@ -500,6 +500,7 @@ impl Window {
             // We only maximize if we're not in fullscreen.
             if window_state.fullscreen.is_none() {
                 let window = self.window.clone();
+                drop(window_state);
                 unsafe {
                     // `ShowWindow` resizes the window, so it must be called from the main thread.
                     self.thread_executor.execute_in_thread(move || {
@@ -754,6 +755,7 @@ impl Window {
         let mut window_state = self.window_state.lock();
         if mem::replace(&mut window_state.always_on_top, always_on_top) != always_on_top {
             let window = self.window.clone();
+            drop(window_state);
             self.thread_executor.execute_in_thread(move || {
                 let insert_after = if always_on_top {
                     winuser::HWND_TOPMOST
