@@ -12,7 +12,7 @@
 //! The closure passed to the `execute_in_thread` method takes an `Inserter` that you can use to
 //! add a `WindowState` entry to a list of window to be used by the callback.
 
-use std::{mem, ptr, thread, panic};
+use std::{mem, panic, ptr, thread};
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -144,7 +144,7 @@ pub struct EventsLoop {
 
 enum EventsLoopEvent {
     WinitEvent(Event),
-    Panic(PanicError)
+    Panic(PanicError),
 }
 
 impl EventsLoop {
@@ -171,7 +171,7 @@ impl EventsLoop {
                     windows: HashMap::with_capacity(4),
                     file_drop_handlers: HashMap::with_capacity(4),
                     mouse_buttons_down: 0,
-                    panic_error: None
+                    panic_error: None,
                 });
             });
 
@@ -189,7 +189,13 @@ impl EventsLoop {
 
                 loop {
                     if winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
-                        if let Some(panic_payload) = CONTEXT_STASH.with(|stash| stash.borrow_mut().as_mut().and_then(|s| s.panic_error.take())) {
+                        // If a panic occurred in the child callback, forward the panic information
+                        // to the parent thread.
+                        let panic_payload_opt = CONTEXT_STASH.with(|stash|
+                            stash.borrow_mut().as_mut()
+                                 .and_then(|s| s.panic_error.take())
+                        );
+                        if let Some(panic_payload) = panic_payload_opt {
                             panic_sender.send(EventsLoopEvent::Panic(panic_payload)).unwrap();
                         };
 
@@ -240,7 +246,7 @@ impl EventsLoop {
                     eprintln!("resume child thread unwind at {:?}", Backtrace::new());
                     panic::resume_unwind(panic)
                 },
-                Err(_) => break
+                Err(_) => break,
             };
 
             callback(event);
@@ -257,7 +263,7 @@ impl EventsLoop {
                     eprintln!("resume child thread unwind at {:?}", Backtrace::new());
                     panic::resume_unwind(panic)
                 },
-                Err(_) => break
+                Err(_) => break,
             };
 
             let flow = callback(event);
@@ -395,7 +401,7 @@ struct ThreadLocalData {
     windows: HashMap<HWND, Arc<Mutex<WindowState>>>,
     file_drop_handlers: HashMap<HWND, FileDropHandler>, // Each window has its own drop handler.
     mouse_buttons_down: u32,
-    panic_error: Option<PanicError>
+    panic_error: Option<PanicError>,
 }
 type PanicError = Box<Any + Send + 'static>;
 
@@ -455,7 +461,6 @@ pub unsafe fn run_catch_panic<F, R>(error: R, f: F) -> R
     match callback_result {
         Ok(lresult) => lresult,
         Err(err) => CONTEXT_STASH.with(|context_stash| {
-            println!("catch panic!");
             let mut context_stash = context_stash.borrow_mut();
             if let Some(context_stash) = context_stash.as_mut() {
                 context_stash.panic_error = Some(err);
@@ -477,8 +482,10 @@ pub unsafe extern "system" fn callback(
     window: HWND,
     msg: UINT,
     wparam: WPARAM,
-    lparam: LPARAM
+    lparam: LPARAM,
 ) -> LRESULT {
+    // Unwinding into foreign code is undefined behavior. So we catch any panics that occur in our
+    // code, and if a panic happens we cancel any future operations.
     run_catch_panic(-1, || callback_inner(window, msg, wparam, lparam))
 }
 
