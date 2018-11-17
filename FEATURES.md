@@ -64,20 +64,21 @@ Tables detailing feature compatibility across platforms can be found in the wiki
 - **Window decorations toggle**: Decorations can be turned on or off after window creation
 - **Window resizing**: The windows created by winit can be resized and generate the appropriate events
   when they are. The application can precisely control its window size if wanted.
-- **Window transaprency**: Winit allows the creation of windows with a transparent background.
+- **Window transparency**: Winit allows the creation of windows with a transparent background.
 - **Window maximization**: The windows created by winit can be maximized upon creation.
 - **Window maximization toggle**: The windows created by winit can be maximized and unmaximized after
   creation.
 - **Fullscreen**: The windows created by winit support being fullscreen.
 - **Fullscreen toggle**: The windows created by winit can be switched to and from fullscreen after
   creation.
-- **Child windows**: Windows can be created relative to the client area of other windows, and parent
-  windows can be disabled in favor of child windows.
+- **Popup windows**: Windows can be created relative to the client area of other windows, and parent
+  windows can be disabled in favor of popup windows. This feature also guarantees that popup windows
+  get drawn above their owner.
   ***//DISCUSS: SHOULD THIS BE SUPPORTED?***
 
 
 ### System Information
-- **Monitor list**: Retrieve the list of monitors and their metada, including which one is primary is applicable
+- **Monitor list**: Retrieve the list of monitors and their metadata, including which one is primary.
 
 ### Input Handling
 - **Mouse events**: Generating mouse events associated with pointer motion, click, and scrolling events.
@@ -101,7 +102,7 @@ Tables detailing feature compatibility across platforms can be found in the wiki
 ### Windows
 * Setting the taskbar icon (Maintainer: ***???***)
 * Setting the parent window (Maintainer: ***???***)
-  ***//DISCUSS: SHOULD THIS BE SUBSUMED INTO A CORE CHILD WINDOW FEATURE?***
+  ***//DISCUSS: SHOULD THIS BE SUBSUMED INTO A CORE POPUP WINDOW FEATURE?***
 * `WS_EX_NOREDIRECTIONBITMAP` support (Maintainer: ***???***)
 
 ### macOS
@@ -152,7 +153,7 @@ Legend:
 |Fullscreen                       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
 |Fullscreen toggle                |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
 |HiDPI support #105               |✔️    |✔️    |✔️       |✔️          |▢      |✔️    |✔️        |
-|Child windows ***//DISCUSS***    |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
+|Popup windows ***//DISCUSS***    |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
 
 ## System information
 |Feature      |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
