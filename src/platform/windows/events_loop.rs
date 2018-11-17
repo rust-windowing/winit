@@ -245,7 +245,7 @@ impl EventsLoop {
             let event = match self.receiver.try_recv() {
                 Ok(EventsLoopEvent::WinitEvent(e)) => e,
                 Ok(EventsLoopEvent::Panic(panic)) => {
-                    eprintln!("resume child thread unwind at {:?}", Backtrace::new());
+                    eprintln!("resuming child thread unwind at: {:?}", Backtrace::new());
                     panic::resume_unwind(panic)
                 },
                 Err(_) => break,
@@ -262,7 +262,7 @@ impl EventsLoop {
             let event = match self.receiver.recv() {
                 Ok(EventsLoopEvent::WinitEvent(e)) => e,
                 Ok(EventsLoopEvent::Panic(panic)) => {
-                    eprintln!("resume child thread unwind at {:?}", Backtrace::new());
+                    eprintln!("resuming child thread unwind at: {:?}", Backtrace::new());
                     panic::resume_unwind(panic)
                 },
                 Err(_) => break,
@@ -1285,12 +1285,15 @@ pub unsafe extern "system" fn thread_event_target_callback(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    match msg {
-        _ if msg == *EXEC_MSG_ID => {
-            let mut function: Box<Box<FnMut()>> = Box::from_raw(wparam as usize as *mut _);
-            function();
-            0
-        },
-        _ => winuser::DefWindowProcW(window, msg, wparam, lparam)
-    }
+    // See `callback` comment.
+    run_catch_panic(-1, || {
+        match msg {
+            _ if msg == *EXEC_MSG_ID => {
+                let mut function: Box<Box<FnMut()>> = Box::from_raw(wparam as usize as *mut _);
+                function();
+                0
+            },
+            _ => winuser::DefWindowProcW(window, msg, wparam, lparam)
+        }
+    })
 }
