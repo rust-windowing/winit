@@ -16,7 +16,7 @@ use std::{mem, ptr, thread};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::os::windows::io::AsRawHandle;
-use std::sync::{Arc, Barrier, mpsc, Mutex};
+use std::sync::{Arc, mpsc, Mutex};
 
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{
@@ -33,7 +33,7 @@ use winapi::shared::minwindef::{
 use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
 use winapi::shared::winerror::S_OK;
-use winapi::um::{winuser, processthreadsapi, ole2};
+use winapi::um::{libloaderapi, processthreadsapi, ole2, winuser};
 use winapi::um::oleidl::LPDROPTARGET;
 use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
@@ -134,10 +134,13 @@ impl Inserter {
 }
 
 pub struct EventsLoop {
+    thread_msg_target: HWND,
     // Id of the background thread from the Win32 API.
     thread_id: DWORD,
     // Receiver for the events. The sender is in the background thread.
     receiver: mpsc::Receiver<Event>,
+    // Sender instance that's paired with the receiver. Used to construct an `EventsLoopProxy`.
+    sender: mpsc::Sender<Event>,
 }
 
 impl EventsLoop {
@@ -146,17 +149,25 @@ impl EventsLoop {
     }
 
     pub fn with_dpi_awareness(dpi_aware: bool) -> EventsLoop {
+        struct InitData {
+            thread_msg_target: HWND,
+        }
+        unsafe impl Send for InitData {}
+
         become_dpi_aware(dpi_aware);
 
         // The main events transfer channel.
         let (tx, rx) = mpsc::channel();
 
-        // Local barrier in order to block the `new()` function until the background thread has
-        // an events queue.
-        let barrier = Arc::new(Barrier::new(2));
-        let barrier_clone = barrier.clone();
+        // Channel to send initialization data created on the event loop thread back to the main
+        // thread.
+        let (init_tx, init_rx) = mpsc::sync_channel(0);
 
+        let thread_sender = tx.clone();
         let thread = thread::spawn(move || {
+            let tx = thread_sender;
+            let thread_msg_target = thread_event_target_window();
+
             CONTEXT_STASH.with(|context_stash| {
                 *context_stash.borrow_mut() = Some(ThreadLocalData {
                     sender: tx,
@@ -173,8 +184,8 @@ impl EventsLoop {
                 winuser::IsGUIThread(1);
                 // Then only we unblock the `new()` function. We are sure that we don't call
                 // `PostThreadMessageA()` before `new()` returns.
-                barrier_clone.wait();
-                drop(barrier_clone);
+                init_tx.send(InitData{ thread_msg_target }).ok();
+                drop(init_tx);
 
                 let mut msg = mem::uninitialized();
 
@@ -185,26 +196,15 @@ impl EventsLoop {
                         break;
                     }
 
-                    match msg.message {
-                        x if x == *EXEC_MSG_ID => {
-                            let mut function: Box<Box<FnMut(Inserter)>> = Box::from_raw(msg.wParam as usize as *mut _);
-                            function(Inserter(ptr::null_mut()));
-                        },
-                        x if x == *WAKEUP_MSG_ID => {
-                            send_event(Event::Awakened);
-                        },
-                        _ => {
-                            // Calls `callback` below.
-                            winuser::TranslateMessage(&msg);
-                            winuser::DispatchMessageW(&msg);
-                        }
-                    }
+                    // Calls `callback` below.
+                    winuser::TranslateMessage(&msg);
+                    winuser::DispatchMessageW(&msg);
                 }
             }
         });
 
         // Blocks this function until the background thread has an events loop. See other comments.
-        barrier.wait();
+        let InitData { thread_msg_target } = init_rx.recv().unwrap();
 
         let thread_id = unsafe {
             let handle = mem::transmute(thread.as_raw_handle());
@@ -212,8 +212,10 @@ impl EventsLoop {
         };
 
         EventsLoop {
+            thread_msg_target,
             thread_id,
             receiver: rx,
+            sender: tx,
         }
     }
 
@@ -249,7 +251,8 @@ impl EventsLoop {
 
     pub fn create_proxy(&self) -> EventsLoopProxy {
         EventsLoopProxy {
-            thread_id: self.thread_id,
+            thread_msg_target: self.thread_msg_target,
+            sender: self.sender.clone(),
         }
     }
 
@@ -278,25 +281,16 @@ impl Drop for EventsLoop {
 
 #[derive(Clone)]
 pub struct EventsLoopProxy {
-    thread_id: DWORD,
+    thread_msg_target: HWND,
+    sender: mpsc::Sender<Event>,
 }
+
+unsafe impl Send for EventsLoopProxy {}
+unsafe impl Sync for EventsLoopProxy {}
 
 impl EventsLoopProxy {
     pub fn wakeup(&self) -> Result<(), EventsLoopClosed> {
-        unsafe {
-            if winuser::PostThreadMessageA(self.thread_id, *WAKEUP_MSG_ID, 0, 0) != 0 {
-                Ok(())
-            } else {
-                // https://msdn.microsoft.com/fr-fr/library/windows/desktop/ms644946(v=vs.85).aspx
-                // > If the function fails, the return value is zero. To get extended error
-                // > information, call GetLastError. GetLastError returns ERROR_INVALID_THREAD_ID
-                // > if idThread is not a valid thread identifier, or if the thread specified by
-                // > idThread does not have a message queue. GetLastError returns
-                // > ERROR_NOT_ENOUGH_QUOTA when the message limit is hit.
-                // TODO: handle ERROR_NOT_ENOUGH_QUOTA
-                Err(EventsLoopClosed)
-            }
-        }
+        self.sender.send(Event::Awakened).map_err(|_| EventsLoopClosed)
     }
 
     /// Executes a function in the background thread.
@@ -321,27 +315,18 @@ impl EventsLoopProxy {
         let raw = Box::into_raw(double_box);
 
         let res = unsafe {
-            winuser::PostThreadMessageA(
-                self.thread_id,
+            winuser::PostMessageW(
+                self.thread_msg_target,
                 *EXEC_MSG_ID,
                 raw as *mut () as usize as WPARAM,
                 0,
             )
         };
-        // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen as
-        // the events loop is still alive) or if the queue is full.
-        assert!(res != 0, "PostThreadMessage failed; is the messages queue full?");
+        assert!(res != 0, "PostMessage failed; is the messages queue full?");
     }
 }
 
 lazy_static! {
-    // Message sent by the `EventsLoopProxy` when we want to wake up the thread.
-    // WPARAM and LPARAM are unused.
-    static ref WAKEUP_MSG_ID: u32 = {
-        unsafe {
-            winuser::RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr() as LPCSTR)
-        }
-    };
     // Message sent when we want to execute a closure in the thread.
     // WPARAM contains a Box<Box<FnMut()>> that must be retrieved with `Box::from_raw`,
     // and LPARAM is unused.
@@ -364,6 +349,58 @@ lazy_static! {
             winuser::RegisterWindowMessageA("Winit::InitialDpiMsg\0".as_ptr() as LPCSTR)
         }
     };
+    static ref THREAD_EVENT_TARGET_WINDOW_CLASS: Vec<u16> = unsafe {
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+
+        let class_name: Vec<_> = OsStr::new("Winit Thread Event Target")
+            .encode_wide()
+            .chain(Some(0).into_iter())
+            .collect();
+
+        let class = winuser::WNDCLASSEXW {
+            cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
+            style: 0,
+            lpfnWndProc: Some(thread_event_target_callback),
+            cbClsExtra: 0,
+            cbWndExtra: 0,
+            hInstance: libloaderapi::GetModuleHandleW(ptr::null()),
+            hIcon: ptr::null_mut(),
+            hCursor: ptr::null_mut(), // must be null in order for cursor state to work properly
+            hbrBackground: ptr::null_mut(),
+            lpszMenuName: ptr::null(),
+            lpszClassName: class_name.as_ptr(),
+            hIconSm: ptr::null_mut(),
+        };
+
+        winuser::RegisterClassExW(&class);
+
+        class_name
+    };
+}
+
+fn thread_event_target_window() -> HWND {
+    unsafe {
+        let window = winuser::CreateWindowExW(
+            winuser::WS_EX_NOACTIVATE | winuser::WS_EX_TRANSPARENT | winuser::WS_EX_LAYERED,
+            THREAD_EVENT_TARGET_WINDOW_CLASS.as_ptr(),
+            ptr::null_mut(),
+            0,
+            0, 0,
+            0, 0,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            libloaderapi::GetModuleHandleW(ptr::null()),
+            ptr::null_mut(),
+        );
+        winuser::SetWindowLongPtrW(
+            window,
+            winuser::GWL_STYLE,
+            (winuser::WS_VISIBLE | winuser::WS_POPUP) as _
+        );
+
+        window
+    }
 }
 
 // There's no parameters passed to the callback function, so it needs to get its context stashed
@@ -1168,5 +1205,21 @@ pub unsafe extern "system" fn callback(
                 winuser::DefWindowProcW(window, msg, wparam, lparam)
             }
         }
+    }
+}
+
+pub unsafe extern "system" fn thread_event_target_callback(
+    window: HWND,
+    msg: UINT,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    match msg {
+        _ if msg == *EXEC_MSG_ID => {
+            let mut function: Box<Box<FnMut()>> = Box::from_raw(wparam as usize as *mut _);
+            function();
+            0
+        },
+        _ => winuser::DefWindowProcW(window, msg, wparam, lparam)
     }
 }
