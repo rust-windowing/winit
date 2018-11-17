@@ -16,7 +16,7 @@ use std::{mem, ptr, thread};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::os::windows::io::AsRawHandle;
-use std::sync::{Arc, Barrier, mpsc, Mutex};
+use std::sync::{Arc, mpsc, Mutex};
 
 use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{
@@ -204,7 +204,7 @@ impl EventsLoop {
         });
 
         // Blocks this function until the background thread has an events loop. See other comments.
-        let InitData{ thread_msg_target } = init_rx.recv().unwrap();;
+        let InitData { thread_msg_target } = init_rx.recv().unwrap();
 
         let thread_id = unsafe {
             let handle = mem::transmute(thread.as_raw_handle());
@@ -322,8 +322,6 @@ impl EventsLoopProxy {
                 0,
             )
         };
-        // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen as
-        // the events loop is still alive) or if the queue is full.
         assert!(res != 0, "PostMessage failed; is the messages queue full?");
     }
 }
