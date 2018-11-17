@@ -2,12 +2,9 @@
 
 - On X11, fixed panic caused by dropping the window before running the event loop.
 - Introduce `WindowBuilderExt::with_app_id` to allow setting the application ID on Wayland.
-<<<<<<< HEAD
 - On Windows, catch panics in event loop child thread and forward them to the parent thread. This prevents an invocation of undefined behavior due to unwinding into foreign code.
-=======
 - On Windows, fix issue where resizing or moving window combined with grabbing the cursor would freeze program.
 - On Windows, fix issue where resizing or moving window would eat `Awakened` events.
->>>>>>> master
 
 # Version 0.18.0 (2018-11-07)
 
