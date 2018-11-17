@@ -33,7 +33,7 @@ use winapi::shared::minwindef::{
 use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::windowsx;
 use winapi::shared::winerror::S_OK;
-use winapi::um::{winuser, processthreadsapi, libloaderapi, ole2};
+use winapi::um::{libloaderapi, processthreadsapi, ole2, winuser};
 use winapi::um::oleidl::LPDROPTARGET;
 use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
@@ -150,7 +150,7 @@ impl EventsLoop {
 
     pub fn with_dpi_awareness(dpi_aware: bool) -> EventsLoop {
         struct InitData {
-            thread_msg_target: HWND
+            thread_msg_target: HWND,
         }
         unsafe impl Send for InitData {}
 
@@ -215,7 +215,7 @@ impl EventsLoop {
             thread_msg_target,
             thread_id,
             receiver: rx,
-            sender: tx
+            sender: tx,
         }
     }
 
@@ -252,7 +252,7 @@ impl EventsLoop {
     pub fn create_proxy(&self) -> EventsLoopProxy {
         EventsLoopProxy {
             thread_msg_target: self.thread_msg_target,
-            sender: self.sender.clone()
+            sender: self.sender.clone(),
         }
     }
 
@@ -282,7 +282,7 @@ impl Drop for EventsLoop {
 #[derive(Clone)]
 pub struct EventsLoopProxy {
     thread_msg_target: HWND,
-    sender: mpsc::Sender<Event>
+    sender: mpsc::Sender<Event>,
 }
 
 unsafe impl Send for EventsLoopProxy {}
@@ -393,7 +393,7 @@ fn thread_event_target_window() -> HWND {
             ptr::null_mut(),
             ptr::null_mut(),
             libloaderapi::GetModuleHandleW(ptr::null()),
-            ptr::null_mut()
+            ptr::null_mut(),
         );
         winuser::SetWindowLongPtrW(
             window,
@@ -1221,7 +1221,7 @@ pub unsafe extern "system" fn thread_event_target_callback(
             let mut function: Box<Box<FnMut()>> = Box::from_raw(wparam as usize as *mut _);
             function();
             0
-        }
+        },
         _ => winuser::DefWindowProcW(window, msg, wparam, lparam)
     }
 }
