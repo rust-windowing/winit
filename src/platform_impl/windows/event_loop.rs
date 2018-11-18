@@ -140,8 +140,6 @@ impl<T> ThreadMsgTargetSubclassInput<T> {
 }
 
 pub struct EventLoop<T: 'static> {
-    // Id of the background thread from the Win32 API.
-    thread_msg_target: HWND,
     thread_msg_sender: Sender<T>,
     window_target: RootELW<T>
 }
@@ -149,6 +147,7 @@ pub struct EventLoop<T: 'static> {
 pub struct EventLoopWindowTarget<T> {
     thread_id: DWORD,
     trigger_newevents_on_redraw: Arc<AtomicBool>,
+    thread_msg_target: HWND,
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
 
@@ -172,11 +171,12 @@ impl<T: 'static> EventLoop<T> {
         let (thread_msg_target, thread_msg_sender) = thread_event_target_window(runner_shared.clone());
 
         EventLoop {
-            thread_msg_target, thread_msg_sender,
+            thread_msg_sender,
             window_target: RootELW {
                 p: EventLoopWindowTarget {
                     thread_id,
                     trigger_newevents_on_redraw: Arc::new(AtomicBool::new(true)),
+                    thread_msg_target,
                     runner_shared
                 },
                 _marker: PhantomData
@@ -261,7 +261,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            target_window: self.thread_msg_target,
+            target_window: self.window_target.p.thread_msg_target,
             event_send: self.thread_msg_sender.clone()
         }
     }
@@ -272,7 +272,8 @@ impl<T> EventLoopWindowTarget<T> {
     pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
         EventLoopThreadExecutor {
             thread_id: self.thread_id,
-            trigger_newevents_on_redraw: self.trigger_newevents_on_redraw.clone()
+            trigger_newevents_on_redraw: self.trigger_newevents_on_redraw.clone(),
+            target_window: self.thread_msg_target
         }
     }
 }
@@ -327,7 +328,7 @@ impl<T> EventLoopRunner<T> {
             control_flow: ControlFlow::default(),
             runner_state: RunnerState::New,
             in_modal_loop: false,
-            modal_redraw_window: event_loop.thread_msg_target,
+            modal_redraw_window: event_loop.window_target.p.thread_msg_target,
             event_handler: mem::transmute::<
                 Box<FnMut(Event<T>, &mut ControlFlow)>,
                 Box<FnMut(Event<T>, &mut ControlFlow)>
@@ -558,15 +559,19 @@ fn dur2timeout(dur: Duration) -> DWORD {
 impl<T> Drop for EventLoop<T> {
     fn drop(&mut self) {
         unsafe {
-            winuser::DestroyWindow(self.thread_msg_target);
+            winuser::DestroyWindow(self.window_target.p.thread_msg_target);
         }
     }
 }
 
 pub(crate) struct EventLoopThreadExecutor {
     thread_id: DWORD,
-    trigger_newevents_on_redraw: Arc<AtomicBool>
+    trigger_newevents_on_redraw: Arc<AtomicBool>,
+    target_window: HWND
 }
+
+unsafe impl Send for EventLoopThreadExecutor {}
+unsafe impl Sync for EventLoopThreadExecutor {}
 
 impl EventLoopThreadExecutor {
     /// Check to see if we're in the parent event loop's thread.
@@ -605,11 +610,11 @@ impl EventLoopThreadExecutor {
 
                 let raw = Box::into_raw(boxed2);
 
-                let res = winuser::PostThreadMessageA(self.thread_id, *EXEC_MSG_ID,
-                                                     raw as *mut () as usize as WPARAM, 0);
-                // PostThreadMessage can only fail if the thread ID is invalid (which shouldn't happen
-                // as the events loop is still alive) or if the queue is full.
-                assert!(res != 0, "PostThreadMessage failed ; is the messages queue full?");
+                let res = winuser::PostMessageW(
+                    self.target_window, *EXEC_MSG_ID,
+                    raw as *mut () as usize as WPARAM, 0
+                );
+                assert!(res != 0, "PostMessage failed ; is the messages queue full?");
             }
         }
     }
