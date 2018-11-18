@@ -4,6 +4,7 @@
 - Introduce `WindowBuilderExt::with_app_id` to allow setting the application ID on Wayland.
 - On Windows, fix issue where resizing or moving window combined with grabbing the cursor would freeze program.
 - On Windows, fix issue where resizing or moving window would eat `Awakened` events.
+- On Windows, fix issue where hovering or dropping a non file item would create a panic.
 
 # Version 0.18.0 (2018-11-07)
 

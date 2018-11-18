@@ -24,6 +24,7 @@ pub struct FileDropHandlerData {
     pub interface: IDropTarget,
     refcount: AtomicUsize,
     window: HWND,
+    cursor_effect: DWORD,
     hovered_is_valid: bool, // If the currently hovered item is not valid there must not be any `HoveredFileCancelled` emitted
 }
 
@@ -34,12 +35,14 @@ pub struct FileDropHandler {
 #[allow(non_snake_case)]
 impl FileDropHandler {
     pub fn new(window: HWND) -> FileDropHandler {
+        use winapi::um::oleidl::DROPEFFECT_NONE;
         let data = Box::new(FileDropHandlerData {
             interface: IDropTarget {
                 lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl,
             },
             refcount: AtomicUsize::new(1),
             window,
+            cursor_effect: DROPEFFECT_NONE,
             hovered_is_valid: false,
         });
         FileDropHandler {
@@ -79,9 +82,10 @@ impl FileDropHandler {
         pDataObj: *const IDataObject,
         _grfKeyState: DWORD,
         _pt: *const POINTL,
-        _pdwEffect: *mut DWORD,
+        pdwEffect: *mut DWORD,
     ) -> HRESULT {
         use events::WindowEvent::HoveredFile;
+        use winapi::um::oleidl::{DROPEFFECT_NONE, DROPEFFECT_COPY};
         let drop_handler = Self::from_interface(this);
         let hdrop = Self::iterate_filenames(pDataObj, |filename| {
             send_event(Event::WindowEvent {
@@ -90,16 +94,25 @@ impl FileDropHandler {
             });
         });
         drop_handler.hovered_is_valid = hdrop.is_some();
+        if drop_handler.hovered_is_valid {
+            drop_handler.cursor_effect = DROPEFFECT_COPY;
+        } else {
+            drop_handler.cursor_effect = DROPEFFECT_NONE;
+        }
+        *pdwEffect = drop_handler.cursor_effect;
 
         S_OK
     }
 
     pub unsafe extern "system" fn DragOver(
-        _this: *mut IDropTarget,
+        this: *mut IDropTarget,
         _grfKeyState: DWORD,
         _pt: *const POINTL,
-        _pdwEffect: *mut DWORD,
+        pdwEffect: *mut DWORD,
     ) -> HRESULT {
+        let drop_handler = Self::from_interface(this);
+        *pdwEffect = drop_handler.cursor_effect;
+
         S_OK
     }
 
@@ -185,9 +198,11 @@ impl FileDropHandler {
         } else if get_data_result == DV_E_FORMATETC {
             // If the dropped item is not a file this error will occur.
             // In this case it is OK to return without taking further action.
+            debug!("Error occured while processing dropped/hovered item: item is not a file.");
             return None;
         } else {
-            panic!("Unexpected error occured while processing dropped item");
+            debug!("Unexpected error occured while processing dropped/hovered item.");
+            return None;
         }
     }
 }
