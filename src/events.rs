@@ -253,7 +253,7 @@ pub enum MouseScrollDelta {
 }
 
 /// Symbolic name for a keyboard key.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum VirtualKeyCode {
