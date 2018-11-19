@@ -21,7 +21,7 @@ matrix:
           packages: *i686_packages
     - env: TARGET=i686-unknown-linux-gnu
       os: linux
-      rust: 1.24.1
+      rust: 1.28.0
       addons:
         apt:
           packages: *i686_packages
@@ -35,7 +35,7 @@ matrix:
       rust: stable
     - env: TARGET=x86_64-unknown-linux-gnu
       os: linux
-      rust: 1.24.1
+      rust: 1.28.0
 
     # macOS
     - env: TARGET=x86_64-apple-darwin
@@ -46,7 +46,7 @@ matrix:
       rust: stable
     - env: TARGET=x86_64-apple-darwin
       os: osx
-      rust: 1.24.1
+      rust: 1.28.0
 
     # iOS
     - env: TARGET=x86_64-apple-ios
@@ -57,22 +57,11 @@ matrix:
       rust: stable
     - env: TARGET=x86_64-apple-ios
       os: osx
-      rust: 1.24.1
+      rust: 1.28.0
 
 install:
   - rustup self update
   - rustup target add $TARGET; true
-
-before_script:
-  - |
-      if [ "$TRAVIS_RUST_VERSION" == "1.24.1" ]; then
-        # Some of winit's transitive dependencies have made semver-compatible releases that actually
-        # break their compatibility with rust 1.24.1. We freeze them to their last compatible version to
-        # ensure that winit still compiles fine on this rust version.
-        cargo update
-        cargo update -p stb_truetype --precise 0.2.2
-        cargo update -p rusttype --precise 0.7.1
-      fi
 
 script:
   - cargo build --target $TARGET --verbose

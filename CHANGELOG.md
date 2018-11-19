@@ -9,6 +9,7 @@
 
 # Version 0.18.0 (2018-11-07)
 
+- **Breaking:** minimum supported Rust version increased to 1.28.0.
 - **Breaking:** `image` crate upgraded to 0.20. This is exposed as part of the `icon_loading` API.
 - On Wayland, pointer events will now provide the current modifiers state.
 - On Wayland, titles will now be displayed in the window header decoration.

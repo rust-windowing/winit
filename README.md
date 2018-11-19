@@ -41,6 +41,8 @@ fn main() {
 }
 ```
 
+Note that winit requires Rust 1.28.0 or later.
+
 ### Cargo Features
 
 Winit provides the following features, which can be enabled in your `Cargo.toml` file:
