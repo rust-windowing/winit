@@ -10,7 +10,7 @@ use winapi::shared::minwindef::{DWORD, MAX_PATH, UINT, ULONG};
 use winapi::shared::windef::{HWND, POINTL};
 use winapi::shared::winerror::S_OK;
 use winapi::um::objidl::IDataObject;
-use winapi::um::oleidl::{IDropTarget, IDropTargetVtbl};
+use winapi::um::oleidl::{DROPEFFECT_COPY, DROPEFFECT_NONE, IDropTarget, IDropTargetVtbl};
 use winapi::um::winnt::HRESULT;
 use winapi::um::{shellapi, unknwnbase};
 
@@ -35,7 +35,6 @@ pub struct FileDropHandler {
 #[allow(non_snake_case)]
 impl FileDropHandler {
     pub fn new(window: HWND) -> FileDropHandler {
-        use winapi::um::oleidl::DROPEFFECT_NONE;
         let data = Box::new(FileDropHandlerData {
             interface: IDropTarget {
                 lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl,
@@ -85,7 +84,6 @@ impl FileDropHandler {
         pdwEffect: *mut DWORD,
     ) -> HRESULT {
         use events::WindowEvent::HoveredFile;
-        use winapi::um::oleidl::{DROPEFFECT_NONE, DROPEFFECT_COPY};
         let drop_handler = Self::from_interface(this);
         let hdrop = Self::iterate_filenames(pDataObj, |filename| {
             send_event(Event::WindowEvent {
@@ -94,11 +92,11 @@ impl FileDropHandler {
             });
         });
         drop_handler.hovered_is_valid = hdrop.is_some();
-        if drop_handler.hovered_is_valid {
-            drop_handler.cursor_effect = DROPEFFECT_COPY;
+        drop_handler.cursor_effect = if drop_handler.hovered_is_valid {
+            DROPEFFECT_COPY
         } else {
-            drop_handler.cursor_effect = DROPEFFECT_NONE;
-        }
+            DROPEFFECT_NONE
+        };
         *pdwEffect = drop_handler.cursor_effect;
 
         S_OK
