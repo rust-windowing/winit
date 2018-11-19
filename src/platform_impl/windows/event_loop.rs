@@ -297,9 +297,26 @@ impl<T> ELRShared<T> {
         if let Ok(mut runner_ref) = self.runner.try_borrow_mut() {
             if let Some(ref mut runner) = *runner_ref {
                 runner.process_event(event);
+
+                // Dispatch any events that were buffered during the call to `process_event`.
+                loop {
+                    // We do this instead of using a `while let` loop because if we use a `while let`
+                    // loop the reference returned `borrow_mut()` doesn't get dropped until the end
+                    // of the loop's body and attempts to add events to the event buffer while in
+                    // `process_event` will fail.
+                    let buffered_event_opt = self.buffer.borrow_mut().pop_front();
+                    match buffered_event_opt {
+                        Some(event) => runner.process_event(event),
+                        None => break
+                    }
+                }
+
                 return;
             }
         }
+
+        // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
+        // the event to a buffer to be processed later.
         self.buffer.borrow_mut().push_back(event)
     }
 }
