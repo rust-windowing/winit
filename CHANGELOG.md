@@ -6,6 +6,7 @@
 - On Windows, fix issue where resizing or moving window combined with grabbing the cursor would freeze program.
 - On Windows, fix issue where resizing or moving window would eat `Awakened` events.
 - On X11, fixed a segfault when using virtual monitors with XRandR.
+- Derive `Ord` and `PartialOrd` for `VirtualKeyCode` enum.
 
 # Version 0.18.0 (2018-11-07)
 
