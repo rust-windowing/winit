@@ -79,12 +79,23 @@ impl From<*mut ffi::XRRCrtcInfo> for MonitorRepr {
 }
 
 impl XConnection {
-    pub unsafe fn get_output_info(&self, resources: *mut ffi::XRRScreenResources, repr: &MonitorRepr) -> (String, f64) {
+    pub unsafe fn get_output_info(
+        &self,
+        resources: *mut ffi::XRRScreenResources,
+        repr: &MonitorRepr,
+    ) -> Option<(String, f64)> {
         let output_info = (self.xrandr.XRRGetOutputInfo)(
             self.display,
             resources,
             repr.get_output(),
         );
+        if output_info.is_null() {
+            // When calling `XRRGetOutputInfo` on a virtual monitor (versus a physical display)
+            // it's possible for it to return null.
+            // https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=816596
+            let _ = self.check_errors(); // discard `BadRROutput` error
+            return None;
+        }
         let name_slice = slice::from_raw_parts(
             (*output_info).name as *mut u8,
             (*output_info).nameLen as usize,
@@ -95,6 +106,6 @@ impl XConnection {
             ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
         );
         (self.xrandr.XRRFreeOutputInfo)(output_info);
-        (name, hidpi_factor)
+        Some((name, hidpi_factor))
     }
 }
