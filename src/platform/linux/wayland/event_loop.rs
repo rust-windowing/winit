@@ -127,7 +127,18 @@ impl EventsLoop {
             &display,
             &mut event_queue,
             move |event, registry| { 
-                seat_manager.receive(event, registry)
+                match event {
+                    GlobalEvent::New { id, ref interface, version } => {
+                        if interface == "wl_seat" {
+                            seat_manager.add_seat(id, version, registry)
+                        }
+                    },
+                    GlobalEvent::Removed { id, ref interface } => {
+                        if interface == "wl_seat" {
+                            seat_manager.remove_seat(id)
+                        }
+                    },
+                }
             },
         ).unwrap();
 
@@ -286,47 +297,38 @@ struct SeatManager {
 }
 
 impl SeatManager {
-    fn receive(&mut self, evt: GlobalEvent, registry: Proxy<wl_registry::WlRegistry>) {
+    fn add_seat(&mut self, id: u32, version: u32, registry: Proxy<wl_registry::WlRegistry>) {
         use self::wl_registry::RequestsTrait as RegistryRequests;
-        use self::wl_seat::RequestsTrait as SeatRequests;
-        match evt {
-            GlobalEvent::New {
-                id,
-                ref interface,
-                version,
-            } if interface == "wl_seat" =>
-            {
-                use std::cmp::min;
+        use std::cmp::min;
 
-                let mut seat_data = SeatData {
-                    sink: self.sink.clone(),
-                    store: self.store.clone(),
-                    pointer: None,
-                    keyboard: None,
-                    touch: None,
-                    events_loop_proxy: self.events_loop_proxy.clone(),
-                    modifiers_tracker: Arc::new(Mutex::new(ModifiersState::default())),
-                };
-                let seat = registry
-                    .bind(min(version, 5), id, move |seat| {
-                        seat.implement(move |event, seat| {
-                            seat_data.receive(event, seat)
-                        }, ())
-                    })
-                    .unwrap();
-                self.store.lock().unwrap().new_seat(&seat);
-                self.seats.lock().unwrap().push((id, seat));
+        let mut seat_data = SeatData {
+            sink: self.sink.clone(),
+            store: self.store.clone(),
+            pointer: None,
+            keyboard: None,
+            touch: None,
+            events_loop_proxy: self.events_loop_proxy.clone(),
+            modifiers_tracker: Arc::new(Mutex::new(ModifiersState::default())),
+        };
+        let seat = registry
+            .bind(min(version, 5), id, move |seat| {
+                seat.implement(move |event, seat| {
+                    seat_data.receive(event, seat)
+                }, ())
+            })
+            .unwrap();
+        self.store.lock().unwrap().new_seat(&seat);
+        self.seats.lock().unwrap().push((id, seat));
+    }
+
+    fn remove_seat(&mut self, id: u32) {
+        use self::wl_seat::RequestsTrait as SeatRequests;
+        let mut seats = self.seats.lock().unwrap();
+        if let Some(idx) = seats.iter().position(|&(i, _)| i == id) {
+            let (_, seat) = seats.swap_remove(idx);
+            if seat.version() >= 5 {
+                seat.release();
             }
-            GlobalEvent::Removed { id, ref interface } if interface == "wl_seat" => {
-                let mut seats = self.seats.lock().unwrap();
-                if let Some(idx) = seats.iter().position(|&(i, _)| i == id) {
-                    let (_, seat) = seats.swap_remove(idx);
-                    if seat.version() >= 5 {
-                        seat.release();
-                    }
-                }
-            }
-            _ => (),
         }
     }
 }
