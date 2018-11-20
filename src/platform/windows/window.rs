@@ -455,7 +455,7 @@ impl Window {
 
     unsafe fn set_fullscreen_style(&self, window_state: &mut WindowState) -> (LONG, LONG) {
         if window_state.fullscreen.is_none() || window_state.saved_window_info.is_none() {
-            let client_rect = util::get_client_rect(self.window.0).expect("`GetWindowRect` failed");
+            let client_rect = util::get_client_rect(self.window.0).expect("client rect retrieval failed");
             let dpi_factor = Some(window_state.dpi_factor);
             window_state.saved_window_info = Some(events_loop::SavedWindowInfo {
                 style: winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE),
