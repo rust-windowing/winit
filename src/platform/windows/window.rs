@@ -521,6 +521,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
 
         let resizable = window_state_lock.resizable;
+        let decorations = window_state_lock.decorations;
         let maximized = window_state_lock.maximized;
 
         // We're restoring the window to its size and position from before being fullscreened.
@@ -528,7 +529,7 @@ impl Window {
         self.events_loop_proxy.execute_in_thread(move |_| {
             let _ = Self::grab_cursor_inner(&window, false);
 
-            if resizable {
+            if resizable && decorations {
                 style |= WS_RESIZABLE as LONG;
             } else {
                 style &= !WS_RESIZABLE as LONG;
@@ -629,11 +630,12 @@ impl Window {
     pub fn set_decorations(&self, decorations: bool) {
         let mut window_state = self.window_state.lock().unwrap();
         if mem::replace(&mut window_state.decorations, decorations) != decorations {
-        let style_flags = (winuser::WS_CAPTION | winuser::WS_THICKFRAME) as LONG;
-        let ex_style_flags = (winuser::WS_EX_WINDOWEDGE) as LONG;
+            let style_flags = (winuser::WS_CAPTION | winuser::WS_THICKFRAME) as LONG;
+            let ex_style_flags = (winuser::WS_EX_WINDOWEDGE) as LONG;
 
             // if we are in fullscreen mode, we only change the saved window info
             if window_state.fullscreen.is_some() {
+                let resizable = window_state.resizable;
                 let saved = window_state.saved_window_info.as_mut().unwrap();
 
                 unsafe {
@@ -646,6 +648,11 @@ impl Window {
                 } else {
                     saved.style = saved.style & !style_flags;
                     saved.ex_style = saved.ex_style & !ex_style_flags;
+                }
+                if resizable {
+                    saved.style |= WS_RESIZABLE as LONG;
+                } else {
+                    saved.style &= !WS_RESIZABLE as LONG;
                 }
 
                 unsafe {
