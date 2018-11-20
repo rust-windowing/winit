@@ -7,6 +7,7 @@
 - On Windows, fix issue where resizing or moving window would eat `Awakened` events.
 - On X11, fixed a segfault when using virtual monitors with XRandR.
 - Derive `Ord` and `PartialOrd` for `VirtualKeyCode` enum.
+- On Windows, fix issue where hovering or dropping a non file item would create a panic.
 
 # Version 0.18.0 (2018-11-07)
 
