@@ -13,7 +13,7 @@ be used to create both games and applications. It supports the main graphical pl
   - Android
 - Web
   - via Emscripten
-  - via WASM ***//DISCUSS: DO WE WANT TO SUPPORT THIS?***
+  - via WASM
 
 Most platforms expose capabilities that cannot be meaningfully transposed onto others. Winit does not
 aim to support every single feature of every platform, but rather to abstract over the common features
@@ -74,7 +74,6 @@ Tables detailing feature compatibility across platforms can be found in the wiki
 - **Popup windows**: Windows can be created relative to the client area of other windows, and parent
   windows can be disabled in favor of popup windows. This feature also guarantees that popup windows
   get drawn above their owner.
-  ***//DISCUSS: SHOULD THIS BE SUPPORTED?***
 
 
 ### System Information
@@ -91,12 +90,9 @@ Tables detailing feature compatibility across platforms can be found in the wiki
   translating keypresses into UTF-8 characters, handling dead keys and IMEs.
 - **Drag & Drop**: Dragging content into winit, detecting when content enters, drops, or if the drop is cancelled.
   ***//DISCUSS: WINIT SUPPORTS FILE DROPS, BUT NOT TEXT OR IMAGE DROPS***
-- **Clipboard**: Winit supports copy-pasting content to and from winit.
 - **Raw Device Events**: Capturing input from input devices without any OS filtering.
 - **Gamepad/Joystick events**: Capturing input from gampads and joysticks.
-  ***//DISCUSS: SHOULD THIS BE SUPPORTED?***
 - **Device movement events:**: Capturing input from the device gyroscope and accelerometer.
-  ***//DISCUSS: SHOULD THIS BE SUPPORTED?***
 
 ## Platform
 ### Windows
@@ -152,8 +148,8 @@ Legend:
 |Window maximization toggle       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
 |Fullscreen                       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
 |Fullscreen toggle                |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
-|HiDPI support #105               |✔️    |✔️    |✔️       |✔️          |▢      |✔️    |✔️        |
-|Popup windows ***//DISCUSS***    |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
+|HiDPI support                    |✔️    |✔️    |✔️       |✔️          |▢*#??*|✔️    |✔️        |
+|Popup windows                    |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
 
 ## System information
 |Feature      |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
@@ -161,20 +157,19 @@ Legend:
 |Monitor list |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
 
 ## Input handling
-|Feature                                 |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
-|--------------------------------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|Mouse events                            |✔️    |▢#63  |✔️       |✔️          |**N/A**|**N/A**|✔️       |
-|Mouse set location                      |✔️    |✔️    |✔️       |❓           |**N/A**|**N/A**|**N/A**  |
-|Cursor grab                             |✔️    |▢#165 |▢#242    |❌#306      |**N/A**|**N/A**|✔️       |
-|Cursor icon                             |✔️    |✔️    |✔️       |❌#306      |**N/A**|**N/A**|❌       |
-|Touch events                            |✔️    |❌    |✔️       |✔️          |✔️    |✔️     |✔️       |
-|Multitouch                              |❓     |❌    |✔️       |✔️          |❓     |❌     |❌       |
-|Keyboard events                         |✔️    |✔️    |✔️       |✔️          |❓     |❌     |✔️       |
-|Drag & Drop                             |✔️    |✔️    |✔️       |❌#306      |❌    |❌     |❌       |
-|Clipboard #162                          |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
-|Raw Device Events                       |▢*#??*|▢*#??*|▢*#??*   |❌          |❌    |❌     |❌       |
-|Gamepad/Joystick events ***//DISCUSS*** |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
-|Device movement events ***//DISCUSS***  |❓     |❓     |❓       |❓           |❌    |❌     |❌       |
+|Feature                 |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
+|----------------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
+|Mouse events            |✔️    |▢#63  |✔️       |✔️          |**N/A**|**N/A**|✔️       |
+|Mouse set location      |✔️    |✔️    |✔️       |❓           |**N/A**|**N/A**|**N/A**  |
+|Cursor grab             |✔️    |▢#165 |▢#242    |❌#306      |**N/A**|**N/A**|✔️       |
+|Cursor icon             |✔️    |✔️    |✔️       |❌#306      |**N/A**|**N/A**|❌       |
+|Touch events            |✔️    |❌    |✔️       |✔️          |✔️    |✔️     |✔️       |
+|Multitouch              |❓     |❌    |✔️       |✔️          |❓     |❌     |❌       |
+|Keyboard events         |✔️    |✔️    |✔️       |✔️          |❓     |❌     |✔️       |
+|Drag & Drop             |▢#720 |▢#720️ |▢#720️    |❌#306      |**N/A**|**N/A**|❓        |
+|Raw Device Events       |▢*#??*|▢*#??*|▢*#??*   |❌          |❌    |❌     |❌       |
+|Gamepad/Joystick events |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
+|Device movement events  |❓     |❓     |❓       |❓           |❌    |❌     |❌       |
 
 ## Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.
