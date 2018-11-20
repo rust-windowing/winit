@@ -37,12 +37,21 @@ pub enum WindowEvent {
     Destroyed,
 
     /// A file has been dropped into the window.
+    /// 
+    /// When the user drops multiple files at once, this event will be emitted for each file
+    /// separately.
     DroppedFile(PathBuf),
 
     /// A file is being hovered over the window.
+    /// 
+    /// When the user hovers multiple files at once, this event will be emitted for each file
+    /// separately.
     HoveredFile(PathBuf),
 
     /// A file was hovered, but has exited the window.
+    /// 
+    /// There will be a single `HoveredFileCancelled` event triggered even if multiple files were
+    /// hovered.
     HoveredFileCancelled,
 
     /// The window received a unicode character.
@@ -253,7 +262,7 @@ pub enum MouseScrollDelta {
 }
 
 /// Symbolic name for a keyboard key.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum VirtualKeyCode {

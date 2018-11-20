@@ -2,12 +2,17 @@
 
 - On X11, fixed panic caused by dropping the window before running the event loop.
 - Introduce `WindowBuilderExt::with_app_id` to allow setting the application ID on Wayland.
+- On Windows, catch panics in event loop child thread and forward them to the parent thread. This prevents an invocation of undefined behavior due to unwinding into foreign code.
 - On Windows, fix issue where resizing or moving window combined with grabbing the cursor would freeze program.
 - On Windows, fix issue where resizing or moving window would eat `Awakened` events.
 - On Windows, exiting fullscreen after entering fullscreen with disabled decorations no longer shrinks window.
+- On X11, fixed a segfault when using virtual monitors with XRandR.
+- Derive `Ord` and `PartialOrd` for `VirtualKeyCode` enum.
+- On Windows, fix issue where hovering or dropping a non file item would create a panic.
 
 # Version 0.18.0 (2018-11-07)
 
+- **Breaking:** minimum supported Rust version increased to 1.28.0.
 - **Breaking:** `image` crate upgraded to 0.20. This is exposed as part of the `icon_loading` API.
 - On Wayland, pointer events will now provide the current modifiers state.
 - On Wayland, titles will now be displayed in the window header decoration.
