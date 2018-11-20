@@ -5,6 +5,7 @@
 - On Windows, catch panics in event loop child thread and forward them to the parent thread. This prevents an invocation of undefined behavior due to unwinding into foreign code.
 - On Windows, fix issue where resizing or moving window combined with grabbing the cursor would freeze program.
 - On Windows, fix issue where resizing or moving window would eat `Awakened` events.
+- On Windows, exiting fullscreen after entering fullscreen with disabled decorations no longer shrinks window.
 - On X11, fixed a segfault when using virtual monitors with XRandR.
 - Derive `Ord` and `PartialOrd` for `VirtualKeyCode` enum.
 - On Windows, fix issue where hovering or dropping a non file item would create a panic.

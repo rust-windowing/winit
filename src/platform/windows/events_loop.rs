@@ -72,7 +72,7 @@ pub struct SavedWindowInfo {
     /// Window ex-style
     pub ex_style: LONG,
     /// Window position and size
-    pub rect: RECT,
+    pub client_rect: RECT,
     // Since a window can be fullscreened to a different monitor, a DPI change can be triggered. This could result in
     // the window being automitcally resized to smaller/larger than it was supposed to be restored to, so we thus must
     // check if the post-fullscreen DPI matches the pre-fullscreen DPI.
