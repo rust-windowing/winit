@@ -39,13 +39,13 @@ pub enum WindowEvent {
     /// A file has been dropped into the window.
     /// 
     /// When the user drops multiple files at once, this event will be emitted for each file
-    /// separately
+    /// separately.
     DroppedFile(PathBuf),
 
     /// A file is being hovered over the window.
     /// 
     /// When the user hovers multiple files at once, this event will be emitted for each file
-    /// separately
+    /// separately.
     HoveredFile(PathBuf),
 
     /// A file was hovered, but has exited the window.
