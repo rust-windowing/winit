@@ -4,6 +4,7 @@
 - Introduce `WindowBuilderExt::with_app_id` to allow setting the application ID on Wayland.
 - On Windows, fix issue where resizing or moving window combined with grabbing the cursor would freeze program.
 - On Windows, fix issue where resizing or moving window would eat `Awakened` events.
+- On Windows, exiting fullscreen after entering fullscreen with disabled decorations no longer shrinks window.
 
 # Version 0.18.0 (2018-11-07)
 
