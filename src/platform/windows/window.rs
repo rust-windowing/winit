@@ -49,28 +49,6 @@ pub struct Window {
     events_loop_proxy: events_loop::EventsLoopProxy,
 }
 
-// https://blogs.msdn.microsoft.com/oldnewthing/20131017-00/?p=2903
-// The idea here is that we use the Adjust­Window­Rect­Ex function to calculate how much additional
-// non-client area gets added due to the styles we passed. To make the math simple,
-// we ask for a zero client rectangle, so that the resulting window is all non-client.
-// And then we pass in the empty rectangle represented by the dot in the middle,
-// and the Adjust­Window­Rect­Ex expands the rectangle in all dimensions.
-// We see that it added ten pixels to the left, right, and bottom,
-// and it added fifty pixels to the top.
-// From this we can perform the reverse calculation: Instead of expanding the rectangle, we shrink it.
-unsafe fn unjust_window_rect(prc: &mut RECT, style: DWORD, ex_style: DWORD) -> BOOL {
-    let mut rc: RECT = mem::uninitialized();
-    winuser::SetRectEmpty(&mut rc);
-    let status = winuser::AdjustWindowRectEx(&mut rc, style, 0, ex_style);
-    if status != 0 {
-        prc.left -= rc.left;
-        prc.top -= rc.top;
-        prc.right -= rc.right;
-        prc.bottom -= rc.bottom;
-    }
-    status
-}
-
 impl Window {
     pub fn new(
         events_loop: &EventsLoop,
@@ -477,12 +455,12 @@ impl Window {
 
     unsafe fn set_fullscreen_style(&self, window_state: &mut WindowState) -> (LONG, LONG) {
         if window_state.fullscreen.is_none() || window_state.saved_window_info.is_none() {
-            let rect = util::get_window_rect(self.window.0).expect("`GetWindowRect` failed");
+            let client_rect = util::get_client_rect(self.window.0).expect("`GetWindowRect` failed");
             let dpi_factor = Some(window_state.dpi_factor);
             window_state.saved_window_info = Some(events_loop::SavedWindowInfo {
                 style: winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE),
                 ex_style: winuser::GetWindowLongW(self.window.0, winuser::GWL_EXSTYLE),
-                rect,
+                client_rect,
                 is_fullscreen: true,
                 dpi_factor,
             });
@@ -499,7 +477,7 @@ impl Window {
     }
 
     unsafe fn restore_saved_window(&self, window_state_lock: &mut WindowState) {
-        let (rect, mut style, ex_style) = {
+        let (client_rect, mut style, ex_style) = {
             // 'saved_window_info' can be None if the window has never been
             // in fullscreen mode before this method gets called.
             if window_state_lock.saved_window_info.is_none() {
@@ -513,9 +491,9 @@ impl Window {
             // repainted.  Better-looking methods welcome.
             saved_window_info.is_fullscreen = false;
 
-            let rect = saved_window_info.rect.clone();
+            let client_rect = saved_window_info.client_rect.clone();
             let (style, ex_style) = (saved_window_info.style, saved_window_info.ex_style);
-            (rect, style, ex_style)
+            (client_rect, style, ex_style)
         };
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
@@ -536,6 +514,9 @@ impl Window {
             }
             winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
             winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
+
+            let mut rect = client_rect;
+            winuser::AdjustWindowRectEx(&mut rect, style as _, 0, ex_style as _);
 
             winuser::SetWindowPos(
                 window.0,
@@ -638,10 +619,6 @@ impl Window {
                 let resizable = window_state.resizable;
                 let saved = window_state.saved_window_info.as_mut().unwrap();
 
-                unsafe {
-                    unjust_window_rect(&mut saved.rect, saved.style as _, saved.ex_style as _);
-                }
-
                 if decorations {
                     saved.style = saved.style | style_flags;
                     saved.ex_style = saved.ex_style | ex_style_flags;
@@ -654,23 +631,12 @@ impl Window {
                 } else {
                     saved.style &= !WS_RESIZABLE as LONG;
                 }
-
-                unsafe {
-                    winuser::AdjustWindowRectEx(
-                        &mut saved.rect,
-                        saved.style as _,
-                        0,
-                        saved.ex_style as _,
-                    );
-                }
             } else {
                 unsafe {
-                    let mut rect: RECT = mem::zeroed();
-                    winuser::GetWindowRect(self.window.0, &mut rect);
+                    let mut rect = util::get_client_rect(self.window.0).expect("Get client rect failed!");
 
                     let mut style = winuser::GetWindowLongW(self.window.0, winuser::GWL_STYLE);
                     let mut ex_style = winuser::GetWindowLongW(self.window.0, winuser::GWL_EXSTYLE);
-                    unjust_window_rect(&mut rect, style as _, ex_style as _);
 
                     if decorations {
                         style = style | style_flags;

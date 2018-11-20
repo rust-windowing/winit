@@ -36,7 +36,7 @@ fn main() {
     let mut decorations = true;
 
     events_loop.run_forever(|event| {
-        println!("{:?}", event);
+        // println!("{:?}", event);
 
         match event {
             Event::WindowEvent { event, .. } => match event {

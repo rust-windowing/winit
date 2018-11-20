@@ -55,6 +55,19 @@ pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {
     unsafe { status_map(|rect| winuser::GetWindowRect(hwnd, rect)) }
 }
 
+pub fn get_client_rect(hwnd: HWND) -> Option<RECT> {
+    unsafe { status_map(|rect| {
+        let mut top_left = mem::zeroed();
+        if 0 == winuser::ClientToScreen(hwnd, &mut top_left) {return 0;};
+        if 0 == winuser::GetClientRect(hwnd, rect) {return 0};
+        rect.left += top_left.x;
+        rect.top += top_left.y;
+        rect.right += top_left.x;
+        rect.bottom += top_left.y;
+        1
+    }) }
+}
+
 // This won't be needed anymore if we just add a derive to winapi.
 pub fn rect_eq(a: &RECT, b: &RECT) -> bool {
     let left_eq = a.left == b.left;
