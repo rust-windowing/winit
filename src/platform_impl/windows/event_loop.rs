@@ -239,7 +239,8 @@ impl<T: 'static> EventLoop<T> {
                 }
                 runner!().events_cleared();
 
-                match runner!().control_flow {
+                let control_flow = runner!().control_flow;
+                match control_flow {
                     ControlFlow::Exit => break 'main,
                     ControlFlow::Wait => {
                         if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
