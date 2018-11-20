@@ -148,7 +148,7 @@ Legend:
 |Window maximization toggle       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
 |Fullscreen                       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
 |Fullscreen toggle                |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
-|HiDPI support                    |✔️    |✔️    |✔️       |✔️          |▢*#??*|✔️    |✔️        |
+|HiDPI support                    |✔️    |✔️    |✔️       |✔️          |▢#721 |✔️    |✔️         |
 |Popup windows                    |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
 
 ## System information
@@ -176,5 +176,5 @@ Changes in the API that have been agreed upon but aren't implemented across all 
 
 |Feature                         |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
 |------------------------------  | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|New API for HiDPI (#315 #319)   |✔️    |✔️    |✔️       |✔️          |▢*#??* |✔️    |✔️        |
+|New API for HiDPI (#315 #319)   |✔️    |✔️    |✔️       |✔️          |▢#721  |✔️    |✔️        |
 |Event Loop 2.0 (#459)           |❌#638|❌    |❌       |❌          |❌     |❌    |❌        |
