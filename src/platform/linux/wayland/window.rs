@@ -148,6 +148,7 @@ impl Window {
             frame: Arc::downgrade(&frame),
             current_dpi: 1,
             new_dpi: None,
+            monitors: monitor_list.clone(),
         });
         evlp.evq.borrow_mut().sync_roundtrip().unwrap();
 
@@ -330,7 +331,8 @@ struct InternalWindow {
     kill_switch: Arc<Mutex<bool>>,
     frame: Weak<Mutex<SWindow<ConceptFrame>>>,
     current_dpi: i32,
-    new_dpi: Option<i32>
+    new_dpi: Option<i32>,
+    monitors: Arc<Mutex<MonitorList>>
 }
 
 pub struct WindowStore {
@@ -372,6 +374,18 @@ impl WindowStore {
         for window in &self.windows {
             if let Some(w) = window.frame.upgrade() {
                 w.lock().unwrap().new_seat(seat);
+            }
+        }
+    }
+
+    pub fn remove_output(&mut self, output: u32) {
+        for window in &mut self.windows {
+            let dpi = window.monitors.lock().unwrap().output_disappeared(output);
+            if window.surface.version() >= 3 {
+                // without version 3 we can't be dpi aware
+                window.new_dpi = Some(dpi);
+                window.surface.set_buffer_scale(dpi);
+                window.need_refresh = true;
             }
         }
     }
@@ -455,5 +469,10 @@ impl MonitorList {
         } else {
             None
         }
+    }
+
+    fn output_disappeared(&mut self, id: u32) -> i32 {
+        self.monitors.retain(|m| m.get_native_identifier() != id);
+        self.compute_hidpi_factor()
     }
 }
