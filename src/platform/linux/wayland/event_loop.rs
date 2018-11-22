@@ -123,12 +123,10 @@ impl EventsLoop {
             },
         };
 
-        let cb_store = store.clone();
-
         let env = Environment::from_display_with_cb(
             &display,
             &mut event_queue,
-            move |event, registry| { 
+            move |event, registry| {
                 match event {
                     GlobalEvent::New { id, ref interface, version } => {
                         if interface == "wl_seat" {
@@ -138,8 +136,6 @@ impl EventsLoop {
                     GlobalEvent::Removed { id, ref interface } => {
                         if interface == "wl_seat" {
                             seat_manager.remove_seat(id)
-                        } else if interface == "wl_output" {
-                            cb_store.lock().unwrap().remove_output(id);
                         }
                     },
                 }
