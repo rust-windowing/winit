@@ -37,6 +37,7 @@ core-graphics = "0.17.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 backtrace = "0.3"
+bitflags = "1"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
 version = "0.3.6"
