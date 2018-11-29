@@ -35,8 +35,6 @@ use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input
 use platform::platform::util;
 use platform::platform::window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState};
 
-const WS_RESIZABLE: DWORD = winuser::WS_SIZEBOX | winuser::WS_MAXIMIZEBOX;
-
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
     /// Main handle for the window.
@@ -309,7 +307,7 @@ impl Window {
                 .map_err(|e| e.to_string());
             let _ = tx.send(result);
         });
-        rx.recv().unwrap();
+        rx.recv().unwrap().ok();
     }
 
     #[inline]
@@ -399,8 +397,6 @@ impl Window {
                         window_state_lock.fullscreen = None;
 
                         if let Some(SavedWindow{client_rect, dpi_factor}) = window_state_lock.saved_window {
-                            let rect = util::adjust_window_rect(window.0, client_rect).expect("adjust client rect failed!");
-
                             window_state_lock.dpi_factor = dpi_factor;
                             window_state_lock.saved_window = None;
 
@@ -597,7 +593,6 @@ unsafe fn init(
     info!("Guessed window DPI factor: {}", guessed_dpi_factor);
 
     let dimensions = attributes.dimensions.unwrap_or_else(|| (1024, 768).into());
-    let (width, height): (u32, u32) = dimensions.to_physical(guessed_dpi_factor).into();
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::DECORATIONS, attributes.decorations);

@@ -155,11 +155,6 @@ impl MouseProperties {
 
         Ok(())
     }
-
-    pub fn refresh_os_cursor(&self, window: HWND) -> Result<(), io::Error> {
-        self.cursor_flags.refresh_os_cursor(window)?;
-        Ok(())
-    }
 }
 
 impl WindowFlags {
@@ -320,7 +315,7 @@ impl CursorFlags {
             if self.contains(CursorFlags::GRABBED) {
                 util::set_cursor_clip(Some(client_rect))?;
             } else {
-                util::set_cursor_clip(None);
+                util::set_cursor_clip(None)?;
             }
         }
 

@@ -71,7 +71,7 @@ pub fn get_client_rect(hwnd: HWND) -> Result<RECT, io::Error> {
         let mut top_left = mem::zeroed();
 
         win_to_err(|| winuser::ClientToScreen(hwnd, &mut top_left))?;
-        win_to_err(|| winuser::GetClientRect(hwnd, &mut rect));
+        win_to_err(|| winuser::GetClientRect(hwnd, &mut rect))?;
         rect.left += top_left.x;
         rect.top += top_left.y;
         rect.right += top_left.x;
@@ -111,20 +111,6 @@ pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
         let rect_ptr = rect.as_ref().map(|r| r as *const RECT).unwrap_or(ptr::null());
         win_to_err(|| winuser::ClipCursor(rect_ptr))
     }
-}
-
-// This won't be needed anymore if we just add a derive to winapi.
-pub fn rect_eq(a: &RECT, b: &RECT) -> bool {
-    let left_eq = a.left == b.left;
-    let right_eq = a.right == b.right;
-    let top_eq = a.top == b.top;
-    let bottom_eq = a.bottom == b.bottom;
-    left_eq && right_eq && top_eq && bottom_eq
-}
-
-pub fn rect_contains(r: RECT, point: POINT) -> bool {
-    r.left <= point.x && point.x <= r.right &&
-    r.top <= point.y && point.y <= r.bottom
 }
 
 pub fn is_focused(window: HWND) -> bool {

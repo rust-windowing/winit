@@ -637,7 +637,7 @@ unsafe fn callback_inner(
                         let mut w = w.lock().unwrap();
 
                         let was_outside_window = !w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
-                        w.mouse.set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true));
+                        w.mouse.set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true)).ok();
                         return was_outside_window;
                     }
                 }
@@ -680,7 +680,7 @@ unsafe fn callback_inner(
                 if let Some(context_stash) = context_stash.as_mut() {
                     if let Some(w) = context_stash.windows.get_mut(&window) {
                         let mut w = w.lock().unwrap();
-                        w.mouse.set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false));
+                        w.mouse.set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false)).ok();
                     }
                 }
             });
