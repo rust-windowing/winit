@@ -20,6 +20,10 @@
 - On macOS, implemented `WindowEvent::Refresh`.
 - On macOS, all `MouseCursor` variants are now implemented and the cursor will no longer reset after unfocusing.
 - Removed minimum supported Rust version guarantee.
+- On Windows, fix malformed function pointer typecast that could invoke undefined behavior.
+- Refactored Windows state/flag-setting code.
+  - Hiding the cursor no longer hides the cursor for all Winit windows - just the one `hide_cursor` was called on.
+  - Beforehand, cursor grabs would get perpetually canceled when the grabbing window lost focus. Now, cursor grabs get automatically re-initialized when the window regains focus and the mouse moves over the client area.
 
 # Version 0.18.0 (2018-11-07)
 
