@@ -620,6 +620,10 @@ impl WindowExt for Window2 {
                 state.save_style_mask.set(Some(self.window.styleMask()));
                 state.save_presentation_opts.set(Some(app.presentationOptions_()));
 
+                // Tell our window's state that we're in fullscreen
+                let mut win_attribs = state.win_attribs.borrow_mut();
+                win_attribs.fullscreen = Some(get_current_monitor(*state.window));
+
                 // Simulate pre-Lion fullscreen by hiding the dock and menu bar
                 let presentation_options =
                     NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock |
@@ -639,9 +643,10 @@ impl WindowExt for Window2 {
                 util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSResizableWindowMask, false);
                 NSWindow::setMovable_(*self.window, NO);
             } else {
-                let win_attribs = state.win_attribs.borrow();
+                let mut win_attribs = state.win_attribs.borrow_mut();
                 let saved_style_mask = state.saved_style_mask(win_attribs.resizable);
                 util::set_style_mask(*self.window, *self.view, saved_style_mask);
+                win_attribs.fullscreen = None;
 
                 if let Some(presentation_opts) = state.save_presentation_opts.get() {
                     app.setPresentationOptions_(presentation_opts);

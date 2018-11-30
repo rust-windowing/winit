@@ -10,7 +10,7 @@ fn main() {
     let monitor = {
         #[cfg(target_os = "macos")]
         {
-            print!("Please choose the fullscreen mode: (1) native, (2) simple");
+            print!("Please choose the fullscreen mode: (1) native, (2) simple: ");
             io::stdout().flush().unwrap();
 
             let mut num = String::new();
