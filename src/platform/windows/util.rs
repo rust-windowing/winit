@@ -157,7 +157,7 @@ pub unsafe fn get_last_error() -> Option<String> {
 }
 
 impl MouseCursor {
-    pub(crate) fn to_windows_cursor(self) -> *const winapi::ctypes::wchar_t {
+    pub(crate) fn to_windows_cursor(self) -> *const wchar_t {
         match self {
             MouseCursor::Arrow | MouseCursor::Default => winuser::IDC_ARROW,
             MouseCursor::Hand => winuser::IDC_HAND,
