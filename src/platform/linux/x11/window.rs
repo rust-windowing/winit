@@ -278,8 +278,10 @@ impl UnownedWindow {
 
             // set size hints
             {
-                let mut min_dimensions = window_attrs.min_dimensions;
-                let mut max_dimensions = window_attrs.max_dimensions;
+                let mut min_dimensions = window_attrs.min_dimensions
+                    .map(|size| size.to_physical(dpi_factor));
+                let mut max_dimensions = window_attrs.max_dimensions
+                    .map(|size| size.to_physical(dpi_factor));
                 if !window_attrs.resizable {
                     if util::wm_name_is_one_of(&["Xfwm4"]) {
                         warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
