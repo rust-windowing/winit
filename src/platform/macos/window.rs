@@ -609,12 +609,12 @@ impl WindowExt for Window2 {
     }
 
     #[inline]
-    fn set_simple_fullscreen(&self, enable: bool) {
+    fn set_simple_fullscreen(&self, fullscreen: bool) {
         let state = &self.delegate.state;
 
         unsafe {
             let app = NSApp();
-            if enable {
+            if fullscreen {
                 // Remember the original window's settings
                 state.standard_frame.set(Some(NSWindow::frame(*self.window)));
                 state.save_style_mask.set(Some(self.window.styleMask()));
