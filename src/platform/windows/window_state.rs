@@ -188,8 +188,6 @@ impl WindowFlags {
         }
         if self.contains(WindowFlags::ON_TASKBAR) {
             style_ex |= WS_EX_APPWINDOW;
-        } else {
-            style |= WS_POPUP;
         }
         if self.contains(WindowFlags::ALWAYS_ON_TOP) {
             style_ex |= WS_EX_TOPMOST;
