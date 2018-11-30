@@ -177,7 +177,7 @@ impl WindowFlags {
         let (mut style, mut style_ex) = (0, 0);
 
         if self.contains(WindowFlags::RESIZABLE) {
-            style |= winuser::WS_SIZEBOX | winuser::WS_MAXIMIZEBOX;
+            style |= WS_SIZEBOX | WS_MAXIMIZEBOX;
         }
         if self.contains(WindowFlags::DECORATIONS) {
             style |= WS_CAPTION | WS_MINIMIZEBOX | WS_BORDER;
