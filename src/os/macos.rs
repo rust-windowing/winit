@@ -28,7 +28,7 @@ pub trait WindowExt {
     /// This is how fullscreen used to work on macOS in versions before Lion.
     /// And allows the user to have a fullscreen window without using another
     /// space or taking control over the entire monitor.
-    fn set_simple_fullscreen(&self, enable: bool);
+    fn set_simple_fullscreen(&self, fullscreen: bool);
 }
 
 impl WindowExt for Window {
@@ -48,8 +48,8 @@ impl WindowExt for Window {
     }
 
     #[inline]
-    fn set_simple_fullscreen(&self, enable: bool) {
-        self.window.set_simple_fullscreen(enable);
+    fn set_simple_fullscreen(&self, fullscreen: bool) {
+        self.window.set_simple_fullscreen(fullscreen);
     }
 }
 

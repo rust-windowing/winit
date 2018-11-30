@@ -1,7 +1,5 @@
 extern crate winit;
 
-use winit::{ControlFlow, Event, WindowEvent};
-
 #[cfg(not(target_os = "macos"))]
 fn main() {
     println!("The simple_fullscreen example only works on macOS");
@@ -9,6 +7,8 @@ fn main() {
 
 #[cfg(target_os = "macos")]
 fn main() {
+    use winit::{ControlFlow, Event, WindowEvent};
+
     let mut events_loop = winit::EventsLoop::new();
     let window = winit::WindowBuilder::new()
         .with_title("Hello world!")
