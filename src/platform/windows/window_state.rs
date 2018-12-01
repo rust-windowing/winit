@@ -203,9 +203,9 @@ impl WindowFlags {
         if self.contains(WindowFlags::CHILD) {
             style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
         }
-        if self.contains(WindowFlags::MAXIMIZED) {
-            style |= WS_MAXIMIZE;
-        }
+        // if self.contains(WindowFlags::MAXIMIZED) {
+        //     // This is handed with the call to ShowWindow in `apply_diff`.
+        // }
 
         style |= WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
         style_ex |= WS_EX_ACCEPTFILES;
@@ -246,6 +246,12 @@ impl WindowFlags {
                     winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOMOVE | winuser::SWP_NOSIZE,
                 );
                 winuser::UpdateWindow(window);
+            }
+        }
+
+        if diff.contains(WindowFlags::MAXIMIZED) && !new.contains(WindowFlags::MAXIMIZED) {
+            unsafe {
+                winuser::ShowWindow(window, winuser::SW_RESTORE);
             }
         }
 
@@ -291,15 +297,9 @@ impl WindowFlags {
             }
         }
 
-        if diff.contains(WindowFlags::MAXIMIZED) {
+        if diff.contains(WindowFlags::MAXIMIZED) && new.contains(WindowFlags::MAXIMIZED) {
             unsafe {
-                winuser::ShowWindow(
-                    window,
-                    match new.contains(WindowFlags::MAXIMIZED) {
-                        true => winuser::SW_MAXIMIZE,
-                        false => winuser::SW_RESTORE
-                    }
-                );
+                winuser::ShowWindow(window, winuser::SW_MAXIMIZE);
             }
         }
     }

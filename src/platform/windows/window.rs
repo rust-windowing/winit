@@ -599,10 +599,9 @@ unsafe fn init(
     window_flags.set(WindowFlags::ALWAYS_ON_TOP, attributes.always_on_top);
     window_flags.set(WindowFlags::NO_BACK_BUFFER, pl_attribs.no_redirection_bitmap);
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
-    // WindowFlags::VISIBLE is set down below after the window has been configured.
+    // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
     window_flags.set(WindowFlags::CHILD, pl_attribs.parent.is_some());
-    window_flags.set(WindowFlags::MAXIMIZED, attributes.maximized);
     window_flags.set(WindowFlags::ON_TASKBAR, true);
 
     // creating the real window this time, by using the functions in `extra_functions`
@@ -688,6 +687,7 @@ unsafe fn init(
     }
 
     window_flags.set(WindowFlags::VISIBLE, attributes.visible);
+    window_flags.set(WindowFlags::MAXIMIZED, attributes.maximized);
 
     let window_state = {
         let mut window_state = WindowState::new(
