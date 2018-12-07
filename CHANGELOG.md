@@ -1,5 +1,6 @@
 # Unreleased
 
+- On X11 with a tiling WM, fixed high CPU usage when moving windows across monitors.
 - On X11, fixed panic caused by dropping the window before running the event loop.
 - Introduce `WindowBuilderExt::with_app_id` to allow setting the application ID on Wayland.
 - On Windows, catch panics in event loop child thread and forward them to the parent thread. This prevents an invocation of undefined behavior due to unwinding into foreign code.
