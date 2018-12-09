@@ -10,6 +10,7 @@
 - Derive `Ord` and `PartialOrd` for `VirtualKeyCode` enum.
 - On Windows, fix issue where hovering or dropping a non file item would create a panic.
 - On Wayland, fix resizing and DPI calculation when a `wl_output` is removed without sending a `leave` event to the `wl_surface`, such as disconnecting a monitor from a laptop.
+- On Wayland, DPI calculation is handled by smithay-client-toolkit.
 - On X11, `WindowBuilder::with_min_dimensions` and `WindowBuilder::with_max_dimensions` now correctly account for DPI.
 
 # Version 0.18.0 (2018-11-07)
