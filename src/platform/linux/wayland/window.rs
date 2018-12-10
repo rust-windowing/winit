@@ -6,10 +6,10 @@ use dpi::{LogicalPosition, LogicalSize};
 use platform::{MonitorId as PlatformMonitorId, PlatformSpecificWindowBuilderAttributes as PlAttributes};
 use window::MonitorId as RootMonitorId;
 
+use sctk::surface::{get_dpi_factor, get_outputs};
 use sctk::window::{ConceptFrame, Event as WEvent, Window as SWindow};
 use sctk::reexports::client::{Display, Proxy};
-use sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_output};
-use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as CompositorRequests;
+use sctk::reexports::client::protocol::{wl_seat, wl_surface};
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
 use sctk::output::OutputMgr;
 
@@ -19,7 +19,6 @@ use platform::platform::wayland::event_loop::{get_available_monitors, get_primar
 pub struct Window {
     surface: Proxy<wl_surface::WlSurface>,
     frame: Arc<Mutex<SWindow<ConceptFrame>>>,
-    monitors: Arc<Mutex<MonitorList>>, // Monitors this window is currently on
     outputs: OutputMgr, // Access to info for all monitors
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
@@ -33,39 +32,11 @@ impl Window {
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
 
-        // monitor tracking
-        let monitor_list = Arc::new(Mutex::new(MonitorList::new()));
-
-        let surface = evlp.env.compositor.create_surface(|surface| {
-            let list = monitor_list.clone();
-            let omgr = evlp.env.outputs.clone();
-            let window_store = evlp.store.clone();
-            surface.implement(move |event, surface| match event {
-                wl_surface::Event::Enter { output } => {
-                    let dpi_change = list.lock().unwrap().add_output(MonitorId {
-                        proxy: output,
-                        mgr: omgr.clone(),
-                    });
-                    if let Some(dpi) = dpi_change {
-                        if surface.version() >= 3 {
-                            // without version 3 we can't be dpi aware
-                            window_store.lock().unwrap().dpi_change(&surface, dpi);
-                            surface.set_buffer_scale(dpi);
-                        }
-                    }
-                },
-                wl_surface::Event::Leave { output } => {
-                    let dpi_change = list.lock().unwrap().del_output(&output);
-                    if let Some(dpi) = dpi_change {
-                        if surface.version() >= 3 {
-                            // without version 3 we can't be dpi aware
-                            window_store.lock().unwrap().dpi_change(&surface, dpi);
-                            surface.set_buffer_scale(dpi);
-                        }
-                    }
-                }
-            }, ())
-        }).unwrap();
+        let window_store = evlp.store.clone();
+        let surface = evlp.env.create_surface(move |dpi, surface| {
+            window_store.lock().unwrap().dpi_change(&surface, dpi);
+            surface.set_buffer_scale(dpi);
+        });
 
         let window_store = evlp.store.clone();
         let my_surface = surface.clone();
@@ -148,7 +119,6 @@ impl Window {
             frame: Arc::downgrade(&frame),
             current_dpi: 1,
             new_dpi: None,
-            monitors: monitor_list.clone(),
         });
         evlp.evq.borrow_mut().sync_roundtrip().unwrap();
 
@@ -156,7 +126,6 @@ impl Window {
             display: evlp.display.clone(),
             surface: surface,
             frame: frame,
-            monitors: monitor_list,
             outputs: evlp.env.outputs.clone(),
             size: size,
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
@@ -236,7 +205,7 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> i32 {
-        self.monitors.lock().unwrap().compute_hidpi_factor()
+        get_dpi_factor(&self.surface)
     }
 
     pub fn set_decorations(&self, decorate: bool) {
@@ -295,10 +264,11 @@ impl Window {
     }
 
     pub fn get_current_monitor(&self) -> MonitorId {
-        // we don't know how much each monitor sees us so...
-        // just return the most recent one ?
-        let guard = self.monitors.lock().unwrap();
-        guard.monitors.last().unwrap().clone()
+        let output = get_outputs(&self.surface).last().unwrap().clone();
+        MonitorId {
+            proxy: output,
+            mgr: self.outputs.clone(),
+        }
     }
 
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
@@ -332,7 +302,6 @@ struct InternalWindow {
     frame: Weak<Mutex<SWindow<ConceptFrame>>>,
     current_dpi: i32,
     new_dpi: Option<i32>,
-    monitors: Arc<Mutex<MonitorList>>
 }
 
 pub struct WindowStore {
@@ -378,18 +347,6 @@ impl WindowStore {
         }
     }
 
-    pub fn remove_output(&mut self, output: u32) {
-        for window in &mut self.windows {
-            let dpi = window.monitors.lock().unwrap().output_disappeared(output);
-            if window.surface.version() >= 3 {
-                // without version 3 we can't be dpi aware
-                window.new_dpi = Some(dpi);
-                window.surface.set_buffer_scale(dpi);
-                window.need_refresh = true;
-            }
-        }
-    }
-
     fn dpi_change(&mut self, surface: &Proxy<wl_surface::WlSurface>, new: i32) {
         for window in &mut self.windows {
             if surface.equals(&window.surface) {
@@ -422,57 +379,5 @@ impl WindowStore {
             // avoid re-spamming the event
             window.closed = false;
         }
-    }
-}
-
-/*
- * Monitor list with some covenience method to compute DPI
- */
-
-struct MonitorList {
-    monitors: Vec<MonitorId>
-}
-
-impl MonitorList {
-    fn new() -> MonitorList {
-        MonitorList {
-            monitors: Vec::new()
-        }
-    }
-
-    fn compute_hidpi_factor(&self) -> i32 {
-        let mut factor = 1;
-        for monitor_id in &self.monitors {
-            let monitor_dpi = monitor_id.get_hidpi_factor();
-            if monitor_dpi > factor { factor = monitor_dpi; }
-        }
-        factor
-    }
-
-    fn add_output(&mut self, monitor: MonitorId) -> Option<i32> {
-        let old_dpi = self.compute_hidpi_factor();
-        let monitor_dpi = monitor.get_hidpi_factor();
-        self.monitors.push(monitor);
-        if monitor_dpi > old_dpi {
-            Some(monitor_dpi)
-        } else {
-            None
-        }
-    }
-
-    fn del_output(&mut self, output: &Proxy<wl_output::WlOutput>) -> Option<i32> {
-        let old_dpi = self.compute_hidpi_factor();
-        self.monitors.retain(|m| !m.proxy.equals(output));
-        let new_dpi = self.compute_hidpi_factor();
-        if new_dpi != old_dpi {
-            Some(new_dpi)
-        } else {
-            None
-        }
-    }
-
-    fn output_disappeared(&mut self, id: u32) -> i32 {
-        self.monitors.retain(|m| m.get_native_identifier() != id);
-        self.compute_hidpi_factor()
     }
 }
