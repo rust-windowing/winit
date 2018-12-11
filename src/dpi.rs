@@ -56,6 +56,7 @@
 //! - **Wayland:** On Wayland, DPI factors are set per-screen by the server, and are always integers (most often 1 or 2).
 //! - **iOS:** DPI factors are both constant and device-specific on iOS.
 //! - **Android:** This feature isn't yet implemented on Android, so the DPI factor will always be returned as 1.0.
+//! - **Redox OS:** This feature isn't yet implemented on Redox OS, so the DPI factor will always be returned as 1.0.
 //!
 //! The window's logical size is conserved across DPI changes, resulting in the physical size changing instead. This
 //! may be surprising on X11, but is quite standard elsewhere. Physical size changes always produce a

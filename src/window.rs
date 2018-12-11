@@ -187,7 +187,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - Has no effect on Android
+    /// - Has no effect on Android or Redox OS
     ///
     #[inline]
     pub fn show(&self) {
@@ -198,7 +198,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - Has no effect on Android
+    /// - Has no effect on Android or Redox OS
     ///
     #[inline]
     pub fn hide(&self) {
@@ -312,6 +312,7 @@ impl Window {
     ///
     /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
+    /// - **Redox OS:** Always returns 1.0.
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
         self.window.get_hidpi_factor()
@@ -336,7 +337,7 @@ impl Window {
     ///
     /// On macOS, this presently merely locks the cursor in a fixed location, which looks visually awkward.
     ///
-    /// This has no effect on Android or iOS.
+    /// This has no effect on Android, iOS, or Redox OS.
     #[inline]
     pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         self.window.grab_cursor(grab)
@@ -351,7 +352,7 @@ impl Window {
     /// On macOS, the cursor is hidden as long as the window has input focus, even if the cursor is outside of the
     /// window.
     ///
-    /// This has no effect on Android or iOS.
+    /// This has no effect on Android, iOS, or Redox OS.
     #[inline]
     pub fn hide_cursor(&self, hide: bool) {
         self.window.hide_cursor(hide)
@@ -487,6 +488,7 @@ impl MonitorId {
     ///
     /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
+    /// - **Redox OS:** Always returns 1.0.
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
         self.inner.get_hidpi_factor()

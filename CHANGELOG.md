@@ -1,5 +1,7 @@
 # Unreleased
 
+- Add support for Redox OS
+
 # Version 0.18.1 (2018-12-30)
 
 - On macOS, fix `Yen` (JIS) so applications receive the event.
