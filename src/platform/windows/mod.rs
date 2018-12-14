@@ -27,6 +27,12 @@ unsafe impl Sync for Cursor {}
 pub struct DeviceId(u32);
 
 impl DeviceId {
+    pub fn dummy() -> Self {
+        DeviceId(0)
+    }
+}
+
+impl DeviceId {
     pub fn get_persistent_identifier(&self) -> Option<String> {
         if self.0 != 0 {
             raw_input::get_raw_input_device_name(self.0 as _)
@@ -47,6 +53,14 @@ fn wrap_device_id(id: u32) -> ::DeviceId {
 pub struct WindowId(HWND);
 unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
+
+impl WindowId {
+    pub fn dummy() -> Self {
+        use std::ptr::null_mut;
+
+        WindowId(null_mut())
+    }
+}
 
 mod dpi;
 mod drop_handler;

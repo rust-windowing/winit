@@ -27,6 +27,12 @@ unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
 
+impl DeviceId {
+    pub fn dummy() -> Self {
+        DeviceId
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
@@ -148,6 +154,12 @@ impl EventsLoop {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(usize);
+
+impl WindowId {
+    pub fn dummy() -> Self {
+        WindowId(0)
+    }
+}
 
 pub struct Window2 {
     cursor_grabbed: Mutex<bool>,
