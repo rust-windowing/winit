@@ -17,7 +17,7 @@ mod window;
 pub struct DeviceId;
 
 impl DeviceId {
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         DeviceId
     }
 }
@@ -26,7 +26,7 @@ impl DeviceId {
 pub struct WindowId(usize);
 
 impl WindowId {
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         WindowId(0)
     }
 }

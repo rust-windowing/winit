@@ -170,11 +170,11 @@ impl std::fmt::Debug for Window {
 pub struct WindowId(platform::WindowId);
 
 impl WindowId {
-    /// Returns a dummy WindowId, useful for unit testing. Absolutely no guarantees are made
-    /// about this window id, it may be equal to a real WindowId.
+    /// Returns a dummy `WindowId`, useful for unit testing. Absolutely no guarantees are made
+    /// about this `WindowId`, it may be equal to a real `WindowId`.
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         WindowId(platform::WindowId::dummy())
     }
 }
@@ -188,11 +188,11 @@ impl WindowId {
 pub struct DeviceId(platform::DeviceId);
 
 impl DeviceId {
-    /// Returns a dummy DeviceId, useful for unit testing. Absolutely no guarantees are made
-    /// about this device id, it may be equal to a real DeviceId.
+    /// Returns a dummy `DeviceId`, useful for unit testing. Absolutely no guarantees are made
+    /// about this `DeviceId`, it may be equal to a real `DeviceId`.
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         DeviceId(platform::DeviceId::dummy())
     }
 }

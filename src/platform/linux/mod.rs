@@ -67,7 +67,7 @@ pub enum WindowId {
 }
 
 impl WindowId {
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         WindowId::X(x11::WindowId::dummy())
     }
 }
@@ -79,7 +79,7 @@ pub enum DeviceId {
 }
 
 impl DeviceId {
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         DeviceId::X(x11::DeviceId::dummy())
     }
 }

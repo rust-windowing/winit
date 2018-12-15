@@ -50,7 +50,7 @@ use window::MonitorId as RootMonitorId;
 pub struct Id(pub usize);
 
 impl Id {
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         Id(0)
     }
 }

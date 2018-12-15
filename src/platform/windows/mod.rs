@@ -27,7 +27,7 @@ unsafe impl Sync for Cursor {}
 pub struct DeviceId(u32);
 
 impl DeviceId {
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         DeviceId(0)
     }
 }
@@ -55,7 +55,7 @@ unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 
 impl WindowId {
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         use std::ptr::null_mut;
 
         WindowId(null_mut())

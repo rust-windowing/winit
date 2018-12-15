@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub struct DeviceId;
 
 impl DeviceId {
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         DeviceId
     }
 }

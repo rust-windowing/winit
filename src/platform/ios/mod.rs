@@ -291,7 +291,7 @@ impl EventsLoopProxy {
 pub struct WindowId;
 
 impl WindowId {
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         WindowId
     }
 }
@@ -300,7 +300,7 @@ impl WindowId {
 pub struct DeviceId;
 
 impl DeviceId {
-    pub fn dummy() -> Self {
+    pub unsafe fn dummy() -> Self {
         DeviceId
     }
 }
