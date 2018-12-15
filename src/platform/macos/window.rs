@@ -58,6 +58,7 @@ pub struct DelegateState {
 
     win_attribs: RefCell<WindowAttributes>,
     standard_frame: Cell<Option<NSRect>>,
+    is_simple_fullscreen: Cell<bool>,
     save_style_mask: Cell<Option<NSWindowStyleMask>>,
     save_presentation_opts: Cell<Option<NSApplicationPresentationOptions>>,
 
@@ -614,10 +615,11 @@ impl WindowExt for Window2 {
 
         unsafe {
             let app = NSApp();
-            let mut win_attribs = state.win_attribs.borrow_mut();
-            let is_fullscreen = win_attribs.fullscreen.is_some();
+            let win_attribs = state.win_attribs.borrow_mut();
+            let is_native_fullscreen = win_attribs.fullscreen.is_some();
+            let is_simple_fullscreen = state.is_simple_fullscreen.get();
 
-            if (fullscreen && is_fullscreen) || (!fullscreen && !is_fullscreen) {
+            if is_native_fullscreen || (fullscreen && is_simple_fullscreen) || (!fullscreen && !is_simple_fullscreen) {
                 return false;
             }
 
@@ -628,7 +630,7 @@ impl WindowExt for Window2 {
                 state.save_presentation_opts.set(Some(app.presentationOptions_()));
 
                 // Tell our window's state that we're in fullscreen
-                win_attribs.fullscreen = Some(get_current_monitor(*state.window));
+                state.is_simple_fullscreen.set(true);
 
                 // Simulate pre-Lion fullscreen by hiding the dock and menu bar
                 let presentation_options =
@@ -653,7 +655,7 @@ impl WindowExt for Window2 {
             } else {
                 let saved_style_mask = state.saved_style_mask(win_attribs.resizable);
                 util::set_style_mask(*self.window, *self.view, saved_style_mask);
-                win_attribs.fullscreen = None;
+                state.is_simple_fullscreen.set(false);
 
                 if let Some(presentation_opts) = state.save_presentation_opts.get() {
                     app.setPresentationOptions_(presentation_opts);
@@ -742,6 +744,7 @@ impl Window2 {
             shared,
             win_attribs: RefCell::new(win_attribs.clone()),
             standard_frame: Cell::new(None),
+            is_simple_fullscreen: Cell::new(false),
             save_style_mask: Cell::new(None),
             save_presentation_opts: Cell::new(None),
             handle_with_fullscreen: win_attribs.fullscreen.is_some(),
