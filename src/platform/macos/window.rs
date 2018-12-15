@@ -108,7 +108,7 @@ impl DelegateState {
     }
 
     fn saved_standard_frame(&self) -> NSRect {
-        self.standard_frame.get().unwrap_or(NSRect::new(
+        self.standard_frame.get().unwrap_or_else(|| NSRect::new(
             NSPoint::new(50.0, 50.0),
             NSSize::new(800.0, 600.0),
         ))
