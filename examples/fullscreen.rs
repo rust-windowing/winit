@@ -63,18 +63,19 @@ fn main() {
                 } => match (virtual_code, state) {
                     (winit::VirtualKeyCode::Escape, _) => return ControlFlow::Break,
                     (winit::VirtualKeyCode::F, winit::ElementState::Pressed) => {
-                        is_fullscreen = !is_fullscreen;
-
                         #[cfg(target_os = "macos")]
                         {
                             if macos_use_simple_fullscreen {
                                 use winit::os::macos::WindowExt;
-                                WindowExt::set_simple_fullscreen(&window, is_fullscreen);
+                                if WindowExt::set_simple_fullscreen(&window, !is_fullscreen) {
+                                    is_fullscreen = !is_fullscreen;
+                                }
 
                                 return ControlFlow::Continue;
                             }
                         }
 
+                        is_fullscreen = !is_fullscreen;
                         if !is_fullscreen {
                             window.set_fullscreen(None);
                         } else {

@@ -609,11 +609,18 @@ impl WindowExt for Window2 {
     }
 
     #[inline]
-    fn set_simple_fullscreen(&self, fullscreen: bool) {
+    fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
         let state = &self.delegate.state;
 
         unsafe {
             let app = NSApp();
+            let mut win_attribs = state.win_attribs.borrow_mut();
+            let is_fullscreen = win_attribs.fullscreen.is_some();
+
+            if (fullscreen && is_fullscreen) || (!fullscreen && !is_fullscreen) {
+                return false;
+            }
+
             if fullscreen {
                 // Remember the original window's settings
                 state.standard_frame.set(Some(NSWindow::frame(*self.window)));
@@ -621,7 +628,6 @@ impl WindowExt for Window2 {
                 state.save_presentation_opts.set(Some(app.presentationOptions_()));
 
                 // Tell our window's state that we're in fullscreen
-                let mut win_attribs = state.win_attribs.borrow_mut();
                 win_attribs.fullscreen = Some(get_current_monitor(*state.window));
 
                 // Simulate pre-Lion fullscreen by hiding the dock and menu bar
@@ -642,8 +648,9 @@ impl WindowExt for Window2 {
                 util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSMiniaturizableWindowMask, false);
                 util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSResizableWindowMask, false);
                 NSWindow::setMovable_(*self.window, NO);
+
+                true
             } else {
-                let mut win_attribs = state.win_attribs.borrow_mut();
                 let saved_style_mask = state.saved_style_mask(win_attribs.resizable);
                 util::set_style_mask(*self.window, *self.view, saved_style_mask);
                 win_attribs.fullscreen = None;
@@ -655,6 +662,8 @@ impl WindowExt for Window2 {
                 let frame = state.saved_standard_frame();
                 NSWindow::setFrame_display_(*self.window, frame, YES);
                 NSWindow::setMovable_(*self.window, YES);
+
+                true
             }
         }
     }

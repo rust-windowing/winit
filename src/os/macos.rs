@@ -24,11 +24,13 @@ pub trait WindowExt {
     fn request_user_attention(&self, is_critical: bool);
 
     /// Toggles a fullscreen mode that doesn't require a new macOS space.
+    /// Returns a boolean indicating whether the transition was successful (this
+    /// won't work if the window was already in the native fullscreen).
     ///
     /// This is how fullscreen used to work on macOS in versions before Lion.
     /// And allows the user to have a fullscreen window without using another
     /// space or taking control over the entire monitor.
-    fn set_simple_fullscreen(&self, fullscreen: bool);
+    fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
 }
 
 impl WindowExt for Window {
@@ -48,8 +50,8 @@ impl WindowExt for Window {
     }
 
     #[inline]
-    fn set_simple_fullscreen(&self, fullscreen: bool) {
-        self.window.set_simple_fullscreen(fullscreen);
+    fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
+        self.window.set_simple_fullscreen(fullscreen)
     }
 }
 
