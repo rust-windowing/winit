@@ -619,6 +619,7 @@ impl WindowExt for Window2 {
             let is_native_fullscreen = win_attribs.fullscreen.is_some();
             let is_simple_fullscreen = state.is_simple_fullscreen.get();
 
+            // Do nothing if native fullscreen is active.
             if is_native_fullscreen || (fullscreen && is_simple_fullscreen) || (!fullscreen && !is_simple_fullscreen) {
                 return false;
             }
@@ -1157,6 +1158,12 @@ impl Window2 {
     /// in fullscreen mode
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         let state = &self.delegate.state;
+
+        // Do nothing if simple fullscreen is active.
+        if state.is_simple_fullscreen.get() {
+            return
+        }
+
         let current = {
             let win_attribs = state.win_attribs.borrow_mut();
 
