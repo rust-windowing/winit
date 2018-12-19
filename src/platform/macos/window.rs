@@ -19,6 +19,7 @@ use cocoa::appkit::{
     NSWindowButton,
     NSWindowStyleMask,
     NSApplicationActivationPolicy,
+    NSApplicationPresentationOptions,
 };
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize, NSString};
@@ -57,7 +58,9 @@ pub struct DelegateState {
 
     win_attribs: RefCell<WindowAttributes>,
     standard_frame: Cell<Option<NSRect>>,
+    is_simple_fullscreen: Cell<bool>,
     save_style_mask: Cell<Option<NSWindowStyleMask>>,
+    save_presentation_opts: Cell<Option<NSApplicationPresentationOptions>>,
 
     // This is set when WindowBuilder::with_fullscreen was set,
     // see comments of `window_did_fail_to_enter_fullscreen`
@@ -94,22 +97,30 @@ impl DelegateState {
         }
     }
 
+    unsafe fn saved_style_mask(&self, resizable: bool) -> NSWindowStyleMask {
+        let base_mask = self.save_style_mask
+            .take()
+            .unwrap_or_else(|| self.window.styleMask());
+        if resizable {
+            base_mask | NSWindowStyleMask::NSResizableWindowMask
+        } else {
+            base_mask & !NSWindowStyleMask::NSResizableWindowMask
+        }
+    }
+
+    fn saved_standard_frame(&self) -> NSRect {
+        self.standard_frame.get().unwrap_or_else(|| NSRect::new(
+            NSPoint::new(50.0, 50.0),
+            NSSize::new(800.0, 600.0),
+        ))
+    }
+
     fn restore_state_from_fullscreen(&mut self) {
         let maximized = unsafe {
             let mut win_attribs = self.win_attribs.borrow_mut();
             win_attribs.fullscreen = None;
 
-            let mask = {
-                let base_mask = self.save_style_mask
-                    .take()
-                    .unwrap_or_else(|| self.window.styleMask());
-                if win_attribs.resizable {
-                    base_mask | NSWindowStyleMask::NSResizableWindowMask
-                } else {
-                    base_mask & !NSWindowStyleMask::NSResizableWindowMask
-                }
-            };
-
+            let mask = self.saved_style_mask(win_attribs.resizable);
             util::set_style_mask(*self.window, *self.view, mask);
 
             win_attribs.maximized
@@ -151,10 +162,7 @@ impl DelegateState {
                     let screen = NSScreen::mainScreen(nil);
                     NSScreen::visibleFrame(screen)
                 } else {
-                    self.standard_frame.get().unwrap_or(NSRect::new(
-                        NSPoint::new(50.0, 50.0),
-                        NSSize::new(800.0, 600.0),
-                    ))
+                    self.saved_standard_frame()
                 };
 
                 self.window.setFrame_display_(new_rect, 0);
@@ -600,6 +608,68 @@ impl WindowExt for Window2 {
             NSApp().requestUserAttention_(request_type);
         }
     }
+
+    #[inline]
+    fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
+        let state = &self.delegate.state;
+
+        unsafe {
+            let app = NSApp();
+            let win_attribs = state.win_attribs.borrow_mut();
+            let is_native_fullscreen = win_attribs.fullscreen.is_some();
+            let is_simple_fullscreen = state.is_simple_fullscreen.get();
+
+            // Do nothing if native fullscreen is active.
+            if is_native_fullscreen || (fullscreen && is_simple_fullscreen) || (!fullscreen && !is_simple_fullscreen) {
+                return false;
+            }
+
+            if fullscreen {
+                // Remember the original window's settings
+                state.standard_frame.set(Some(NSWindow::frame(*self.window)));
+                state.save_style_mask.set(Some(self.window.styleMask()));
+                state.save_presentation_opts.set(Some(app.presentationOptions_()));
+
+                // Tell our window's state that we're in fullscreen
+                state.is_simple_fullscreen.set(true);
+
+                // Simulate pre-Lion fullscreen by hiding the dock and menu bar
+                let presentation_options =
+                    NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock |
+                    NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
+                app.setPresentationOptions_(presentation_options);
+
+                // Hide the titlebar
+                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSTitledWindowMask, false);
+
+                // Set the window frame to the screen frame size
+                let screen = self.window.screen();
+                let screen_frame = NSScreen::frame(screen);
+                NSWindow::setFrame_display_(*self.window, screen_frame, YES);
+
+                // Fullscreen windows can't be resized, minimized, or moved
+                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSMiniaturizableWindowMask, false);
+                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSResizableWindowMask, false);
+                NSWindow::setMovable_(*self.window, NO);
+
+                true
+            } else {
+                let saved_style_mask = state.saved_style_mask(win_attribs.resizable);
+                util::set_style_mask(*self.window, *self.view, saved_style_mask);
+                state.is_simple_fullscreen.set(false);
+
+                if let Some(presentation_opts) = state.save_presentation_opts.get() {
+                    app.setPresentationOptions_(presentation_opts);
+                }
+
+                let frame = state.saved_standard_frame();
+                NSWindow::setFrame_display_(*self.window, frame, YES);
+                NSWindow::setMovable_(*self.window, YES);
+
+                true
+            }
+        }
+    }
 }
 
 impl Window2 {
@@ -675,7 +745,9 @@ impl Window2 {
             shared,
             win_attribs: RefCell::new(win_attribs.clone()),
             standard_frame: Cell::new(None),
+            is_simple_fullscreen: Cell::new(false),
             save_style_mask: Cell::new(None),
+            save_presentation_opts: Cell::new(None),
             handle_with_fullscreen: win_attribs.fullscreen.is_some(),
             previous_position: None,
             previous_dpi_factor: dpi_factor,
@@ -1086,6 +1158,12 @@ impl Window2 {
     /// in fullscreen mode
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         let state = &self.delegate.state;
+
+        // Do nothing if simple fullscreen is active.
+        if state.is_simple_fullscreen.get() {
+            return
+        }
+
         let current = {
             let win_attribs = state.win_attribs.borrow_mut();
 
