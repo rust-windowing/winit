@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix `Yen` (JIS) so applications receive the event.
 - On X11 with a tiling WM, fixed high CPU usage when moving windows across monitors.
 - On X11, fixed panic caused by dropping the window before running the event loop.
 - on macOS, added `WindowExt::set_simple_fullscreen` which does not require a separate space
