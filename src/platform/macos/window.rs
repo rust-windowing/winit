@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::f64;
 use std::ops::Deref;
 use std::os::raw::c_void;
-use std::sync::Weak;
+use std::sync::{Mutex, Weak};
 use std::sync::atomic::{Ordering, AtomicBool};
 
 use cocoa::appkit::{
@@ -547,6 +547,7 @@ pub struct Window2 {
     pub window: IdRef,
     pub delegate: WindowDelegate,
     pub input_context: IdRef,
+    cursor: Weak<Mutex<util::Cursor>>,
     cursor_hidden: AtomicBool,
 }
 
@@ -714,7 +715,7 @@ impl Window2 {
                 return Err(OsError(format!("Couldn't create NSWindow")));
             },
         };
-        let view = match Window2::create_view(*window, Weak::clone(&shared)) {
+        let (view, cursor) = match Window2::create_view(*window, Weak::clone(&shared)) {
             Some(view) => view,
             None => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
@@ -772,6 +773,7 @@ impl Window2 {
             window: window,
             delegate: WindowDelegate::new(delegate_state),
             input_context,
+            cursor,
             cursor_hidden: Default::default(),
         };
 
@@ -950,9 +952,9 @@ impl Window2 {
         }
     }
 
-    fn create_view(window: id, shared: Weak<Shared>) -> Option<IdRef> {
+    fn create_view(window: id, shared: Weak<Shared>) -> Option<(IdRef, Weak<Mutex<util::Cursor>>)> {
         unsafe {
-            let view = new_view(window, shared);
+            let (view, cursor) = new_view(window, shared);
             view.non_nil().map(|view| {
                 view.setWantsBestResolutionOpenGLSurface_(YES);
 
@@ -967,7 +969,7 @@ impl Window2 {
 
                 window.setContentView_(*view);
                 window.makeFirstResponder_(*view);
-                view
+                (view, cursor)
             })
         }
     }
@@ -1074,40 +1076,14 @@ impl Window2 {
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
-        let cursor_name = match cursor {
-            MouseCursor::Arrow | MouseCursor::Default => "arrowCursor",
-            MouseCursor::Hand => "pointingHandCursor",
-            MouseCursor::Grabbing | MouseCursor::Grab => "closedHandCursor",
-            MouseCursor::Text => "IBeamCursor",
-            MouseCursor::VerticalText => "IBeamCursorForVerticalLayout",
-            MouseCursor::Copy => "dragCopyCursor",
-            MouseCursor::Alias => "dragLinkCursor",
-            MouseCursor::NotAllowed | MouseCursor::NoDrop => "operationNotAllowedCursor",
-            MouseCursor::ContextMenu => "contextualMenuCursor",
-            MouseCursor::Crosshair => "crosshairCursor",
-            MouseCursor::EResize => "resizeRightCursor",
-            MouseCursor::NResize => "resizeUpCursor",
-            MouseCursor::WResize => "resizeLeftCursor",
-            MouseCursor::SResize => "resizeDownCursor",
-            MouseCursor::EwResize | MouseCursor::ColResize => "resizeLeftRightCursor",
-            MouseCursor::NsResize | MouseCursor::RowResize => "resizeUpDownCursor",
-
-            // TODO: Find appropriate OSX cursors
-            MouseCursor::NeResize | MouseCursor::NwResize |
-            MouseCursor::SeResize | MouseCursor::SwResize |
-            MouseCursor::NwseResize | MouseCursor::NeswResize |
-
-            MouseCursor::Cell |
-            MouseCursor::Wait | MouseCursor::Progress | MouseCursor::Help |
-            MouseCursor::Move | MouseCursor::AllScroll | MouseCursor::ZoomIn |
-            MouseCursor::ZoomOut => "arrowCursor",
-        };
-        let sel = Sel::register(cursor_name);
-        let cls = class!(NSCursor);
+        let cursor = util::Cursor::from(cursor);
+        if let Some(cursor_access) = self.cursor.upgrade() {
+            *cursor_access.lock().unwrap() = cursor;
+        }
         unsafe {
-            use objc::Message;
-            let cursor: id = cls.send_message(sel, ()).unwrap();
-            let _: () = msg_send![cursor, set];
+            let _: () = msg_send![*self.window,
+                invalidateCursorRectsForView:*self.view
+            ];
         }
     }
 

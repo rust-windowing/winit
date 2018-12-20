@@ -18,6 +18,7 @@
 - Added support for generating dummy `DeviceId`s and `WindowId`s to better support unit testing.
 - On macOS, fixed unsoundness in drag-and-drop that could result in drops being rejected.
 - On macOS, implemented `WindowEvent::Refresh`.
+- On macOS, all `MouseCursor` variants are now implemented and the cursor will no longer reset after unfocusing.
 
 # Version 0.18.0 (2018-11-07)
 

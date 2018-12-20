@@ -5,7 +5,7 @@ use std::{slice, str};
 use std::boxed::Box;
 use std::collections::VecDeque;
 use std::os::raw::*;
-use std::sync::Weak;
+use std::sync::{Arc, Mutex, Weak};
 
 use cocoa::base::{id, nil};
 use cocoa::appkit::{NSEvent, NSView, NSWindow};
@@ -22,15 +22,19 @@ use platform::platform::window::{get_window_id, IdRef};
 struct ViewState {
     window: id,
     shared: Weak<Shared>,
+    cursor: Arc<Mutex<util::Cursor>>,
     ime_spot: Option<(f64, f64)>,
     raw_characters: Option<String>,
     is_key_down: bool,
 }
 
-pub fn new_view(window: id, shared: Weak<Shared>) -> IdRef {
+pub fn new_view(window: id, shared: Weak<Shared>) -> (IdRef, Weak<Mutex<util::Cursor>>) {
+    let cursor = Default::default();
+    let cursor_access = Arc::downgrade(&cursor);
     let state = ViewState {
         window,
         shared,
+        cursor,
         ime_spot: None,
         raw_characters: None,
         is_key_down: false,
@@ -39,7 +43,7 @@ pub fn new_view(window: id, shared: Weak<Shared>) -> IdRef {
         // This is free'd in `dealloc`
         let state_ptr = Box::into_raw(Box::new(state)) as *mut c_void;
         let view: id = msg_send![VIEW_CLASS.0, alloc];
-        IdRef::new(msg_send![view, initWithWinit:state_ptr])
+        (IdRef::new(msg_send![view, initWithWinit:state_ptr]), cursor_access)
     }
 }
 
@@ -74,6 +78,10 @@ lazy_static! {
         decl.add_method(
             sel!(drawRect:),
             draw_rect as extern fn(&Object, Sel, NSRect),
+        );
+        decl.add_method(
+            sel!(resetCursorRects),
+            reset_cursor_rects as extern fn(&Object, Sel),
         );
         decl.add_method(sel!(hasMarkedText), has_marked_text as extern fn(&Object, Sel) -> BOOL);
         decl.add_method(
@@ -176,6 +184,20 @@ extern fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
 
         let superclass = util::superclass(this);
         let () = msg_send![super(this, superclass), drawRect:rect];
+    }
+}
+
+extern fn reset_cursor_rects(this: &Object, _sel: Sel) {
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        let bounds: NSRect = msg_send![this, bounds];
+        let cursor = state.cursor.lock().unwrap().load();
+        let _: () = msg_send![this,
+            addCursorRect:bounds
+            cursor:cursor
+        ];
     }
 }
 
