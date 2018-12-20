@@ -71,6 +71,10 @@ lazy_static! {
             sel!(initWithWinit:),
             init_with_winit as extern fn(&Object, Sel, *mut c_void) -> id,
         );
+        decl.add_method(
+            sel!(drawRect:),
+            draw_rect as extern fn(&Object, Sel, id),
+        );
         decl.add_method(sel!(hasMarkedText), has_marked_text as extern fn(&Object, Sel) -> BOOL);
         decl.add_method(
             sel!(markedRange),
@@ -151,6 +155,27 @@ extern fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> id {
             (*this).set_ivar("markedText", marked_text);
         }
         this
+    }
+}
+
+extern fn draw_rect(this: &Object, _sel: Sel, rect: id) {
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        if let Some(shared) = state.shared.upgrade() {
+            let window_event = Event::WindowEvent {
+                window_id: WindowId(get_window_id(state.window)),
+                event: WindowEvent::Refresh,
+            };
+            shared.pending_events
+                .lock()
+                .unwrap()
+                .push_back(window_event);
+        }
+
+        let superclass = util::superclass(this);
+        let () = msg_send![super(this, superclass), drawRect:rect];
     }
 }
 

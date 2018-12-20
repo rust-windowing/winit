@@ -17,6 +17,7 @@
 - On X11, `WindowBuilder::with_min_dimensions` and `WindowBuilder::with_max_dimensions` now correctly account for DPI.
 - Added support for generating dummy `DeviceId`s and `WindowId`s to better support unit testing.
 - On macOS, fixed unsoundness in drag-and-drop that could result in drops being rejected.
+- On macOS, implemented `WindowEvent::Refresh`.
 
 # Version 0.18.0 (2018-11-07)
 
