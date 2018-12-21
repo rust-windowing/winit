@@ -170,8 +170,20 @@ impl EventsLoopProxy {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId;
 
+impl WindowId {
+    pub unsafe fn dummy() -> Self {
+        WindowId
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
+
+impl DeviceId {
+    pub unsafe fn dummy() -> Self {
+        DeviceId
+    }
+}
 
 pub struct Window {
     native_window: *const c_void,

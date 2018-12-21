@@ -8,6 +8,12 @@ use std::sync::Arc;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
 
+impl DeviceId {
+    pub unsafe fn dummy() -> Self {
+        DeviceId
+    }
+}
+
 use {CreationError};
 
 pub struct Window {
