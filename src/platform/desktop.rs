@@ -14,7 +14,7 @@ pub trait EventLoopExtDesktop {
 
     /// Initializes the `winit` event loop.
     ///
-    /// Unlikes `run`, this function accepts non-`'static` (i.e. non-`move`) closures and returns
+    /// Unlike `run`, this function accepts non-`'static` (i.e. non-`move`) closures and returns
     /// control flow to the caller when `control_flow` is set to `ControlFlow::Exit`.
     fn run_return<F>(&mut self, event_handler: F)
         where F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);

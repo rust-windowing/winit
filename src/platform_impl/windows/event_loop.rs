@@ -130,7 +130,7 @@ impl<T> SubclassInput<T> {
 
 struct ThreadMsgTargetSubclassInput<T> {
     event_loop_runner: EventLoopRunnerShared<T>,
-    user_event_receiver: Receiver<T>
+    user_event_receiver: Receiver<T>,
 }
 
 impl<T> ThreadMsgTargetSubclassInput<T> {
@@ -141,7 +141,7 @@ impl<T> ThreadMsgTargetSubclassInput<T> {
 
 pub struct EventLoop<T: 'static> {
     thread_msg_sender: Sender<T>,
-    window_target: RootELW<T>
+    window_target: RootELW<T>,
 }
 
 pub struct EventLoopWindowTarget<T> {
@@ -166,7 +166,7 @@ impl<T: 'static> EventLoop<T> {
         let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
         let runner_shared = Rc::new(ELRShared {
             runner: RefCell::new(None),
-            buffer: RefCell::new(VecDeque::new())
+            buffer: RefCell::new(VecDeque::new()),
         });
         let (thread_msg_target, thread_msg_sender) = thread_event_target_window(runner_shared.clone());
 
@@ -177,10 +177,10 @@ impl<T: 'static> EventLoop<T> {
                     thread_id,
                     trigger_newevents_on_redraw: Arc::new(AtomicBool::new(true)),
                     thread_msg_target,
-                    runner_shared
+                    runner_shared,
                 },
-                _marker: PhantomData
-            }
+                _marker: PhantomData,
+            },
         }
     }
 
@@ -263,7 +263,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             target_window: self.window_target.p.thread_msg_target,
-            event_send: self.thread_msg_sender.clone()
+            event_send: self.thread_msg_sender.clone(),
         }
     }
 }
@@ -274,7 +274,7 @@ impl<T> EventLoopWindowTarget<T> {
         EventLoopThreadExecutor {
             thread_id: self.thread_id,
             trigger_newevents_on_redraw: self.trigger_newevents_on_redraw.clone(),
-            target_window: self.thread_msg_target
+            target_window: self.thread_msg_target,
         }
     }
 }
@@ -282,7 +282,7 @@ impl<T> EventLoopWindowTarget<T> {
 pub(crate) type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
 pub(crate) struct ELRShared<T> {
     runner: RefCell<Option<EventLoopRunner<T>>>,
-    buffer: RefCell<VecDeque<Event<T>>>
+    buffer: RefCell<VecDeque<Event<T>>>,
 }
 pub(crate) struct EventLoopRunner<T> {
     trigger_newevents_on_redraw: Arc<AtomicBool>,
@@ -290,7 +290,7 @@ pub(crate) struct EventLoopRunner<T> {
     runner_state: RunnerState,
     modal_redraw_window: HWND,
     in_modal_loop: bool,
-    event_handler: Box<FnMut(Event<T>, &mut ControlFlow)>
+    event_handler: Box<FnMut(Event<T>, &mut ControlFlow)>,
 }
 
 impl<T> ELRShared<T> {
@@ -385,7 +385,7 @@ impl<T> EventLoopRunner<T> {
                             true => {
                                 self.call_event_handler(Event::NewEvents(StartCause::ResumeTimeReached {
                                     start: wait_start,
-                                    requested_resume: resume_time
+                                    requested_resume: resume_time,
                                 }));
                                 RunnerState::HandlingEvents
                             },
@@ -434,7 +434,7 @@ impl<T> EventLoopRunner<T> {
                     self.call_event_handler(
                         Event::NewEvents(StartCause::WaitCancelled {
                             start: wait_start,
-                            requested_resume: None
+                            requested_resume: None,
                         })
                     )
                 },
@@ -444,12 +444,12 @@ impl<T> EventLoopRunner<T> {
                         // has been reached.
                         true => StartCause::ResumeTimeReached {
                             start: wait_start,
-                            requested_resume: resume_time
+                            requested_resume: resume_time,
                         },
                         // Otherwise, the requested resume time HASN'T been reached and we send a WaitCancelled.
                         false => StartCause::WaitCancelled {
                             start: wait_start,
-                            requested_resume: Some(resume_time)
+                            requested_resume: Some(resume_time),
                         },
                     };
                     self.call_event_handler(Event::NewEvents(start_cause));
@@ -494,7 +494,7 @@ impl<T> EventLoopRunner<T> {
                         if Instant::now() >= resume_time {
                             self.call_event_handler(Event::NewEvents(StartCause::ResumeTimeReached {
                                 start: wait_start,
-                                requested_resume: resume_time
+                                requested_resume: resume_time,
                             }));
                             self.call_event_handler(Event::EventsCleared);
                         }
@@ -585,7 +585,7 @@ impl<T> Drop for EventLoop<T> {
 pub(crate) struct EventLoopThreadExecutor {
     thread_id: DWORD,
     trigger_newevents_on_redraw: Arc<AtomicBool>,
-    target_window: HWND
+    target_window: HWND,
 }
 
 unsafe impl Send for EventLoopThreadExecutor {}
@@ -641,7 +641,7 @@ impl EventLoopThreadExecutor {
 #[derive(Clone)]
 pub struct EventLoopProxy<T> {
     target_window: HWND,
-    event_send: Sender<T>
+    event_send: Sender<T>,
 }
 unsafe impl<T: Send> Send for EventLoopProxy<T> {}
 
@@ -751,7 +751,7 @@ fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) ->
 
         let subclass_input = ThreadMsgTargetSubclassInput {
             event_loop_runner,
-            user_event_receiver: rx
+            user_event_receiver: rx,
         };
         let input_ptr = Box::into_raw(Box::new(subclass_input));
         let subclass_result = commctrl::SetWindowSubclass(
@@ -836,7 +836,7 @@ unsafe extern "system" fn public_window_callback<T>(
             use event::WindowEvent::CloseRequested;
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: CloseRequested
+                event: CloseRequested,
             });
             0
         },
@@ -846,7 +846,7 @@ unsafe extern "system" fn public_window_callback<T>(
             ole2::RevokeDragDrop(window);
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: Destroyed
+                event: Destroyed,
             });
 
             Box::from_raw(subclass_input);
@@ -1004,7 +1004,7 @@ unsafe extern "system" fn public_window_callback<T>(
             if mouse_in_window {
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
-                    event: CursorLeft { device_id: DEVICE_ID }
+                    event: CursorLeft { device_id: DEVICE_ID },
                 });
             }
 
@@ -1043,8 +1043,8 @@ unsafe extern "system" fn public_window_callback<T>(
                                 scancode: scancode,
                                 virtual_keycode: vkey,
                                 modifiers: event::get_key_mods(),
-                            }
-                        }
+                            },
+                        },
                     });
                     // Windows doesn't emit a delete character by default, but in order to make it
                     // consistent with the other platforms we'll emit a delete character here.
@@ -1072,7 +1072,7 @@ unsafe extern "system" fn public_window_callback<T>(
                             virtual_keycode: vkey,
                             modifiers: event::get_key_mods(),
                         },
-                    }
+                    },
                 });
             }
             0
@@ -1087,7 +1087,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Left, modifiers: event::get_key_mods() }
+                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Left, modifiers: event::get_key_mods() },
             });
             0
         },
@@ -1101,7 +1101,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Left, modifiers: event::get_key_mods() }
+                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Left, modifiers: event::get_key_mods() },
             });
             0
         },
@@ -1115,7 +1115,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Right, modifiers: event::get_key_mods() }
+                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Right, modifiers: event::get_key_mods() },
             });
             0
         },
@@ -1129,7 +1129,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Right, modifiers: event::get_key_mods() }
+                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Right, modifiers: event::get_key_mods() },
             });
             0
         },
@@ -1143,7 +1143,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Middle, modifiers: event::get_key_mods() }
+                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Middle, modifiers: event::get_key_mods() },
             });
             0
         },
@@ -1157,7 +1157,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Middle, modifiers: event::get_key_mods() }
+                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Middle, modifiers: event::get_key_mods() },
             });
             0
         },
@@ -1172,7 +1172,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Other(xbutton as u8), modifiers: event::get_key_mods() }
+                event: MouseInput { device_id: DEVICE_ID, state: Pressed, button: Other(xbutton as u8), modifiers: event::get_key_mods() },
             });
             0
         },
@@ -1187,7 +1187,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Other(xbutton as u8), modifiers: event::get_key_mods() }
+                event: MouseInput { device_id: DEVICE_ID, state: Released, button: Other(xbutton as u8), modifiers: event::get_key_mods() },
             });
             0
         },
@@ -1205,7 +1205,6 @@ unsafe extern "system" fn public_window_callback<T>(
             });
 
             0
-            // commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
         winuser::WM_INPUT => {
@@ -1226,21 +1225,21 @@ unsafe extern "system" fn public_window_callback<T>(
                         if x != 0.0 {
                             subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
-                                event: Motion { axis: 0, value: x }
+                                event: Motion { axis: 0, value: x },
                             });
                         }
 
                         if y != 0.0 {
                             subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
-                                event: Motion { axis: 1, value: y }
+                                event: Motion { axis: 1, value: y },
                             });
                         }
 
                         if x != 0.0 || y != 0.0 {
                             subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
-                                event: MouseMotion { delta: (x, y) }
+                                event: MouseMotion { delta: (x, y) },
                             });
                         }
                     }
@@ -1249,7 +1248,7 @@ unsafe extern "system" fn public_window_callback<T>(
                         let delta = mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
                         subclass_input.send_event(Event::DeviceEvent {
                             device_id,
-                            event: MouseWheel { delta: LineDelta(0.0, delta as f32) }
+                            event: MouseWheel { delta: LineDelta(0.0, delta as f32) },
                         });
                     }
 
@@ -1266,7 +1265,7 @@ unsafe extern "system" fn public_window_callback<T>(
                                 event: Button {
                                     button,
                                     state,
-                                }
+                                },
                             });
                         }
                     }
@@ -1344,7 +1343,7 @@ unsafe extern "system" fn public_window_callback<T>(
                             location,
                             id: input.dwID as u64,
                             device_id: DEVICE_ID,
-                        })
+                        }),
                     });
                 }
             }
@@ -1356,7 +1355,7 @@ unsafe extern "system" fn public_window_callback<T>(
             use event::WindowEvent::{Focused, CursorMoved};
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: Focused(true)
+                event: Focused(true),
             });
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
@@ -1376,7 +1375,7 @@ unsafe extern "system" fn public_window_callback<T>(
             use event::WindowEvent::Focused;
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: Focused(false)
+                event: Focused(false),
             });
             0
         },
