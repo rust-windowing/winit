@@ -19,6 +19,7 @@
 - On macOS, fixed unsoundness in drag-and-drop that could result in drops being rejected.
 - On macOS, implemented `WindowEvent::Refresh`.
 - On macOS, all `MouseCursor` variants are now implemented and the cursor will no longer reset after unfocusing.
+- **Breaking:** Removed minimum supported Rust version guarantee.
 
 # Version 0.18.0 (2018-11-07)
 
