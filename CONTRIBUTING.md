@@ -26,7 +26,7 @@ The exact list of supported Tier 1 features is tracked in this issue:
 
 ## Reporting an issue
 
-When reporting an issue, in order to help the maintainers understand what the problem is, please make 
+When reporting an issue, in order to help the maintainers understand what the problem is, please make
 your description of the issue as detailed as possible:
 
 - if it is a bug, please provide clear explanation of what happens, what should happen, and how to
@@ -41,7 +41,7 @@ When making a code contribution to winit, before opening your pull request, plea
 - you tested your modifications on all the platforms impacted, or if not possible detail which platforms
   were not tested, and what should be tested, so that a maintainer or another contributor can test them
 - you updated any relevant documentation in winit
-- you left comments in your code explaining any part that is not straightforward, so that the 
+- you left comments in your code explaining any part that is not straightforward, so that the
   maintainers and future contributors don't have to try to guess what your code is supposed to do
 - your PR adds an entry to the changelog file if the introduced change is relevant to winit users
 
@@ -63,11 +63,8 @@ This table summarizes who can be contacted in which case, with the following leg
 
 | Platform | Windows | macOS | X11 | Wayland | Android | iOS | Emscripten |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| @francesca64 | R | (M) | M |  | (M) | R | |
+| @francesca64 | R | M | M |  | M | R | |
 | @mitchmindtree | T |  | T | T |  |  |  |
 | @Osspial | M |  | T | T | T |  | T |
 | @vberger |  |  | T | M |  |  |  |
 | @mtak- |  | T |  |  | T | M |  |
-
-Platforms macOS and Android are currently being handled by @francesca64, but we are looking for
-maintainers for these!
