@@ -330,7 +330,9 @@ impl WindowDelegate {
         }
 
         /// Invoked when the image is released
-        extern fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) {}
+        extern fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) -> BOOL {
+            YES
+        }
 
         /// Invoked after the released image has been removed from the screen
         extern fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
@@ -465,7 +467,7 @@ impl WindowDelegate {
             decl.add_method(sel!(draggingEntered:),
                 dragging_entered as extern fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(prepareForDragOperation:),
-                prepare_for_drag_operation as extern fn(&Object, Sel, id));
+                prepare_for_drag_operation as extern fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(performDragOperation:),
                 perform_drag_operation as extern fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(concludeDragOperation:),
