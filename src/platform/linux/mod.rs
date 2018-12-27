@@ -66,10 +66,22 @@ pub enum WindowId {
     Wayland(wayland::WindowId),
 }
 
+impl WindowId {
+    pub unsafe fn dummy() -> Self {
+        WindowId::X(x11::WindowId::dummy())
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceId {
     X(x11::DeviceId),
     Wayland(wayland::DeviceId),
+}
+
+impl DeviceId {
+    pub unsafe fn dummy() -> Self {
+        DeviceId::X(x11::DeviceId::dummy())
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -169,6 +169,17 @@ impl std::fmt::Debug for Window {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(platform::WindowId);
 
+impl WindowId {
+    /// Returns a dummy `WindowId`, useful for unit testing. The only guarantee made about the return
+    /// value of this function is that it will always be equal to itself and to future values returned
+    /// by this function.  No other guarantees are made. This may be equal to a real `WindowId`.
+    ///
+    /// **Passing this into a winit function will result in undefined behavior.**
+    pub unsafe fn dummy() -> Self {
+        WindowId(platform::WindowId::dummy())
+    }
+}
+
 /// Identifier of an input device.
 ///
 /// Whenever you receive an event arising from a particular input device, this event contains a `DeviceId` which
@@ -176,6 +187,17 @@ pub struct WindowId(platform::WindowId);
 /// physical. Virtual devices typically aggregate inputs from multiple physical devices.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(platform::DeviceId);
+
+impl DeviceId {
+    /// Returns a dummy `DeviceId`, useful for unit testing. The only guarantee made about the return
+    /// value of this function is that it will always be equal to itself and to future values returned
+    /// by this function.  No other guarantees are made. This may be equal to a real `DeviceId`.
+    ///
+    /// **Passing this into a winit function will result in undefined behavior.**
+    pub unsafe fn dummy() -> Self {
+        DeviceId(platform::DeviceId::dummy())
+    }
+}
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.

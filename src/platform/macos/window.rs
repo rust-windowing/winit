@@ -50,6 +50,12 @@ use window::MonitorId as RootMonitorId;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub usize);
 
+impl Id {
+    pub unsafe fn dummy() -> Self {
+        Id(0)
+    }
+}
+
 // TODO: It's possible for delegate methods to be called asynchronously, causing data races / `RefCell` panics.
 pub struct DelegateState {
     view: IdRef,
