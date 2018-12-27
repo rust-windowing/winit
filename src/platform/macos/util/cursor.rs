@@ -1,9 +1,10 @@
 use cocoa::{
-    appkit::NSImage, base::{id, nil},
+    appkit::NSImage, base::{id, nil, YES},
     foundation::{NSDictionary, NSPoint, NSString},
 };
 use objc::runtime::Sel;
 
+use super::IntoOption;
 use MouseCursor;
 
 pub enum Cursor {
@@ -88,17 +89,21 @@ impl Cursor {
                 };
                 msg_send![class, performSelector:sel]
             },
-            Cursor::WebKit(cursor_name) => load_webkit_cursor(cursor_name),
+            Cursor::WebKit(cursor_name) => load_webkit_cursor(cursor_name)
+                .unwrap_or_else(|message| {
+                    warn!("{}", message);
+                    Self::default().load()
+                }),
         }
     }
 }
 
 // Note that loading `busybutclickable` with this code won't animate the frames;
 // instead you'll just get them all in a column.
-pub unsafe fn load_webkit_cursor(cursor_name: &str) -> id {
+unsafe fn load_webkit_cursor(cursor_name_str: &str) -> Result<id, String> {
     static CURSOR_ROOT: &'static str = "/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/HIServices.framework/Versions/A/Resources/cursors";
     let cursor_root = NSString::alloc(nil).init_str(CURSOR_ROOT);
-    let cursor_name = NSString::alloc(nil).init_str(cursor_name);
+    let cursor_name = NSString::alloc(nil).init_str(cursor_name_str);
     let cursor_pdf = NSString::alloc(nil).init_str("cursor.pdf");
     let cursor_plist = NSString::alloc(nil).init_str("info.plist");
     let key_x = NSString::alloc(nil).init_str("hotx");
@@ -114,11 +119,20 @@ pub unsafe fn load_webkit_cursor(cursor_name: &str) -> id {
         stringByAppendingPathComponent:cursor_plist
     ];
 
-    let image = NSImage::alloc(nil).initByReferencingFile_(pdf_path);
-    let info = NSDictionary::dictionaryWithContentsOfFile_(
-        nil,
-        info_path,
-    );
+    let image = NSImage::alloc(nil)
+        .initByReferencingFile_(pdf_path)
+        // This will probably never be `None`, since images are loaded lazily...
+        .into_option()
+        // because of that, we need to check for validity.
+        .filter(|image| image.isValid() == YES)
+        .ok_or_else(||
+            format!("Failed to read image for `{}` cursor", cursor_name_str)
+        )?;
+    let info = NSDictionary::dictionaryWithContentsOfFile_(nil, info_path)
+        .into_option()
+        .ok_or_else(||
+            format!("Failed to read info for `{}` cursor", cursor_name_str)
+        )?;
     let x = info.valueForKey_(key_x);
     let y = info.valueForKey_(key_y);
     let point = NSPoint::new(
@@ -126,8 +140,10 @@ pub unsafe fn load_webkit_cursor(cursor_name: &str) -> id {
         msg_send![y, doubleValue],
     );
     let cursor: id = msg_send![class!(NSCursor), alloc];
-    msg_send![cursor,
-        initWithImage:image
-        hotSpot:point
-    ]
+    let cursor: id = msg_send![cursor, initWithImage:image hotSpot:point];
+    cursor
+        .into_option()
+        .ok_or_else(||
+            format!("Failed to initialize `{}` cursor", cursor_name_str)
+        )
 }

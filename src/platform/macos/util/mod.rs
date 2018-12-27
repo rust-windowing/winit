@@ -1,6 +1,7 @@
 mod cursor;
+mod into_option;
 
-pub use self::cursor::*;
+pub use self::{cursor::Cursor, into_option::IntoOption};
 
 use cocoa::appkit::NSWindowStyleMask;
 use cocoa::base::{id, nil};
