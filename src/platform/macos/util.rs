@@ -2,6 +2,7 @@ use cocoa::appkit::NSWindowStyleMask;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSRect, NSUInteger};
 use core_graphics::display::CGDisplay;
+use objc::runtime::{Class, Object};
 
 use platform::platform::ffi;
 use platform::platform::window::IdRef;
@@ -37,6 +38,11 @@ pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, o
 
     // If we don't do this, key handling will break. Therefore, never call `setStyleMask` directly!
     window.makeFirstResponder_(view);
+}
+
+pub unsafe fn superclass<'a>(this: &'a Object) -> &'a Class {
+    let superclass: id = msg_send![this, superclass];
+    &*(superclass as *const _)
 }
 
 pub unsafe fn create_input_context(view: id) -> IdRef {
