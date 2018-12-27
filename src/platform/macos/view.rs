@@ -73,7 +73,7 @@ lazy_static! {
         );
         decl.add_method(
             sel!(drawRect:),
-            draw_rect as extern fn(&Object, Sel, id),
+            draw_rect as extern fn(&Object, Sel, NSRect),
         );
         decl.add_method(sel!(hasMarkedText), has_marked_text as extern fn(&Object, Sel) -> BOOL);
         decl.add_method(
@@ -158,7 +158,7 @@ extern fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> id {
     }
 }
 
-extern fn draw_rect(this: &Object, _sel: Sel, rect: id) {
+extern fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
