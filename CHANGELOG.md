@@ -19,10 +19,10 @@
 - On macOS, fixed unsoundness in drag-and-drop that could result in drops being rejected.
 - On macOS, implemented `WindowEvent::Refresh`.
 - On macOS, all `MouseCursor` variants are now implemented and the cursor will no longer reset after unfocusing.
+- Removed minimum supported Rust version guarantee.
 
 # Version 0.18.0 (2018-11-07)
 
-- **Breaking:** minimum supported Rust version increased to 1.28.0.
 - **Breaking:** `image` crate upgraded to 0.20. This is exposed as part of the `icon_loading` API.
 - On Wayland, pointer events will now provide the current modifiers state.
 - On Wayland, titles will now be displayed in the window header decoration.

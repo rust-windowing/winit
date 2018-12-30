@@ -41,7 +41,7 @@ fn main() {
 }
 ```
 
-Note that winit requires Rust 1.28.0 or later.
+Winit is only officially supported on the latest stable version of the Rust compiler.
 
 ### Cargo Features
 

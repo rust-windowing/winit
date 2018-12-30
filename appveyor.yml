@@ -4,8 +4,6 @@ environment:
     CHANNEL: nightly
   - TARGET: x86_64-pc-windows-msvc
     CHANNEL: stable
-  - TARGET: x86_64-pc-windows-msvc
-    CHANNEL: 1.28.0
   - TARGET: i686-pc-windows-msvc
     CHANNEL: nightly
   - TARGET: i686-pc-windows-gnu
