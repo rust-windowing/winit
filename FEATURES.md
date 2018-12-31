@@ -98,7 +98,6 @@ Tables detailing feature compatibility across platforms can be found in the wiki
 ### Windows
 * Setting the taskbar icon (Maintainer: ***???***)
 * Setting the parent window (Maintainer: ***???***)
-  ***//DISCUSS: SHOULD THIS BE SUBSUMED INTO A CORE POPUP WINDOW FEATURE?***
 * `WS_EX_NOREDIRECTIONBITMAP` support (Maintainer: ***???***)
 
 ### macOS
@@ -167,7 +166,7 @@ Legend:
 |Multitouch              |❓     |❌    |✔️       |✔️          |❓     |❌     |❌       |
 |Keyboard events         |✔️    |✔️    |✔️       |✔️          |❓     |❌     |✔️       |
 |Drag & Drop             |▢#720 |▢#720️ |▢#720️    |❌#306      |**N/A**|**N/A**|❓        |
-|Raw Device Events       |▢*#??*|▢*#??*|▢*#??*   |❌          |❌    |❌     |❌       |
+|Raw Device Events       |▢#750 |▢#750 |▢#750    |❌          |❌    |❌     |❌       |
 |Gamepad/Joystick events |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
 |Device movement events  |❓     |❓     |❓       |❓           |❌    |❌     |❌       |
 
