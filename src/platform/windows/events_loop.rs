@@ -329,7 +329,8 @@ lazy_static! {
             winuser::RegisterWindowMessageA("Winit::InitialDpiMsg\0".as_ptr() as LPCSTR)
         }
     };
-    // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag.
+    // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
+    // documentation in the `window_state` module for more information.
     pub static ref SET_RETAIN_STATE_ON_SIZE_MSG_ID: u32 = unsafe {
         winuser::RegisterWindowMessageA("Winit::SetRetainMaximized\0".as_ptr() as LPCSTR)
     };
@@ -595,6 +596,7 @@ unsafe fn callback_inner(
                 if let Some(w) = cstash.windows.get_mut(&window) {
                     let mut w = w.lock().unwrap();
 
+                    // See WindowFlags::MARKER_RETAIN_STATE_ON_SIZE docs for info on why this `if` check exists.
                     if !w.window_flags().contains(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE) {
                         let maximized = wparam == winuser::SIZE_MAXIMIZED;
                         w.set_window_flags_in_place(|f| f.set(WindowFlags::MAXIMIZED, maximized));
