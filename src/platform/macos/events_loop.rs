@@ -544,6 +544,67 @@ impl Proxy {
     }
 }
 
+pub fn windows_key_code_for_char_code(c: char) -> Option<c_ushort> {
+    // We only translate keys that are affected by keyboard layout.
+    //
+    // Note that since keys are translated in a somewhat "dumb" way (reading character)
+    // there is a concern that some combination, i.e. Cmd+char, causes the wrong
+    // letter to be received, and so we receive the wrong key.
+    //
+    // Codes taken from to_virtual_key_code.
+    // It may be better to map these codes to something more immediately meaningful.
+    Some(match c {
+        'a' | 'A' => 0x00,
+        's' | 'S' => 0x01,
+        'd' | 'D' => 0x02,
+        'f' | 'F' => 0x03,
+        'h' | 'H' => 0x04,
+        'g' | 'G' => 0x05,
+        'z' | 'Z' => 0x06,
+        'x' | 'X' => 0x07,
+        'c' | 'C' => 0x08,
+        'v' | 'V' => 0x09,
+        'b' | 'B' => 0x0b,
+        'q' | 'Q' => 0x0c,
+        'w' | 'W' => 0x0d,
+        'e' | 'E' => 0x0e,
+        'r' | 'R' => 0x0f,
+        'y' | 'Y' => 0x10,
+        't' | 'T' => 0x11,
+        '1' | '!' => 0x12,
+        '2' | '@' => 0x13,
+        '3' | '#' => 0x14,
+        '4' | '$' => 0x15,
+        '6' | '^' => 0x16,
+        '5' | '%' => 0x17,
+        '=' | '+' => 0x18,
+        '9' | '(' => 0x19,
+        '7' | '&' => 0x1a,
+        '-' | '_' => 0x1b,
+        '8' | '*' => 0x1c,
+        '0' | ')' => 0x1d,
+        ']' | '}' => 0x1e,
+        'o' | 'O' => 0x1f,
+        'u' | 'U' => 0x20,
+        '[' | '{' => 0x21,
+        'i' | 'I' => 0x22,
+        'p' | 'P' => 0x23,
+        'l' | 'L' => 0x25,
+        'j' | 'J' => 0x26,
+        '\''| '"' => 0x27,
+        'k' | 'K' => 0x28,
+        ';' | ':' => 0x29,
+        '\\'| '|' => 0x2a,
+        ',' | '<' => 0x2b,
+        '/' | '?' => 0x2c,
+        'n' | 'N' => 0x2d,
+        'm' | 'M' => 0x2e,
+        '.' | '>' => 0x2f,
+        '`' | '~' => 0x32,
+        _ => return None,
+    })
+}
+
 pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
     Some(match code {
         0x00 => events::VirtualKeyCode::A,

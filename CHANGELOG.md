@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix keycodes being incorrect when using a non-US keyboard layout.
 - On macOS, fix `Yen` (JIS) so applications receive the event.
 - On X11 with a tiling WM, fixed high CPU usage when moving windows across monitors.
 - On X11, fixed panic caused by dropping the window before running the event loop.

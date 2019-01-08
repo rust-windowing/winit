@@ -14,7 +14,7 @@ use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Protocol, Sel, BOOL, YES};
 
 use {ElementState, Event, KeyboardInput, MouseButton, WindowEvent, WindowId};
-use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code, check_additional_virtual_key_codes};
+use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code, windows_key_code_for_char_code, check_additional_virtual_key_codes};
 use platform::platform::util;
 use platform::platform::ffi::*;
 use platform::platform::window::{get_window_id, IdRef};
@@ -403,6 +403,44 @@ fn get_characters(event: id) -> Option<String> {
     }
 }
 
+fn get_characters_ignoring_modifiers(event: id) -> Option<String> {
+    unsafe {
+        let characters: id = msg_send![event, charactersIgnoringModifiers];
+        let slice = slice::from_raw_parts(
+            characters.UTF8String() as *const c_uchar,
+            characters.len(),
+        );
+        let string = str::from_utf8_unchecked(slice);
+        Some(string.to_owned())
+    }
+}
+
+// Translate macos scancode into the corresponding windows key code.
+fn to_translated_macos_scancode(event: id) -> c_ushort {
+    // Cmd switches Roman letters for Dvorak-QWERTY layout, so try modified characters first.
+    let characters = get_characters(event);
+    if let Some(chars) = characters {
+        let code = chars.chars().next().map_or(0, |c| windows_key_code_for_char_code(c).unwrap_or(0));
+        if code != 0 {
+            return code;
+        }
+    }
+
+    // Translate characters that weren't caught in the above operation.
+    let raw_characters = get_characters_ignoring_modifiers(event);
+    if let Some(chars) = raw_characters {
+        let code = chars.chars().next().map_or(0, |c| windows_key_code_for_char_code(c).unwrap_or(0));
+        if code != 0 {
+            return code;
+        }
+    }
+
+    unsafe {
+        // We've checked all layout-related keys, so the fall-through to scancode.
+        msg_send![event, keyCode]
+    }
+}
+
 extern fn key_down(this: &Object, _sel: Sel, event: id) {
     //println!("keyDown");
     unsafe {
@@ -412,15 +450,16 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
 
         state.raw_characters = get_characters(event);
 
-        let keycode: c_ushort = msg_send![event, keyCode];
         // We are checking here for F21-F24 keys, since their keycode
         // can vary, but we know that they are encoded
         // in characters property.
+        let keycode = to_translated_macos_scancode(event);
         let virtual_keycode = to_virtual_key_code(keycode)
             .or_else(|| {
                 check_additional_virtual_key_codes(&state.raw_characters)
             });
-        let scancode = keycode as u32;
+
+        let scancode: u32 = msg_send![event, keyCode];
         let is_repeat = msg_send![event, isARepeat];
 
         let window_event = Event::WindowEvent {
@@ -436,6 +475,7 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
             },
         };
 
+        // NOTE: this code is run twice.
         let characters: id = msg_send![event, characters];
         let slice = slice::from_raw_parts(
             characters.UTF8String() as *const c_uchar,
@@ -487,12 +527,14 @@ extern fn key_up(this: &Object, _sel: Sel, event: id) {
         // F21-F24.
         let characters = get_characters(event);
 
-        let keycode: c_ushort = msg_send![event, keyCode];
+        let keycode = to_translated_macos_scancode(event);
         let virtual_keycode = to_virtual_key_code(keycode)
             .or_else(|| {
                 check_additional_virtual_key_codes(&characters)
             });
-        let scancode = keycode as u32;
+
+        let scancode: u32 = msg_send![event, keyCode];
+
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.window)),
             event: WindowEvent::KeyboardInput {
