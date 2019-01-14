@@ -376,7 +376,7 @@ impl Window {
         if attributes.always_on_top {
             flags.push(orbclient::WindowFlag::Front);
         }
-        //TODO: More attributes like visible
+        // TODO: More attributes like visible
 
         let win = orbclient::Window::new_flags(-1, -1, w, h, &attributes.title, &flags)
             .ok_or(CreationError::OsError("failed to create window".to_string()))?;
@@ -399,17 +399,17 @@ impl Window {
 
     #[inline]
     pub fn show(&self) {
-        // TODO
+        // TODO: Visibilty not supported in window server
     }
 
     #[inline]
     pub fn hide(&self) {
-        // TODO
+        // TODO: Visibilty not supported in window server
     }
 
     #[inline]
     pub fn get_position(&self) -> Option<LogicalPosition> {
-        //TODO: Account for decorations
+        // TODO: Account for decorations
         self.get_inner_position()
     }
 
@@ -421,7 +421,7 @@ impl Window {
 
     #[inline]
     pub fn set_position(&self, position: LogicalPosition) {
-        //TODO: Account for decorations
+        // TODO: Account for decorations
         let (x, y) = position.into();
         let mut win = self.0.lock().unwrap();
         win.set_pos(x, y);
@@ -435,7 +435,7 @@ impl Window {
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        //TODO: Account for decorations
+        // TODO: Account for decorations
         self.get_inner_size()
     }
 
@@ -448,32 +448,33 @@ impl Window {
 
     #[inline]
     pub fn set_min_dimensions(&self, _dimensions: Option<LogicalSize>) {
-        // N/A
+        // TODO: Minimum dimensions not supported in window server
     }
 
     #[inline]
     pub fn set_max_dimensions(&self, _dimensions: Option<LogicalSize>) {
-        // N/A
+        // TODO: Maximum dimensions not supported in window server
     }
 
     #[inline]
     pub fn set_resizable(&self, _resizable: bool) {
-        // TODO
+        // TODO: Changing resizable flag not supported in window library
     }
 
     #[inline]
     pub fn set_cursor(&self, _cursor: MouseCursor) {
-        // N/A
+        // TODO: Setting cursor not supported in window server
     }
 
     #[inline]
     pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
+        // TODO: Grabbing cursor not supported in window server
         Err("Cursor grabbing is not possible on Redox".to_owned())
     }
 
     #[inline]
     pub fn hide_cursor(&self, _hide: bool) {
-        // TODO
+        // TODO: Hiding cursor not supported in window server
     }
 
     #[inline]
@@ -483,37 +484,38 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
+        // TODO: Setting cursor position not supported in window server
         Err("Setting cursor position is not possible on Redox".to_owned())
     }
 
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
-        // TODO
+        // TODO: Maximizing not supported in window library
     }
 
     #[inline]
     pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
-        // TODO
+        // TODO: Fullscreen not supported in window library
     }
 
     #[inline]
     pub fn set_decorations(&self, _decorations: bool) {
-        // TODO
+        // TODO: Setting decorations after creation not supported in window library
     }
 
     #[inline]
     pub fn set_always_on_top(&self, _always_on_top: bool) {
-        // TODO
+        // TODO: Setting always on top after creation not supported in window library
     }
 
     #[inline]
     pub fn set_window_icon(&self, _icon: Option<::Icon>) {
-        // N/A
+        // TODO: Setting window icon not supported in window server
     }
 
     #[inline]
     pub fn set_ime_spot(&self, _logical_spot: LogicalPosition) {
-        // N/A
+        // TODO: Setting ime spot not supported in window server
     }
 
     #[inline]

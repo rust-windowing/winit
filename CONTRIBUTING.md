@@ -3,7 +3,7 @@
 ## Scope
 
 Winit aims to provide a generic platform abstracting the main graphic platforms (Windows, macOS, X11,
-Wayland, Android, iOS and the web platform via Emscripten).
+Wayland, Android, iOS, Redox OS, and the web platform via Emscripten).
 
 Most platforms expose capabilities that cannot be meaningfully transposed to the others. Winit does not
 aim to support every single functionality of every platform, but rather to abstract the set of
@@ -61,10 +61,11 @@ This table summarizes who can be contacted in which case, with the following leg
 - `T`: has the ability of testing the platform
 - ` `: knows nothing of this platform
 
-| Platform | Windows | macOS | X11 | Wayland | Android | iOS | Emscripten |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| @francesca64 | R | M | M |  | M | R | |
-| @mitchmindtree | T |  | T | T |  |  |  |
-| @Osspial | M |  | T | T | T |  | T |
-| @vberger |  |  | T | M |  |  |  |
-| @mtak- |  | T |  |  | T | M |  |
+| Platform | Windows | macOS | X11 | Wayland | Android | iOS | Redox OS | Emscripten |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| @francesca64 | R | M | M |  | M | R |  |  |
+| @mitchmindtree | T |  | T | T |  |  |  |  |
+| @Osspial | M |  | T | T | T |  |  | T |
+| @vberger |  |  | T | M |  |  |  |  |
+| @mtak- |  | T |  |  | T | M |  |  |
+| @jackpot51 |  |  | T | T |  |  | M |  |
