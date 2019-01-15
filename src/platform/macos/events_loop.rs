@@ -551,7 +551,7 @@ pub fn windows_key_code_for_char_code(c: char) -> Option<c_ushort> {
     // there is a concern that some combination, i.e. Cmd+char, causes the wrong
     // letter to be received, and so we receive the wrong key.
     //
-    // Codes taken from to_virtual_key_code.
+    // Codes taken from `to_virtual_key_code`.
     // It may be better to map these codes to something more immediately meaningful.
     Some(match c {
         'a' | 'A' => 0x00,
