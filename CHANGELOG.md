@@ -1,6 +1,6 @@
 # Unreleased
 
-- Added serde serialization to XWindowType
+- Added serde serialization to `os::unix::XWindowType`.
 
 # Version 0.18.1 (2018-12-30)
 
