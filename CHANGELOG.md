@@ -1,6 +1,7 @@
 # Unreleased
 
 - Added serde serialization to `os::unix::XWindowType`.
+- On Windows, ignore the AltGr key when populating the `ModifersState` type.
 
 # Version 0.18.1 (2018-12-30)
 
