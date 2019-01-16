@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fixed duplicate key events when pressing `Command + Period`.
 - Added serde serialization to `os::unix::XWindowType`.
 - **Breaking:** `image` crate upgraded to 0.21. This is exposed as part of the `icon_loading` API.
 

@@ -324,18 +324,6 @@ impl EventsLoop {
                 }
                 None
             },
-            // similar to above, but for `<Cmd-.>`, the keyDown is suppressed instead of the
-            // KeyUp, and the above trick does not appear to work.
-            appkit::NSKeyDown => {
-                let modifiers = event_mods(ns_event);
-                let keycode = NSEvent::keyCode(ns_event);
-                if modifiers.logo && keycode == 47 {
-                    modifier_event(ns_event, NSEventModifierFlags::NSCommandKeyMask, false)
-                        .map(into_event)
-                } else {
-                    None
-                }
-            },
             appkit::NSFlagsChanged => {
                 let mut events = std::collections::VecDeque::new();
 
