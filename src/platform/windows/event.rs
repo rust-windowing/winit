@@ -18,9 +18,11 @@ fn key_pressed(vkey: c_int) -> bool {
 
 pub fn get_key_mods() -> ModifiersState {
     let mut mods = ModifiersState::default();
+    let filter_out_altgr = layout_uses_altgr() && key_pressed(winuser::VK_RMENU);
+
     mods.shift = key_pressed(winuser::VK_SHIFT);
-    mods.ctrl = key_pressed(winuser::VK_CONTROL);
-    mods.alt = key_pressed(winuser::VK_LMENU) || (!layout_uses_altgr() && key_pressed(winuser::VK_RMENU));
+    mods.ctrl = key_pressed(winuser::VK_CONTROL) && !filter_out_altgr;
+    mods.alt = key_pressed(winuser::VK_MENU) && !filter_out_altgr;
     mods.logo = key_pressed(winuser::VK_LWIN) || key_pressed(winuser::VK_RWIN);
     mods
 }
