@@ -1204,7 +1204,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_ime_spot(&self, logical_spot: LogicalPosition) {
-        let (x, y) = logical_spot.to_physical(self.get_hidpi_factor()).into();
+        let (x, y) = logical_spot.into();
         self.set_ime_spot_physical(x, y);
     }
 
