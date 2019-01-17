@@ -1,5 +1,6 @@
 use {ControlFlow, EventsLoopClosed};
 use cocoa::{self, appkit, foundation};
+use cocoa::foundation::NSString;
 use cocoa::appkit::{NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventPhase, NSView, NSWindow};
 use events::{self, ElementState, Event, TouchPhase, WindowEvent, DeviceEvent, ModifiersState, KeyboardInput};
 use std::collections::VecDeque;
@@ -323,6 +324,19 @@ impl EventsLoop {
                     }
                 }
                 None
+            },
+            // similar to above, but for `<Cmd-.>`, the keyDown is suppressed instead of the
+            // KeyUp, and the above trick does not appear to work.
+            appkit::NSKeyDown => {
+                let modifiers = event_mods(ns_event);
+                let characters = NSEvent::characters(ns_event);
+                let is_period = characters.isEqualToString(".");
+                if modifiers.logo && is_period {
+                    modifier_event(ns_event, NSEventModifierFlags::NSCommandKeyMask, false)
+                        .map(into_event)
+                } else {
+                    None
+                }
             },
             appkit::NSFlagsChanged => {
                 let mut events = std::collections::VecDeque::new();
