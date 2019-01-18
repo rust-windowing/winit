@@ -1,6 +1,8 @@
 # Unreleased
 
 - Add support for Redox OS
+- Added serde serialization to `os::unix::XWindowType`.
+- **Breaking:** `image` crate upgraded to 0.21. This is exposed as part of the `icon_loading` API.
 
 # Version 0.18.1 (2018-12-30)
 
