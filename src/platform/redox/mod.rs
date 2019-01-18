@@ -10,6 +10,12 @@ use window::MonitorId as RootMonitorId;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
 
+impl DeviceId {
+    pub unsafe fn dummy() -> Self {
+        DeviceId
+    }
+}
+
 fn convert_scancode(scancode: u8) -> Option<VirtualKeyCode> {
     match scancode {
         orbclient::K_A => Some(VirtualKeyCode::A),
@@ -352,6 +358,12 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId;
+
+impl WindowId {
+    pub unsafe fn dummy() -> Self {
+        WindowId
+    }
+}
 
 pub struct Window(Arc<Mutex<orbclient::Window>>);
 

@@ -57,14 +57,16 @@ install:
   - rustup target add $TARGET; true
 
 script:
-  - cargo build --target $TARGET --verbose
-  - cargo build --target $TARGET --features serde --verbose
-  - cargo build --target $TARGET --features icon_loading --verbose
   # Running iOS apps on OSX requires the simulator so we skip that for now
   # Also, running Redox programs is not possible at the moment
-  - if [ "$TARGET" != "x86_64-apple-ios" -a "$TARGET" != "x86_64-unknown-redox" ]; then cargo test --target $TARGET --verbose; fi
-  - if [ "$TARGET" != "x86_64-apple-ios" -a "$TARGET" != "x86_64-unknown-redox" ]; then cargo test --target $TARGET --features serde --verbose; fi
-  - if [ "$TARGET" != "x86_64-apple-ios" -a "$TARGET" != "x86_64-unknown-redox" ]; then cargo test --target $TARGET --features icon_loading --verbose; fi
+  - if [ "$TARGET" == "x86_64-apple-ios" -o "$TARGET" == "x86_64-unknown-redox" ]; then test=0; else test=1; fi
+  - if [ "$TARGET" == "x86_64-unknown-redox" ]; then build=check; else build=build; fi
+  - cargo $build --target $TARGET --verbose
+  - cargo $build --target $TARGET --features serde --verbose
+  - cargo $build --target $TARGET --features icon_loading --verbose
+  - if [ "$test" == "1" ]; then cargo test --target $TARGET --verbose; fi
+  - if [ "$test" == "1" ]; then cargo test --target $TARGET --features serde --verbose; fi
+  - if [ "$test" == "1" ]; then cargo test --target $TARGET --features icon_loading --verbose; fi
 
 after_success:
   - |
