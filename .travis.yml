@@ -44,6 +44,14 @@ matrix:
       os: osx
       rust: stable
 
+    # Redox
+    - env: TARGET=x86_64-unknown-redox
+      os: linux
+      rust: nightly
+    - env: TARGET=x86_64-unknown-redox
+      os: linux
+      rust: stable
+
 install:
   - rustup self update
   - rustup target add $TARGET; true
@@ -53,9 +61,10 @@ script:
   - cargo build --target $TARGET --features serde --verbose
   - cargo build --target $TARGET --features icon_loading --verbose
   # Running iOS apps on OSX requires the simulator so we skip that for now
-  - if [ "$TARGET" != "x86_64-apple-ios" ]; then cargo test --target $TARGET --verbose; fi
-  - if [ "$TARGET" != "x86_64-apple-ios" ]; then cargo test --target $TARGET --features serde --verbose; fi
-  - if [ "$TARGET" != "x86_64-apple-ios" ]; then cargo test --target $TARGET --features icon_loading --verbose; fi
+  # Also, running Redox programs is not possible at the moment
+  - if [ "$TARGET" != "x86_64-apple-ios" -a "$TARGET" != "x86_64-unknown-redox" ]; then cargo test --target $TARGET --verbose; fi
+  - if [ "$TARGET" != "x86_64-apple-ios" -a "$TARGET" != "x86_64-unknown-redox" ]; then cargo test --target $TARGET --features serde --verbose; fi
+  - if [ "$TARGET" != "x86_64-apple-ios" -a "$TARGET" != "x86_64-unknown-redox" ]; then cargo test --target $TARGET --features icon_loading --verbose; fi
 
 after_success:
   - |
