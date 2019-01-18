@@ -44,13 +44,10 @@ matrix:
       os: osx
       rust: stable
 
-    # Redox
+    # Redox, which cannot build on stable due to redox_syscall crate
     - env: TARGET=x86_64-unknown-redox
       os: linux
       rust: nightly
-    - env: TARGET=x86_64-unknown-redox
-      os: linux
-      rust: stable
 
 install:
   - rustup self update
