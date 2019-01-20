@@ -222,6 +222,13 @@ fn bindgen_test_layout_EmscriptenPointerlockChangeEvent() {
     assert_eq!(mem::align_of::<EmscriptenPointerlockChangeEvent>(), 4usize);
 }
 
+pub fn emscripten_set_mousemove_callback(
+    target: *const c_char, user_data: *mut c_void,
+    use_capture: EM_BOOL, callback: em_mouse_callback_func) -> EMSCRIPTEN_RESULT
+{
+    unsafe  { emscripten_set_mousemove_callback_on_thread(target, user_data, use_capture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD) }
+}
+
 extern "C" {
     pub fn emscripten_set_canvas_size(
         width: c_int, height: c_int)
