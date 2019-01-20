@@ -5,11 +5,15 @@ use std::os::raw::{c_int, c_char, c_void, c_ulong, c_double, c_long, c_ushort};
 use std::mem;
 
 pub type EM_BOOL = c_int;
+pub type pthread_t = c_int;
 pub type EM_UTF8 = c_char;
 pub type EMSCRIPTEN_RESULT = c_int;
 
 pub const EM_TRUE: EM_BOOL = 1;
 pub const EM_FALSE: EM_BOOL = 0;
+
+pub const EM_CALLBACK_THREAD_CONTEXT_MAIN_BROWSER_THREAD: pthread_t = 1;
+pub const EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD: pthread_t = 2;
 
 // values for EMSCRIPTEN_RESULT
 pub const EMSCRIPTEN_RESULT_SUCCESS: c_int = 0;
@@ -258,9 +262,10 @@ extern "C" {
         useCapture: EM_BOOL, callback: em_key_callback_func)
         -> EMSCRIPTEN_RESULT;
 
-    pub fn emscripten_set_mousemove_callback(
+    pub fn emscripten_set_mousemove_callback_on_thread(
         target: *const c_char, user_data: *mut c_void,
-        use_capture: EM_BOOL, callback: em_mouse_callback_func)
+        use_capture: EM_BOOL, callback: em_mouse_callback_func,
+        target_thread: pthread_t)
         -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_mousedown_callback(

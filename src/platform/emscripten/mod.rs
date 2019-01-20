@@ -400,7 +400,7 @@ impl Window {
 
         // TODO: set up more event callbacks
         unsafe {
-            em_try(ffi::emscripten_set_mousemove_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(mouse_callback)))
+            em_try(ffi::emscripten_set_mousemove_callback_on_thread(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(mouse_callback), ffi::EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD))
                 .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
             em_try(ffi::emscripten_set_mousedown_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(mouse_callback)))
                 .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
