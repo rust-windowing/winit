@@ -222,13 +222,6 @@ fn bindgen_test_layout_EmscriptenPointerlockChangeEvent() {
     assert_eq!(mem::align_of::<EmscriptenPointerlockChangeEvent>(), 4usize);
 }
 
-pub fn emscripten_set_mousemove_callback(
-    target: *const c_char, user_data: *mut c_void,
-    use_capture: EM_BOOL, callback: em_mouse_callback_func) -> EMSCRIPTEN_RESULT
-{
-    unsafe  { emscripten_set_mousemove_callback_on_thread(target, user_data, use_capture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD) }
-}
-
 extern "C" {
     pub fn emscripten_set_canvas_size(
         width: c_int, height: c_int)
@@ -259,14 +252,16 @@ extern "C" {
 
     pub fn emscripten_exit_fullscreen() -> EMSCRIPTEN_RESULT;
 
-    pub fn emscripten_set_keydown_callback(
+    pub fn emscripten_set_keydown_callback_on_thread(
         target: *const c_char, userData: *mut c_void,
-        useCapture: EM_BOOL, callback: em_key_callback_func)
+        useCapture: EM_BOOL, callback: em_key_callback_func,
+        target_thread: pthread_t)
         -> EMSCRIPTEN_RESULT;
 
-    pub fn emscripten_set_keyup_callback(
+    pub fn emscripten_set_keyup_callback_on_thread(
         target: *const c_char, userData: *mut c_void,
-        useCapture: EM_BOOL, callback: em_key_callback_func)
+        useCapture: EM_BOOL, callback: em_key_callback_func,
+        target_thread: pthread_t)
         -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_mousemove_callback_on_thread(
@@ -275,27 +270,31 @@ extern "C" {
         target_thread: pthread_t)
         -> EMSCRIPTEN_RESULT;
 
-    pub fn emscripten_set_mousedown_callback(
+    pub fn emscripten_set_mousedown_callback_on_thread(
         target: *const c_char, user_data: *mut c_void,
-        use_capture: EM_BOOL, callback: em_mouse_callback_func)
+        use_capture: EM_BOOL, callback: em_mouse_callback_func,
+        target_thread: pthread_t)
         -> EMSCRIPTEN_RESULT;
 
-    pub fn emscripten_set_mouseup_callback(
+    pub fn emscripten_set_mouseup_callback_on_thread(
         target: *const c_char, user_data: *mut c_void,
-        use_capture: EM_BOOL, callback: em_mouse_callback_func)
+        use_capture: EM_BOOL, callback: em_mouse_callback_func,
+        target_thread: pthread_t)
         -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_hide_mouse();
 
     pub fn emscripten_get_device_pixel_ratio() -> f64;
 
-    pub fn emscripten_set_pointerlockchange_callback(
+    pub fn emscripten_set_pointerlockchange_callback_on_thread(
         target: *const c_char, userData: *mut c_void, useCapture: EM_BOOL,
-        callback: em_pointerlockchange_callback_func) -> EMSCRIPTEN_RESULT;
+        callback: em_pointerlockchange_callback_func,
+        target_thread: pthread_t) -> EMSCRIPTEN_RESULT;
 
-    pub fn emscripten_set_fullscreenchange_callback(
+    pub fn emscripten_set_fullscreenchange_callback_on_thread(
         target: *const c_char, userData: *mut c_void, useCapture: EM_BOOL,
-        callback: em_fullscreenchange_callback_func) -> EMSCRIPTEN_RESULT;
+        callback: em_fullscreenchange_callback_func,
+        target_thread: pthread_t) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_asm_const(code: *const c_char);
 
@@ -304,23 +303,107 @@ extern "C" {
 
     pub fn emscripten_cancel_main_loop();
 
-    pub fn emscripten_set_touchstart_callback(
+    pub fn emscripten_set_touchstart_callback_on_thread(
         target: *const c_char, userData: *mut c_void,
-        useCapture: c_int, callback: em_touch_callback_func)
+        useCapture: c_int, callback: em_touch_callback_func,
+        target_thread: pthread_t)
         -> EMSCRIPTEN_RESULT;
 
-    pub fn emscripten_set_touchend_callback(
+    pub fn emscripten_set_touchend_callback_on_thread(
         target: *const c_char, userData: *mut c_void,
-        useCapture: c_int, callback: em_touch_callback_func)
+        useCapture: c_int, callback: em_touch_callback_func,
+        target_thread: pthread_t)
         -> EMSCRIPTEN_RESULT;
 
-    pub fn emscripten_set_touchmove_callback(
+    pub fn emscripten_set_touchmove_callback_on_thread(
         target: *const c_char, userData: *mut c_void,
-        useCapture: c_int, callback: em_touch_callback_func)
+        useCapture: c_int, callback: em_touch_callback_func,
+        target_thread: pthread_t)
         -> EMSCRIPTEN_RESULT;
 
-    pub fn emscripten_set_touchcancel_callback(
+    pub fn emscripten_set_touchcancel_callback_on_thread(
         target: *const c_char, userData: *mut c_void,
-        useCapture: c_int, callback: em_touch_callback_func)
+        useCapture: c_int, callback: em_touch_callback_func,
+        target_thread: pthread_t)
         -> EMSCRIPTEN_RESULT;
 }
+
+
+pub unsafe fn emscripten_set_keydown_callback(
+    target: *const c_char, userData: *mut c_void,
+    useCapture: EM_BOOL, callback: em_key_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_keydown_callback_on_thread(target, userData, useCapture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
+pub unsafe fn emscripten_set_keyup_callback(
+    target: *const c_char, userData: *mut c_void,
+    useCapture: EM_BOOL, callback: em_key_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_keyup_callback_on_thread(target, userData, useCapture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
+
+pub unsafe fn emscripten_set_mousemove_callback(
+    target: *const c_char, user_data: *mut c_void,
+    use_capture: EM_BOOL, callback: em_mouse_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_mousemove_callback_on_thread(target, user_data, use_capture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
+pub unsafe fn emscripten_set_mousedown_callback(
+    target: *const c_char, user_data: *mut c_void,
+    use_capture: EM_BOOL, callback: em_mouse_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_mousedown_callback_on_thread(target, user_data, use_capture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
+pub unsafe fn emscripten_set_mouseup_callback(
+    target: *const c_char, user_data: *mut c_void,
+    use_capture: EM_BOOL, callback: em_mouse_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_mouseup_callback_on_thread(target, user_data, use_capture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
+pub unsafe fn emscripten_set_pointerlockchange_callback(
+    target: *const c_char, userData: *mut c_void, useCapture: EM_BOOL,
+    callback: em_pointerlockchange_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_pointerlockchange_callback_on_thread(target, userData, useCapture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
+pub unsafe fn emscripten_set_fullscreenchange_callback(
+    target: *const c_char, userData: *mut c_void, useCapture: EM_BOOL,
+    callback: em_fullscreenchange_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_fullscreenchange_callback_on_thread(target, userData, useCapture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
+pub unsafe fn emscripten_set_touchstart_callback(
+    target: *const c_char, userData: *mut c_void,
+    useCapture: c_int, callback: em_touch_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_touchstart_callback_on_thread(target, userData, useCapture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
+pub unsafe fn emscripten_set_touchend_callback(
+    target: *const c_char, userData: *mut c_void,
+    useCapture: c_int, callback: em_touch_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_touchend_callback_on_thread(target, userData, useCapture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
+pub unsafe fn emscripten_set_touchmove_callback(
+    target: *const c_char, userData: *mut c_void,
+    useCapture: c_int, callback: em_touch_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_touchmove_callback_on_thread(target, userData, useCapture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
+pub unsafe fn emscripten_set_touchcancel_callback(
+    target: *const c_char, userData: *mut c_void,
+    useCapture: c_int, callback: em_touch_callback_func) -> EMSCRIPTEN_RESULT
+{
+    emscripten_set_touchcancel_callback_on_thread(target, userData, useCapture, callback, EM_CALLBACK_THREAD_CONTEXT_CALLING_THREAD)
+}
+
