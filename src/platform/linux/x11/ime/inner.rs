@@ -49,7 +49,7 @@ impl ImeInner {
     }
 
     pub unsafe fn close_im_if_necessary(&self) -> Result<bool, XError> {
-        if !self.is_destroyed {
+        if !self.is_destroyed && self.im != ptr::null_mut() {
             close_im(&self.xconn, self.im).map(|_| true)
         } else {
             Ok(false)
