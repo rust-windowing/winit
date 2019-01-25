@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Wayland, fix `with_title()` not setting the windows title
 - Added serde serialization to `os::unix::XWindowType`.
 - **Breaking:** `image` crate upgraded to 0.21. This is exposed as part of the `icon_loading` API.
 
