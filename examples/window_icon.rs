@@ -6,6 +6,8 @@ extern crate winit;
 #[cfg(feature = "icon_loading")]
 extern crate image;
 
+mod helpers;
+
 #[cfg(feature = "icon_loading")]
 fn main() {
     use winit::Icon;
@@ -29,6 +31,7 @@ fn main() {
         .with_window_icon(Some(icon))
         .build(&events_loop)
         .unwrap();
+    helpers::init_wayland(&window);
 
     events_loop.run_forever(|event| {
         if let winit::Event::WindowEvent { event, .. } = event {

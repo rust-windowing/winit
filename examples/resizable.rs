@@ -1,5 +1,7 @@
 extern crate winit;
 
+mod helpers;
+
 fn main() {
     let mut events_loop = winit::EventsLoop::new();
 
@@ -11,6 +13,7 @@ fn main() {
         .with_resizable(resizable)
         .build(&events_loop)
         .unwrap();
+    helpers::init_wayland(&window);
 
     events_loop.run_forever(|event| {
         match event {

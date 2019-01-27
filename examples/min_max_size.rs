@@ -1,5 +1,7 @@
 extern crate winit;
 
+mod helpers;
+
 use winit::dpi::LogicalSize;
 
 fn main() {
@@ -8,6 +10,7 @@ fn main() {
     let window = winit::WindowBuilder::new()
         .build(&events_loop)
         .unwrap();
+    helpers::init_wayland(&window);
 
     window.set_min_dimensions(Some(LogicalSize::new(400.0, 200.0)));
     window.set_max_dimensions(Some(LogicalSize::new(800.0, 400.0)));

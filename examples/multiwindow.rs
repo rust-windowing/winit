@@ -1,5 +1,7 @@
 extern crate winit;
 
+mod helpers;
+
 use std::collections::HashMap;
 
 fn main() {
@@ -8,6 +10,7 @@ fn main() {
     let mut windows = HashMap::new();
     for _ in 0..3 {
         let window = winit::Window::new(&events_loop).unwrap();
+        helpers::init_wayland(&window);
         windows.insert(window.id(), window);
     }
 

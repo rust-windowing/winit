@@ -1,5 +1,7 @@
 extern crate winit;
 
+mod helpers;
+
 fn main() {
     let mut events_loop = winit::EventsLoop::new();
 
@@ -7,6 +9,7 @@ fn main() {
         .with_title("Super Cursor Grab'n'Hide Simulator 9000")
         .build(&events_loop)
         .unwrap();
+    helpers::init_wayland(&window);
 
     events_loop.run_forever(|event| {
         if let winit::Event::WindowEvent { event, .. } = event {

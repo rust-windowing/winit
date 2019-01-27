@@ -1,12 +1,15 @@
 extern crate winit;
 
+mod helpers;
+
 fn main() {
     let mut events_loop = winit::EventsLoop::new();
 
-    let _window = winit::WindowBuilder::new()
+    let window = winit::WindowBuilder::new()
         .with_title("Your faithful window")
         .build(&events_loop)
         .unwrap();
+    helpers::init_wayland(&window);
 
     let mut close_requested = false;
 

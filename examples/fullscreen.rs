@@ -1,5 +1,7 @@
 extern crate winit;
 
+mod helpers;
+
 use std::io::{self, Write};
 use winit::{ControlFlow, Event, WindowEvent};
 
@@ -45,6 +47,7 @@ fn main() {
         .with_fullscreen(monitor)
         .build(&events_loop)
         .unwrap();
+    helpers::init_wayland(&window);
 
     events_loop.run_forever(|event| {
         println!("{:?}", event);
