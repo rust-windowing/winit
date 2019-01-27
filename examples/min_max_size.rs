@@ -10,6 +10,8 @@ fn main() {
     let window = winit::WindowBuilder::new()
         .build(&events_loop)
         .unwrap();
+
+    // Wayland requires the commiting of a surface to display a window
     helpers::init_wayland(&window);
 
     window.set_min_dimensions(Some(LogicalSize::new(400.0, 200.0)));

@@ -8,6 +8,8 @@ fn main() {
     let window = winit::WindowBuilder::new().with_decorations(false)
                                                  .with_transparency(true)
                                                  .build(&events_loop).unwrap();
+
+    // Wayland requires the commiting of a surface to display a window
     helpers::init_wayland(&window);
 
     window.set_title("A fantastic window!");

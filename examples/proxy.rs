@@ -9,6 +9,8 @@ fn main() {
         .with_title("A fantastic window!")
         .build(&events_loop)
         .unwrap();
+
+    // Wayland requires the commiting of a surface to display a window
     helpers::init_wayland(&window);
 
     let proxy = events_loop.create_proxy();

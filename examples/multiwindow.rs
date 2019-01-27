@@ -10,6 +10,7 @@ fn main() {
     let mut windows = HashMap::new();
     for _ in 0..3 {
         let window = winit::Window::new(&events_loop).unwrap();
+        // Wayland requires the commiting of a surface to display a window
         helpers::init_wayland(&window);
         windows.insert(window.id(), window);
     }

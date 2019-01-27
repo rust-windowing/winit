@@ -9,6 +9,8 @@ fn main() {
         .with_title("Super Cursor Grab'n'Hide Simulator 9000")
         .build(&events_loop)
         .unwrap();
+
+    // Wayland requires the commiting of a surface to display a window
     helpers::init_wayland(&window);
 
     events_loop.run_forever(|event| {

@@ -9,6 +9,8 @@ fn main() {
         .with_title("Your faithful window")
         .build(&events_loop)
         .unwrap();
+
+    // Wayland requires the commiting of a surface to display a window
     helpers::init_wayland(&window);
 
     let mut close_requested = false;
