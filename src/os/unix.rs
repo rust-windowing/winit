@@ -198,7 +198,7 @@ pub trait WindowExt {
     fn get_wayland_display(&self) -> Option<*mut raw::c_void>;
 
     /// Sets the color theme of the client side window decorations on wayland
-    fn set_wayland_theme(&mut self, theme: WaylandTheme);
+    fn set_wayland_theme(&self, theme: WaylandTheme);
 
     /// Check if the window is ready for drawing
     ///
@@ -276,9 +276,9 @@ impl WindowExt for Window {
     }
 
     #[inline]
-    fn set_wayland_theme(&mut self, theme: WaylandTheme) {
+    fn set_wayland_theme(&self, theme: WaylandTheme) {
         match self.window {
-            LinuxWindow::Wayland(ref mut w) => w.set_theme(WaylandThemeObject(theme)),
+            LinuxWindow::Wayland(ref w) => w.set_theme(WaylandThemeObject(theme)),
             _ => {}
         }
     }

@@ -236,7 +236,7 @@ impl Window {
     }
 
 
-    pub fn set_theme<T: Theme>(&mut self, theme: T) {
+    pub fn set_theme<T: Theme>(&self, theme: T) {
         self.frame.lock().unwrap().set_theme(theme)
     }
 
