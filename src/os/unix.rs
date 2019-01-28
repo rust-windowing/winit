@@ -29,7 +29,7 @@ pub use platform::x11::util::WindowType as XWindowType;
 
 /// Theme for wayland client side decorations
 ///
-/// Colors must be in native endian ARGB8888 format
+/// Colors must be in ARGB8888 format
 pub struct WaylandTheme {
     /// Primary color when the window is focused
     pub primary_active: [u8; 4],
