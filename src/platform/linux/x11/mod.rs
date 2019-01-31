@@ -398,6 +398,7 @@ impl EventsLoop {
                     resized: Option<WindowEvent>,
                     moved: Option<WindowEvent>,
                     dpi_changed: Option<WindowEvent>,
+                    name_changed: Option<WindowEvent>,
                 }
 
                 let xev: &ffi::XConfigureEvent = xev.as_ref();
@@ -475,12 +476,16 @@ impl EventsLoop {
                                     .map(|last_monitor| last_monitor.hidpi_factor)
                                     .unwrap_or(1.0)
                             });
-                        let new_hidpi_factor = {
+                        let last_monitor_name = shared_state_lock.last_monitor
+                            .as_ref()
+                            .map(|last_monitor| last_monitor.clone().name);
+                        let (new_hidpi_factor, new_monitor_name) = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
                             monitor = self.xconn.get_monitor_for_window(Some(window_rect));
                             let new_hidpi_factor = monitor.hidpi_factor;
+                            let new_monitor_name = monitor.name.clone();
                             shared_state_lock.last_monitor = Some(monitor.clone());
-                            new_hidpi_factor
+                            (new_hidpi_factor, new_monitor_name)
                         };
                         if last_hidpi_factor != new_hidpi_factor {
                             events.dpi_changed = Some(WindowEvent::HiDpiFactorChanged(new_hidpi_factor));
@@ -495,6 +500,11 @@ impl EventsLoop {
                             // if the DPI factor changed, force a resize event to ensure the logical
                             // size is computed with the right DPI factor
                             resized = true;
+                        }
+                        if let Some(last_monitor_name) = last_monitor_name {
+                            if last_monitor_name != new_monitor_name {
+                                events.name_changed = Some(WindowEvent::MonitorChanged(new_monitor_name));
+                            }
                         }
                     }
 
@@ -536,6 +546,9 @@ impl EventsLoop {
                         callback(Event::WindowEvent { window_id, event });
                     }
                     if let Some(event) = events.moved {
+                        callback(Event::WindowEvent { window_id, event });
+                    }
+                    if let Some(event) = events.name_changed {
                         callback(Event::WindowEvent { window_id, event });
                     }
                 }
