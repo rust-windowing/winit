@@ -14,7 +14,7 @@
 
 use winapi::shared::basetsd::DWORD_PTR;
 use winapi::shared::basetsd::UINT_PTR;
-use std::{mem, ptr};
+use std::{mem, panic, ptr};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender, Receiver};
@@ -43,11 +43,10 @@ use winapi::um::{winuser, winbase, ole2, processthreadsapi, commctrl, libloadera
 use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 
 use window::WindowId as RootWindowId;
-use monitor::MonitorHandle;
 use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use event::{DeviceEvent, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent};
-use platform_impl::platform::{event, Cursor, WindowId, DEVICE_ID, wrap_device_id, util};
+use platform_impl::platform::{event, WindowId, DEVICE_ID, wrap_device_id, util};
 use platform_impl::platform::dpi::{
     become_dpi_aware,
     dpi_to_scale_factor,
@@ -56,65 +55,9 @@ use platform_impl::platform::dpi::{
 };
 use platform_impl::platform::drop_handler::FileDropHandler;
 use platform_impl::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
-use platform_impl::platform::icon::WinIcon;
 use platform_impl::platform::raw_input::{get_raw_input_data, get_raw_mouse_button_state};
 use platform_impl::platform::window::adjust_size;
-
-/// Contains saved window info for switching between fullscreen
-#[derive(Clone)]
-pub struct SavedWindowInfo {
-    /// Window style
-    pub style: LONG,
-    /// Window ex-style
-    pub ex_style: LONG,
-    /// Window position and size
-    pub rect: RECT,
-    // Since a window can be fullscreened to a different monitor, a DPI change can be triggered. This could result in
-    // the window being automitcally resized to smaller/larger than it was supposed to be restored to, so we thus must
-    // check if the post-fullscreen DPI matches the pre-fullscreen DPI.
-    pub is_fullscreen: bool,
-    pub dpi_factor: Option<f64>,
-}
-
-/// Contains information about states and the window that the callback is going to use.
-#[derive(Clone)]
-pub struct WindowState {
-    /// Cursor to set at the next `WM_SETCURSOR` event received.
-    pub cursor: Cursor,
-    pub cursor_grabbed: bool,
-    pub cursor_hidden: bool,
-    /// Used by `WM_GETMINMAXINFO`.
-    pub max_size: Option<PhysicalSize>,
-    pub min_size: Option<PhysicalSize>,
-    /// Will contain `true` if the mouse is hovering the window.
-    pub mouse_in_window: bool,
-    /// Saved window info for fullscreen restored
-    pub saved_window_info: Option<SavedWindowInfo>,
-    // This is different from the value in `SavedWindowInfo`! That one represents the DPI saved upon entering
-    // fullscreen. This will always be the most recent DPI for the window.
-    pub dpi_factor: f64,
-    pub fullscreen: Option<MonitorHandle>,
-    pub window_icon: Option<WinIcon>,
-    pub taskbar_icon: Option<WinIcon>,
-    pub decorations: bool,
-    pub always_on_top: bool,
-    pub maximized: bool,
-    pub resizable: bool,
-    pub mouse_buttons_down: u32,
-}
-
-impl WindowState {
-    pub fn update_min_max(&mut self, old_dpi_factor: f64, new_dpi_factor: f64) {
-        let scale_factor = new_dpi_factor / old_dpi_factor;
-        let dpi_adjuster = |mut physical_size: PhysicalSize| -> PhysicalSize {
-            physical_size.width *= scale_factor;
-            physical_size.height *= scale_factor;
-            physical_size
-        };
-        self.max_size = self.max_size.map(&dpi_adjuster);
-        self.min_size = self.min_size.map(&dpi_adjuster);
-    }
-}
+use platform_impl::platform::window_state::{CursorFlags, WindowFlags, WindowState};
 
 pub(crate) struct SubclassInput<T> {
     pub window_state: Arc<Mutex<WindowState>>,
@@ -624,7 +567,7 @@ impl EventLoopThreadExecutor {
             } else {
                 // We double-box because the first box is a fat pointer.
                 let boxed = Box::new(function) as Box<FnMut()>;
-                let boxed2 = Box::new(boxed);
+                let boxed2: ThreadExecFn = Box::new(boxed);
 
                 let raw = Box::into_raw(boxed2);
 
@@ -637,6 +580,8 @@ impl EventLoopThreadExecutor {
         }
     }
 }
+
+type ThreadExecFn = Box<Box<FnMut()>>;
 
 #[derive(Clone)]
 pub struct EventLoopProxy<T> {
@@ -693,6 +638,11 @@ lazy_static! {
         unsafe {
             winuser::RegisterWindowMessageA("Winit::RequestRedrawNoNewevents\0".as_ptr() as LPCSTR)
         }
+    };
+    // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
+    // documentation in the `window_state` module for more information.
+    pub static ref SET_RETAIN_STATE_ON_SIZE_MSG_ID: u32 = unsafe {
+        winuser::RegisterWindowMessageA("Winit::SetRetainMaximized\0".as_ptr() as LPCSTR)
     };
     static ref THREAD_EVENT_TARGET_WINDOW_CLASS: Vec<u16> = unsafe {
         use std::ffi::OsStr;
@@ -769,15 +719,15 @@ fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) ->
 /// Capture mouse input, allowing `window` to receive mouse events when the cursor is outside of
 /// the window.
 unsafe fn capture_mouse(window: HWND, window_state: &mut WindowState) {
-    window_state.mouse_buttons_down += 1;
+    window_state.mouse.buttons_down += 1;
     winuser::SetCapture(window);
 }
 
 /// Release mouse input, stopping windows on this thread from receiving mouse input when the cursor
 /// is outside the window.
 unsafe fn release_mouse(window_state: &mut WindowState) {
-    window_state.mouse_buttons_down = window_state.mouse_buttons_down.saturating_sub(1);
-    if window_state.mouse_buttons_down == 0 {
+    window_state.mouse.buttons_down = window_state.mouse.buttons_down.saturating_sub(1);
+    if window_state.mouse.buttons_down == 0 {
         winuser::ReleaseCapture();
     }
 }
@@ -926,6 +876,15 @@ unsafe extern "system" fn public_window_callback<T>(
                 event: Resized(logical_size),
             };
 
+            {
+                let mut w = subclass_input.window_state.lock();
+                // See WindowFlags::MARKER_RETAIN_STATE_ON_SIZE docs for info on why this `if` check exists.
+                if !w.window_flags().contains(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE) {
+                    let maximized = wparam == winuser::SIZE_MAXIMIZED;
+                    w.set_window_flags_in_place(|f| f.set(WindowFlags::MAXIMIZED, maximized));
+                }
+            }
+
             subclass_input.send_event(event);
             0
         },
@@ -951,17 +910,15 @@ unsafe extern "system" fn public_window_callback<T>(
 
         winuser::WM_MOUSEMOVE => {
             use event::WindowEvent::{CursorEntered, CursorMoved};
-            let mouse_outside_window = {
-                let mut window = subclass_input.window_state.lock();
-                if !window.mouse_in_window {
-                    window.mouse_in_window = true;
-                    true
-                } else {
-                    false
-                }
+            let mouse_was_outside_window = {
+                let mut w = subclass_input.window_state.lock();
+
+                let was_outside_window = !w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
+                w.mouse.set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, true)).ok();
+                was_outside_window
             };
 
-            if mouse_outside_window {
+            if mouse_was_outside_window {
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: CursorEntered { device_id: DEVICE_ID },
@@ -991,22 +948,15 @@ unsafe extern "system" fn public_window_callback<T>(
 
         winuser::WM_MOUSELEAVE => {
             use event::WindowEvent::CursorLeft;
-            let mouse_in_window = {
-                let mut window = subclass_input.window_state.lock();
-                if window.mouse_in_window {
-                    window.mouse_in_window = false;
-                    true
-                } else {
-                    false
-                }
-            };
-
-            if mouse_in_window {
-                subclass_input.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: CursorLeft { device_id: DEVICE_ID },
-                });
+            {
+                let mut w = subclass_input.window_state.lock();
+                w.mouse.set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false)).ok();
             }
+
+            subclass_input.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: CursorLeft { device_id: DEVICE_ID },
+            });
 
             0
         },
@@ -1381,24 +1331,25 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_SETCURSOR => {
-            let call_def_window_proc = {
+            let set_cursor_to = {
                 let window_state = subclass_input.window_state.lock();
-                if window_state.mouse_in_window {
-                    let cursor = winuser::LoadCursorW(
-                        ptr::null_mut(),
-                        window_state.cursor.0,
-                    );
-                    winuser::SetCursor(cursor);
-                    false
+                if window_state.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW) {
+                    Some(window_state.mouse.cursor)
                 } else {
-                    true
+                    None
                 }
             };
 
-            if call_def_window_proc {
-                commctrl::DefSubclassProc(window, msg, wparam, lparam)
-            } else {
-                0
+            match set_cursor_to {
+                Some(cursor) => {
+                    let cursor = winuser::LoadCursorW(
+                        ptr::null_mut(),
+                        cursor.to_windows_cursor(),
+                    );
+                    winuser::SetCursor(cursor);
+                    0
+                },
+                None => winuser::DefWindowProcW(window, msg, wparam, lparam)
             }
         },
 
@@ -1416,10 +1367,12 @@ unsafe extern "system" fn public_window_callback<T>(
                 let style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
                 let ex_style = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
                 if let Some(min_size) = window_state.min_size {
+                    let min_size = min_size.to_physical(window_state.dpi_factor);
                     let (width, height) = adjust_size(min_size, style, ex_style);
                     (*mmi).ptMinTrackSize = POINT { x: width as i32, y: height as i32 };
                 }
                 if let Some(max_size) = window_state.max_size {
+                    let max_size = max_size.to_physical(window_state.dpi_factor);
                     let (width, height) = adjust_size(max_size, style, ex_style);
                     (*mmi).ptMaxTrackSize = POINT { x: width as i32, y: height as i32 };
                 }
@@ -1440,31 +1393,17 @@ unsafe extern "system" fn public_window_callback<T>(
             let new_dpi_x = u32::from(LOWORD(wparam as DWORD));
             let new_dpi_factor = dpi_to_scale_factor(new_dpi_x);
 
-            let suppress_resize = {
+            let allow_resize = {
                 let mut window_state = subclass_input.window_state.lock();
-                let suppress_resize = window_state.saved_window_info
-                    .as_mut()
-                    .map(|saved_window_info| {
-                        let dpi_changed = if !saved_window_info.is_fullscreen {
-                            saved_window_info.dpi_factor.take() != Some(new_dpi_factor)
-                        } else {
-                            false
-                        };
-                        !dpi_changed || saved_window_info.is_fullscreen
-                    })
-                    .unwrap_or(false);
-                // Now we adjust the min/max dimensions for the new DPI.
-                if !suppress_resize {
-                    let old_dpi_factor = window_state.dpi_factor;
-                    window_state.update_min_max(old_dpi_factor, new_dpi_factor);
-                }
+                let old_dpi_factor = window_state.dpi_factor;
                 window_state.dpi_factor = new_dpi_factor;
-                suppress_resize
+
+                new_dpi_factor != old_dpi_factor && window_state.fullscreen.is_none()
             };
 
             // This prevents us from re-applying DPI adjustment to the restored size after exiting
             // fullscreen (the restored size is already DPI adjusted).
-            if !suppress_resize {
+            if allow_resize {
                 // Resize window to the size suggested by Windows.
                 let rect = &*(lparam as *const RECT);
                 winuser::SetWindowPos(
@@ -1489,6 +1428,10 @@ unsafe extern "system" fn public_window_callback<T>(
         _ => {
             if msg == *DESTROY_MSG_ID {
                 winuser::DestroyWindow(window);
+                0
+            } else if msg == *SET_RETAIN_STATE_ON_SIZE_MSG_ID {
+                let mut window_state = subclass_input.window_state.lock();
+                window_state.set_window_flags_in_place(|f| f.set(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE, wparam != 0));
                 0
             } else if msg == *INITIAL_DPI_MSG_ID {
                 use event::WindowEvent::HiDpiFactorChanged;
@@ -1628,7 +1571,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
             0
         }
         _ if msg == *EXEC_MSG_ID => {
-            let mut function: Box<Box<FnMut()>> = Box::from_raw(wparam as usize as *mut _);
+            let mut function: ThreadExecFn = Box::from_raw(wparam as usize as *mut _);
             function();
             0
         }

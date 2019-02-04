@@ -99,12 +99,21 @@ pub enum WindowEvent {
     Destroyed,
 
     /// A file has been dropped into the window.
+    ///
+    /// When the user drops multiple files at once, this event will be emitted for each file
+    /// separately.
     DroppedFile(PathBuf),
 
     /// A file is being hovered over the window.
+    ///
+    /// When the user hovers multiple files at once, this event will be emitted for each file
+    /// separately.
     HoveredFile(PathBuf),
 
     /// A file was hovered, but has exited the window.
+    ///
+    /// There will be a single `HoveredFileCancelled` event triggered even if multiple files were
+    /// hovered.
     HoveredFileCancelled,
 
     /// The window received a unicode character.
@@ -177,6 +186,17 @@ pub enum WindowEvent {
 /// physical. Virtual devices typically aggregate inputs from multiple physical devices.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
+
+impl DeviceId {
+    /// Returns a dummy `DeviceId`, useful for unit testing. The only guarantee made about the return
+    /// value of this function is that it will always be equal to itself and to future values returned
+    /// by this function.  No other guarantees are made. This may be equal to a real `DeviceId`.
+    ///
+    /// **Passing this into a winit function will result in undefined behavior.**
+    pub unsafe fn dummy() -> Self {
+        DeviceId(platform_impl::DeviceId::dummy())
+    }
+}
 
 /// Represents raw hardware events that are not associated with any particular window.
 ///
@@ -323,7 +343,7 @@ pub enum MouseScrollDelta {
 }
 
 /// Symbolic name for a keyboard key.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum VirtualKeyCode {

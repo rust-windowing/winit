@@ -499,10 +499,12 @@ impl EventLoop {
                     }
 
                     // This is a hack to ensure that the DPI adjusted resize is actually applied on all WMs. KWin
-                    // doesn't need this, but Xfwm does.
+                    // doesn't need this, but Xfwm does. The hack should not be run on other WMs, since tiling
+                    // WMs constrain the window size, making the resize fail. This would cause an endless stream of
+                    // XResizeWindow requests, making Xorg, the winit client, and the WM consume 100% of CPU.
                     if let Some(adjusted_size) = shared_state_lock.dpi_adjusted {
                         let rounded_size = (adjusted_size.0.round() as u32, adjusted_size.1.round() as u32);
-                        if new_inner_size == rounded_size {
+                        if new_inner_size == rounded_size || !util::wm_name_is_one_of(&["Xfwm4"]) {
                             // When this finally happens, the event will not be synthetic.
                             shared_state_lock.dpi_adjusted = None;
                         } else {
@@ -864,20 +866,26 @@ impl EventLoop {
                             event: CursorEntered { device_id },
                         });
 
-                        // The mods field on this event isn't actually populated, so query the
-                        // pointer device. In the future, we can likely remove this round-trip by
-                        // relying on Xkb for modifier values.
-                        let modifiers = self.xconn.query_pointer(xev.event, xev.deviceid)
-                            .expect("Failed to query pointer device").get_modifier_state();
-
-                        let dpi_factor = self.with_window(xev.event, |window| {
+                        if let Some(dpi_factor) = self.with_window(xev.event, |window| {
                             window.get_hidpi_factor()
-                        });
-                        if let Some(dpi_factor) = dpi_factor {
+                        }) {
                             let position = LogicalPosition::from_physical(
                                 (xev.event_x as f64, xev.event_y as f64),
                                 dpi_factor,
                             );
+
+                            // The mods field on this event isn't actually populated, so query the
+                            // pointer device. In the future, we can likely remove this round-trip by
+                            // relying on `Xkb` for modifier values.
+                            //
+                            // This needs to only be done after confirming the window still exists,
+                            // since otherwise we risk getting a `BadWindow` error if the window was
+                            // dropped with queued events.
+                            let modifiers = self.xconn
+                                .query_pointer(xev.event, xev.deviceid)
+                                .expect("Failed to query pointer device")
+                                .get_modifier_state();
+
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: CursorMoved {
@@ -1254,8 +1262,20 @@ impl<'a> Deref for DeviceInfo<'a> {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(ffi::Window);
 
+impl WindowId {
+    pub unsafe fn dummy() -> Self {
+        WindowId(0)
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
+
+impl DeviceId {
+    pub unsafe fn dummy() -> Self {
+        DeviceId(0)
+    }
+}
 
 pub struct Window(Arc<UnownedWindow>);
 

@@ -99,7 +99,7 @@ impl Window {
     }
 }
 
-fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINFOEXW, util::WinError> {
+pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINFOEXW, util::WinError> {
     let mut monitor_info: winuser::MONITORINFOEXW = unsafe { mem::uninitialized() };
     monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
     let status = unsafe {

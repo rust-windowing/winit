@@ -4,6 +4,8 @@ use std::os::raw;
 use std::ptr;
 use std::sync::Arc;
 
+use sctk::window::{ButtonState, Theme};
+
 use {
     EventLoop,
     LogicalSize,
@@ -25,9 +27,77 @@ pub use platform_impl::x11;
 pub use platform_impl::XNotSupported;
 pub use platform_impl::x11::util::WindowType as XWindowType;
 
+/// Theme for wayland client side decorations
+///
+/// Colors must be in ARGB8888 format
+pub struct WaylandTheme {
+    /// Primary color when the window is focused
+    pub primary_active: [u8; 4],
+    /// Primary color when the window is unfocused
+    pub primary_inactive: [u8; 4],
+    /// Secondary color when the window is focused
+    pub secondary_active: [u8; 4],
+    /// Secondary color when the window is unfocused
+    pub secondary_inactive: [u8; 4],
+    /// Close button color when hovered over
+    pub close_button_hovered: [u8; 4],
+    /// Close button color
+    pub close_button: [u8; 4],
+    /// Close button color when hovered over
+    pub maximize_button_hovered: [u8; 4],
+    /// Maximize button color
+    pub maximize_button: [u8; 4],
+    /// Minimize button color when hovered over
+    pub minimize_button_hovered: [u8; 4],
+    /// Minimize button color
+    pub minimize_button: [u8; 4],
+}
+
+struct WaylandThemeObject(WaylandTheme);
+
+impl Theme for WaylandThemeObject {
+    fn get_primary_color(&self, active: bool) -> [u8; 4] {
+        if active {
+            self.0.primary_active
+        } else {
+            self.0.primary_inactive
+        }
+    }
+
+    // Used for division line
+    fn get_secondary_color(&self, active: bool) -> [u8; 4] {
+        if active {
+            self.0.secondary_active
+        } else {
+            self.0.secondary_inactive
+        }
+    }
+
+    fn get_close_button_color(&self, state: ButtonState) -> [u8; 4] {
+        match state {
+            ButtonState::Hovered => self.0.close_button_hovered,
+            _ => self.0.close_button,
+        }
+    }
+
+    fn get_maximize_button_color(&self, state: ButtonState) -> [u8; 4] {
+        match state {
+            ButtonState::Hovered => self.0.maximize_button_hovered,
+            _ => self.0.maximize_button,
+        }
+    }
+
+    fn get_minimize_button_color(&self, state: ButtonState) -> [u8; 4] {
+        match state {
+            ButtonState::Hovered => self.0.minimize_button_hovered,
+            _ => self.0.minimize_button,
+        }
+    }
+}
+
 /// Additional methods on `EventLoop` that are specific to Unix.
 pub trait EventLoopExtUnix {
-    /// Builds a new `EventLoop` that is forced to use X11.
+    /// Builds a new `EventsLoop` that is forced to use X11.
     fn new_x11() -> Result<Self, XNotSupported>
         where Self: Sized;
 
@@ -127,6 +197,9 @@ pub trait WindowExtUnix {
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     fn get_wayland_display(&self) -> Option<*mut raw::c_void>;
 
+    /// Sets the color theme of the client side window decorations on wayland
+    fn set_wayland_theme(&self, theme: WaylandTheme);
+
     /// Check if the window is ready for drawing
     ///
     /// It is a remnant of a previous implementation detail for the
@@ -203,6 +276,14 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
+    fn set_wayland_theme(&self, theme: WaylandTheme) {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.set_theme(WaylandThemeObject(theme)),
+            _ => {}
+        }
+    }
+
+    #[inline]
     fn is_ready(&self) -> bool {
         true
     }
@@ -225,6 +306,13 @@ pub trait WindowBuilderExtUnix {
     fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
     /// Build window with base size hint. Only implemented on X11.
     fn with_base_size(self, base_size: LogicalSize) -> WindowBuilder;
+
+    /// Build window with a given application ID. It should match the `.desktop` file distributed with
+    /// your program. Only relevant on Wayland.
+    ///
+    /// For details about application ID conventions, see the
+    /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
+    fn with_app_id(self, app_id: String) -> WindowBuilder;
 }
 
 impl WindowBuilderExtUnix for WindowBuilder {
@@ -275,6 +363,12 @@ impl WindowBuilderExtUnix for WindowBuilder {
     #[inline]
     fn with_gtk_theme_variant(mut self, variant: String) -> WindowBuilder {
         self.platform_specific.gtk_theme_variant = Some(variant);
+        self
+    }
+
+    #[inline]
+    fn with_app_id(mut self, app_id: String) -> WindowBuilder {
+        self.platform_specific.app_id = Some(app_id);
         self
     }
 }

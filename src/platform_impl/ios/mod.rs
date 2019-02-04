@@ -290,8 +290,20 @@ impl EventLoopProxy {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId;
 
+impl WindowId {
+    pub unsafe fn dummy() -> Self {
+        WindowId
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
+
+impl DeviceId {
+    pub unsafe fn dummy() -> Self {
+        DeviceId
+    }
+}
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {

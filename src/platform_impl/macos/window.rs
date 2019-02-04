@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::f64;
 use std::ops::Deref;
 use std::os::raw::c_void;
-use std::sync::Weak;
+use std::sync::{Mutex, Weak};
 use std::sync::atomic::{Ordering, AtomicBool};
 
 use cocoa::appkit::{
@@ -19,6 +19,7 @@ use cocoa::appkit::{
     NSWindowButton,
     NSWindowStyleMask,
     NSApplicationActivationPolicy,
+    NSApplicationPresentationOptions,
 };
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize, NSString};
@@ -49,6 +50,12 @@ use window::MonitorHandle as RootMonitorHandle;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub usize);
 
+impl Id {
+    pub unsafe fn dummy() -> Self {
+        Id(0)
+    }
+}
+
 // TODO: It's possible for delegate methods to be called asynchronously, causing data races / `RefCell` panics.
 pub struct DelegateState {
     view: IdRef,
@@ -57,7 +64,9 @@ pub struct DelegateState {
 
     win_attribs: RefCell<WindowAttributes>,
     standard_frame: Cell<Option<NSRect>>,
+    is_simple_fullscreen: Cell<bool>,
     save_style_mask: Cell<Option<NSWindowStyleMask>>,
+    save_presentation_opts: Cell<Option<NSApplicationPresentationOptions>>,
 
     // This is set when WindowBuilder::with_fullscreen was set,
     // see comments of `window_did_fail_to_enter_fullscreen`
@@ -94,22 +103,30 @@ impl DelegateState {
         }
     }
 
+    unsafe fn saved_style_mask(&self, resizable: bool) -> NSWindowStyleMask {
+        let base_mask = self.save_style_mask
+            .take()
+            .unwrap_or_else(|| self.window.styleMask());
+        if resizable {
+            base_mask | NSWindowStyleMask::NSResizableWindowMask
+        } else {
+            base_mask & !NSWindowStyleMask::NSResizableWindowMask
+        }
+    }
+
+    fn saved_standard_frame(&self) -> NSRect {
+        self.standard_frame.get().unwrap_or_else(|| NSRect::new(
+            NSPoint::new(50.0, 50.0),
+            NSSize::new(800.0, 600.0),
+        ))
+    }
+
     fn restore_state_from_fullscreen(&mut self) {
         let maximized = unsafe {
             let mut win_attribs = self.win_attribs.borrow_mut();
             win_attribs.fullscreen = None;
 
-            let mask = {
-                let base_mask = self.save_style_mask
-                    .take()
-                    .unwrap_or_else(|| self.window.styleMask());
-                if win_attribs.resizable {
-                    base_mask | NSWindowStyleMask::NSResizableWindowMask
-                } else {
-                    base_mask & !NSWindowStyleMask::NSResizableWindowMask
-                }
-            };
-
+            let mask = self.saved_style_mask(win_attribs.resizable);
             util::set_style_mask(*self.window, *self.view, mask);
 
             win_attribs.maximized
@@ -151,10 +168,7 @@ impl DelegateState {
                     let screen = NSScreen::mainScreen(nil);
                     NSScreen::visibleFrame(screen)
                 } else {
-                    self.standard_frame.get().unwrap_or(NSRect::new(
-                        NSPoint::new(50.0, 50.0),
-                        NSSize::new(800.0, 600.0),
-                    ))
+                    self.saved_standard_frame()
                 };
 
                 self.window.setFrame_display_(new_rect, 0);
@@ -316,7 +330,9 @@ impl WindowDelegate {
         }
 
         /// Invoked when the image is released
-        extern fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) {}
+        extern fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) -> BOOL {
+            YES
+        }
 
         /// Invoked after the released image has been removed from the screen
         extern fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
@@ -451,7 +467,7 @@ impl WindowDelegate {
             decl.add_method(sel!(draggingEntered:),
                 dragging_entered as extern fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(prepareForDragOperation:),
-                prepare_for_drag_operation as extern fn(&Object, Sel, id));
+                prepare_for_drag_operation as extern fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(performDragOperation:),
                 perform_drag_operation as extern fn(&Object, Sel, id) -> BOOL);
             decl.add_method(sel!(concludeDragOperation:),
@@ -531,6 +547,7 @@ pub struct Window2 {
     pub window: IdRef,
     pub delegate: WindowDelegate,
     pub input_context: IdRef,
+    cursor: Weak<Mutex<util::Cursor>>,
     cursor_hidden: AtomicBool,
 }
 
@@ -600,6 +617,68 @@ impl WindowExt for Window2 {
             NSApp().requestUserAttention_(request_type);
         }
     }
+
+    #[inline]
+    fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
+        let state = &self.delegate.state;
+
+        unsafe {
+            let app = NSApp();
+            let win_attribs = state.win_attribs.borrow_mut();
+            let is_native_fullscreen = win_attribs.fullscreen.is_some();
+            let is_simple_fullscreen = state.is_simple_fullscreen.get();
+
+            // Do nothing if native fullscreen is active.
+            if is_native_fullscreen || (fullscreen && is_simple_fullscreen) || (!fullscreen && !is_simple_fullscreen) {
+                return false;
+            }
+
+            if fullscreen {
+                // Remember the original window's settings
+                state.standard_frame.set(Some(NSWindow::frame(*self.window)));
+                state.save_style_mask.set(Some(self.window.styleMask()));
+                state.save_presentation_opts.set(Some(app.presentationOptions_()));
+
+                // Tell our window's state that we're in fullscreen
+                state.is_simple_fullscreen.set(true);
+
+                // Simulate pre-Lion fullscreen by hiding the dock and menu bar
+                let presentation_options =
+                    NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock |
+                    NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
+                app.setPresentationOptions_(presentation_options);
+
+                // Hide the titlebar
+                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSTitledWindowMask, false);
+
+                // Set the window frame to the screen frame size
+                let screen = self.window.screen();
+                let screen_frame = NSScreen::frame(screen);
+                NSWindow::setFrame_display_(*self.window, screen_frame, YES);
+
+                // Fullscreen windows can't be resized, minimized, or moved
+                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSMiniaturizableWindowMask, false);
+                util::toggle_style_mask(*self.window, *self.view, NSWindowStyleMask::NSResizableWindowMask, false);
+                NSWindow::setMovable_(*self.window, NO);
+
+                true
+            } else {
+                let saved_style_mask = state.saved_style_mask(win_attribs.resizable);
+                util::set_style_mask(*self.window, *self.view, saved_style_mask);
+                state.is_simple_fullscreen.set(false);
+
+                if let Some(presentation_opts) = state.save_presentation_opts.get() {
+                    app.setPresentationOptions_(presentation_opts);
+                }
+
+                let frame = state.saved_standard_frame();
+                NSWindow::setFrame_display_(*self.window, frame, YES);
+                NSWindow::setMovable_(*self.window, YES);
+
+                true
+            }
+        }
+    }
 }
 
 impl Window2 {
@@ -636,7 +715,7 @@ impl Window2 {
                 return Err(OsError(format!("Couldn't create NSWindow")));
             },
         };
-        let view = match Window2::create_view(*window, Weak::clone(&shared)) {
+        let (view, cursor) = match Window2::create_view(*window, Weak::clone(&shared)) {
             Some(view) => view,
             None => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
@@ -675,7 +754,9 @@ impl Window2 {
             shared,
             win_attribs: RefCell::new(win_attribs.clone()),
             standard_frame: Cell::new(None),
+            is_simple_fullscreen: Cell::new(false),
             save_style_mask: Cell::new(None),
+            save_presentation_opts: Cell::new(None),
             handle_with_fullscreen: win_attribs.fullscreen.is_some(),
             previous_position: None,
             previous_dpi_factor: dpi_factor,
@@ -692,6 +773,7 @@ impl Window2 {
             window: window,
             delegate: WindowDelegate::new(delegate_state),
             input_context,
+            cursor,
             cursor_hidden: Default::default(),
         };
 
@@ -870,9 +952,9 @@ impl Window2 {
         }
     }
 
-    fn create_view(window: id, shared: Weak<Shared>) -> Option<IdRef> {
+    fn create_view(window: id, shared: Weak<Shared>) -> Option<(IdRef, Weak<Mutex<util::Cursor>>)> {
         unsafe {
-            let view = new_view(window, shared);
+            let (view, cursor) = new_view(window, shared);
             view.non_nil().map(|view| {
                 view.setWantsBestResolutionOpenGLSurface_(YES);
 
@@ -887,7 +969,7 @@ impl Window2 {
 
                 window.setContentView_(*view);
                 window.makeFirstResponder_(*view);
-                view
+                (view, cursor)
             })
         }
     }
@@ -994,40 +1076,14 @@ impl Window2 {
     }
 
     pub fn set_cursor(&self, cursor: MouseCursor) {
-        let cursor_name = match cursor {
-            MouseCursor::Arrow | MouseCursor::Default => "arrowCursor",
-            MouseCursor::Hand => "pointingHandCursor",
-            MouseCursor::Grabbing | MouseCursor::Grab => "closedHandCursor",
-            MouseCursor::Text => "IBeamCursor",
-            MouseCursor::VerticalText => "IBeamCursorForVerticalLayout",
-            MouseCursor::Copy => "dragCopyCursor",
-            MouseCursor::Alias => "dragLinkCursor",
-            MouseCursor::NotAllowed | MouseCursor::NoDrop => "operationNotAllowedCursor",
-            MouseCursor::ContextMenu => "contextualMenuCursor",
-            MouseCursor::Crosshair => "crosshairCursor",
-            MouseCursor::EResize => "resizeRightCursor",
-            MouseCursor::NResize => "resizeUpCursor",
-            MouseCursor::WResize => "resizeLeftCursor",
-            MouseCursor::SResize => "resizeDownCursor",
-            MouseCursor::EwResize | MouseCursor::ColResize => "resizeLeftRightCursor",
-            MouseCursor::NsResize | MouseCursor::RowResize => "resizeUpDownCursor",
-
-            // TODO: Find appropriate OSX cursors
-            MouseCursor::NeResize | MouseCursor::NwResize |
-            MouseCursor::SeResize | MouseCursor::SwResize |
-            MouseCursor::NwseResize | MouseCursor::NeswResize |
-
-            MouseCursor::Cell |
-            MouseCursor::Wait | MouseCursor::Progress | MouseCursor::Help |
-            MouseCursor::Move | MouseCursor::AllScroll | MouseCursor::ZoomIn |
-            MouseCursor::ZoomOut => "arrowCursor",
-        };
-        let sel = Sel::register(cursor_name);
-        let cls = class!(NSCursor);
+        let cursor = util::Cursor::from(cursor);
+        if let Some(cursor_access) = self.cursor.upgrade() {
+            *cursor_access.lock().unwrap() = cursor;
+        }
         unsafe {
-            use objc::Message;
-            let cursor: id = cls.send_message(sel, ()).unwrap();
-            let _: () = msg_send![cursor, set];
+            let _: () = msg_send![*self.window,
+                invalidateCursorRectsForView:*self.view
+            ];
         }
     }
 
@@ -1086,6 +1142,12 @@ impl Window2 {
     /// in fullscreen mode
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
         let state = &self.delegate.state;
+
+        // Do nothing if simple fullscreen is active.
+        if state.is_simple_fullscreen.get() {
+            return
+        }
+
         let current = {
             let win_attribs = state.win_attribs.borrow_mut();
 

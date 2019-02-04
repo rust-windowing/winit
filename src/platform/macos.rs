@@ -22,6 +22,15 @@ pub trait WindowExtMacOS {
     /// - `false`: the dock icon will only bounce once.
     /// - `true`: the dock icon will bounce until the application is focused.
     fn request_user_attention(&self, is_critical: bool);
+
+    /// Toggles a fullscreen mode that doesn't require a new macOS space.
+    /// Returns a boolean indicating whether the transition was successful (this
+    /// won't work if the window was already in the native fullscreen).
+    ///
+    /// This is how fullscreen used to work on macOS in versions before Lion.
+    /// And allows the user to have a fullscreen window without using another
+    /// space or taking control over the entire monitor.
+    fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
 }
 
 impl WindowExtMacOS for Window {
@@ -38,6 +47,11 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn request_user_attention(&self, is_critical: bool) {
         self.window.request_user_attention(is_critical)
+    }
+
+    #[inline]
+    fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
+        self.window.set_simple_fullscreen(fullscreen)
     }
 }
 

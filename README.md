@@ -7,7 +7,7 @@
 
 ```toml
 [dependencies]
-winit = "0.18"
+winit = "0.18.1"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -40,6 +40,8 @@ fn main() {
     });
 }
 ```
+
+Winit is only officially supported on the latest stable version of the Rust compiler.
 
 ### Cargo Features
 

@@ -10,7 +10,7 @@ use winapi::shared::minwindef::{DWORD, MAX_PATH, UINT, ULONG};
 use winapi::shared::windef::{HWND, POINTL};
 use winapi::shared::winerror::S_OK;
 use winapi::um::objidl::IDataObject;
-use winapi::um::oleidl::{IDropTarget, IDropTargetVtbl};
+use winapi::um::oleidl::{DROPEFFECT_COPY, DROPEFFECT_NONE, IDropTarget, IDropTargetVtbl};
 use winapi::um::winnt::HRESULT;
 use winapi::um::{shellapi, unknwnbase};
 
@@ -24,7 +24,9 @@ pub struct FileDropHandlerData {
     pub interface: IDropTarget,
     refcount: AtomicUsize,
     window: HWND,
-    send_event: Box<Fn(Event<()>)>
+    send_event: Box<Fn(Event<()>)>,
+    cursor_effect: DWORD,
+    hovered_is_valid: bool, // If the currently hovered item is not valid there must not be any `HoveredFileCancelled` emitted
 }
 
 pub struct FileDropHandler {
@@ -41,6 +43,8 @@ impl FileDropHandler {
             refcount: AtomicUsize::new(1),
             window,
             send_event,
+            cursor_effect: DROPEFFECT_NONE,
+            hovered_is_valid: false,
         });
         FileDropHandler {
             data: Box::into_raw(data),
@@ -79,36 +83,48 @@ impl FileDropHandler {
         pDataObj: *const IDataObject,
         _grfKeyState: DWORD,
         _pt: *const POINTL,
-        _pdwEffect: *mut DWORD,
+        pdwEffect: *mut DWORD,
     ) -> HRESULT {
         use event::WindowEvent::HoveredFile;
         let drop_handler = Self::from_interface(this);
-        Self::iterate_filenames(pDataObj, |filename| {
+        let hdrop = Self::iterate_filenames(pDataObj, |filename| {
             drop_handler.send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(drop_handler.window)),
                 event: HoveredFile(filename),
             });
         });
+        drop_handler.hovered_is_valid = hdrop.is_some();
+        drop_handler.cursor_effect = if drop_handler.hovered_is_valid {
+            DROPEFFECT_COPY
+        } else {
+            DROPEFFECT_NONE
+        };
+        *pdwEffect = drop_handler.cursor_effect;
 
         S_OK
     }
 
     pub unsafe extern "system" fn DragOver(
-        _this: *mut IDropTarget,
+        this: *mut IDropTarget,
         _grfKeyState: DWORD,
         _pt: *const POINTL,
-        _pdwEffect: *mut DWORD,
+        pdwEffect: *mut DWORD,
     ) -> HRESULT {
+        let drop_handler = Self::from_interface(this);
+        *pdwEffect = drop_handler.cursor_effect;
+
         S_OK
     }
 
     pub unsafe extern "system" fn DragLeave(this: *mut IDropTarget) -> HRESULT {
         use event::WindowEvent::HoveredFileCancelled;
         let drop_handler = Self::from_interface(this);
-        drop_handler.send_event(Event::WindowEvent {
-            window_id: SuperWindowId(WindowId(drop_handler.window)),
-            event: HoveredFileCancelled,
-        });
+        if drop_handler.hovered_is_valid {
+            drop_handler.send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(drop_handler.window)),
+                event: HoveredFileCancelled,
+            });
+        }
 
         S_OK
     }
@@ -128,7 +144,9 @@ impl FileDropHandler {
                 event: DroppedFile(filename),
             });
         });
-        shellapi::DragFinish(hdrop);
+        if let Some(hdrop) = hdrop {
+            shellapi::DragFinish(hdrop);
+        }
 
         S_OK
     }
@@ -137,12 +155,12 @@ impl FileDropHandler {
         &mut *(this as *mut _)
     }
 
-    unsafe fn iterate_filenames<F>(data_obj: *const IDataObject, callback: F) -> shellapi::HDROP
+    unsafe fn iterate_filenames<F>(data_obj: *const IDataObject, callback: F) -> Option<shellapi::HDROP>
     where
         F: Fn(PathBuf),
     {
         use winapi::ctypes::wchar_t;
-        use winapi::shared::winerror::SUCCEEDED;
+        use winapi::shared::winerror::{SUCCEEDED, DV_E_FORMATETC};
         use winapi::shared::wtypes::{CLIPFORMAT, DVASPECT_CONTENT};
         use winapi::um::objidl::{FORMATETC, TYMED_HGLOBAL};
         use winapi::um::shellapi::DragQueryFileW;
@@ -157,7 +175,8 @@ impl FileDropHandler {
         };
 
         let mut medium = mem::uninitialized();
-        if SUCCEEDED((*data_obj).GetData(&mut drop_format, &mut medium)) {
+        let get_data_result = (*data_obj).GetData(&mut drop_format, &mut medium);
+        if SUCCEEDED(get_data_result) {
             let hglobal = (*medium.u).hGlobal();
             let hdrop = (*hglobal) as shellapi::HDROP;
 
@@ -175,12 +194,16 @@ impl FileDropHandler {
                 }
             }
 
-            return hdrop;
+            return Some(hdrop);
+        } else if get_data_result == DV_E_FORMATETC {
+            // If the dropped item is not a file this error will occur.
+            // In this case it is OK to return without taking further action.
+            debug!("Error occured while processing dropped/hovered item: item is not a file.");
+            return None;
+        } else {
+            debug!("Unexpected error occured while processing dropped/hovered item.");
+            return None;
         }
-
-        // The call to `GetData` must succeed and the file handle must be returned before this
-        // point
-        unreachable!();
     }
 }
 

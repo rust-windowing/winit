@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.18.0"
+version = "0.18.1"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
@@ -20,7 +20,7 @@ icon_loading = ["image"]
 lazy_static = "1"
 libc = "0.2"
 log = "0.4"
-image = { version = "0.20.1", optional = true }
+image = { version = "0.21", optional = true }
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
@@ -34,6 +34,10 @@ objc = "0.2.3"
 cocoa = "0.18.4"
 core-foundation = "0.6"
 core-graphics = "0.17.3"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+backtrace = "0.3"
+bitflags = "1"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
 version = "0.3.6"
@@ -61,9 +65,10 @@ features = [
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
 wayland-client = { version = "0.21", features = [ "dlopen", "egl", "cursor"] }
-smithay-client-toolkit = "0.4"
+smithay-client-toolkit = "0.4.3"
 x11-dl = "2.18.3"
+parking_lot = "0.7"
 percent-encoding = "1.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "windows"))'.dependencies.parking_lot]
-version = "0.6"
+version = "0.7"

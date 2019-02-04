@@ -3,13 +3,18 @@ use std::sync::{Arc, Mutex, Weak};
 
 use {CreationError, MouseCursor, WindowAttributes};
 use dpi::{LogicalPosition, LogicalSize};
+<<<<<<< HEAD:src/platform_impl/linux/wayland/window.rs
 use platform_impl::MonitorHandle as PlatformMonitorHandle;
 use window::MonitorHandle as RootMonitorHandle;
+=======
+use platform::{MonitorId as PlatformMonitorId, PlatformSpecificWindowBuilderAttributes as PlAttributes};
+use window::MonitorId as RootMonitorId;
+>>>>>>> master:src/platform/linux/wayland/window.rs
 
-use sctk::window::{ConceptFrame, Event as WEvent, Window as SWindow};
+use sctk::surface::{get_dpi_factor, get_outputs};
+use sctk::window::{ConceptFrame, Event as WEvent, Window as SWindow, Theme};
 use sctk::reexports::client::{Display, Proxy};
-use sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_output};
-use sctk::reexports::client::protocol::wl_compositor::RequestsTrait as CompositorRequests;
+use sctk::reexports::client::protocol::{wl_seat, wl_surface};
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
 use sctk::output::OutputMgr;
 
@@ -19,7 +24,6 @@ use platform_impl::platform::wayland::event_loop::{get_available_monitors, get_p
 pub struct Window {
     surface: Proxy<wl_surface::WlSurface>,
     frame: Arc<Mutex<SWindow<ConceptFrame>>>,
-    monitors: Arc<Mutex<MonitorList>>, // Monitors this window is currently on
     outputs: OutputMgr, // Access to info for all monitors
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
@@ -28,44 +32,16 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(evlp: &EventLoop, attributes: WindowAttributes) -> Result<Window, CreationError> {
+    pub fn new(evlp: &EventLoop, attributes: WindowAttributes, pl_attribs: PlAttributes) -> Result<Window, CreationError> {
         let (width, height) = attributes.dimensions.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
 
-        // monitor tracking
-        let monitor_list = Arc::new(Mutex::new(MonitorList::new()));
-
-        let surface = evlp.env.compositor.create_surface(|surface| {
-            let list = monitor_list.clone();
-            let omgr = evlp.env.outputs.clone();
-            let window_store = evlp.store.clone();
-            surface.implement(move |event, surface| match event {
-                wl_surface::Event::Enter { output } => {
-                    let dpi_change = list.lock().unwrap().add_output(MonitorHandle {
-                        proxy: output,
-                        mgr: omgr.clone(),
-                    });
-                    if let Some(dpi) = dpi_change {
-                        if surface.version() >= 3 {
-                            // without version 3 we can't be dpi aware
-                            window_store.lock().unwrap().dpi_change(&surface, dpi);
-                            surface.set_buffer_scale(dpi);
-                        }
-                    }
-                },
-                wl_surface::Event::Leave { output } => {
-                    let dpi_change = list.lock().unwrap().del_output(&output);
-                    if let Some(dpi) = dpi_change {
-                        if surface.version() >= 3 {
-                            // without version 3 we can't be dpi aware
-                            window_store.lock().unwrap().dpi_change(&surface, dpi);
-                            surface.set_buffer_scale(dpi);
-                        }
-                    }
-                }
-            }, ())
-        }).unwrap();
+        let window_store = evlp.store.clone();
+        let surface = evlp.env.create_surface(move |dpi, surface| {
+            window_store.lock().unwrap().dpi_change(&surface, dpi);
+            surface.set_buffer_scale(dpi);
+        });
 
         let window_store = evlp.store.clone();
         let my_surface = surface.clone();
@@ -105,6 +81,10 @@ impl Window {
                 }
             },
         ).unwrap();
+
+        if let Some(app_id) = pl_attribs.app_id {
+            frame.set_app_id(app_id);
+        }
 
         for &(_, ref seat) in evlp.seats.lock().unwrap().iter() {
             frame.new_seat(seat);
@@ -151,7 +131,6 @@ impl Window {
             display: evlp.display.clone(),
             surface: surface,
             frame: frame,
-            monitors: monitor_list,
             outputs: evlp.env.outputs.clone(),
             size: size,
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
@@ -231,7 +210,7 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> i32 {
-        self.monitors.lock().unwrap().compute_hidpi_factor()
+        get_dpi_factor(&self.surface)
     }
 
     pub fn set_decorations(&self, decorate: bool) {
@@ -259,6 +238,11 @@ impl Window {
         } else {
             self.frame.lock().unwrap().unset_fullscreen();
         }
+    }
+
+
+    pub fn set_theme<T: Theme>(&self, theme: T) {
+        self.frame.lock().unwrap().set_theme(theme)
     }
 
     #[inline]
@@ -289,11 +273,20 @@ impl Window {
         &self.surface
     }
 
+<<<<<<< HEAD:src/platform_impl/linux/wayland/window.rs
     pub fn get_current_monitor(&self) -> MonitorHandle {
         // we don't know how much each monitor sees us so...
         // just return the most recent one ?
         let guard = self.monitors.lock().unwrap();
         guard.monitors.last().unwrap().clone()
+=======
+    pub fn get_current_monitor(&self) -> MonitorId {
+        let output = get_outputs(&self.surface).last().unwrap().clone();
+        MonitorId {
+            proxy: output,
+            mgr: self.outputs.clone(),
+        }
+>>>>>>> master:src/platform/linux/wayland/window.rs
     }
 
     pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
@@ -326,7 +319,7 @@ struct InternalWindow {
     kill_switch: Arc<Mutex<bool>>,
     frame: Weak<Mutex<SWindow<ConceptFrame>>>,
     current_dpi: i32,
-    new_dpi: Option<i32>
+    new_dpi: Option<i32>,
 }
 
 pub struct WindowStore {
@@ -406,6 +399,7 @@ impl WindowStore {
         }
     }
 }
+<<<<<<< HEAD:src/platform_impl/linux/wayland/window.rs
 
 /*
  * Monitor list with some covenience method to compute DPI
@@ -453,3 +447,5 @@ impl MonitorList {
         }
     }
 }
+=======
+>>>>>>> master:src/platform/linux/wayland/window.rs

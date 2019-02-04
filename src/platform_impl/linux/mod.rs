@@ -46,6 +46,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub override_redirect: bool,
     pub x11_window_type: x11::util::WindowType,
     pub gtk_theme_variant: Option<String>,
+    pub app_id: Option<String>
 }
 
 lazy_static!(
@@ -65,10 +66,22 @@ pub enum WindowId {
     Wayland(wayland::WindowId),
 }
 
+impl WindowId {
+    pub unsafe fn dummy() -> Self {
+        WindowId::X(x11::WindowId::dummy())
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceId {
     X(x11::DeviceId),
     Wayland(wayland::DeviceId),
+}
+
+impl DeviceId {
+    pub unsafe fn dummy() -> Self {
+        DeviceId::X(x11::DeviceId::dummy())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -127,8 +140,8 @@ impl Window {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, CreationError> {
         match *event_loop {
-            EventLoop::Wayland(ref event_loop) => {
-                wayland::Window::new(event_loop, attribs).map(Window::Wayland)
+            EventsLoop::Wayland(ref event_loop) => {
+                wayland::Window::new(event_loop, attribs, pl_attribs).map(Window::Wayland)
             },
             EventLoop::X(ref event_loop) => {
                 x11::Window::new(event_loop, attribs, pl_attribs).map(Window::X)
@@ -381,7 +394,7 @@ unsafe extern "C" fn x_error_callback(
             minor_code: (*event).minor_code,
         };
 
-        eprintln!("[winit X11 error] {:#?}", error);
+        error!("X11 error: {:#?}", error);
 
         *xconn.latest_error.lock() = Some(error);
     }
