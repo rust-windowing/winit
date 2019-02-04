@@ -1,5 +1,15 @@
 # Unreleased
 
+- On Wayland, add `set_wayland_theme()` to control client decoration color theme
+- Added serde serialization to `os::unix::XWindowType`.
+- **Breaking:** `image` crate upgraded to 0.21. This is exposed as part of the `icon_loading` API.
+- On Windows, fix malformed function pointer typecast that could invoke undefined behavior.
+- Refactored Windows state/flag-setting code.
+- On Windows, hiding the cursor no longer hides the cursor for all Winit windows - just the one `hide_cursor` was called on.
+- On Windows, cursor grabs used to get perpetually canceled when the grabbing window lost focus. Now, cursor grabs automatically get re-initialized when the window regains focus and the mouse moves over the client area.
+
+# Version 0.18.1 (2018-12-30)
+
 - On macOS, fix `Yen` (JIS) so applications receive the event.
 - On X11 with a tiling WM, fixed high CPU usage when moving windows across monitors.
 - On X11, fixed panic caused by dropping the window before running the event loop.
@@ -20,10 +30,6 @@
 - On macOS, implemented `WindowEvent::Refresh`.
 - On macOS, all `MouseCursor` variants are now implemented and the cursor will no longer reset after unfocusing.
 - Removed minimum supported Rust version guarantee.
-- On Windows, fix malformed function pointer typecast that could invoke undefined behavior.
-- Refactored Windows state/flag-setting code.
-- On Windows, hiding the cursor no longer hides the cursor for all Winit windows - just the one `hide_cursor` was called on.
-- On Windows, cursor grabs used to get perpetually canceled when the grabbing window lost focus. Now, cursor grabs automatically get re-initialized when the window regains focus and the mouse moves over the client area.
 
 # Version 0.18.0 (2018-11-07)
 
