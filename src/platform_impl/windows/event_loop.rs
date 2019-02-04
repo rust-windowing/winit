@@ -15,6 +15,7 @@
 use winapi::shared::basetsd::DWORD_PTR;
 use winapi::shared::basetsd::UINT_PTR;
 use std::{mem, panic, ptr};
+use std::any::Any;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender, Receiver};
@@ -161,7 +162,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         macro_rules! runner {
-            () => {{ self.window_target.p.runner_shared.runner.borrow_mut().as_mut().unwrap() }};
+            () => { self.window_target.p.runner_shared.runner.borrow_mut().as_mut().unwrap() };
         }
 
         unsafe {
@@ -181,6 +182,9 @@ impl<T: 'static> EventLoop<T> {
                     msg_unprocessed = false;
                 }
                 runner!().events_cleared();
+                if let Some(payload) = runner!().panic_error.take() {
+                    panic::resume_unwind(payload);
+                }
 
                 let control_flow = runner!().control_flow;
                 match control_flow {
@@ -234,7 +238,9 @@ pub(crate) struct EventLoopRunner<T> {
     modal_redraw_window: HWND,
     in_modal_loop: bool,
     event_handler: Box<FnMut(Event<T>, &mut ControlFlow)>,
+    panic_error: Option<PanicError>,
 }
+type PanicError = Box<Any + Send + 'static>;
 
 impl<T> ELRShared<T> {
     pub(crate) unsafe fn send_event(&self, event: Event<T>) {
@@ -293,7 +299,8 @@ impl<T> EventLoopRunner<T> {
             event_handler: mem::transmute::<
                 Box<FnMut(Event<T>, &mut ControlFlow)>,
                 Box<FnMut(Event<T>, &mut ControlFlow)>
-            >(Box::new(f))
+            >(Box::new(f)),
+            panic_error: None,
         }
     }
 
@@ -461,10 +468,20 @@ impl<T> EventLoopRunner<T> {
         }
 
 
-        if self.control_flow != ControlFlow::Exit {
-            (*self.event_handler)(event, &mut self.control_flow);
-        } else {
-            (*self.event_handler)(event, &mut ControlFlow::Exit);
+        if self.panic_error.is_none() {
+            let EventLoopRunner {
+                ref mut panic_error,
+                ref mut event_handler,
+                ref mut control_flow,
+                ..
+            } = self;
+            *panic_error = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+                if *control_flow != ControlFlow::Exit {
+                    (*event_handler)(event, control_flow);
+                } else {
+                    (*event_handler)(event, &mut ControlFlow::Exit);
+                }
+            })).err();
         }
     }
 }
