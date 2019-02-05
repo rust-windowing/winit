@@ -1,20 +1,24 @@
 extern crate winit;
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
+    let event_loop = EventLoop::new();
 
-    let window = winit::WindowBuilder::new().with_decorations(false)
+    let window = WindowBuilder::new().with_decorations(false)
                                                  .with_transparency(true)
-                                                 .build(&events_loop).unwrap();
+                                                 .build(&event_loop).unwrap();
 
     window.set_title("A fantastic window!");
 
-    events_loop.run_forever(|event| {
+    event_loop.run(move |event, _, control_flow| {
         println!("{:?}", event);
 
         match event {
-            winit::Event::WindowEvent { event: winit::WindowEvent::CloseRequested, .. } => winit::ControlFlow::Break,
-            _ => winit::ControlFlow::Continue,
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } =>
+                *control_flow = ControlFlow::Exit,
+            _ => *control_flow = ControlFlow::Wait,
         }
     });
 }

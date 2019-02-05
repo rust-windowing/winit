@@ -1,10 +1,13 @@
 extern crate winit;
 
 use std::io::{self, Write};
-use winit::{ControlFlow, Event, WindowEvent};
+use winit::monitor::MonitorHandle;
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState, KeyboardInput};
+use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
+    let event_loop = EventLoop::new();
 
     #[cfg(target_os = "macos")]
     let mut macos_use_simple_fullscreen = false;
@@ -26,43 +29,44 @@ fn main() {
 
             // Prompt for monitor when using native fullscreen
             if !macos_use_simple_fullscreen {
-                Some(prompt_for_monitor(&events_loop))
+                Some(prompt_for_monitor(&event_loop))
             } else {
                 None
             }
         }
 
         #[cfg(not(target_os = "macos"))]
-        Some(prompt_for_monitor(&events_loop))
+        Some(prompt_for_monitor(&event_loop))
     };
 
     let mut is_fullscreen = monitor.is_some();
     let mut is_maximized = false;
     let mut decorations = true;
 
-    let window = winit::WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("Hello world!")
         .with_fullscreen(monitor)
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
 
-    events_loop.run_forever(|event| {
+    event_loop.run(move |event, _, control_flow| {
         println!("{:?}", event);
+        *control_flow = ControlFlow::Wait;
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => return ControlFlow::Break,
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::KeyboardInput {
                     input:
-                        winit::KeyboardInput {
+                        KeyboardInput {
                             virtual_keycode: Some(virtual_code),
                             state,
                             ..
                         },
                     ..
                 } => match (virtual_code, state) {
-                    (winit::VirtualKeyCode::Escape, _) => return ControlFlow::Break,
-                    (winit::VirtualKeyCode::F, winit::ElementState::Pressed) => {
+                    (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
+                    (VirtualKeyCode::F, ElementState::Pressed) => {
                         #[cfg(target_os = "macos")]
                         {
                             if macos_use_simple_fullscreen {
@@ -82,11 +86,11 @@ fn main() {
                             window.set_fullscreen(Some(window.get_current_monitor()));
                         }
                     }
-                    (winit::VirtualKeyCode::M, winit::ElementState::Pressed) => {
+                    (VirtualKeyCode::M, ElementState::Pressed) => {
                         is_maximized = !is_maximized;
                         window.set_maximized(is_maximized);
                     }
-                    (winit::VirtualKeyCode::D, winit::ElementState::Pressed) => {
+                    (VirtualKeyCode::D, ElementState::Pressed) => {
                         decorations = !decorations;
                         window.set_decorations(decorations);
                     }
@@ -96,14 +100,12 @@ fn main() {
             },
             _ => {}
         }
-
-        ControlFlow::Continue
     });
 }
 
 // Enumerate monitors and prompt user to choose one
-fn prompt_for_monitor(events_loop: &winit::EventsLoop) -> winit::MonitorId {
-    for (num, monitor) in events_loop.get_available_monitors().enumerate() {
+fn prompt_for_monitor(event_loop: &EventLoop<()>) -> MonitorHandle {
+    for (num, monitor) in event_loop.get_available_monitors().enumerate() {
         println!("Monitor #{}: {:?}", num, monitor.get_name());
     }
 
@@ -113,7 +115,7 @@ fn prompt_for_monitor(events_loop: &winit::EventsLoop) -> winit::MonitorId {
     let mut num = String::new();
     io::stdin().read_line(&mut num).unwrap();
     let num = num.trim().parse().ok().expect("Please enter a number");
-    let monitor = events_loop.get_available_monitors().nth(num).expect("Please enter a valid ID");
+    let monitor = event_loop.get_available_monitors().nth(num).expect("Please enter a valid ID");
 
     println!("Using {:?}", monitor.get_name());
 

@@ -1,20 +1,172 @@
-use std::collections::vec_deque::IntoIter as VecDequeIter;
+//! The `Window` struct and associated types.
+use std::{fmt, error};
 
-use {
-    CreationError,
-    EventsLoop,
-    Icon,
-    LogicalPosition,
-    LogicalSize,
-    MouseCursor,
-    PhysicalPosition,
-    PhysicalSize,
-    platform,
-    Window,
-    WindowBuilder,
-    WindowId,
-};
+use platform_impl;
+use event_loop::EventLoopWindowTarget;
+use monitor::{AvailableMonitorsIter, MonitorHandle};
+use dpi::{LogicalPosition, LogicalSize};
 
+pub use icon::*;
+
+/// Represents a window.
+///
+/// # Example
+///
+/// ```no_run
+/// use winit::window::Window;
+/// use winit::event::{Event, WindowEvent};
+/// use winit::event_loop::{EventLoop, ControlFlow};
+///
+/// let mut event_loop = EventLoop::new();
+/// let window = Window::new(&event_loop).unwrap();
+///
+/// event_loop.run(move |event, _, control_flow| {
+///     match event {
+///         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+///             *control_flow = ControlFlow::Exit
+///         },
+///         _ => *control_flow = ControlFlow::Wait,
+///     }
+/// });
+/// ```
+pub struct Window {
+    pub(crate) window: platform_impl::Window,
+}
+
+impl fmt::Debug for Window {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+        fmtr.pad("Window { .. }")
+    }
+}
+
+/// Identifier of a window. Unique for each window.
+///
+/// Can be obtained with `window.id()`.
+///
+/// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
+/// can then compare to the ids of your windows.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct WindowId(pub(crate) platform_impl::WindowId);
+
+impl WindowId {
+    /// Returns a dummy `WindowId`, useful for unit testing. The only guarantee made about the return
+    /// value of this function is that it will always be equal to itself and to future values returned
+    /// by this function.  No other guarantees are made. This may be equal to a real `WindowId`.
+    ///
+    /// **Passing this into a winit function will result in undefined behavior.**
+    pub unsafe fn dummy() -> Self {
+        WindowId(platform_impl::WindowId::dummy())
+    }
+}
+
+/// Object that allows you to build windows.
+#[derive(Clone)]
+pub struct WindowBuilder {
+    /// The attributes to use to create the window.
+    pub window: WindowAttributes,
+
+    // Platform-specific configuration. Private.
+    pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
+}
+
+impl fmt::Debug for WindowBuilder {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+        fmtr.debug_struct("WindowBuilder")
+            .field("window", &self.window)
+            .finish()
+    }
+}
+
+/// Attributes to use when creating a window.
+#[derive(Debug, Clone)]
+pub struct WindowAttributes {
+    /// The dimensions of the window. If this is `None`, some platform-specific dimensions will be
+    /// used.
+    ///
+    /// The default is `None`.
+    pub dimensions: Option<LogicalSize>,
+
+    /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
+    ///
+    /// The default is `None`.
+    pub min_dimensions: Option<LogicalSize>,
+
+    /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
+    ///
+    /// The default is `None`.
+    pub max_dimensions: Option<LogicalSize>,
+
+    /// Whether the window is resizable or not.
+    ///
+    /// The default is `true`.
+    pub resizable: bool,
+
+    /// Whether the window should be set as fullscreen upon creation.
+    ///
+    /// The default is `None`.
+    pub fullscreen: Option<MonitorHandle>,
+
+    /// The title of the window in the title bar.
+    ///
+    /// The default is `"winit window"`.
+    pub title: String,
+
+    /// Whether the window should be maximized upon creation.
+    ///
+    /// The default is `false`.
+    pub maximized: bool,
+
+    /// Whether the window should be immediately visible upon creation.
+    ///
+    /// The default is `true`.
+    pub visible: bool,
+
+    /// Whether the the window should be transparent. If this is true, writing colors
+    /// with alpha values different than `1.0` will produce a transparent window.
+    ///
+    /// The default is `false`.
+    pub transparent: bool,
+
+    /// Whether the window should have borders and bars.
+    ///
+    /// The default is `true`.
+    pub decorations: bool,
+
+    /// Whether the window should always be on top of other windows.
+    ///
+    /// The default is `false`.
+    pub always_on_top: bool,
+
+    /// The window icon.
+    ///
+    /// The default is `None`.
+    pub window_icon: Option<Icon>,
+
+    /// [iOS only] Enable multitouch,
+    /// see [multipleTouchEnabled](https://developer.apple.com/documentation/uikit/uiview/1622519-multipletouchenabled)
+    pub multitouch: bool,
+}
+
+impl Default for WindowAttributes {
+    #[inline]
+    fn default() -> WindowAttributes {
+        WindowAttributes {
+            dimensions: None,
+            min_dimensions: None,
+            max_dimensions: None,
+            resizable: true,
+            title: "winit window".to_owned(),
+            maximized: false,
+            fullscreen: None,
+            visible: true,
+            transparent: false,
+            decorations: true,
+            always_on_top: false,
+            window_icon: None,
+            multitouch: false,
+        }
+    }
+}
 impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
@@ -69,10 +221,10 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets the window fullscreen state. None means a normal window, Some(MonitorId)
+    /// Sets the window fullscreen state. None means a normal window, Some(MonitorHandle)
     /// means a fullscreen window on that specific monitor
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: Option<MonitorId>) -> WindowBuilder {
+    pub fn with_fullscreen(mut self, monitor: Option<MonitorHandle>) -> WindowBuilder {
         self.window.fullscreen = monitor;
         self
     }
@@ -142,7 +294,7 @@ impl WindowBuilder {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     /// out of memory, etc.
     #[inline]
-    pub fn build(mut self, events_loop: &EventsLoop) -> Result<Window, CreationError> {
+    pub fn build<T: 'static>(mut self, window_target: &EventLoopWindowTarget<T>) -> Result<Window, CreationError> {
         self.window.dimensions = Some(self.window.dimensions.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
@@ -154,8 +306,8 @@ impl WindowBuilder {
         }));
 
         // building
-        platform::Window::new(
-            &events_loop.events_loop,
+        platform_impl::Window::new(
+            &window_target.p,
             self.window,
             self.platform_specific,
         ).map(|window| Window { window })
@@ -165,14 +317,14 @@ impl WindowBuilder {
 impl Window {
     /// Creates a new Window for platforms where this is appropriate.
     ///
-    /// This function is equivalent to `WindowBuilder::new().build(events_loop)`.
+    /// This function is equivalent to `WindowBuilder::new().build(event_loop)`.
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     #[inline]
-    pub fn new(events_loop: &EventsLoop) -> Result<Window, CreationError> {
+    pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, CreationError> {
         let builder = WindowBuilder::new();
-        builder.build(events_loop)
+        builder.build(event_loop)
     }
 
     /// Modifies the title of the window.
@@ -203,6 +355,21 @@ impl Window {
     #[inline]
     pub fn hide(&self) {
         self.window.hide()
+    }
+
+    /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
+    /// events have been processed by the event loop.
+    ///
+    /// This is the **strongly encouraged** method of redrawing windows, as it can integrates with
+    /// OS-requested redraws (e.g. when a window gets resized).
+    ///
+    /// This function can cause `RedrawRequested` events to be emitted after `Event::EventsCleared`
+    /// but before `Event::NewEvents` if called in the following circumstances:
+    /// * While processing `EventsCleared`.
+    /// * While processing a `RedrawRequested` event that was sent during `EventsCleared` or any
+    ///   directly subsequent `RedrawRequested` event.
+    pub fn request_redraw(&self) {
+        self.window.request_redraw()
     }
 
     /// Returns the position of the top-left hand corner of the window relative to the
@@ -365,7 +532,7 @@ impl Window {
 
     /// Sets the window to fullscreen or back
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<MonitorId>) {
+    pub fn set_fullscreen(&self, monitor: Option<MonitorHandle>) {
         self.window.set_fullscreen(monitor)
     }
 
@@ -402,13 +569,13 @@ impl Window {
 
     /// Returns the monitor on which the window currently resides
     #[inline]
-    pub fn get_current_monitor(&self) -> MonitorId {
+    pub fn get_current_monitor(&self) -> MonitorHandle {
         self.window.get_current_monitor()
     }
 
     /// Returns the list of all the monitors available on the system.
     ///
-    /// This is the same as `EventsLoop::get_available_monitors`, and is provided for convenience.
+    /// This is the same as `EventLoop::get_available_monitors`, and is provided for convenience.
     #[inline]
     pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
         let data = self.window.get_available_monitors();
@@ -417,78 +584,107 @@ impl Window {
 
     /// Returns the primary monitor of the system.
     ///
-    /// This is the same as `EventsLoop::get_primary_monitor`, and is provided for convenience.
+    /// This is the same as `EventLoop::get_primary_monitor`, and is provided for convenience.
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId { inner: self.window.get_primary_monitor() }
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle { inner: self.window.get_primary_monitor() }
     }
 
+    /// Returns an identifier unique to the window.
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.id())
     }
 }
 
-/// An iterator for the list of available monitors.
-// Implementation note: we retrieve the list once, then serve each element by one by one.
-// This may change in the future.
-#[derive(Debug)]
-pub struct AvailableMonitorsIter {
-    pub(crate) data: VecDequeIter<platform::MonitorId>,
-}
-
-impl Iterator for AvailableMonitorsIter {
-    type Item = MonitorId;
-
-    #[inline]
-    fn next(&mut self) -> Option<MonitorId> {
-        self.data.next().map(|id| MonitorId { inner: id })
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.data.size_hint()
-    }
-}
-
-/// Identifier for a monitor.
+/// Error that can happen while creating a window or a headless renderer.
 #[derive(Debug, Clone)]
-pub struct MonitorId {
-    pub(crate) inner: platform::MonitorId
+pub enum CreationError {
+    OsError(String),
+    /// TODO: remove this error
+    NotSupported,
 }
 
-impl MonitorId {
-    /// Returns a human-readable name of the monitor.
-    ///
-    /// Returns `None` if the monitor doesn't exist anymore.
-    #[inline]
-    pub fn get_name(&self) -> Option<String> {
-        self.inner.get_name()
+impl CreationError {
+    fn to_string(&self) -> &str {
+        match *self {
+            CreationError::OsError(ref text) => &text,
+            CreationError::NotSupported => "Some of the requested attributes are not supported",
+        }
     }
+}
 
-    /// Returns the monitor's resolution.
-    #[inline]
-    pub fn get_dimensions(&self) -> PhysicalSize {
-        self.inner.get_dimensions()
+impl fmt::Display for CreationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        formatter.write_str(self.to_string())
     }
+}
 
-    /// Returns the top-left corner position of the monitor relative to the larger full
-    /// screen area.
-    #[inline]
-    pub fn get_position(&self) -> PhysicalPosition {
-        self.inner.get_position()
+impl error::Error for CreationError {
+    fn description(&self) -> &str {
+        self.to_string()
     }
+}
 
-    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
-    ///
-    /// See the [`dpi`](dpi/index.html) module for more information.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
-    /// - **Android:** Always returns 1.0.
-    #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
-        self.inner.get_hidpi_factor()
+/// Describes the appearance of the mouse cursor.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum MouseCursor {
+    /// The platform-dependent default cursor.
+    Default,
+    /// A simple crosshair.
+    Crosshair,
+    /// A hand (often used to indicate links in web browsers).
+    Hand,
+    /// Self explanatory.
+    Arrow,
+    /// Indicates something is to be moved.
+    Move,
+    /// Indicates text that may be selected or edited.
+    Text,
+    /// Program busy indicator.
+    Wait,
+    /// Help indicator (often rendered as a "?")
+    Help,
+    /// Progress indicator. Shows that processing is being done. But in contrast
+    /// with "Wait" the user may still interact with the program. Often rendered
+    /// as a spinning beach ball, or an arrow with a watch or hourglass.
+    Progress,
+
+    /// Cursor showing that something cannot be done.
+    NotAllowed,
+    ContextMenu,
+    Cell,
+    VerticalText,
+    Alias,
+    Copy,
+    NoDrop,
+    Grab,
+    Grabbing,
+    AllScroll,
+    ZoomIn,
+    ZoomOut,
+
+    /// Indicate that some edge is to be moved. For example, the 'SeResize' cursor
+    /// is used when the movement starts from the south-east corner of the box.
+    EResize,
+    NResize,
+    NeResize,
+    NwResize,
+    SResize,
+    SeResize,
+    SwResize,
+    WResize,
+    EwResize,
+    NsResize,
+    NeswResize,
+    NwseResize,
+    ColResize,
+    RowResize,
+}
+
+impl Default for MouseCursor {
+    fn default() -> Self {
+        MouseCursor::Default
     }
 }
