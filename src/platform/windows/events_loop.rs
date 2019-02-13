@@ -711,6 +711,22 @@ unsafe fn callback_inner(
             0
         },
 
+        winuser::WM_MOUSEHWHEEL => {
+            use events::MouseScrollDelta::LineDelta;
+            use events::TouchPhase;
+
+            let value = (wparam >> 16) as i16;
+            let value = value as i32;
+            let value = value as f32 / winuser::WHEEL_DELTA as f32;
+
+            send_event(Event::WindowEvent {
+                window_id: SuperWindowId(WindowId(window)),
+                event: WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: LineDelta(value, 0.0), phase: TouchPhase::Moved, modifiers: event::get_key_mods() },
+            });
+
+            0
+        },
+
         winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
             use events::ElementState::Pressed;
             use events::VirtualKeyCode;
