@@ -64,7 +64,7 @@ pub struct EventLoop<T: 'static> {
 //
 // We should only try and wake up the `EventLoop` if it still exists, so we hold Weak ptrs.
 #[derive(Clone)]
-pub struct EventLoopProxy<T> {
+pub struct EventLoopProxy<T: 'static> {
     user_sender: ::calloop::channel::Sender<T>
 }
 
@@ -84,7 +84,7 @@ pub struct EventLoopWindowTarget<T> {
     _marker: ::std::marker::PhantomData<T>
 }
 
-impl<T> EventLoopProxy<T> {
+impl<T> EventLoopProxy<T: 'static> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
         self.user_sender.send(event).map_err(|_| EventLoopClosed)
     }
