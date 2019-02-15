@@ -2,10 +2,9 @@
            target_os = "netbsd", target_os = "openbsd"))]
 
 pub use self::window::Window;
-pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopSink, MonitorHandle};
+pub use self::event_loop::{EventLoop, EventLoopWindowTarget, EventLoopProxy, WindowEventsSink, MonitorHandle};
 
 use sctk::reexports::client::protocol::wl_surface;
-use sctk::reexports::client::Proxy;
 
 mod event_loop;
 mod pointer;
@@ -32,6 +31,6 @@ impl WindowId {
 }
 
 #[inline]
-fn make_wid(s: &Proxy<wl_surface::WlSurface>) -> WindowId {
-    WindowId(s.c_ptr() as usize)
+fn make_wid(s: &wl_surface::WlSurface) -> WindowId {
+    WindowId(s.as_ref().c_ptr() as usize)
 }
