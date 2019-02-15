@@ -28,7 +28,7 @@ use platform_impl::platform::{
     event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID, REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID},
     icon::{self, IconType, WinIcon},
     monitor,
-    raw_input::register_all_mice_and_keyboards_for_raw_input,
+    raw_input::register_for_raw_input,
     util,
     window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
 };
@@ -675,7 +675,7 @@ unsafe fn init<T: 'static>(
     };
 
     // Set up raw input
-    register_all_mice_and_keyboards_for_raw_input(real_window.0);
+    register_for_raw_input(real_window.0);
 
     // Register for touch events if applicable
     {

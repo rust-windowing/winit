@@ -46,7 +46,7 @@ use winapi::um::winnt::{LONG, LPCSTR, SHORT};
 use window::WindowId as RootWindowId;
 use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
-use event::{DeviceEvent, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent};
+use event::{AxisHint, ButtonHint, DeviceEvent, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent};
 use platform_impl::platform::{event, WindowId, DEVICE_ID, wrap_device_id, util};
 use platform_impl::platform::dpi::{
     become_dpi_aware,
@@ -56,6 +56,7 @@ use platform_impl::platform::dpi::{
 };
 use platform_impl::platform::drop_handler::FileDropHandler;
 use platform_impl::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
+use platform_impl::platform::gamepad::GAMEPADS;
 use platform_impl::platform::raw_input::{get_raw_input_data, get_raw_mouse_button_state};
 use platform_impl::platform::window::adjust_size;
 use platform_impl::platform::window_state::{CursorFlags, WindowFlags, WindowState};
@@ -1160,10 +1161,19 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_INPUT_DEVICE_CHANGE => {
-            let event = match wparam as _ {
-                winuser::GIDC_ARRIVAL => DeviceEvent::Added,
-                winuser::GIDC_REMOVAL => DeviceEvent::Removed,
-                _ => unreachable!(),
+            let event = {
+                let mut gamepad_mutex = GAMEPADS.lock().unwrap();
+                match wparam as _ {
+                    winuser::GIDC_ARRIVAL => {
+                        gamepad_mutex.get_or_add(lparam as _);
+                        DeviceEvent::Added
+                    },
+                    winuser::GIDC_REMOVAL => {
+                        gamepad_mutex.remove(lparam as _);
+                        DeviceEvent::Removed
+                    },
+                    _ => unreachable!(),
+                }
             };
 
             subclass_input.send_event(Event::DeviceEvent {
@@ -1179,11 +1189,13 @@ unsafe extern "system" fn public_window_callback<T>(
             use event::MouseScrollDelta::LineDelta;
             use event::ElementState::{Pressed, Released};
 
-            if let Some(data) = get_raw_input_data(lparam as _) {
-                let device_id = wrap_device_id(data.header.hDevice as _);
+            if let Some(mut data) = get_raw_input_data(lparam as _) {
+                let input = &mut *(data.as_mut_ptr() as *mut winuser::RAWINPUT);
 
-                if data.header.dwType == winuser::RIM_TYPEMOUSE {
-                    let mouse = data.data.mouse();
+                let device_id = wrap_device_id(input.header.hDevice as _);
+
+                if input.header.dwType == winuser::RIM_TYPEMOUSE {
+                    let mouse = input.data.mouse();
 
                     if util::has_flag(mouse.usFlags, winuser::MOUSE_MOVE_RELATIVE) {
                         let x = mouse.lLastX as f64;
@@ -1192,14 +1204,22 @@ unsafe extern "system" fn public_window_callback<T>(
                         if x != 0.0 {
                             subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
-                                event: Motion { axis: 0, value: x },
+                                event: Motion {
+                                    axis: 0,
+                                    hint: Some(AxisHint::MouseX),
+                                    value: x,
+                                },
                             });
                         }
 
                         if y != 0.0 {
                             subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
-                                event: Motion { axis: 1, value: y },
+                                event: Motion {
+                                    axis: 1,
+                                    hint: Some(AxisHint::MouseY),
+                                    value: y,
+                                },
                             });
                         }
 
@@ -1231,13 +1251,19 @@ unsafe extern "system" fn public_window_callback<T>(
                                 device_id,
                                 event: Button {
                                     button,
+                                    hint: match button {
+                                        1 => Some(ButtonHint::LeftMouse),
+                                        2 => Some(ButtonHint::MiddleMouse),
+                                        3 => Some(ButtonHint::RightMouse),
+                                        _ => None,
+                                    },
                                     state,
                                 },
                             });
                         }
                     }
-                } else if data.header.dwType == winuser::RIM_TYPEKEYBOARD {
-                    let keyboard = data.data.keyboard();
+                } else if input.header.dwType == winuser::RIM_TYPEKEYBOARD {
+                    let keyboard = input.data.keyboard();
 
                     let pressed = keyboard.Message == winuser::WM_KEYDOWN
                         || keyboard.Message == winuser::WM_SYSKEYDOWN;
@@ -1272,6 +1298,39 @@ unsafe extern "system" fn public_window_callback<T>(
                             });
                         }
                     }
+                } else if input.header.dwType == winuser::RIM_TYPEHID {
+                    let handle = input.header.hDevice;
+                    let mut gamepad_mutex = GAMEPADS.lock().unwrap();
+                    gamepad_mutex
+                        .get_or_add(handle)
+                        .and_then(|gamepad| gamepad
+                            .update_state(input)
+                            .map(|_| gamepad))
+                        .map(|gamepad| {
+                            for (button, hint, state) in gamepad.get_changed_buttons() {
+                                subclass_input.send_event(Event::DeviceEvent {
+                                    device_id,
+                                    event: Button {
+                                        button,
+                                        hint,
+                                        state,
+                                    },
+                                });
+                            }
+
+                            for (axis, hint, value) in gamepad.get_changed_axes() {
+                                subclass_input.send_event(Event::DeviceEvent {
+                                    device_id,
+                                    event: Motion {
+                                        axis,
+                                        hint,
+                                        value,
+                                    },
+                                });
+                            }
+                        });
+                } else {
+                    unreachable!();
                 }
             }
 

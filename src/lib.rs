@@ -88,6 +88,10 @@ extern crate image;
 extern crate serde;
 
 #[cfg(target_os = "windows")]
+extern crate regex;
+#[cfg(target_os = "windows")]
+extern crate rusty_xinput;
+#[cfg(target_os = "windows")]
 extern crate winapi;
 #[cfg(target_os = "windows")]
 extern crate backtrace;
@@ -119,5 +123,6 @@ mod icon;
 mod platform_impl;
 pub mod window;
 pub mod monitor;
+mod util;
 
 pub mod platform;

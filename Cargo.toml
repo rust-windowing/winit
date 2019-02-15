@@ -38,6 +38,8 @@ core-graphics = "0.17.3"
 [target.'cfg(target_os = "windows")'.dependencies]
 backtrace = "0.3"
 bitflags = "1"
+regex = "1.0"
+rusty-xinput = "1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
 version = "0.3.6"
@@ -46,6 +48,7 @@ features = [
     "commctrl",
     "dwmapi",
     "errhandlingapi",
+    "hidpi",
     "hidusage",
     "libloaderapi",
     "objbase",
@@ -61,6 +64,7 @@ features = [
     "wingdi",
     "winnt",
     "winuser",
+    "xinput",
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
