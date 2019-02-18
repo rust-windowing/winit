@@ -216,6 +216,13 @@ impl<T: 'static> EventLoop<T> {
 
             callback(::event::Event::EventsCleared, &self.window_target, &mut control_flow);
 
+            // fo a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
+            self.post_dispatch_triggers();
+            {
+                let mut guard = sink.lock().unwrap();
+                guard.empty_with(|evt| callback(evt, &self.window_target, &mut control_flow));
+            }
+
             // send pending events to the server
             self.display.flush().expect("Wayland connection lost.");
 
