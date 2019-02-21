@@ -111,6 +111,8 @@ extern crate parking_lot;
 extern crate percent_encoding;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 extern crate smithay_client_toolkit as sctk;
+#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+extern crate calloop;
 
 pub mod dpi;
 pub mod event;

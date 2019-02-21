@@ -1,22 +1,18 @@
 use std::sync::{Arc, Mutex};
 
-use super::{make_wid, DeviceId, EventLoopProxy, EventLoopSink};
+use super::{make_wid, DeviceId};
 use sctk::keyboard::{
     self, map_keyboard_auto_with_repeat, Event as KbEvent, KeyRepeatEvent, KeyRepeatKind,
 };
-use sctk::reexports::client::protocol::wl_keyboard;
-use sctk::reexports::client::Proxy;
-use sctk::reexports::client::protocol::wl_seat;
-use sctk::reexports::client::protocol::wl_seat::RequestsTrait as SeatRequests;
+use sctk::reexports::client::protocol::{wl_keyboard, wl_seat};
 
-use {ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
+use event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
 
 pub fn init_keyboard(
-    seat: &Proxy<wl_seat::WlSeat>,
-    sink: Arc<Mutex<EventLoopSink>>,
-    event_loop_proxy: EventLoopProxy,
+    seat: &wl_seat::WlSeat,
+    sink: ::calloop::channel::Sender<(::event::WindowEvent, super::WindowId)>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
-) -> Proxy<wl_keyboard::WlKeyboard> {
+) -> wl_keyboard::WlKeyboard {
     // { variables to be captured by the closures
     let target = Arc::new(Mutex::new(None));
     let my_sink = sink.clone();
@@ -30,18 +26,12 @@ pub fn init_keyboard(
         move |evt: KbEvent, _| match evt {
             KbEvent::Enter { surface, .. } => {
                 let wid = make_wid(&surface);
-                my_sink
-                    .lock()
-                    .unwrap()
-                    .send_event(WindowEvent::Focused(true), wid);
+                my_sink.send((WindowEvent::Focused(true), wid)).unwrap();
                 *target.lock().unwrap() = Some(wid);
             }
             KbEvent::Leave { surface, .. } => {
                 let wid = make_wid(&surface);
-                my_sink
-                    .lock()
-                    .unwrap()
-                    .send_event(WindowEvent::Focused(false), wid);
+                my_sink.send((WindowEvent::Focused(false), wid)).unwrap();
                 *target.lock().unwrap() = None;
             }
             KbEvent::Key {
@@ -55,12 +45,12 @@ pub fn init_keyboard(
                     let state = match state {
                         wl_keyboard::KeyState::Pressed => ElementState::Pressed,
                         wl_keyboard::KeyState::Released => ElementState::Released,
+                        _ => unreachable!(),
                     };
                     let vkcode = key_to_vkey(rawkey, keysym);
-                    let mut guard = my_sink.lock().unwrap();
-                    guard.send_event(
-                        WindowEvent::KeyboardInput {
-                            device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                    my_sink.send(
+                        (WindowEvent::KeyboardInput {
+                            device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
                             input: KeyboardInput {
                                 state: state,
                                 scancode: rawkey,
@@ -68,15 +58,15 @@ pub fn init_keyboard(
                                 modifiers: modifiers_tracker.lock().unwrap().clone(),
                             },
                         },
-                        wid,
-                    );
+                        wid)
+                    ).unwrap();
                     // send char event only on key press, not release
                     if let ElementState::Released = state {
                         return;
                     }
                     if let Some(txt) = utf8 {
                         for chr in txt.chars() {
-                            guard.send_event(WindowEvent::ReceivedCharacter(chr), wid);
+                            my_sink.send((WindowEvent::ReceivedCharacter(chr), wid)).unwrap();
                         }
                     }
                 }
@@ -84,16 +74,15 @@ pub fn init_keyboard(
             KbEvent::RepeatInfo { .. } => { /* Handled by smithay client toolkit */ }
             KbEvent::Modifiers { modifiers: event_modifiers } => {
                 *modifiers_tracker.lock().unwrap() = event_modifiers.into()
-            }
+            },
         },
         move |repeat_event: KeyRepeatEvent, _| {
             if let Some(wid) = *repeat_target.lock().unwrap() {
                 let state = ElementState::Pressed;
                 let vkcode = key_to_vkey(repeat_event.rawkey, repeat_event.keysym);
-                let mut guard = repeat_sink.lock().unwrap();
-                guard.send_event(
+                repeat_sink.send((
                     WindowEvent::KeyboardInput {
-                        device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                        device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
                         input: KeyboardInput {
                             state: state,
                             scancode: repeat_event.rawkey,
@@ -101,14 +90,13 @@ pub fn init_keyboard(
                             modifiers: my_modifiers.lock().unwrap().clone(),
                         },
                     },
-                    wid,
-                );
+                    wid)
+                ).unwrap();
                 if let Some(txt) = repeat_event.utf8 {
                     for chr in txt.chars() {
-                        guard.send_event(WindowEvent::ReceivedCharacter(chr), wid);
+                        repeat_sink.send((WindowEvent::ReceivedCharacter(chr), wid)).unwrap();
                     }
                 }
-                event_loop_proxy.wakeup().unwrap();
             }
         },
     );
@@ -128,21 +116,15 @@ pub fn init_keyboard(
             let my_sink = sink;
             // }
             seat.get_keyboard(|keyboard| {
-                keyboard.implement(move |evt, _| match evt {
+                keyboard.implement_closure(move |evt, _| match evt {
                     wl_keyboard::Event::Enter { surface, .. } => {
                         let wid = make_wid(&surface);
-                        my_sink
-                            .lock()
-                            .unwrap()
-                            .send_event(WindowEvent::Focused(true), wid);
+                        my_sink.send((WindowEvent::Focused(true), wid)).unwrap();
                         target = Some(wid);
                     }
                     wl_keyboard::Event::Leave { surface, .. } => {
                         let wid = make_wid(&surface);
-                        my_sink
-                            .lock()
-                            .unwrap()
-                            .send_event(WindowEvent::Focused(false), wid);
+                        my_sink.send((WindowEvent::Focused(false), wid)).unwrap();
                         target = None;
                     }
                     wl_keyboard::Event::Key { key, state, .. } => {
@@ -150,10 +132,11 @@ pub fn init_keyboard(
                             let state = match state {
                                 wl_keyboard::KeyState::Pressed => ElementState::Pressed,
                                 wl_keyboard::KeyState::Released => ElementState::Released,
+                                _ => unreachable!()
                             };
-                            my_sink.lock().unwrap().send_event(
+                            my_sink.send((
                                 WindowEvent::KeyboardInput {
-                                    device_id: ::DeviceId(::platform::DeviceId::Wayland(DeviceId)),
+                                    device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
                                     input: KeyboardInput {
                                         state: state,
                                         scancode: key,
@@ -162,7 +145,7 @@ pub fn init_keyboard(
                                     },
                                 },
                                 wid,
-                            );
+                            )).unwrap();
                         }
                     }
                     _ => (),
