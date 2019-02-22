@@ -81,8 +81,6 @@ extern crate lazy_static;
 extern crate libc;
 #[macro_use]
 extern crate log;
-#[cfg(feature = "icon_loading")]
-extern crate image;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
