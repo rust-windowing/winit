@@ -1,4 +1,5 @@
 # Unreleased
+
 - Changes below are considered **breaking**.
 - Change all occurrences of `EventsLoop` to `EventLoop`.
 - Previously flat API is now exposed through `event`, `event_loop`, `monitor`, and `window` modules.
@@ -36,6 +37,7 @@
     - `LoopDestroyed` is emitted when the `run` or `run_return` method is about to exit.
 - Rename `MonitorId` to `MonitorHandle`.
 - Removed `serde` implementations from `ControlFlow`.
+- On Wayland, fix `with_title()` not setting the windows title
 - On Wayland, add `set_wayland_theme()` to control client decoration color theme
 - Added serde serialization to `os::unix::XWindowType`.
 - **Breaking:** Remove the `icon_loading` feature and the associated `image` dependency.
