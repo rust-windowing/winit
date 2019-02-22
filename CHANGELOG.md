@@ -1,5 +1,7 @@
 # Unreleased
 
+# Version 0.19.0 (xxxx-xx-xx)
+
 - On Wayland, fix `with_title()` not setting the windows title
 - On Wayland, add `set_wayland_theme()` to control client decoration color theme
 - Added serde serialization to `os::unix::XWindowType`.
