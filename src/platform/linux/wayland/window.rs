@@ -81,6 +81,8 @@ impl Window {
             frame.set_app_id(app_id);
         }
 
+        frame.set_title(attributes.title);
+
         for &(_, ref seat) in evlp.seats.lock().unwrap().iter() {
             frame.new_seat(seat);
         }
