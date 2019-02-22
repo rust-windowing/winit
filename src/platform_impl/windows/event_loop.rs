@@ -994,6 +994,22 @@ unsafe extern "system" fn public_window_callback<T>(
             0
         },
 
+        winuser::WM_MOUSEHWHEEL => {
+            use event::MouseScrollDelta::LineDelta;
+            use event::TouchPhase;
+
+            let value = (wparam >> 16) as i16;
+            let value = value as i32;
+            let value = value as f32 / winuser::WHEEL_DELTA as f32;
+
+            subclass_input.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: LineDelta(value, 0.0), phase: TouchPhase::Moved, modifiers: event::get_key_mods() },
+            });
+
+            0
+        },
+
         winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
             use event::ElementState::Pressed;
             use event::VirtualKeyCode;

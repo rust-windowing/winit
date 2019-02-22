@@ -45,6 +45,7 @@
 - Refactored Windows state/flag-setting code.
 - On Windows, hiding the cursor no longer hides the cursor for all Winit windows - just the one `hide_cursor` was called on.
 - On Windows, cursor grabs used to get perpetually canceled when the grabbing window lost focus. Now, cursor grabs automatically get re-initialized when the window regains focus and the mouse moves over the client area.
+- On Windows, only vertical mouse wheel events were handled. Now, horizontal mouse wheel events are also handled.
 
 # Version 0.18.1 (2018-12-30)
 
