@@ -14,10 +14,11 @@ use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Protocol, Sel, BOOL, YES};
 
 use {ElementState, Event, KeyboardInput, MouseButton, WindowEvent, WindowId};
-use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, to_virtual_key_code, check_additional_virtual_key_codes};
+use platform::platform::events_loop::{DEVICE_ID, event_mods, Shared, scancode_to_keycode, char_to_keycode, check_function_keys, get_scancode};
 use platform::platform::util;
 use platform::platform::ffi::*;
 use platform::platform::window::{get_window_id, IdRef};
+use events;
 
 struct ViewState {
     window: id,
@@ -391,16 +392,54 @@ extern fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
     }
 }
 
-fn get_characters(event: id) -> Option<String> {
+fn get_characters(event: id, ignore_modifiers: bool) -> String {
     unsafe {
-        let characters: id = msg_send![event, characters];
+        let characters: id = if ignore_modifiers {
+            msg_send![event, charactersIgnoringModifiers]
+        } else {
+            msg_send![event, characters]
+        };
+
+        assert_ne!(characters, nil);
         let slice = slice::from_raw_parts(
             characters.UTF8String() as *const c_uchar,
             characters.len(),
         );
+
         let string = str::from_utf8_unchecked(slice);
-        Some(string.to_owned())
+
+        string.to_owned()
     }
+}
+
+// Retrieves a layout-independent keycode given an event.
+fn retrieve_keycode(event: id) -> Option<events::VirtualKeyCode> {
+    #[inline]
+    fn get_code(ev: id, raw: bool) -> Option<events::VirtualKeyCode> {
+        let characters = get_characters(ev, raw);
+        characters.chars().next().map_or(None, |c| char_to_keycode(c))
+    }
+
+    // Cmd switches Roman letters for Dvorak-QWERTY layout, so we try modified characters first.
+    // If we don't get a match, then we fall back to unmodified characters.
+    let code = get_code(event, false)
+        .or_else(|| {
+            get_code(event, true)
+        });
+
+    // We've checked all layout related keys, so fall through to scancode.
+    // Reaching this code means that the key is layout-independent (e.g. Backspace, Return).
+    //
+    // We're additionally checking here for F21-F24 keys, since their keycode
+    // can vary, but we know that they are encoded
+    // in characters property.
+    code.or_else(|| {
+        let scancode = get_scancode(event);
+        scancode_to_keycode(scancode)
+            .or_else(|| {
+                check_function_keys(&get_characters(event, true))
+            })
+    })
 }
 
 extern fn key_down(this: &Object, _sel: Sel, event: id) {
@@ -409,18 +448,12 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
         let window_id = WindowId(get_window_id(state.window));
+        let characters = get_characters(event, false);
 
-        state.raw_characters = get_characters(event);
+        state.raw_characters = Some(characters.clone());
 
-        let keycode: c_ushort = msg_send![event, keyCode];
-        // We are checking here for F21-F24 keys, since their keycode
-        // can vary, but we know that they are encoded
-        // in characters property.
-        let virtual_keycode = to_virtual_key_code(keycode)
-            .or_else(|| {
-                check_additional_virtual_key_codes(&state.raw_characters)
-            });
-        let scancode = keycode as u32;
+        let scancode = get_scancode(event) as u32;
+        let virtual_keycode = retrieve_keycode(event);
         let is_repeat = msg_send![event, isARepeat];
 
         let window_event = Event::WindowEvent {
@@ -436,17 +469,6 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
             },
         };
 
-        let characters: id = msg_send![event, characters];
-        let slice = slice::from_raw_parts(
-            characters.UTF8String() as *const c_uchar,
-            characters.len(),
-            );
-        let string = str::from_utf8_unchecked(slice);
-
-        state.raw_characters = {
-            Some(string.to_owned())
-        };
-
         if let Some(shared) = state.shared.upgrade() {
             shared.pending_events
                 .lock()
@@ -454,7 +476,7 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
                 .push_back(window_event);
             // Emit `ReceivedCharacter` for key repeats
             if is_repeat && state.is_key_down{
-                for character in string.chars() {
+                for character in characters.chars() {
                     let window_event = Event::WindowEvent {
                         window_id,
                         event: WindowEvent::ReceivedCharacter(character),
@@ -483,16 +505,9 @@ extern fn key_up(this: &Object, _sel: Sel, event: id) {
 
         state.is_key_down = false;
 
-        // We need characters here to check for additional keys such as
-        // F21-F24.
-        let characters = get_characters(event);
+        let scancode = get_scancode(event) as u32;
+        let virtual_keycode = retrieve_keycode(event);
 
-        let keycode: c_ushort = msg_send![event, keyCode];
-        let virtual_keycode = to_virtual_key_code(keycode)
-            .or_else(|| {
-                check_additional_virtual_key_codes(&characters)
-            });
-        let scancode = keycode as u32;
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.window)),
             event: WindowEvent::KeyboardInput {
