@@ -544,7 +544,67 @@ impl Proxy {
     }
 }
 
-pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
+pub fn char_to_keycode(c: char) -> Option<events::VirtualKeyCode> {
+    // We only translate keys that are affected by keyboard layout.
+    //
+    // Note that since keys are translated in a somewhat "dumb" way (reading character)
+    // there is a concern that some combination, i.e. Cmd+char, causes the wrong
+    // letter to be received, and so we receive the wrong key.
+    //
+    // Implementation reference: https://github.com/WebKit/webkit/blob/82bae82cf0f329dbe21059ef0986c4e92fea4ba6/Source/WebCore/platform/cocoa/KeyEventCocoa.mm#L626
+    Some(match c {
+        'a' | 'A' => events::VirtualKeyCode::A,
+        'b' | 'B' => events::VirtualKeyCode::B,
+        'c' | 'C' => events::VirtualKeyCode::C,
+        'd' | 'D' => events::VirtualKeyCode::D,
+        'e' | 'E' => events::VirtualKeyCode::E,
+        'f' | 'F' => events::VirtualKeyCode::F,
+        'g' | 'G' => events::VirtualKeyCode::G,
+        'h' | 'H' => events::VirtualKeyCode::H,
+        'i' | 'I' => events::VirtualKeyCode::I,
+        'j' | 'J' => events::VirtualKeyCode::J,
+        'k' | 'K' => events::VirtualKeyCode::K,
+        'l' | 'L' => events::VirtualKeyCode::L,
+        'm' | 'M' => events::VirtualKeyCode::M,
+        'n' | 'N' => events::VirtualKeyCode::N,
+        'o' | 'O' => events::VirtualKeyCode::O,
+        'p' | 'P' => events::VirtualKeyCode::P,
+        'q' | 'Q' => events::VirtualKeyCode::Q,
+        'r' | 'R' => events::VirtualKeyCode::R,
+        's' | 'S' => events::VirtualKeyCode::S,
+        't' | 'T' => events::VirtualKeyCode::T,
+        'u' | 'U' => events::VirtualKeyCode::U,
+        'v' | 'V' => events::VirtualKeyCode::V,
+        'w' | 'W' => events::VirtualKeyCode::W,
+        'x' | 'X' => events::VirtualKeyCode::X,
+        'y' | 'Y' => events::VirtualKeyCode::Y,
+        'z' | 'Z' => events::VirtualKeyCode::Z,
+        '1' | '!' => events::VirtualKeyCode::Key1,
+        '2' | '@' => events::VirtualKeyCode::Key2,
+        '3' | '#' => events::VirtualKeyCode::Key3,
+        '4' | '$' => events::VirtualKeyCode::Key4,
+        '5' | '%' => events::VirtualKeyCode::Key5,
+        '6' | '^' => events::VirtualKeyCode::Key6,
+        '7' | '&' => events::VirtualKeyCode::Key7,
+        '8' | '*' => events::VirtualKeyCode::Key8,
+        '9' | '(' => events::VirtualKeyCode::Key9,
+        '0' | ')' => events::VirtualKeyCode::Key0,
+        '=' | '+' => events::VirtualKeyCode::Equals,
+        '-' | '_' => events::VirtualKeyCode::Minus,
+        ']' | '}' => events::VirtualKeyCode::RBracket,
+        '[' | '{' => events::VirtualKeyCode::LBracket,
+        '\''| '"' => events::VirtualKeyCode::Apostrophe,
+        ';' | ':' => events::VirtualKeyCode::Semicolon,
+        '\\'| '|' => events::VirtualKeyCode::Backslash,
+        ',' | '<' => events::VirtualKeyCode::Comma,
+        '/' | '?' => events::VirtualKeyCode::Slash,
+        '.' | '>' => events::VirtualKeyCode::Period,
+        '`' | '~' => events::VirtualKeyCode::Grave,
+        _ => return None,
+    })
+}
+
+pub fn scancode_to_keycode(code: c_ushort) -> Option<events::VirtualKeyCode> {
     Some(match code {
         0x00 => events::VirtualKeyCode::A,
         0x01 => events::VirtualKeyCode::S,
@@ -680,20 +740,19 @@ pub fn to_virtual_key_code(code: c_ushort) -> Option<events::VirtualKeyCode> {
     })
 }
 
-pub fn check_additional_virtual_key_codes(
-    s: &Option<String>
+pub fn check_function_keys(
+    s: &String
 ) -> Option<events::VirtualKeyCode> {
-    if let &Some(ref s) = s {
-        if let Some(ch) = s.encode_utf16().next() {
-            return Some(match ch {
-                0xf718 => events::VirtualKeyCode::F21,
-                0xf719 => events::VirtualKeyCode::F22,
-                0xf71a => events::VirtualKeyCode::F23,
-                0xf71b => events::VirtualKeyCode::F24,
-                _ => return None,
-            })
-        }
+    if let Some(ch) = s.encode_utf16().next() {
+        return Some(match ch {
+            0xf718 => events::VirtualKeyCode::F21,
+            0xf719 => events::VirtualKeyCode::F22,
+            0xf71a => events::VirtualKeyCode::F23,
+            0xf71b => events::VirtualKeyCode::F24,
+            _ => return None,
+        })
     }
+
     None
 }
 
@@ -709,6 +768,16 @@ pub fn event_mods(event: cocoa::base::id) -> ModifiersState {
     }
 }
 
+pub fn get_scancode(event: cocoa::base::id) -> c_ushort {
+    // In AppKit, `keyCode` refers to the position (scancode) of a key rather than its character,
+    // and there is no easy way to navtively retrieve the layout-dependent character.
+    // In winit, we use keycode to refer to the key's character, and so this function aligns
+    // AppKit's terminology with ours.
+    unsafe {
+        msg_send![event, keyCode]
+    }
+}
+
 unsafe fn modifier_event(
     ns_event: cocoa::base::id,
     keymask: NSEventModifierFlags,
@@ -721,14 +790,14 @@ unsafe fn modifier_event(
         } else {
             ElementState::Pressed
         };
-        let keycode = NSEvent::keyCode(ns_event);
-        let scancode = keycode as u32;
-        let virtual_keycode = to_virtual_key_code(keycode);
+
+        let scancode = get_scancode(ns_event);
+        let virtual_keycode = scancode_to_keycode(scancode);
         Some(WindowEvent::KeyboardInput {
             device_id: DEVICE_ID,
             input: KeyboardInput {
                 state,
-                scancode,
+                scancode: scancode as u32,
                 virtual_keycode,
                 modifiers: event_mods(ns_event),
             },
