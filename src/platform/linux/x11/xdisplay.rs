@@ -1,6 +1,7 @@
 use std::ptr;
 use std::fmt;
 use std::error::Error;
+use std::os::raw::c_int;
 
 use libc;
 use parking_lot::Mutex;
@@ -18,6 +19,7 @@ pub struct XConnection {
     pub xinput2: ffi::XInput2,
     pub xlib_xcb: ffi::Xlib_xcb,
     pub display: *mut ffi::Display,
+    pub x11_fd: c_int,
     pub latest_error: Mutex<Option<XError>>,
 }
 
@@ -48,6 +50,11 @@ impl XConnection {
             display
         };
 
+        // Get X11 socket file descriptor
+        let fd = unsafe {
+            (xlib.XConnectionNumber)(display)
+        };
+
         Ok(XConnection {
             xlib,
             xrandr,
@@ -56,6 +63,7 @@ impl XConnection {
             xinput2,
             xlib_xcb,
             display,
+            x11_fd: fd,
             latest_error: Mutex::new(None),
         })
     }
