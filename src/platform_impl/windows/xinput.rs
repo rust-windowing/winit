@@ -5,7 +5,10 @@ use rusty_xinput::*;
 use winapi::shared::minwindef::{DWORD, WORD};
 use winapi::um::xinput::*;
 
-use event::{AxisHint, ButtonHint, ElementState};
+use event::{
+    ElementState,
+    device::{AxisHint, ButtonHint},
+};
 use platform_impl::platform::util;
 
 lazy_static! {

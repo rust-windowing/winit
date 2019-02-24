@@ -5,9 +5,9 @@ use std::os::raw::c_void;
 use libc;
 use winapi::shared::windef::HWND;
 
-use event::DeviceId;
 use monitor::MonitorHandle;
 use event_loop::EventLoop;
+use event::device::{MouseId, KeyboardId, GamepadHandle};
 use window::{Icon, Window, WindowBuilder};
 use platform_impl::EventLoop as WindowsEventLoop;
 
@@ -104,15 +104,29 @@ impl MonitorHandleExtWindows for MonitorHandle {
     }
 }
 
-/// Additional methods on `DeviceId` that are specific to Windows.
-pub trait DeviceIdExtWindows {
+/// Additional methods on device types that are specific to Windows.
+pub trait DeviceExtWindows {
     /// Returns an identifier that persistently refers to this specific device.
     ///
     /// Will return `None` if the device is no longer available.
     fn get_persistent_identifier(&self) -> Option<String>;
 }
 
-impl DeviceIdExtWindows for DeviceId {
+impl DeviceExtWindows for MouseId {
+    #[inline]
+    fn get_persistent_identifier(&self) -> Option<String> {
+        self.0.get_persistent_identifier()
+    }
+}
+
+impl DeviceExtWindows for KeyboardId {
+    #[inline]
+    fn get_persistent_identifier(&self) -> Option<String> {
+        self.0.get_persistent_identifier()
+    }
+}
+
+impl DeviceExtWindows for GamepadHandle {
     #[inline]
     fn get_persistent_identifier(&self) -> Option<String> {
         self.0.get_persistent_identifier()

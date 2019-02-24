@@ -28,7 +28,6 @@ use platform_impl::platform::{
     event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID, REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID},
     icon::{self, IconType, WinIcon},
     monitor,
-    raw_input::register_for_raw_input,
     util,
     window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
 };
@@ -69,10 +68,10 @@ impl Window {
                         panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
                     }
 
-                    let file_drop_runner = event_loop.runner_shared.clone();
+                    let shared_data = event_loop.shared_data.clone();
                     let file_drop_handler = FileDropHandler::new(
                         win.window.0,
-                        Box::new(move |event| if let Ok(e) = event.map_nonuser_event() {file_drop_runner.send_event(e)})
+                        Box::new(move |event| if let Ok(e) = event.map_nonuser_event() {shared_data.runner_shared.send_event(e)})
                     );
                     let handler_interface_ptr = &mut (*file_drop_handler.data).interface as LPDROPTARGET;
 
@@ -82,7 +81,7 @@ impl Window {
 
                 let subclass_input = event_loop::SubclassInput {
                     window_state: win.window_state.clone(),
-                    event_loop_runner: event_loop.runner_shared.clone(),
+                    shared_data: event_loop.shared_data.clone(),
                     file_drop_handler,
                 };
 
@@ -673,9 +672,6 @@ unsafe fn init<T: 'static>(
 
         WindowWrapper(handle)
     };
-
-    // Set up raw input
-    register_for_raw_input(real_window.0);
 
     // Register for touch events if applicable
     {

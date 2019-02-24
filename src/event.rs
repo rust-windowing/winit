@@ -9,7 +9,8 @@ use std::path::PathBuf;
 
 use dpi::{LogicalPosition, LogicalSize};
 use window::WindowId;
-use platform_impl;
+
+pub mod device;
 
 /// Describes a generic event.
 #[derive(Clone, Debug, PartialEq)]
@@ -20,10 +21,7 @@ pub enum Event<T> {
         event: WindowEvent,
     },
     /// Emitted when the OS sends an event to a device.
-    DeviceEvent {
-        device_id: DeviceId,
-        event: DeviceEvent,
-    },
+    DeviceEvent(device::DeviceEvent),
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](../event_loop/struct.EventLoopProxy.html#method.send_event)
     UserEvent(T),
     /// Emitted when new events arrive from the OS to be processed.
@@ -48,7 +46,7 @@ impl<T> Event<T> {
         match self {
             UserEvent(_) => Err(self),
             WindowEvent{window_id, event} => Ok(WindowEvent{window_id, event}),
-            DeviceEvent{device_id, event} => Ok(DeviceEvent{device_id, event}),
+            DeviceEvent(event) => Ok(DeviceEvent(event)),
             NewEvents(cause) => Ok(NewEvents(cause)),
             EventsCleared => Ok(EventsCleared),
             LoopDestroyed => Ok(LoopDestroyed),
@@ -125,12 +123,10 @@ pub enum WindowEvent {
     Focused(bool),
 
     /// An event from the keyboard has been received.
-    KeyboardInput { device_id: DeviceId, input: KeyboardInput },
+    KeyboardInput(KeyboardInput),
 
     /// The cursor has moved on the window.
     CursorMoved {
-        device_id: DeviceId,
-
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
@@ -139,16 +135,16 @@ pub enum WindowEvent {
     },
 
     /// The cursor has entered the window.
-    CursorEntered { device_id: DeviceId },
+    CursorEntered,
 
     /// The cursor has left the window.
-    CursorLeft { device_id: DeviceId },
+    CursorLeft,
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase, modifiers: ModifiersState },
+    MouseWheel { delta: MouseScrollDelta, phase: TouchPhase, modifiers: ModifiersState },
 
     /// An mouse button press has been received.
-    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton, modifiers: ModifiersState },
+    MouseInput { state: ElementState, button: MouseButton, modifiers: ModifiersState },
 
 
     /// Touchpad pressure event.
@@ -156,10 +152,7 @@ pub enum WindowEvent {
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
     /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
     /// is being pressed) and stage (integer representing the click level).
-    TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
-
-    /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
+    TouchpadPressure { pressure: f32, stage: i64 },
 
     /// The OS or application has requested that the window be redrawn.
     RedrawRequested,
@@ -177,178 +170,6 @@ pub enum WindowEvent {
     ///
     /// For more information about DPI in general, see the [`dpi`](dpi/index.html) module.
     HiDpiFactorChanged(f64),
-}
-
-/// Identifier of an input device.
-///
-/// Whenever you receive an event arising from a particular input device, this event contains a `DeviceId` which
-/// identifies its origin. Note that devices may be virtual (representing an on-screen cursor and keyboard focus) or
-/// physical. Virtual devices typically aggregate inputs from multiple physical devices.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(pub(crate) platform_impl::DeviceId);
-
-impl DeviceId {
-    /// Returns a dummy `DeviceId`, useful for unit testing. The only guarantee made about the return
-    /// value of this function is that it will always be equal to itself and to future values returned
-    /// by this function.  No other guarantees are made. This may be equal to a real `DeviceId`.
-    ///
-    /// **Passing this into a winit function will result in undefined behavior.**
-    pub unsafe fn dummy() -> Self {
-        DeviceId(platform_impl::DeviceId::dummy())
-    }
-}
-
-/// A hint suggesting the type of button that was pressed.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum ButtonHint {
-    LeftMouse,
-    MiddleMouse,
-    RightMouse,
-
-    Start,
-    Select,
-
-    /// The north face button.
-    ///
-    /// * Nintendo: X
-    /// * Playstation: Triangle
-    /// * XBox: Y
-    North,
-    /// The south face button.
-    ///
-    /// * Nintendo: B
-    /// * Playstation: X
-    /// * XBox: A
-    South,
-    /// The east face button.
-    ///
-    /// * Nintendo: A
-    /// * Playstation: Circle
-    /// * XBox: B
-    East,
-    /// The west face button.
-    ///
-    /// * Nintendo: Y
-    /// * Playstation: Square
-    /// * XBox: X
-    West,
-
-    LeftStick,
-    RightStick,
-
-    LeftTrigger,
-    RightTrigger,
-
-    LeftShoulder,
-    RightShoulder,
-
-    DPadUp,
-    DPadDown,
-    DPadLeft,
-    DPadRight,
-}
-
-impl ButtonHint {
-    #[inline]
-    pub fn is_mouse_button(&self) -> bool {
-        use self::ButtonHint::*;
-        match *self {
-            LeftMouse | MiddleMouse | RightMouse => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_gamepad_button(&self) -> bool {
-        !self.is_mouse_button()
-    }
-}
-
-/// A hint suggesting the type of axis that moved.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum AxisHint {
-    MouseX,
-    MouseY,
-
-    LeftStickX,
-    LeftStickY,
-
-    RightStickX,
-    RightStickY,
-
-    LeftTrigger,
-    RightTrigger,
-
-    /// This is supposed to have a specialized meaning, referring to a point-of-view switch present on joysticks used
-    /// for flight simulation. However, Xbox 360 controllers (and their derivatives) use a hat switch for the D-pad.
-    HatSwitch,
-
-    DPadUp,
-    DPadDown,
-    DPadLeft,
-    DPadRight,
-}
-
-impl AxisHint {
-    #[inline]
-    pub fn is_mouse_axis(&self) -> bool {
-        use self::AxisHint::*;
-        match *self {
-            MouseX | MouseY => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_gamepad_axis(&self) -> bool {
-        !self.is_mouse_axis()
-    }
-}
-
-/// Represents raw hardware events that are not associated with any particular window.
-///
-/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
-/// game controls. Many physical actions, such as mouse movement, can produce both device and window events. Because
-/// window events typically arise from virtual devices (corresponding to GUI cursors and keyboard focus) the device IDs
-/// may not match.
-///
-/// Note that these events are delivered regardless of input focus.
-#[derive(Clone, Debug, PartialEq)]
-pub enum DeviceEvent {
-    Added,
-    Removed,
-
-    /// Change in physical position of a pointing device.
-    ///
-    /// This represents raw, unfiltered physical motion. Not to be confused with `WindowEvent::CursorMoved`.
-    MouseMotion {
-        /// (x, y) change in position in unspecified units.
-        ///
-        /// Different devices may use different units.
-        delta: (f64, f64),
-    },
-
-    /// Physical scroll event
-    MouseWheel {
-        delta: MouseScrollDelta,
-    },
-
-    /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
-    /// that winit supports on this platform, including mouse devices.  If the device is a mouse
-    /// device then this will be reported alongside the MouseMotion event.
-    Motion {
-        axis: AxisId,
-        hint: Option<AxisHint>,
-        value: f64,
-    },
-
-    Button {
-        button: ButtonId,
-        hint: Option<ButtonHint>,
-        state: ElementState,
-    },
-    Key(KeyboardInput),
-    Text { codepoint: char },
 }
 
 /// Describes a keyboard input event.
@@ -404,7 +225,6 @@ pub enum TouchPhase {
 /// Touch may be cancelled if for example window lost focus.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
-    pub device_id: DeviceId,
     pub phase: TouchPhase,
     pub location: LogicalPosition,
     /// unique identifier of a finger.
@@ -421,7 +241,7 @@ pub type AxisId = u32;
 pub type ButtonId = u32;
 
 /// Describes the input state of a key.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ElementState {
     Pressed,
@@ -429,7 +249,7 @@ pub enum ElementState {
 }
 
 /// Describes a button of a mouse controller.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseButton {
     Left,

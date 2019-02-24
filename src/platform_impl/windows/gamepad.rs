@@ -4,7 +4,10 @@ use std::sync::{Arc, Mutex};
 use winapi::um::winnt::HANDLE;
 use winapi::um::winuser::RAWINPUT;
 
-use event::{AxisHint, ButtonHint, ElementState};
+use event::{
+    ElementState,
+    device::{AxisHint, ButtonHint},
+};
 use platform_impl::platform::raw_input::{get_raw_input_device_name, RawGamepad};
 use platform_impl::platform::xinput::{self, XInputGamepad};
 
@@ -71,7 +74,7 @@ impl Gamepad {
             })
     }
 
-    pub unsafe fn update_state(&mut self, input: *mut RAWINPUT) -> Option<()> {
+    pub unsafe fn update_state(&mut self, input: &mut RAWINPUT) -> Option<()> {
         match self.backend {
             GamepadType::Raw(ref mut gamepad) => gamepad.update_state(input),
             GamepadType::XInput(ref mut gamepad) => gamepad.update_state(),

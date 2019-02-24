@@ -1,14 +1,27 @@
 #![cfg(target_os = "windows")]
 
+mod dpi;
+mod drop_handler;
+mod event;
+mod event_loop;
+mod gamepad;
+mod icon;
+mod monitor;
+mod raw_input;
+mod util;
+mod window;
+mod window_state;
+mod xinput;
+
+use std::ptr;
 use winapi;
 use winapi::shared::windef::HWND;
+use winapi::um::winnt::HANDLE;
+use window::Icon;
 
 pub use self::event_loop::{EventLoop, EventLoopWindowTarget, EventLoopProxy};
 pub use self::monitor::MonitorHandle;
 pub use self::window::Window;
-
-use window::Icon;
-use event::DeviceId as RootDeviceId;
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
@@ -27,53 +40,39 @@ unsafe impl Send for Cursor {}
 unsafe impl Sync for Cursor {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(u32);
-
-impl DeviceId {
-    pub unsafe fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
-
-impl DeviceId {
-    pub fn get_persistent_identifier(&self) -> Option<String> {
-        if self.0 != 0 {
-            raw_input::get_raw_input_device_name(self.0 as _)
-        } else {
-            None
-        }
-    }
-}
-
-// Constant device ID, to be removed when this backend is updated to report real device IDs.
-const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId(0));
-
-fn wrap_device_id(id: u32) -> RootDeviceId {
-    RootDeviceId(DeviceId(id))
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(HWND);
 unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 
 impl WindowId {
     pub unsafe fn dummy() -> Self {
-        use std::ptr::null_mut;
-
-        WindowId(null_mut())
+        WindowId(ptr::null_mut())
     }
 }
 
-mod dpi;
-mod drop_handler;
-mod event;
-mod event_loop;
-mod gamepad;
-mod icon;
-mod monitor;
-mod raw_input;
-mod util;
-mod window;
-mod window_state;
-mod xinput;
+macro_rules! device_id {
+    ($name:ident) => {
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub(crate) struct $name(HANDLE);
+
+        impl $name {
+            pub unsafe fn dummy() -> Self {
+                Self(ptr::null_mut())
+            }
+
+            pub fn get_persistent_identifier(&self) -> Option<String> {
+                raw_input::get_raw_input_device_name(self.0)
+            }
+        }
+
+        impl From<$name> for crate::event::device::$name {
+            fn from(platform_id: $name) -> Self {
+                Self(platform_id)
+            }
+        }
+    }
+}
+
+device_id!(MouseId);
+device_id!(KeyboardId);
+device_id!(GamepadHandle);

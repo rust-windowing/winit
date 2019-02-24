@@ -3,7 +3,7 @@ use std::cmp::max;
 use std::mem::{self, size_of};
 
 use winapi::ctypes::wchar_t;
-use winapi::shared::minwindef::{BYTE, TRUE, UINT, USHORT};
+use winapi::shared::minwindef::{TRUE, INT, UINT, USHORT};
 use winapi::shared::hidpi::{
     HidP_GetButtonCaps,
     HidP_GetCaps,
@@ -54,7 +54,10 @@ use winapi::um::winuser::{
 };
 
 use platform_impl::platform::util;
-use event::{AxisHint, ButtonHint, ElementState};
+use event::{
+    ElementState,
+    device::{AxisHint, ButtonHint},
+};
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
@@ -90,7 +93,6 @@ pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
     Some(buffer)
 }
 
-#[allow(dead_code)]
 pub enum RawDeviceInfo {
     Mouse(RID_DEVICE_INFO_MOUSE),
     Keyboard(RID_DEVICE_INFO_KEYBOARD),
@@ -110,26 +112,29 @@ impl From<RID_DEVICE_INFO> for RawDeviceInfo {
     }
 }
 
-#[allow(dead_code)]
 pub fn get_raw_input_device_info(handle: HANDLE) -> Option<RawDeviceInfo> {
     let mut info: RID_DEVICE_INFO = unsafe { mem::uninitialized() };
     let info_size = size_of::<RID_DEVICE_INFO>() as UINT;
 
     info.cbSize = info_size;
 
-    let mut minimum_size = 0;
+    let mut data_size = info_size;
     let status = unsafe { winuser::GetRawInputDeviceInfoW(
         handle,
         RIDI_DEVICEINFO,
         &mut info as *mut _ as _,
-        &mut minimum_size,
-    ) };
+        &mut data_size,
+    ) } as INT;
 
-    if status == UINT::max_value() || status == 0 {
+    // If status == -1, that means we didn't allocate enough space to store all the data. That should
+    // never happen since we're supposed to get a struct and not a dynamically sized buffer.
+    assert_ne!(status, -1);
+
+    if status == 0 {
         return None;
     }
 
-    debug_assert_eq!(info_size, status);
+    debug_assert_eq!(info_size, status as _);
 
     Some(info.into())
 }
@@ -253,10 +258,14 @@ pub fn register_for_raw_input(window_handle: HWND) -> bool {
     register_raw_input_devices(&devices)
 }
 
-pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<Vec<BYTE>> {
+pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
     let mut data_size = 0;
     let header_size = size_of::<RAWINPUTHEADER>() as UINT;
 
+    // I've got absolutely no idea why Microsoft decided to make this API so damn complicated. It
+    // looks like it will only ever read out `size_of::<RAWINPUT>()` bytes at max, so why not just
+    // make it write directly into a RAWINPUT struct? Several other APIs do just that. It's
+    // perplexing.
     unsafe { winuser::GetRawInputData(
         handle,
         RID_INPUT,
@@ -270,21 +279,26 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<Vec<BYTE>> {
         data_size += 8 - alignment_remainder;
     }
 
-    let mut data = Vec::with_capacity(data_size as _);
+    assert!(data_size <= size_of::<RAWINPUT>() as UINT);
+
+    // Since GetRawInputData is going to write... well, a buffer that's `RAWINPUT` bytes long
+    // and structured like `RAWINPUT`, we're just going to cut to the chase and write directly into
+    // a `RAWINPUT` struct.
+    let mut data: RAWINPUT = unsafe{ mem::uninitialized() };
 
     let status = unsafe { winuser::GetRawInputData(
         handle,
         RID_INPUT,
-        data.as_mut_ptr() as _,
+        &mut data as *mut RAWINPUT as *mut _,
         &mut data_size,
         header_size,
-    ) };
+    ) } as INT;
 
-    if status == UINT::max_value() || status == 0 {
+    assert_ne!(-1, status);
+
+    if status == 0 {
         return None;
     }
-
-    unsafe { data.set_len(data_size as _) };
 
     Some(data)
 }
@@ -302,7 +316,7 @@ fn button_flags_to_element_state(button_flags: USHORT, down_flag: USHORT, up_fla
     }
 }
 
-pub fn get_raw_mouse_button_state(button_flags: USHORT) -> [Option<ElementState>; 3] {
+pub fn get_raw_mouse_button_state(button_flags: USHORT) -> [Option<ElementState>; 5] {
     [
         button_flags_to_element_state(
             button_flags,
@@ -318,6 +332,16 @@ pub fn get_raw_mouse_button_state(button_flags: USHORT) -> [Option<ElementState>
             button_flags,
             winuser::RI_MOUSE_RIGHT_BUTTON_DOWN,
             winuser::RI_MOUSE_RIGHT_BUTTON_UP,
+        ),
+        button_flags_to_element_state(
+            button_flags,
+            winuser::RI_MOUSE_BUTTON_4_DOWN,
+            winuser::RI_MOUSE_BUTTON_4_UP,
+        ),
+        button_flags_to_element_state(
+            button_flags,
+            winuser::RI_MOUSE_BUTTON_5_DOWN,
+            winuser::RI_MOUSE_BUTTON_5_UP,
         ),
     ]
 }
@@ -522,11 +546,11 @@ impl RawGamepad {
         Some(())
     }
 
-    pub unsafe fn update_state(&mut self, input: *mut RAWINPUT) -> Option<()> {
-        if (*input).header.dwType != winuser::RIM_TYPEHID {
+    pub unsafe fn update_state(&mut self, input: &mut RAWINPUT) -> Option<()> {
+        if input.header.dwType != winuser::RIM_TYPEHID {
             return None;
         }
-        let hid = (*input).data.hid_mut();
+        let hid = input.data.hid_mut();
         self.update_button_state(hid)?;
         self.update_axis_state(hid)?;
         Some(())
