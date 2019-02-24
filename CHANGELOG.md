@@ -42,6 +42,7 @@
 - On Wayland, add `set_wayland_theme()` to control client decoration color theme
 - Added serde serialization to `os::unix::XWindowType`.
 - **Breaking:** Remove the `icon_loading` feature and the associated `image` dependency.
+- On X11, make event loop thread safe by replacing XNextEvent with select(2) and XCheckIfEvent
 - On Windows, fix malformed function pointer typecast that could invoke undefined behavior.
 - Refactored Windows state/flag-setting code.
 - On Windows, hiding the cursor no longer hides the cursor for all Winit windows - just the one `hide_cursor` was called on.
