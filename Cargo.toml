@@ -11,17 +11,16 @@ documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [package.metadata.docs.rs]
-features = ["icon_loading", "serde"]
-
-[features]
-icon_loading = ["image"]
+features = ["serde"]
 
 [dependencies]
 lazy_static = "1"
 libc = "0.2"
 log = "0.4"
-image = { version = "0.21", optional = true }
 serde = { version = "1", optional = true, features = ["serde_derive"] }
+
+[dev-dependencies]
+image = "0.21"
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
 version = "0.2"

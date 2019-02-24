@@ -51,11 +51,9 @@ install:
 script:
   - cargo build --target $TARGET --verbose
   - cargo build --target $TARGET --features serde --verbose
-  - cargo build --target $TARGET --features icon_loading --verbose
   # Running iOS apps on OSX requires the simulator so we skip that for now
   - if [ "$TARGET" != "x86_64-apple-ios" ]; then cargo test --target $TARGET --verbose; fi
   - if [ "$TARGET" != "x86_64-apple-ios" ]; then cargo test --target $TARGET --features serde --verbose; fi
-  - if [ "$TARGET" != "x86_64-apple-ios" ]; then cargo test --target $TARGET --features icon_loading --verbose; fi
 
 after_success:
   - |
