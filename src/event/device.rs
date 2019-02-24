@@ -1,5 +1,6 @@
 use platform_impl;
 use event::{AxisId, ButtonId, ElementState, KeyboardInput, MouseButton};
+use std::fmt;
 
 /// A hint suggesting the type of button that was pressed.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -69,6 +70,12 @@ pub enum AxisHint {
     DPadRight,
 }
 
+/// Represents raw hardware events that are not associated with any particular window.
+///
+/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
+/// game controls. Many physical actions, such as mouse movement, can produce both device and window events.
+///
+/// Note that these events are delivered regardless of input focus.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DeviceEvent {
     MouseEvent(MouseId, MouseEvent),
@@ -78,14 +85,23 @@ pub enum DeviceEvent {
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub enum MouseEvent {
+    /// A mouse device has been added.
     Added,
+    /// A mouse device has been removed.
     Removed,
+    /// A mouse button has been pressed or released.
     Button {
         state: ElementState,
         button: MouseButton,
         button_id: ButtonId,
     },
+    /// Change in physical position of a pointing device.
+    ///
+    /// This represents raw, unfiltered physical motion, NOT the position of the mouse. Accordingly,
+    /// the values provided here are the change in position of the mouse since the previous `Moved`
+    /// event.
     Moved(f64, f64),
+    /// Change in rotation of mouse wheel.
     Wheel(f64, f64),
 }
 
@@ -112,11 +128,11 @@ pub enum GamepadEvent {
     },
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MouseId(pub(crate) platform_impl::MouseId);
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct KeyboardId(pub(crate) platform_impl::KeyboardId);
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GamepadHandle(pub(crate) platform_impl::GamepadHandle);
 
 impl MouseId {
@@ -149,5 +165,23 @@ impl GamepadHandle {
     /// **Passing this into a winit function will result in undefined behavior.**
     pub unsafe fn dummy() -> Self {
         GamepadHandle(platform_impl::GamepadHandle::dummy())
+    }
+}
+
+impl fmt::Debug for MouseId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Debug for KeyboardId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Debug for GamepadHandle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
     }
 }
