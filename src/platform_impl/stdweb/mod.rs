@@ -1,14 +1,18 @@
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use event::Event;
+use event::{Event, StartCause};
 use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
 use icon::Icon;
 use monitor::{MonitorHandle as RootMH};
 use window::{CreationError, MouseCursor, WindowAttributes};
 use stdweb::{
-    document,
-    web::html_element::CanvasElement
+    traits::*,
+    web::{
+        document,
+        event::*,
+        html_element::CanvasElement,
+    }
 };
-use std::cell::Cell;
+use std::cell::{RefCell, RefMut};
 use std::collections::VecDeque;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::marker::PhantomData;
@@ -59,7 +63,6 @@ impl WindowId {
 
 pub struct Window {
     canvas: CanvasElement,
-    monitors: VecDeque<MonitorHandle>
 }
 
 impl Window {
@@ -86,7 +89,7 @@ impl Window {
     }
 
     pub fn get_position(&self) -> Option<LogicalPosition> {
-        let bounds = canvas.get_bouding_client_rect();
+        let bounds = self.canvas.get_bounding_client_rect();
         Some(LogicalPosition {
             x: bounds.get_x(),
             y: bounds.get_y(),
@@ -105,23 +108,23 @@ impl Window {
     #[inline]
     pub fn get_inner_size(&self) -> Option<LogicalSize> {
         Some(LogicalSize {
-            x: self.canvas.width() as f64
-            y: self.canvas.height() as f64
+            width: self.canvas.width() as f64,
+            height: self.canvas.height() as f64
         })
     }
 
     #[inline]
     pub fn get_outer_size(&self) -> Option<LogicalSize> {
         Some(LogicalSize {
-            x: self.canvas.width() as f64
-            y: self.canvas.height() as f64
+            width: self.canvas.width() as f64,
+            height: self.canvas.height() as f64
         })
     }
 
     #[inline]
     pub fn set_inner_size(&self, size: LogicalSize) {
-        self.canvas.set_width(size.x as u32);
-        self.canvas.set_height(size.y as u32);
+        self.canvas.set_width(size.width as u32);
+        self.canvas.set_height(size.height as u32);
     }
 
     #[inline]
@@ -185,7 +188,7 @@ impl Window {
             MouseCursor::ColResize => "col-resize",
             MouseCursor::RowResize => "row-resize",
         };
-        self.canvas.set_attribute("cursor", text); 
+        self.canvas.set_attribute("cursor", text)
             .expect("Setting the cursor on the canvas");
     }
 
@@ -249,7 +252,7 @@ impl Window {
 
     #[inline]
     pub fn get_available_monitors(&self) -> VecDequeIter<MonitorHandle> {
-        self.monitors.iter()
+        VecDeque::new().into_iter()
     }
 
     #[inline]
@@ -259,25 +262,28 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        WindowId::dummy()
+        // TODO ?
+        unsafe { WindowId::dummy() }
     }
 }
 
 fn new_rootelw<T>() -> RootELW<T> {
     RootELW {
-        p: EventLoopWindowTarget,
+        p: EventLoopWindowTarget {
+            _phantom: PhantomData
+        },
         _marker: PhantomData
     }
 }
 
-pub struct EventLoop<T> {
+pub struct EventLoop<T: 'static> {
     window_target: RootELW<T>,
-    monitors: VecDeque<MonitorHandle>,
-    data: Rc<Cell<EventLoopData>>,
+    data: Rc<RefCell<EventLoopData<T>>>,
 }
 
-struct EventLoopData {
-    events: VecDeque<T>,
+#[derive(Clone)]
+struct EventLoopData<T> {
+    events: VecDeque<Event<T>>,
     control: ControlFlow,
 }
 
@@ -287,7 +293,7 @@ impl<T> EventLoop<T> {
     }
 
     pub fn get_available_monitors(&self) -> VecDequeIter<MonitorHandle> {
-        self.monitors.iter()
+        VecDeque::new().into_iter()
     }
 
     pub fn get_primary_monitor(&self) -> MonitorHandle {
@@ -299,23 +305,87 @@ impl<T> EventLoop<T> {
     {
         // TODO: Create event handlers for the JS events
         // TODO: how to handle request redraw?
+        // TODO: onclose (stdweb PR)
+        // TODO: file dropping, PathBuf isn't useful for web
+
+        let document = &document();
+        self.add_event(document, |data, event: BlurEvent| {
+        });
+        self.add_event(document, |data, event: FocusEvent| {
+        });
+
+        // TODO: what to do after attaching events
         unimplemented!();
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            events: self.window_target.p.events.clone()
+            data: self.data.clone()
         }
     }
 
     pub fn window_target(&self) -> &RootELW<T> {
         &self.window_target
     }
+
+    // Apply all enqueued events
+    fn apply_events<F>(&mut self, mut event_handler: F, start: StartCause)
+        where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow) {
+        // TODO: how to handle ControlFlow::Exit?
+        let mut data = self.data.borrow_mut();
+        let mut control = data.control.clone();
+        let events = &mut data.events;
+        event_handler(Event::NewEvents(start), &new_rootelw(), &mut control);
+        for event in events.drain(..) {
+            event_handler(event, &new_rootelw(), &mut control);
+        }
+        event_handler(Event::EventsCleared, &new_rootelw(), &mut control)
+    }
+
+    fn register_window(&self, other: &Window) {
+        let canvas = &other.canvas;
+        
+        self.add_event(canvas, |data, event: KeyDownEvent| {
+            // TODO: received character
+            // TODO: keyboard input
+        });
+        self.add_event(canvas, |data, event: KeyUpEvent| {
+            // TODO: keyboard input
+        });
+        self.add_event(canvas, |data, _: PointerOutEvent| {
+            // TODO
+        });
+        self.add_event(canvas, |data, _: PointerOverEvent| {
+            // TODO
+        });
+        self.add_event(canvas, |data, event: PointerMoveEvent| {
+            // TODO: mouse move
+        });
+        self.add_event(canvas, |data, event: PointerUpEvent| {
+            // TODO: mouse pointers
+        });
+        self.add_event(canvas, |data, event: PointerDownEvent| {
+            // TODO: mouse pointers
+        });
+    }
+
+    fn add_event<E, F>(&self, target: &impl IEventTarget, mut handler: F) 
+            where E: ConcreteEvent, F: FnMut(RefMut<EventLoopData<T>>, E) + 'static {
+        let data = self.data.clone();
+
+        target.add_event_listener(move |event: E| {
+            event.prevent_default();
+            event.stop_propagation();
+            event.cancel_bubble();
+
+            handler(data.borrow_mut(), event);
+        });
+    }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone)]
 pub struct EventLoopProxy<T> {
-    data: EventLoopData
+    data: Rc<RefCell<EventLoopData<T>>>
 }
 
 impl<T> EventLoopProxy<T> {
