@@ -56,7 +56,7 @@ use platform_impl::platform::{
     drop_handler::FileDropHandler,
     event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
     gamepad::GAMEPADS,
-    raw_input::{self, get_raw_input_data, get_raw_mouse_button_state},
+    raw_input::{self, get_raw_input_data, get_raw_mouse_button_state, RawInputData},
     util,
     window::adjust_size,
     window_state::{CursorFlags, WindowFlags, WindowState},
@@ -1547,16 +1547,13 @@ unsafe extern "system" fn thread_event_target_callback<T>(
             use event::device::DeviceEvent;
             use event::ElementState::{Pressed, Released};
 
-            if let Some(mut input) = get_raw_input_data(lparam as _) {
-                let device_handle = input.header.hDevice;
-
-                if input.header.dwType == winuser::RIM_TYPEMOUSE {
-                    let mouse = input.data.mouse();
+            match get_raw_input_data(lparam as _) {
+                Some(RawInputData::Mouse{device_handle, raw_mouse}) => {
                     let mouse_handle = MouseId(device_handle).into();
 
-                    if util::has_flag(mouse.usFlags, winuser::MOUSE_MOVE_RELATIVE) {
-                        let x = mouse.lLastX as f64;
-                        let y = mouse.lLastY as f64;
+                    if util::has_flag(raw_mouse.usFlags, winuser::MOUSE_MOVE_RELATIVE) {
+                        let x = raw_mouse.lLastX as f64;
+                        let y = raw_mouse.lLastY as f64;
 
                         if x != 0.0 || y != 0.0 {
                             subclass_input.send_event(Event::DeviceEvent(
@@ -1568,9 +1565,9 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                         }
                     }
 
-                    if util::has_flag(mouse.usButtonFlags, winuser::RI_MOUSE_WHEEL) {
+                    if util::has_flag(raw_mouse.usButtonFlags, winuser::RI_MOUSE_WHEEL) {
                         // TODO: HOW IS RAW WHEEL DELTA HANDLED ON OTHER PLATFORMS?
-                        let delta = mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
+                        let delta = raw_mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
                         subclass_input.send_event(Event::DeviceEvent(
                             DeviceEvent::MouseEvent(
                                 mouse_handle,
@@ -1579,9 +1576,9 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                         ));
                     }
                     // Check if there's horizontal wheel movement.
-                    if util::has_flag(mouse.usButtonFlags, 0x0800) {
+                    if util::has_flag(raw_mouse.usButtonFlags, 0x0800) {
                         // TODO: HOW IS RAW WHEEL DELTA HANDLED ON OTHER PLATFORMS?
-                        let delta = mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
+                        let delta = raw_mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
                         subclass_input.send_event(Event::DeviceEvent(
                             DeviceEvent::MouseEvent(
                                 mouse_handle,
@@ -1590,7 +1587,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                         ));
                     }
 
-                    let button_state = get_raw_mouse_button_state(mouse.usButtonFlags);
+                    let button_state = get_raw_mouse_button_state(raw_mouse.usButtonFlags);
                     for (index, state) in button_state.iter().cloned().enumerate().filter_map(|(i, state)| state.map(|s| (i, s))) {
                         // This gives us consistency with X11, since there doesn't
                         // seem to be anything else reasonable to do for a mouse
@@ -1612,14 +1609,14 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             )
                         ));
                     }
-                } else if input.header.dwType == winuser::RIM_TYPEKEYBOARD {
-                    let keyboard = input.data.keyboard();
+                },
+                Some(RawInputData::Keyboard{device_handle, raw_keyboard}) => {
                     let keyboard_id = KeyboardId(device_handle).into();
 
-                    let pressed = keyboard.Message == winuser::WM_KEYDOWN
-                        || keyboard.Message == winuser::WM_SYSKEYDOWN;
-                    let released = keyboard.Message == winuser::WM_KEYUP
-                        || keyboard.Message == winuser::WM_SYSKEYUP;
+                    let pressed = raw_keyboard.Message == winuser::WM_KEYDOWN
+                        || raw_keyboard.Message == winuser::WM_SYSKEYDOWN;
+                    let released = raw_keyboard.Message == winuser::WM_KEYUP
+                        || raw_keyboard.Message == winuser::WM_SYSKEYUP;
 
                     if pressed || released {
                         let state = if pressed {
@@ -1628,11 +1625,11 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             Released
                         };
 
-                        let scancode = keyboard.MakeCode as _;
-                        let extended = util::has_flag(keyboard.Flags, winuser::RI_KEY_E0 as _)
-                            | util::has_flag(keyboard.Flags, winuser::RI_KEY_E1 as _);
+                        let scancode = raw_keyboard.MakeCode as _;
+                        let extended = util::has_flag(raw_keyboard.Flags, winuser::RI_KEY_E0 as _)
+                            | util::has_flag(raw_keyboard.Flags, winuser::RI_KEY_E1 as _);
                         if let Some((vkey, scancode)) = handle_extended_keys(
-                            keyboard.VKey as _,
+                            raw_keyboard.VKey as _,
                             scancode,
                             extended,
                         ) {
@@ -1651,45 +1648,46 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             ));
                         }
                     }
-                } else if input.header.dwType == winuser::RIM_TYPEHID {
+                },
+                Some(RawInputData::Hid{device_handle, mut raw_hid}) => {
                     let gamepad_handle = GamepadHandle(device_handle).into();
                     let mut gamepad_mutex = GAMEPADS.lock().unwrap();
 
-                    gamepad_mutex
+                    let gamepad_updated = gamepad_mutex
                         .get_or_add(device_handle)
                         .and_then(|gamepad| gamepad
-                            .update_state(&mut input)
-                            .map(|_| gamepad))
-                        .map(|gamepad| {
-                            for (button_id, hint, state) in gamepad.get_changed_buttons() {
-                                subclass_input.send_event(Event::DeviceEvent(
-                                    DeviceEvent::GamepadEvent(
-                                        gamepad_handle,
-                                        GamepadEvent::Button {
-                                            button_id,
-                                            hint,
-                                            state,
-                                        },
-                                    )
-                                ));
-                            }
+                            .update_state(&mut raw_hid.raw_input)
+                            .map(|_| gamepad)
+                        );
+                    if let Some(gamepad) = gamepad_updated {
+                        for (button_id, hint, state) in gamepad.get_changed_buttons() {
+                            subclass_input.send_event(Event::DeviceEvent(
+                                DeviceEvent::GamepadEvent(
+                                    gamepad_handle,
+                                    GamepadEvent::Button {
+                                        button_id,
+                                        hint,
+                                        state,
+                                    },
+                                )
+                            ));
+                        }
 
-                            for (axis, hint, value) in gamepad.get_changed_axes() {
-                                subclass_input.send_event(Event::DeviceEvent(
-                                    DeviceEvent::GamepadEvent(
-                                        gamepad_handle,
-                                        GamepadEvent::Axis {
-                                            axis,
-                                            hint,
-                                            value,
-                                        },
-                                    )
-                                ));
-                            }
-                        });
-                } else {
-                    unreachable!();
-                }
+                        for (axis, hint, value) in gamepad.get_changed_axes() {
+                            subclass_input.send_event(Event::DeviceEvent(
+                                DeviceEvent::GamepadEvent(
+                                    gamepad_handle,
+                                    GamepadEvent::Axis {
+                                        axis,
+                                        hint,
+                                        value,
+                                    },
+                                )
+                            ));
+                        }
+                    }
+                },
+                None => ()
             }
 
             commctrl::DefSubclassProc(window, msg, wparam, lparam)

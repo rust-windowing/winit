@@ -1,4 +1,4 @@
-use std::{fmt, ptr};
+use std::{fmt, ptr, slice};
 use std::cmp::max;
 use std::mem::{self, size_of};
 
@@ -33,7 +33,6 @@ use winapi::um::winnt::{HANDLE, PCHAR};
 use winapi::um::winuser::{
     self,
     HRAWINPUT,
-    RAWHID,
     RAWINPUT,
     RAWINPUTDEVICE,
     RAWINPUTDEVICELIST,
@@ -258,14 +257,38 @@ pub fn register_for_raw_input(window_handle: HWND) -> bool {
     register_raw_input_devices(&devices)
 }
 
-pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
+pub enum RawInputData {
+    Mouse {
+        device_handle: HANDLE,
+        raw_mouse: winuser::RAWMOUSE,
+    },
+    Keyboard {
+        device_handle: HANDLE,
+        raw_keyboard: winuser::RAWKEYBOARD,
+    },
+    Hid {
+        device_handle: HANDLE,
+        raw_hid: RawHidData,
+    },
+}
+
+pub struct RawHidData {
+    pub hid_input_size: u32,
+    pub hid_input_count: u32,
+    pub raw_input: Box<[u8]>,
+}
+
+pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RawInputData> {
     let mut data_size = 0;
     let header_size = size_of::<RAWINPUTHEADER>() as UINT;
 
-    // I've got absolutely no idea why Microsoft decided to make this API so damn complicated. It
-    // looks like it will only ever read out `size_of::<RAWINPUT>()` bytes at max, so why not just
-    // make it write directly into a RAWINPUT struct? Several other APIs do just that. It's
-    // perplexing.
+    // There are two classes of data this function can output:
+    // - Raw mouse and keyboard data
+    // - Raw HID data
+    // The first class (mouse and keyboard) is always going to write data formatted like the
+    // `RAWINPUT` struct, with no other data, and can be placed on the stack into `RAWINPUT`.
+    // The second class (raw HID data) writes the struct, and then a buffer of data appended to
+    // the end. That data needs to be heap-allocated so we can store all of it.
     unsafe { winuser::GetRawInputData(
         handle,
         RID_INPUT,
@@ -274,27 +297,98 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
         header_size,
     ) };
 
-    let alignment_remainder = data_size % 8;
-    if alignment_remainder != 0 {
-        data_size += 8 - alignment_remainder;
+    let (status, data): (INT, RawInputData);
+
+    if data_size <= size_of::<RAWINPUT>() as UINT {
+        // Since GetRawInputData is going to write... well, a buffer that's `RAWINPUT` bytes long
+        // and structured like `RAWINPUT`, we're just going to cut to the chase and write directly into
+        // a `RAWINPUT` struct.
+        let mut rawinput_data: RAWINPUT = unsafe{ mem::uninitialized() };
+
+        status = unsafe { winuser::GetRawInputData(
+            handle,
+            RID_INPUT,
+            &mut rawinput_data as *mut RAWINPUT as *mut _,
+            &mut data_size,
+            header_size,
+        ) } as INT;
+
+        assert_ne!(-1, status);
+
+        let device_handle = rawinput_data.header.hDevice;
+
+        data = match rawinput_data.header.dwType {
+            winuser::RIM_TYPEMOUSE => {
+                let raw_mouse = unsafe{ rawinput_data.data.mouse().clone() };
+                RawInputData::Mouse{ device_handle, raw_mouse }
+            },
+            winuser::RIM_TYPEKEYBOARD => {
+                let raw_keyboard = unsafe{ rawinput_data.data.keyboard().clone() };
+                RawInputData::Keyboard{ device_handle, raw_keyboard }
+            },
+            winuser::RIM_TYPEHID => {
+                let hid_data = unsafe{ rawinput_data.data.hid() };
+                let buf_len = hid_data.dwSizeHid as usize * hid_data.dwCount as usize;
+                let data = unsafe{ slice::from_raw_parts(hid_data.bRawData.as_ptr(), buf_len) };
+                RawInputData::Hid {
+                    device_handle,
+                    raw_hid: RawHidData {
+                        hid_input_size: hid_data.dwSizeHid,
+                        hid_input_count: hid_data.dwCount,
+                        raw_input: Box::from(data)
+                    },
+                }
+            },
+            _ => unreachable!()
+        };
+    } else {
+        let mut buf = vec![0u8; data_size as usize];
+
+        status = unsafe { winuser::GetRawInputData(
+            handle,
+            RID_INPUT,
+            buf.as_mut_ptr() as *mut _,
+            &mut data_size,
+            header_size,
+        ) } as INT;
+
+        let rawinput_data = buf.as_ptr() as *const RAWINPUT;
+
+        let device_handle = unsafe{ (&*rawinput_data).header.hDevice };
+
+        data = match unsafe{ *rawinput_data }.header.dwType {
+            winuser::RIM_TYPEMOUSE => {
+                let raw_mouse = unsafe{ (&*rawinput_data).data.mouse().clone() };
+                RawInputData::Mouse{ device_handle, raw_mouse }
+            },
+            winuser::RIM_TYPEKEYBOARD => {
+                let raw_keyboard = unsafe{ (&*rawinput_data).data.keyboard().clone() };
+                RawInputData::Keyboard{ device_handle, raw_keyboard }
+            },
+            winuser::RIM_TYPEHID => {
+                let hid_data: winuser::RAWHID = unsafe{ (&*rawinput_data).data.hid().clone() };
+
+                let hid_data_index = {
+                    let hid_data_start = unsafe{ &((&*rawinput_data).data.hid().bRawData) } as *const _;
+                    hid_data_start as usize - buf.as_ptr() as usize
+                };
+
+                buf.drain(..hid_data_index);
+
+                RawInputData::Hid {
+                    device_handle,
+                    raw_hid: RawHidData {
+                        hid_input_size: hid_data.dwSizeHid,
+                        hid_input_count: hid_data.dwCount,
+                        raw_input: buf.into_boxed_slice()
+                    },
+                }
+            },
+            _ => unreachable!()
+        };
+
+        assert_ne!(-1, status);
     }
-
-    assert!(data_size <= size_of::<RAWINPUT>() as UINT);
-
-    // Since GetRawInputData is going to write... well, a buffer that's `RAWINPUT` bytes long
-    // and structured like `RAWINPUT`, we're just going to cut to the chase and write directly into
-    // a `RAWINPUT` struct.
-    let mut data: RAWINPUT = unsafe{ mem::uninitialized() };
-
-    let status = unsafe { winuser::GetRawInputData(
-        handle,
-        RID_INPUT,
-        &mut data as *mut RAWINPUT as *mut _,
-        &mut data_size,
-        header_size,
-    ) } as INT;
-
-    assert_ne!(-1, status);
 
     if status == 0 {
         return None;
@@ -430,20 +524,24 @@ impl RawGamepad {
                 caps: axis_cap,
                 value: 0.0,
                 prev_value: 0.0,
-                hint: match unsafe { axis_cap.u.Range().UsageMin } {
-                    0x30 => Some(AxisHint::LeftStickX),
-                    0x31 => Some(AxisHint::LeftStickY),
-                    0x32 => Some(AxisHint::RightStickX),
-                    0x33 => Some(AxisHint::LeftTrigger),
-                    0x34 => Some(AxisHint::RightTrigger),
-                    0x35 => Some(AxisHint::RightStickY),
-                    0x39 => Some(AxisHint::HatSwitch),
-                    0x90 => Some(AxisHint::DPadUp),
-                    0x91 => Some(AxisHint::DPadDown),
-                    0x92 => Some(AxisHint::DPadRight),
-                    0x93 => Some(AxisHint::DPadLeft),
-                    _ => None,
-                },
+                hint: None,
+                // @francesca64 when reviewing - where did you get these values? I've commented them
+                // out because the HOTAS controller I've been using to test the raw input backend has
+                // been getting axis hints when it shouldn't, and this seems to be the culprit.
+                // match unsafe { axis_cap.u.Range().UsageMin } {
+                //     0x30 => Some(AxisHint::LeftStickX),
+                //     0x31 => Some(AxisHint::LeftStickY),
+                //     0x32 => Some(AxisHint::RightStickX),
+                //     0x33 => Some(AxisHint::LeftTrigger),
+                //     0x34 => Some(AxisHint::RightTrigger),
+                //     0x35 => Some(AxisHint::RightStickY),
+                //     0x39 => Some(AxisHint::HatSwitch),
+                //     0x90 => Some(AxisHint::DPadUp),
+                //     0x91 => Some(AxisHint::DPadDown),
+                //     0x92 => Some(AxisHint::DPadRight),
+                //     0x93 => Some(AxisHint::DPadLeft),
+                //     _ => None,
+                // },
             });
             axis_count = max(axis_count, axis_index + 1);
         }
@@ -462,7 +560,7 @@ impl RawGamepad {
         self.pre_parsed_data.as_mut_ptr() as PHIDP_PREPARSED_DATA
     }
 
-    fn update_button_state(&mut self, hid: &mut RAWHID) -> Option<()> {
+    fn update_button_state(&mut self, raw_input_report: &mut [u8]) -> Option<()> {
         let pre_parsed_data_ptr = self.pre_parsed_data_ptr();
         self.prev_button_state = mem::replace(
             &mut self.button_state,
@@ -477,8 +575,8 @@ impl RawGamepad {
             ptr::null_mut(),
             &mut usages_len,
             pre_parsed_data_ptr,
-            hid.bRawData.as_mut_ptr() as PCHAR,
-            hid.dwSizeHid,
+            raw_input_report.as_mut_ptr() as PCHAR,
+            raw_input_report.len() as _,
         ) };
         let mut usages = Vec::with_capacity(usages_len as _);
         let status = unsafe { HidP_GetUsagesEx(
@@ -487,8 +585,8 @@ impl RawGamepad {
             usages.as_mut_ptr(),
             &mut usages_len,
             pre_parsed_data_ptr,
-            hid.bRawData.as_mut_ptr() as PCHAR,
-            hid.dwSizeHid,
+            raw_input_report.as_mut_ptr() as PCHAR,
+            raw_input_report.len() as _,
         ) };
         if status != HIDP_STATUS_SUCCESS {
             return None;
@@ -503,7 +601,7 @@ impl RawGamepad {
         Some(())
     }
 
-    fn update_axis_state(&mut self, hid: &mut RAWHID) -> Option<()> {
+    fn update_axis_state(&mut self, raw_input_report: &mut [u8]) -> Option<()> {
         let pre_parsed_data_ptr = self.pre_parsed_data_ptr();
         for axis in &mut self.axis_state {
             let (status, axis_value) = if axis.caps.LogicalMin < 0 {
@@ -515,8 +613,8 @@ impl RawGamepad {
                     axis.caps.u.Range().UsageMin,
                     &mut scaled_axis_value,
                     pre_parsed_data_ptr,
-                    hid.bRawData.as_mut_ptr() as PCHAR,
-                    hid.dwSizeHid,
+                    raw_input_report.as_mut_ptr() as PCHAR,
+                    raw_input_report.len() as _,
                 ) };
                 (status, scaled_axis_value as f64)
             } else {
@@ -528,8 +626,8 @@ impl RawGamepad {
                     axis.caps.u.Range().UsageMin,
                     &mut axis_value,
                     pre_parsed_data_ptr,
-                    hid.bRawData.as_mut_ptr() as PCHAR,
-                    hid.dwSizeHid,
+                    raw_input_report.as_mut_ptr() as PCHAR,
+                    raw_input_report.len() as _,
                 ) };
                 (status, axis_value as f64)
             };
@@ -546,13 +644,9 @@ impl RawGamepad {
         Some(())
     }
 
-    pub unsafe fn update_state(&mut self, input: &mut RAWINPUT) -> Option<()> {
-        if input.header.dwType != winuser::RIM_TYPEHID {
-            return None;
-        }
-        let hid = input.data.hid_mut();
-        self.update_button_state(hid)?;
-        self.update_axis_state(hid)?;
+    pub unsafe fn update_state(&mut self, raw_input_report: &mut [u8]) -> Option<()> {
+        self.update_button_state(raw_input_report)?;
+        self.update_axis_state(raw_input_report)?;
         Some(())
     }
 

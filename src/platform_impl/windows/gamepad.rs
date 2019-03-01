@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use winapi::um::winnt::HANDLE;
-use winapi::um::winuser::RAWINPUT;
 
 use event::{
     ElementState,
@@ -66,17 +65,18 @@ impl Gamepad {
         xinput::id_from_name(&name)
             .and_then(XInputGamepad::new)
             .map(GamepadType::XInput)
-            .or_else(|| RawGamepad::new(handle)
-                .map(GamepadType::Raw))
+            .or_else(||
+                RawGamepad::new(handle).map(GamepadType::Raw)
+            )
             .map(|backend| Gamepad {
                 handle,
                 backend,
             })
     }
 
-    pub unsafe fn update_state(&mut self, input: &mut RAWINPUT) -> Option<()> {
+    pub unsafe fn update_state(&mut self, raw_input_report: &mut [u8]) -> Option<()> {
         match self.backend {
-            GamepadType::Raw(ref mut gamepad) => gamepad.update_state(input),
+            GamepadType::Raw(ref mut gamepad) => gamepad.update_state(raw_input_report),
             GamepadType::XInput(ref mut gamepad) => gamepad.update_state(),
         }
     }
