@@ -1,6 +1,5 @@
 use std::mem;
 
-use regex::Regex;
 use rusty_xinput::*;
 use winapi::shared::minwindef::{DWORD, WORD};
 use winapi::um::xinput::*;
@@ -13,7 +12,6 @@ use platform_impl::platform::util;
 
 lazy_static! {
     static ref XINPUT_GUARD: Option<()> = dynamic_load_xinput().ok();
-    static ref ID_REGEX: Regex = Regex::new(r"(?m)IG_0([0-3])").unwrap();
 }
 
 static BUTTONS: &[(WORD , u32, ButtonHint)] = &[
@@ -36,16 +34,16 @@ static BUTTONS: &[(WORD , u32, ButtonHint)] = &[
 pub fn id_from_name(name: &str) -> Option<DWORD> {
     // A device name looks like \\?\HID#VID_046D&PID_C21D&IG_00#8&6daf3b6&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
     // The IG_00 substring indicates that this is an XInput gamepad, and that the ID is 00
-    // So we use this regex to extract the ID, 0
-    ID_REGEX
-        .captures_iter(name)
-        .next()
-        .and_then(|id| id
-            .get(1)
-            .unwrap()
-            .as_str()
-            .parse()
-            .ok())
+    let pat = "IG_0";
+    name.find(pat)
+        .and_then(|i| name[i + pat.len()..].chars().next())
+        .and_then(|c| match c {
+            '0' => Some(0),
+            '1' => Some(1),
+            '2' => Some(2),
+            '3' => Some(3),
+            _   => None,
+        })
 }
 
 #[derive(Debug)]
