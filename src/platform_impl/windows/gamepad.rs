@@ -58,6 +58,20 @@ pub struct Gamepad {
     backend: GamepadType,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct AxisEvent {
+    pub axis: u32,
+    pub hint: Option<AxisHint>,
+    pub value: f64,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ButtonEvent {
+    pub button_id: u32,
+    pub hint: Option<ButtonHint>,
+    pub state: ElementState,
+}
+
 impl Gamepad {
     pub fn new(handle: HANDLE) -> Option<Self> {
         // TODO: Verify that this is an HID device
@@ -81,14 +95,14 @@ impl Gamepad {
         }
     }
 
-    pub fn get_changed_buttons(&self) -> Vec<(u32, Option<ButtonHint>, ElementState)> {
+    pub fn get_changed_buttons(&self) -> Vec<ButtonEvent> {
         match self.backend {
             GamepadType::Raw(ref gamepad) => gamepad.get_changed_buttons(),
             GamepadType::XInput(ref gamepad) => gamepad.get_changed_buttons(),
         }
     }
 
-    pub fn get_changed_axes(&self) -> Vec<(u32, Option<AxisHint>, f64)> {
+    pub fn get_changed_axes(&self) -> Vec<AxisEvent> {
         match self.backend {
             GamepadType::Raw(ref gamepad) => gamepad.get_changed_axes(),
             GamepadType::XInput(ref gamepad) => gamepad.get_changed_axes(),
@@ -100,5 +114,17 @@ impl Gamepad {
             GamepadType::Raw(ref mut gamepad) => gamepad.rumble(left_speed, right_speed),
             GamepadType::XInput(ref mut gamepad) => gamepad.rumble(left_speed, right_speed),
         }
+    }
+}
+
+impl AxisEvent {
+    pub fn new(axis: u32, hint: Option<AxisHint>, value: f64) -> AxisEvent {
+        AxisEvent{ axis, hint, value }
+    }
+}
+
+impl ButtonEvent {
+    pub fn new(button_id: u32, hint: Option<ButtonHint>, state: ElementState) -> ButtonEvent {
+        ButtonEvent{ button_id, hint, state }
     }
 }

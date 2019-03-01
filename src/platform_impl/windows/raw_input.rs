@@ -52,10 +52,11 @@ use winapi::um::winuser::{
     RIM_TYPEHID,
 };
 
+use super::gamepad::{AxisEvent, ButtonEvent};
 use platform_impl::platform::util;
 use event::{
     ElementState,
-    device::{AxisHint, ButtonHint},
+    device::AxisHint,
 };
 
 #[allow(dead_code)]
@@ -650,7 +651,7 @@ impl RawGamepad {
         Some(())
     }
 
-    pub fn get_changed_buttons(&self) -> Vec<(u32, Option<ButtonHint>, ElementState)> {
+    pub fn get_changed_buttons(&self) -> Vec<ButtonEvent> {
         self.button_state
             .iter()
             .zip(self.prev_button_state.iter())
@@ -658,17 +659,17 @@ impl RawGamepad {
             .filter(|&(_, (button, prev_button))| button != prev_button)
             .map(|(index, (button, _))| {
                 let state = if *button { ElementState::Pressed } else { ElementState::Released };
-                (index as _, None, state)
+                ButtonEvent::new(index as _, None, state)
             })
             .collect()
     }
 
-    pub fn get_changed_axes(&self) -> Vec<(u32, Option<AxisHint>, f64)> {
+    pub fn get_changed_axes(&self) -> Vec<AxisEvent> {
         self.axis_state
             .iter()
             .enumerate()
             .filter(|&(_, axis)| axis.value != axis.prev_value)
-            .map(|(index, axis)| (index as _, axis.hint, axis.value))
+            .map(|(index, axis)| AxisEvent::new(index as _, axis.hint, axis.value))
             .collect()
     }
 

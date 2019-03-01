@@ -55,7 +55,7 @@ use platform_impl::platform::{
     dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, get_hwnd_scale_factor},
     drop_handler::FileDropHandler,
     event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
-    gamepad::GAMEPADS,
+    gamepad::{AxisEvent, ButtonEvent, GAMEPADS},
     raw_input::{self, get_raw_input_data, get_raw_mouse_button_state, RawInputData},
     util,
     window::adjust_size,
@@ -1655,7 +1655,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             .map(|_| gamepad)
                         );
                     if let Some(gamepad) = gamepad_updated {
-                        for (button_id, hint, state) in gamepad.get_changed_buttons() {
+                        for ButtonEvent{ button_id, hint, state } in gamepad.get_changed_buttons() {
                             subclass_input.send_event(Event::DeviceEvent(
                                 DeviceEvent::GamepadEvent(
                                     gamepad_handle,
@@ -1668,7 +1668,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             ));
                         }
 
-                        for (axis, hint, value) in gamepad.get_changed_axes() {
+                        for AxisEvent{ axis, hint, value } in gamepad.get_changed_axes() {
                             subclass_input.send_event(Event::DeviceEvent(
                                 DeviceEvent::GamepadEvent(
                                     gamepad_handle,
