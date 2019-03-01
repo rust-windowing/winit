@@ -93,7 +93,6 @@ pub enum MouseEvent {
     Button {
         state: ElementState,
         button: MouseButton,
-        button_id: ButtonId,
     },
     /// Change in physical position of a pointing device.
     ///

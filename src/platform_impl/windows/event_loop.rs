@@ -1589,21 +1589,16 @@ unsafe extern "system" fn thread_event_target_callback<T>(
 
                     let button_state = get_raw_mouse_button_state(raw_mouse.usButtonFlags);
                     for (index, state) in button_state.iter().cloned().enumerate().filter_map(|(i, state)| state.map(|s| (i, s))) {
-                        // This gives us consistency with X11, since there doesn't
-                        // seem to be anything else reasonable to do for a mouse
-                        // button ID.
-                        let button_id = (index + 1) as u32;
                         subclass_input.send_event(Event::DeviceEvent(
                             DeviceEvent::MouseEvent(
                                 mouse_handle,
                                 MouseEvent::Button {
                                     state,
-                                    button_id,
-                                    button: match button_id {
-                                        1 => MouseButton::Left,
-                                        2 => MouseButton::Middle,
-                                        3 => MouseButton::Right,
-                                        _ => MouseButton::Other(dbg!(button_id) as u8 - 3),
+                                    button: match index {
+                                        0 => MouseButton::Left,
+                                        1 => MouseButton::Middle,
+                                        2 => MouseButton::Right,
+                                        _ => MouseButton::Other(index as u8 - 2),
                                     },
                                 },
                             )
