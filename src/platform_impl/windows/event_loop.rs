@@ -55,7 +55,7 @@ use platform_impl::platform::{
     dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, get_hwnd_scale_factor},
     drop_handler::FileDropHandler,
     event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
-    gamepad::{AxisEvent, ButtonEvent, GAMEPADS},
+    gamepad::{AxisEvent, ButtonEvent, Gamepad},
     raw_input::{self, get_raw_input_data, get_raw_mouse_button_state, RawInputData},
     util,
     window::adjust_size,
@@ -80,11 +80,11 @@ struct ThreadMsgTargetSubclassInput<T> {
     active_device_ids: HashMap<HANDLE, DeviceId>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 enum DeviceId {
     Mouse(MouseId),
     Keyboard(KeyboardId),
-    Gamepad(GamepadHandle),
+    Gamepad(GamepadHandle, Gamepad),
 }
 
 impl<T> ThreadMsgTargetSubclassInput<T> {
@@ -1494,18 +1494,15 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                 ));
                             },
                             RawDeviceInfo::Hid(_) => {
-                                let mut gamepad_mutex = GAMEPADS.lock().unwrap();
-                                event = if gamepad_mutex.get_or_add(handle).is_some() {
+                                event = Gamepad::new(handle).map(|gamepad| {
                                     let gamepad_handle = GamepadHandle(handle);
-                                    subclass_input.active_device_ids.insert(handle, DeviceId::Gamepad(gamepad_handle));
+                                    subclass_input.active_device_ids.insert(handle, DeviceId::Gamepad(gamepad_handle, gamepad));
 
-                                    Some(DeviceEvent::GamepadEvent(
+                                    DeviceEvent::GamepadEvent(
                                         gamepad_handle.into(),
                                         GamepadEvent::Added,
-                                    ))
-                                } else {
-                                    None
-                                };
+                                    )
+                                });
                             }
                         }
 
@@ -1525,14 +1522,12 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                 keyboard_id.into(),
                                 KeyboardEvent::Removed,
                             ),
-                            DeviceId::Gamepad(gamepad_handle) => {
-                                let mut gamepad_mutex = GAMEPADS.lock().unwrap();
-                                gamepad_mutex.remove(handle);
+                            DeviceId::Gamepad(gamepad_handle, _) => {
                                 DeviceEvent::GamepadEvent(
                                     gamepad_handle.into(),
                                     GamepadEvent::Removed
                                 )
-                            }
+                            },
                         };
                         subclass_input.send_event(Event::DeviceEvent(event));
                     }
@@ -1645,41 +1640,38 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                     }
                 },
                 Some(RawInputData::Hid{device_handle, mut raw_hid}) => {
+                    let (mut changed_buttons, mut changed_axes) = (vec![], vec![]);
+                    if let Some(DeviceId::Gamepad(_, ref mut gamepad)) = subclass_input.active_device_ids.get_mut(&device_handle) {
+                        gamepad.update_state(&mut raw_hid.raw_input);
+                        changed_buttons = gamepad.get_changed_buttons();
+                        changed_axes = gamepad.get_changed_axes();
+                    }
+
                     let gamepad_handle = GamepadHandle(device_handle).into();
-                    let mut gamepad_mutex = GAMEPADS.lock().unwrap();
+                    for ButtonEvent{ button_id, hint, state } in changed_buttons {
+                        subclass_input.send_event(Event::DeviceEvent(
+                            DeviceEvent::GamepadEvent(
+                                gamepad_handle,
+                                GamepadEvent::Button {
+                                    button_id,
+                                    hint,
+                                    state,
+                                },
+                            )
+                        ));
+                    }
 
-                    let gamepad_updated = gamepad_mutex
-                        .get_or_add(device_handle)
-                        .and_then(|gamepad| gamepad
-                            .update_state(&mut raw_hid.raw_input)
-                            .map(|_| gamepad)
-                        );
-                    if let Some(gamepad) = gamepad_updated {
-                        for ButtonEvent{ button_id, hint, state } in gamepad.get_changed_buttons() {
-                            subclass_input.send_event(Event::DeviceEvent(
-                                DeviceEvent::GamepadEvent(
-                                    gamepad_handle,
-                                    GamepadEvent::Button {
-                                        button_id,
-                                        hint,
-                                        state,
-                                    },
-                                )
-                            ));
-                        }
-
-                        for AxisEvent{ axis, hint, value } in gamepad.get_changed_axes() {
-                            subclass_input.send_event(Event::DeviceEvent(
-                                DeviceEvent::GamepadEvent(
-                                    gamepad_handle,
-                                    GamepadEvent::Axis {
-                                        axis,
-                                        hint,
-                                        value,
-                                    },
-                                )
-                            ));
-                        }
+                    for AxisEvent{ axis, hint, value } in changed_axes {
+                        subclass_input.send_event(Event::DeviceEvent(
+                            DeviceEvent::GamepadEvent(
+                                gamepad_handle,
+                                GamepadEvent::Axis {
+                                    axis,
+                                    hint,
+                                    value,
+                                },
+                            )
+                        ));
                     }
                 },
                 None => ()

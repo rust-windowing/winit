@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
 use winapi::um::winnt::HANDLE;
 
 use event::{
@@ -9,42 +6,6 @@ use event::{
 };
 use platform_impl::platform::raw_input::{get_raw_input_device_name, RawGamepad};
 use platform_impl::platform::xinput::{self, XInputGamepad};
-
-lazy_static! {
-    pub static ref GAMEPADS: Arc<Mutex<GamepadStore>> = Default::default();
-}
-
-#[derive(Debug)]
-pub struct GamepadStore {
-    gamepads: HashMap<isize, Gamepad>,
-}
-
-impl GamepadStore {
-    pub fn get_or_add(&mut self, handle: HANDLE) -> Option<&mut Gamepad> {
-        let key = handle as isize;
-        let gamepad_registered = self.gamepads.contains_key(&key);
-        if !gamepad_registered {
-            self.gamepads.insert(key, Gamepad::new(handle)?);
-        }
-        self.gamepads.get_mut(&key)
-    }
-
-    pub fn remove(&mut self, handle: HANDLE) {
-        let key = handle as isize;
-        self.gamepads.remove(&key);
-    }
-}
-
-impl Default for GamepadStore {
-    fn default() -> Self {
-        GamepadStore {
-            gamepads: HashMap::with_capacity(4),
-        }
-    }
-}
-
-unsafe impl Send for GamepadStore {}
-unsafe impl Sync for GamepadStore {}
 
 #[derive(Debug)]
 pub enum GamepadType {
