@@ -112,6 +112,7 @@ extern crate percent_encoding;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 extern crate smithay_client_toolkit as sctk;
 #[cfg(feature = "stdweb")]
+#[macro_use]
 extern crate stdweb;
 
 pub mod dpi;
