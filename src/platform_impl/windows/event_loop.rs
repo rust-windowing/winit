@@ -1495,8 +1495,11 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             },
                             RawDeviceInfo::Hid(_) => {
                                 event = Gamepad::new(handle).map(|gamepad| {
-                                    let gamepad_handle = GamepadHandle(handle);
-                                    subclass_input.active_device_ids.insert(handle, DeviceId::Gamepad(gamepad_handle, gamepad));
+                                    let gamepad_handle = GamepadHandle {
+                                        handle,
+                                        rumbler: gamepad.rumbler(),
+                                    };
+                                    subclass_input.active_device_ids.insert(handle, DeviceId::Gamepad(gamepad_handle.clone(), gamepad));
 
                                     DeviceEvent::GamepadEvent(
                                         gamepad_handle.into(),
@@ -1640,38 +1643,41 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                     }
                 },
                 Some(RawInputData::Hid{device_handle, mut raw_hid}) => {
+                    let mut gamepad_handle_opt: Option<::event::device::GamepadHandle> = None;
                     let (mut changed_buttons, mut changed_axes) = (vec![], vec![]);
-                    if let Some(DeviceId::Gamepad(_, ref mut gamepad)) = subclass_input.active_device_ids.get_mut(&device_handle) {
+                    if let Some(DeviceId::Gamepad(gamepad_handle, ref mut gamepad)) = subclass_input.active_device_ids.get_mut(&device_handle) {
                         gamepad.update_state(&mut raw_hid.raw_input);
                         changed_buttons = gamepad.get_changed_buttons();
                         changed_axes = gamepad.get_changed_axes();
+                        gamepad_handle_opt = Some(gamepad_handle.clone().into());
                     }
 
-                    let gamepad_handle = GamepadHandle(device_handle).into();
-                    for ButtonEvent{ button_id, hint, state } in changed_buttons {
-                        subclass_input.send_event(Event::DeviceEvent(
-                            DeviceEvent::GamepadEvent(
-                                gamepad_handle,
-                                GamepadEvent::Button {
-                                    button_id,
-                                    hint,
-                                    state,
-                                },
-                            )
-                        ));
-                    }
+                    if let Some(gamepad_handle) = gamepad_handle_opt {
+                        for ButtonEvent{ button_id, hint, state } in changed_buttons {
+                            subclass_input.send_event(Event::DeviceEvent(
+                                DeviceEvent::GamepadEvent(
+                                    gamepad_handle.clone(),
+                                    GamepadEvent::Button {
+                                        button_id,
+                                        hint,
+                                        state,
+                                    },
+                                )
+                            ));
+                        }
 
-                    for AxisEvent{ axis, hint, value } in changed_axes {
-                        subclass_input.send_event(Event::DeviceEvent(
-                            DeviceEvent::GamepadEvent(
-                                gamepad_handle,
-                                GamepadEvent::Axis {
-                                    axis,
-                                    hint,
-                                    value,
-                                },
-                            )
-                        ));
+                        for AxisEvent{ axis, hint, value } in changed_axes {
+                            subclass_input.send_event(Event::DeviceEvent(
+                                DeviceEvent::GamepadEvent(
+                                    gamepad_handle.clone(),
+                                    GamepadEvent::Axis {
+                                        axis,
+                                        hint,
+                                        value,
+                                    },
+                                )
+                            ));
+                        }
                     }
                 },
                 None => ()

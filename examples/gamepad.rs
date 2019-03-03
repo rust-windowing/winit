@@ -1,6 +1,7 @@
 extern crate winit;
 use winit::window::WindowBuilder;
-use winit::event::{DeviceEvent, Event, WindowEvent};
+use winit::event::{ElementState, Event, WindowEvent};
+use winit::event::device::{DeviceEvent, GamepadEvent};
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
@@ -11,12 +12,24 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(|event, _, control_flow| {
+    let mut rumble_left = true;
+
+    event_loop.run(move |event, _, control_flow| {
         match event {
-            Event::DeviceEvent { device_id, event } => match event {
-                DeviceEvent::Button { .. }
-                | DeviceEvent::Motion { .. } => {
-                    println!("[{:?}] {:#?}", device_id, event);
+            Event::DeviceEvent(DeviceEvent::GamepadEvent(gamepad_handle, event)) => match event {
+                GamepadEvent::Axis {value, ..} => {
+                    println!("[{:?}] {:#?}", gamepad_handle, event);
+                },
+                GamepadEvent::Button { state, .. } => {
+                    println!("[{:?}] {:#?}", gamepad_handle, event);
+                    match state {
+                        ElementState::Pressed if rumble_left => gamepad_handle.rumble(1.0, 0.0),
+                        ElementState::Pressed                => gamepad_handle.rumble(0.0, 1.0),
+                        ElementState::Released => {
+                            gamepad_handle.rumble(0.0, 0.0);
+                            rumble_left = !rumble_left;
+                        },
+                    }
                 },
                 _ => ()
             },

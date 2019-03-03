@@ -13,6 +13,9 @@ mod window;
 mod window_state;
 mod xinput;
 
+use std::cmp::{Ordering, Eq, Ord, PartialEq, PartialOrd};
+use std::hash::{Hash, Hasher};
+use std::fmt;
 use std::ptr;
 use winapi;
 use winapi::shared::windef::HWND;
@@ -20,6 +23,7 @@ use winapi::um::winnt::HANDLE;
 use window::Icon;
 
 pub use self::event_loop::{EventLoop, EventLoopWindowTarget, EventLoopProxy};
+pub use self::gamepad::GamepadRumbler;
 pub use self::monitor::MonitorHandle;
 pub use self::window::Window;
 
@@ -75,4 +79,68 @@ macro_rules! device_id {
 
 device_id!(MouseId);
 device_id!(KeyboardId);
-device_id!(GamepadHandle);
+
+#[derive(Clone)]
+pub(crate) struct GamepadHandle {
+    handle: HANDLE,
+    rumbler: GamepadRumbler,
+}
+
+impl GamepadHandle {
+    pub unsafe fn dummy() -> Self {
+        Self {
+            handle: ptr::null_mut(),
+            rumbler: GamepadRumbler::Dummy,
+        }
+    }
+
+    pub fn get_persistent_identifier(&self) -> Option<String> {
+        raw_input::get_raw_input_device_name(self.handle)
+    }
+
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) {
+        self.rumbler.rumble(left_speed, right_speed);
+    }
+}
+
+impl From<GamepadHandle> for crate::event::device::GamepadHandle {
+    fn from(platform_id: GamepadHandle) -> Self {
+        Self(platform_id)
+    }
+}
+
+impl fmt::Debug for GamepadHandle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.debug_tuple("GamepadHandle")
+            .field(&self.handle)
+            .finish()
+    }
+}
+
+impl Eq for GamepadHandle {}
+impl PartialEq for GamepadHandle {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        self.handle == other.handle
+    }
+}
+
+impl Ord for GamepadHandle {
+    #[inline(always)]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.handle.cmp(&other.handle)
+    }
+}
+impl PartialOrd for GamepadHandle {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.handle.partial_cmp(&other.handle)
+    }
+}
+
+impl Hash for GamepadHandle {
+    #[inline(always)]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.handle.hash(state);
+    }
+}

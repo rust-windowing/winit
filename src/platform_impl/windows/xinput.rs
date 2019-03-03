@@ -1,4 +1,5 @@
 use std::mem;
+use std::rc::{Rc, Weak};
 
 use rusty_xinput::*;
 use winapi::shared::minwindef::{DWORD, WORD};
@@ -55,22 +56,31 @@ enum Side {
 
 #[derive(Debug)]
 pub struct XInputGamepad {
-    id: DWORD,
+    port: DWORD,
     prev_state: Option<XInputState>,
     state: Option<XInputState>,
+    rumbler: Rc<XInputGamepadRumbler>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct XInputGamepadRumbler {
+    port: DWORD,
 }
 
 impl XInputGamepad {
-    pub fn new(id: DWORD) -> Option<Self> {
+    pub fn new(port: DWORD) -> Option<Self> {
         XINPUT_GUARD.map(|_| XInputGamepad {
-            id,
+            port,
             prev_state: None,
             state: None,
+            rumbler: Rc::new(XInputGamepadRumbler {
+                port,
+            })
         })
     }
 
     pub fn update_state(&mut self) -> Option<()> {
-        let state = xinput_get_state(self.id).ok();
+        let state = xinput_get_state(self.port).ok();
         if state.is_some() {
             self.prev_state = mem::replace(&mut self.state, state);
             Some(())
@@ -218,8 +228,16 @@ impl XInputGamepad {
         events
     }
 
-    pub fn rumble(&mut self, left_speed: u16, right_speed: u16) {
+    pub fn rumbler(&self) -> Weak<XInputGamepadRumbler> {
+        Rc::downgrade(&self.rumbler)
+    }
+}
+
+impl XInputGamepadRumbler {
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) {
+        let left_speed = (left_speed * u16::max_value() as f64) as u16;
+        let right_speed = (right_speed * u16::max_value() as f64) as u16;
         // TODO: We should probably return the status
-        let _ = xinput_set_state(self.id, left_speed, right_speed);
+        let _ = xinput_set_state(self.port, left_speed, right_speed);
     }
 }

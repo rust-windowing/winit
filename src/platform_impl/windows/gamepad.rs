@@ -1,3 +1,5 @@
+use std::rc::Weak;
+
 use winapi::um::winnt::HANDLE;
 
 use event::{
@@ -5,12 +7,19 @@ use event::{
     device::{AxisHint, ButtonHint},
 };
 use platform_impl::platform::raw_input::{get_raw_input_device_name, RawGamepad};
-use platform_impl::platform::xinput::{self, XInputGamepad};
+use platform_impl::platform::xinput::{self, XInputGamepad, XInputGamepadRumbler};
 
 #[derive(Debug)]
 pub enum GamepadType {
     Raw(RawGamepad),
     XInput(XInputGamepad),
+}
+
+#[derive(Clone)]
+pub enum GamepadRumbler {
+    Raw(()),
+    XInput(Weak<XInputGamepadRumbler>),
+    Dummy,
 }
 
 #[derive(Debug)]
@@ -70,10 +79,10 @@ impl Gamepad {
         }
     }
 
-    pub fn rumble(&mut self, left_speed: u16, right_speed: u16) {
+    pub fn rumbler(&self) -> GamepadRumbler {
         match self.backend {
-            GamepadType::Raw(ref mut gamepad) => gamepad.rumble(left_speed, right_speed),
-            GamepadType::XInput(ref mut gamepad) => gamepad.rumble(left_speed, right_speed),
+            GamepadType::Raw(_) => GamepadRumbler::Raw(()),
+            GamepadType::XInput(ref gamepad) => GamepadRumbler::XInput(gamepad.rumbler()),
         }
     }
 }
@@ -87,5 +96,15 @@ impl AxisEvent {
 impl ButtonEvent {
     pub fn new(button_id: u32, hint: Option<ButtonHint>, state: ElementState) -> ButtonEvent {
         ButtonEvent{ button_id, hint, state }
+    }
+}
+
+impl GamepadRumbler {
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) {
+        match self {
+            GamepadRumbler::Raw(_) => (),
+            GamepadRumbler::XInput(ref rumbler) => {rumbler.upgrade().map(|r| r.rumble(left_speed, right_speed));},
+            GamepadRumbler::Dummy => (),
+        }
     }
 }

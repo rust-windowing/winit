@@ -76,7 +76,7 @@ pub enum AxisHint {
 /// game controls. Many physical actions, such as mouse movement, can produce both device and window events.
 ///
 /// Note that these events are delivered regardless of input focus.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DeviceEvent {
     MouseEvent(MouseId, MouseEvent),
     KeyboardEvent(KeyboardId, KeyboardEvent),
@@ -131,7 +131,7 @@ pub enum GamepadEvent {
 pub struct MouseId(pub(crate) platform_impl::MouseId);
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct KeyboardId(pub(crate) platform_impl::KeyboardId);
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GamepadHandle(pub(crate) platform_impl::GamepadHandle);
 
 impl MouseId {
@@ -164,6 +164,10 @@ impl GamepadHandle {
     /// **Passing this into a winit function will result in undefined behavior.**
     pub unsafe fn dummy() -> Self {
         GamepadHandle(platform_impl::GamepadHandle::dummy())
+    }
+
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) {
+        self.0.rumble(left_speed, right_speed);
     }
 }
 

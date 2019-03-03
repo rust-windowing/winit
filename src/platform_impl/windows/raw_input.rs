@@ -673,9 +673,9 @@ impl RawGamepad {
             .collect()
     }
 
-    pub fn rumble(&mut self, _left_speed: u16, _right_speed: u16) {
-        // Even though I can't read German, this is still the most useful resource I found:
-        // https://zfx.info/viewtopic.php?t=3574&f=7
-        // I'm not optimistic about it being possible to implement this.
-    }
+    // pub fn rumble(&mut self, _left_speed: u16, _right_speed: u16) {
+    //     // Even though I can't read German, this is still the most useful resource I found:
+    //     // https://zfx.info/viewtopic.php?t=3574&f=7
+    //     // I'm not optimistic about it being possible to implement this.
+    // }
 }
