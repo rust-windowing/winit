@@ -70,6 +70,11 @@ macro_rules! device_id {
             pub fn get_persistent_identifier(&self) -> Option<String> {
                 raw_input::get_raw_input_device_name(self.0)
             }
+
+            #[inline(always)]
+            pub fn handle(&self) -> HANDLE {
+                self.0
+            }
         }
 
         impl From<$name> for crate::event::device::$name {
@@ -102,6 +107,11 @@ impl GamepadHandle {
 
     pub fn get_persistent_identifier(&self) -> Option<String> {
         raw_input::get_raw_input_device_name(self.handle)
+    }
+
+    #[inline(always)]
+    pub fn handle(&self) -> HANDLE {
+        self.handle
     }
 
     pub fn rumble(&self, left_speed: f64, right_speed: f64) {

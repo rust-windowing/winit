@@ -110,12 +110,20 @@ pub trait DeviceExtWindows {
     ///
     /// Will return `None` if the device is no longer available.
     fn get_persistent_identifier(&self) -> Option<String>;
+
+    /// Returns the handle of the device - `HANDLE`.
+    fn handle(&self) -> *mut c_void;
 }
 
 impl DeviceExtWindows for MouseId {
     #[inline]
     fn get_persistent_identifier(&self) -> Option<String> {
         self.0.get_persistent_identifier()
+    }
+
+    #[inline]
+    fn handle(&self) -> *mut c_void {
+        self.0.handle() as _
     }
 }
 
@@ -124,11 +132,21 @@ impl DeviceExtWindows for KeyboardId {
     fn get_persistent_identifier(&self) -> Option<String> {
         self.0.get_persistent_identifier()
     }
+
+    #[inline]
+    fn handle(&self) -> *mut c_void {
+        self.0.handle() as _
+    }
 }
 
 impl DeviceExtWindows for GamepadHandle {
     #[inline]
     fn get_persistent_identifier(&self) -> Option<String> {
         self.0.get_persistent_identifier()
+    }
+
+    #[inline]
+    fn handle(&self) -> *mut c_void {
+        self.0.handle() as _
     }
 }
