@@ -48,7 +48,7 @@ use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed}
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use event::{
     MouseButton, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent,
-    device::{DeviceEvent, GamepadEvent, KeyboardEvent, MouseEvent}
+    device::{GamepadEvent, KeyboardEvent, MouseEvent}
 };
 use platform_impl::platform::{
     MouseId, KeyboardId, GamepadHandle, WindowId,
@@ -1474,13 +1474,13 @@ unsafe extern "system" fn thread_event_target_callback<T>(
             match wparam as _ {
                 winuser::GIDC_ARRIVAL => {
                     if let Some(handle_info) = raw_input::get_raw_input_device_info(handle) {
-                        let event: Option<DeviceEvent>;
+                        let event: Option<Event<T>>;
 
                         match handle_info {
                             RawDeviceInfo::Mouse(_) => {
                                 let mouse_id = MouseId(handle);
                                 subclass_input.active_device_ids.insert(handle, DeviceId::Mouse(mouse_id));
-                                event = Some(DeviceEvent::MouseEvent(
+                                event = Some(Event::MouseEvent(
                                     mouse_id.into(),
                                     MouseEvent::Added,
                                 ));
@@ -1488,7 +1488,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             RawDeviceInfo::Keyboard(_) => {
                                 let keyboard_id = KeyboardId(handle);
                                 subclass_input.active_device_ids.insert(handle, DeviceId::Keyboard(keyboard_id));
-                                event = Some(DeviceEvent::KeyboardEvent(
+                                event = Some(Event::KeyboardEvent(
                                     keyboard_id.into(),
                                     KeyboardEvent::Added,
                                 ));
@@ -1501,7 +1501,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                     };
                                     subclass_input.active_device_ids.insert(handle, DeviceId::Gamepad(gamepad_handle.clone(), gamepad));
 
-                                    DeviceEvent::GamepadEvent(
+                                    Event::GamepadEvent(
                                         gamepad_handle.into(),
                                         GamepadEvent::Added,
                                     )
@@ -1510,29 +1510,29 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                         }
 
                         if let Some(event) = event {
-                            subclass_input.send_event(Event::DeviceEvent(event));
+                            subclass_input.send_event(event);
                         }
                     }
                 },
                 winuser::GIDC_REMOVAL => {
                     if let Some(device_id) = subclass_input.active_device_ids.remove(&handle) {
                         let event = match device_id {
-                            DeviceId::Mouse(mouse_id) => DeviceEvent::MouseEvent(
+                            DeviceId::Mouse(mouse_id) => Event::MouseEvent(
                                 mouse_id.into(),
                                 MouseEvent::Removed,
                             ),
-                            DeviceId::Keyboard(keyboard_id) => DeviceEvent::KeyboardEvent(
+                            DeviceId::Keyboard(keyboard_id) => Event::KeyboardEvent(
                                 keyboard_id.into(),
                                 KeyboardEvent::Removed,
                             ),
                             DeviceId::Gamepad(gamepad_handle, _) => {
-                                DeviceEvent::GamepadEvent(
+                                Event::GamepadEvent(
                                     gamepad_handle.into(),
                                     GamepadEvent::Removed
                                 )
                             },
                         };
-                        subclass_input.send_event(Event::DeviceEvent(event));
+                        subclass_input.send_event(event);
                     }
                 },
                 _ => unreachable!()
@@ -1542,7 +1542,6 @@ unsafe extern "system" fn thread_event_target_callback<T>(
         },
 
         winuser::WM_INPUT => {
-            use event::device::DeviceEvent;
             use event::ElementState::{Pressed, Released};
 
             match get_raw_input_data(lparam as _) {
@@ -1554,41 +1553,41 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                         let y = raw_mouse.lLastY as f64;
 
                         if x != 0.0 || y != 0.0 {
-                            subclass_input.send_event(Event::DeviceEvent(
-                                DeviceEvent::MouseEvent(
+                            subclass_input.send_event(
+                                Event::MouseEvent(
                                     mouse_handle,
                                     MouseEvent::Moved(x, y),
                                 )
-                            ));
+                            );
                         }
                     }
 
                     if util::has_flag(raw_mouse.usButtonFlags, winuser::RI_MOUSE_WHEEL) {
                         // TODO: HOW IS RAW WHEEL DELTA HANDLED ON OTHER PLATFORMS?
                         let delta = raw_mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
-                        subclass_input.send_event(Event::DeviceEvent(
-                            DeviceEvent::MouseEvent(
+                        subclass_input.send_event(
+                            Event::MouseEvent(
                                 mouse_handle,
                                 MouseEvent::Wheel(0.0, delta as f64),
                             )
-                        ));
+                        );
                     }
                     // Check if there's horizontal wheel movement.
                     if util::has_flag(raw_mouse.usButtonFlags, 0x0800) {
                         // TODO: HOW IS RAW WHEEL DELTA HANDLED ON OTHER PLATFORMS?
                         let delta = raw_mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
-                        subclass_input.send_event(Event::DeviceEvent(
-                            DeviceEvent::MouseEvent(
+                        subclass_input.send_event(
+                            Event::MouseEvent(
                                 mouse_handle,
                                 MouseEvent::Wheel(delta as f64, 0.0),
                             )
-                        ));
+                        );
                     }
 
                     let button_state = get_raw_mouse_button_state(raw_mouse.usButtonFlags);
                     for (index, state) in button_state.iter().cloned().enumerate().filter_map(|(i, state)| state.map(|s| (i, s))) {
-                        subclass_input.send_event(Event::DeviceEvent(
-                            DeviceEvent::MouseEvent(
+                        subclass_input.send_event(
+                            Event::MouseEvent(
                                 mouse_handle,
                                 MouseEvent::Button {
                                     state,
@@ -1600,7 +1599,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                     },
                                 },
                             )
-                        ));
+                        );
                     }
                 },
                 Some(RawInputData::Keyboard{device_handle, raw_keyboard}) => {
@@ -1628,8 +1627,8 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                         ) {
                             let virtual_keycode = vkey_to_winit_vkey(vkey);
 
-                            subclass_input.send_event(Event::DeviceEvent(
-                                DeviceEvent::KeyboardEvent(
+                            subclass_input.send_event(
+                                Event::KeyboardEvent(
                                     keyboard_id,
                                     KeyboardEvent::Input(KeyboardInput {
                                         scancode,
@@ -1638,7 +1637,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                         modifiers: event::get_key_mods(),
                                     }),
                                 )
-                            ));
+                            );
                         }
                     }
                 },
@@ -1654,8 +1653,8 @@ unsafe extern "system" fn thread_event_target_callback<T>(
 
                     if let Some(gamepad_handle) = gamepad_handle_opt {
                         for ButtonEvent{ button_id, hint, state } in changed_buttons {
-                            subclass_input.send_event(Event::DeviceEvent(
-                                DeviceEvent::GamepadEvent(
+                            subclass_input.send_event(
+                                Event::GamepadEvent(
                                     gamepad_handle.clone(),
                                     GamepadEvent::Button {
                                         button_id,
@@ -1663,12 +1662,12 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                         state,
                                     },
                                 )
-                            ));
+                            );
                         }
 
                         for AxisEvent{ axis, hint, value } in changed_axes {
-                            subclass_input.send_event(Event::DeviceEvent(
-                                DeviceEvent::GamepadEvent(
+                            subclass_input.send_event(
+                                Event::GamepadEvent(
                                     gamepad_handle.clone(),
                                     GamepadEvent::Axis {
                                         axis,
@@ -1676,7 +1675,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                         value,
                                     },
                                 )
-                            ));
+                            );
                         }
                     }
                 },

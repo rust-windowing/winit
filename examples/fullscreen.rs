@@ -56,15 +56,11 @@ fn main() {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
-                            state,
-                            ..
-                        },
+                WindowEvent::KeyboardInput(KeyboardInput {
+                    virtual_keycode: Some(virtual_code),
+                    state,
                     ..
-                } => match (virtual_code, state) {
+                }) => match (virtual_code, state) {
                     (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
                     (VirtualKeyCode::F, ElementState::Pressed) => {
                         #[cfg(target_os = "macos")]

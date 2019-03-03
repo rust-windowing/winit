@@ -20,8 +20,11 @@ pub enum Event<T> {
         window_id: WindowId,
         event: WindowEvent,
     },
-    /// Emitted when the OS sends an event to a device.
-    DeviceEvent(device::DeviceEvent),
+
+    MouseEvent(device::MouseId, device::MouseEvent),
+    KeyboardEvent(device::KeyboardId, device::KeyboardEvent),
+    GamepadEvent(device::GamepadHandle, device::GamepadEvent),
+
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](../event_loop/struct.EventLoopProxy.html#method.send_event)
     UserEvent(T),
     /// Emitted when new events arrive from the OS to be processed.
@@ -46,7 +49,9 @@ impl<T> Event<T> {
         match self {
             UserEvent(_) => Err(self),
             WindowEvent{window_id, event} => Ok(WindowEvent{window_id, event}),
-            DeviceEvent(event) => Ok(DeviceEvent(event)),
+            MouseEvent(id, event) => Ok(MouseEvent(id, event)),
+            KeyboardEvent(id, event) => Ok(KeyboardEvent(id, event)),
+            GamepadEvent(id, event) => Ok(GamepadEvent(id, event)),
             NewEvents(cause) => Ok(NewEvents(cause)),
             EventsCleared => Ok(EventsCleared),
             LoopDestroyed => Ok(LoopDestroyed),

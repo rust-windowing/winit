@@ -64,23 +64,12 @@ pub enum AxisHint {
     /// for flight simulation. However, Xbox 360 controllers (and their derivatives) use a hat switch for the D-pad.
     HatSwitch,
 
-    DPadUp,
-    DPadDown,
-    DPadLeft,
-    DPadRight,
-}
-
-/// Represents raw hardware events that are not associated with any particular window.
-///
-/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
-/// game controls. Many physical actions, such as mouse movement, can produce both device and window events.
-///
-/// Note that these events are delivered regardless of input focus.
-#[derive(Clone, Debug, PartialEq)]
-pub enum DeviceEvent {
-    MouseEvent(MouseId, MouseEvent),
-    KeyboardEvent(KeyboardId, KeyboardEvent),
-    GamepadEvent(GamepadHandle, GamepadEvent),
+    // @francesca64 review: why were these variants here? I don't see how it makes sense for the dpad
+    // to have axes, since it's four separate buttons.
+    // DPadUp,
+    // DPadDown,
+    // DPadLeft,
+    // DPadRight,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]

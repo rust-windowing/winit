@@ -59,6 +59,9 @@ macro_rules! device_id {
         #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub(crate) struct $name(HANDLE);
 
+        unsafe impl Send for $name {}
+        unsafe impl Sync for $name {}
+
         impl $name {
             pub unsafe fn dummy() -> Self {
                 Self(ptr::null_mut())
@@ -85,6 +88,9 @@ pub(crate) struct GamepadHandle {
     handle: HANDLE,
     rumbler: GamepadRumbler,
 }
+
+unsafe impl Send for GamepadHandle where GamepadRumbler: Send {}
+unsafe impl Sync for GamepadHandle where GamepadRumbler: Sync {}
 
 impl GamepadHandle {
     pub unsafe fn dummy() -> Self {

@@ -1,5 +1,5 @@
 use std::mem;
-use std::rc::{Rc, Weak};
+use std::sync::{Arc, Weak};
 
 use rusty_xinput::*;
 use winapi::shared::minwindef::{DWORD, WORD};
@@ -59,7 +59,7 @@ pub struct XInputGamepad {
     port: DWORD,
     prev_state: Option<XInputState>,
     state: Option<XInputState>,
-    rumbler: Rc<XInputGamepadRumbler>,
+    rumbler: Arc<XInputGamepadRumbler>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -73,7 +73,7 @@ impl XInputGamepad {
             port,
             prev_state: None,
             state: None,
-            rumbler: Rc::new(XInputGamepadRumbler {
+            rumbler: Arc::new(XInputGamepadRumbler {
                 port,
             })
         })
@@ -229,7 +229,7 @@ impl XInputGamepad {
     }
 
     pub fn rumbler(&self) -> Weak<XInputGamepadRumbler> {
-        Rc::downgrade(&self.rumbler)
+        Arc::downgrade(&self.rumbler)
     }
 }
 

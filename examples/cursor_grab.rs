@@ -17,15 +17,12 @@ fn main() {
         if let Event::WindowEvent { event, .. } = event {
             match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput {
-                    input: KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(key),
-                        modifiers,
-                        ..
-                    },
+                WindowEvent::KeyboardInput(KeyboardInput {
+                    state: ElementState::Released,
+                    virtual_keycode: Some(key),
+                    modifiers,
                     ..
-                } => {
+                }) => {
                     use winit::event::VirtualKeyCode::*;
                     match key {
                         Escape => *control_flow = ControlFlow::Exit,

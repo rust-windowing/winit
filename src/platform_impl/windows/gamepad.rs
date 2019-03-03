@@ -1,4 +1,4 @@
-use std::rc::Weak;
+use std::sync::Weak;
 
 use winapi::um::winnt::HANDLE;
 

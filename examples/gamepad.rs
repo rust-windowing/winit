@@ -1,11 +1,11 @@
 extern crate winit;
 use winit::window::WindowBuilder;
 use winit::event::{ElementState, Event, WindowEvent};
-use winit::event::device::{DeviceEvent, GamepadEvent};
+use winit::event::device::GamepadEvent;
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let mut event_loop = EventLoop::new();
+    let event_loop = EventLoop::new();
 
     let _window = WindowBuilder::new()
         .with_title("The world's worst video game")
@@ -16,8 +16,8 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         match event {
-            Event::DeviceEvent(DeviceEvent::GamepadEvent(gamepad_handle, event)) => match event {
-                GamepadEvent::Axis {value, ..} => {
+            Event::GamepadEvent(gamepad_handle, event) => match event {
+                GamepadEvent::Axis {..} => {
                     println!("[{:?}] {:#?}", gamepad_handle, event);
                 },
                 GamepadEvent::Button { state, .. } => {

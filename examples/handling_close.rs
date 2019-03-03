@@ -38,15 +38,11 @@ fn main() {
                     // closing the window. How to close the window is detailed in the handler for
                     // the Y key.
                 }
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
-                            state: Released,
-                            ..
-                        },
+                WindowEvent::KeyboardInput(KeyboardInput {
+                    virtual_keycode: Some(virtual_code),
+                    state: Released,
                     ..
-                } => match virtual_code {
+                }) => match virtual_code {
                     Y => {
                         if close_requested {
                             // This is where you'll want to do any cleanup you need.
