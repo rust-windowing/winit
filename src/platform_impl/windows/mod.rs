@@ -23,7 +23,7 @@ use winapi::um::winnt::HANDLE;
 use window::Icon;
 
 pub use self::event_loop::{EventLoop, EventLoopWindowTarget, EventLoopProxy};
-pub use self::gamepad::GamepadRumbler;
+pub use self::gamepad::GamepadShared;
 pub use self::monitor::MonitorHandle;
 pub use self::window::Window;
 
@@ -91,17 +91,17 @@ device_id!(KeyboardId);
 #[derive(Clone)]
 pub(crate) struct GamepadHandle {
     handle: HANDLE,
-    rumbler: GamepadRumbler,
+    shared_data: GamepadShared,
 }
 
-unsafe impl Send for GamepadHandle where GamepadRumbler: Send {}
-unsafe impl Sync for GamepadHandle where GamepadRumbler: Sync {}
+unsafe impl Send for GamepadHandle where GamepadShared: Send {}
+unsafe impl Sync for GamepadHandle where GamepadShared: Sync {}
 
 impl GamepadHandle {
     pub unsafe fn dummy() -> Self {
         Self {
             handle: ptr::null_mut(),
-            rumbler: GamepadRumbler::Dummy,
+            shared_data: GamepadShared::Dummy,
         }
     }
 
@@ -115,7 +115,11 @@ impl GamepadHandle {
     }
 
     pub fn rumble(&self, left_speed: f64, right_speed: f64) {
-        self.rumbler.rumble(left_speed, right_speed);
+        self.shared_data.rumble(left_speed, right_speed);
+    }
+
+    pub fn port(&self) -> Option<u8> {
+        self.shared_data.port()
     }
 }
 

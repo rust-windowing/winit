@@ -172,6 +172,10 @@ impl GamepadHandle {
     pub fn rumble(&self, left_speed: f64, right_speed: f64) {
         self.0.rumble(left_speed, right_speed);
     }
+
+    pub fn port(&self) -> Option<u8> {
+        self.0.port()
+    }
 }
 
 impl fmt::Debug for MouseId {

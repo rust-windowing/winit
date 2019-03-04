@@ -4,7 +4,7 @@ use winapi::um::winnt::HANDLE;
 
 use event::device::GamepadEvent;
 use platform_impl::platform::raw_input::{get_raw_input_device_name, RawGamepad};
-use platform_impl::platform::xinput::{self, XInputGamepad, XInputGamepadRumbler};
+use platform_impl::platform::xinput::{self, XInputGamepad, XInputGamepadShared};
 
 #[derive(Debug)]
 pub enum GamepadType {
@@ -13,9 +13,9 @@ pub enum GamepadType {
 }
 
 #[derive(Clone)]
-pub enum GamepadRumbler {
+pub enum GamepadShared {
     Raw(()),
-    XInput(Weak<XInputGamepadRumbler>),
+    XInput(Weak<XInputGamepadShared>),
     Dummy,
 }
 
@@ -55,20 +55,28 @@ impl Gamepad {
         }
     }
 
-    pub fn rumbler(&self) -> GamepadRumbler {
+    pub fn shared_data(&self) -> GamepadShared {
         match self.backend {
-            GamepadType::Raw(_) => GamepadRumbler::Raw(()),
-            GamepadType::XInput(ref gamepad) => GamepadRumbler::XInput(gamepad.rumbler()),
+            GamepadType::Raw(_) => GamepadShared::Raw(()),
+            GamepadType::XInput(ref gamepad) => GamepadShared::XInput(gamepad.shared_data()),
         }
     }
 }
 
-impl GamepadRumbler {
+impl GamepadShared {
     pub fn rumble(&self, left_speed: f64, right_speed: f64) {
         match self {
-            GamepadRumbler::Raw(_) => (),
-            GamepadRumbler::XInput(ref rumbler) => {rumbler.upgrade().map(|r| r.rumble(left_speed, right_speed));},
-            GamepadRumbler::Dummy => (),
+            GamepadShared::Raw(_) => (),
+            GamepadShared::XInput(ref data) => {data.upgrade().map(|r| r.rumble(left_speed, right_speed));},
+            GamepadShared::Dummy => (),
+        }
+    }
+
+    pub fn port(&self) -> Option<u8> {
+        match self {
+            GamepadShared::Raw(_) |
+            GamepadShared::Dummy => None,
+            GamepadShared::XInput(ref data) => data.upgrade().map(|r| r.port()),
         }
     }
 }

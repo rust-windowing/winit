@@ -1497,7 +1497,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                 event = Gamepad::new(handle).map(|gamepad| {
                                     let gamepad_handle = GamepadHandle {
                                         handle,
-                                        rumbler: gamepad.rumbler(),
+                                        shared_data: gamepad.shared_data(),
                                     };
                                     subclass_input.active_device_ids.insert(handle, DeviceId::Gamepad(gamepad_handle.clone(), gamepad));
 

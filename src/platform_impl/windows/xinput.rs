@@ -52,11 +52,11 @@ pub struct XInputGamepad {
     port: DWORD,
     prev_state: Option<XInputState>,
     state: Option<XInputState>,
-    rumbler: Arc<XInputGamepadRumbler>,
+    rumbler: Arc<XInputGamepadShared>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct XInputGamepadRumbler {
+pub struct XInputGamepadShared {
     port: DWORD,
 }
 
@@ -66,7 +66,7 @@ impl XInputGamepad {
             port,
             prev_state: None,
             state: None,
-            rumbler: Arc::new(XInputGamepadRumbler {
+            rumbler: Arc::new(XInputGamepadShared {
                 port,
             })
         })
@@ -243,16 +243,20 @@ impl XInputGamepad {
         events
     }
 
-    pub fn rumbler(&self) -> Weak<XInputGamepadRumbler> {
+    pub fn shared_data(&self) -> Weak<XInputGamepadShared> {
         Arc::downgrade(&self.rumbler)
     }
 }
 
-impl XInputGamepadRumbler {
+impl XInputGamepadShared {
     pub fn rumble(&self, left_speed: f64, right_speed: f64) {
         let left_speed = (left_speed * u16::max_value() as f64) as u16;
         let right_speed = (right_speed * u16::max_value() as f64) as u16;
         // TODO: We should probably return the status
         let _ = xinput_set_state(self.port, left_speed, right_speed);
+    }
+
+    pub fn port(&self) -> u8 {
+        self.port as _
     }
 }

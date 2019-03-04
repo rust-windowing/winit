@@ -14,12 +14,14 @@ fn main() {
 
     let mut rumble_left = true;
 
-    let deadzone = 0.1;
+    let deadzone = 0.12;
 
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::GamepadEvent(gamepad_handle, event) => match event {
-                GamepadEvent::Axis{stick: false, ..} => println!("[{:?}] {:#?}", gamepad_handle, event),
+                GamepadEvent::Axis{stick: false, ..} |
+                GamepadEvent::Added |
+                GamepadEvent::Removed => println!("[{:?}] {:#?}", gamepad_handle, event),
                 GamepadEvent::Stick{x_value, y_value, ..} if (x_value.powi(2) + y_value.powi(2)).sqrt() >= deadzone => {
                     println!("[{:?}] {:#?}", gamepad_handle, event);
                 },
@@ -34,7 +36,7 @@ fn main() {
                         },
                     }
                 },
-                _ => ()
+                _ => (),
             },
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
