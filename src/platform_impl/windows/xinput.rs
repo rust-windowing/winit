@@ -1,4 +1,4 @@
-use std::mem;
+use std::{io, mem};
 use std::sync::{Arc, Weak};
 
 use rusty_xinput::*;
@@ -7,7 +7,7 @@ use winapi::um::xinput::*;
 
 use event::{
     ElementState,
-    device::{AxisHint, ButtonHint, GamepadEvent, Side},
+    device::{AxisHint, ButtonHint, GamepadEvent, RumbleError, Side},
 };
 use platform_impl::platform::util;
 
@@ -49,10 +49,9 @@ pub fn id_from_name(name: &str) -> Option<DWORD> {
 
 #[derive(Debug)]
 pub struct XInputGamepad {
-    port: DWORD,
+    shared: Arc<XInputGamepadShared>,
     prev_state: Option<XInputState>,
     state: Option<XInputState>,
-    rumbler: Arc<XInputGamepadShared>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -63,17 +62,16 @@ pub struct XInputGamepadShared {
 impl XInputGamepad {
     pub fn new(port: DWORD) -> Option<Self> {
         XINPUT_GUARD.map(|_| XInputGamepad {
-            port,
+            shared: Arc::new(XInputGamepadShared {
+                port,
+            }),
             prev_state: None,
             state: None,
-            rumbler: Arc::new(XInputGamepadShared {
-                port,
-            })
         })
     }
 
     pub fn update_state(&mut self) -> Option<()> {
-        let state = xinput_get_state(self.port).ok();
+        let state = xinput_get_state(self.shared.port).ok();
         if state.is_some() {
             self.prev_state = mem::replace(&mut self.state, state);
             Some(())
@@ -244,7 +242,7 @@ impl XInputGamepad {
     }
 
     pub fn shared_data(&self) -> Weak<XInputGamepadShared> {
-        Arc::downgrade(&self.rumbler)
+        Arc::downgrade(&self.shared)
     }
 }
 
@@ -254,16 +252,22 @@ impl Drop for XInputGamepad {
         // after the gamepad was disconnected, all future attempts to read from a given port (even
         // if a controller was plugged back into said port) will fail! I don't know why that happens,
         // but this fixes it, so 🤷.
-        xinput_get_state(self.port).ok();
+        xinput_get_state(self.shared.port).ok();
     }
 }
 
 impl XInputGamepadShared {
-    pub fn rumble(&self, left_speed: f64, right_speed: f64) {
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) -> Result<(), RumbleError> {
         let left_speed = (left_speed.max(0.0).min(1.0) * u16::max_value() as f64) as u16;
         let right_speed = (right_speed.max(0.0).min(1.0) * u16::max_value() as f64) as u16;
-        // TODO: We should probably return the status
-        let _ = xinput_set_state(self.port, left_speed, right_speed);
+
+        let result = xinput_set_state(self.port, left_speed, right_speed);
+        result.map_err(|e| match e {
+            XInputUsageError::XInputNotLoaded |
+            XInputUsageError::InvalidControllerID => panic!("unexpected xinput error {:?}; this is a bug and should be reported", e),
+            XInputUsageError::DeviceNotConnected => RumbleError::DeviceNotConnected,
+            XInputUsageError::UnknownError(code) => RumbleError::OsError(io::Error::from_raw_os_error(code as i32)),
+        })
     }
 
     pub fn port(&self) -> u8 {

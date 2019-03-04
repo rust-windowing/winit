@@ -1,7 +1,7 @@
 use platform_impl;
 use event::{AxisId, ButtonId, ElementState, KeyboardInput, MouseButton};
 use event_loop::EventLoop;
-use std::fmt;
+use std::{fmt, io};
 
 /// A hint suggesting the type of button that was pressed.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -131,6 +131,12 @@ pub enum GamepadEvent {
     },
 }
 
+#[derive(Debug)]
+pub enum RumbleError {
+    DeviceNotConnected,
+    OsError(io::Error),
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MouseId(pub(crate) platform_impl::MouseId);
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -182,8 +188,8 @@ impl GamepadHandle {
         platform_impl::GamepadHandle::enumerate(&event_loop.event_loop)
     }
 
-    pub fn rumble(&self, left_speed: f64, right_speed: f64) {
-        self.0.rumble(left_speed, right_speed);
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) -> Result<(), RumbleError> {
+        self.0.rumble(left_speed, right_speed)
     }
 
     pub fn port(&self) -> Option<u8> {

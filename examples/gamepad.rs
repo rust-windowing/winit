@@ -1,6 +1,6 @@
 extern crate winit;
 use winit::window::WindowBuilder;
-use winit::event::{ElementState, Event, WindowEvent};
+use winit::event::{Event, WindowEvent};
 use winit::event::device::GamepadEvent;
 use winit::event_loop::{EventLoop, ControlFlow};
 
@@ -12,8 +12,6 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut rumble_left = true;
-
     println!("enumerating gamepads:");
     for gamepad in winit::event::device::GamepadHandle::enumerate(&event_loop) {
         println!("    gamepad {:?}", gamepad);
@@ -24,24 +22,9 @@ fn main() {
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::GamepadEvent(gamepad_handle, event) => match event {
-                GamepadEvent::Axis{stick: false, ..} |
-                GamepadEvent::Added |
-                GamepadEvent::Removed => println!("[{:?}] {:#?}", gamepad_handle, event),
-                GamepadEvent::Stick{x_value, y_value, ..} if (x_value.powi(2) + y_value.powi(2)).sqrt() >= deadzone => {
-                    println!("[{:?}] {:#?}", gamepad_handle, event);
-                },
-                GamepadEvent::Button{ state, .. } => {
-                    println!("[{:?}] {:#?}", gamepad_handle, event);
-                    match state {
-                        ElementState::Pressed if rumble_left => gamepad_handle.rumble(1.0, 0.0),
-                        ElementState::Pressed                => gamepad_handle.rumble(0.0, 1.0),
-                        ElementState::Released => {
-                            gamepad_handle.rumble(0.0, 0.0);
-                            rumble_left = !rumble_left;
-                        },
-                    }
-                },
-                _ => (),
+                GamepadEvent::Axis{stick: true, ..} => (),
+                GamepadEvent::Stick{x_value, y_value, ..} if (x_value.powi(2) + y_value.powi(2)).sqrt() < deadzone => (),
+                _ => println!("[{:?}] {:#?}", gamepad_handle, event)
             },
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,

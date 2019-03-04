@@ -118,8 +118,8 @@ impl GamepadHandle {
         self.handle
     }
 
-    pub fn rumble(&self, left_speed: f64, right_speed: f64) {
-        self.shared_data.rumble(left_speed, right_speed);
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) -> Result<(), ::event::device::RumbleError> {
+        self.shared_data.rumble(left_speed, right_speed)
     }
 
     pub fn port(&self) -> Option<u8> {

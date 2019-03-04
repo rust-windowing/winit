@@ -2,7 +2,7 @@ use std::sync::Weak;
 
 use winapi::um::winnt::HANDLE;
 
-use event::device::GamepadEvent;
+use event::device::{GamepadEvent, RumbleError};
 use platform_impl::platform::raw_input::{get_raw_input_device_name, RawGamepad};
 use platform_impl::platform::xinput::{self, XInputGamepad, XInputGamepadShared};
 
@@ -64,11 +64,12 @@ impl Gamepad {
 }
 
 impl GamepadShared {
-    pub fn rumble(&self, left_speed: f64, right_speed: f64) {
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) -> Result<(), RumbleError> {
         match self {
-            GamepadShared::Raw(_) => (),
-            GamepadShared::XInput(ref data) => {data.upgrade().map(|r| r.rumble(left_speed, right_speed));},
-            GamepadShared::Dummy => (),
+            GamepadShared::Raw(_) |
+            GamepadShared::Dummy => Ok(()),
+            GamepadShared::XInput(ref data) => data.upgrade().map(|r| r.rumble(left_speed, right_speed))
+                .unwrap_or(Err(RumbleError::DeviceNotConnected)),
         }
     }
 
