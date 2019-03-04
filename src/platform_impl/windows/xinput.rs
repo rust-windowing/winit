@@ -248,6 +248,16 @@ impl XInputGamepad {
     }
 }
 
+impl Drop for XInputGamepad {
+    fn drop(&mut self) {
+        // For some reason, if you don't attempt to retrieve the xinput gamepad state at least once
+        // after the gamepad was disconnected, all future attempts to read from a given port (even
+        // if a controller was plugged back into said port) will fail! I don't know why that happens,
+        // but this fixes it, so 🤷.
+        xinput_get_state(self.port).ok();
+    }
+}
+
 impl XInputGamepadShared {
     pub fn rumble(&self, left_speed: f64, right_speed: f64) {
         let left_speed = (left_speed * u16::max_value() as f64) as u16;
