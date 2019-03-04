@@ -55,7 +55,7 @@ impl WindowId {
 }
 
 macro_rules! device_id {
-    ($name:ident) => {
+    ($name:ident, $enumerate:ident) => {
         #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub(crate) struct $name(HANDLE);
 
@@ -75,6 +75,10 @@ macro_rules! device_id {
             pub fn handle(&self) -> HANDLE {
                 self.0
             }
+
+            pub fn enumerate<'a, T>(event_loop: &'a EventLoop<T>) -> impl 'a + Iterator<Item=::event::device::$name> {
+                event_loop.$enumerate()
+            }
         }
 
         impl From<$name> for crate::event::device::$name {
@@ -85,8 +89,8 @@ macro_rules! device_id {
     }
 }
 
-device_id!(MouseId);
-device_id!(KeyboardId);
+device_id!(MouseId, mouses);
+device_id!(KeyboardId, keyboards);
 
 #[derive(Clone)]
 pub(crate) struct GamepadHandle {
@@ -120,6 +124,10 @@ impl GamepadHandle {
 
     pub fn port(&self) -> Option<u8> {
         self.shared_data.port()
+    }
+
+    pub fn enumerate<'a, T>(event_loop: &'a EventLoop<T>) -> impl 'a + Iterator<Item=::event::device::GamepadHandle> {
+        event_loop.gamepads()
     }
 }
 

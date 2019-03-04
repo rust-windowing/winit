@@ -14,6 +14,11 @@ fn main() {
 
     let mut rumble_left = true;
 
+    println!("enumerating gamepads:");
+    for gamepad in winit::event::device::GamepadHandle::enumerate(&event_loop) {
+        println!("    gamepad {:?}", gamepad);
+    }
+
     let deadzone = 0.12;
 
     event_loop.run(move |event, _, control_flow| {

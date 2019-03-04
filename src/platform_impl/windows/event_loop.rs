@@ -77,11 +77,10 @@ impl<T> SubclassInput<T> {
 struct ThreadMsgTargetSubclassInput<T> {
     shared_data: Rc<SubclassSharedData<T>>,
     user_event_receiver: Receiver<T>,
-    active_device_ids: HashMap<HANDLE, DeviceId>,
 }
 
 #[derive(Debug)]
-enum DeviceId {
+pub(crate) enum DeviceId {
     Mouse(MouseId),
     Keyboard(KeyboardId),
     Gamepad(GamepadHandle, Gamepad),
@@ -123,6 +122,7 @@ impl<T: 'static> EventLoop<T> {
                 runner: RefCell::new(None),
                 buffer: RefCell::new(VecDeque::new()),
             },
+            active_device_ids: RefCell::new(HashMap::default()),
         });
         let (thread_msg_target, thread_msg_sender) = thread_event_target_window(shared_data.clone());
 
@@ -225,6 +225,56 @@ impl<T: 'static> EventLoop<T> {
             event_send: self.thread_msg_sender.clone(),
         }
     }
+
+    fn devices<R: 'static>(&self, f: impl FnMut(&DeviceId) -> Option<R>) -> impl '_ + Iterator<Item=R> {
+        // Flush WM_INPUT and WM_INPUT_DEVICE_CHANGE events so that the active_device_ids list is
+        // accurate. This is essential to make this function work if called before calling `run` or
+        // `run_return`.
+        unsafe {
+            let mut msg = mem::uninitialized();
+            loop {
+                let result = winuser::PeekMessageW(
+                    &mut msg,
+                    self.window_target.p.thread_msg_target,
+                    winuser::WM_INPUT_DEVICE_CHANGE,
+                    winuser::WM_INPUT,
+                    1
+                );
+                if 0 == result {
+                    break;
+                }
+                winuser::TranslateMessage(&mut msg);
+                winuser::DispatchMessageW(&mut msg);
+            }
+        }
+
+        self.window_target.p.shared_data.active_device_ids.borrow()
+            .values()
+            .filter_map(f)
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+
+    pub fn mouses(&self) -> impl '_ + Iterator<Item=::event::device::MouseId> {
+        self.devices(|d| match d {
+                DeviceId::Mouse(id) => Some(id.clone().into()),
+                _ => None
+            })
+    }
+
+    pub fn keyboards(&self) -> impl '_ + Iterator<Item=::event::device::KeyboardId> {
+        self.devices(|d| match d {
+                DeviceId::Keyboard(id) => Some(id.clone().into()),
+                _ => None
+            })
+    }
+
+    pub fn gamepads(&self) -> impl '_ + Iterator<Item=::event::device::GamepadHandle> {
+        self.devices(|d| match d {
+                DeviceId::Gamepad(handle, _) => Some(handle.clone().into()),
+                _ => None
+            })
+    }
 }
 
 impl<T> EventLoopWindowTarget<T> {
@@ -240,6 +290,7 @@ impl<T> EventLoopWindowTarget<T> {
 
 pub(crate) struct SubclassSharedData<T> {
     pub runner_shared: ELRShared<T>,
+    pub active_device_ids: RefCell<HashMap<HANDLE, DeviceId>>,
 }
 
 pub(crate) struct ELRShared<T> {
@@ -734,7 +785,6 @@ fn thread_event_target_window<T>(shared_data: Rc<SubclassSharedData<T>>) -> (HWN
         let subclass_input = ThreadMsgTargetSubclassInput {
             shared_data,
             user_event_receiver: rx,
-            active_device_ids: HashMap::default(),
         };
         let input_ptr = Box::into_raw(Box::new(subclass_input));
         let subclass_result = commctrl::SetWindowSubclass(
@@ -1474,48 +1524,56 @@ unsafe extern "system" fn thread_event_target_callback<T>(
             match wparam as _ {
                 winuser::GIDC_ARRIVAL => {
                     if let Some(handle_info) = raw_input::get_raw_input_device_info(handle) {
-                        let event: Option<Event<T>>;
+                        let device_and_event: Option<(DeviceId, Event<T>)>;
 
                         match handle_info {
                             RawDeviceInfo::Mouse(_) => {
                                 let mouse_id = MouseId(handle);
-                                subclass_input.active_device_ids.insert(handle, DeviceId::Mouse(mouse_id));
-                                event = Some(Event::MouseEvent(
-                                    mouse_id.into(),
-                                    MouseEvent::Added,
+                                device_and_event = Some((
+                                    DeviceId::Mouse(mouse_id),
+                                    Event::MouseEvent(
+                                        mouse_id.into(),
+                                        MouseEvent::Added,
+                                    ),
                                 ));
                             },
                             RawDeviceInfo::Keyboard(_) => {
                                 let keyboard_id = KeyboardId(handle);
-                                subclass_input.active_device_ids.insert(handle, DeviceId::Keyboard(keyboard_id));
-                                event = Some(Event::KeyboardEvent(
-                                    keyboard_id.into(),
-                                    KeyboardEvent::Added,
+                                device_and_event = Some((
+                                    DeviceId::Keyboard(keyboard_id),
+                                    Event::KeyboardEvent(
+                                        keyboard_id.into(),
+                                        KeyboardEvent::Added,
+                                    ),
                                 ));
                             },
                             RawDeviceInfo::Hid(_) => {
-                                event = Gamepad::new(handle).map(|gamepad| {
+                                device_and_event = Gamepad::new(handle).map(|gamepad| {
                                     let gamepad_handle = GamepadHandle {
                                         handle,
                                         shared_data: gamepad.shared_data(),
                                     };
-                                    subclass_input.active_device_ids.insert(handle, DeviceId::Gamepad(gamepad_handle.clone(), gamepad));
 
-                                    Event::GamepadEvent(
-                                        gamepad_handle.into(),
-                                        GamepadEvent::Added,
+                                    (
+                                        DeviceId::Gamepad(gamepad_handle.clone(), gamepad),
+                                        Event::GamepadEvent(
+                                            gamepad_handle.into(),
+                                            GamepadEvent::Added,
+                                        ),
                                     )
                                 });
                             }
                         }
 
-                        if let Some(event) = event {
+                        if let Some((device, event)) = device_and_event {
+                            subclass_input.shared_data.active_device_ids.borrow_mut().insert(handle, device);
                             subclass_input.send_event(event);
                         }
                     }
                 },
                 winuser::GIDC_REMOVAL => {
-                    if let Some(device_id) = subclass_input.active_device_ids.remove(&handle) {
+                    let removed_device = subclass_input.shared_data.active_device_ids.borrow_mut().remove(&handle);
+                    if let Some(device_id) = removed_device {
                         let event = match device_id {
                             DeviceId::Mouse(mouse_id) => Event::MouseEvent(
                                 mouse_id.into(),
@@ -1644,10 +1702,15 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                 Some(RawInputData::Hid{device_handle, mut raw_hid}) => {
                     let mut gamepad_handle_opt: Option<::event::device::GamepadHandle> = None;
                     let mut events = vec![];
-                    if let Some(DeviceId::Gamepad(gamepad_handle, ref mut gamepad)) = subclass_input.active_device_ids.get_mut(&device_handle) {
-                        gamepad.update_state(&mut raw_hid.raw_input);
-                        events = gamepad.get_gamepad_events();
-                        gamepad_handle_opt = Some(gamepad_handle.clone().into());
+
+                    {
+                        let mut devices = subclass_input.shared_data.active_device_ids.borrow_mut();
+                        let device_id = devices.get_mut(&device_handle);
+                        if let Some(DeviceId::Gamepad(gamepad_handle, ref mut gamepad)) = device_id {
+                            gamepad.update_state(&mut raw_hid.raw_input);
+                            events = gamepad.get_gamepad_events();
+                            gamepad_handle_opt = Some(gamepad_handle.clone().into());
+                        }
                     }
 
                     if let Some(gamepad_handle) = gamepad_handle_opt {

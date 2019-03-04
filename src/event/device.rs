@@ -1,5 +1,6 @@
 use platform_impl;
 use event::{AxisId, ButtonId, ElementState, KeyboardInput, MouseButton};
+use event_loop::EventLoop;
 use std::fmt;
 
 /// A hint suggesting the type of button that was pressed.
@@ -146,6 +147,10 @@ impl MouseId {
     pub unsafe fn dummy() -> Self {
         MouseId(platform_impl::MouseId::dummy())
     }
+
+    pub fn enumerate<T>(event_loop: &EventLoop<T>) -> impl '_ + Iterator<Item=Self> {
+        platform_impl::MouseId::enumerate(&event_loop.event_loop)
+    }
 }
 
 impl KeyboardId {
@@ -157,6 +162,10 @@ impl KeyboardId {
     pub unsafe fn dummy() -> Self {
         KeyboardId(platform_impl::KeyboardId::dummy())
     }
+
+    pub fn enumerate<T>(event_loop: &EventLoop<T>) -> impl '_ + Iterator<Item=Self> {
+        platform_impl::KeyboardId::enumerate(&event_loop.event_loop)
+    }
 }
 
 impl GamepadHandle {
@@ -167,6 +176,10 @@ impl GamepadHandle {
     /// **Passing this into a winit function will result in undefined behavior.**
     pub unsafe fn dummy() -> Self {
         GamepadHandle(platform_impl::GamepadHandle::dummy())
+    }
+
+    pub fn enumerate<T>(event_loop: &EventLoop<T>) -> impl '_ + Iterator<Item=Self> {
+        platform_impl::GamepadHandle::enumerate(&event_loop.event_loop)
     }
 
     pub fn rumble(&self, left_speed: f64, right_speed: f64) {
