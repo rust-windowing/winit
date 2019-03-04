@@ -7,9 +7,8 @@ use winapi::um::xinput::*;
 
 use event::{
     ElementState,
-    device::{AxisHint, ButtonHint},
+    device::{AxisHint, ButtonHint, GamepadEvent, Side},
 };
-use super::gamepad::{AxisEvent, ButtonEvent};
 use platform_impl::platform::util;
 
 lazy_static! {
@@ -49,12 +48,6 @@ pub fn id_from_name(name: &str) -> Option<DWORD> {
 }
 
 #[derive(Debug)]
-enum Side {
-    Left,
-    Right,
-}
-
-#[derive(Debug)]
 pub struct XInputGamepad {
     port: DWORD,
     prev_state: Option<XInputState>,
@@ -90,7 +83,7 @@ impl XInputGamepad {
     }
 
     fn check_trigger_digital(
-        events: &mut Vec<ButtonEvent>,
+        events: &mut Vec<GamepadEvent>,
         value: bool,
         prev_value: Option<bool>,
         side: Side,
@@ -99,22 +92,22 @@ impl XInputGamepad {
         const RIGHT_TRIGGER_ID: u32 = LEFT_TRIGGER_ID + 1;
         if Some(value) != prev_value {
             let state = if value { ElementState::Pressed } else { ElementState::Released };
-            let (id, hint) = match side {
-                Side::Left => (LEFT_TRIGGER_ID, ButtonHint::LeftTrigger),
-                Side::Right => (RIGHT_TRIGGER_ID, ButtonHint::RightTrigger),
+            let (button_id, hint) = match side {
+                Side::Left => (LEFT_TRIGGER_ID, Some(ButtonHint::LeftTrigger)),
+                Side::Right => (RIGHT_TRIGGER_ID, Some(ButtonHint::RightTrigger)),
             };
-            events.push(ButtonEvent::new(id, Some(hint), state));
+            events.push(GamepadEvent::Button{button_id, hint, state});
         }
     }
 
-    pub fn get_changed_buttons(&self) -> Vec<ButtonEvent> {
+    pub fn get_changed_buttons(&self, events: &mut Vec<GamepadEvent>) {
         let (buttons, left_trigger, right_trigger) = match self.state.as_ref() {
             Some(state) => (
                 state.raw.Gamepad.wButtons,
                 state.left_trigger_bool(),
                 state.right_trigger_bool(),
             ),
-            None => return Vec::with_capacity(0),
+            None => return,
         };
         let (prev_buttons, prev_left, prev_right) = self.prev_state
             .as_ref()
@@ -139,21 +132,20 @@ impl XInputGamepad {
         let changed = buttons ^ prev_buttons;
         let pressed = changed & buttons;
         let released = changed & prev_buttons;
-        let mut events = Vec::with_capacity(BUTTONS.len() + 2);
-        for &(flag, id, hint) in BUTTONS {
+        for &(flag, button_id, hint) in BUTTONS {
+            let hint = Some(hint);
             if util::has_flag(pressed, flag) {
-                events.push(ButtonEvent::new(id, Some(hint), ElementState::Pressed));
+                events.push(GamepadEvent::Button{button_id, hint, state: ElementState::Pressed});
             } else if util::has_flag(released, flag) {
-                events.push(ButtonEvent::new(id, Some(hint), ElementState::Released));
+                events.push(GamepadEvent::Button{button_id, hint, state: ElementState::Released});
             }
         }
-        Self::check_trigger_digital(&mut events, left_trigger, prev_left, Side::Left);
-        Self::check_trigger_digital(&mut events, right_trigger, prev_right, Side::Right);
-        events
+        Self::check_trigger_digital(events, left_trigger, prev_left, Side::Left);
+        Self::check_trigger_digital(events, right_trigger, prev_right, Side::Right);
     }
 
     fn check_trigger(
-        events: &mut Vec<AxisEvent>,
+        events: &mut Vec<GamepadEvent>,
         value: u8,
         prev_value: Option<u8>,
         side: Side,
@@ -161,34 +153,21 @@ impl XInputGamepad {
         const LEFT_TRIGGER_ID: u32 = 4;
         const RIGHT_TRIGGER_ID: u32 = LEFT_TRIGGER_ID + 1;
         if Some(value) != prev_value {
-            let (id, hint) = match side {
-                Side::Left => (LEFT_TRIGGER_ID, AxisHint::LeftTrigger),
-                Side::Right => (RIGHT_TRIGGER_ID, AxisHint::RightTrigger),
+            let (axis_id, hint) = match side {
+                Side::Left => (LEFT_TRIGGER_ID, Some(AxisHint::LeftTrigger)),
+                Side::Right => (RIGHT_TRIGGER_ID, Some(AxisHint::RightTrigger)),
             };
-            events.push(AxisEvent::new(id, Some(hint), value as f64 / u8::max_value() as f64));
-        }
-    }
-
-    fn check_axis(
-        events: &mut Vec<AxisEvent>,
-        value: i16,
-        prev_value: Option<i16>,
-        id: u32,
-        hint: AxisHint,
-    ) {
-        if Some(value) != prev_value {
-            let value = match value.signum() {
-                 0 => 0.0,
-                 1 => value as f64 / i16::max_value() as f64,
-                -1 => value as f64 / (i16::min_value() as f64).abs(),
-                 _ => unreachable!()
-            };
-            events.push(AxisEvent::new(id, Some(hint), f64::from(value)));
+            events.push(GamepadEvent::Axis{
+                axis_id,
+                hint,
+                value: value as f64 / u8::max_value() as f64,
+                stick: false,
+            });
         }
     }
 
     fn check_stick(
-        events: &mut Vec<AxisEvent>,
+        events: &mut Vec<GamepadEvent>,
         value: (i16, i16),
         prev_value: Option<(i16, i16)>,
         stick: Side,
@@ -199,21 +178,51 @@ impl XInputGamepad {
         };
         let prev_x = prev_value.map(|prev| prev.0);
         let prev_y = prev_value.map(|prev| prev.1);
-        Self::check_axis(events, value.0, prev_x, id.0, hint.0);
-        Self::check_axis(events, value.1, prev_y, id.1, hint.1);
+
+        let value_f64 = |value_int: i16| match value_int.signum() {
+             0 => 0.0,
+             1 => value_int as f64 / i16::max_value() as f64,
+            -1 => value_int as f64 / (i16::min_value() as f64).abs(),
+             _ => unreachable!()
+        };
+
+        let value_f64 = (value_f64(value.0), value_f64(value.1));
+        if prev_x != Some(value.0) {
+            events.push(GamepadEvent::Axis {
+                axis_id: id.0,
+                hint: Some(hint.0),
+                value: value_f64.0,
+                stick: true,
+            });
+        }
+        if prev_y != Some(value.1) {
+            events.push(GamepadEvent::Axis {
+                axis_id: id.1,
+                hint: Some(hint.1),
+                value: value_f64.1,
+                stick: true,
+            });
+        }
+        if prev_x != Some(value.0) || prev_y != Some(value.1) {
+            events.push(GamepadEvent::Stick {
+                x_id: id.0,
+                y_id: id.1,
+                x_value: value_f64.0,
+                y_value: value_f64.1,
+                side: stick,
+            })
+        }
     }
 
-    pub fn get_changed_axes(&self) -> Vec<AxisEvent> {
+    pub fn get_changed_axes(&self, events: &mut Vec<GamepadEvent>) {
         let state = match self.state {
             Some(ref state) => state,
-            None => return Vec::new(),
+            None => return,
         };
         let left_stick = state.left_stick_raw();
         let right_stick = state.right_stick_raw();
         let left_trigger = state.left_trigger();
         let right_trigger = state.right_trigger();
-
-        let mut events = Vec::with_capacity(6);
 
         let prev_state = self.prev_state.as_ref();
         let prev_left_stick = prev_state.map(|state| state.left_stick_raw());
@@ -221,10 +230,16 @@ impl XInputGamepad {
         let prev_left_trigger = prev_state.map(|state| state.left_trigger());
         let prev_right_trigger = prev_state.map(|state| state.right_trigger());
 
-        Self::check_stick(&mut events, left_stick, prev_left_stick, Side::Left);
-        Self::check_stick(&mut events, right_stick, prev_right_stick, Side::Right);
-        Self::check_trigger(&mut events, left_trigger, prev_left_trigger, Side::Left);
-        Self::check_trigger(&mut events, right_trigger, prev_right_trigger, Side::Right);
+        Self::check_stick(events, left_stick, prev_left_stick, Side::Left);
+        Self::check_stick(events, right_stick, prev_right_stick, Side::Right);
+        Self::check_trigger(events, left_trigger, prev_left_trigger, Side::Left);
+        Self::check_trigger(events, right_trigger, prev_right_trigger, Side::Right);
+    }
+
+    pub fn get_gamepad_events(&self) -> Vec<GamepadEvent> {
+        let mut events = Vec::new();
+        self.get_changed_axes(&mut events);
+        self.get_changed_buttons(&mut events);
         events
     }
 

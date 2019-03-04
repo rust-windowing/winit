@@ -55,7 +55,7 @@ use platform_impl::platform::{
     dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, get_hwnd_scale_factor},
     drop_handler::FileDropHandler,
     event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
-    gamepad::{AxisEvent, ButtonEvent, Gamepad},
+    gamepad::Gamepad,
     raw_input::{self, get_raw_input_data, get_raw_mouse_button_state, RawInputData},
     util,
     window::adjust_size,
@@ -1643,37 +1643,19 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                 },
                 Some(RawInputData::Hid{device_handle, mut raw_hid}) => {
                     let mut gamepad_handle_opt: Option<::event::device::GamepadHandle> = None;
-                    let (mut changed_buttons, mut changed_axes) = (vec![], vec![]);
+                    let mut events = vec![];
                     if let Some(DeviceId::Gamepad(gamepad_handle, ref mut gamepad)) = subclass_input.active_device_ids.get_mut(&device_handle) {
                         gamepad.update_state(&mut raw_hid.raw_input);
-                        changed_buttons = gamepad.get_changed_buttons();
-                        changed_axes = gamepad.get_changed_axes();
+                        events = gamepad.get_gamepad_events();
                         gamepad_handle_opt = Some(gamepad_handle.clone().into());
                     }
 
                     if let Some(gamepad_handle) = gamepad_handle_opt {
-                        for ButtonEvent{ button_id, hint, state } in changed_buttons {
+                        for gamepad_event in events {
                             subclass_input.send_event(
                                 Event::GamepadEvent(
                                     gamepad_handle.clone(),
-                                    GamepadEvent::Button {
-                                        button_id,
-                                        hint,
-                                        state,
-                                    },
-                                )
-                            );
-                        }
-
-                        for AxisEvent{ axis, hint, value } in changed_axes {
-                            subclass_input.send_event(
-                                Event::GamepadEvent(
-                                    gamepad_handle.clone(),
-                                    GamepadEvent::Axis {
-                                        axis,
-                                        hint,
-                                        value,
-                                    },
+                                    gamepad_event,
                                 )
                             );
                         }

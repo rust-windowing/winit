@@ -72,6 +72,12 @@ pub enum AxisHint {
     // DPadRight,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Side {
+    Left,
+    Right,
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub enum MouseEvent {
     /// A mouse device has been added.
@@ -105,9 +111,17 @@ pub enum GamepadEvent {
     Added,
     Removed,
     Axis {
-        axis: AxisId,
+        axis_id: AxisId,
         hint: Option<AxisHint>,
         value: f64,
+        stick: bool,
+    },
+    Stick {
+        x_id: AxisId,
+        y_id: AxisId,
+        x_value: f64,
+        y_value: f64,
+        side: Side,
     },
     Button {
         button_id: ButtonId,

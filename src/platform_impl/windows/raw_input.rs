@@ -52,11 +52,10 @@ use winapi::um::winuser::{
     RIM_TYPEHID,
 };
 
-use super::gamepad::{AxisEvent, ButtonEvent};
 use platform_impl::platform::util;
 use event::{
     ElementState,
-    device::AxisHint,
+    device::{AxisHint, GamepadEvent},
 };
 
 #[allow(dead_code)]
@@ -651,7 +650,7 @@ impl RawGamepad {
         Some(())
     }
 
-    pub fn get_changed_buttons(&self) -> Vec<ButtonEvent> {
+    pub fn get_changed_buttons(&self) -> impl '_ + Iterator<Item=GamepadEvent> {
         self.button_state
             .iter()
             .zip(self.prev_button_state.iter())
@@ -659,18 +658,29 @@ impl RawGamepad {
             .filter(|&(_, (button, prev_button))| button != prev_button)
             .map(|(index, (button, _))| {
                 let state = if *button { ElementState::Pressed } else { ElementState::Released };
-                ButtonEvent::new(index as _, None, state)
+                GamepadEvent::Button {
+                    button_id: index as _,
+                    hint: None,
+                    state,
+                }
             })
-            .collect()
     }
 
-    pub fn get_changed_axes(&self) -> Vec<AxisEvent> {
+    pub fn get_changed_axes(&self) -> impl '_ + Iterator<Item=GamepadEvent> {
         self.axis_state
             .iter()
             .enumerate()
             .filter(|&(_, axis)| axis.value != axis.prev_value)
-            .map(|(index, axis)| AxisEvent::new(index as _, axis.hint, axis.value))
-            .collect()
+            .map(|(index, axis)| GamepadEvent::Axis {
+                axis_id: index as _,
+                hint: axis.hint,
+                value: axis.value,
+                stick: false,
+            })
+    }
+
+    pub fn get_gamepad_events(&self) -> Vec<GamepadEvent> {
+        self.get_changed_axes().chain(self.get_changed_buttons()).collect()
     }
 
     // pub fn rumble(&mut self, _left_speed: u16, _right_speed: u16) {

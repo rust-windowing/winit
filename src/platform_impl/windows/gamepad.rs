@@ -2,10 +2,7 @@ use std::sync::Weak;
 
 use winapi::um::winnt::HANDLE;
 
-use event::{
-    ElementState,
-    device::{AxisHint, ButtonHint},
-};
+use event::device::GamepadEvent;
 use platform_impl::platform::raw_input::{get_raw_input_device_name, RawGamepad};
 use platform_impl::platform::xinput::{self, XInputGamepad, XInputGamepadRumbler};
 
@@ -26,20 +23,6 @@ pub enum GamepadRumbler {
 pub struct Gamepad {
     handle: HANDLE,
     backend: GamepadType,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct AxisEvent {
-    pub axis: u32,
-    pub hint: Option<AxisHint>,
-    pub value: f64,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ButtonEvent {
-    pub button_id: u32,
-    pub hint: Option<ButtonHint>,
-    pub state: ElementState,
 }
 
 impl Gamepad {
@@ -65,17 +48,10 @@ impl Gamepad {
         }
     }
 
-    pub fn get_changed_buttons(&self) -> Vec<ButtonEvent> {
+    pub fn get_gamepad_events(&self) -> Vec<GamepadEvent> {
         match self.backend {
-            GamepadType::Raw(ref gamepad) => gamepad.get_changed_buttons(),
-            GamepadType::XInput(ref gamepad) => gamepad.get_changed_buttons(),
-        }
-    }
-
-    pub fn get_changed_axes(&self) -> Vec<AxisEvent> {
-        match self.backend {
-            GamepadType::Raw(ref gamepad) => gamepad.get_changed_axes(),
-            GamepadType::XInput(ref gamepad) => gamepad.get_changed_axes(),
+            GamepadType::Raw(ref gamepad) => gamepad.get_gamepad_events(),
+            GamepadType::XInput(ref gamepad) => gamepad.get_gamepad_events(),
         }
     }
 
@@ -84,18 +60,6 @@ impl Gamepad {
             GamepadType::Raw(_) => GamepadRumbler::Raw(()),
             GamepadType::XInput(ref gamepad) => GamepadRumbler::XInput(gamepad.rumbler()),
         }
-    }
-}
-
-impl AxisEvent {
-    pub fn new(axis: u32, hint: Option<AxisHint>, value: f64) -> AxisEvent {
-        AxisEvent{ axis, hint, value }
-    }
-}
-
-impl ButtonEvent {
-    pub fn new(button_id: u32, hint: Option<ButtonHint>, state: ElementState) -> ButtonEvent {
-        ButtonEvent{ button_id, hint, state }
     }
 }
 
