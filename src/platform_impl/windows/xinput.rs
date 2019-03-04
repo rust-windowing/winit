@@ -260,8 +260,8 @@ impl Drop for XInputGamepad {
 
 impl XInputGamepadShared {
     pub fn rumble(&self, left_speed: f64, right_speed: f64) {
-        let left_speed = (left_speed * u16::max_value() as f64) as u16;
-        let right_speed = (right_speed * u16::max_value() as f64) as u16;
+        let left_speed = (left_speed.max(0.0).min(1.0) * u16::max_value() as f64) as u16;
+        let right_speed = (right_speed.max(0.0).min(1.0) * u16::max_value() as f64) as u16;
         // TODO: We should probably return the status
         let _ = xinput_set_state(self.port, left_speed, right_speed);
     }
