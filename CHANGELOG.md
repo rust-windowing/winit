@@ -38,7 +38,7 @@
 - Removed `serde` implementations from `ControlFlow`.
 - On Wayland, add `set_wayland_theme()` to control client decoration color theme
 - Added serde serialization to `os::unix::XWindowType`.
-- **Breaking:** `image` crate upgraded to 0.21. This is exposed as part of the `icon_loading` API.
+- **Breaking:** Remove the `icon_loading` feature and the associated `image` dependency.
 - On Windows, fix malformed function pointer typecast that could invoke undefined behavior.
 - Refactored Windows state/flag-setting code.
 - On Windows, hiding the cursor no longer hides the cursor for all Winit windows - just the one `hide_cursor` was called on.

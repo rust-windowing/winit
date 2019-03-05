@@ -84,7 +84,7 @@ pub struct EventLoopWindowTarget<T> {
     _marker: ::std::marker::PhantomData<T>
 }
 
-impl<T> EventLoopProxy<T: 'static> {
+impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
         self.user_sender.send(event).map_err(|_| EventLoopClosed)
     }
@@ -215,6 +215,13 @@ impl<T: 'static> EventLoop<T> {
             }
 
             callback(::event::Event::EventsCleared, &self.window_target, &mut control_flow);
+
+            // fo a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
+            self.post_dispatch_triggers();
+            {
+                let mut guard = sink.lock().unwrap();
+                guard.empty_with(|evt| callback(evt, &self.window_target, &mut control_flow));
+            }
 
             // send pending events to the server
             self.display.flush().expect("Wayland connection lost.");

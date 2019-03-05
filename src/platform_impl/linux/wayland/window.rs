@@ -100,6 +100,9 @@ impl Window {
         // set decorations
         frame.set_decorate(attributes.decorations);
 
+        // set title
+        frame.set_title(attributes.title);
+
         // min-max dimensions
         frame.set_min_size(attributes.min_dimensions.map(Into::into));
         frame.set_max_size(attributes.max_dimensions.map(Into::into));

@@ -46,7 +46,6 @@ Winit is only officially supported on the latest stable version of the Rust comp
 ### Cargo Features
 
 Winit provides the following features, which can be enabled in your `Cargo.toml` file:
-* `icon_loading`: Enables loading window icons directly from files. Depends on the [`image` crate](https://crates.io/crates/image).
 * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 
 ### Platform-specific usage
