@@ -1,6 +1,16 @@
 # Unreleased
 
+- On macOS, fix keycodes being incorrect when using a non-US keyboard layout.
+- On Wayland, fix `with_title()` not setting the windows title
+- On Wayland, add `set_wayland_theme()` to control client decoration color theme
 - Added serde serialization to `os::unix::XWindowType`.
+- **Breaking:** `image` crate upgraded to 0.21. This is exposed as part of the `icon_loading` API.
+- On X11, make event loop thread safe by replacing XNextEvent with select(2) and XCheckIfEvent
+- On Windows, fix malformed function pointer typecast that could invoke undefined behavior.
+- Refactored Windows state/flag-setting code.
+- On Windows, hiding the cursor no longer hides the cursor for all Winit windows - just the one `hide_cursor` was called on.
+- On Windows, cursor grabs used to get perpetually canceled when the grabbing window lost focus. Now, cursor grabs automatically get re-initialized when the window regains focus and the mouse moves over the client area.
+- On Windows, only vertical mouse wheel events were handled. Now, horizontal mouse wheel events are also handled.
 - On Windows, ignore the AltGr key when populating the `ModifersState` type.
 
 # Version 0.18.1 (2018-12-30)

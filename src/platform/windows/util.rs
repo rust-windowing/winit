@@ -1,6 +1,8 @@
-use std::{self, mem, ptr, slice};
+use std::{self, mem, ptr, slice, io};
 use std::ops::BitAnd;
+use std::sync::atomic::{AtomicBool, Ordering};
 
+use MouseCursor;
 use winapi::ctypes::wchar_t;
 use winapi::shared::minwindef::{BOOL, DWORD};
 use winapi::shared::windef::{HWND, POINT, RECT};
@@ -47,6 +49,14 @@ pub unsafe fn status_map<T, F: FnMut(&mut T) -> BOOL>(mut fun: F) -> Option<T> {
     }
 }
 
+fn win_to_err<F: FnOnce() -> BOOL>(f: F) -> Result<(), io::Error> {
+    if f() != 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
 pub fn get_cursor_pos() -> Option<POINT> {
     unsafe { status_map(|cursor_pos| winuser::GetCursorPos(cursor_pos)) }
 }
@@ -55,26 +65,56 @@ pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {
     unsafe { status_map(|rect| winuser::GetWindowRect(hwnd, rect)) }
 }
 
-pub fn get_client_rect(hwnd: HWND) -> Option<RECT> {
-    unsafe { status_map(|rect| {
+pub fn get_client_rect(hwnd: HWND) -> Result<RECT, io::Error> {
+    unsafe {
+        let mut rect = mem::uninitialized();
         let mut top_left = mem::zeroed();
-        if 0 == winuser::ClientToScreen(hwnd, &mut top_left) {return 0;};
-        if 0 == winuser::GetClientRect(hwnd, rect) {return 0};
+
+        win_to_err(|| winuser::ClientToScreen(hwnd, &mut top_left))?;
+        win_to_err(|| winuser::GetClientRect(hwnd, &mut rect))?;
         rect.left += top_left.x;
         rect.top += top_left.y;
         rect.right += top_left.x;
         rect.bottom += top_left.y;
-        1
+
+        Ok(rect)
+    }
+}
+
+pub fn adjust_window_rect(hwnd: HWND, rect: RECT) -> Option<RECT> {
+    unsafe {
+        let style = winuser::GetWindowLongW(hwnd, winuser::GWL_STYLE);
+        let style_ex = winuser::GetWindowLongW(hwnd, winuser::GWL_EXSTYLE);
+        adjust_window_rect_with_styles(hwnd, style as _, style_ex as _, rect)
+    }
+}
+
+pub fn adjust_window_rect_with_styles(hwnd: HWND, style: DWORD, style_ex: DWORD, rect: RECT) -> Option<RECT> {
+    unsafe { status_map(|r| {
+        *r = rect;
+
+        let b_menu = !winuser::GetMenu(hwnd).is_null() as BOOL;
+        winuser::AdjustWindowRectEx(r, style as _ , b_menu, style_ex as _)
     }) }
 }
 
-// This won't be needed anymore if we just add a derive to winapi.
-pub fn rect_eq(a: &RECT, b: &RECT) -> bool {
-    let left_eq = a.left == b.left;
-    let right_eq = a.right == b.right;
-    let top_eq = a.top == b.top;
-    let bottom_eq = a.bottom == b.bottom;
-    left_eq && right_eq && top_eq && bottom_eq
+pub fn set_cursor_hidden(hidden: bool) {
+    static HIDDEN: AtomicBool = AtomicBool::new(false);
+    let changed = HIDDEN.swap(hidden, Ordering::SeqCst) ^ hidden;
+    if changed {
+        unsafe{ winuser::ShowCursor(!hidden as BOOL) };
+    }
+}
+
+pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
+    unsafe {
+        let rect_ptr = rect.as_ref().map(|r| r as *const RECT).unwrap_or(ptr::null());
+        win_to_err(|| winuser::ClipCursor(rect_ptr))
+    }
+}
+
+pub fn is_focused(window: HWND) -> bool {
+    window == unsafe{ winuser::GetActiveWindow() }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -114,4 +154,30 @@ pub unsafe fn get_last_error() -> Option<String> {
         }
     }
     None
+}
+
+impl MouseCursor {
+    pub(crate) fn to_windows_cursor(self) -> *const wchar_t {
+        match self {
+            MouseCursor::Arrow | MouseCursor::Default => winuser::IDC_ARROW,
+            MouseCursor::Hand => winuser::IDC_HAND,
+            MouseCursor::Crosshair => winuser::IDC_CROSS,
+            MouseCursor::Text | MouseCursor::VerticalText => winuser::IDC_IBEAM,
+            MouseCursor::NotAllowed | MouseCursor::NoDrop => winuser::IDC_NO,
+            MouseCursor::Grab | MouseCursor::Grabbing |
+            MouseCursor::Move | MouseCursor::AllScroll => winuser::IDC_SIZEALL,
+            MouseCursor::EResize | MouseCursor::WResize |
+            MouseCursor::EwResize | MouseCursor::ColResize => winuser::IDC_SIZEWE,
+            MouseCursor::NResize | MouseCursor::SResize |
+            MouseCursor::NsResize | MouseCursor::RowResize => winuser::IDC_SIZENS,
+            MouseCursor::NeResize | MouseCursor::SwResize |
+            MouseCursor::NeswResize => winuser::IDC_SIZENESW,
+            MouseCursor::NwResize | MouseCursor::SeResize |
+            MouseCursor::NwseResize => winuser::IDC_SIZENWSE,
+            MouseCursor::Wait => winuser::IDC_WAIT,
+            MouseCursor::Progress => winuser::IDC_APPSTARTING,
+            MouseCursor::Help => winuser::IDC_HELP,
+            _ => winuser::IDC_ARROW, // use arrow for the missing cases.
+        }
+    }
 }

@@ -7,7 +7,7 @@ use platform::{MonitorId as PlatformMonitorId, PlatformSpecificWindowBuilderAttr
 use window::MonitorId as RootMonitorId;
 
 use sctk::surface::{get_dpi_factor, get_outputs};
-use sctk::window::{ConceptFrame, Event as WEvent, Window as SWindow};
+use sctk::window::{ConceptFrame, Event as WEvent, Window as SWindow, Theme};
 use sctk::reexports::client::{Display, Proxy};
 use sctk::reexports::client::protocol::{wl_seat, wl_surface};
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
@@ -80,6 +80,8 @@ impl Window {
         if let Some(app_id) = pl_attribs.app_id {
             frame.set_app_id(app_id);
         }
+
+        frame.set_title(attributes.title);
 
         for &(_, ref seat) in evlp.seats.lock().unwrap().iter() {
             frame.new_seat(seat);
@@ -233,6 +235,11 @@ impl Window {
         } else {
             self.frame.lock().unwrap().unset_fullscreen();
         }
+    }
+
+
+    pub fn set_theme<T: Theme>(&self, theme: T) {
+        self.frame.lock().unwrap().set_theme(theme)
     }
 
     #[inline]

@@ -4,6 +4,8 @@ use std::os::raw;
 use std::ptr;
 use std::sync::Arc;
 
+use sctk::window::{ButtonState, Theme};
+
 use {
     EventsLoop,
     LogicalSize,
@@ -24,6 +26,74 @@ pub use platform::x11;
 
 pub use platform::XNotSupported;
 pub use platform::x11::util::WindowType as XWindowType;
+
+/// Theme for wayland client side decorations
+///
+/// Colors must be in ARGB8888 format
+pub struct WaylandTheme {
+    /// Primary color when the window is focused
+    pub primary_active: [u8; 4],
+    /// Primary color when the window is unfocused
+    pub primary_inactive: [u8; 4],
+    /// Secondary color when the window is focused
+    pub secondary_active: [u8; 4],
+    /// Secondary color when the window is unfocused
+    pub secondary_inactive: [u8; 4],
+    /// Close button color when hovered over
+    pub close_button_hovered: [u8; 4],
+    /// Close button color
+    pub close_button: [u8; 4],
+    /// Close button color when hovered over
+    pub maximize_button_hovered: [u8; 4],
+    /// Maximize button color
+    pub maximize_button: [u8; 4],
+    /// Minimize button color when hovered over
+    pub minimize_button_hovered: [u8; 4],
+    /// Minimize button color
+    pub minimize_button: [u8; 4],
+}
+
+struct WaylandThemeObject(WaylandTheme);
+
+impl Theme for WaylandThemeObject {
+    fn get_primary_color(&self, active: bool) -> [u8; 4] {
+        if active {
+            self.0.primary_active
+        } else {
+            self.0.primary_inactive
+        }
+    }
+
+    // Used for division line
+    fn get_secondary_color(&self, active: bool) -> [u8; 4] {
+        if active {
+            self.0.secondary_active
+        } else {
+            self.0.secondary_inactive
+        }
+    }
+
+    fn get_close_button_color(&self, state: ButtonState) -> [u8; 4] {
+        match state {
+            ButtonState::Hovered => self.0.close_button_hovered,
+            _ => self.0.close_button,
+        }
+    }
+
+    fn get_maximize_button_color(&self, state: ButtonState) -> [u8; 4] {
+        match state {
+            ButtonState::Hovered => self.0.maximize_button_hovered,
+            _ => self.0.maximize_button,
+        }
+    }
+
+    fn get_minimize_button_color(&self, state: ButtonState) -> [u8; 4] {
+        match state {
+            ButtonState::Hovered => self.0.minimize_button_hovered,
+            _ => self.0.minimize_button,
+        }
+    }
+}
 
 /// Additional methods on `EventsLoop` that are specific to Linux.
 pub trait EventsLoopExt {
@@ -127,6 +197,9 @@ pub trait WindowExt {
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     fn get_wayland_display(&self) -> Option<*mut raw::c_void>;
 
+    /// Sets the color theme of the client side window decorations on wayland
+    fn set_wayland_theme(&self, theme: WaylandTheme);
+
     /// Check if the window is ready for drawing
     ///
     /// It is a remnant of a previous implementation detail for the
@@ -199,6 +272,14 @@ impl WindowExt for Window {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.get_display().c_ptr() as *mut _),
             _ => None
+        }
+    }
+
+    #[inline]
+    fn set_wayland_theme(&self, theme: WaylandTheme) {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.set_theme(WaylandThemeObject(theme)),
+            _ => {}
         }
     }
 
