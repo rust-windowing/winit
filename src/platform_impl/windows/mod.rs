@@ -71,6 +71,10 @@ macro_rules! device_id {
                 raw_input::get_raw_input_device_name(self.0)
             }
 
+            pub fn is_connected(&self) -> bool {
+                raw_input::get_raw_input_device_info(self.0).is_some()
+            }
+
             #[inline(always)]
             pub fn handle(&self) -> HANDLE {
                 self.0
@@ -111,6 +115,10 @@ impl GamepadHandle {
 
     pub fn get_persistent_identifier(&self) -> Option<String> {
         raw_input::get_raw_input_device_name(self.handle)
+    }
+
+    pub fn is_connected(&self) -> bool {
+        raw_input::get_raw_input_device_info(self.handle).is_some()
     }
 
     #[inline(always)]

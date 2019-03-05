@@ -61,12 +61,12 @@ pub enum AxisHint {
     LeftTrigger,
     RightTrigger,
 
-    /// This is supposed to have a specialized meaning, referring to a point-of-view switch present on joysticks used
-    /// for flight simulation. However, Xbox 360 controllers (and their derivatives) use a hat switch for the D-pad.
-    HatSwitch,
+    // @francesca64 review: why were these variants here? I don't see how it makes sense for the dpad or hat switch
+    // to have axes, since they're both four separate buttons.
 
-    // @francesca64 review: why were these variants here? I don't see how it makes sense for the dpad
-    // to have axes, since it's four separate buttons.
+    // /// This is supposed to have a specialized meaning, referring to a point-of-view switch present on joysticks used
+    // /// for flight simulation. However, Xbox 360 controllers (and their derivatives) use a hat switch for the D-pad.
+    // HatSwitch,
     // DPadUp,
     // DPadDown,
     // DPadLeft,
@@ -157,6 +157,10 @@ impl MouseId {
     pub fn enumerate<T>(event_loop: &EventLoop<T>) -> impl '_ + Iterator<Item=Self> {
         platform_impl::MouseId::enumerate(&event_loop.event_loop)
     }
+
+    pub fn is_connected(&self) -> bool {
+        self.0.is_connected()
+    }
 }
 
 impl KeyboardId {
@@ -172,6 +176,10 @@ impl KeyboardId {
     pub fn enumerate<T>(event_loop: &EventLoop<T>) -> impl '_ + Iterator<Item=Self> {
         platform_impl::KeyboardId::enumerate(&event_loop.event_loop)
     }
+
+    pub fn is_connected(&self) -> bool {
+        self.0.is_connected()
+    }
 }
 
 impl GamepadHandle {
@@ -186,6 +194,10 @@ impl GamepadHandle {
 
     pub fn enumerate<T>(event_loop: &EventLoop<T>) -> impl '_ + Iterator<Item=Self> {
         platform_impl::GamepadHandle::enumerate(&event_loop.event_loop)
+    }
+
+    pub fn is_connected(&self) -> bool {
+        self.0.is_connected()
     }
 
     pub fn rumble(&self, left_speed: f64, right_speed: f64) -> Result<(), RumbleError> {

@@ -125,11 +125,7 @@ pub fn get_raw_input_device_info(handle: HANDLE) -> Option<RawDeviceInfo> {
         &mut data_size,
     ) } as INT;
 
-    // If status == -1, that means we didn't allocate enough space to store all the data. That should
-    // never happen since we're supposed to get a struct and not a dynamically sized buffer.
-    assert_ne!(status, -1);
-
-    if status == 0 {
+    if status <= 0 {
         return None;
     }
 
