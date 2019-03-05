@@ -12,7 +12,7 @@ use window::WindowId;
 
 pub mod device;
 
-/// Describes a generic event.
+/// A generic event.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event<T> {
     /// Emitted when the OS sends an event to a winit window.
@@ -21,8 +21,11 @@ pub enum Event<T> {
         event: WindowEvent,
     },
 
+    /// Emitted when a mouse device has generated input.
     MouseEvent(device::MouseId, device::MouseEvent),
+    /// Emitted when a keyboard device has generated input.
     KeyboardEvent(device::KeyboardId, device::KeyboardEvent),
+    /// Emitted when a gamepad/joystick device has generated input.
     GamepadEvent(device::GamepadHandle, device::GamepadEvent),
 
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](../event_loop/struct.EventLoopProxy.html#method.send_event)
@@ -60,7 +63,7 @@ impl<T> Event<T> {
     }
 }
 
-/// Describes the reason the event loop is resuming.
+/// The reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StartCause {
     /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the
@@ -86,7 +89,7 @@ pub enum StartCause {
     Init
 }
 
-/// Describes an event from a `Window`.
+/// An event from a `Window`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
@@ -177,7 +180,7 @@ pub enum WindowEvent {
     HiDpiFactorChanged(f64),
 }
 
-/// Describes a keyboard input event.
+/// A keyboard input event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyboardInput {
@@ -203,36 +206,30 @@ pub struct KeyboardInput {
     pub modifiers: ModifiersState
 }
 
-/// Describes touch-screen input state.
+/// Touch input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TouchPhase {
     Started,
     Moved,
     Ended,
-    Cancelled
+    /// The touch has been cancelled by the OS.
+    ///
+    /// This can occur in a variety of situations, such as the window losing focus.
+    Cancelled,
 }
 
-/// Represents touch event
+/// A touch event.
 ///
-/// Every time user touches screen new Start event with some finger id is generated.
-/// When the finger is removed from the screen End event with same id is generated.
-///
-/// For every id there will be at least 2 events with phases Start and End (or Cancelled).
-/// There may be 0 or more Move events.
-///
-///
-/// Depending on platform implementation id may or may not be reused by system after End event.
-///
-/// Gesture regonizer using this event should assume that Start event received with same id
-/// as previously received End event is a new finger and has nothing to do with an old one.
-///
-/// Touch may be cancelled if for example window lost focus.
+/// Every event is guaranteed to start with a `Start` event, and may end with either an `End` or
+/// `Cancelled` event.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
     pub phase: TouchPhase,
     pub location: LogicalPosition,
-    /// unique identifier of a finger.
+    /// Unique identifier of a finger.
+    ///
+    /// This may get reused by the system after the touch ends.
     pub id: u64
 }
 
@@ -245,7 +242,7 @@ pub type AxisId = u32;
 /// Identifier for a specific button on some device.
 pub type ButtonId = u32;
 
-/// Describes the input state of a key.
+/// The input state of a key or button.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ElementState {
@@ -253,7 +250,7 @@ pub enum ElementState {
     Released,
 }
 
-/// Describes a button of a mouse controller.
+/// A button on a mouse.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseButton {
@@ -263,7 +260,7 @@ pub enum MouseButton {
     Other(u8),
 }
 
-/// Describes a difference in the mouse scroll wheel state.
+/// A difference in the mouse scroll wheel state.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseScrollDelta {
@@ -282,7 +279,7 @@ pub enum MouseScrollDelta {
 	PixelDelta(LogicalPosition),
 }
 
-/// Symbolic name for a keyboard key.
+/// Symbolic name of a keyboard key.
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -481,7 +478,7 @@ pub enum VirtualKeyCode {
     Cut,
 }
 
-/// Represents the current state of the keyboard modifiers
+/// The current state of the keyboard modifiers
 ///
 /// Each field of this struct represents a modifier and is `true` if this modifier is active.
 #[derive(Default, Debug, Hash, PartialEq, Eq, Clone, Copy)]
