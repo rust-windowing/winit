@@ -55,7 +55,7 @@ use winapi::um::winuser::{
 use platform_impl::platform::util;
 use event::{
     ElementState,
-    device::{AxisHint, GamepadEvent},
+    device::{GamepadAxis, GamepadEvent},
 };
 
 #[allow(dead_code)]
@@ -440,7 +440,7 @@ pub struct Axis {
     caps: HIDP_VALUE_CAPS,
     value: f64,
     prev_value: f64,
-    hint: Option<AxisHint>,
+    axis: Option<GamepadAxis>,
 }
 
 impl fmt::Debug for Axis {
@@ -449,13 +449,13 @@ impl fmt::Debug for Axis {
         struct Axis {
             value: f64,
             prev_value: f64,
-            hint: Option<AxisHint>,
+            axis: Option<GamepadAxis>,
         }
 
         let axis_proxy = Axis {
             value: self.value,
             prev_value: self.prev_value,
-            hint: self.hint,
+            axis: self.axis,
         };
 
         axis_proxy.fmt(f)
@@ -520,22 +520,22 @@ impl RawGamepad {
                 caps: axis_cap,
                 value: 0.0,
                 prev_value: 0.0,
-                hint: None,
+                axis: None,
                 // @francesca64 when reviewing - where did you get these values? I've commented them
                 // out because the HOTAS controller I've been using to test the raw input backend has
                 // been getting axis hints when it shouldn't, and this seems to be the culprit.
                 // match unsafe { axis_cap.u.Range().UsageMin } {
-                //     0x30 => Some(AxisHint::LeftStickX),
-                //     0x31 => Some(AxisHint::LeftStickY),
-                //     0x32 => Some(AxisHint::RightStickX),
-                //     0x33 => Some(AxisHint::LeftTrigger),
-                //     0x34 => Some(AxisHint::RightTrigger),
-                //     0x35 => Some(AxisHint::RightStickY),
-                //     0x39 => Some(AxisHint::HatSwitch),
-                //     0x90 => Some(AxisHint::DPadUp),
-                //     0x91 => Some(AxisHint::DPadDown),
-                //     0x92 => Some(AxisHint::DPadRight),
-                //     0x93 => Some(AxisHint::DPadLeft),
+                //     0x30 => Some(GamepadAxis::LeftStickX),
+                //     0x31 => Some(GamepadAxis::LeftStickY),
+                //     0x32 => Some(GamepadAxis::RightStickX),
+                //     0x33 => Some(GamepadAxis::LeftTrigger),
+                //     0x34 => Some(GamepadAxis::RightTrigger),
+                //     0x35 => Some(GamepadAxis::RightStickY),
+                //     0x39 => Some(GamepadAxis::HatSwitch),
+                //     0x90 => Some(GamepadAxis::DPadUp),
+                //     0x91 => Some(GamepadAxis::DPadDown),
+                //     0x92 => Some(GamepadAxis::DPadRight),
+                //     0x93 => Some(GamepadAxis::DPadLeft),
                 //     _ => None,
                 // },
             });
@@ -656,7 +656,7 @@ impl RawGamepad {
                 let state = if *button { ElementState::Pressed } else { ElementState::Released };
                 GamepadEvent::Button {
                     button_id: index as _,
-                    hint: None,
+                    button: None,
                     state,
                 }
             })
@@ -669,7 +669,7 @@ impl RawGamepad {
             .filter(|&(_, axis)| axis.value != axis.prev_value)
             .map(|(index, axis)| GamepadEvent::Axis {
                 axis_id: index as _,
-                hint: axis.hint,
+                axis: axis.axis,
                 value: axis.value,
                 stick: false,
             })

@@ -16,7 +16,7 @@ use std::{fmt, io};
 
 /// A hint suggesting the type of button that was pressed.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum ButtonHint {
+pub enum GamepadButton {
     Start,
     Select,
 
@@ -62,7 +62,7 @@ pub enum ButtonHint {
 
 /// A hint suggesting the type of axis that moved.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum AxisHint {
+pub enum GamepadAxis {
     LeftStickX,
     LeftStickY,
 
@@ -151,7 +151,7 @@ pub enum GamepadEvent {
         /// provide a value here.
         ///
         /// TODO: DISCUSS CONTROLLER MAPPING ONCE WE FIGURE OUT WHAT WE'RE DOING THERE.
-        hint: Option<AxisHint>,
+        axis: Option<GamepadAxis>,
         value: f64,
         /// Whether or not this axis has also produced a [`GamepadEvent::Stick`] event.
         stick: bool,
@@ -180,7 +180,7 @@ pub enum GamepadEvent {
         /// A hint regarding the location of the button.
         ///
         /// The caveats on the `Axis.hint` field also apply here.
-        hint: Option<ButtonHint>,
+        button: Option<GamepadButton>,
         state: ElementState,
     },
 }

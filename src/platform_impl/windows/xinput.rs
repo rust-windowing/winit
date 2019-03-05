@@ -7,7 +7,7 @@ use winapi::um::xinput::*;
 
 use event::{
     ElementState,
-    device::{AxisHint, ButtonHint, GamepadEvent, RumbleError, Side},
+    device::{GamepadAxis, GamepadButton, GamepadEvent, RumbleError, Side},
 };
 use platform_impl::platform::util;
 
@@ -15,21 +15,21 @@ lazy_static! {
     static ref XINPUT_GUARD: Option<()> = dynamic_load_xinput().ok();
 }
 
-static BUTTONS: &[(WORD , u32, ButtonHint)] = &[
-    (XINPUT_GAMEPAD_DPAD_UP, 12, ButtonHint::DPadUp),
-    (XINPUT_GAMEPAD_DPAD_DOWN, 13, ButtonHint::DPadDown),
-    (XINPUT_GAMEPAD_DPAD_LEFT, 14, ButtonHint::DPadLeft),
-    (XINPUT_GAMEPAD_DPAD_RIGHT, 15, ButtonHint::DPadRight),
-    (XINPUT_GAMEPAD_START, 9, ButtonHint::Start),
-    (XINPUT_GAMEPAD_BACK, 8, ButtonHint::Select),
-    (XINPUT_GAMEPAD_LEFT_THUMB, 10, ButtonHint::LeftStick),
-    (XINPUT_GAMEPAD_RIGHT_THUMB, 11, ButtonHint::RightStick),
-    (XINPUT_GAMEPAD_LEFT_SHOULDER, 4, ButtonHint::LeftShoulder),
-    (XINPUT_GAMEPAD_RIGHT_SHOULDER, 5, ButtonHint::RightShoulder),
-    (XINPUT_GAMEPAD_A, 0, ButtonHint::South),
-    (XINPUT_GAMEPAD_B, 1, ButtonHint::East),
-    (XINPUT_GAMEPAD_X, 2, ButtonHint::West),
-    (XINPUT_GAMEPAD_Y, 3, ButtonHint::North),
+static BUTTONS: &[(WORD , u32, GamepadButton)] = &[
+    (XINPUT_GAMEPAD_DPAD_UP, 12, GamepadButton::DPadUp),
+    (XINPUT_GAMEPAD_DPAD_DOWN, 13, GamepadButton::DPadDown),
+    (XINPUT_GAMEPAD_DPAD_LEFT, 14, GamepadButton::DPadLeft),
+    (XINPUT_GAMEPAD_DPAD_RIGHT, 15, GamepadButton::DPadRight),
+    (XINPUT_GAMEPAD_START, 9, GamepadButton::Start),
+    (XINPUT_GAMEPAD_BACK, 8, GamepadButton::Select),
+    (XINPUT_GAMEPAD_LEFT_THUMB, 10, GamepadButton::LeftStick),
+    (XINPUT_GAMEPAD_RIGHT_THUMB, 11, GamepadButton::RightStick),
+    (XINPUT_GAMEPAD_LEFT_SHOULDER, 4, GamepadButton::LeftShoulder),
+    (XINPUT_GAMEPAD_RIGHT_SHOULDER, 5, GamepadButton::RightShoulder),
+    (XINPUT_GAMEPAD_A, 0, GamepadButton::South),
+    (XINPUT_GAMEPAD_B, 1, GamepadButton::East),
+    (XINPUT_GAMEPAD_X, 2, GamepadButton::West),
+    (XINPUT_GAMEPAD_Y, 3, GamepadButton::North),
 ];
 
 pub fn id_from_name(name: &str) -> Option<DWORD> {
@@ -90,11 +90,11 @@ impl XInputGamepad {
         const RIGHT_TRIGGER_ID: u32 = LEFT_TRIGGER_ID + 1;
         if Some(value) != prev_value {
             let state = if value { ElementState::Pressed } else { ElementState::Released };
-            let (button_id, hint) = match side {
-                Side::Left => (LEFT_TRIGGER_ID, Some(ButtonHint::LeftTrigger)),
-                Side::Right => (RIGHT_TRIGGER_ID, Some(ButtonHint::RightTrigger)),
+            let (button_id, button) = match side {
+                Side::Left => (LEFT_TRIGGER_ID, Some(GamepadButton::LeftTrigger)),
+                Side::Right => (RIGHT_TRIGGER_ID, Some(GamepadButton::RightTrigger)),
             };
-            events.push(GamepadEvent::Button{button_id, hint, state});
+            events.push(GamepadEvent::Button{button_id, button, state});
         }
     }
 
@@ -130,12 +130,12 @@ impl XInputGamepad {
         let changed = buttons ^ prev_buttons;
         let pressed = changed & buttons;
         let released = changed & prev_buttons;
-        for &(flag, button_id, hint) in BUTTONS {
-            let hint = Some(hint);
+        for &(flag, button_id, button) in BUTTONS {
+            let button = Some(button);
             if util::has_flag(pressed, flag) {
-                events.push(GamepadEvent::Button{button_id, hint, state: ElementState::Pressed});
+                events.push(GamepadEvent::Button{button_id, button, state: ElementState::Pressed});
             } else if util::has_flag(released, flag) {
-                events.push(GamepadEvent::Button{button_id, hint, state: ElementState::Released});
+                events.push(GamepadEvent::Button{button_id, button, state: ElementState::Released});
             }
         }
         Self::check_trigger_digital(events, left_trigger, prev_left, Side::Left);
@@ -151,13 +151,13 @@ impl XInputGamepad {
         const LEFT_TRIGGER_ID: u32 = 4;
         const RIGHT_TRIGGER_ID: u32 = LEFT_TRIGGER_ID + 1;
         if Some(value) != prev_value {
-            let (axis_id, hint) = match side {
-                Side::Left => (LEFT_TRIGGER_ID, Some(AxisHint::LeftTrigger)),
-                Side::Right => (RIGHT_TRIGGER_ID, Some(AxisHint::RightTrigger)),
+            let (axis_id, axis) = match side {
+                Side::Left => (LEFT_TRIGGER_ID, Some(GamepadAxis::LeftTrigger)),
+                Side::Right => (RIGHT_TRIGGER_ID, Some(GamepadAxis::RightTrigger)),
             };
             events.push(GamepadEvent::Axis{
                 axis_id,
-                hint,
+                axis,
                 value: value as f64 / u8::max_value() as f64,
                 stick: false,
             });
@@ -170,9 +170,9 @@ impl XInputGamepad {
         prev_value: Option<(i16, i16)>,
         stick: Side,
     ) {
-        let (id, hint) = match stick {
-            Side::Left => ((0, 1), (AxisHint::LeftStickX, AxisHint::LeftStickY)),
-            Side::Right => ((2, 3), (AxisHint::RightStickX, AxisHint::RightStickY)),
+        let (id, axis) = match stick {
+            Side::Left => ((0, 1), (GamepadAxis::LeftStickX, GamepadAxis::LeftStickY)),
+            Side::Right => ((2, 3), (GamepadAxis::RightStickX, GamepadAxis::RightStickY)),
         };
         let prev_x = prev_value.map(|prev| prev.0);
         let prev_y = prev_value.map(|prev| prev.1);
@@ -188,7 +188,7 @@ impl XInputGamepad {
         if prev_x != Some(value.0) {
             events.push(GamepadEvent::Axis {
                 axis_id: id.0,
-                hint: Some(hint.0),
+                axis: Some(axis.0),
                 value: value_f64.0,
                 stick: true,
             });
@@ -196,7 +196,7 @@ impl XInputGamepad {
         if prev_y != Some(value.1) {
             events.push(GamepadEvent::Axis {
                 axis_id: id.1,
-                hint: Some(hint.1),
+                axis: Some(axis.1),
                 value: value_f64.1,
                 stick: true,
             });
