@@ -51,7 +51,7 @@
   - **Breaking**: Removed device IDs from `WindowEvent` variants.
   - Add `enumerate` function on device ID types to list all attached devices of that type.
   - Add `is_connected` function on device ID types check if the specified device is still available.
-  - On Windows, rename `DeviceIdExtWindows` to `DeviceExtWindows`.
+  - **Breaking**: On Windows, rename `DeviceIdExtWindows` to `DeviceExtWindows`.
     - Add `handle` function to retrieve the underlying `HANDLE`.
 - On Windows, fix duplicate device events getting sent if Winit managed multiple windows.
 - On Windows, raw mouse events now report Mouse4 and Mouse5 presses and releases.
