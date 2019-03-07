@@ -1,6 +1,6 @@
 # Unreleased
 
-# Version 0.19.0 (xxxx-xx-xx)
+# Version 0.19.0 (2019-03-06)
 
 - On X11, we will use the faster `XRRGetScreenResourcesCurrent` function instead of `XRRGetScreenResources` when available.
 - On macOS, fix keycodes being incorrect when using a non-US keyboard layout.
