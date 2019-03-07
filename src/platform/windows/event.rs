@@ -1,31 +1,85 @@
-use std::char;
+use std::{char, ptr};
 use std::os::raw::c_int;
+use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
 use events::VirtualKeyCode;
 use events::ModifiersState;
 
-use winapi::shared::minwindef::{WPARAM, LPARAM, UINT};
+use winapi::shared::minwindef::{WPARAM, LPARAM, UINT, HKL, HKL__};
 use winapi::um::winuser;
 
 use ScanCode;
 
+fn key_pressed(vkey: c_int) -> bool {
+    unsafe {
+        (winuser::GetKeyState(vkey) & (1 << 15)) == (1 << 15)
+    }
+}
+
 pub fn get_key_mods() -> ModifiersState {
     let mut mods = ModifiersState::default();
-    unsafe {
-        if winuser::GetKeyState(winuser::VK_SHIFT) & (1 << 15) == (1 << 15) {
-            mods.shift = true;
-        }
-        if winuser::GetKeyState(winuser::VK_CONTROL) & (1 << 15) == (1 << 15) {
-            mods.ctrl = true;
-        }
-        if winuser::GetKeyState(winuser::VK_MENU) & (1 << 15) == (1 << 15) {
-            mods.alt = true;
-        }
-        if (winuser::GetKeyState(winuser::VK_LWIN) | winuser::GetKeyState(winuser::VK_RWIN)) & (1 << 15) == (1 << 15) {
-            mods.logo = true;
-        }
-    }
+    let filter_out_altgr = layout_uses_altgr() && key_pressed(winuser::VK_RMENU);
+
+    mods.shift = key_pressed(winuser::VK_SHIFT);
+    mods.ctrl = key_pressed(winuser::VK_CONTROL) && !filter_out_altgr;
+    mods.alt = key_pressed(winuser::VK_MENU) && !filter_out_altgr;
+    mods.logo = key_pressed(winuser::VK_LWIN) || key_pressed(winuser::VK_RWIN);
     mods
+}
+
+unsafe fn get_char(keyboard_state: &[u8; 256], v_key: u32, hkl: HKL) -> Option<char> {
+    let mut unicode_bytes = [0u16; 5];
+    let len = winuser::ToUnicodeEx(v_key, 0, keyboard_state.as_ptr(), unicode_bytes.as_mut_ptr(), unicode_bytes.len() as _, 0, hkl);
+    if len >= 1 {
+        char::decode_utf16(unicode_bytes.into_iter().cloned()).next().and_then(|c| c.ok())
+    } else {
+        None
+    }
+}
+
+/// Figures out if the keyboard layout has an AltGr key instead of an Alt key.
+///
+/// Unfortunately, the Windows API doesn't give a way for us to conveniently figure that out. So,
+/// we use a technique blatantly stolen from [the Firefox source code][source]: iterate over every
+/// possible virtual key and compare the `char` output when AltGr is pressed vs when it isn't. If
+/// pressing AltGr outputs characters that are different from the standard characters, the layout
+/// uses AltGr. Otherwise, it doesn't.
+///
+/// [source]: https://github.com/mozilla/gecko-dev/blob/265e6721798a455604328ed5262f430cfcc37c2f/widget/windows/KeyboardLayout.cpp#L4356-L4416
+fn layout_uses_altgr() -> bool {
+    unsafe {
+        static ACTIVE_LAYOUT: AtomicPtr<HKL__> = AtomicPtr::new(ptr::null_mut());
+        static USES_ALTGR: AtomicBool = AtomicBool::new(false);
+
+        let hkl = winuser::GetKeyboardLayout(0);
+        let old_hkl = ACTIVE_LAYOUT.swap(hkl, Ordering::SeqCst);
+
+        if hkl == old_hkl {
+            return USES_ALTGR.load(Ordering::SeqCst);
+        }
+
+        let mut keyboard_state_altgr = [0u8; 256];
+        // AltGr is an alias for Ctrl+Alt for... some reason. Whatever it is, those are the keypresses
+        // we have to emulate to do an AltGr test.
+        keyboard_state_altgr[winuser::VK_MENU as usize] = 0x80;
+        keyboard_state_altgr[winuser::VK_CONTROL as usize] = 0x80;
+
+        let keyboard_state_empty = [0u8; 256];
+
+        for v_key in 0..=255 {
+            let key_noaltgr = get_char(&keyboard_state_empty, v_key, hkl);
+            let key_altgr = get_char(&keyboard_state_altgr, v_key, hkl);
+            if let (Some(noaltgr), Some(altgr)) = (key_noaltgr, key_altgr) {
+                if noaltgr != altgr {
+                    USES_ALTGR.store(true, Ordering::SeqCst);
+                    return true;
+                }
+            }
+        }
+
+        USES_ALTGR.store(false, Ordering::SeqCst);
+        false
+    }
 }
 
 pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
