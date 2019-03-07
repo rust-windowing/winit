@@ -37,6 +37,9 @@
     - `LoopDestroyed` is emitted when the `run` or `run_return` method is about to exit.
 - Rename `MonitorId` to `MonitorHandle`.
 - Removed `serde` implementations from `ControlFlow`.
+
+# Version 0.19.0 (2019-03-06)
+
 - On X11, we will use the faster `XRRGetScreenResourcesCurrent` function instead of `XRRGetScreenResources` when available.
 - On macOS, fix keycodes being incorrect when using a non-US keyboard layout.
 - On Wayland, fix `with_title()` not setting the windows title
