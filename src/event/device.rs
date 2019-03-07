@@ -10,6 +10,7 @@
 //! Note that device events are always delivered regardless of window focus.
 
 use platform_impl;
+use dpi::PhysicalPosition;
 use event::{AxisId, ButtonId, ElementState, KeyboardInput, MouseButton};
 use event_loop::EventLoop;
 use std::{fmt, io};
@@ -94,7 +95,7 @@ pub enum Side {
 /// Raw mouse events.
 ///
 /// See the module-level docs for more information.
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum MouseEvent {
     /// A mouse device has been added.
     Added,
@@ -105,12 +106,17 @@ pub enum MouseEvent {
         state: ElementState,
         button: MouseButton,
     },
-    /// Change in physical position of a pointing device.
+    /// Relative change in physical position of a pointing device.
     ///
     /// This represents raw, unfiltered physical motion, NOT the position of the mouse. Accordingly,
-    /// the values provided here are the change in position of the mouse since the previous `Moved`
-    /// event.
-    Moved(f64, f64),
+    /// the values provided here are the change in position of the mouse since the previous
+    /// `MovedRelative` event.
+    MovedRelative(f64, f64),
+    /// Change in absolute position of a pointing device.
+    ///
+    /// The `PhysicalPosition` value is the new position of the cursor relative to the desktop. This
+    /// generally doesn't get output by standard mouse devices, but can get output from tablet devices.
+    MovedAbsolute(PhysicalPosition),
     /// Change in rotation of mouse wheel.
     Wheel(f64, f64),
 }
@@ -126,6 +132,19 @@ pub enum KeyboardEvent {
     Removed,
     /// A key has been pressed or released.
     Input(KeyboardInput),
+}
+
+/// Raw HID event.
+///
+/// See the module-level docs for more information.
+#[derive(Debug, Clone, PartialEq, Hash)]
+pub enum HidEvent {
+    /// A Human Interface Device device has been added.
+    Added,
+    /// A Human Interface Device device has been removed.
+    Removed,
+    /// A raw data packet has been received from the Human Interface Device.
+    Data(Box<[u8]>),
 }
 
 /// Gamepad/joystick events.
@@ -200,6 +219,9 @@ pub struct MouseId(pub(crate) platform_impl::MouseId);
 /// A typed identifier for a keyboard device.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct KeyboardId(pub(crate) platform_impl::KeyboardId);
+/// A typed if for a Human Interface Device.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct HidId(pub(crate) platform_impl::HidId);
 /// A handle to a gamepad/joystick device.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GamepadHandle(pub(crate) platform_impl::GamepadHandle);
@@ -238,6 +260,27 @@ impl KeyboardId {
     /// Enumerate all attached keyboard devices.
     pub fn enumerate<T>(event_loop: &EventLoop<T>) -> impl '_ + Iterator<Item=Self> {
         platform_impl::KeyboardId::enumerate(&event_loop.event_loop)
+    }
+
+    /// Check to see if this keyboard device is still connected.
+    pub fn is_connected(&self) -> bool {
+        self.0.is_connected()
+    }
+}
+
+impl HidId {
+    /// Returns a dummy `HidId`, useful for unit testing. The only guarantee made about the return
+    /// value of this function is that it will always be equal to itself and to future values returned
+    /// by this function.  No other guarantees are made. This may be equal to a real `HidId`.
+    ///
+    /// **Passing this into a winit function will result in undefined behavior.**
+    pub unsafe fn dummy() -> Self {
+        HidId(platform_impl::HidId::dummy())
+    }
+
+    /// Enumerate all attached keyboard devices.
+    pub fn enumerate<T>(event_loop: &EventLoop<T>) -> impl '_ + Iterator<Item=Self> {
+        platform_impl::HidId::enumerate(&event_loop.event_loop)
     }
 
     /// Check to see if this keyboard device is still connected.
@@ -291,6 +334,12 @@ impl fmt::Debug for MouseId {
 }
 
 impl fmt::Debug for KeyboardId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Debug for HidId {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         self.0.fmt(f)
     }

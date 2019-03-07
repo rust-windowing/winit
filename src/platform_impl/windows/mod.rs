@@ -95,6 +95,7 @@ macro_rules! device_id {
 
 device_id!(MouseId, mouses);
 device_id!(KeyboardId, keyboards);
+device_id!(HidId, hids);
 
 #[derive(Clone)]
 pub(crate) struct GamepadHandle {

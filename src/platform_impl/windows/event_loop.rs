@@ -45,13 +45,13 @@ use winapi::um::winnt::{HANDLE, LONG, LPCSTR, SHORT};
 
 use window::WindowId as RootWindowId;
 use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
-use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
+use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use event::{
     MouseButton, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent,
-    device::{GamepadEvent, KeyboardEvent, MouseEvent}
+    device::{GamepadEvent, KeyboardEvent, HidEvent, MouseEvent}
 };
 use platform_impl::platform::{
-    MouseId, KeyboardId, GamepadHandle, WindowId,
+    MouseId, KeyboardId, HidId, GamepadHandle, WindowId,
     dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, get_hwnd_scale_factor},
     drop_handler::FileDropHandler,
     event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
@@ -83,6 +83,7 @@ struct ThreadMsgTargetSubclassInput<T> {
 pub(crate) enum DeviceId {
     Mouse(MouseId),
     Keyboard(KeyboardId),
+    Hid(HidId),
     Gamepad(GamepadHandle, Gamepad),
 }
 
@@ -265,6 +266,13 @@ impl<T: 'static> EventLoop<T> {
     pub fn keyboards(&self) -> impl '_ + Iterator<Item=::event::device::KeyboardId> {
         self.devices(|d| match d {
                 DeviceId::Keyboard(id) => Some(id.clone().into()),
+                _ => None
+            })
+    }
+
+    pub fn hids(&self) -> impl '_ + Iterator<Item=::event::device::HidId> {
+        self.devices(|d| match d {
+                DeviceId::Hid(id) => Some(id.clone().into()),
                 _ => None
             })
     }
@@ -1524,51 +1532,54 @@ unsafe extern "system" fn thread_event_target_callback<T>(
             match wparam as _ {
                 winuser::GIDC_ARRIVAL => {
                     if let Some(handle_info) = raw_input::get_raw_input_device_info(handle) {
-                        let device_and_event: Option<(DeviceId, Event<T>)>;
+                        let device: DeviceId;
+                        let event: Event<T>;
 
                         match handle_info {
                             RawDeviceInfo::Mouse(_) => {
                                 let mouse_id = MouseId(handle);
-                                device_and_event = Some((
-                                    DeviceId::Mouse(mouse_id),
-                                    Event::MouseEvent(
-                                        mouse_id.into(),
-                                        MouseEvent::Added,
-                                    ),
-                                ));
+                                device = DeviceId::Mouse(mouse_id);
+                                event = Event::MouseEvent(
+                                    mouse_id.into(),
+                                    MouseEvent::Added,
+                                );
                             },
                             RawDeviceInfo::Keyboard(_) => {
                                 let keyboard_id = KeyboardId(handle);
-                                device_and_event = Some((
-                                    DeviceId::Keyboard(keyboard_id),
-                                    Event::KeyboardEvent(
-                                        keyboard_id.into(),
-                                        KeyboardEvent::Added,
-                                    ),
-                                ));
+                                device = DeviceId::Keyboard(keyboard_id);
+                                event = Event::KeyboardEvent(
+                                    keyboard_id.into(),
+                                    KeyboardEvent::Added,
+                                );
                             },
                             RawDeviceInfo::Hid(_) => {
-                                device_and_event = Gamepad::new(handle).map(|gamepad| {
-                                    let gamepad_handle = GamepadHandle {
-                                        handle,
-                                        shared_data: gamepad.shared_data(),
-                                    };
+                                match Gamepad::new(handle) {
+                                    Some(gamepad) => {
+                                        let gamepad_handle = GamepadHandle {
+                                            handle,
+                                            shared_data: gamepad.shared_data(),
+                                        };
 
-                                    (
-                                        DeviceId::Gamepad(gamepad_handle.clone(), gamepad),
-                                        Event::GamepadEvent(
+                                        device = DeviceId::Gamepad(gamepad_handle.clone(), gamepad);
+                                        event = Event::GamepadEvent(
                                             gamepad_handle.into(),
                                             GamepadEvent::Added,
-                                        ),
-                                    )
-                                });
+                                        );
+                                    },
+                                    None => {
+                                        let hid_id = HidId(handle);
+                                        device = DeviceId::Hid(hid_id.into());
+                                        event = Event::HidEvent(
+                                            hid_id.into(),
+                                            HidEvent::Added,
+                                        );
+                                    }
+                                }
                             }
                         }
 
-                        if let Some((device, event)) = device_and_event {
-                            subclass_input.shared_data.active_device_ids.borrow_mut().insert(handle, device);
-                            subclass_input.send_event(event);
-                        }
+                        subclass_input.shared_data.active_device_ids.borrow_mut().insert(handle, device);
+                        subclass_input.send_event(event);
                     }
                 },
                 winuser::GIDC_REMOVAL => {
@@ -1582,6 +1593,10 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             DeviceId::Keyboard(keyboard_id) => Event::KeyboardEvent(
                                 keyboard_id.into(),
                                 KeyboardEvent::Removed,
+                            ),
+                            DeviceId::Hid(hid_id) => Event::HidEvent(
+                                hid_id.into(),
+                                HidEvent::Removed,
                             ),
                             DeviceId::Gamepad(gamepad_handle, _) => {
                                 Event::GamepadEvent(
@@ -1606,7 +1621,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                 Some(RawInputData::Mouse{device_handle, raw_mouse}) => {
                     let mouse_handle = MouseId(device_handle).into();
 
-                    if util::has_flag(raw_mouse.usFlags, winuser::MOUSE_MOVE_RELATIVE) {
+                    if util::has_flag(raw_mouse.usFlags, winuser::MOUSE_MOVE_ABSOLUTE) {
                         let x = raw_mouse.lLastX as f64;
                         let y = raw_mouse.lLastY as f64;
 
@@ -1614,7 +1629,19 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             subclass_input.send_event(
                                 Event::MouseEvent(
                                     mouse_handle,
-                                    MouseEvent::Moved(x, y),
+                                    MouseEvent::MovedAbsolute(PhysicalPosition{ x, y }),
+                                )
+                            );
+                        }
+                    } else if util::has_flag(raw_mouse.usFlags, winuser::MOUSE_MOVE_RELATIVE) {
+                        let x = raw_mouse.lLastX as f64;
+                        let y = raw_mouse.lLastY as f64;
+
+                        if x != 0.0 || y != 0.0 {
+                            subclass_input.send_event(
+                                Event::MouseEvent(
+                                    mouse_handle,
+                                    MouseEvent::MovedRelative(x, y),
                                 )
                             );
                         }
@@ -1701,20 +1728,20 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                 },
                 Some(RawInputData::Hid{device_handle, mut raw_hid}) => {
                     let mut gamepad_handle_opt: Option<::event::device::GamepadHandle> = None;
-                    let mut events = vec![];
+                    let mut gamepad_events = vec![];
 
                     {
                         let mut devices = subclass_input.shared_data.active_device_ids.borrow_mut();
                         let device_id = devices.get_mut(&device_handle);
                         if let Some(DeviceId::Gamepad(gamepad_handle, ref mut gamepad)) = device_id {
                             gamepad.update_state(&mut raw_hid.raw_input);
-                            events = gamepad.get_gamepad_events();
+                            gamepad_events = gamepad.get_gamepad_events();
                             gamepad_handle_opt = Some(gamepad_handle.clone().into());
                         }
                     }
 
                     if let Some(gamepad_handle) = gamepad_handle_opt {
-                        for gamepad_event in events {
+                        for gamepad_event in gamepad_events {
                             subclass_input.send_event(
                                 Event::GamepadEvent(
                                     gamepad_handle.clone(),
@@ -1722,6 +1749,13 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                 )
                             );
                         }
+                    } else {
+                        subclass_input.send_event(
+                            Event::HidEvent(
+                                HidId(device_handle).into(),
+                                HidEvent::Data(raw_hid.raw_input)
+                            )
+                        );
                     }
                 },
                 None => ()

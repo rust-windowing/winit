@@ -25,6 +25,7 @@ pub enum Event<T> {
     MouseEvent(device::MouseId, device::MouseEvent),
     /// Emitted when a keyboard device has generated input.
     KeyboardEvent(device::KeyboardId, device::KeyboardEvent),
+    HidEvent(device::HidId, device::HidEvent),
     /// Emitted when a gamepad/joystick device has generated input.
     GamepadEvent(device::GamepadHandle, device::GamepadEvent),
 
@@ -54,6 +55,7 @@ impl<T> Event<T> {
             WindowEvent{window_id, event} => Ok(WindowEvent{window_id, event}),
             MouseEvent(id, event) => Ok(MouseEvent(id, event)),
             KeyboardEvent(id, event) => Ok(KeyboardEvent(id, event)),
+            HidEvent(id, event) => Ok(HidEvent(id, event)),
             GamepadEvent(id, event) => Ok(GamepadEvent(id, event)),
             NewEvents(cause) => Ok(NewEvents(cause)),
             EventsCleared => Ok(EventsCleared),
