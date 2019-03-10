@@ -41,7 +41,8 @@ pub struct MonitorHandle;
 
 impl MonitorHandle {
     pub fn get_hidpi_factor(&self) -> f64 {
-        unimplemented!();
+        // TODO
+        1.0
     }
 
     pub fn get_position(&self) -> PhysicalPosition {
@@ -71,8 +72,42 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new<T>(target: &EventLoopWindowTarget<T>, window: WindowAttributes, platform: PlatformSpecificWindowBuilderAttributes) -> Result<Self, CreationError> {
-        unimplemented!();
+    pub fn new<T>(target: &EventLoopWindowTarget<T>, attr: WindowAttributes,
+                  _: PlatformSpecificWindowBuilderAttributes) -> Result<Self, CreationError> {
+        let element = document()
+            .create_element("canvas")
+            .map_err(|_| CreationError::OsError("Failed to create canvas element".to_owned()))?;
+        let canvas: CanvasElement = element.try_into()
+            .map_err(|_| CreationError::OsError("Failed to create canvas element".to_owned()))?;
+        document().body()
+            .ok_or_else(|| CreationError::OsError("Failed to find body node".to_owned()))?
+            .append_child(&canvas);
+        let window = Window { canvas };
+        if let Some(dimensions) = attr.dimensions {
+            window.set_inner_size(dimensions);
+        } else {
+            window.set_inner_size(LogicalSize {
+                width: 1024.0,
+                height: 768.0,
+            })
+        }
+        // TODO: most of these are no-op, but should they stay here just in case?
+        window.set_min_dimensions(attr.min_dimensions);
+        window.set_max_dimensions(attr.max_dimensions);
+        window.set_resizable(attr.resizable);
+        window.set_title(&attr.title);
+        window.set_maximized(attr.maximized);
+        if attr.visible {
+            window.show();
+        } else {
+            window.hide();
+        }
+        //window.set_transparent(attr.transparent);
+        window.set_decorations(attr.decorations);
+        window.set_always_on_top(attr.always_on_top);
+        window.set_window_icon(attr.window_icon);
+        target.register_window(&window);
+        Ok(window)
     }
 
     pub fn set_title(&self, title: &str) {
@@ -88,8 +123,7 @@ impl Window {
     }
 
     pub fn request_redraw(&self) {
-        // TODO: what does this mean
-        unimplemented!();
+        // TODO: what does this mean? If it's a 'present'-style call then it's not necessary
     }
 
     pub fn get_position(&self) -> Option<LogicalPosition> {
@@ -106,7 +140,6 @@ impl Window {
 
     pub fn set_position(&self, position: LogicalPosition) {
         // TODO: use CSS?
-        unimplemented!();
     }
 
     #[inline]
@@ -148,7 +181,8 @@ impl Window {
 
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
-        unimplemented!();
+        // TODO
+        1.0
     }
 
     #[inline]
@@ -199,13 +233,13 @@ impl Window {
     #[inline]
     pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), String> {
         // TODO: pointer capture
-        unimplemented!();
+        Ok(())
     }
 
     #[inline]
     pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         // TODO: pointer capture
-        unimplemented!();
+        Ok(())
     }
 
     #[inline]
@@ -217,13 +251,11 @@ impl Window {
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         // TODO: should there be a maximization / fullscreen API?
-        unimplemented!();
     }
 
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<RootMH>) {
         // TODO: should there be a maximization / fullscreen API?
-        unimplemented!();
     }
 
     #[inline]
@@ -239,12 +271,11 @@ impl Window {
     #[inline]
     pub fn set_window_icon(&self, window_icon: Option<Icon>) {
         // TODO: should this set the favicon?
-        unimplemented!();
     }
 
     #[inline]
     pub fn set_ime_spot(&self, position: LogicalPosition) {
-        unimplemented!();
+        // TODO: what is this?
     }
 
     #[inline]
@@ -271,18 +302,8 @@ impl Window {
     }
 }
 
-fn new_rootelw<T>() -> RootELW<T> {
-    RootELW {
-        p: EventLoopWindowTarget {
-            _phantom: PhantomData
-        },
-        _marker: PhantomData
-    }
-}
-
 pub struct EventLoop<T: 'static> {
-    window_target: RootELW<T>,
-    data: Rc<RefCell<EventLoopData<T>>>,
+    elw: RootELW<T>,
 }
 
 #[derive(Clone)]
@@ -291,9 +312,23 @@ struct EventLoopData<T> {
     control: ControlFlow,
 }
 
+pub struct EventLoopWindowTarget<T: 'static> {
+    data: Rc<RefCell<EventLoopData<T>>>,
+}
+
 impl<T> EventLoop<T> {
     pub fn new() -> Self {
-        unimplemented!();
+        EventLoop {
+            elw: RootELW {
+                p: EventLoopWindowTarget {
+                    data: Rc::new(RefCell::new(EventLoopData {
+                        events: VecDeque::new(),
+                        control: ControlFlow::Poll
+                    }))
+                },
+                _marker: PhantomData
+            }
+        }
     }
 
     pub fn get_available_monitors(&self) -> VecDequeIter<MonitorHandle> {
@@ -304,7 +339,7 @@ impl<T> EventLoop<T> {
         MonitorHandle
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> !
+    pub fn run<F>(mut self, event_handler: F)
         where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         // TODO: Create event handlers for the JS events
@@ -313,39 +348,26 @@ impl<T> EventLoop<T> {
         // TODO: file dropping, PathBuf isn't useful for web
 
         let document = &document();
-        self.add_event(document, |mut data, event: BlurEvent| {
+        self.elw.p.add_event(document, |mut data, event: BlurEvent| {
         });
-        self.add_event(document, |mut data, event: FocusEvent| {
+        self.elw.p.add_event(document, |mut data, event: FocusEvent| {
         });
 
-        // TODO: what to do after attaching events
-        unimplemented!();
+        stdweb::event_loop(); // TODO: this is only necessary for stdweb emscripten, should it be here?
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            data: self.data.clone()
+            data: self.elw.p.data.clone()
         }
     }
 
     pub fn window_target(&self) -> &RootELW<T> {
-        &self.window_target
+        &self.elw
     }
+}
 
-    // Apply all enqueued events
-    fn apply_events<F>(&mut self, mut event_handler: F, start: StartCause)
-        where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow) {
-        // TODO: how to handle ControlFlow::Exit?
-        let mut data = self.data.borrow_mut();
-        let mut control = data.control.clone();
-        let events = &mut data.events;
-        event_handler(Event::NewEvents(start), &new_rootelw(), &mut control);
-        for event in events.drain(..) {
-            event_handler(event, &new_rootelw(), &mut control);
-        }
-        event_handler(Event::EventsCleared, &new_rootelw(), &mut control)
-    }
-
+impl<T> EventLoopWindowTarget<T> {
     fn register_window(&self, other: &Window) {
         let canvas = &other.canvas;
         
@@ -441,6 +463,7 @@ impl<T> EventLoop<T> {
             });
         });
     }
+
 
     fn add_event<E, F>(&self, target: &impl IEventTarget, mut handler: F) 
             where E: ConcreteEvent, F: FnMut(RefMut<EventLoopData<T>>, E) + 'static {
@@ -662,10 +685,6 @@ impl<T> EventLoopProxy<T> {
         self.data.borrow_mut().events.push_back(Event::UserEvent(event));
         Ok(())
     }
-}
-
-pub struct EventLoopWindowTarget<T> {
-    _phantom: PhantomData<T>
 }
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

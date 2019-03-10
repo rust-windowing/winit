@@ -139,7 +139,7 @@ impl<T> EventLoop<T> {
     ///
     /// [`ControlFlow`]: ./enum.ControlFlow.html
     #[inline]
-    pub fn run<F>(self, event_handler: F) -> !
+    pub fn run<F>(self, event_handler: F) // TODO: this needs to be !
         where F: 'static + FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow)
     {
         self.event_loop.run(event_handler)
