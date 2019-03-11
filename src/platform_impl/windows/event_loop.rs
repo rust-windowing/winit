@@ -601,13 +601,13 @@ impl EventLoopThreadExecutor {
 type ThreadExecFn = Box<Box<FnMut()>>;
 
 #[derive(Clone)]
-pub struct EventLoopProxy<T> {
+pub struct EventLoopProxy<T: 'static> {
     target_window: HWND,
     event_send: Sender<T>,
 }
-unsafe impl<T: Send> Send for EventLoopProxy<T> {}
+unsafe impl<T: Send + 'static> Send for EventLoopProxy<T> {}
 
-impl<T> EventLoopProxy<T> {
+impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
         unsafe {
             if winuser::PostMessageW(self.target_window, *USER_EVENT_MSG_ID, 0, 0) != 0 {

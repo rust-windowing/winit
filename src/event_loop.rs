@@ -163,11 +163,11 @@ impl<T> Deref for EventLoop<T> {
 
 /// Used to send custom events to `EventLoop`.
 #[derive(Clone)]
-pub struct EventLoopProxy<T> {
+pub struct EventLoopProxy<T: 'static> {
     event_loop_proxy: platform_impl::EventLoopProxy<T>,
 }
 
-impl<T> EventLoopProxy<T> {
+impl<T: 'static> EventLoopProxy<T> {
     /// Send an event to the `EventLoop` from which this proxy was created. This emits a
     /// `UserEvent(event)` event in the event loop, where `event` is the value passed to this
     /// function.
@@ -178,7 +178,7 @@ impl<T> EventLoopProxy<T> {
     }
 }
 
-impl<T> fmt::Debug for EventLoopProxy<T> {
+impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
     fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
         fmtr.pad("EventLoopProxy { .. }")
     }

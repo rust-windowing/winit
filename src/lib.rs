@@ -81,8 +81,6 @@ extern crate lazy_static;
 extern crate libc;
 #[macro_use]
 extern crate log;
-#[cfg(feature = "icon_loading")]
-extern crate image;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
@@ -114,6 +112,8 @@ extern crate smithay_client_toolkit as sctk;
 #[cfg(feature = "stdweb")]
 #[macro_use]
 extern crate stdweb;
+#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+extern crate calloop;
 
 pub mod dpi;
 pub mod event;

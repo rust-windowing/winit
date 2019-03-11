@@ -11,17 +11,16 @@ documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [package.metadata.docs.rs]
-features = ["icon_loading", "serde"]
-
-[features]
-icon_loading = ["image"]
+features = ["serde"]
 
 [dependencies]
 lazy_static = "1"
 libc = "0.2"
 log = "0.4"
-image = { version = "0.21", optional = true }
 serde = { version = "1", optional = true, features = ["serde_derive"] }
+
+[dev-dependencies]
+image = "0.21"
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
 version = "0.2"
@@ -64,8 +63,9 @@ features = [
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.21", features = [ "dlopen", "egl", "cursor"] }
-smithay-client-toolkit = "0.4.3"
+wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] }
+calloop = "0.4.2"
+smithay-client-toolkit = "0.6"
 x11-dl = "2.18.3"
 parking_lot = "0.7"
 percent-encoding = "1.0"

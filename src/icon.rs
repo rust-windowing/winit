@@ -1,12 +1,5 @@
 use std::{fmt, mem};
 use std::error::Error;
-#[cfg(feature = "icon_loading")]
-use std::io::{BufRead, Seek};
-#[cfg(feature = "icon_loading")]
-use std::path::Path;
-
-#[cfg(feature = "icon_loading")]
-use image;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -70,10 +63,6 @@ impl Error for BadIcon {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// An icon used for the window titlebar, taskbar, etc.
-///
-/// Enabling the `icon_loading` feature provides you with several convenience methods for creating
-/// an `Icon` from any format supported by the [image](https://github.com/PistonDevelopers/image)
-/// crate.
 pub struct Icon {
     pub(crate) rgba: Vec<u8>,
     pub(crate) width: u32,
@@ -100,71 +89,5 @@ impl Icon {
         } else {
             Ok(Icon { rgba, width, height })
         }
-    }
-
-    #[cfg(feature = "icon_loading")]
-    /// Loads an `Icon` from the path of an image on the filesystem.
-    ///
-    /// Requires the `icon_loading` feature.
-    pub fn from_path<P: AsRef<Path>>(path: P) -> image::ImageResult<Self> {
-        image::open(path).map(Into::into)
-    }
-
-    #[cfg(feature = "icon_loading")]
-    /// Loads an `Icon` from anything implementing `BufRead` and `Seek`.
-    ///
-    /// Requires the `icon_loading` feature.
-    pub fn from_reader<R: BufRead + Seek>(
-        reader: R,
-        format: image::ImageFormat,
-    ) -> image::ImageResult<Self> {
-        image::load(reader, format).map(Into::into)
-    }
-
-    #[cfg(feature = "icon_loading")]
-    /// Loads an `Icon` from the unprocessed bytes of an image file.
-    /// Uses heuristics to determine format.
-    ///
-    /// Requires the `icon_loading` feature.
-    pub fn from_bytes(bytes: &[u8]) -> image::ImageResult<Self> {
-        image::load_from_memory(bytes).map(Into::into)
-    }
-
-    #[cfg(feature = "icon_loading")]
-    /// Loads an `Icon` from the unprocessed bytes of an image.
-    ///
-    /// Requires the `icon_loading` feature.
-    pub fn from_bytes_with_format(
-        bytes: &[u8],
-        format: image::ImageFormat,
-    ) -> image::ImageResult<Self> {
-        image::load_from_memory_with_format(bytes, format).map(Into::into)
-    }
-}
-
-#[cfg(feature = "icon_loading")]
-/// Requires the `icon_loading` feature.
-impl From<image::DynamicImage> for Icon {
-    fn from(image: image::DynamicImage) -> Self {
-        use image::{GenericImageView, Pixel};
-        let (width, height) = image.dimensions();
-        let mut rgba = Vec::with_capacity((width * height) as usize * PIXEL_SIZE);
-        for (_, _, pixel) in image.pixels() {
-            rgba.extend_from_slice(&pixel.to_rgba().data);
-        }
-        Icon { rgba, width, height }
-    }
-}
-
-#[cfg(feature = "icon_loading")]
-/// Requires the `icon_loading` feature.
-impl From<image::RgbaImage> for Icon {
-    fn from(buf: image::RgbaImage) -> Self {
-        let (width, height) = buf.dimensions();
-        let mut rgba = Vec::with_capacity((width * height) as usize * PIXEL_SIZE);
-        for (_, _, pixel) in buf.enumerate_pixels() {
-            rgba.extend_from_slice(&pixel.data);
-        }
-        Icon { rgba, width, height }
     }
 }
