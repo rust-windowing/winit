@@ -1,271 +1,202 @@
-use super::*;
-
-use dpi::{LogicalPosition, LogicalSize};
-use event::{DeviceEvent, DeviceId as RootDI, ElementState, Event, KeyboardInput, ModifiersState, MouseButton, ScanCode, StartCause, VirtualKeyCode, WindowEvent};
-use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
-use icon::Icon;
-use window::{MouseCursor, WindowId as RootWI};
 use stdweb::{
     JsSerialize,
-    traits::*,
-    unstable::TryInto,
-    web::{
-        document,
-        event::*,
-        html_element::CanvasElement,
-    },
+    web::event::{IKeyboardEvent, IMouseEvent},
+    unstable::TryInto
 };
-use std::cell::{RefCell, RefMut};
-use std::collections::VecDeque;
-use std::collections::vec_deque::IntoIter as VecDequeIter;
-use std::marker::PhantomData;
-use std::rc::Rc;
+use event::{MouseButton, ModifiersState, ScanCode, VirtualKeyCode};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(i32);
+pub fn button_mapping(event: &impl IKeyboardEvent) -> Option<VirtualKeyCode> {
+    Some(match &event.code()[..] {
+        "Digit1" => VirtualKeyCode::Key1,
+        "Digit2" => VirtualKeyCode::Key2,
+        "Digit3" => VirtualKeyCode::Key3,
+        "Digit4" => VirtualKeyCode::Key4,
+        "Digit5" => VirtualKeyCode::Key5,
+        "Digit6" => VirtualKeyCode::Key6,
+        "Digit7" => VirtualKeyCode::Key7,
+        "Digit8" => VirtualKeyCode::Key8,
+        "Digit9" => VirtualKeyCode::Key9,
+        "Digit0" => VirtualKeyCode::Key0,
+        "KeyA" => VirtualKeyCode::A,
+        "KeyB" => VirtualKeyCode::B,
+        "KeyC" => VirtualKeyCode::C,
+        "KeyD" => VirtualKeyCode::D,
+        "KeyE" => VirtualKeyCode::E,
+        "KeyF" => VirtualKeyCode::F,
+        "KeyG" => VirtualKeyCode::G,
+        "KeyH" => VirtualKeyCode::H,
+        "KeyI" => VirtualKeyCode::I,
+        "KeyJ" => VirtualKeyCode::J,
+        "KeyK" => VirtualKeyCode::K,
+        "KeyL" => VirtualKeyCode::L,
+        "KeyM" => VirtualKeyCode::M,
+        "KeyN" => VirtualKeyCode::N,
+        "KeyO" => VirtualKeyCode::O,
+        "KeyP" => VirtualKeyCode::P,
+        "KeyQ" => VirtualKeyCode::Q,
+        "KeyR" => VirtualKeyCode::R,
+        "KeyS" => VirtualKeyCode::S,
+        "KeyT" => VirtualKeyCode::T,
+        "KeyU" => VirtualKeyCode::U,
+        "KeyV" => VirtualKeyCode::V,
+        "KeyW" => VirtualKeyCode::W,
+        "KeyX" => VirtualKeyCode::X,
+        "KeyY" => VirtualKeyCode::Y,
+        "KeyZ" => VirtualKeyCode::Z,
+        "Escape" => VirtualKeyCode::Escape,
+        "F1" => VirtualKeyCode::F1,
+        "F2" => VirtualKeyCode::F2,
+        "F3" => VirtualKeyCode::F3,
+        "F4" => VirtualKeyCode::F4,
+        "F5" => VirtualKeyCode::F5,
+        "F6" => VirtualKeyCode::F6,
+        "F7" => VirtualKeyCode::F7,
+        "F8" => VirtualKeyCode::F8,
+        "F9" => VirtualKeyCode::F9,
+        "F10" => VirtualKeyCode::F10,
+        "F11" => VirtualKeyCode::F11,
+        "F12" => VirtualKeyCode::F12,
+        "F13" => VirtualKeyCode::F13,
+        "F14" => VirtualKeyCode::F14,
+        "F15" => VirtualKeyCode::F15,
+        "F16" => VirtualKeyCode::F16,
+        "F17" => VirtualKeyCode::F17,
+        "F18" => VirtualKeyCode::F18,
+        "F19" => VirtualKeyCode::F19,
+        "F20" => VirtualKeyCode::F20,
+        "F21" => VirtualKeyCode::F21,
+        "F22" => VirtualKeyCode::F22,
+        "F23" => VirtualKeyCode::F23,
+        "F24" => VirtualKeyCode::F24,
+        "PrintScreen" => VirtualKeyCode::Snapshot,
+        "ScrollLock" => VirtualKeyCode::Scroll,
+        "Pause" => VirtualKeyCode::Pause,
+        "Insert" => VirtualKeyCode::Insert,
+        "Home" => VirtualKeyCode::Home,
+        "Delete" => VirtualKeyCode::Delete,
+        "End" => VirtualKeyCode::End,
+        "PageDown" => VirtualKeyCode::PageDown,
+        "PageUp" => VirtualKeyCode::PageUp,
+        "ArrowLeft" => VirtualKeyCode::Left,
+        "ArrowUp" => VirtualKeyCode::Up,
+        "ArrowRight" => VirtualKeyCode::Right,
+        "ArrowDown" => VirtualKeyCode::Down,
+        "Backspace" => VirtualKeyCode::Back,
+        "Enter" => VirtualKeyCode::Return,
+        "Space" => VirtualKeyCode::Space,
+        "Compose" => VirtualKeyCode::Compose,
+        "Caret" => VirtualKeyCode::Caret,
+        "NumLock" => VirtualKeyCode::Numlock,
+        "Numpad0" => VirtualKeyCode::Numpad0,
+        "Numpad1" => VirtualKeyCode::Numpad1,
+        "Numpad2" => VirtualKeyCode::Numpad2,
+        "Numpad3" => VirtualKeyCode::Numpad3,
+        "Numpad4" => VirtualKeyCode::Numpad4,
+        "Numpad5" => VirtualKeyCode::Numpad5,
+        "Numpad6" => VirtualKeyCode::Numpad6,
+        "Numpad7" => VirtualKeyCode::Numpad7,
+        "Numpad8" => VirtualKeyCode::Numpad8,
+        "Numpad9" => VirtualKeyCode::Numpad9,
+        "AbntC1" => VirtualKeyCode::AbntC1,
+        "AbntC2" => VirtualKeyCode::AbntC2,
+        "NumpadAdd" => VirtualKeyCode::Add,
+        "Quote" => VirtualKeyCode::Apostrophe,
+        "Apps" => VirtualKeyCode::Apps,
+        "At" => VirtualKeyCode::At,
+        "Ax" => VirtualKeyCode::Ax,
+        "Backslash" => VirtualKeyCode::Backslash,
+        "Calculator" => VirtualKeyCode::Calculator,
+        "Capital" => VirtualKeyCode::Capital,
+        "Semicolon" => VirtualKeyCode::Semicolon,
+        "Comma" => VirtualKeyCode::Comma,
+        "Convert" => VirtualKeyCode::Convert,
+        "NumpadDecimal" => VirtualKeyCode::Decimal,
+        "NumpadDivide" => VirtualKeyCode::Divide,
+        "Equal" => VirtualKeyCode::Equals,
+        "Backquote" => VirtualKeyCode::Grave,
+        "Kana" => VirtualKeyCode::Kana,
+        "Kanji" => VirtualKeyCode::Kanji,
+        "AltLeft" => VirtualKeyCode::LAlt,
+        "BracketLeft" => VirtualKeyCode::LBracket,
+        "ControlLeft" => VirtualKeyCode::LControl,
+        "ShiftLeft" => VirtualKeyCode::LShift,
+        "MetaLeft" => VirtualKeyCode::LWin,
+        "Mail" => VirtualKeyCode::Mail,
+        "MediaSelect" => VirtualKeyCode::MediaSelect,
+        "MediaStop" => VirtualKeyCode::MediaStop,
+        "Minus" => VirtualKeyCode::Minus,
+        "NumpadMultiply" => VirtualKeyCode::Multiply,
+        "Mute" => VirtualKeyCode::Mute,
+        "LaunchMyComputer" => VirtualKeyCode::MyComputer,
+        "NavigateForward" => VirtualKeyCode::NavigateForward,
+        "NavigateBackward" => VirtualKeyCode::NavigateBackward,
+        "NextTrack" => VirtualKeyCode::NextTrack,
+        "NoConvert" => VirtualKeyCode::NoConvert,
+        "NumpadComma" => VirtualKeyCode::NumpadComma,
+        "NumpadEnter" => VirtualKeyCode::NumpadEnter,
+        "NumpadEquals" => VirtualKeyCode::NumpadEquals,
+        "OEM102" => VirtualKeyCode::OEM102,
+        "Period" => VirtualKeyCode::Period,
+        "PlayPause" => VirtualKeyCode::PlayPause,
+        "Power" => VirtualKeyCode::Power,
+        "PrevTrack" => VirtualKeyCode::PrevTrack,
+        "AltRight" => VirtualKeyCode::RAlt,
+        "BracketRight" => VirtualKeyCode::RBracket,
+        "ControlRight" => VirtualKeyCode::RControl,
+        "ShiftRight" => VirtualKeyCode::RShift,
+        "MetaRight" => VirtualKeyCode::RWin,
+        "Slash" => VirtualKeyCode::Slash,
+        "Sleep" => VirtualKeyCode::Sleep,
+        "Stop" => VirtualKeyCode::Stop,
+        "NumpadSubtract" => VirtualKeyCode::Subtract,
+        "Sysrq" => VirtualKeyCode::Sysrq,
+        "Tab" => VirtualKeyCode::Tab,
+        "Underline" => VirtualKeyCode::Underline,
+        "Unlabeled" => VirtualKeyCode::Unlabeled,
+        "AudioVolumeDown" => VirtualKeyCode::VolumeDown,
+        "AudioVolumeUp" => VirtualKeyCode::VolumeUp,
+        "Wake" => VirtualKeyCode::Wake,
+        "WebBack" => VirtualKeyCode::WebBack,
+        "WebFavorites" => VirtualKeyCode::WebFavorites,
+        "WebForward" => VirtualKeyCode::WebForward,
+        "WebHome" => VirtualKeyCode::WebHome,
+        "WebRefresh" => VirtualKeyCode::WebRefresh,
+        "WebSearch" => VirtualKeyCode::WebSearch,
+        "WebStop" => VirtualKeyCode::WebStop,
+        "Yen" => VirtualKeyCode::Yen,
+        _ => return None
+    })
+}
 
-impl DeviceId {
-    pub unsafe fn dummy() -> Self {
-        DeviceId(0)
+pub fn mouse_modifiers_state(event: &impl IMouseEvent) -> ModifiersState {
+    ModifiersState {
+        shift: event.shift_key(),
+        ctrl: event.ctrl_key(),
+        alt: event.alt_key(),
+        logo: event.meta_key(),
     }
 }
 
-pub struct EventLoop<T: 'static> {
-    elw: RootELW<T>,
-    runner: EventLoopRunnerShared<T>
-}
-
-pub struct EventLoopWindowTarget<T: 'static> {
-    pub(crate) canvases: RefCell<Vec<CanvasElement>>,
-    _marker: PhantomData<T>
-}
-
-impl<T> EventLoopWindowTarget<T> {
-    fn new() -> Self {
-        EventLoopWindowTarget {
-            canvases: RefCell::new(Vec::new()),
-            _marker: PhantomData
-        }
+pub fn mouse_button(event: &impl IMouseEvent) -> MouseButton {
+    match event.button() {
+        stdweb::web::event::MouseButton::Left => MouseButton::Left,
+        stdweb::web::event::MouseButton::Right => MouseButton::Right,
+        stdweb::web::event::MouseButton::Wheel => MouseButton::Middle,
+        stdweb::web::event::MouseButton::Button4 => MouseButton::Other(0),
+        stdweb::web::event::MouseButton::Button5 => MouseButton::Other(1),
     }
 }
 
-#[derive(Clone)]
-pub struct EventLoopProxy<T> {
-    runner: EventLoopRunnerShared<T>
-}
-
-impl<T> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
-        self.runner.send_event(Event::UserEvent(event));
-        Ok(())
+pub fn keyboard_modifiers_state(event: &impl IKeyboardEvent) -> ModifiersState {
+    ModifiersState {
+        shift: event.shift_key(),
+        ctrl: event.ctrl_key(),
+        alt: event.alt_key(),
+        logo: event.meta_key(),
     }
 }
 
-type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
-
-struct ELRShared<T> {
-    runner: RefCell<Option<EventLoopRunner<T>>>,
-    events: RefCell<VecDeque<Event<T>>>, // TODO: this may not be necessary?
+pub fn scancode<T: JsSerialize>(event: &T) -> ScanCode {
+    let which = js! ( return @{event}.which; );
+    which.try_into().expect("The which value should be a number")
 }
-
-struct EventLoopRunner<T> {
-    control: ControlFlow,
-    event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
-}
-
-impl<T> EventLoop<T> {
-    pub fn new() -> Self {
-        EventLoop {
-            elw: RootELW {
-                p: EventLoopWindowTarget::new(),
-                _marker: PhantomData
-            },
-            runner: Rc::new(ELRShared::blank()),
-        }
-    }
-
-    pub fn get_available_monitors(&self) -> VecDequeIter<MonitorHandle> {
-        VecDeque::new().into_iter()
-    }
-
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle
-    }
-
-    pub fn run<F>(mut self, mut event_handler: F) -> !
-        where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
-    {
-        // TODO: Create event handlers for the JS events
-        // TODO: how to handle request redraw?
-        // TODO: onclose (stdweb PR)
-        // TODO: file dropping, PathBuf isn't useful for web
-        let EventLoop { elw, runner } = self;
-        for canvas in elw.p.canvases.borrow().iter() {
-            register(&runner, canvas);
-        }
-        let relw = RootELW {
-            p: EventLoopWindowTarget::new(),
-            _marker: PhantomData
-        };
-        runner.set_listener(Box::new(move |evt, ctrl| event_handler(evt, &relw, ctrl)));
-
-        let document = &document();
-        add_event(&runner, document, |_, _: BlurEvent| {
-        });
-        add_event(&runner, document, |_, _: FocusEvent| {
-
-        });
-        add_event(&runner, document, |elrs, event: KeyDownEvent| {
-            let key = event.key();
-            let mut characters = key.chars();
-            let first = characters.next();
-            let second = characters.next();
-            if let (Some(key), None) = (first, second) {
-                elrs.send_event(Event::WindowEvent {
-                    window_id: RootWI(WindowId),
-                    event: WindowEvent::ReceivedCharacter(key)
-                });
-            }
-            elrs.send_event(Event::WindowEvent {
-                window_id: RootWI(WindowId),
-                event: WindowEvent::KeyboardInput {
-                    // TODO: is there a way to get keyboard device?
-                    device_id: RootDI(unsafe { DeviceId::dummy() }),
-                    input: KeyboardInput {
-                        scancode: scancode(&event),
-                        state: ElementState::Pressed,
-                        virtual_keycode: button_mapping(&event),
-                        modifiers: keyboard_modifiers_state(&event),
-                    }
-                }
-            });
-        });
-        add_event(&runner, document, |elrs, event: KeyUpEvent| {
-            elrs.send_event(Event::WindowEvent {
-                window_id: RootWI(WindowId),
-                event: WindowEvent::KeyboardInput {
-                    // TODO: is there a way to get keyboard device?
-                    device_id: RootDI(unsafe { DeviceId::dummy() }),
-                    input: KeyboardInput {
-                        scancode: scancode(&event),
-                        state: ElementState::Released,
-                        virtual_keycode: button_mapping(&event),
-                        modifiers: keyboard_modifiers_state(&event),
-                    }
-                }
-            });
-        });
-        stdweb::event_loop(); // TODO: this is only necessary for stdweb emscripten, should it be here?
-        js! {
-            throw "Using exceptions for control flow, don't mind me";
-        }
-        unreachable!();
-    }
-
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            runner: self.runner.clone()
-        }
-    }
-
-    pub fn window_target(&self) -> &RootELW<T> {
-        &self.elw
-    }
-}
-
-fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElement) {
-    add_event(elrs, canvas, |elrs, event: PointerOutEvent| {
-        elrs.send_event(Event::WindowEvent {
-            window_id: RootWI(WindowId),
-            event: WindowEvent::CursorLeft {
-                device_id: RootDI(DeviceId(event.pointer_id()))
-            }
-        });
-    });
-    add_event(elrs, canvas, |elrs, event: PointerOverEvent| {
-        elrs.send_event(Event::WindowEvent {
-            window_id: RootWI(WindowId),
-            event: WindowEvent::CursorEntered {
-                device_id: RootDI(DeviceId(event.pointer_id()))
-            }
-        });
-    });
-    add_event(elrs, canvas, |elrs, event: PointerMoveEvent| {
-        elrs.send_event(Event::WindowEvent {
-            window_id: RootWI(WindowId),
-            event: WindowEvent::CursorMoved {
-                device_id: RootDI(DeviceId(event.pointer_id())),
-                position: LogicalPosition {
-                    x: event.offset_x(),
-                    y: event.offset_y()
-                },
-                modifiers: mouse_modifiers_state(&event)
-            }
-        });
-    });
-    add_event(elrs, canvas, |elrs, event: PointerUpEvent| {
-        elrs.send_event(Event::WindowEvent {
-            window_id: RootWI(WindowId),
-            event: WindowEvent::MouseInput {
-                device_id: RootDI(DeviceId(event.pointer_id())),
-                state: ElementState::Pressed,
-                button: mouse_button(&event),
-                modifiers: mouse_modifiers_state(&event)
-            }
-        });
-    });
-    add_event(elrs, canvas, |elrs, event: PointerDownEvent| {
-        elrs.send_event(Event::WindowEvent {
-            window_id: RootWI(WindowId),
-            event: WindowEvent::MouseInput {
-                device_id: RootDI(DeviceId(event.pointer_id())),
-                state: ElementState::Released,
-                button: mouse_button(&event),
-                modifiers: mouse_modifiers_state(&event)
-            }
-        });
-    });
-}
-
-fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IEventTarget, mut handler: F) 
-        where E: ConcreteEvent, F: FnMut(&EventLoopRunnerShared<T>, E) + 'static {
-    let elrs = elrs.clone(); // TODO: necessary?
-    
-    target.add_event_listener(move |event: E| {
-        event.prevent_default();
-        event.stop_propagation();
-        event.cancel_bubble();
-
-        handler(&elrs, event);
-    });
-}
-
-impl<T> ELRShared<T> {
-    fn blank() -> ELRShared<T> {
-        ELRShared {
-            runner: RefCell::new(None),
-            events: RefCell::new(VecDeque::new())
-        }
-    }
-
-    fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
-        *self.runner.borrow_mut() = Some(EventLoopRunner {
-            control: ControlFlow::Poll,
-            event_handler
-        });
-    }
-
-    // TODO: handle event loop closures
-    // TODO: handle event buffer
-    fn send_event(&self, event: Event<T>) {
-        match *self.runner.borrow_mut() {
-            Some(ref mut runner) =>  {
-                // TODO: bracket this in control flow events?
-                (runner.event_handler)(event, &mut runner.control);
-            }
-            None => ()
-        }
-    }
-
-}
-

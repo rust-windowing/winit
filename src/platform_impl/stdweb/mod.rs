@@ -1,10 +1,10 @@
+mod event_loop;
 mod events;
-mod input_binds;
 mod window;
 
-pub use self::events::{DeviceId, EventLoop, EventLoopWindowTarget, EventLoopProxy};
+pub use self::event_loop::{DeviceId, EventLoop, EventLoopWindowTarget, EventLoopProxy};
 pub use self::window::{MonitorHandle, Window, WindowId, PlatformSpecificWindowBuilderAttributes};
-pub use self::input_binds::{button_mapping, mouse_modifiers_state, mouse_button, keyboard_modifiers_state, scancode};
+pub use self::events::{button_mapping, mouse_modifiers_state, mouse_button, keyboard_modifiers_state, scancode};
 
 
 // TODO: dpi
