@@ -63,6 +63,7 @@ impl Window {
         document().body()
             .ok_or_else(|| CreationError::OsError("Failed to find body node".to_owned()))?
             .append_child(&canvas);
+        target.canvases.borrow_mut().push(canvas.clone());
         let window = Window { canvas };
         if let Some(dimensions) = attr.dimensions {
             window.set_inner_size(dimensions);
@@ -87,7 +88,6 @@ impl Window {
         window.set_decorations(attr.decorations);
         window.set_always_on_top(attr.always_on_top);
         window.set_window_icon(attr.window_icon);
-        target.register_window(&window);
         Ok(window)
     }
 

@@ -32,30 +32,55 @@ impl DeviceId {
 
 pub struct EventLoop<T: 'static> {
     elw: RootELW<T>,
-}
-
-#[derive(Clone)]
-struct EventLoopData<T> {
-    events: VecDeque<Event<T>>,
-    control: ControlFlow,
+    runner: EventLoopRunnerShared<T>
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
-    data: Rc<RefCell<EventLoopData<T>>>,
+    pub(crate) canvases: RefCell<Vec<CanvasElement>>,
+    _marker: PhantomData<T>
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    fn new() -> Self {
+        EventLoopWindowTarget {
+            canvases: RefCell::new(Vec::new()),
+            _marker: PhantomData
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct EventLoopProxy<T> {
+    runner: EventLoopRunnerShared<T>
+}
+
+impl<T> EventLoopProxy<T> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+        self.runner.send_event(Event::UserEvent(event));
+        Ok(())
+    }
+}
+
+type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
+
+struct ELRShared<T> {
+    runner: RefCell<Option<EventLoopRunner<T>>>,
+    events: RefCell<VecDeque<Event<T>>>, // TODO: this may not be necessary?
+}
+
+struct EventLoopRunner<T> {
+    control: ControlFlow,
+    event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
 }
 
 impl<T> EventLoop<T> {
     pub fn new() -> Self {
         EventLoop {
             elw: RootELW {
-                p: EventLoopWindowTarget {
-                    data: Rc::new(RefCell::new(EventLoopData {
-                        events: VecDeque::new(),
-                        control: ControlFlow::Poll
-                    }))
-                },
+                p: EventLoopWindowTarget::new(),
                 _marker: PhantomData
-            }
+            },
+            runner: Rc::new(ELRShared::blank()),
         }
     }
 
@@ -67,50 +92,41 @@ impl<T> EventLoop<T> {
         MonitorHandle
     }
 
-    pub fn run<F>(mut self, event_handler: F)
+    pub fn run<F>(mut self, mut event_handler: F) -> !
         where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         // TODO: Create event handlers for the JS events
         // TODO: how to handle request redraw?
         // TODO: onclose (stdweb PR)
         // TODO: file dropping, PathBuf isn't useful for web
+        let EventLoop { elw, runner } = self;
+        for canvas in elw.p.canvases.borrow().iter() {
+            register(&runner, canvas);
+        }
+        let relw = RootELW {
+            p: EventLoopWindowTarget::new(),
+            _marker: PhantomData
+        };
+        runner.set_listener(Box::new(move |evt, ctrl| event_handler(evt, &relw, ctrl)));
 
         let document = &document();
-        self.elw.p.add_event(document, |mut data, event: BlurEvent| {
+        add_event(&runner, document, |_, _: BlurEvent| {
         });
-        self.elw.p.add_event(document, |mut data, event: FocusEvent| {
+        add_event(&runner, document, |_, _: FocusEvent| {
+
         });
-
-        stdweb::event_loop(); // TODO: this is only necessary for stdweb emscripten, should it be here?
-    }
-
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            data: self.elw.p.data.clone()
-        }
-    }
-
-    pub fn window_target(&self) -> &RootELW<T> {
-        &self.elw
-    }
-}
-
-impl<T> EventLoopWindowTarget<T> {
-    pub fn register_window(&self, other: &Window) {
-        let canvas = &other.canvas;
-        
-        self.add_event(canvas, |mut data, event: KeyDownEvent| {
+        add_event(&runner, document, |elrs, event: KeyDownEvent| {
             let key = event.key();
             let mut characters = key.chars();
             let first = characters.next();
             let second = characters.next();
             if let (Some(key), None) = (first, second) {
-                data.events.push_back(Event::WindowEvent {
+                elrs.send_event(Event::WindowEvent {
                     window_id: RootWI(WindowId),
                     event: WindowEvent::ReceivedCharacter(key)
                 });
             }
-            data.events.push_back(Event::WindowEvent {
+            elrs.send_event(Event::WindowEvent {
                 window_id: RootWI(WindowId),
                 event: WindowEvent::KeyboardInput {
                     // TODO: is there a way to get keyboard device?
@@ -124,8 +140,8 @@ impl<T> EventLoopWindowTarget<T> {
                 }
             });
         });
-        self.add_event(canvas, |mut data, event: KeyUpEvent| {
-            data.events.push_back(Event::WindowEvent {
+        add_event(&runner, document, |elrs, event: KeyUpEvent| {
+            elrs.send_event(Event::WindowEvent {
                 window_id: RootWI(WindowId),
                 event: WindowEvent::KeyboardInput {
                     // TODO: is there a way to get keyboard device?
@@ -139,84 +155,117 @@ impl<T> EventLoopWindowTarget<T> {
                 }
             });
         });
-        self.add_event(canvas, |mut data, event: PointerOutEvent| {
-            data.events.push_back(Event::WindowEvent {
-                window_id: RootWI(WindowId),
-                event: WindowEvent::CursorLeft {
-                    device_id: RootDI(DeviceId(event.pointer_id()))
-                }
-            });
-        });
-        self.add_event(canvas, |mut data, event: PointerOverEvent| {
-            data.events.push_back(Event::WindowEvent {
-                window_id: RootWI(WindowId),
-                event: WindowEvent::CursorEntered {
-                    device_id: RootDI(DeviceId(event.pointer_id()))
-                }
-            });
-        });
-        self.add_event(canvas, |mut data, event: PointerMoveEvent| {
-            data.events.push_back(Event::WindowEvent {
-                window_id: RootWI(WindowId),
-                event: WindowEvent::CursorMoved {
-                    device_id: RootDI(DeviceId(event.pointer_id())),
-                    position: LogicalPosition {
-                        x: event.offset_x(),
-                        y: event.offset_y()
-                    },
-                    modifiers: mouse_modifiers_state(&event)
-                }
-            });
-        });
-        self.add_event(canvas, |mut data, event: PointerUpEvent| {
-            data.events.push_back(Event::WindowEvent {
-                window_id: RootWI(WindowId),
-                event: WindowEvent::MouseInput {
-                    device_id: RootDI(DeviceId(event.pointer_id())),
-                    state: ElementState::Pressed,
-                    button: mouse_button(&event),
-                    modifiers: mouse_modifiers_state(&event)
-                }
-            });
-        });
-        self.add_event(canvas, |mut data, event: PointerDownEvent| {
-            data.events.push_back(Event::WindowEvent {
-                window_id: RootWI(WindowId),
-                event: WindowEvent::MouseInput {
-                    device_id: RootDI(DeviceId(event.pointer_id())),
-                    state: ElementState::Released,
-                    button: mouse_button(&event),
-                    modifiers: mouse_modifiers_state(&event)
-                }
-            });
-        });
+        stdweb::event_loop(); // TODO: this is only necessary for stdweb emscripten, should it be here?
+        js! {
+            throw "Using exceptions for control flow, don't mind me";
+        }
+        unreachable!();
     }
 
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+        EventLoopProxy {
+            runner: self.runner.clone()
+        }
+    }
 
-    fn add_event<E, F>(&self, target: &impl IEventTarget, mut handler: F) 
-            where E: ConcreteEvent, F: FnMut(RefMut<EventLoopData<T>>, E) + 'static {
-        let data = self.data.clone();
-
-        target.add_event_listener(move |event: E| {
-            event.prevent_default();
-            event.stop_propagation();
-            event.cancel_bubble();
-
-            handler(data.borrow_mut(), event);
-        });
+    pub fn window_target(&self) -> &RootELW<T> {
+        &self.elw
     }
 }
 
-#[derive(Clone)]
-pub struct EventLoopProxy<T> {
-    data: Rc<RefCell<EventLoopData<T>>>
+fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElement) {
+    add_event(elrs, canvas, |elrs, event: PointerOutEvent| {
+        elrs.send_event(Event::WindowEvent {
+            window_id: RootWI(WindowId),
+            event: WindowEvent::CursorLeft {
+                device_id: RootDI(DeviceId(event.pointer_id()))
+            }
+        });
+    });
+    add_event(elrs, canvas, |elrs, event: PointerOverEvent| {
+        elrs.send_event(Event::WindowEvent {
+            window_id: RootWI(WindowId),
+            event: WindowEvent::CursorEntered {
+                device_id: RootDI(DeviceId(event.pointer_id()))
+            }
+        });
+    });
+    add_event(elrs, canvas, |elrs, event: PointerMoveEvent| {
+        elrs.send_event(Event::WindowEvent {
+            window_id: RootWI(WindowId),
+            event: WindowEvent::CursorMoved {
+                device_id: RootDI(DeviceId(event.pointer_id())),
+                position: LogicalPosition {
+                    x: event.offset_x(),
+                    y: event.offset_y()
+                },
+                modifiers: mouse_modifiers_state(&event)
+            }
+        });
+    });
+    add_event(elrs, canvas, |elrs, event: PointerUpEvent| {
+        elrs.send_event(Event::WindowEvent {
+            window_id: RootWI(WindowId),
+            event: WindowEvent::MouseInput {
+                device_id: RootDI(DeviceId(event.pointer_id())),
+                state: ElementState::Pressed,
+                button: mouse_button(&event),
+                modifiers: mouse_modifiers_state(&event)
+            }
+        });
+    });
+    add_event(elrs, canvas, |elrs, event: PointerDownEvent| {
+        elrs.send_event(Event::WindowEvent {
+            window_id: RootWI(WindowId),
+            event: WindowEvent::MouseInput {
+                device_id: RootDI(DeviceId(event.pointer_id())),
+                state: ElementState::Released,
+                button: mouse_button(&event),
+                modifiers: mouse_modifiers_state(&event)
+            }
+        });
+    });
 }
 
-impl<T> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
-        self.data.borrow_mut().events.push_back(Event::UserEvent(event));
-        Ok(())
+fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IEventTarget, mut handler: F) 
+        where E: ConcreteEvent, F: FnMut(&EventLoopRunnerShared<T>, E) + 'static {
+    let elrs = elrs.clone(); // TODO: necessary?
+    
+    target.add_event_listener(move |event: E| {
+        event.prevent_default();
+        event.stop_propagation();
+        event.cancel_bubble();
+
+        handler(&elrs, event);
+    });
+}
+
+impl<T> ELRShared<T> {
+    fn blank() -> ELRShared<T> {
+        ELRShared {
+            runner: RefCell::new(None),
+            events: RefCell::new(VecDeque::new())
+        }
     }
-}
 
+    fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
+        *self.runner.borrow_mut() = Some(EventLoopRunner {
+            control: ControlFlow::Poll,
+            event_handler
+        });
+    }
+
+    // TODO: handle event loop closures
+    // TODO: handle event buffer
+    fn send_event(&self, event: Event<T>) {
+        match *self.runner.borrow_mut() {
+            Some(ref mut runner) =>  {
+                // TODO: bracket this in control flow events?
+                (runner.event_handler)(event, &mut runner.control);
+            }
+            None => ()
+        }
+    }
+
+}
 

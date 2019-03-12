@@ -197,6 +197,6 @@ pub fn keyboard_modifiers_state(event: &impl IKeyboardEvent) -> ModifiersState {
 }
 
 pub fn scancode<T: JsSerialize>(event: &T) -> ScanCode {
-    let which = js! ( return @{event}.which(); );
+    let which = js! ( return @{event}.which; );
     which.try_into().expect("The which value should be a number")
 }
