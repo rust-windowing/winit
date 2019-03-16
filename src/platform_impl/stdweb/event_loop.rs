@@ -1,21 +1,18 @@
 use super::*;
 
-use dpi::{LogicalPosition, LogicalSize};
-use event::{DeviceEvent, DeviceId as RootDI, ElementState, Event, KeyboardInput, ModifiersState, MouseButton, ScanCode, StartCause, VirtualKeyCode, WindowEvent};
+use dpi::LogicalPosition;
+use event::{DeviceId as RootDI, ElementState, Event, KeyboardInput, StartCause, WindowEvent};
 use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
-use icon::Icon;
-use window::{MouseCursor, WindowId as RootWI};
+use window::{WindowId as RootWI};
 use stdweb::{
-    JsSerialize,
     traits::*,
-    unstable::TryInto,
     web::{
         document,
         event::*,
         html_element::CanvasElement,
     },
 };
-use std::cell::{RefCell, RefMut};
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::marker::PhantomData;
@@ -91,7 +88,7 @@ impl<T> EventLoop<T> {
         MonitorHandle
     }
 
-    pub fn run<F>(mut self, mut event_handler: F) -> !
+    pub fn run<F>(self, mut event_handler: F) -> !
         where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         // TODO: how to handle request redraw?
@@ -248,13 +245,6 @@ fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IE
 }
 
 impl<T> ELRShared<T> {
-    fn blank() -> ELRShared<T> {
-        ELRShared {
-            runner: RefCell::new(None),
-            events: RefCell::new(VecDeque::new())
-        }
-    }
-
     fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
         *self.runner.borrow_mut() = Some(EventLoopRunner {
             control: ControlFlow::Poll,

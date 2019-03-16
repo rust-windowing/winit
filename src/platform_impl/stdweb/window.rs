@@ -3,9 +3,10 @@ use event::{Event, WindowEvent};
 use icon::Icon;
 use monitor::{MonitorHandle as RootMH};
 use window::{CreationError, MouseCursor, WindowAttributes, WindowId as RootWI};
-use super::{EventLoopWindowTarget, EventLoopRunnerShared, register};
+use super::{EventLoopWindowTarget, register};
 use std::collections::VecDeque;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
+use std::cell::RefCell;
 use stdweb::{
     traits::*,
     unstable::TryInto
@@ -51,7 +52,8 @@ impl WindowId {
 
 pub struct Window {
     pub(crate) canvas: CanvasElement,
-    pub(crate) redraw: Box<dyn Fn()>
+    pub(crate) redraw: Box<dyn Fn()>,
+    previous_pointer: RefCell<&'static str>
 }
 
 impl Window {
@@ -76,7 +78,8 @@ impl Window {
 
         let window = Window {
             canvas,
-            redraw
+            redraw,
+            previous_pointer: RefCell::new("auto")
         };
 
         if let Some(dimensions) = attr.dimensions {
@@ -135,7 +138,7 @@ impl Window {
         None
     }
 
-    pub fn set_position(&self, position: LogicalPosition) {
+    pub fn set_position(&self, _position: LogicalPosition) {
         // TODO: use CSS?
     }
 
@@ -223,35 +226,41 @@ impl Window {
             MouseCursor::ColResize => "col-resize",
             MouseCursor::RowResize => "row-resize",
         };
+        *self.previous_pointer.borrow_mut() = text;
         self.canvas.set_attribute("cursor", text)
             .expect("Setting the cursor on the canvas");
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
         // TODO: pointer capture
         Ok(())
     }
 
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+    pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
         // TODO: pointer capture
         Ok(())
     }
 
     #[inline]
     pub fn hide_cursor(&self, hide: bool) {
-        self.canvas.set_attribute("cursor", "none")
-            .expect("Setting the cursor on the canvas");
+        if hide {
+            self.canvas.set_attribute("cursor", "none")
+                .expect("Setting the cursor on the canvas");
+        } else {
+            self.canvas.set_attribute("cursor", *self.previous_pointer.borrow())
+                .expect("Setting the cursor on the canvas");
+        }
     }
 
     #[inline]
-    pub fn set_maximized(&self, maximized: bool) {
+    pub fn set_maximized(&self, _maximized: bool) {
         // TODO: should there be a maximization / fullscreen API?
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMH>) {
+    pub fn set_fullscreen(&self, _monitor: Option<RootMH>) {
         // TODO: should there be a maximization / fullscreen API?
     }
 
@@ -266,12 +275,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+    pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
         // TODO: should this set the favicon?
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, position: LogicalPosition) {
+    pub fn set_ime_spot(&self, _position: LogicalPosition) {
         // TODO: what is this?
     }
 
