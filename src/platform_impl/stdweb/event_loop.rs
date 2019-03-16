@@ -32,19 +32,19 @@ impl DeviceId {
 
 pub struct EventLoop<T: 'static> {
     elw: RootELW<T>,
-    runner: EventLoopRunnerShared<T>
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
-    pub(crate) canvases: RefCell<Vec<CanvasElement>>,
-    _marker: PhantomData<T>
+    pub(crate) runner: EventLoopRunnerShared<T>,
 }
 
 impl<T> EventLoopWindowTarget<T> {
     fn new() -> Self {
         EventLoopWindowTarget {
-            canvases: RefCell::new(Vec::new()),
-            _marker: PhantomData
+            runner: Rc::new(ELRShared {
+                runner: RefCell::new(None),
+                events: RefCell::new(VecDeque::new())
+            })
         }
     }
 }
@@ -61,9 +61,9 @@ impl<T> EventLoopProxy<T> {
     }
 }
 
-type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
+pub type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
 
-struct ELRShared<T> {
+pub struct ELRShared<T> {
     runner: RefCell<Option<EventLoopRunner<T>>>,
     events: RefCell<VecDeque<Event<T>>>, // TODO: this may not be necessary?
 }
@@ -80,7 +80,6 @@ impl<T> EventLoop<T> {
                 p: EventLoopWindowTarget::new(),
                 _marker: PhantomData
             },
-            runner: Rc::new(ELRShared::blank()),
         }
     }
 
@@ -95,14 +94,11 @@ impl<T> EventLoop<T> {
     pub fn run<F>(mut self, mut event_handler: F) -> !
         where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
     {
-        // TODO: Create event handlers for the JS events
         // TODO: how to handle request redraw?
         // TODO: onclose (stdweb PR)
         // TODO: file dropping, PathBuf isn't useful for web
-        let EventLoop { elw, runner } = self;
-        for canvas in elw.p.canvases.borrow().iter() {
-            register(&runner, canvas);
-        }
+        let runner = self.elw.p.runner;
+        
         let relw = RootELW {
             p: EventLoopWindowTarget::new(),
             _marker: PhantomData
@@ -156,6 +152,9 @@ impl<T> EventLoop<T> {
             });
         });
         stdweb::event_loop(); // TODO: this is only necessary for stdweb emscripten, should it be here?
+
+        // Throw an exception to break out of Rust exceution and use unreachable to tell the
+        // compiler this function won't return, giving it a return type of '!'
         js! {
             throw "Using exceptions for control flow, don't mind me";
         }
@@ -164,7 +163,7 @@ impl<T> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            runner: self.runner.clone()
+            runner: self.elw.p.runner.clone()
         }
     }
 
@@ -173,7 +172,7 @@ impl<T> EventLoop<T> {
     }
 }
 
-fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElement) {
+pub fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElement) { 
     add_event(elrs, canvas, |elrs, event: PointerOutEvent| {
         elrs.send_event(Event::WindowEvent {
             window_id: RootWI(WindowId),
@@ -229,7 +228,7 @@ fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElement)
 
 fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IEventTarget, mut handler: F) 
         where E: ConcreteEvent, F: FnMut(&EventLoopRunnerShared<T>, E) + 'static {
-    let elrs = elrs.clone(); // TODO: necessary?
+    let elrs = elrs.clone();
     
     target.add_event_listener(move |event: E| {
         event.prevent_default();
@@ -257,7 +256,7 @@ impl<T> ELRShared<T> {
 
     // TODO: handle event loop closures
     // TODO: handle event buffer
-    fn send_event(&self, event: Event<T>) {
+    pub fn send_event(&self, event: Event<T>) {
         match *self.runner.borrow_mut() {
             Some(ref mut runner) =>  {
                 // TODO: bracket this in control flow events?

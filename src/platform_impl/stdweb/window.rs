@@ -1,8 +1,9 @@
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use event::{Event, WindowEvent};
 use icon::Icon;
 use monitor::{MonitorHandle as RootMH};
-use window::{CreationError, MouseCursor, WindowAttributes};
-use super::EventLoopWindowTarget;
+use window::{CreationError, MouseCursor, WindowAttributes, WindowId as RootWI};
+use super::{EventLoopWindowTarget, EventLoopRunnerShared, register};
 use std::collections::VecDeque;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use stdweb::{
@@ -50,6 +51,7 @@ impl WindowId {
 
 pub struct Window {
     pub(crate) canvas: CanvasElement,
+    pub(crate) redraw: Box<dyn Fn()>
 }
 
 impl Window {
@@ -63,8 +65,20 @@ impl Window {
         document().body()
             .ok_or_else(|| CreationError::OsError("Failed to find body node".to_owned()))?
             .append_child(&canvas);
-        target.canvases.borrow_mut().push(canvas.clone());
-        let window = Window { canvas };
+
+        register(&target.runner, &canvas);
+
+        let runner = target.runner.clone();
+        let redraw = Box::new(move || runner.send_event(Event::WindowEvent {
+            window_id: RootWI(WindowId),
+            event: WindowEvent::RedrawRequested
+        }));
+
+        let window = Window {
+            canvas,
+            redraw
+        };
+
         if let Some(dimensions) = attr.dimensions {
             window.set_inner_size(dimensions);
         } else {
@@ -88,6 +102,7 @@ impl Window {
         window.set_decorations(attr.decorations);
         window.set_always_on_top(attr.always_on_top);
         window.set_window_icon(attr.window_icon);
+
         Ok(window)
     }
 
@@ -104,7 +119,7 @@ impl Window {
     }
 
     pub fn request_redraw(&self) {
-        // TODO: what does this mean? If it's a 'present'-style call then it's not necessary
+        (self.redraw)();
     }
 
     pub fn get_position(&self) -> Option<LogicalPosition> {
