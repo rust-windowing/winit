@@ -106,9 +106,17 @@ impl<T> EventLoop<T> {
         runner.set_listener(Box::new(move |evt, ctrl| event_handler(evt, &relw, ctrl)));
 
         let document = &document();
-        add_event(&runner, document, |_, _: BlurEvent| {
+        add_event(&runner, document, |elrs, _: BlurEvent| {
+            elrs.send_event(Event::WindowEvent {
+                window_id: RootWI(WindowId),
+                event: WindowEvent::Focused(false)
+            });
         });
-        add_event(&runner, document, |_, _: FocusEvent| {
+        add_event(&runner, document, |elrs, _: FocusEvent| {
+            elrs.send_event(Event::WindowEvent {
+                window_id: RootWI(WindowId),
+                event: WindowEvent::Focused(true)
+            });
 
         });
         add_event(&runner, document, |elrs, event: KeyDownEvent| {
