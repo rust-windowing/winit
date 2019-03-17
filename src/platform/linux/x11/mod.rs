@@ -19,7 +19,13 @@ use std::collections::HashMap;
 use std::ffi::CStr;
 use std::ops::Deref;
 use std::os::raw::*;
-use libc::{select, fd_set, FD_SET, FD_ZERO, FD_ISSET, EINTR, EINVAL, ENOMEM, EBADF, __errno_location};
+use libc::{select, fd_set, FD_SET, FD_ZERO, FD_ISSET, EINTR, EINVAL, ENOMEM, EBADF};
+#[cfg(target_os = "linux")]
+use libc::__errno_location;
+#[cfg(target_os = "freebsd")]
+use libc::__error;
+#[cfg(any(target_os = "netbsd", target_os = "openbsd"))]
+use libc::__errno;
 use std::sync::{Arc, mpsc, Weak};
 use std::sync::atomic::{self, AtomicBool};
 
@@ -232,7 +238,12 @@ impl EventsLoop {
                 std::ptr::null_mut()); // timeout
 
             if err < 0 {
+                #[cfg(target_os = "linux")]
                 let errno_ptr = __errno_location();
+                #[cfg(target_os = "freebsd")]
+                let errno_ptr = __error();
+                #[cfg(any(target_os = "netbsd", target_os = "openbsd"))]
+                let errno_ptr = __errno();
                 let errno = *errno_ptr;
 
                 if errno == EINTR {
