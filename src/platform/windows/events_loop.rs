@@ -1052,20 +1052,10 @@ unsafe fn callback_inner(
         }
 
         winuser::WM_SETFOCUS => {
-            use events::WindowEvent::{Focused, CursorMoved};
+            use events::WindowEvent::Focused;
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Focused(true)
-            });
-
-            let x = windowsx::GET_X_LPARAM(lparam) as f64;
-            let y = windowsx::GET_Y_LPARAM(lparam) as f64;
-            let dpi_factor = get_hwnd_scale_factor(window);
-            let position = LogicalPosition::from_physical((x, y), dpi_factor);
-
-            send_event(Event::WindowEvent {
-                window_id: SuperWindowId(WindowId(window)),
-                event: CursorMoved { device_id: DEVICE_ID, position, modifiers: event::get_key_mods() },
             });
 
             0
