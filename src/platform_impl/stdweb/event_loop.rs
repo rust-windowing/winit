@@ -67,6 +67,7 @@ pub struct ELRShared<T> {
 
 struct EventLoopRunner<T> {
     control: ControlFlow,
+    handling: bool,
     event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
 }
 
@@ -89,13 +90,9 @@ impl<T> EventLoop<T> {
     }
 
     pub fn run<F>(self, mut event_handler: F) -> !
-        where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
-    {
-        // TODO: how to handle request redraw?
-        // TODO: onclose (stdweb PR)
-        // TODO: file dropping, PathBuf isn't useful for web
+        where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow) {
         let runner = self.elw.p.runner;
-        
+
         let relw = RootELW {
             p: EventLoopWindowTarget::new(),
             _marker: PhantomData
@@ -130,7 +127,6 @@ impl<T> EventLoop<T> {
             elrs.send_event(Event::WindowEvent {
                 window_id: RootWI(WindowId),
                 event: WindowEvent::KeyboardInput {
-                    // TODO: is there a way to get keyboard device?
                     device_id: RootDI(unsafe { DeviceId::dummy() }),
                     input: KeyboardInput {
                         scancode: scancode(&event),
@@ -145,7 +141,6 @@ impl<T> EventLoop<T> {
             elrs.send_event(Event::WindowEvent {
                 window_id: RootWI(WindowId),
                 event: WindowEvent::KeyboardInput {
-                    // TODO: is there a way to get keyboard device?
                     device_id: RootDI(unsafe { DeviceId::dummy() }),
                     input: KeyboardInput {
                         scancode: scancode(&event),
@@ -248,6 +243,7 @@ impl<T> ELRShared<T> {
     fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
         *self.runner.borrow_mut() = Some(EventLoopRunner {
             control: ControlFlow::Poll,
+            handling: false
             event_handler
         });
     }
@@ -256,11 +252,17 @@ impl<T> ELRShared<T> {
     // TODO: handle event buffer
     pub fn send_event(&self, event: Event<T>) {
         match *self.runner.borrow_mut() {
-            Some(ref mut runner) =>  {
+            Some(ref mut runner) if !runner.handling => {
+                runner.handling = true;
+                let closed = runner.control == ControlFlow::Exit;
                 // TODO: bracket this in control flow events?
                 (runner.event_handler)(event, &mut runner.control);
+                if closed {
+                    runner.control = ControlFlow::Exit;
+                }
+                runner.handling = false;
             }
-            None => ()
+            _ => self.events.borrow_mut().push_back(event)
         }
     }
 
