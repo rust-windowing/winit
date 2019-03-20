@@ -38,6 +38,8 @@
 - Rename `MonitorId` to `MonitorHandle`.
 - Removed `serde` implementations from `ControlFlow`.
 
+- On Windows, fix `CursorMoved(0, 0)` getting dispatched on window focus.
+
 # Version 0.19.0 (2019-03-06)
 
 - On X11, we will use the faster `XRRGetScreenResourcesCurrent` function instead of `XRRGetScreenResources` when available.

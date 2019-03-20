@@ -1335,20 +1335,10 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_SETFOCUS => {
-            use event::WindowEvent::{Focused, CursorMoved};
+            use event::WindowEvent::Focused;
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: Focused(true),
-            });
-
-            let x = windowsx::GET_X_LPARAM(lparam) as f64;
-            let y = windowsx::GET_Y_LPARAM(lparam) as f64;
-            let dpi_factor = get_hwnd_scale_factor(window);
-            let position = LogicalPosition::from_physical((x, y), dpi_factor);
-
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: CursorMoved { device_id: DEVICE_ID, position, modifiers: event::get_key_mods() },
             });
 
             0
