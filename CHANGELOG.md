@@ -1,6 +1,7 @@
 # Unreleased
 
 - On Windows, fix `CursorMoved(0, 0)` getting dispatched on window focus.
+- On macOS, add `WindowBuilderExt::with_disallow_hidpi` to have the option to turn off best resolution openGL surface
 
 # Version 0.19.0 (2019-03-06)
 
