@@ -82,6 +82,7 @@ impl Default for ActivationPolicy {
 ///  - `with_titlebar_hidden`
 ///  - `with_titlebar_buttons_hidden`
 ///  - `with_fullsize_content_view`
+///  - `with_disallow_hidpi`
 pub trait WindowBuilderExt {
     /// Sets the activation policy for the window being built.
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
@@ -99,6 +100,8 @@ pub trait WindowBuilderExt {
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
     /// Build window with `resizeIncrements` property. Values must not be 0.
     fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
+    /// Disables hidpi.
+    fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -147,6 +150,12 @@ impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_resize_increments(mut self, increments: LogicalSize) -> WindowBuilder {
         self.platform_specific.resize_increments = Some(increments.into());
+        self
+    }
+
+    #[inline]
+    fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> WindowBuilder {
+        self.platform_specific.disallow_hidpi = disallow_hidpi;
         self
     }
 }

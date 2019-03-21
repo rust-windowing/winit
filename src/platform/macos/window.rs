@@ -539,6 +539,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub titlebar_hidden: bool,
     pub titlebar_buttons_hidden: bool,
     pub fullsize_content_view: bool,
+    pub disallow_hidpi: bool,
     pub resize_increments: Option<LogicalSize>,
 }
 
@@ -715,7 +716,7 @@ impl Window2 {
                 return Err(OsError(format!("Couldn't create NSWindow")));
             },
         };
-        let (view, cursor) = match Window2::create_view(*window, Weak::clone(&shared)) {
+        let (view, cursor) = match Window2::create_view(*window, Weak::clone(&shared), &pl_attribs) {
             Some(view) => view,
             None => {
                 let _: () = unsafe { msg_send![autoreleasepool, drain] };
@@ -952,12 +953,17 @@ impl Window2 {
         }
     }
 
-    fn create_view(window: id, shared: Weak<Shared>) -> Option<(IdRef, Weak<Mutex<util::Cursor>>)> {
+    fn create_view(
+        window: id,
+        shared: Weak<Shared>,
+        pl_attribs: &PlatformSpecificWindowBuilderAttributes
+    ) -> Option<(IdRef, Weak<Mutex<util::Cursor>>)> {
         unsafe {
             let (view, cursor) = new_view(window, shared);
             view.non_nil().map(|view| {
-                view.setWantsBestResolutionOpenGLSurface_(YES);
-
+                if !pl_attribs.disallow_hidpi {
+                    view.setWantsBestResolutionOpenGLSurface_(YES);
+                }
                 // On Mojave, views automatically become layer-backed shortly after being added to
                 // a window. Changing the layer-backedness of a view breaks the association between
                 // the view and its associated OpenGL context. To work around this, on Mojave we
