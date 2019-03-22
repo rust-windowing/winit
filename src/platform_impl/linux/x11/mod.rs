@@ -19,7 +19,13 @@ use std::collections::HashMap;
 use std::ffi::CStr;
 use std::ops::Deref;
 use std::os::raw::*;
-use libc::{select, fd_set, FD_SET, FD_ZERO, FD_ISSET, EINTR, EINVAL, ENOMEM, EBADF, __errno_location};
+use libc::{select, fd_set, FD_SET, FD_ZERO, FD_ISSET, EINTR, EINVAL, ENOMEM, EBADF};
+#[cfg(target_os = "linux")]
+use libc::__errno_location;
+#[cfg(target_os = "freebsd")]
+use libc::__error as __errno_location;
+#[cfg(any(target_os = "netbsd", target_os = "openbsd"))]
+use libc::__errno as __errno_location;
 use std::sync::{Arc, mpsc, Weak};
 use std::sync::atomic::{self, AtomicBool};
 
