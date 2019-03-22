@@ -1,6 +1,7 @@
 # Unreleased
 
 - On Windows, fix `CursorMoved(0, 0)` getting dispatched on window focus.
+- On FreeBSD, NetBSD, and OpenBSD, fix build of X11 backend.
 
 # Version 0.19.0 (2019-03-06)
 
