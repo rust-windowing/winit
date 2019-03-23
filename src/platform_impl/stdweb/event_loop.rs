@@ -231,6 +231,11 @@ fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IE
     let elrs = elrs.clone();
     
     target.add_event_listener(move |event: E| {
+        // Don't capture the event if the events loop has been destroyed
+        if elrs.runner.borrow().control == ControlFlow::Exit {
+            return;
+        }
+
         event.prevent_default();
         event.stop_propagation();
         event.cancel_bubble();
@@ -251,6 +256,22 @@ impl<T> ELRShared<T> {
     // TODO: handle event loop closures
     // TODO: handle event buffer
     pub fn send_event(&self, event: Event<T>) {
+        let start_cause = StartCause::Poll; // TODO: this is obviously not right
+        self.handle_start(StartCause::Poll);
+        self.handle_event(event);
+        self.handle_event(Event::EventsCleared);
+    }
+
+    fn handle_start(&self, start: StartCause) {
+        let is_handling = if Some(ref runner) = *self.runner.borrow() {
+            runner.handling
+        } else {
+            false
+        };
+        self.handle_event(Event::StartCause(is_handling));
+    }
+
+    fn handle_event(&self, event: Event<T>) {
         match *self.runner.borrow_mut() {
             Some(ref mut runner) if !runner.handling => {
                 runner.handling = true;
@@ -263,6 +284,11 @@ impl<T> ELRShared<T> {
                 runner.handling = false;
             }
             _ => self.events.borrow_mut().push_back(event)
+        }
+        if self.runner.borrow().is_some() {
+            if let Some(event) = self.events.borrow_mut().pop_front() {
+                self.handle_event(event);
+            }
         }
     }
 
