@@ -232,8 +232,9 @@ fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IE
     
     target.add_event_listener(move |event: E| {
         // Don't capture the event if the events loop has been destroyed
-        if elrs.runner.borrow().control == ControlFlow::Exit {
-            return;
+        match &*elrs.runner.borrow() {
+            Some(ref runner) if runner.control == ControlFlow::Exit => return,
+            _ => ()
         }
 
         event.prevent_default();
@@ -248,7 +249,7 @@ impl<T> ELRShared<T> {
     fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
         *self.runner.borrow_mut() = Some(EventLoopRunner {
             control: ControlFlow::Poll,
-            handling: false
+            handling: false,
             event_handler
         });
     }
@@ -257,18 +258,20 @@ impl<T> ELRShared<T> {
     // TODO: handle event buffer
     pub fn send_event(&self, event: Event<T>) {
         let start_cause = StartCause::Poll; // TODO: this is obviously not right
-        self.handle_start(StartCause::Poll);
+        self.handle_start(start_cause);
         self.handle_event(event);
         self.handle_event(Event::EventsCleared);
     }
 
     fn handle_start(&self, start: StartCause) {
-        let is_handling = if Some(ref runner) = *self.runner.borrow() {
+        let is_handling = if let Some(ref runner) = *self.runner.borrow() {
             runner.handling
         } else {
             false
         };
-        self.handle_event(Event::StartCause(is_handling));
+        if is_handling {
+            self.handle_event(Event::NewEvents(start));
+        }
     }
 
     fn handle_event(&self, event: Event<T>) {

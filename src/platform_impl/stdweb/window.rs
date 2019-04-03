@@ -53,7 +53,8 @@ impl WindowId {
 pub struct Window {
     pub(crate) canvas: CanvasElement,
     pub(crate) redraw: Box<dyn Fn()>,
-    previous_pointer: RefCell<&'static str>
+    previous_pointer: RefCell<&'static str>,
+    position: RefCell<LogicalPosition>,
 }
 
 impl Window {
@@ -79,7 +80,11 @@ impl Window {
         let window = Window {
             canvas,
             redraw,
-            previous_pointer: RefCell::new("auto")
+            previous_pointer: RefCell::new("auto"),
+            position: RefCell::new(LogicalPosition {
+                x: 0.0,
+                y: 0.0
+            })
         };
 
         if let Some(dimensions) = attr.dimensions {
@@ -134,12 +139,17 @@ impl Window {
     }
 
     pub fn get_inner_position(&self) -> Option<LogicalPosition> {
-        // TODO
-        None
+        Some(*self.position.borrow())
     }
 
-    pub fn set_position(&self, _position: LogicalPosition) {
-        // TODO: use CSS?
+    pub fn set_position(&self, position: LogicalPosition) {
+        *self.position.borrow_mut() = position;
+        self.canvas.set_attribute("position", "fixed")
+            .expect("Setting the position for the canvas");
+        self.canvas.set_attribute("left", &position.x.to_string())
+            .expect("Setting the position for the canvas");
+        self.canvas.set_attribute("top", &position.y.to_string())
+            .expect("Setting the position for the canvas");
     }
 
     #[inline]
