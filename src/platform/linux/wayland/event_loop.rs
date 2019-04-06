@@ -229,6 +229,10 @@ impl EventsLoop {
     pub fn get_available_monitors(&self) -> VecDeque<MonitorId> {
         get_available_monitors(&self.env.outputs)
     }
+
+    pub fn get_display(&self) -> &Display {
+        &*self.display
+    }
 }
 
 /*
