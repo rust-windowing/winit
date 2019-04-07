@@ -477,7 +477,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
