@@ -79,6 +79,24 @@ impl From<*mut ffi::XRRCrtcInfo> for MonitorRepr {
 }
 
 impl XConnection {
+    // Retrieve DPI from Xft.dpi property
+    pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
+        (self.xlib.XrmInitialize)();
+        let resource_manager_str = (self.xlib.XResourceManagerString)(self.display);
+        if resource_manager_str == ptr::null_mut() {
+            return None;
+        }
+        if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
+            let name : &str = "Xft.dpi:\t";
+            for pair in res.split("\n") {
+                if pair.starts_with(&name) {
+                    let res = &pair[name.len()..];
+                    return f64::from_str(&res).ok();
+                }
+            }
+        }
+        None
+    }
     pub unsafe fn get_output_info(
         &self,
         resources: *mut ffi::XRRScreenResources,
@@ -101,10 +119,15 @@ impl XConnection {
             (*output_info).nameLen as usize,
         );
         let name = String::from_utf8_lossy(name_slice).into();
-        let hidpi_factor = calc_dpi_factor(
-            repr.get_dimensions(),
-            ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
-        );
+        let hidpi_factor = if let Some(dpi) = self.get_xft_dpi() {
+            dpi / 96.
+        } else {
+            calc_dpi_factor(
+                repr.get_dimensions(),
+                ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
+            )
+        };
+
         (self.xrandr.XRRFreeOutputInfo)(output_info);
         Some((name, hidpi_factor))
     }
