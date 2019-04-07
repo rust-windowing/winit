@@ -9,8 +9,8 @@ use cocoa::foundation::{NSRect, NSUInteger};
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object};
 
-use platform::platform::ffi;
-use platform::platform::window::IdRef;
+use platform_impl::platform::ffi;
+use platform_impl::platform::window::IdRef;
 
 pub const EMPTY_RANGE: ffi::NSRange = ffi::NSRange {
     location: ffi::NSNotFound as NSUInteger,
