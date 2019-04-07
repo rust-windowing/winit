@@ -3,6 +3,7 @@
 - On Windows, fix `CursorMoved(0, 0)` getting dispatched on window focus.
 - On macOS, fix command key event left and right reverse.
 - On FreeBSD, NetBSD, and OpenBSD, fix build of X11 backend.
+- On Windows, fix icon not showing up in corner of window.
 
 # Version 0.19.0 (2019-03-06)
 
