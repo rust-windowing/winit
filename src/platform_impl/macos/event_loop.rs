@@ -683,6 +683,7 @@ pub fn scancode_to_keycode(code: c_ushort) -> Option<events::VirtualKeyCode> {
         0x4a => events::VirtualKeyCode::VolumeDown,
         0x4b => events::VirtualKeyCode::Divide,
         0x4c => events::VirtualKeyCode::NumpadEnter,
+        0x4e => events::VirtualKeyCode::Subtract,
         //0x4d => unkown,
         0x4e => events::VirtualKeyCode::Subtract,
         0x4f => events::VirtualKeyCode::F18,

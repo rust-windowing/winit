@@ -57,6 +57,9 @@
 - On Windows, cursor grabs used to get perpetually canceled when the grabbing window lost focus. Now, cursor grabs automatically get re-initialized when the window regains focus and the mouse moves over the client area.
 - On Windows, only vertical mouse wheel events were handled. Now, horizontal mouse wheel events are also handled.
 - On Windows, ignore the AltGr key when populating the `ModifersState` type.
+- On Linux, the numpad's add, subtract and divide keys are now mapped to the `Add`, `Subtract` and `Divide` virtual key codes
+- On macOS, the numpad's subtract key has been added to the `Subtract` mapping
+- On Wayland, the numpad's home, end, page up and page down keys are now mapped to the `Home`, `End`, `PageUp` and `PageDown` virtual key codes
 
 # Version 0.18.1 (2018-12-30)
 
