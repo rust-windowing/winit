@@ -37,6 +37,9 @@
     - `LoopDestroyed` is emitted when the `run` or `run_return` method is about to exit.
 - Rename `MonitorId` to `MonitorHandle`.
 - Removed `serde` implementations from `ControlFlow`.
+
+# Version 0.19.1 (2019-04-08)
+
 - On Wayland, added a `get_wayland_display` function to `EventsLoopExt`.
 - On Windows, fix `CursorMoved(0, 0)` getting dispatched on window focus.
 - On macOS, fix command key event left and right reverse.
