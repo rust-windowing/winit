@@ -53,8 +53,6 @@ exposed through the core, cross-platform API.
 
 ## Core
 
-Tables detailing feature compatibility across platforms can be found in the wiki ***//TODO: MAKE LINK***
-
 ### Windowing
 - **Window initialization**: Winit allows the creation of a window
 - **Pointer to OpenGL**: Winit provides the necessary pointers to initialize a working opengl context
@@ -89,7 +87,6 @@ Tables detailing feature compatibility across platforms can be found in the wiki
 - **Keyboard events**: Properly processing keyboard events using the user-specified keymap and
   translating keypresses into UTF-8 characters, handling dead keys and IMEs.
 - **Drag & Drop**: Dragging content into winit, detecting when content enters, drops, or if the drop is cancelled.
-  ***//DISCUSS: WINIT SUPPORTS FILE DROPS, BUT NOT TEXT OR IMAGE DROPS***
 - **Raw Device Events**: Capturing input from input devices without any OS filtering.
 - **Gamepad/Joystick events**: Capturing input from gampads and joysticks.
 - **Device movement events:**: Capturing input from the device gyroscope and accelerometer.
