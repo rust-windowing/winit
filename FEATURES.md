@@ -51,24 +51,40 @@ exposed through the core, cross-platform API.
 
 # Features
 
+## Extending this section
+
+If your PR makes notable changes to Winit's features, please update this section as follows:
+
+- If your PR adds a new feature, add a brief description to the relevant section. If the feature is a core
+  feature, add a row to the feature matrix and describe what platforms the feature has been implemented on.
+
+- If your PR begins a new API rework, add a row to the `Pending API Reworks` table. If the PR implements the
+  API rework on all relevant platforms, please move it to the `Completed API Reworks` table.
+
+- If your PR implements an already-existing feature on a new platform, either mark the feature as *completed*,
+  or mark it as *mostly completed* and link to an issue describing the problems with the implementation.
+
 ## Core
 
 ### Windowing
 - **Window initialization**: Winit allows the creation of a window
-- **Pointer to OpenGL**: Winit provides the necessary pointers to initialize a working opengl context
-- **Pointer to Vulkan**: Same as OpenGL but for Vulkan
+- **Providing pointer to init OpenGL**: Winit provides the necessary pointers to initialize a working opengl context
+- **Providing pointer to init Vulkan**: Same as OpenGL but for Vulkan
 - **Window decorations**: The windows created by winit are properly decorated, and the decorations can
   be deactivated
 - **Window decorations toggle**: Decorations can be turned on or off after window creation
 - **Window resizing**: The windows created by winit can be resized and generate the appropriate events
-  when they are. The application can precisely control its window size if wanted.
+  when they are. The application can precisely control its window size if desired.
+- **Window resize increments**: When the window gets resized, the application can choose to snap the window's
+  size to specific values.
 - **Window transparency**: Winit allows the creation of windows with a transparent background.
 - **Window maximization**: The windows created by winit can be maximized upon creation.
 - **Window maximization toggle**: The windows created by winit can be maximized and unmaximized after
   creation.
-- **Fullscreen**: The windows created by winit support being fullscreen.
+- **Fullscreen**: The windows created by winit can be put into fullscreen mode.
 - **Fullscreen toggle**: The windows created by winit can be switched to and from fullscreen after
   creation.
+- **HiDPI support**: Winit assists developers in appropriately scaling HiDPI content.
 - **Popup windows**: Windows can be created relative to the client area of other windows, and parent
   windows can be disabled in favor of popup windows. This feature also guarantees that popup windows
   get drawn above their owner.
@@ -115,9 +131,7 @@ exposed through the core, cross-platform API.
 ## Usability
 * `serde`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
 
-# Compatibility Matrix
-
-Each section includes a collapsed description of the features it lists.
+## Compatibility Matrix
 
 Legend:
 
@@ -127,7 +141,7 @@ Legend:
 - **N/A**: Not applicable for this platform
 - ❓: Unknown status
 
-## Windowing
+### Windowing
 |Feature                          |Windows|MacOS   |Linux x11   |Linux Wayland  |Android|iOS    |Emscripten|
 |-------------------------------- | ----- | ----   | -------    | -----------   | ----- | ----- | -------- |
 |Window initialization            |✔️     |✔️     |▢[#5]      |✔️             |▢[#33]|▢[#33] |❓        |
@@ -145,12 +159,12 @@ Legend:
 |HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️         |
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |❌        |
 
-## System information
+### System information
 |Feature      |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
 |------------ | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
 |Monitor list |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
 
-## Input handling
+### Input handling
 |Feature                 |Windows   |MacOS   |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
 |----------------------- | -----    | ----   | ------- | ----------- | ----- | ----- | -------- |
 |Mouse events            |✔️       |▢[#63]  |✔️       |✔️          |**N/A**|**N/A**|✔️       |
@@ -165,7 +179,7 @@ Legend:
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❌       |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❌       |
 
-## Pending API Reworks
+### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.
 
 |Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
@@ -173,6 +187,10 @@ Changes in the API that have been agreed upon but aren't implemented across all 
 |New API for HiDPI ([#315] [#319])   |✔️    |✔️    |✔️       |✔️          |▢[#721]|✔️    |✔️       |
 |Event Loop 2.0 ([#459])             |✔️    |❌    |❌       |✔️          |❌     |❌    |❌       |
 |Keyboard Input ([#812])             |❌    |❌    |❌       |❌          |❌     |❌     |❌      |
+
+### Completed API Reworks
+|Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
+|------------------------------      | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
 
 [#165]: https://github.com/tomaka/winit/issues/165
 [#219]: https://github.com/tomaka/winit/issues/219
