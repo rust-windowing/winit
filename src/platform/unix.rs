@@ -111,6 +111,13 @@ pub trait EventLoopExtUnix {
 
     //#[doc(hidden)]
     //fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
+
+    /// Returns a pointer to the `wl_display` object of wayland that is used by this `EventsLoop`.
+    ///
+    /// Returns `None` if the `EventsLoop` doesn't use wayland (if it uses xlib for example).
+    ///
+    /// The pointer will become invalid when the glutin `EventsLoop` is destroyed.
+    fn get_wayland_display(&self) -> Option<*mut raw::c_void>;
 }
 
 impl<T> EventLoopExtUnix for EventLoop<T> {
@@ -150,6 +157,14 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
     //fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>> {
     //    self.event_loop.x_connection().cloned()
     //}
+
+    #[inline]
+    fn get_wayland_display(&self) -> Option<*mut raw::c_void> {
+        match self.events_loop {
+            LinuxEventsLoop::Wayland(ref e) => Some(e.get_display().c_ptr() as *mut _),
+            _ => None
+        }
+    }
 }
 
 /// Additional methods on `Window` that are specific to Unix.

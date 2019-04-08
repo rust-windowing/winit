@@ -287,6 +287,10 @@ impl<T: 'static> EventLoop<T> {
         get_available_monitors(&self.outputs)
     }
 
+    pub fn get_display(&self) -> &Display {
+        &*self.display
+    }
+
     pub fn window_target(&self) -> &RootELW<T> {
         &self.window_target
     }
