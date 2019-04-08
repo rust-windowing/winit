@@ -96,29 +96,26 @@ Tables detailing feature compatibility across platforms can be found in the wiki
 
 ## Platform
 ### Windows
-* Setting the taskbar icon (Maintainer: ***???***)
-* Setting the parent window (Maintainer: ***???***)
-* `WS_EX_NOREDIRECTIONBITMAP` support (Maintainer: ***???***)
+* Setting the taskbar icon
+* Setting the parent window
+* `WS_EX_NOREDIRECTIONBITMAP` support
 
 ### macOS
-* Window activation policy (Maintainer: ***???***)
-* Window movable by background (Maintainer: ***???***)
-* Transparent titlebar (Maintainer: ***???***)
-* Hidden titlebar (Maintainer: ***???***)
-* Hidden titlebar buttons (Maintainer: ***???***)
-* Full-size content view (Maintainer: ***???***)
-* Resize increments (Maintainer: ***???***) ***//DISCUSS: SHOULD RESIZE INCREMENTS BE CORE?***
+* Window activation policy
+* Window movable by background
+* Transparent titlebar
+* Hidden titlebar
+* Hidden titlebar buttons
+* Full-size content view
 
 ### Unix
-* Window urgency (Maintainer: ***???***)
-* X11 Window Class (Maintainer: ***???***)
-* X11 Override Redirect Flag (Maintainer: ***???***)
-* GTK Theme Variant (Maintainer: ***???***)
-* Resize increments (Maintainer: ***???***) ***//DISCUSS: SHOULD RESIZE INCREMENTS BE CORE?***
-* Base window size (Maintainer: ***???***)
+* Window urgency
+* X11 Window Class
+* X11 Override Redirect Flag
+* GTK Theme Variant
+* Base window size
 
 ## Usability
-* `icon_loading`: Enables loading window icons directly from files. (Maintainer: @francesca64)
 * `serde`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
 
 # Compatibility Matrix - Move to wiki on merge
@@ -142,6 +139,7 @@ Legend:
 |Window decorations               |✔️    |✔️    |✔️       |▢#306       |**N/A**|**N/A**|**N/A**   |
 |Window decorations toggle        |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
 |Window resizing                  |✔️    |▢#219 |✔️       |▢#306       |**N/A**|**N/A**|❓        |
+|Window resize increments         |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
 |Window transparency              |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
 |Window maximization              |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
 |Window maximization toggle       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
@@ -167,7 +165,7 @@ Legend:
 |Keyboard events         |✔️    |✔️    |✔️       |✔️          |❓     |❌     |✔️       |
 |Drag & Drop             |▢#720 |▢#720️ |▢#720️    |❌#306      |**N/A**|**N/A**|❓        |
 |Raw Device Events       |▢#750 |▢#750 |▢#750    |❌          |❌    |❌     |❌       |
-|Gamepad/Joystick events |❌    |❌    |❌       |❌          |❌    |❌     |❌       |
+|Gamepad/Joystick events |❌#804|❌    |❌       |❌          |❌    |❌     |❌       |
 |Device movement events  |❓     |❓     |❓       |❓           |❌    |❌     |❌       |
 
 ## Pending API Reworks
@@ -176,4 +174,5 @@ Changes in the API that have been agreed upon but aren't implemented across all 
 |Feature                         |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
 |------------------------------  | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
 |New API for HiDPI (#315 #319)   |✔️    |✔️    |✔️       |✔️          |▢#721  |✔️    |✔️        |
-|Event Loop 2.0 (#459)           |❌#638|❌    |❌       |❌          |❌     |❌    |❌        |
+|Event Loop 2.0 (#459)           |✔️    |❌    |❌       |✔️          |❌     |❌    |❌        |
+|Keyboard Input (#812)           |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
