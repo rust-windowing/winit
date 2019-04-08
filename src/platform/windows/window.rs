@@ -625,9 +625,6 @@ unsafe fn init(
                                               format!("{}", io::Error::last_os_error()))));
         }
 
-        winuser::SetWindowLongW(handle, winuser::GWL_STYLE, 0);
-        winuser::SetWindowLongW(handle, winuser::GWL_EXSTYLE, 0);
-
         WindowWrapper(handle)
     };
 
