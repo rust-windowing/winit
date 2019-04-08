@@ -118,7 +118,7 @@ Tables detailing feature compatibility across platforms can be found in the wiki
 ## Usability
 * `serde`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
 
-# Compatibility Matrix - Move to wiki on merge
+# Compatibility Matrix
 
 Each section includes a collapsed description of the features it lists.
 
@@ -131,22 +131,22 @@ Legend:
 - ❓: Unknown status
 
 ## Windowing
-|Feature                          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
-|-------------------------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|Window initialization            |✔️    |✔️    |▢#5      |✔️          |▢#33   |▢#33  |❓        |
-|Providing pointer to init OpenGL |✔️    |✔️    |✔️       |✔️          |✔️     |✔️    |❓        |
-|Providing pointer to init Vulkan |✔️    |✔️    |✔️       |✔️          |✔️     |❓     |**N/A**   |
-|Window decorations               |✔️    |✔️    |✔️       |▢#306       |**N/A**|**N/A**|**N/A**   |
-|Window decorations toggle        |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
-|Window resizing                  |✔️    |▢#219 |✔️       |▢#306       |**N/A**|**N/A**|❓        |
-|Window resize increments         |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
-|Window transparency              |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
-|Window maximization              |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
-|Window maximization toggle       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
-|Fullscreen                       |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
-|Fullscreen toggle                |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|❌        |
-|HiDPI support                    |✔️    |✔️    |✔️       |✔️          |▢#721 |✔️    |✔️         |
-|Popup windows                    |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
+|Feature                          |Windows|MacOS   |Linux x11   |Linux Wayland  |Android|iOS    |Emscripten|
+|-------------------------------- | ----- | ----   | -------    | -----------   | ----- | ----- | -------- |
+|Window initialization            |✔️     |✔️     |▢[#5]      |✔️             |▢[#33]|▢[#33] |❓        |
+|Providing pointer to init OpenGL |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |❓        |
+|Providing pointer to init Vulkan |✔️     |✔️     |✔️         |✔️             |✔️     |❓     |**N/A**   |
+|Window decorations               |✔️     |✔️     |✔️         |▢[#306]        |**N/A**|**N/A**|**N/A**   |
+|Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
+|Window resizing                  |✔️     |▢[#219]|✔️         |▢[#306]        |**N/A**|**N/A**|❓        |
+|Window resize increments         |❌     |❌     |❌         |❌             |❌    |❌     |❌        |
+|Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
+|Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
+|Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
+|Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
+|Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
+|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️         |
+|Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |❌        |
 
 ## System information
 |Feature      |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
@@ -154,25 +154,41 @@ Legend:
 |Monitor list |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
 
 ## Input handling
-|Feature                 |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
-|----------------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|Mouse events            |✔️    |▢#63  |✔️       |✔️          |**N/A**|**N/A**|✔️       |
-|Mouse set location      |✔️    |✔️    |✔️       |❓           |**N/A**|**N/A**|**N/A**  |
-|Cursor grab             |✔️    |▢#165 |▢#242    |❌#306      |**N/A**|**N/A**|✔️       |
-|Cursor icon             |✔️    |✔️    |✔️       |❌#306      |**N/A**|**N/A**|❌       |
-|Touch events            |✔️    |❌    |✔️       |✔️          |✔️    |✔️     |✔️       |
-|Multitouch              |❓     |❌    |✔️       |✔️          |❓     |❌     |❌       |
-|Keyboard events         |✔️    |✔️    |✔️       |✔️          |❓     |❌     |✔️       |
-|Drag & Drop             |▢#720 |▢#720️ |▢#720️    |❌#306      |**N/A**|**N/A**|❓        |
-|Raw Device Events       |▢#750 |▢#750 |▢#750    |❌          |❌    |❌     |❌       |
-|Gamepad/Joystick events |❌#804|❌    |❌       |❌          |❌    |❌     |❌       |
-|Device movement events  |❓     |❓     |❓       |❓           |❌    |❌     |❌       |
+|Feature                 |Windows   |MacOS   |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
+|----------------------- | -----    | ----   | ------- | ----------- | ----- | ----- | -------- |
+|Mouse events            |✔️       |▢[#63]  |✔️       |✔️          |**N/A**|**N/A**|✔️       |
+|Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|**N/A**  |
+|Cursor grab             |✔️       |▢[#165] |▢[#242]  |❌[#306]    |**N/A**|**N/A**|✔️       |
+|Cursor icon             |✔️       |✔️      |✔️       |❌[#306]    |**N/A**|**N/A**|❌       |
+|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️       |
+|Multitouch              |❓        |❌      |✔️       |✔️          |❓     |❌     |❌       |
+|Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️       |
+|Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
+|Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❌       |
+|Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❌       |
+|Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❌       |
 
 ## Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.
 
-|Feature                         |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
-|------------------------------  | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|New API for HiDPI (#315 #319)   |✔️    |✔️    |✔️       |✔️          |▢#721  |✔️    |✔️        |
-|Event Loop 2.0 (#459)           |✔️    |❌    |❌       |✔️          |❌     |❌    |❌        |
-|Keyboard Input (#812)           |❌    |❌    |❌       |❌          |❌    |❌     |❌        |
+|Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
+|------------------------------      | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
+|New API for HiDPI ([#315] [#319])   |✔️    |✔️    |✔️       |✔️          |▢[#721]|✔️    |✔️       |
+|Event Loop 2.0 ([#459])             |✔️    |❌    |❌       |✔️          |❌     |❌    |❌       |
+|Keyboard Input ([#812])             |❌    |❌    |❌       |❌          |❌     |❌     |❌      |
+
+[#165]: https://github.com/tomaka/winit/issues/165
+[#219]: https://github.com/tomaka/winit/issues/219
+[#242]: https://github.com/tomaka/winit/issues/242
+[#306]: https://github.com/tomaka/winit/issues/306
+[#315]: https://github.com/tomaka/winit/issues/315
+[#319]: https://github.com/tomaka/winit/issues/319
+[#33]: https://github.com/tomaka/winit/issues/33
+[#459]: https://github.com/tomaka/winit/issues/459
+[#5]: https://github.com/tomaka/winit/issues/5
+[#63]: https://github.com/tomaka/winit/issues/63
+[#720]: https://github.com/tomaka/winit/issues/720
+[#721]: https://github.com/tomaka/winit/issues/721
+[#750]: https://github.com/tomaka/winit/issues/750
+[#804]: https://github.com/tomaka/winit/issues/804
+[#812]: https://github.com/tomaka/winit/issues/812
