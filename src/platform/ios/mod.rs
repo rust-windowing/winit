@@ -474,6 +474,13 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_fullscreen(&self) -> bool {
+        // N/A
+        // iOS has single screen maximized apps so nothing to do
+        true
+    }
+
+    #[inline]
     pub fn set_fullscreen(&self, _monitor: Option<RootMonitorId>) {
         // N/A
         // iOS has single screen maximized apps so nothing to do
