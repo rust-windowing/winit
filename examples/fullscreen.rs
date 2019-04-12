@@ -82,6 +82,15 @@ fn main() {
                             window.set_fullscreen(Some(window.get_current_monitor()));
                         }
                     }
+                    (winit::VirtualKeyCode::S, winit::ElementState::Pressed) => {
+                        println!("window.get_fullscreen {:?}", window.get_fullscreen());
+
+                        #[cfg(target_os = "macos")]
+                        {
+                            use winit::os::macos::WindowExt;
+                            println!("window.get_simple_fullscreen {:?}", WindowExt::get_simple_fullscreen(&window));
+                        }
+                    }
                     (winit::VirtualKeyCode::M, winit::ElementState::Pressed) => {
                         is_maximized = !is_maximized;
                         window.set_maximized(is_maximized);

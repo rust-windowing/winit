@@ -369,6 +369,12 @@ impl Window {
         self.window.set_fullscreen(monitor)
     }
 
+    /// Gets the window's current fullscreen state.
+    #[inline]
+    pub fn get_fullscreen(&self) -> bool {
+        self.window.get_fullscreen()
+    }
+
     /// Turn window decorations on or off.
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
