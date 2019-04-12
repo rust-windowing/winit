@@ -581,6 +581,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_fullscreen(&self) -> bool {
+        self.window.is_fullscreen
+    }
+
+    #[inline]
     pub fn set_fullscreen(&self, _monitor: Option<::MonitorId>) {
         // iOS has single screen maximized apps so nothing to do
     }
