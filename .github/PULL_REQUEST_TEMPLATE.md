@@ -2,3 +2,4 @@
 - [ ] Added an entry to `CHANGELOG.md` if knowledge of this change could be valuable to users
 - [ ] Updated documentation to reflect any user-facing changes, including notes of platform-specific behavior
 - [ ] Created an example program if it would help users understand this functionality
+- [ ] Updated [feature matrix](TODO: LINK), if new features were added or implemented
