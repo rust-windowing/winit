@@ -1,5 +1,9 @@
 # Unreleased
 
+# Version 0.19.2 (2019-04-12)
+
+- For Wayland, updated dependencies.
+
 # Version 0.19.1 (2019-04-08)
 
 - On Wayland, added a `get_wayland_display` function to `EventsLoopExt`.
