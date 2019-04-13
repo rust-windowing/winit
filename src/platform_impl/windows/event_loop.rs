@@ -799,6 +799,19 @@ unsafe extern "system" fn public_window_callback<T>(
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
+        winuser::WM_NCLBUTTONDOWN => {
+            let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
+            if let Some(ref mut runner) = *runner {
+                let hwnd = runner.modal_redraw_window;
+                winuser::PostMessageW(hwnd, winuser::WM_NCLBUTTONDOWN, 0, 0);
+                if wparam == winuser::HTCAPTION as _ {
+                    winuser::PostMessageW(hwnd, winuser::WM_MOUSEMOVE, 0, 0);
+                }
+            }
+            drop(runner);
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
+        },
+
         winuser::WM_CLOSE => {
             use event::WindowEvent::CloseRequested;
             subclass_input.send_event(Event::WindowEvent {
@@ -1512,7 +1525,19 @@ unsafe extern "system" fn thread_event_target_callback<T>(
     subclass_input_ptr: DWORD_PTR
 ) -> LRESULT {
     let subclass_input = &mut*(subclass_input_ptr as *mut ThreadMsgTargetSubclassInput<T>);
+    let queue_call_again = || {
+        winuser::RedrawWindow(
+            window,
+            ptr::null(),
+            ptr::null_mut(),
+            winuser::RDW_INTERNALPAINT
+        );
+    };
     match msg {
+        winuser::WM_NCLBUTTONDOWN => {
+            queue_call_again();
+            0
+        }
         winuser::WM_DESTROY => {
             Box::from_raw(subclass_input);
             drop(subclass_input);
@@ -1522,14 +1547,6 @@ unsafe extern "system" fn thread_event_target_callback<T>(
         // when the event queue has been emptied. See `process_event` for more details.
         winuser::WM_PAINT => {
             winuser::ValidateRect(window, ptr::null());
-            let queue_call_again = || {
-                winuser::RedrawWindow(
-                    window,
-                    ptr::null(),
-                    ptr::null_mut(),
-                    winuser::RDW_INTERNALPAINT
-                );
-            };
             let in_modal_loop = {
                 let runner = subclass_input.event_loop_runner.runner.borrow_mut();
                 if let Some(ref runner) = *runner {
