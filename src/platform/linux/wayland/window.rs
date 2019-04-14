@@ -24,6 +24,7 @@ pub struct Window {
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
     display: Arc<Display>,
     need_frame_refresh: Arc<Mutex<bool>>,
+    fullscreen: Arc<Mutex<Option<RootMonitorId>>>,
 }
 
 impl Window {
@@ -108,6 +109,7 @@ impl Window {
 
         let kill_switch = Arc::new(Mutex::new(false));
         let need_frame_refresh = Arc::new(Mutex::new(true));
+        let fullscreen = Arc::new(Mutex::new(None));
         let frame = Arc::new(Mutex::new(frame));
 
         evlp.store.lock().unwrap().windows.push(InternalWindow {
@@ -132,6 +134,7 @@ impl Window {
             size: size,
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
             need_frame_refresh: need_frame_refresh,
+            fullscreen: fullscreen,
         })
     }
 
@@ -223,6 +226,10 @@ impl Window {
         }
     }
 
+    pub fn get_fullscreen(&self) -> Option<RootMonitorId> {
+        *(self.fullscreen.lock().unwrap()).clone()
+    }
+
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         if let Some(RootMonitorId {
             inner: PlatformMonitorId::Wayland(ref monitor_id),
@@ -235,6 +242,8 @@ impl Window {
         } else {
             self.frame.lock().unwrap().unset_fullscreen();
         }
+
+        *(self.fullscreen.lock().unwrap()) = monitor.clone();
     }
 
 

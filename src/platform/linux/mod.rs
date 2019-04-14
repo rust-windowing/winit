@@ -302,6 +302,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_fullscreen(&self) -> Option<RootMonitorId> {
+        match self {
+            &Window::X(ref w) => w.get_fullscreen(),
+            &Window::Wayland(ref w) => w.get_fullscreen()
+        }
+    }
+
+    #[inline]
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         match self {
             &Window::X(ref w) => w.set_fullscreen(monitor),
