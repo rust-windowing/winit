@@ -799,6 +799,20 @@ unsafe extern "system" fn public_window_callback<T>(
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
+        winuser::WM_NCLBUTTONDOWN => {
+            // jumpstart the modal loop
+            winuser::RedrawWindow(
+                window,
+                ptr::null(),
+                ptr::null_mut(),
+                winuser::RDW_INTERNALPAINT
+            );
+            if wparam == winuser::HTCAPTION as _ {
+                winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
+            }
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
+        },
+
         winuser::WM_CLOSE => {
             use event::WindowEvent::CloseRequested;
             subclass_input.send_event(Event::WindowEvent {
