@@ -536,7 +536,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn get_fullscreen(&self) -> Option<RootMonitorId> {
-        self.shared_state.lock().fullscreen
+        self.shared_state.lock().fullscreen.clone()
     }
 
     #[inline]

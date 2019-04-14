@@ -306,6 +306,7 @@ impl Window {
         match self {
             &Window::X(ref w) => w.get_fullscreen(),
             &Window::Wayland(ref w) => w.get_fullscreen()
+                .map(|monitor_id| RootMonitorId { inner: MonitorId::Wayland(monitor_id) })
         }
     }
 

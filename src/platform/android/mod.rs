@@ -369,10 +369,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_fullscreen(&self) -> bool {
+    pub fn get_fullscreen(&self) -> Option<RootMonitorId> {
         // N/A
         // Android has single screen maximized apps so nothing to do
-        true
+        None
     }
 
     #[inline]

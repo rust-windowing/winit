@@ -581,8 +581,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_fullscreen(&self) -> bool {
-        self.window.is_fullscreen
+    pub fn get_fullscreen(&self) -> Option<::MonitorId> {
+        None
     }
 
     #[inline]

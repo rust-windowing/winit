@@ -1143,15 +1143,11 @@ impl Window2 {
     }
 
     #[inline]
-    pub fn get_fullscreen(&self) -> bool {
-        if self.get_simple_fullscreen() {
-            return true;
-        }
-
+    pub fn get_fullscreen(&self) -> Option<RootMonitorId> {
         let state = &self.delegate.state;
         let win_attribs = state.win_attribs.borrow();
 
-        win_attribs.fullscreen.is_some()
+        win_attribs.fullscreen.clone()
     }
 
     #[inline]

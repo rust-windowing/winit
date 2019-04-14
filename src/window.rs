@@ -371,7 +371,7 @@ impl Window {
 
     /// Gets the window's current fullscreen state.
     #[inline]
-    pub fn get_fullscreen(&self) -> bool {
+    pub fn get_fullscreen(&self) -> Option<MonitorId> {
         self.window.get_fullscreen()
     }
 
