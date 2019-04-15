@@ -160,8 +160,8 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
 
     #[inline]
     fn get_wayland_display(&self) -> Option<*mut raw::c_void> {
-        match self.events_loop {
-            LinuxEventsLoop::Wayland(ref e) => Some(e.get_display().c_ptr() as *mut _),
+        match self.event_loop {
+            LinuxEventLoop::Wayland(ref e) => Some(e.get_display().get_display_ptr() as *mut _),
             _ => None
         }
     }
