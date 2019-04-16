@@ -1,4 +1,5 @@
 use std::{cmp, env, mem};
+use std::collections::VecDeque;
 use std::ffi::CString;
 use std::os::raw::*;
 use std::path::Path;
@@ -66,6 +67,7 @@ pub struct UnownedWindow {
     ime_sender: Mutex<ImeSender>,
     pub multitouch: bool, // never changes
     pub shared_state: Mutex<SharedState>,
+    pending_redraws: Arc<::std::sync::Mutex<VecDeque<WindowId>>>,
 }
 
 impl UnownedWindow {
@@ -203,6 +205,7 @@ impl UnownedWindow {
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             multitouch: window_attrs.multitouch,
             shared_state: SharedState::new(dpi_factor),
+            pending_redraws: event_loop.pending_redraws.clone(),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -1213,6 +1216,6 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        unimplemented!();
+        self.pending_redraws.lock().unwrap().push_back(WindowId(self.xwindow));
     }
 }
