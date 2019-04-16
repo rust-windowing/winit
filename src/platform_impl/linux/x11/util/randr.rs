@@ -1,7 +1,7 @@
 use std::{env, slice};
 use std::str::FromStr;
 
-use validate_hidpi_factor;
+use dpi::validate_hidpi_factor;
 use super::*;
 
 pub fn calc_dpi_factor(
