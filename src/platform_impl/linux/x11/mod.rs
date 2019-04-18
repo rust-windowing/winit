@@ -232,29 +232,64 @@ impl<T: 'static> EventLoop<T> {
             {
                 let mut guard = self.pending_events.borrow_mut();
                 for evt in guard.drain(..) {
-                    callback(evt, &self.target, &mut control_flow);
+                    // make ControlFlow::Exit sticky by providing a dummy
+                    // control flow reference if it is already Exit.
+                    let mut dummy = ControlFlow::Exit;
+                    let cf = if control_flow == ControlFlow::Exit {
+                        &mut dummy
+                    } else {
+                        &mut control_flow
+                    };
+                    // user callback
+                    callback(evt, &self.target, cf);
                 }
             }
             // Empty the user event buffer
             {
                 let mut guard = self.pending_user_events.borrow_mut();
                 for evt in guard.drain(..) {
-                    callback(::event::Event::UserEvent(evt), &self.target, &mut control_flow);
+                    // make ControlFlow::Exit sticky
+                    let mut dummy = ControlFlow::Exit;
+                    let cf = if control_flow == ControlFlow::Exit {
+                        &mut dummy
+                    } else {
+                        &mut control_flow
+                    };
+                    // user callback
+                    callback(::event::Event::UserEvent(evt), &self.target, cf);
                 }
             }
-
-            callback(::event::Event::EventsCleared, &self.target, &mut control_flow);
-            // Empty th redraw requests
+            // send Events cleared
+            {
+                // make ControlFlow::Exit sticky
+                let mut dummy = ControlFlow::Exit;
+                let cf = if control_flow == ControlFlow::Exit {
+                    &mut dummy
+                } else {
+                    &mut control_flow
+                };
+                // user callback
+                callback(::event::Event::EventsCleared, &self.target, cf);
+            }
+            // Empty the redraw requests
             {
                 let mut guard = wt.pending_redraws.lock().unwrap();
                 for wid in guard.drain(..) {
+                    // make ControlFlow::Exit sticky
+                    let mut dummy = ControlFlow::Exit;
+                    let cf = if control_flow == ControlFlow::Exit {
+                        &mut dummy
+                    } else {
+                        &mut control_flow
+                    };
+                    // user callback
                     callback(
                         Event::WindowEvent {
                             window_id: ::window::WindowId(super::WindowId::X(wid)),
                             event: WindowEvent::RedrawRequested
                         },
                         &self.target,
-                        &mut control_flow
+                        cf
                     );
                 }
             }

@@ -204,23 +204,63 @@ impl<T: 'static> EventLoop<T> {
             // empty buffer of events
             {
                 let mut guard = sink.lock().unwrap();
-                guard.empty_with(|evt| callback(evt, &self.window_target, &mut control_flow));
+                guard.empty_with(|evt| {
+                    // make ControlFlow::Exit sticky by providing a dummy
+                    // control flow reference if it is already Exit.
+                    let mut dummy = ControlFlow::Exit;
+                    let cf = if control_flow == ControlFlow::Exit {
+                        &mut dummy
+                    } else {
+                        &mut control_flow
+                    };
+                    // user callback
+                    callback(evt, &self.window_target, cf)
+                });
             }
             // empty user events
             {
                 let mut guard = user_events.borrow_mut();
                 for evt in guard.drain(..) {
-                    callback(::event::Event::UserEvent(evt), &self.window_target, &mut control_flow);
+                    // make ControlFlow::Exit sticky by providing a dummy
+                    // control flow reference if it is already Exit.
+                    let mut dummy = ControlFlow::Exit;
+                    let cf = if control_flow == ControlFlow::Exit {
+                        &mut dummy
+                    } else {
+                        &mut control_flow
+                    };
+                    // user callback
+                    callback(::event::Event::UserEvent(evt), &self.window_target, cf);
                 }
             }
-
-            callback(::event::Event::EventsCleared, &self.window_target, &mut control_flow);
-
-            // fo a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
+            // send Events cleared
+            {
+                // make ControlFlow::Exit sticky
+                let mut dummy = ControlFlow::Exit;
+                let cf = if control_flow == ControlFlow::Exit {
+                    &mut dummy
+                } else {
+                    &mut control_flow
+                };
+                // user callback
+                callback(::event::Event::EventsCleared, &self.window_target, cf);
+            }
+            // do a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
             self.post_dispatch_triggers();
             {
                 let mut guard = sink.lock().unwrap();
-                guard.empty_with(|evt| callback(evt, &self.window_target, &mut control_flow));
+                guard.empty_with(|evt| {
+                    // make ControlFlow::Exit sticky by providing a dummy
+                    // control flow reference if it is already Exit.
+                    let mut dummy = ControlFlow::Exit;
+                    let cf = if control_flow == ControlFlow::Exit {
+                        &mut dummy
+                    } else {
+                        &mut control_flow
+                    };
+                    // user callback
+                    callback(evt, &self.window_target, cf)
+                });
             }
 
             // send pending events to the server
