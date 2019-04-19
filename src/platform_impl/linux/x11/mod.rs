@@ -346,6 +346,8 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
         }
+
+        callback(::event::Event::LoopDestroyed, &self.window_target, &mut control_flow);
     }
 
     pub fn run<F>(mut self, callback: F) -> !
