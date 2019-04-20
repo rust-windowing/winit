@@ -1,16 +1,41 @@
+extern crate web_sys;
+
 use event_loop::{ControlFlow, EventLoopClosed};
 use event::Event;
-use super::window::MonitorHandle;
+use super::window::{MonitorHandle, Window};
 
 use std::collections::VecDeque;
 
+use self::web_sys::Element;
+
+// A macro to provide `println!(..)`-style syntax for `console.log` logging.
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
+
 pub struct EventLoop<T: 'static> {
-    pending_events: Vec<T>
+    pending_events: Vec<T>,
+    window_target: ::event_loop::EventLoopWindowTarget<T>
 }
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
-        EventLoop { pending_events: Vec::new() }
+        let window = web_sys::window().expect("no global `window` exists");
+        let document = window.document().expect("should have a document on window");
+
+        let element = document.get_element_by_id("test").expect("no canvas");
+        EventLoop { 
+            pending_events: Vec::new(),
+            window_target: ::event_loop::EventLoopWindowTarget { 
+                p: EventLoopWindowTarget {
+                    element, 
+                    _marker: std::marker::PhantomData 
+                },
+                _marker: std::marker::PhantomData 
+            } 
+        }
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
@@ -27,7 +52,7 @@ impl<T: 'static> EventLoop<T> {
         MonitorHandle{}
     }
 
-        /// Hijacks the calling thread and initializes the `winit` event loop with the provided
+    /// Hijacks the calling thread and initializes the `winit` event loop with the provided
     /// closure. Since the closure is `'static`, it must be a `move` closure if it needs to
     /// access any data from the calling context.
     ///
@@ -41,11 +66,35 @@ impl<T: 'static> EventLoop<T> {
     pub fn run<F>(self, event_handler: F) -> !
         where F: 'static + FnMut(Event<T>, &::event_loop::EventLoopWindowTarget<T>, &mut ControlFlow)
     {
-        unimplemented!()
+        self.run_return(event_handler);
+        log!("exiting");
+        std::process::exit(0);
     }
 
+    fn run_return<F>(&self, mut event_handler: F)
+        where F: 'static + FnMut(Event<T>, &::event_loop::EventLoopWindowTarget<T>, &mut ControlFlow)
+    {
+        let mut control_flow = ControlFlow::default();
+
+        event_handler(::event::Event::NewEvents(::event::StartCause::Init), &self.window_target, &mut control_flow);
+        loop {
+            match control_flow {
+                ControlFlow::Poll => {
+                    event_handler(::event::Event::NewEvents(::event::StartCause::Poll), &self.window_target, &mut control_flow);
+                },
+                ControlFlow::Wait => {
+                },
+                ControlFlow::WaitUntil(Instant) => {
+                },
+                ControlFlow::Exit => break
+            }
+        }
+        event_handler(::event::Event::LoopDestroyed, &self.window_target, &mut control_flow);
+    }
+
+
     pub fn window_target(&self) -> &::event_loop::EventLoopWindowTarget<T> {
-        unimplemented!()
+        &self.window_target
     }
 
 }
@@ -62,5 +111,6 @@ impl<T: 'static> EventLoopProxy<T> {
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
+    element: Element,
     _marker: std::marker::PhantomData<T>
 }

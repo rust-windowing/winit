@@ -70,7 +70,7 @@ impl Window {
                            attr: WindowAttributes,
                            ps_attr: PlatformSpecificWindowBuilderAttributes) 
                            -> Result<Window, CreationError> {
-        unimplemented!()
+        Ok(Window{})
     }
 
     /// Modifies the title of the window.
