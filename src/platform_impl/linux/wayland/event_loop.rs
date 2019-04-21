@@ -233,19 +233,8 @@ impl<T: 'static> EventLoop<T> {
                     callback(::event::Event::UserEvent(evt), &self.window_target, cf);
                 }
             }
-            // send Events cleared
-            {
-                // make ControlFlow::Exit sticky
-                let mut dummy = ControlFlow::Exit;
-                let cf = if control_flow == ControlFlow::Exit {
-                    &mut dummy
-                } else {
-                    &mut control_flow
-                };
-                // user callback
-                callback(::event::Event::EventsCleared, &self.window_target, cf);
-            }
             // do a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
+            // in response of resize & friends
             self.post_dispatch_triggers();
             {
                 let mut guard = sink.lock().unwrap();
@@ -261,6 +250,18 @@ impl<T: 'static> EventLoop<T> {
                     // user callback
                     callback(evt, &self.window_target, cf)
                 });
+            }
+            // send Events cleared
+            {
+                // make ControlFlow::Exit sticky
+                let mut dummy = ControlFlow::Exit;
+                let cf = if control_flow == ControlFlow::Exit {
+                    &mut dummy
+                } else {
+                    &mut control_flow
+                };
+                // user callback
+                callback(::event::Event::EventsCleared, &self.window_target, cf);
             }
 
             // send pending events to the server
