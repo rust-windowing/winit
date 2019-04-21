@@ -16,7 +16,7 @@ pub use self::xdisplay::{XConnection, XNotSupported, XError};
 
 use std::{mem, slice};
 use std::cell::RefCell;
-use std::collections::{VecDeque, HashMap};
+use std::collections::{VecDeque, HashMap, HashSet};
 use std::ffi::CStr;
 use std::ops::Deref;
 use std::os::raw::*;
@@ -40,7 +40,7 @@ pub struct EventLoopWindowTarget<T> {
     root: ffi::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
-    pending_redraws: Arc<Mutex<VecDeque<WindowId>>>,
+    pending_redraws: Arc<Mutex<HashSet<WindowId>>>,
     _marker: ::std::marker::PhantomData<T>
 }
 
@@ -259,22 +259,10 @@ impl<T: 'static> EventLoop<T> {
                     callback(::event::Event::UserEvent(evt), &self.target, cf);
                 }
             }
-            // send Events cleared
-            {
-                // make ControlFlow::Exit sticky
-                let mut dummy = ControlFlow::Exit;
-                let cf = if control_flow == ControlFlow::Exit {
-                    &mut dummy
-                } else {
-                    &mut control_flow
-                };
-                // user callback
-                callback(::event::Event::EventsCleared, &self.target, cf);
-            }
             // Empty the redraw requests
             {
                 let mut guard = wt.pending_redraws.lock().unwrap();
-                for wid in guard.drain(..) {
+                for wid in guard.drain() {
                     // make ControlFlow::Exit sticky
                     let mut dummy = ControlFlow::Exit;
                     let cf = if control_flow == ControlFlow::Exit {
@@ -293,12 +281,24 @@ impl<T: 'static> EventLoop<T> {
                     );
                 }
             }
+            // send Events cleared
+            {
+                // make ControlFlow::Exit sticky
+                let mut dummy = ControlFlow::Exit;
+                let cf = if control_flow == ControlFlow::Exit {
+                    &mut dummy
+                } else {
+                    &mut control_flow
+                };
+                // user callback
+                callback(::event::Event::EventsCleared, &self.target, cf);
+            }
 
             // flush the X11 connection
             unsafe { (wt.xconn.xlib.XFlush)(wt.xconn.display); }
 
             match control_flow {
-                ControlFlow::Exit => return,
+                ControlFlow::Exit => break,
                 ControlFlow::Poll => {
                     // non-blocking dispatch
                     self.inner_loop.dispatch(Some(::std::time::Duration::from_millis(0)), &mut ()).unwrap();
@@ -347,7 +347,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        callback(::event::Event::LoopDestroyed, &self.window_target, &mut control_flow);
+        callback(::event::Event::LoopDestroyed, &self.target, &mut control_flow);
     }
 
     pub fn run<F>(mut self, callback: F) -> !

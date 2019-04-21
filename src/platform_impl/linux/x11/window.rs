@@ -1,5 +1,5 @@
 use std::{cmp, env, mem};
-use std::collections::VecDeque;
+use std::collections::HashSet;
 use std::ffi::CString;
 use std::os::raw::*;
 use std::path::Path;
@@ -67,7 +67,7 @@ pub struct UnownedWindow {
     ime_sender: Mutex<ImeSender>,
     pub multitouch: bool, // never changes
     pub shared_state: Mutex<SharedState>,
-    pending_redraws: Arc<::std::sync::Mutex<VecDeque<WindowId>>>,
+    pending_redraws: Arc<::std::sync::Mutex<HashSet<WindowId>>>,
 }
 
 impl UnownedWindow {
@@ -1216,6 +1216,6 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.pending_redraws.lock().unwrap().push_back(WindowId(self.xwindow));
+        self.pending_redraws.lock().unwrap().insert(WindowId(self.xwindow));
     }
 }
