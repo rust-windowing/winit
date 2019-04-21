@@ -1,5 +1,6 @@
 use window::{WindowAttributes, CreationError, MouseCursor};
 use std::collections::VecDeque;
+use std::rc::Rc;
 use dpi::{PhysicalPosition, LogicalPosition, PhysicalSize, LogicalSize};
 use icon::Icon;
 use super::event_loop::{EventLoopWindowTarget};
@@ -56,6 +57,12 @@ impl MonitorHandle {
 }
 
 pub struct Window {
+    canvas: web_sys::Element,
+    internal: Rc<WindowInternal>
+}
+
+pub(crate) struct WindowInternal {
+    pending_events: Vec<::event::WindowEvent>
 }
 
 impl Window {
@@ -70,7 +77,22 @@ impl Window {
                            attr: WindowAttributes,
                            ps_attr: PlatformSpecificWindowBuilderAttributes) 
                            -> Result<Window, CreationError> {
-        Ok(Window{})
+        let window = web_sys::window().expect("no global `window` exists");
+        let document = window.document().expect("should have a document on window");
+
+        // TODO: get the id from ps_attr
+        let element = document.get_element_by_id("test").expect("no canvas");
+
+        let internal = Rc::new(WindowInternal {
+            pending_events: vec![]
+        });
+
+        target.set_window(internal.clone());
+
+        Ok(Window {
+            canvas: element,
+            internal: internal.clone()
+        })
     }
 
     /// Modifies the title of the window.

@@ -1,11 +1,16 @@
 extern crate web_sys;
+extern crate wasm_bindgen;
 
 use event_loop::{ControlFlow, EventLoopClosed};
 use event::Event;
-use super::window::{MonitorHandle, Window};
+use super::window::{MonitorHandle, Window, WindowInternal};
 
 use std::collections::VecDeque;
+use std::rc::Rc;
+use std::cell::RefCell;
 
+use self::wasm_bindgen::prelude::*;
+use self::wasm_bindgen::JsCast;
 use self::web_sys::Element;
 
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
@@ -15,22 +20,21 @@ macro_rules! log {
     }
 }
 
+#[wasm_bindgen(inline_js = "export function js_exit() { throw 'hacky exit!'; }")]
+extern "C" {
+    fn js_exit();
+}
+
 pub struct EventLoop<T: 'static> {
-    pending_events: Vec<T>,
     window_target: ::event_loop::EventLoopWindowTarget<T>
 }
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
-        let window = web_sys::window().expect("no global `window` exists");
-        let document = window.document().expect("should have a document on window");
-
-        let element = document.get_element_by_id("test").expect("no canvas");
         EventLoop { 
-            pending_events: Vec::new(),
             window_target: ::event_loop::EventLoopWindowTarget { 
                 p: EventLoopWindowTarget {
-                    element, 
+                    window: RefCell::new(None),
                     _marker: std::marker::PhantomData 
                 },
                 _marker: std::marker::PhantomData 
@@ -68,28 +72,30 @@ impl<T: 'static> EventLoop<T> {
     {
         self.run_return(event_handler);
         log!("exiting");
-        std::process::exit(0);
+        js_exit();
+        unreachable!()
     }
 
-    fn run_return<F>(&self, mut event_handler: F)
+    fn run_return<F>(self, mut event_handler: F)
         where F: 'static + FnMut(Event<T>, &::event_loop::EventLoopWindowTarget<T>, &mut ControlFlow)
     {
         let mut control_flow = ControlFlow::default();
 
+        let f: Rc<RefCell<Option<Closure<FnMut()>>>> = Rc::new(RefCell::new(None));
+        let g = f.clone();
+
         event_handler(::event::Event::NewEvents(::event::StartCause::Init), &self.window_target, &mut control_flow);
-        loop {
-            match control_flow {
-                ControlFlow::Poll => {
-                    event_handler(::event::Event::NewEvents(::event::StartCause::Poll), &self.window_target, &mut control_flow);
-                },
-                ControlFlow::Wait => {
-                },
-                ControlFlow::WaitUntil(Instant) => {
-                },
-                ControlFlow::Exit => break
+        
+        *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
+            if control_flow == ControlFlow::Poll {
+                event_handler(::event::Event::NewEvents(::event::StartCause::Poll), &self.window_target, &mut control_flow);
             }
-        }
-        event_handler(::event::Event::LoopDestroyed, &self.window_target, &mut control_flow);
+
+            let window = web_sys::window().expect("should be a window");
+            window.request_animation_frame(f.borrow().as_ref().unwrap().as_ref().unchecked_ref());
+        }) as Box<FnMut()>));
+        let window = web_sys::window().expect("should be a window");
+        window.request_animation_frame(g.borrow().as_ref().unwrap().as_ref().unchecked_ref());
     }
 
 
@@ -111,6 +117,16 @@ impl<T: 'static> EventLoopProxy<T> {
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
-    element: Element,
+    window: RefCell<Option<Rc<WindowInternal>>>,
     _marker: std::marker::PhantomData<T>
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    pub(crate) fn set_window(&self, window: Rc<WindowInternal>) {
+        self.window.borrow_mut().replace(window.clone());
+    }
+
+    pub(crate) fn window(&self) -> Rc<WindowInternal> {
+        self.window.borrow().as_ref().map(|w| w.clone()).unwrap()
+    }
 }
