@@ -14,8 +14,23 @@ impl DeviceId {
     }
 }
 
+///
+/// ElementSelection allows the window creator
+/// to select an existing canvas in the DOM
+/// or a container in which to create a canvas.
+///
+enum ElementSelection {
+    CanvasId(String),
+    ContainerId(String)
+}
+
+///
+/// Platform specific attributes for window creation.
+/// 
 #[derive(Clone, Default)]
-pub struct PlatformSpecificWindowBuilderAttributes;
+pub struct PlatformSpecificWindowBuilderAttributes {
+    pub element: ElementSelection
+}
 
 #[derive(Copy, Clone, Debug)]
 pub struct MonitorHandle;
@@ -89,6 +104,8 @@ impl Window {
 
         target.set_window(internal.clone());
 
+        // TODO: install WindowEvent handlers
+
         Ok(Window {
             canvas: element,
             internal: internal.clone()
@@ -161,7 +178,8 @@ impl Window {
     /// The same conditions that apply to `get_position` apply to this method.
     #[inline]
     pub fn get_inner_position(&self) -> Option<LogicalPosition> {
-        unimplemented!()
+        // websys: we have no concept of "inner" client area, so just return position.
+        self.get_position()
     }
 
     /// Modifies the position of the window.
@@ -183,7 +201,8 @@ impl Window {
     /// Returns `None` if the window no longer exists.
     #[inline]
     pub fn get_inner_size(&self) -> Option<LogicalSize> {
-        unimplemented!()
+        // websys: we have no concept of "inner" client area, so just return size.
+        self.get_outer_size()
     }
 
     /// Returns the logical size of the entire window.
@@ -366,12 +385,11 @@ impl Window {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId {
-
 }
 
 
 impl WindowId {
-        /// Returns a dummy `WindowId`, useful for unit testing. The only guarantee made about the return
+    /// Returns a dummy `WindowId`, useful for unit testing. The only guarantee made about the return
     /// value of this function is that it will always be equal to itself and to future values returned
     /// by this function.  No other guarantees are made. This may be equal to a real `WindowId`.
     ///

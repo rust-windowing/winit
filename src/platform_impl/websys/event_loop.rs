@@ -4,6 +4,8 @@ extern crate wasm_bindgen;
 use event_loop::{ControlFlow, EventLoopClosed};
 use event::Event;
 use super::window::{MonitorHandle, Window, WindowInternal};
+#[macro_use]
+use platform_impl::platform::wasm_util as util;
 
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -12,18 +14,6 @@ use std::cell::RefCell;
 use self::wasm_bindgen::prelude::*;
 use self::wasm_bindgen::JsCast;
 use self::web_sys::Element;
-
-// A macro to provide `println!(..)`-style syntax for `console.log` logging.
-macro_rules! log {
-    ( $( $t:tt )* ) => {
-        web_sys::console::log_1(&format!( $( $t )* ).into());
-    }
-}
-
-#[wasm_bindgen(inline_js = "export function js_exit() { throw 'hacky exit!'; }")]
-extern "C" {
-    fn js_exit();
-}
 
 pub struct EventLoop<T: 'static> {
     window_target: ::event_loop::EventLoopWindowTarget<T>
@@ -56,23 +46,14 @@ impl<T: 'static> EventLoop<T> {
         MonitorHandle{}
     }
 
-    /// Hijacks the calling thread and initializes the `winit` event loop with the provided
-    /// closure. Since the closure is `'static`, it must be a `move` closure if it needs to
-    /// access any data from the calling context.
-    ///
-    /// See the [`ControlFlow`] docs for information on how changes to `&mut ControlFlow` impact the
-    /// event loop's behavior.
-    ///
-    /// Any values not passed to this function will *not* be dropped.
-    ///
-    /// [`ControlFlow`]: ./enum.ControlFlow.html
     #[inline]
     pub fn run<F>(self, event_handler: F) -> !
         where F: 'static + FnMut(Event<T>, &::event_loop::EventLoopWindowTarget<T>, &mut ControlFlow)
     {
         self.run_return(event_handler);
         log!("exiting");
-        js_exit();
+
+        util::js_exit();
         unreachable!()
     }
 
