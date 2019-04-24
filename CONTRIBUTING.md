@@ -41,15 +41,14 @@ backends of winit. As such, depending on your platform of interest, your contact
 
 This table summarizes who can be contacted in which case, with the following legend:
 
-- `M`: is a main maintainer for this platform
-- `R`: can review code for this platform
-- `T`: has the ability of testing the platform
+- `M` - Maintainer: is a main maintainer for this platform
+- `C` - Collaborator: can review code and address issues on this platform
+- `T` - Tester: has the ability of testing the platform
 - ` `: knows nothing of this platform
 
-| Platform | Windows | macOS | X11 | Wayland | Android | iOS | Emscripten |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| @francesca64 | R | M | M |  | M | R | |
-| @mitchmindtree | T |  | T | T |  |  |  |
-| @Osspial | M |  | T | T | T |  | T |
-| @vberger |  |  | T | M |  |  |  |
-| @mtak- |  | T |  |  | T | M |  |
+| Platform            | Windows | macOS | X11   | Wayland | Android | iOS   | Emscripten |
+| :---                | :---:   | :---: | :---: | :---:   | :---:   | :---: | :---:      |
+| @mitchmindtree      | T       |       | T     | T       |         |       |            |
+| @Osspial            | M       |       | T     | T       | T       |       | T          |
+| @vberger            |         |       | T     | M       |         |       |            |
+| @mtak-              |         | T     |       |         | T       | M     |            |
