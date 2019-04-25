@@ -85,7 +85,7 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Fullscreen toggle**: The windows created by winit can be switched to and from fullscreen after
   creation.
 - **HiDPI support**: Winit assists developers in appropriately scaling HiDPI content.
-- **Popup windows**: Windows can be created relative to the client area of other windows, and parent
+- **Popup / modal windows**: Windows can be created relative to the client area of other windows, and parent
   windows can be disabled in favor of popup windows. This feature also guarantees that popup windows
   get drawn above their owner.
 
