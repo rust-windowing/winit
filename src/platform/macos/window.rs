@@ -619,6 +619,11 @@ impl WindowExt for Window2 {
     }
 
     #[inline]
+    fn get_simple_fullscreen(&self) -> bool {
+        self.delegate.state.is_simple_fullscreen.get()
+    }
+
+    #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
         let state = &self.delegate.state;
 
@@ -1135,6 +1140,14 @@ impl Window2 {
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.delegate.state.perform_maximized(maximized)
+    }
+
+    #[inline]
+    pub fn get_fullscreen(&self) -> Option<RootMonitorId> {
+        let state = &self.delegate.state;
+        let win_attribs = state.win_attribs.borrow();
+
+        win_attribs.fullscreen.clone()
     }
 
     #[inline]

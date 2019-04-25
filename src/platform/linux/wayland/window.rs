@@ -7,7 +7,7 @@ use platform::{MonitorId as PlatformMonitorId, PlatformSpecificWindowBuilderAttr
 use window::MonitorId as RootMonitorId;
 
 use sctk::surface::{get_dpi_factor, get_outputs};
-use sctk::window::{ConceptFrame, Event as WEvent, Window as SWindow, Theme};
+use sctk::window::{ConceptFrame, Event as WEvent, State as WState, Window as SWindow, Theme};
 use sctk::reexports::client::{Display, Proxy};
 use sctk::reexports::client::protocol::{wl_seat, wl_surface};
 use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
@@ -24,6 +24,7 @@ pub struct Window {
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
     display: Arc<Display>,
     need_frame_refresh: Arc<Mutex<bool>>,
+    fullscreen: Arc<Mutex<bool>>,
 }
 
 impl Window {
@@ -31,6 +32,7 @@ impl Window {
         let (width, height) = attributes.dimensions.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
+        let fullscreen = Arc::new(Mutex::new(false));
 
         let window_store = evlp.store.clone();
         let surface = evlp.env.create_surface(move |dpi, surface| {
@@ -45,12 +47,15 @@ impl Window {
             surface.clone(),
             (width, height),
             move |event| match event {
-                WEvent::Configure { new_size, .. } => {
+                WEvent::Configure { new_size, states } => {
                     let mut store = window_store.lock().unwrap();
+                    let is_fullscreen = states.contains(&WState::Fullscreen);
+
                     for window in &mut store.windows {
                         if window.surface.equals(&my_surface) {
                             window.newsize = new_size;
                             window.need_refresh = true;
+                            *(window.fullscreen.lock().unwrap()) = is_fullscreen;
                             *(window.need_frame_refresh.lock().unwrap()) = true;
                             return;
                         }
@@ -114,6 +119,7 @@ impl Window {
             closed: false,
             newsize: None,
             size: size.clone(),
+            fullscreen: fullscreen.clone(),
             need_refresh: false,
             need_frame_refresh: need_frame_refresh.clone(),
             surface: surface.clone(),
@@ -132,6 +138,7 @@ impl Window {
             size: size,
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
             need_frame_refresh: need_frame_refresh,
+            fullscreen: fullscreen,
         })
     }
 
@@ -223,6 +230,14 @@ impl Window {
         }
     }
 
+    pub fn get_fullscreen(&self) -> Option<MonitorId> {
+        if *(self.fullscreen.lock().unwrap()) {
+            Some(self.get_current_monitor())
+        } else {
+            None
+        }
+    }
+
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         if let Some(RootMonitorId {
             inner: PlatformMonitorId::Wayland(ref monitor_id),
@@ -302,6 +317,7 @@ struct InternalWindow {
     surface: Proxy<wl_surface::WlSurface>,
     newsize: Option<(u32, u32)>,
     size: Arc<Mutex<(u32, u32)>>,
+    fullscreen: Arc<Mutex<bool>>,
     need_refresh: bool,
     need_frame_refresh: Arc<Mutex<bool>>,
     closed: bool,

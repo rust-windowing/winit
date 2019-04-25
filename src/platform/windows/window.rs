@@ -356,6 +356,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_fullscreen(&self) -> Option<RootMonitorId> {
+        let window_state = self.window_state.lock().unwrap();
+        window_state.fullscreen.clone()
+    }
+
+    #[inline]
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
         unsafe {
             let window = self.window.clone();

@@ -37,6 +37,7 @@ pub struct SharedState {
     pub guessed_dpi: Option<f64>,
     pub last_monitor: Option<X11MonitorId>,
     pub dpi_adjusted: Option<(f64, f64)>,
+    pub fullscreen: Option<RootMonitorId>,
     // Used to restore position after exiting fullscreen.
     pub restore_position: Option<(i32, i32)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
@@ -534,7 +535,13 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn get_fullscreen(&self) -> Option<RootMonitorId> {
+        self.shared_state.lock().fullscreen.clone()
+    }
+
+    #[inline]
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorId>) {
+        self.shared_state.lock().fullscreen = monitor.clone();
         self.set_fullscreen_inner(monitor)
             .flush()
             .expect("Failed to change window fullscreen state");

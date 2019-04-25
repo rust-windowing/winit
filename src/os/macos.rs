@@ -23,6 +23,9 @@ pub trait WindowExt {
     /// - `true`: the dock icon will bounce until the application is focused.
     fn request_user_attention(&self, is_critical: bool);
 
+    /// Returns whether or not the window is in simple fullscreen mode.
+    fn get_simple_fullscreen(&self) -> bool;
+
     /// Toggles a fullscreen mode that doesn't require a new macOS space.
     /// Returns a boolean indicating whether the transition was successful (this
     /// won't work if the window was already in the native fullscreen).
@@ -47,6 +50,11 @@ impl WindowExt for Window {
     #[inline]
     fn request_user_attention(&self, is_critical: bool) {
         self.window.request_user_attention(is_critical)
+    }
+
+    #[inline]
+    fn get_simple_fullscreen(&self) -> bool {
+        self.window.get_simple_fullscreen()
     }
 
     #[inline]
