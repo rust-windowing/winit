@@ -67,7 +67,7 @@ pub struct ELRShared<T> {
 
 struct EventLoopRunner<T> {
     control: ControlFlow,
-    handling: bool,
+    is_busy: bool,
     event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
 }
 
@@ -246,49 +246,93 @@ fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IE
 }
 
 impl<T> ELRShared<T> {
+    // Set the event callback to use for the event loop runner
+    // This the event callback is a fairly thin layer over the user-provided callback that closes
+    // over a RootEventLoopWindowTarget reference
     fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
         *self.runner.borrow_mut() = Some(EventLoopRunner {
             control: ControlFlow::Poll,
-            handling: false,
+            is_busy: false,
             event_handler
         });
     }
 
-    // TODO: handle event loop closures
-    // TODO: handle event buffer
+    // Add an event to the event loop runner
+    //
+    // It will determine if the event should be immediately sent to the user or buffered for later
     pub fn send_event(&self, event: Event<T>) {
-        let start_cause = StartCause::Poll; // TODO: this is obviously not right
-        self.handle_start(start_cause);
-        self.handle_event(event);
-        self.handle_event(Event::EventsCleared);
-    }
+        // If the event loop is closed, it should discard any new events
+        if self.closed() {
+            return;
+        }
 
-    fn handle_start(&self, start: StartCause) {
-        let is_handling = if let Some(ref runner) = *self.runner.borrow() {
-            runner.handling
+        let start_cause = StartCause::Poll; // TODO: determine start cause
+
+        // Determine if event handling is in process, and then release the borrow on the runner
+        let is_busy = if let Some(ref runner) = *self.runner.borrow() {
+            runner.is_busy
         } else {
-            false
+            true // If there is no event runner yet, then there's no point in processing events
         };
-        if is_handling {
-            self.handle_event(Event::NewEvents(start));
+
+        if is_busy {
+            self.events.borrow_mut().push_back(event);
+        } else {
+            // Handle starting a new batch of events
+            //
+            // The user is informed via Event::NewEvents that there is a batch of events to process
+            // However, there is only one of these per batch of events
+            self.handle_event(Event::NewEvents(start_cause));
+            self.handle_event(event);
+            self.handle_event(Event::EventsCleared);
+
+            // If the event loop is closed, it has been closed this iteration and now the closing
+            // event should be emitted
+            if self.closed() {
+                self.handle_event(Event::LoopDestroyed);
+            }
         }
     }
 
+    // Check if the event loop is currntly closed
+    fn closed(&self) -> bool {
+        match *self.runner.borrow() {
+            Some(ref runner) => runner.control == ControlFlow::Exit,
+            None => false, // If the event loop is None, it has not been intialised yet, so it cannot be closed
+        }
+    }
+
+    // handle_event takes in events and either queues them or applies a callback
+    //
+    // It should only ever be called from send_event
     fn handle_event(&self, event: Event<T>) {
+        let closed = self.closed();
+
         match *self.runner.borrow_mut() {
-            Some(ref mut runner) if !runner.handling => {
-                runner.handling = true;
-                let closed = runner.control == ControlFlow::Exit;
+            Some(ref mut runner) => {
+                // An event is being processed, so the runner should be marked busy
+                runner.is_busy = true;
+
                 // TODO: bracket this in control flow events?
                 (runner.event_handler)(event, &mut runner.control);
+
+                // Maintain closed state, even if the callback changes it
                 if closed {
                     runner.control = ControlFlow::Exit;
                 }
-                runner.handling = false;
+
+                // An event is no longer being processed
+                runner.is_busy = false;
             }
+            // If an event is being handled without a runner somehow, add it to the event queue so
+            // it will eventually be processed
             _ => self.events.borrow_mut().push_back(event)
         }
-        if self.runner.borrow().is_some() {
+
+        // Don't take events out of the queue if the loop is closed or the runner doesn't exist
+        // If the runner doesn't exist and this method recurses, it will recurse infinitely
+        if !closed && self.runner.borrow().is_some() {
+            // Take an event out of the queue and handle it
             if let Some(event) = self.events.borrow_mut().pop_front() {
                 self.handle_event(event);
             }
