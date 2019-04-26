@@ -28,6 +28,7 @@ use libc::{self, setlocale, LC_CTYPE};
 use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
 use event::{WindowEvent, Event};
 use platform_impl::PlatformSpecificWindowBuilderAttributes;
+use platform_impl::platform::sticky_exit_callback;
 use window::{CreationError, WindowAttributes};
 use self::dnd::{Dnd, DndState};
 use self::ime::{ImeReceiver, ImeSender, ImeCreationError, Ime};
@@ -232,66 +233,44 @@ impl<T: 'static> EventLoop<T> {
             {
                 let mut guard = self.pending_events.borrow_mut();
                 for evt in guard.drain(..) {
-                    // make ControlFlow::Exit sticky by providing a dummy
-                    // control flow reference if it is already Exit.
-                    let mut dummy = ControlFlow::Exit;
-                    let cf = if control_flow == ControlFlow::Exit {
-                        &mut dummy
-                    } else {
-                        &mut control_flow
-                    };
-                    // user callback
-                    callback(evt, &self.target, cf);
+                    sticky_exit_callback(evt, &self.target, &mut control_flow, &mut callback);
                 }
             }
             // Empty the user event buffer
             {
                 let mut guard = self.pending_user_events.borrow_mut();
                 for evt in guard.drain(..) {
-                    // make ControlFlow::Exit sticky
-                    let mut dummy = ControlFlow::Exit;
-                    let cf = if control_flow == ControlFlow::Exit {
-                        &mut dummy
-                    } else {
-                        &mut control_flow
-                    };
-                    // user callback
-                    callback(::event::Event::UserEvent(evt), &self.target, cf);
+                    sticky_exit_callback(
+                        ::event::Event::UserEvent(evt),
+                        &self.target,
+                        &mut control_flow,
+                        &mut callback
+                    );
                 }
             }
             // Empty the redraw requests
             {
                 let mut guard = wt.pending_redraws.lock().unwrap();
                 for wid in guard.drain() {
-                    // make ControlFlow::Exit sticky
-                    let mut dummy = ControlFlow::Exit;
-                    let cf = if control_flow == ControlFlow::Exit {
-                        &mut dummy
-                    } else {
-                        &mut control_flow
-                    };
-                    // user callback
-                    callback(
+                    sticky_exit_callback(
                         Event::WindowEvent {
                             window_id: ::window::WindowId(super::WindowId::X(wid)),
                             event: WindowEvent::RedrawRequested
                         },
                         &self.target,
-                        cf
+                        &mut control_flow,
+                        &mut callback
                     );
                 }
             }
             // send Events cleared
             {
-                // make ControlFlow::Exit sticky
-                let mut dummy = ControlFlow::Exit;
-                let cf = if control_flow == ControlFlow::Exit {
-                    &mut dummy
-                } else {
-                    &mut control_flow
-                };
-                // user callback
-                callback(::event::Event::EventsCleared, &self.target, cf);
+                sticky_exit_callback(
+                    ::event::Event::EventsCleared,
+                    &self.target,
+                    &mut control_flow,
+                    &mut callback
+                );
             }
 
             // flush the X11 connection

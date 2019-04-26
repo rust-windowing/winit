@@ -8,6 +8,7 @@ use std::time::Instant;
 use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
 use event::ModifiersState;
 use dpi::{PhysicalPosition, PhysicalSize};
+use platform_impl::platform::sticky_exit_callback;
 
 use super::window::WindowStore;
 use super::WindowId;
@@ -205,32 +206,19 @@ impl<T: 'static> EventLoop<T> {
             {
                 let mut guard = sink.lock().unwrap();
                 guard.empty_with(|evt| {
-                    // make ControlFlow::Exit sticky by providing a dummy
-                    // control flow reference if it is already Exit.
-                    let mut dummy = ControlFlow::Exit;
-                    let cf = if control_flow == ControlFlow::Exit {
-                        &mut dummy
-                    } else {
-                        &mut control_flow
-                    };
-                    // user callback
-                    callback(evt, &self.window_target, cf)
+                    sticky_exit_callback(evt, &self.window_target, &mut control_flow, &mut callback);
                 });
             }
             // empty user events
             {
                 let mut guard = user_events.borrow_mut();
                 for evt in guard.drain(..) {
-                    // make ControlFlow::Exit sticky by providing a dummy
-                    // control flow reference if it is already Exit.
-                    let mut dummy = ControlFlow::Exit;
-                    let cf = if control_flow == ControlFlow::Exit {
-                        &mut dummy
-                    } else {
-                        &mut control_flow
-                    };
-                    // user callback
-                    callback(::event::Event::UserEvent(evt), &self.window_target, cf);
+                    sticky_exit_callback(
+                        ::event::Event::UserEvent(evt),
+                        &self.window_target,
+                        &mut control_flow,
+                        &mut callback
+                    );
                 }
             }
             // do a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
@@ -239,29 +227,17 @@ impl<T: 'static> EventLoop<T> {
             {
                 let mut guard = sink.lock().unwrap();
                 guard.empty_with(|evt| {
-                    // make ControlFlow::Exit sticky by providing a dummy
-                    // control flow reference if it is already Exit.
-                    let mut dummy = ControlFlow::Exit;
-                    let cf = if control_flow == ControlFlow::Exit {
-                        &mut dummy
-                    } else {
-                        &mut control_flow
-                    };
-                    // user callback
-                    callback(evt, &self.window_target, cf)
+                    sticky_exit_callback(evt, &self.window_target, &mut control_flow, &mut callback);
                 });
             }
             // send Events cleared
             {
-                // make ControlFlow::Exit sticky
-                let mut dummy = ControlFlow::Exit;
-                let cf = if control_flow == ControlFlow::Exit {
-                    &mut dummy
-                } else {
-                    &mut control_flow
-                };
-                // user callback
-                callback(::event::Event::EventsCleared, &self.window_target, cf);
+                sticky_exit_callback(
+                    ::event::Event::EventsCleared,
+                    &self.window_target,
+                    &mut control_flow,
+                    &mut callback
+                );
             }
 
             // send pending events to the server

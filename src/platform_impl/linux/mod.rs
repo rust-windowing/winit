@@ -11,6 +11,7 @@ use sctk::reexports::client::ConnectError;
 
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use icon::Icon;
+use event::Event;
 use event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
 use monitor::MonitorHandle as RootMonitorHandle;
 use window::{WindowAttributes, CreationError, MouseCursor};
@@ -548,4 +549,20 @@ impl<T: 'static> EventLoopProxy<T> {
 pub enum EventLoopWindowTarget<T> {
     Wayland(wayland::EventLoopWindowTarget<T>),
     X(x11::EventLoopWindowTarget<T>)
+}
+
+fn sticky_exit_callback<T, F>(
+    evt: Event<T>, target: &RootELW<T>, control_flow: &mut ControlFlow, callback: &mut F
+) where F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
+{
+    // make ControlFlow::Exit sticky by providing a dummy
+    // control flow reference if it is already Exit.
+    let mut dummy = ControlFlow::Exit;
+    let cf = if *control_flow == ControlFlow::Exit {
+        &mut dummy
+    } else {
+        control_flow
+    };
+    // user callback
+    callback(evt, target, cf)
 }
