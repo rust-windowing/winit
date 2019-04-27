@@ -8,6 +8,7 @@ use std::time::Instant;
 use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
 use event::ModifiersState;
 use dpi::{PhysicalPosition, PhysicalSize};
+use platform_impl::platform::sticky_exit_callback;
 
 use super::window::WindowStore;
 use super::WindowId;
@@ -204,23 +205,39 @@ impl<T: 'static> EventLoop<T> {
             // empty buffer of events
             {
                 let mut guard = sink.lock().unwrap();
-                guard.empty_with(|evt| callback(evt, &self.window_target, &mut control_flow));
+                guard.empty_with(|evt| {
+                    sticky_exit_callback(evt, &self.window_target, &mut control_flow, &mut callback);
+                });
             }
             // empty user events
             {
                 let mut guard = user_events.borrow_mut();
                 for evt in guard.drain(..) {
-                    callback(::event::Event::UserEvent(evt), &self.window_target, &mut control_flow);
+                    sticky_exit_callback(
+                        ::event::Event::UserEvent(evt),
+                        &self.window_target,
+                        &mut control_flow,
+                        &mut callback
+                    );
                 }
             }
-
-            callback(::event::Event::EventsCleared, &self.window_target, &mut control_flow);
-
-            // fo a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
+            // do a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
+            // in response of resize & friends
             self.post_dispatch_triggers();
             {
                 let mut guard = sink.lock().unwrap();
-                guard.empty_with(|evt| callback(evt, &self.window_target, &mut control_flow));
+                guard.empty_with(|evt| {
+                    sticky_exit_callback(evt, &self.window_target, &mut control_flow, &mut callback);
+                });
+            }
+            // send Events cleared
+            {
+                sticky_exit_callback(
+                    ::event::Event::EventsCleared,
+                    &self.window_target,
+                    &mut control_flow,
+                    &mut callback
+                );
             }
 
             // send pending events to the server

@@ -1,4 +1,5 @@
 use std::{cmp, env, mem};
+use std::collections::HashSet;
 use std::ffi::CString;
 use std::os::raw::*;
 use std::path::Path;
@@ -7,15 +8,15 @@ use std::sync::Arc;
 use libc;
 use parking_lot::Mutex;
 
-use {Icon, MouseCursor, WindowAttributes};
-use CreationError::{self, OsError};
+use window::{Icon, MouseCursor, WindowAttributes};
+use window::CreationError::{self, OsError};
 use dpi::{LogicalPosition, LogicalSize};
 use platform_impl::MonitorHandle as PlatformMonitorHandle;
 use platform_impl::PlatformSpecificWindowBuilderAttributes;
 use platform_impl::x11::MonitorHandle as X11MonitorHandle;
-use window::MonitorHandle as RootMonitorHandle;
+use monitor::MonitorHandle as RootMonitorHandle;
 
-use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventLoop};
+use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventLoopWindowTarget};
 
 unsafe extern "C" fn visibility_predicate(
     _display: *mut ffi::Display,
@@ -66,11 +67,12 @@ pub struct UnownedWindow {
     ime_sender: Mutex<ImeSender>,
     pub multitouch: bool, // never changes
     pub shared_state: Mutex<SharedState>,
+    pending_redraws: Arc<::std::sync::Mutex<HashSet<WindowId>>>,
 }
 
 impl UnownedWindow {
-    pub fn new(
-        event_loop: &EventLoop,
+    pub fn new<T>(
+        event_loop: &EventLoopWindowTarget<T>,
         window_attrs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, CreationError> {
@@ -203,6 +205,7 @@ impl UnownedWindow {
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             multitouch: window_attrs.multitouch,
             shared_state: SharedState::new(dpi_factor),
+            pending_redraws: event_loop.pending_redraws.clone(),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -1210,4 +1213,9 @@ impl UnownedWindow {
 
     #[inline]
     pub fn id(&self) -> WindowId { WindowId(self.xwindow) }
+
+    #[inline]
+    pub fn request_redraw(&self) {
+        self.pending_redraws.lock().unwrap().insert(WindowId(self.xwindow));
+    }
 }

@@ -1,7 +1,7 @@
 use std::cmp;
 
 use super::*;
-use {LogicalPosition, LogicalSize};
+use dpi::{LogicalPosition, LogicalSize};
 
 // Friendly neighborhood axis-aligned rectangle
 #[derive(Debug, Clone, PartialEq, Eq)]
