@@ -97,9 +97,9 @@ extern crate image;
 extern crate serde;
 
 #[cfg(target_os = "windows")]
-extern crate winapi;
-#[cfg(target_os = "windows")]
 extern crate backtrace;
+#[cfg(target_os = "windows")]
+extern crate winapi;
 #[macro_use]
 #[cfg(target_os = "windows")]
 extern crate bitflags;
@@ -112,19 +112,43 @@ extern crate cocoa;
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
 extern crate core_graphics;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
-extern crate x11_dl;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 extern crate parking_lot;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 extern crate percent_encoding;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 extern crate smithay_client_toolkit as sctk;
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+extern crate x11_dl;
 
 pub(crate) use dpi::*; // TODO: Actually change the imports throughout the codebase.
 pub use events::*;
-pub use window::{AvailableMonitorsIter, MonitorId};
 pub use icon::*;
+pub use window::{AvailableMonitorsIter, MonitorId};
 
 pub mod dpi;
 mod events;
@@ -217,7 +241,7 @@ impl DeviceId {
 /// `EventsLoopProxy` allows you to wakeup an `EventsLoop` from an other thread.
 pub struct EventsLoop {
     events_loop: platform::EventsLoop,
-    _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
+    _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
 }
 
 impl std::fmt::Debug for EventsLoop {
@@ -258,13 +282,17 @@ impl EventsLoop {
     #[inline]
     pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
         let data = self.events_loop.get_available_monitors();
-        AvailableMonitorsIter{ data: data.into_iter() }
+        AvailableMonitorsIter {
+            data: data.into_iter(),
+        }
     }
 
     /// Returns the primary monitor of the system.
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId { inner: self.events_loop.get_primary_monitor() }
+        MonitorId {
+            inner: self.events_loop.get_primary_monitor(),
+        }
     }
 
     /// Fetches all the events that are pending, calls the callback function for each of them,
@@ -286,7 +314,6 @@ impl EventsLoop {
     /// at a sufficient rate. Rendering in the callback with vsync enabled **will** cause significant lag.
     #[inline]
     pub fn run_forever<F>(&mut self, callback: F)
-        where F: FnMut(Event) -> ControlFlow
     {
         self.events_loop.run_forever(callback)
     }
