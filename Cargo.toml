@@ -88,6 +88,7 @@ features = [
     'Element',
     'HtmlElement',
     'HtmlCanvasElement',
+    'CanvasRenderingContext2d',
     'Node',
     'Window',
     'console'

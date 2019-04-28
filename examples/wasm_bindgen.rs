@@ -1,14 +1,15 @@
-mod utils;
-
 extern crate web_sys;
+extern crate wasm_bindgen;
 
 extern crate winit;
 use winit::window::WindowBuilder;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{EventLoop, ControlFlow};
-use winit::platform::websys::{WebsysWindowBuilderExt, WebsysWindowExt};
+use winit::platform::websys::WebsysWindowExt;
+use winit::platform::websys::WebsysWindowBuilderExt;
 
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
 macro_rules! log {
@@ -65,4 +66,9 @@ impl App {
             }
         });
     }
+}
+
+pub fn main() {
+    let app = App::new();
+    app.run();
 }
