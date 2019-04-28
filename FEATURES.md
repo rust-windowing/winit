@@ -88,7 +88,7 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Popup / modal windows**: Windows can be created relative to the client area of other windows, and parent
   windows can be disabled in favor of popup windows. This feature also guarantees that popup windows
   get drawn above their owner.
-
+- **Window centering**: Sets the window position to be in the center of the given monitor.
 
 ### System Information
 - **Monitor list**: Retrieve the list of monitors and their metadata, including which one is primary.
