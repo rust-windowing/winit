@@ -1,9 +1,13 @@
+extern crate wasm_bindgen;
+
 use window::{WindowAttributes, CreationError, MouseCursor};
 use std::collections::VecDeque;
 use std::rc::Rc;
 use dpi::{PhysicalPosition, LogicalPosition, PhysicalSize, LogicalSize};
 use icon::Icon;
 use super::event_loop::{EventLoopWindowTarget};
+use self::wasm_bindgen::prelude::*;
+use self::wasm_bindgen::JsCast;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(u32);
@@ -19,9 +23,14 @@ impl DeviceId {
 /// to select an existing canvas in the DOM
 /// or a container in which to create a canvas.
 ///
-enum ElementSelection {
+#[derive(Clone)]
+pub enum ElementSelection {
     CanvasId(String),
     ContainerId(String)
+}
+
+impl Default for ElementSelection {
+    fn default() -> Self { ElementSelection::CanvasId("".to_string()) }
 }
 
 ///
@@ -72,7 +81,7 @@ impl MonitorHandle {
 }
 
 pub struct Window {
-    canvas: web_sys::Element,
+    pub(crate) canvas: web_sys::HtmlCanvasElement,
     internal: Rc<WindowInternal>
 }
 
@@ -92,11 +101,30 @@ impl Window {
                            attr: WindowAttributes,
                            ps_attr: PlatformSpecificWindowBuilderAttributes) 
                            -> Result<Window, CreationError> {
-        let window = web_sys::window().expect("no global `window` exists");
-        let document = window.document().expect("should have a document on window");
+        let window = web_sys::window()
+            .expect("No global window object found!");
+        let document = window.document()
+            .expect("Global window does not have a document!");
 
-        // TODO: get the id from ps_attr
-        let element = document.get_element_by_id("test").expect("no canvas");
+        let element = match ps_attr.element {
+            ElementSelection::CanvasId(id) => {
+                document.get_element_by_id(&id)
+                    .expect(&format!("No canvas with ID {} found", id))
+                    .dyn_into::<web_sys::HtmlCanvasElement>().unwrap()
+            },
+            ElementSelection::ContainerId(id) => {
+                let parent = document.get_element_by_id(&id)
+                    .expect(&format!("No container element with Id {} found", id));
+                
+                let canvas = document.create_element("canvas")
+                    .expect("Could not create a canvas")
+                    .dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+                
+                parent.append_child(&canvas);
+
+                canvas
+            }
+        };
 
         let internal = Rc::new(WindowInternal {
             pending_events: vec![]

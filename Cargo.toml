@@ -87,6 +87,7 @@ features = [
     'Document',
     'Element',
     'HtmlElement',
+    'HtmlCanvasElement',
     'Node',
     'Window',
     'console'

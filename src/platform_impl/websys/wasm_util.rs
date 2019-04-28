@@ -2,6 +2,7 @@ extern crate wasm_bindgen;
 extern crate web_sys;
 
 use self::wasm_bindgen::prelude::*;
+use window::CreationError;
 
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
 macro_rules! log {
@@ -13,4 +14,10 @@ macro_rules! log {
 #[wasm_bindgen(inline_js = "export function js_exit() { throw 'hacky exit!'; }")]
 extern "C" {
     pub fn js_exit();
+}
+ 
+impl From<wasm_bindgen::JsValue> for CreationError {
+    fn from(error: wasm_bindgen::JsValue) -> Self {
+        CreationError::OsError(error.as_string().unwrap_or("Window error".to_string()))
+    }
 }

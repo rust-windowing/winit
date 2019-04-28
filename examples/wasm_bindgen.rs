@@ -6,6 +6,7 @@ extern crate winit;
 use winit::window::WindowBuilder;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{EventLoop, ControlFlow};
+use winit::platform::websys::{WebsysWindowBuilderExt, WebsysWindowExt};
 
 use wasm_bindgen::prelude::*;
 
@@ -35,17 +36,25 @@ impl App {
         let event_loop = EventLoop::new();
 
         // create a window and associate it with the event loop
-        let _window = WindowBuilder::new()
+        let window = WindowBuilder::new()
             .with_title("A fantastic window!")
+            .with_canvas_id("test")
             .build(&event_loop)
             .unwrap();
 
-        // run!
+        // do some drawing
+        let canvas = window.get_canvas();
+        let ctx = canvas.get_context("2d").unwrap().unwrap()
+                        .dyn_into::<web_sys::CanvasRenderingContext2d>().unwrap();
+        ctx.begin_path();
+        ctx.arc(95.0, 50.0, 40.0, 0.0, 2.0 * 3.14159).unwrap();
+        ctx.stroke();
+
+        // run forever
         //
         // when using wasm_bindgen, this will currently throw a js
         // exception once all browser event handlers have been installed.
         event_loop.run(|event, _, control_flow| {
-            log!("{:?}", event);
 
             match event {
                 Event::WindowEvent {
