@@ -921,7 +921,6 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_CHAR => {
-            use std::mem;
             use event::WindowEvent::ReceivedCharacter;
             let chr: char = mem::transmute(wparam as u32);
             subclass_input.send_event(Event::WindowEvent {
@@ -994,7 +993,6 @@ unsafe extern "system" fn public_window_callback<T>(
 
         winuser::WM_MOUSEWHEEL => {
             use event::MouseScrollDelta::LineDelta;
-            use event::TouchPhase;
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
@@ -1010,7 +1008,6 @@ unsafe extern "system" fn public_window_callback<T>(
 
         winuser::WM_MOUSEHWHEEL => {
             use event::MouseScrollDelta::LineDelta;
-            use event::TouchPhase;
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;

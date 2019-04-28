@@ -185,6 +185,14 @@ impl UnownedWindow {
                     None => ffi::CopyFromParent,
                 },
                 ffi::InputOutput as c_uint,
+                // TODO: If window wants transparency and `visual_infos` is None,
+                // we need to find our own visual which has an `alphaMask` which
+                // is > 0, like we do in glutin.
+                //
+                // It is non obvious which masks, if any, we should pass to
+                // `XGetVisualInfo`. winit doesn't recieve any info about what
+                // properties the user wants. Users should consider choosing the
+                // visual themselves as glutin does.
                 match pl_attribs.visual_infos {
                     Some(vi) => vi.visual,
                     None => ffi::CopyFromParent as *mut ffi::Visual,

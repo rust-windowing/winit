@@ -98,6 +98,8 @@ extern crate objc;
 #[cfg(target_os = "macos")]
 extern crate cocoa;
 #[cfg(target_os = "macos")]
+extern crate dispatch;
+#[cfg(target_os = "macos")]
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
 extern crate core_graphics;

@@ -1,5 +1,3 @@
-use std;
-
 use super::*;
 
 pub type Cardinal = c_long;

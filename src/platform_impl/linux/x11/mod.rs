@@ -236,6 +236,7 @@ impl<T: 'static> EventLoop<T> {
                     sticky_exit_callback(evt, &self.target, &mut control_flow, &mut callback);
                 }
             }
+
             // Empty the user event buffer
             {
                 let mut guard = self.pending_user_events.borrow_mut();

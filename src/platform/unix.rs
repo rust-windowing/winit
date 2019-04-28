@@ -112,11 +112,11 @@ pub trait EventLoopExtUnix {
     #[doc(hidden)]
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
-    /// Returns a pointer to the `wl_display` object of wayland that is used by this `EventsLoop`.
+    /// Returns a pointer to the `wl_display` object of wayland that is used by this `EventLoop`.
     ///
-    /// Returns `None` if the `EventsLoop` doesn't use wayland (if it uses xlib for example).
+    /// Returns `None` if the `EventLoop` doesn't use wayland (if it uses xlib for example).
     ///
-    /// The pointer will become invalid when the glutin `EventsLoop` is destroyed.
+    /// The pointer will become invalid when the glutin `EventLoop` is destroyed.
     fn get_wayland_display(&self) -> Option<*mut raw::c_void>;
 }
 
