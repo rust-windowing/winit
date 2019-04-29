@@ -12,7 +12,7 @@ use stdweb::{
     unstable::TryInto
 };
 use stdweb::web::{
-    document,
+    document, window,
     html_element::CanvasElement,
 };
 
@@ -21,7 +21,6 @@ pub struct MonitorHandle;
 
 impl MonitorHandle {
     pub fn get_hidpi_factor(&self) -> f64 {
-        // TODO
         1.0
     }
 
@@ -72,10 +71,10 @@ impl Window {
         register(&target.runner, &canvas);
 
         let runner = target.runner.clone();
-        let redraw = Box::new(move || runner.send_event(Event::WindowEvent {
+        let redraw = Box::new(move || window().request_animation_frame(|| runner.send_event(Event::WindowEvent {
             window_id: RootWI(WindowId),
             event: WindowEvent::RedrawRequested
-        }));
+        })));
 
         let window = Window {
             canvas,
@@ -95,7 +94,6 @@ impl Window {
                 height: 768.0,
             })
         }
-        // TODO: most of these are no-op, but should they stay here just in case?
         window.set_min_dimensions(attr.min_dimensions);
         window.set_max_dimensions(attr.max_dimensions);
         window.set_resizable(attr.resizable);
@@ -191,7 +189,6 @@ impl Window {
 
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
-        // TODO
         1.0
     }
 
@@ -286,7 +283,7 @@ impl Window {
 
     #[inline]
     pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
-        // TODO: should this set the favicon?
+        // Currently an intentional no-op
     }
 
     #[inline]
