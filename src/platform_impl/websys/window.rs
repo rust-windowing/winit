@@ -3,9 +3,11 @@ extern crate wasm_bindgen;
 use window::{WindowAttributes, CreationError, MouseCursor};
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::cell::RefCell;
 use dpi::{PhysicalPosition, LogicalPosition, PhysicalSize, LogicalSize};
 use icon::Icon;
 use super::event_loop::{EventLoopWindowTarget};
+
 use self::wasm_bindgen::prelude::*;
 use self::wasm_bindgen::JsCast;
 
@@ -86,7 +88,13 @@ pub struct Window {
 }
 
 pub(crate) struct WindowInternal {
-    pending_events: Vec<::event::WindowEvent>
+    pub pending_events: RefCell<Vec<::event::WindowEvent>>
+}
+
+impl WindowInternal {
+    pub fn events(&self) -> Vec<::event::WindowEvent> {
+        self.pending_events.replace(Vec::new())
+    }
 }
 
 impl Window {
@@ -127,12 +135,24 @@ impl Window {
         };
 
         let internal = Rc::new(WindowInternal {
-            pending_events: vec![]
+            pending_events: RefCell::new(Vec::with_capacity(3))
         });
 
         target.set_window(internal.clone());
 
         // TODO: install WindowEvent handlers
+        let mut win = internal.clone();
+        let click_handler = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
+            // TODO: process the event
+            win.pending_events.borrow_mut().push(::event::WindowEvent::MouseInput {
+                device_id: ::event::DeviceId(DeviceId(0)),
+                state: ::event::ElementState::Pressed,
+                button: ::event::MouseButton::Left,
+                modifiers: Default::default()
+            });
+        }) as Box<FnMut(web_sys::MouseEvent)>);
+        element.set_onmousedown(Some(click_handler.as_ref().unchecked_ref()));
+        click_handler.forget();
 
         Ok(Window {
             canvas: element,

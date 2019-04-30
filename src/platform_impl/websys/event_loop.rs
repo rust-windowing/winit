@@ -3,7 +3,7 @@ extern crate wasm_bindgen;
 
 use event_loop::{ControlFlow, EventLoopClosed};
 use event::Event;
-use super::window::{MonitorHandle, Window, WindowInternal};
+use super::window::{MonitorHandle, Window, WindowId, WindowInternal};
 #[macro_use]
 use platform_impl::platform::wasm_util as util;
 
@@ -69,6 +69,12 @@ impl<T: 'static> EventLoop<T> {
         
         *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
             if control_flow == ControlFlow::Poll {
+                
+                let mut win_events = self.window_target.p.window().events();
+                win_events.drain(..).for_each(|e| {
+                    event_handler(::event::Event::WindowEvent{window_id: ::window::WindowId(WindowId{}), event: e}, &self.window_target, &mut control_flow);
+                });
+
                 event_handler(::event::Event::NewEvents(::event::StartCause::Poll), &self.window_target, &mut control_flow);
             }
 
