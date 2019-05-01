@@ -715,8 +715,8 @@ unsafe fn init(
         events_loop_proxy,
     };
 
-    if let Some(_) = attributes.fullscreen {
-        win.set_fullscreen(attributes.fullscreen);
+    if let Some(_) = &attributes.fullscreen {
+        win.set_fullscreen(attributes.fullscreen.clone());
         force_window_active(win.window.0);
     }
 
@@ -724,7 +724,7 @@ unsafe fn init(
         win.set_inner_size(dimensions);
     }
 
-        if attributes.center_window {
+    if attributes.center_window && !&attributes.fullscreen.is_some(){
         let window_size = win.get_outer_size();
 
         let monitor;

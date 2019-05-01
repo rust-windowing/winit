@@ -380,6 +380,35 @@ impl UnownedWindow {
                 window.set_always_on_top_inner(window_attrs.always_on_top).queue();
             }
 
+            if window_attrs.center_window && !window_attrs.fullscreen.is_some() 
+            {
+                let window_size = window.get_outer_size();
+
+                let monitor;
+                if window_attrs.start_monitor == -1 {
+                    monitor = window.get_primary_monitor();
+                } else {
+                    if window_attrs.start_monitor < window.get_available_monitors().len() as i16 {
+                        monitor = window.get_available_monitors()[window_attrs.start_monitor as usize].clone();
+                    } else {
+                        monitor = window.get_primary_monitor();
+                    }
+                }
+
+                let monitor_size = monitor.get_dimensions();
+                let monitor_position = monitor.get_position();
+
+
+                let mut monitor_window_position: LogicalPosition = (0.0, 0.0).into();
+                monitor_window_position.x =
+                    monitor_position.x + (monitor_size.width * 0.5) - (&window_size.unwrap().width * 0.5);
+                monitor_window_position.y =
+                    monitor_position.y + (monitor_size.height * 0.5) - (&window_size.unwrap().height * 0.5);
+
+
+                window.set_position(monitor_window_position);
+            }
+
             if window_attrs.visible {
                 unsafe {
                     // XSetInputFocus generates an error if the window is not visible, so we wait
