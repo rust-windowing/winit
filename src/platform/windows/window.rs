@@ -724,6 +724,34 @@ unsafe fn init(
         win.set_inner_size(dimensions);
     }
 
+        if attributes.center_window {
+        let window_size = win.get_outer_size();
+
+        let monitor;
+        if attributes.start_monitor == -1 {
+            monitor = win.get_primary_monitor();
+        } else {
+            if attributes.start_monitor < win.get_available_monitors().len() as i16 {
+                monitor = win.get_available_monitors()[attributes.start_monitor as usize].clone();
+            } else {
+                monitor = win.get_primary_monitor();
+            }
+        }
+
+        let monitor_size = monitor.get_dimensions();
+        let monitor_position = monitor.get_position();
+
+
+        let mut monitor_window_position: LogicalPosition = (0.0, 0.0).into();
+        monitor_window_position.x =
+            monitor_position.x + (monitor_size.width * 0.5) - (&window_size.unwrap().width * 0.5);
+        monitor_window_position.y =
+            monitor_position.y + (monitor_size.height * 0.5) - (&window_size.unwrap().height * 0.5);
+
+
+        win.set_position(monitor_window_position);
+    }
+
     inserter.insert(win.window.0, win.window_state.clone());
 
     Ok(win)

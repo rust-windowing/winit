@@ -8,6 +8,8 @@ fn main() {
         .build(&events_loop)
         .unwrap();
 
+    _window.center();
+
     events_loop.run_forever(|event| {
         println!("{:?}", event);
 

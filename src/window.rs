@@ -69,6 +69,21 @@ impl WindowBuilder {
         self
     }
 
+        /// Sets so the window will start centered on screen.
+    #[inline]
+    pub fn with_centering(mut self, centered: bool) -> WindowBuilder {
+        self.window.center_window = centered;
+        self
+    }
+
+    /// Sets what monitor the window will start in.
+    /// where -1 is the users primary monitor.
+    #[inline]
+    pub fn with_target_monitor(mut self, start_monitor: i16) -> WindowBuilder {
+        self.window.start_monitor = start_monitor;
+        self
+    }
+
     /// Sets the window fullscreen state. None means a normal window, Some(MonitorId)
     /// means a fullscreen window on that specific monitor
     #[inline]
@@ -379,6 +394,39 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
+    }
+        /// Centers the window on the current monitor the window lives in.
+    pub fn center(&self) {
+        self.set_centered(self.get_current_monitor())
+    }
+
+    /// Centers the window on the specified target monitor, falls back to primary monitor if out range.
+    pub fn set_center_monitor(&self, monitor_target: usize) {
+        if monitor_target < self.get_available_monitors().count() {
+            self.set_centered(self.get_available_monitors().nth(monitor_target).unwrap())
+        } else {
+            self.set_centered(self.get_primary_monitor());
+        }
+    }
+
+    /// Sets the window position to be in the center of the given monitor.
+    /// Will do nothing if the window is in fullscreen.
+    pub fn set_centered(&self, monitor: MonitorId) {
+        let window_size = match self.get_outer_size() {
+            Some(logical_size) => logical_size,
+            None => return,
+        };
+
+        let monitor_size = monitor.get_dimensions();
+        let monitor_position = monitor.get_position();
+
+        let mut monitor_window_position: LogicalPosition = (0.0, 0.0).into();
+        monitor_window_position.x =
+            monitor_position.x + (monitor_size.width * 0.5) - (&window_size.width * 0.5);
+        monitor_window_position.y =
+            monitor_position.y + (monitor_size.height * 0.5) - (&window_size.height * 0.5);
+
+        &self.set_position(monitor_window_position);
     }
 
     /// Change whether or not the window will always be on top of other windows.
