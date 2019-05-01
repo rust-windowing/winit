@@ -299,8 +299,7 @@ impl EventsLoop {
     /// and returns.
     #[inline]
     pub fn poll_events<F>(&mut self, callback: F)
-    where
-        F: FnMut(Event),
+        where F: FnMut(Event)
     {
         self.events_loop.poll_events(callback)
     }
@@ -315,8 +314,6 @@ impl EventsLoop {
     /// at a sufficient rate. Rendering in the callback with vsync enabled **will** cause significant lag.
     #[inline]
     pub fn run_forever<F>(&mut self, callback: F)
-    where
-        F: FnMut(Event) -> ControlFlow,
     {
         self.events_loop.run_forever(callback)
     }
@@ -509,16 +506,6 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub fullscreen: Option<MonitorId>,
 
-    /// Whether the window will be centered on screen.
-    ///
-    /// The default is true.
-    pub center_window: bool,
-
-    /// Decides what monitor the window will start on. Users primary monitor is -1.
-    ///
-    /// The default is -1,
-    pub start_monitor: i16,
-
     /// The title of the window in the title bar.
     ///
     /// The default is `"winit window"`.
@@ -571,8 +558,6 @@ impl Default for WindowAttributes {
             title: "winit window".to_owned(),
             maximized: false,
             fullscreen: None,
-            center_window: true,
-            start_monitor: -1,
             visible: true,
             transparent: false,
             decorations: true,
