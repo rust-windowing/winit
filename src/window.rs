@@ -1,8 +1,18 @@
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
 use {
-    platform, CreationError, EventsLoop, Icon, LogicalPosition, LogicalSize, MouseCursor,
-    PhysicalPosition, PhysicalSize, Window, WindowBuilder, WindowId,
+    CreationError,
+    EventsLoop,
+    Icon,
+    LogicalPosition,
+    LogicalSize,
+    MouseCursor,
+    PhysicalPosition,
+    PhysicalSize,
+    platform,
+    Window,
+    WindowBuilder,
+    WindowId,
 };
 
 impl WindowBuilder {
@@ -64,21 +74,6 @@ impl WindowBuilder {
     #[inline]
     pub fn with_fullscreen(mut self, monitor: Option<MonitorId>) -> WindowBuilder {
         self.window.fullscreen = monitor;
-        self
-    }
-
-    /// Sets so the window will start centered on screen.
-    #[inline]
-    pub fn with_centering(mut self, centered: bool) -> WindowBuilder {
-        self.window.center_window = centered;
-        self
-    }
-
-    /// Sets what monitor the window will start in.
-    /// where -1 is the users primary monitor.
-    #[inline]
-    pub fn with_target_monitor(mut self, start_monitor: i16) -> WindowBuilder {
-        self.window.start_monitor = start_monitor;
         self
     }
 
@@ -158,12 +153,12 @@ impl WindowBuilder {
             }
         }));
 
+        // building
         platform::Window::new(
             &events_loop.events_loop,
             self.window,
             self.platform_specific,
-        )
-        .map(|window| Window { window })
+        ).map(|window| Window { window })
     }
 }
 
@@ -380,40 +375,6 @@ impl Window {
         self.window.get_fullscreen()
     }
 
-    /// Centers the window on the current monitor the window lives in.
-    pub fn center(&self) {
-        self.set_centered(self.get_current_monitor())
-    }
-
-    /// Centers the window on the specified target monitor, falls back to primary monitor if out range.
-    pub fn set_center_monitor(&self, monitor_target: usize) {
-        if monitor_target < self.get_available_monitors().count() {
-            self.set_centered(self.get_available_monitors().nth(monitor_target).unwrap())
-        } else {
-            self.set_centered(self.get_primary_monitor());
-        }
-    }
-
-    /// Sets the window position to be in the center of the given monitor.
-    /// Will do nothing if the window is in fullscreen.
-    pub fn set_centered(&self, monitor: MonitorId) {
-        let window_size = match self.get_outer_size() {
-            Some(logical_size) => logical_size,
-            None => return,
-        };
-
-        let monitor_size = monitor.get_dimensions();
-        let monitor_position = monitor.get_position();
-
-        let mut monitor_window_position: LogicalPosition = (0.0, 0.0).into();
-        monitor_window_position.x =
-            monitor_position.x + (monitor_size.width * 0.5) - (&window_size.width * 0.5);
-        monitor_window_position.y =
-            monitor_position.y + (monitor_size.height * 0.5) - (&window_size.height * 0.5);
-
-        &self.set_position(monitor_window_position);
-    }
-
     /// Turn window decorations on or off.
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
@@ -457,9 +418,7 @@ impl Window {
     #[inline]
     pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
         let data = self.window.get_available_monitors();
-        AvailableMonitorsIter {
-            data: data.into_iter(),
-        }
+        AvailableMonitorsIter { data: data.into_iter() }
     }
 
     /// Returns the primary monitor of the system.
@@ -467,9 +426,7 @@ impl Window {
     /// This is the same as `EventsLoop::get_primary_monitor`, and is provided for convenience.
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId {
-            inner: self.window.get_primary_monitor(),
-        }
+        MonitorId { inner: self.window.get_primary_monitor() }
     }
 
     #[inline]
@@ -503,7 +460,7 @@ impl Iterator for AvailableMonitorsIter {
 /// Identifier for a monitor.
 #[derive(Debug, Clone)]
 pub struct MonitorId {
-    pub(crate) inner: platform::MonitorId,
+    pub(crate) inner: platform::MonitorId
 }
 
 impl MonitorId {
