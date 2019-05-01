@@ -18,6 +18,7 @@ pub struct XConnection {
     pub xcursor: ffi::Xcursor,
     pub xinput2: ffi::XInput2,
     pub xlib_xcb: ffi::Xlib_xcb,
+    pub xrender: ffi::Xrender,
     pub display: *mut ffi::Display,
     pub x11_fd: c_int,
     pub latest_error: Mutex<Option<XError>>,
@@ -37,6 +38,7 @@ impl XConnection {
         let xrandr_1_5 = ffi::Xrandr::open().ok();
         let xinput2 = ffi::XInput2::open()?;
         let xlib_xcb = ffi::Xlib_xcb::open()?;
+        let xrender = ffi::Xrender::open()?;
 
         unsafe { (xlib.XInitThreads)() };
         unsafe { (xlib.XSetErrorHandler)(error_handler) };
@@ -62,6 +64,7 @@ impl XConnection {
             xcursor,
             xinput2,
             xlib_xcb,
+            xrender,
             display,
             x11_fd: fd,
             latest_error: Mutex::new(None),
