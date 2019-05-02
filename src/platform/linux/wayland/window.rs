@@ -115,7 +115,6 @@ impl Window {
         let need_frame_refresh = Arc::new(Mutex::new(true));
         let frame = Arc::new(Mutex::new(frame));
 
-
         evlp.store.lock().unwrap().windows.push(InternalWindow {
             closed: false,
             newsize: None,
