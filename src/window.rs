@@ -427,7 +427,7 @@ impl Window {
         monitor_window_position.y =
             monitor_position.y + (monitor_size.height * 0.5) - (&window_size.height * 0.5);
 
-        &self.set_position(monitor_window_position);
+        self.set_position(monitor_window_position);
     }
 
     /// Change whether or not the window will always be on top of other windows.
