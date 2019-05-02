@@ -27,11 +27,9 @@ fn main() {
         // At present, this only does anything on Windows and X11, so if you want to save load
         // time, you can put icon loading behind a function that returns `None` on other platforms.
         .with_window_icon(Some(icon))
-        .with_centering(true)
         .build(&events_loop)
         .unwrap();
     
-    //window.center();
 
     events_loop.run_forever(|event| {
         if let winit::Event::WindowEvent { event, .. } = event {

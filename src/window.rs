@@ -69,18 +69,18 @@ impl WindowBuilder {
         self
     }
 
-        /// Sets so the window will start centered on screen.
+    /// Sets whether or not window will start centered on screen.
     #[inline]
     pub fn with_centering(mut self, centered: bool) -> WindowBuilder {
         self.window.center_window = centered;
         self
     }
 
-    /// Sets what monitor the window will start in.
-    /// where -1 is the users primary monitor.
+    /// Sets which monitor the window will start in.
+    /// where `-1` is the user's primary monitor.
     #[inline]
-    pub fn with_target_monitor(mut self, start_monitor: i16) -> WindowBuilder {
-        self.window.start_monitor = start_monitor;
+    pub fn with_target_monitor(mut self, monitor_index: i16) -> WindowBuilder {
+        self.window.monitor_index = monitor_index;
         self
     }
 
@@ -395,15 +395,16 @@ impl Window {
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
     }
-        /// Centers the window on the current monitor the window lives in.
+    
+    /// Centers the window on the current monitor the window lives in.
     pub fn center(&self) {
         self.set_centered(self.get_current_monitor())
     }
 
     /// Centers the window on the specified target monitor, falls back to primary monitor if out range.
-    pub fn set_center_monitor(&self, monitor_target: usize) {
-        if monitor_target < self.get_available_monitors().count() {
-            self.set_centered(self.get_available_monitors().nth(monitor_target).unwrap())
+    pub fn set_target_monitor(&self, monitor_index: usize) {
+        if monitor_index < self.get_available_monitors().count() {
+            self.set_centered(self.get_available_monitors().nth(monitor_index).unwrap())
         } else {
             self.set_centered(self.get_primary_monitor());
         }

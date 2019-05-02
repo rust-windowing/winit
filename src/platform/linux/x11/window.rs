@@ -385,11 +385,11 @@ impl UnownedWindow {
                 let window_size = window.get_outer_size();
 
                 let monitor;
-                if window_attrs.start_monitor == -1 {
+                if window_attrs.monitor_index == -1 {
                     monitor = window.get_primary_monitor();
                 } else {
-                    if window_attrs.start_monitor < window.get_available_monitors().len() as i16 {
-                        monitor = window.get_available_monitors()[window_attrs.start_monitor as usize].clone();
+                    if window_attrs.monitor_index < window.get_available_monitors().len() as i16 {
+                        monitor = window.get_available_monitors()[window_attrs.monitor_index as usize].clone();
                     } else {
                         monitor = window.get_primary_monitor();
                     }
