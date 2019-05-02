@@ -79,8 +79,8 @@ impl WindowBuilder {
     /// Sets which monitor the window will start in.
     /// where `-1` is the user's primary monitor.
     #[inline]
-    pub fn with_target_monitor(mut self, monitor_index: i16) -> WindowBuilder {
-        self.window.monitor_index = monitor_index;
+    pub fn with_target_monitor(mut self, monitor_index: Option<MonitorId>) -> WindowBuilder {
+        self.window.start_monitor = monitor_index;
         self
     }
 
@@ -397,21 +397,26 @@ impl Window {
     }
     
     /// Centers the window on the current monitor the window lives in.
+    /// 
+    /// ## Platform-specific
+    /// 
+    /// This only works on Windows and X11.
+    /// it's not tested on macOS.
+    /// 
+    /// This has no effect on Android, Wayland or iOS.
     pub fn center(&self) {
         self.set_centered(self.get_current_monitor())
     }
 
-    /// Centers the window on the specified target monitor, falls back to primary monitor if out range.
-    pub fn set_target_monitor(&self, monitor_index: usize) {
-        if monitor_index < self.get_available_monitors().count() {
-            self.set_centered(self.get_available_monitors().nth(monitor_index).unwrap())
-        } else {
-            self.set_centered(self.get_primary_monitor());
-        }
-    }
-
     /// Sets the window position to be in the center of the given monitor.
     /// Will do nothing if the window is in fullscreen.
+    /// 
+    /// ## Platform-specific
+    /// 
+    /// This only works on Windows and X11.
+    /// it's not tested on macOS.
+    /// 
+    /// This has no effect on Android, Wayland or iOS.
     pub fn set_centered(&self, monitor: MonitorId) {
         let window_size = match self.get_outer_size() {
             Some(logical_size) => logical_size,

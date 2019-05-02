@@ -81,6 +81,7 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Window maximization**: The windows created by winit can be maximized upon creation.
 - **Window maximization toggle**: The windows created by winit can be maximized and unmaximized after
   creation.
+- **Window centering**: Sets the window position to be in the center of the given monitor.
 - **Fullscreen**: The windows created by winit can be put into fullscreen mode.
 - **Fullscreen toggle**: The windows created by winit can be switched to and from fullscreen after
   creation.
@@ -88,7 +89,6 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Popup / modal windows**: Windows can be created relative to the client area of other windows, and parent
   windows can be disabled in favor of popup windows. This feature also guarantees that popup windows
   get drawn above their owner.
-- **Window centering**: Sets the window position to be in the center of the given monitor.
 
 ### System Information
 - **Monitor list**: Retrieve the list of monitors and their metadata, including which one is primary.
@@ -154,6 +154,7 @@ Legend:
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
 |Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
+|Window centering                 |✔️     |❌     |✔️         |❌             |**N/A**|**N/A**|**N/A**   |
 |Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
 |HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️         |

@@ -728,14 +728,10 @@ unsafe fn init(
         let window_size = win.get_outer_size();
 
         let monitor;
-        if attributes.monitor_index == -1 {
+        if attributes.start_monitor.is_none() {
             monitor = win.get_primary_monitor();
         } else {
-            if attributes.monitor_index < win.get_available_monitors().len() as i16 {
-                monitor = win.get_available_monitors()[attributes.monitor_index as usize].clone();
-            } else {
-                monitor = win.get_primary_monitor();
-            }
+            monitor = attributes.start_monitor.unwrap().inner;
         }
 
         let monitor_size = monitor.get_dimensions();

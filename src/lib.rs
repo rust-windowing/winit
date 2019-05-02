@@ -515,10 +515,10 @@ pub struct WindowAttributes {
     /// The default is `true`.
     pub center_window: bool,
 
-    /// Decides which monitor the window will start on. The user's primary monitor is `-1`.
+    /// Decides which monitor the window will start on. The user's primary monitor is `None`.
     ///
-    /// The default is `-1`,
-    pub monitor_index: i16,
+    /// The default is `None`,
+    pub start_monitor: Option<MonitorId>,
 
     /// The window icon.
     ///
@@ -542,7 +542,7 @@ impl Default for WindowAttributes {
             maximized: false,
             fullscreen: None,
             center_window: true,
-            monitor_index: -1,
+            start_monitor: None,
             visible: true,
             transparent: false,
             decorations: true,
