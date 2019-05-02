@@ -71,10 +71,13 @@ impl Window {
         register(&target.runner, &canvas);
 
         let runner = target.runner.clone();
-        let redraw = Box::new(move || window().request_animation_frame(|| runner.send_event(Event::WindowEvent {
-            window_id: RootWI(WindowId),
-            event: WindowEvent::RedrawRequested
-        })));
+        let redraw = Box::new(move || {
+            let runner = runner.clone();
+            window().request_animation_frame(move |_| runner.send_event(Event::WindowEvent {
+                window_id: RootWI(WindowId),
+                event: WindowEvent::RedrawRequested
+            }));
+        });
 
         let window = Window {
             canvas,
