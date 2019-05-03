@@ -727,12 +727,10 @@ unsafe fn init(
     if attributes.center_window && !&attributes.fullscreen.is_some(){
         let window_size = win.get_outer_size();
 
-        let monitor;
-        if attributes.start_monitor.is_none() {
-            monitor = win.get_primary_monitor();
-        } else {
-            monitor = attributes.start_monitor.unwrap().inner;
-        }
+        let monitor = match attributes.start_monitor {
+            None => win.get_primary_monitor(),
+            Some(m) => m.inner,
+        };
 
         let monitor_size = monitor.get_dimensions();
         let monitor_position = monitor.get_position();

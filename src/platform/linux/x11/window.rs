@@ -384,18 +384,13 @@ impl UnownedWindow {
             {
                 let window_size = window.get_outer_size();
 
-                let monitor_size;
-                let monitor_position;
+                let monitor = match window_attrs.start_monitor {
+                    None => window.get_primary_monitor(),
+                    Some(m) => m.inner,
+                };
 
-                if window_attrs.start_monitor.is_none() {
-                    let monitor = window.get_primary_monitor();
-                    monitor_size = monitor.get_dimensions();
-                    monitor_position = monitor.get_position();
-                } else {
-                    let monitor = window_attrs.start_monitor.unwrap().inner;
-                    monitor_size = monitor.get_dimensions();
-                    monitor_position = monitor.get_position();
-                }
+                monitor_size = monitor.get_dimensions();
+                monitor_position = monitor.get_position();
 
 
                 let mut monitor_window_position: LogicalPosition = (0.0, 0.0).into();

@@ -401,7 +401,7 @@ impl Window {
     /// ## Platform-specific
     /// 
     /// This only works on Windows and X11.
-    /// it's not tested on macOS.
+    /// It's not tested on macOS.
     /// 
     /// This has no effect on Android, Wayland or iOS.
     pub fn center(&self) {
@@ -414,7 +414,7 @@ impl Window {
     /// ## Platform-specific
     /// 
     /// This only works on Windows and X11.
-    /// it's not tested on macOS.
+    /// It's not tested on macOS.
     /// 
     /// This has no effect on Android, Wayland or iOS.
     pub fn set_centered(&self, monitor: MonitorId) {

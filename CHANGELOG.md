@@ -1,6 +1,6 @@
 # Unreleased
 - Added to `WindowAttributes` the attributes `center_window: bool` and `start_monitor: i16`. Window centering is by default enabled.
-- Added the following convenience functions for managing window centering: center(), and set_centered(). Refer to the documentation for how to use them.
+- Added the following convenience functions for managing window centering: `center()`, and `set_centered()`. Refer to the documentation for how to use them.
 # Version 0.19.1 (2019-04-08)
 
 - On Wayland, added a `get_wayland_display` function to `EventsLoopExt`.
