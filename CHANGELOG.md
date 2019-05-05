@@ -1,5 +1,7 @@
 # Unreleased
 
+- On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
+
 # Version 0.19.1 (2019-04-08)
 
 - On Wayland, added a `get_wayland_display` function to `EventsLoopExt`.

@@ -23,7 +23,7 @@ pub fn calc_dpi_factor(
     }
 
     // See http://xpra.org/trac/ticket/728 for more information.
-    if width_mm == 0 || width_mm == 0 {
+    if width_mm == 0 || height_mm == 0 {
         warn!("XRandR reported that the display's 0mm in size, which is certifiably insane");
         return 1.0;
     }
