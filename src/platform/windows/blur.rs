@@ -88,12 +88,14 @@ impl Implementation for Dwm {
 
 struct AcrylicBlur;
 
+/// SetWindowCompositionAttribute function pointer
+type SwcaFn = unsafe extern "system" fn(
+    hwnd: HWND,
+    attribute: *const WindowCompositionAttributeData
+) -> raw::c_int;
+
 struct AcrylicBlurPointers {
-    swca: libloading::Symbol<
-        'static,
-        unsafe extern "system" fn(hwnd: HWND, attribute: *const WindowCompositionAttributeData)
-            -> raw::c_int,
-    >,
+    swca: libloading::Symbol<'static, SwcaFn>,
 }
 
 impl AcrylicBlurPointers {
@@ -109,11 +111,11 @@ impl AcrylicBlurPointers {
 #[repr(u32)]
 enum AccentState {
     Disable = 0,
-    // EnableGradient = 1,
-    // EnableTransparentGradient = 2,
+    EnableGradient = 1,
+    EnableTransparentGradient = 2,
     EnableBlurBehind = 3,
-    // EnableAcrylicBlurBehind = 4,
-    // InvalidState = 5,
+    EnableAcrylicBlurBehind = 4,
+    InvalidState = 5,
 }
 
 #[repr(C)]
@@ -177,18 +179,5 @@ impl Implementation for AcrylicBlur {
                 size: ::std::mem::size_of::<AccentPolicy>() as _,
             },
         );
-
-        unsafe {
-            let res = winuser::RedrawWindow(
-                window.0,
-                ptr::null(),
-                ptr::null_mut(),
-                winuser::RDW_INVALIDATE | winuser::RDW_UPDATENOW,
-            );
-            println!("res {}, err {}", res, errhandlingapi::GetLastError());
-
-            let res = winuser::SendMessageW(window.0, winuser::WM_ERASEBKGND, 0, 0);
-            println!("res {}, err {}", res, errhandlingapi::GetLastError());
-        }
     }
 }

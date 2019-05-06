@@ -473,7 +473,8 @@ pub unsafe extern "system" fn callback(
                 window_id: SuperWindowId(WindowId(window)),
                 event: Refresh,
             });
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
+            //winuser::DefWindowProcW(window, msg, wparam, lparam) // TODO: Why was this here?
+            0
         },
 
         // WM_MOVE supplies client area positions, so we send Moved here instead.
