@@ -12,6 +12,10 @@ winit = "0.20.0-alpha1"
 
 ## [Documentation](https://docs.rs/winit)
 
+For features _within_ the scope of winit, see [FEATURES.md](FEATURES.md).
+
+For features _outside_ the scope of winit, see [Missing features provided by other crates](https://github.com/rust-windowing/winit/wiki/Missing-features-provided-by-other-crates) in the wiki.
+
 ## Contact Us
 
 Join us in any of these:
