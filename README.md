@@ -1,6 +1,6 @@
 # winit - Cross-platform window creation and management in Rust
 
-[![](http://meritbadge.herokuapp.com/winit)](https://crates.io/crates/winit)
+[![Crates.io](https://img.shields.io/crates/v/winit.svg)](https://crates.io/crates/winit)
 [![Docs.rs](https://docs.rs/winit/badge.svg)](https://docs.rs/winit)
 [![Build Status](https://travis-ci.org/rust-windowing/winit.svg?branch=master)](https://travis-ci.org/rust-windowing/winit)
 [![Build status](https://ci.appveyor.com/api/projects/status/hr89but4x1n3dphq/branch/master?svg=true)](https://ci.appveyor.com/project/Osspial/winit/branch/master)
