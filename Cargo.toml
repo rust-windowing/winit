@@ -6,7 +6,7 @@ description = "Cross-platform window creation library."
 keywords = ["windowing"]
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/tomaka/winit"
+repository = "https://github.com/rust-windowing/winit"
 documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
