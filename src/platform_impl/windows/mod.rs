@@ -65,6 +65,8 @@ impl WindowId {
     }
 }
 
+pub type OsSpecificWindowEvent = crate::platform::windows::OsSpecificWindowEvent;
+
 mod dpi;
 mod drop_handler;
 mod event;

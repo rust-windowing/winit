@@ -177,6 +177,9 @@ pub enum WindowEvent {
     ///
     /// For more information about DPI in general, see the [`dpi`](dpi/index.html) module.
     HiDpiFactorChanged(f64),
+
+    /// Subscribed OS specific message.
+    OsSpecific(platform_impl::OsSpecificWindowEvent),
 }
 
 /// Identifier of an input device.
@@ -499,7 +502,7 @@ pub enum VirtualKeyCode {
     Multiply,
     Mute,
     MyComputer,
-    NavigateForward, // also called "Prior"
+    NavigateForward,  // also called "Prior"
     NavigateBackward, // also called "Next"
     NextTrack,
     NoConvert,

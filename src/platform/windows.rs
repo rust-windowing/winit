@@ -4,6 +4,9 @@ use std::os::raw::c_void;
 
 use libc;
 use winapi::shared::windef::HWND;
+use winapi::shared::minwindef::{UINT, WPARAM, LPARAM, LRESULT};
+
+use std::fmt;
 
 use event::DeviceId;
 use monitor::MonitorHandle;
@@ -116,5 +119,72 @@ impl DeviceIdExtWindows for DeviceId {
     #[inline]
     fn get_persistent_identifier(&self) -> Option<String> {
         self.0.get_persistent_identifier()
+    }
+}
+
+/// Unprocessed window event that are specific to Windows.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OsSpecificWindowEvent {
+    pub(crate) window: HWND,
+    pub(crate) msg: UINT,
+    pub(crate) wparam: WPARAM,
+    pub(crate) lparam: LPARAM,
+    pub(crate) retval: *mut Option<LRESULT>,
+}
+
+impl OsSpecificWindowEvent {
+    /// The message identifier of the window event (`WM_*`).
+    #[inline]
+    pub fn message(&self) -> u32 {
+        self.msg
+    }
+
+    /// The first parameter of the window event (`WPARAM`).
+    #[inline]
+    pub fn wparam(&self) -> usize {
+        self.wparam
+    }
+
+    /// The second parameter of the window event(`LPARAM`).
+    #[inline]
+    pub fn lparam(&self) -> isize {
+        self.lparam
+    }
+
+    /// Marks the current event processed, returning the specified value
+    /// as the result of the window procedure to the system.
+    /// How the value is interpreted is dependent on the message's type.
+    /// The next window procedure (or subclass window
+    /// procedure) won't be called for this message.
+    ///
+    /// Calling this function outside this event's call to the closure passed to
+    /// [`EventLoop::run`](../../event_loop/struct.EventLoop.html#method.run)
+    /// will result in undefined behavior.
+    #[inline]
+    pub unsafe fn set_reply(&self, val: isize) {
+        *self.retval = Some(val);
+    }
+
+    /// Immediately calls the next window procedure(or subclass window
+    /// procedure), and maps its return value through the user-passed closure.
+    /// How the value is interpreted is dependent on the message's type.
+    ///
+    /// This function must not be called more than once for each message.
+    ///
+    /// Calling this function outside this event's call to the closure passed to
+    /// [`EventLoop::run`](../../event_loop/struct.EventLoop.html#method.run)
+    /// will result in undefined behavior.
+    #[inline]
+    pub unsafe fn set_overriden_reply(&self, f: impl FnOnce(isize) -> isize) {
+        use winapi::um::commctrl;
+        let retval = f(commctrl::DefSubclassProc(self.window, self.msg, self.wparam, self.lparam));
+        *self.retval = Some(retval);
+    }
+}
+
+
+impl fmt::Debug for OsSpecificWindowEvent {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+        fmtr.pad("OsSpecificWindowEvent { .. }")
     }
 }

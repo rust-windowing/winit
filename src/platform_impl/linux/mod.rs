@@ -575,3 +575,6 @@ fn sticky_exit_callback<T, F>(
     // user callback
     callback(evt, target, cf)
 }
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OsSpecificWindowEvent;

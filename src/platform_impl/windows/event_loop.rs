@@ -1497,7 +1497,25 @@ unsafe extern "system" fn public_window_callback<T>(
                 );
                 0
             } else {
-                commctrl::DefSubclassProc(window, msg, wparam, lparam)
+                use platform_impl::platform::OsSpecificWindowEvent;
+                let mut retval: Option<LRESULT> = None;
+
+                subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::OsSpecific(OsSpecificWindowEvent {
+                        window,
+                        msg,
+                        wparam,
+                        lparam,
+                        retval: &mut retval as _,
+                    }),
+                });
+
+                if let Some(retval) = retval {
+                    retval
+                } else {
+                    commctrl::DefSubclassProc(window, msg, wparam, lparam)
+                }
             }
         }
     }

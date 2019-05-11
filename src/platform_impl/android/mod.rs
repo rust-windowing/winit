@@ -429,3 +429,6 @@ unsafe impl Sync for Window {}
 
 // Constant device ID, to be removed when this backend is updated to report real device IDs.
 const DEVICE_ID: ::DeviceId = ::DeviceId(DeviceId);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OsSpecificWindowEvent;
