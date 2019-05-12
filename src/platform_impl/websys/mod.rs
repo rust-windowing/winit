@@ -4,4 +4,5 @@ pub use self::window::{DeviceId, MonitorHandle, Window, WindowId, PlatformSpecif
 #[macro_use]
 mod wasm_util;
 mod event_loop;
+mod event;
 pub mod window;

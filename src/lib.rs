@@ -111,6 +111,10 @@ extern crate percent_encoding;
 extern crate smithay_client_toolkit as sctk;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 extern crate calloop;
+#[cfg(all(target_arch = "wasm32", target_os = "unknown", feature = "websys"))]
+extern crate wasm_bindgen;
+#[cfg(all(target_arch = "wasm32", target_os = "unknown", feature = "websys"))]
+extern crate web_sys;
 
 pub mod dpi;
 #[macro_use]

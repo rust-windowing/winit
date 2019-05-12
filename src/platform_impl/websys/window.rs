@@ -1,5 +1,3 @@
-extern crate wasm_bindgen;
-
 use window::{WindowAttributes, CreationError, MouseCursor};
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -8,8 +6,8 @@ use dpi::{PhysicalPosition, LogicalPosition, PhysicalSize, LogicalSize};
 use icon::Icon;
 use super::event_loop::{EventLoopWindowTarget};
 
-use self::wasm_bindgen::prelude::*;
-use self::wasm_bindgen::JsCast;
+use ::wasm_bindgen::prelude::*;
+use ::wasm_bindgen::JsCast;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(u32);
@@ -83,7 +81,7 @@ impl MonitorHandle {
 }
 
 pub struct Window {
-    pub(crate) canvas: web_sys::HtmlCanvasElement,
+    pub(crate) canvas: ::web_sys::HtmlCanvasElement,
     internal: Rc<WindowInternal>
 }
 
@@ -109,7 +107,7 @@ impl Window {
                            attr: WindowAttributes,
                            ps_attr: PlatformSpecificWindowBuilderAttributes) 
                            -> Result<Window, CreationError> {
-        let window = web_sys::window()
+        let window = ::web_sys::window()
             .expect("No global window object found!");
         let document = window.document()
             .expect("Global window does not have a document!");
@@ -118,7 +116,7 @@ impl Window {
             ElementSelection::CanvasId(id) => {
                 document.get_element_by_id(&id)
                     .expect(&format!("No canvas with ID {} found", id))
-                    .dyn_into::<web_sys::HtmlCanvasElement>().unwrap()
+                    .dyn_into::<::web_sys::HtmlCanvasElement>().unwrap()
             },
             ElementSelection::ContainerId(id) => {
                 let parent = document.get_element_by_id(&id)
@@ -126,7 +124,7 @@ impl Window {
                 
                 let canvas = document.create_element("canvas")
                     .expect("Could not create a canvas")
-                    .dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+                    .dyn_into::<::web_sys::HtmlCanvasElement>().unwrap();
                 
                 parent.append_child(&canvas);
 
@@ -142,15 +140,10 @@ impl Window {
 
         // TODO: install WindowEvent handlers
         let mut win = internal.clone();
-        let click_handler = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
+        let click_handler = Closure::wrap(Box::new(move |event: ::web_sys::MouseEvent| {
             // TODO: process the event
-            win.pending_events.borrow_mut().push(::event::WindowEvent::MouseInput {
-                device_id: ::event::DeviceId(DeviceId(0)),
-                state: ::event::ElementState::Pressed,
-                button: ::event::MouseButton::Left,
-                modifiers: Default::default()
-            });
-        }) as Box<FnMut(web_sys::MouseEvent)>);
+            win.pending_events.borrow_mut().push(event.into());
+        }) as Box<FnMut(::web_sys::MouseEvent)>);
         element.set_onmousedown(Some(click_handler.as_ref().unchecked_ref()));
         click_handler.forget();
 

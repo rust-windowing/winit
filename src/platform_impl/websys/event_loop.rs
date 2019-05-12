@@ -1,6 +1,3 @@
-extern crate web_sys;
-extern crate wasm_bindgen;
-
 use event_loop::{ControlFlow, EventLoopClosed};
 use event::Event;
 use super::window::{MonitorHandle, Window, WindowId, WindowInternal};
@@ -11,9 +8,9 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use self::wasm_bindgen::prelude::*;
-use self::wasm_bindgen::JsCast;
-use self::web_sys::Element;
+use ::wasm_bindgen::prelude::*;
+use ::wasm_bindgen::JsCast;
+use ::web_sys::Element;
 
 pub struct EventLoop<T: 'static> {
     window_target: ::event_loop::EventLoopWindowTarget<T>

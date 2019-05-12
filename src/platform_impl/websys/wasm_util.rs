@@ -1,7 +1,4 @@
-extern crate wasm_bindgen;
-extern crate web_sys;
-
-use self::wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::*;
 use window::CreationError;
 
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.

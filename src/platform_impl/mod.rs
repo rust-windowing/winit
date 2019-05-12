@@ -18,7 +18,7 @@ mod platform;
 #[cfg(target_os = "emscripten")]
 #[path="emscripten/mod.rs"]
 mod platform;
-#[cfg(all(target_arch = "wasm32", feature = "websys"))]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown", feature = "websys"))]
 #[path="websys/mod.rs"]
 mod platform;
 
