@@ -95,6 +95,17 @@ impl WindowInternal {
     }
 }
 
+macro_rules! install_simple_handler {
+    ($in:ty, $f:ident, $w:ident, $e:ident) => {
+        let mut win = $w.clone();
+        let handler = Closure::wrap(Box::new(move |event: $in| {
+            win.pending_events.borrow_mut().push(event.into());
+        }) as Box<FnMut($in)>);
+        $e.$f(Some(handler.as_ref().unchecked_ref()));
+        handler.forget();
+    }
+}
+
 impl Window {
     /// Creates a new Window for platforms where this is appropriate.
     ///
@@ -138,14 +149,11 @@ impl Window {
 
         target.set_window(internal.clone());
 
-        // TODO: install WindowEvent handlers
-        let mut win = internal.clone();
-        let click_handler = Closure::wrap(Box::new(move |event: ::web_sys::MouseEvent| {
-            // TODO: process the event
-            win.pending_events.borrow_mut().push(event.into());
-        }) as Box<FnMut(::web_sys::MouseEvent)>);
-        element.set_onmousedown(Some(click_handler.as_ref().unchecked_ref()));
-        click_handler.forget();
+        install_simple_handler!(::web_sys::MouseEvent, set_onmousedown, internal, element);
+        install_simple_handler!(::web_sys::MouseEvent, set_onmouseup, internal, element);
+        install_simple_handler!(::web_sys::MouseEvent, set_onmouseenter, internal, element);
+        install_simple_handler!(::web_sys::MouseEvent, set_onmouseleave, internal, element);
+
 
         Ok(Window {
             canvas: element,
