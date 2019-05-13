@@ -2,4 +2,4 @@
 - [ ] Added an entry to `CHANGELOG.md` if knowledge of this change could be valuable to users
 - [ ] Updated documentation to reflect any user-facing changes, including notes of platform-specific behavior
 - [ ] Created an example program if it would help users understand this functionality
-- [ ] Updated [feature matrix](https://github.com/tomaka/winit/blob/master/FEATURES.md), if new features were added or implemented
+- [ ] Updated [feature matrix](https://github.com/rust-windowing/winit/blob/master/FEATURES.md), if new features were added or implemented

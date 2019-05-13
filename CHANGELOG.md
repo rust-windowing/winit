@@ -2,6 +2,7 @@
 
 - Added to `WindowAttributes` the `center_window: Option<MonitorId>`.
 - Added the following function for managing window centering `set_centered()`.
+- On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
 
 # Version 0.19.1 (2019-04-08)
 
