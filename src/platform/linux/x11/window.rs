@@ -380,13 +380,13 @@ impl UnownedWindow {
                 window.set_always_on_top_inner(window_attrs.always_on_top).queue();
             }
 
-            if window_attrs.center_window && !window_attrs.fullscreen.is_some() 
+            if window_attrs.center_window.is_some() && !window_attrs.fullscreen.is_some() 
             {
                 let window_size = window.get_outer_size();
 
                 let monitor_size; let monitor_position;
                 
-                match window_attrs.start_monitor {
+                match window_attrs.center_window {
                     None => { monitor_size = window.get_primary_monitor().get_dimensions(); monitor_position = window.get_primary_monitor().get_position(); }
                     Some(m) => { monitor_size = m.inner.get_dimensions(); monitor_position = m.inner.get_position(); }
                 };

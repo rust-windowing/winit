@@ -154,7 +154,7 @@ Legend:
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
 |Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
-|Window centering                 |✔️     |❌     |✔️         |❌             |**N/A**|**N/A**|**N/A**   |
+|Window centering                 |✔️     |❌     |✔️         |**N/A**         |**N/A**|**N/A**|**N/A**   |
 |Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
 |HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️         |

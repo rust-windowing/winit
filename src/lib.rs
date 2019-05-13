@@ -510,15 +510,10 @@ pub struct WindowAttributes {
     /// The default is `false`.
     pub always_on_top: bool,
 
-    /// Whether the window will be centered on screen.
-    ///
-    /// The default is `true`.
-    pub center_window: bool,
-
-    /// Decides which monitor the window will start on. The user's primary monitor is `None`.
+    /// Decides which monitor the window will start on.
     ///
     /// The default is `None`,
-    pub start_monitor: Option<MonitorId>,
+    pub center_window: Option<MonitorId>,
 
     /// The window icon.
     ///
@@ -541,8 +536,7 @@ impl Default for WindowAttributes {
             title: "winit window".to_owned(),
             maximized: false,
             fullscreen: None,
-            center_window: true,
-            start_monitor: None,
+            center_window: None,
             visible: true,
             transparent: false,
             decorations: true,
