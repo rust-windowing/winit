@@ -730,7 +730,7 @@ unsafe fn init<T: 'static>(
     window_flags.set(WindowFlags::MAXIMIZED, attributes.maximized);
 
     let window_state = {
-        let mut window_state = WindowState::new(
+        let window_state = WindowState::new(
             &attributes,
             window_icon,
             taskbar_icon,
