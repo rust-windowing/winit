@@ -21,6 +21,7 @@ fn main() {
             Event::NewEvents(StartCause::ResumeTimeReached{..}) => {
                 *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0));
                 println!("\nTimer\n");
+                _window.set_inner_size(winit::dpi::LogicalSize::new(300.0, 300.0));
             },
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,

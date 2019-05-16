@@ -839,6 +839,10 @@ unsafe extern "system" fn public_window_callback<T>(
             use event::WindowEvent::RedrawRequested;
             let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
             if let Some(ref mut runner) = *runner {
+                // This check makes sure that calls to `request_redraw()` during `EventsCleared`
+                // handling dispatch `RedrawRequested` immediately after `EventsCleared`, without
+                // spinning up a new event loop iteration. We do this because that's what the API
+                // says to do.
                 match runner.runner_state {
                     RunnerState::Idle(..) |
                     RunnerState::DeferredNewEvents(..) => runner.call_event_handler(Event::WindowEvent {
@@ -852,25 +856,10 @@ unsafe extern "system" fn public_window_callback<T>(
         },
         winuser::WM_PAINT => {
             use event::WindowEvent::RedrawRequested;
-            let event = || Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: RedrawRequested,
-            };
-
-            let mut send_event = false;
-            {
-                let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
-                if let Some(ref mut runner) = *runner {
-                    match runner.runner_state {
-                        RunnerState::Idle(..) |
-                        RunnerState::DeferredNewEvents(..) => runner.call_event_handler(event()),
-                        _ => send_event = true
-                    }
-                }
-            }
-            if send_event {
-                subclass_input.send_event(event());
-            }
+            });
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
