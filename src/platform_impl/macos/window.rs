@@ -636,9 +636,15 @@ impl UnownedWindow {
         trace!("Unlocked shared state in `set_maximized`");
     }
 
-    // TODO: `set_fullscreen` is only usable if you fullscreen on the same
-    // monitor the window's currently on.
     #[inline]
+    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
+        let shared_state_lock = self.shared_state.lock().unwrap();
+        shared_state_lock.fullscreen.clone()
+    }
+
+    #[inline]
+    /// TODO: Right now set_fullscreen do not work on switching monitors
+    /// in fullscreen mode
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
         let shared_state_lock = self.shared_state.lock().unwrap();
         if shared_state_lock.is_simple_fullscreen {
@@ -783,6 +789,12 @@ impl WindowExtMacOS for UnownedWindow {
                 false => NSRequestUserAttentionType::NSInformationalRequest,
             });
         }
+    }
+
+    #[inline]
+    fn get_simple_fullscreen(&self) -> bool {
+        let shared_state_lock = self.shared_state.lock().unwrap();
+        shared_state_lock.is_simple_fullscreen
     }
 
     #[inline]
