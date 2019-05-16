@@ -84,17 +84,17 @@ pub struct WindowAttributes {
     /// used.
     ///
     /// The default is `None`.
-    pub dimensions: Option<LogicalSize>,
+    pub inner_size: Option<LogicalSize>,
 
     /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
     ///
     /// The default is `None`.
-    pub min_dimensions: Option<LogicalSize>,
+    pub min_inner_size: Option<LogicalSize>,
 
     /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
     ///
     /// The default is `None`.
-    pub max_dimensions: Option<LogicalSize>,
+    pub max_inner_size: Option<LogicalSize>,
 
     /// Whether the window is resizable or not.
     ///
@@ -151,9 +151,9 @@ impl Default for WindowAttributes {
     #[inline]
     fn default() -> WindowAttributes {
         WindowAttributes {
-            dimensions: None,
-            min_dimensions: None,
-            max_dimensions: None,
+            inner_size: None,
+            min_inner_size: None,
+            max_inner_size: None,
             resizable: true,
             title: "winit window".to_owned(),
             maximized: false,
@@ -179,22 +179,22 @@ impl WindowBuilder {
 
     /// Requests the window to be of specific dimensions.
     #[inline]
-    pub fn with_dimensions(mut self, size: LogicalSize) -> WindowBuilder {
-        self.window.dimensions = Some(size);
+    pub fn with_inner_size(mut self, size: LogicalSize) -> WindowBuilder {
+        self.window.inner_size = Some(size);
         self
     }
 
     /// Sets a minimum dimension size for the window
     #[inline]
-    pub fn with_min_dimensions(mut self, min_size: LogicalSize) -> WindowBuilder {
-        self.window.min_dimensions = Some(min_size);
+    pub fn with_min_inner_size(mut self, min_size: LogicalSize) -> WindowBuilder {
+        self.window.min_inner_size = Some(min_size);
         self
     }
 
     /// Sets a maximum dimension size for the window
     #[inline]
-    pub fn with_max_dimensions(mut self, max_size: LogicalSize) -> WindowBuilder {
-        self.window.max_dimensions = Some(max_size);
+    pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> WindowBuilder {
+        self.window.max_inner_size = Some(max_size);
         self
     }
 
@@ -295,7 +295,7 @@ impl WindowBuilder {
     /// out of memory, etc.
     #[inline]
     pub fn build<T: 'static>(mut self, window_target: &EventLoopWindowTarget<T>) -> Result<Window, CreationError> {
-        self.window.dimensions = Some(self.window.dimensions.unwrap_or_else(|| {
+        self.window.inner_size = Some(self.window.inner_size.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
                 LogicalSize::from_physical(monitor.get_dimensions(), 1.0)
@@ -335,26 +335,12 @@ impl Window {
         self.window.set_title(title)
     }
 
-    /// Shows the window if it was hidden.
+    /// Modifies the window's visibility.
     ///
-    /// ## Platform-specific
-    ///
-    /// - Has no effect on Android
-    ///
+    /// If `false`, this will hide the window. If `true`, this will show the window.
     #[inline]
-    pub fn show(&self) {
-        self.window.show()
-    }
-
-    /// Hides the window if it was visible.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - Has no effect on Android
-    ///
-    #[inline]
-    pub fn hide(&self) {
-        self.window.hide()
+    pub fn set_visible(&self, visible: bool) {
+        self.window.set_visible(visible)
     }
 
     /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
@@ -368,6 +354,7 @@ impl Window {
     /// * While processing `EventsCleared`.
     /// * While processing a `RedrawRequested` event that was sent during `EventsCleared` or any
     ///   directly subsequent `RedrawRequested` event.
+    #[inline]
     pub fn request_redraw(&self) {
         self.window.request_redraw()
     }
@@ -384,14 +371,14 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalPosition> {
-        self.window.get_position()
+    pub fn get_outer_position(&self) -> Option<LogicalPosition> {
+        self.window.get_outer_position()
     }
 
     /// Returns the position of the top-left hand corner of the window's client area relative to the
     /// top-left hand corner of the desktop.
     ///
-    /// The same conditions that apply to `get_position` apply to this method.
+    /// The same conditions that apply to `get_outer_position` apply to this method.
     #[inline]
     pub fn get_inner_position(&self) -> Option<LogicalPosition> {
         self.window.get_inner_position()
@@ -399,12 +386,12 @@ impl Window {
 
     /// Modifies the position of the window.
     ///
-    /// See `get_position` for more information about the coordinates.
+    /// See `get_outer_position` for more information about the coordinates.
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_position(&self, position: LogicalPosition) {
-        self.window.set_position(position)
+    pub fn set_outer_position(&self, position: LogicalPosition) {
+        self.window.set_outer_position(position)
     }
 
     /// Returns the logical size of the window's client area.
@@ -442,14 +429,14 @@ impl Window {
 
     /// Sets a minimum dimension size for the window.
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
-        self.window.set_min_dimensions(dimensions)
+    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
+        self.window.set_min_inner_size(dimensions)
     }
 
     /// Sets a maximum dimension size for the window.
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
-        self.window.set_max_dimensions(dimensions)
+    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
+        self.window.set_max_inner_size(dimensions)
     }
 
     /// Sets whether the window is resizable or not.
@@ -505,8 +492,8 @@ impl Window {
     ///
     /// This has no effect on Android or iOS.
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
-        self.window.grab_cursor(grab)
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), String> {
+        self.window.set_cursor_grab(grab)
     }
 
     /// Hides the cursor, making it invisible but still usable.
@@ -520,8 +507,8 @@ impl Window {
     ///
     /// This has no effect on Android or iOS.
     #[inline]
-    pub fn hide_cursor(&self, hide: bool) {
-        self.window.hide_cursor(hide)
+    pub fn set_cursor_visible(&self, visible: bool) {
+        self.window.set_cursor_visible(visible)
     }
 
     /// Sets the window to maximized or back

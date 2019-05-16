@@ -41,7 +41,7 @@ impl fmt::Debug for MonitorHandle {
             name: self.get_name(),
             native_identifier: self.get_native_identifier(),
             dimensions: self.get_dimensions(),
-            position: self.get_position(),
+            position: self.get_outer_position(),
             hidpi_factor: self.get_hidpi_factor(),
         };
 
@@ -77,7 +77,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn get_position(&self) -> PhysicalPosition {
+    pub fn get_outer_position(&self) -> PhysicalPosition {
         let bounds = unsafe { CGDisplayBounds(self.get_native_identifier()) };
         PhysicalPosition::from_logical(
             (bounds.origin.x as f64, bounds.origin.y as f64),

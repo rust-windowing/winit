@@ -162,7 +162,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn get_position(&self) -> PhysicalPosition {
+    pub fn get_outer_position(&self) -> PhysicalPosition {
         self.position.into()
     }
 

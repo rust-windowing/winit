@@ -29,7 +29,7 @@ pub struct Window {
 
 impl Window {
     pub fn new<T>(evlp: &EventLoopWindowTarget<T>, attributes: WindowAttributes, pl_attribs: PlAttributes) -> Result<Window, CreationError> {
-        let (width, height) = attributes.dimensions.map(Into::into).unwrap_or((800, 600));
+        let (width, height) = attributes.inner_size.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
         let fullscreen = Arc::new(Mutex::new(false));
@@ -109,8 +109,8 @@ impl Window {
         frame.set_title(attributes.title);
 
         // min-max dimensions
-        frame.set_min_size(attributes.min_dimensions.map(Into::into));
-        frame.set_max_size(attributes.max_dimensions.map(Into::into));
+        frame.set_min_size(attributes.min_inner_size.map(Into::into));
+        frame.set_max_size(attributes.max_inner_size.map(Into::into));
 
         let kill_switch = Arc::new(Mutex::new(false));
         let need_frame_refresh = Arc::new(Mutex::new(true));
@@ -165,7 +165,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn get_outer_position(&self) -> Option<LogicalPosition> {
         // Not possible with wayland
         None
     }
@@ -177,7 +177,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_position(&self, _pos: LogicalPosition) {
+    pub fn set_outer_position(&self, _pos: LogicalPosition) {
         // Not possible with wayland
     }
 
@@ -205,12 +205,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
         self.frame.lock().unwrap().set_min_size(dimensions.map(Into::into));
     }
 
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
         self.frame.lock().unwrap().set_max_size(dimensions.map(Into::into));
     }
 
@@ -270,12 +270,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn hide_cursor(&self, _hide: bool) {
+    pub fn set_cursor_visible(&self, _visible: bool) {
         // TODO: This isn't possible on Wayland yet
     }
 
     #[inline]
-    pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), String> {
         Err("Cursor grabbing is not yet possible on Wayland.".to_owned())
     }
 

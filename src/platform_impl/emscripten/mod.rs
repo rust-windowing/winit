@@ -46,7 +46,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn get_position(&self) -> PhysicalPosition {
+    pub fn get_outer_position(&self) -> PhysicalPosition {
         unimplemented!()
     }
 
@@ -163,7 +163,7 @@ impl WindowId {
 
 pub struct Window2 {
     cursor_grabbed: Mutex<bool>,
-    cursor_hidden: Mutex<bool>,
+    cursor_visible: Mutex<bool>,
     is_fullscreen: bool,
     events: Box<Mutex<VecDeque<::Event>>>,
 }
@@ -387,8 +387,8 @@ impl Window {
         }
 
         let w = Window2 {
-            cursor_grabbed: Default::default(),
-            cursor_hidden: Default::default(),
+            cursor_grabbed: Mutex::new(false),
+            cursor_visible: Mutex::new(true),
             events: Default::default(),
             is_fullscreen: attribs.fullscreen.is_some(),
         };
@@ -427,7 +427,7 @@ impl Window {
                 em_try(ffi::emscripten_set_fullscreenchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, Some(fullscreen_callback)))
                     .map_err(|e| ::CreationError::OsError(e))?;
             }
-        } else if let Some(size) = attribs.dimensions {
+        } else if let Some(size) = attribs.inner_size {
             window.set_inner_size(size);
         }
 
@@ -445,7 +445,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn get_outer_position(&self) -> Option<LogicalPosition> {
         Some((0, 0).into())
     }
 
@@ -455,7 +455,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_position(&self, _: LogicalPosition) {
+    pub fn set_outer_position(&self, _: LogicalPosition) {
     }
 
     #[inline]
@@ -497,12 +497,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
         // N/A
     }
 
     #[inline]
-    pub fn set_max_dimensions(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
         // N/A
     }
 
@@ -527,7 +527,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), String> {
         let mut grabbed_lock = self.window.cursor_grabbed.lock().unwrap();
         if grab == *grabbed_lock { return Ok(()); }
         unsafe {
@@ -554,15 +554,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn hide_cursor(&self, hide: bool) {
-        let mut hidden_lock = self.window.cursor_hidden.lock().unwrap();
-        if hide == *hidden_lock { return; }
-        if hide {
-            unsafe { ffi::emscripten_hide_mouse() };
-        } else {
+    pub fn set_cursor_visible(&self, visible: bool) {
+        let mut visible_lock = self.window.cursor_visible.lock().unwrap();
+        if visible == *visible_lock { return; }
+        if visible {
             show_mouse();
+        } else {
+            unsafe { ffi::emscripten_hide_mouse() };
         }
-        *hidden_lock = hide;
+        *visible_lock = visible;
     }
 
     #[inline]
@@ -639,7 +639,7 @@ impl Drop for Window {
         unsafe {
             // Return back to normal cursor state
             self.hide_cursor(false);
-            self.grab_cursor(false);
+            self.set_cursor_grab(false);
 
             // Exit fullscreen if on
             if self.window.is_fullscreen {

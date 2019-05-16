@@ -110,7 +110,7 @@ fn create_window(
         let frame = match screen {
             Some(screen) => appkit::NSScreen::frame(screen),
             None => {
-                let (width, height) = attrs.dimensions
+                let (width, height) = attrs.inner_size
                     .map(|logical| (logical.width, logical.height))
                     .unwrap_or_else(|| (800.0, 600.0));
                 NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height))
@@ -245,7 +245,7 @@ pub struct UnownedWindow {
     pub shared_state: Arc<Mutex<SharedState>>,
     decorations: AtomicBool,
     cursor: Weak<Mutex<util::Cursor>>,
-    cursor_hidden: AtomicBool,
+    cursor_visible: AtomicBool,
 }
 
 unsafe impl Send for UnownedWindow {}
@@ -289,8 +289,8 @@ impl UnownedWindow {
 
             nsapp.activateIgnoringOtherApps_(YES);
 
-            win_attribs.min_dimensions.map(|dim| set_min_dimensions(*nswindow, dim));
-            win_attribs.max_dimensions.map(|dim| set_max_dimensions(*nswindow, dim));
+            win_attribs.min_inner_size.map(|dim| set_min_inner_size(*nswindow, dim));
+            win_attribs.max_inner_size.map(|dim| set_max_inner_size(*nswindow, dim));
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
@@ -317,7 +317,7 @@ impl UnownedWindow {
             shared_state: Arc::new(Mutex::new(win_attribs.into())),
             decorations: AtomicBool::new(decorations),
             cursor,
-            cursor_hidden: Default::default(),
+            cursor_visible: AtomicBool::new(true),
         });
 
         let delegate = new_delegate(&window, fullscreen.is_some());
@@ -395,7 +395,7 @@ impl UnownedWindow {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
 
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn get_outer_position(&self) -> Option<LogicalPosition> {
         let frame_rect = unsafe { NSWindow::frame(*self.nswindow) };
         Some((
             frame_rect.origin.x as f64,
@@ -416,7 +416,7 @@ impl UnownedWindow {
         ).into())
     }
 
-    pub fn set_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: LogicalPosition) {
         let dummy = NSRect::new(
             NSPoint::new(
                 position.x,
@@ -450,17 +450,17 @@ impl UnownedWindow {
         }
     }
 
-    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
         unsafe {
             let dimensions = dimensions.unwrap_or_else(|| (0, 0).into());
-            set_min_dimensions(*self.nswindow, dimensions);
+            set_min_inner_size(*self.nswindow, dimensions);
         }
     }
 
-    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
         unsafe {
             let dimensions = dimensions.unwrap_or_else(|| (!0, !0).into());
-            set_max_dimensions(*self.nswindow, dimensions);
+            set_max_inner_size(*self.nswindow, dimensions);
         }
     }
 
@@ -497,24 +497,24 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), String> {
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
         CGDisplay::associate_mouse_and_mouse_cursor_position(!grab)
             .map_err(|status| format!("Failed to grab cursor: `CGError` {:?}", status))
     }
 
     #[inline]
-    pub fn hide_cursor(&self, hide: bool) {
+    pub fn set_cursor_visible(&self, visible: bool) {
         let cursor_class = class!(NSCursor);
         // macOS uses a "hide counter" like Windows does, so we avoid incrementing it more than once.
         // (otherwise, `hide_cursor(false)` would need to be called n times!)
-        if hide != self.cursor_hidden.load(Ordering::Acquire) {
-            if hide {
-                let _: () = unsafe { msg_send![cursor_class, hide] };
-            } else {
+        if visible != self.cursor_visible.load(Ordering::Acquire) {
+            if visible {
                 let _: () = unsafe { msg_send![cursor_class, unhide] };
+            } else {
+                let _: () = unsafe { msg_send![cursor_class, hide] };
             }
-            self.cursor_hidden.store(hide, Ordering::Release);
+            self.cursor_visible.store(visible, Ordering::Release);
         }
     }
 
@@ -869,7 +869,7 @@ impl Drop for UnownedWindow {
     }
 }
 
-unsafe fn set_min_dimensions<V: NSWindow + Copy>(window: V, mut min_size: LogicalSize) {
+unsafe fn set_min_inner_size<V: NSWindow + Copy>(window: V, mut min_size: LogicalSize) {
     let mut current_rect = NSWindow::frame(window);
     let content_rect = NSWindow::contentRectForFrameRect_(window, NSWindow::frame(window));
     // Convert from client area size to window size
@@ -893,7 +893,7 @@ unsafe fn set_min_dimensions<V: NSWindow + Copy>(window: V, mut min_size: Logica
     }
 }
 
-unsafe fn set_max_dimensions<V: NSWindow + Copy>(window: V, mut max_size: LogicalSize) {
+unsafe fn set_max_inner_size<V: NSWindow + Copy>(window: V, mut max_size: LogicalSize) {
     let mut current_rect = NSWindow::frame(window);
     let content_rect = NSWindow::contentRectForFrameRect_(window, NSWindow::frame(window));
     // Convert from client area size to window size

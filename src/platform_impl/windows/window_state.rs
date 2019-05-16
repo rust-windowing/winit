@@ -95,8 +95,8 @@ impl WindowState {
                 cursor_flags: CursorFlags::empty(),
             },
 
-            min_size: attributes.min_dimensions,
-            max_size: attributes.max_dimensions,
+            min_size: attributes.min_inner_size,
+            max_size: attributes.max_inner_size,
 
             window_icon,
             taskbar_icon,
