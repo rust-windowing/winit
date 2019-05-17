@@ -118,7 +118,7 @@ impl Into<Idiom> for UIUserInterfaceIdiom {
             UIUserInterfaceIdiom::Pad => Idiom::Pad,
             UIUserInterfaceIdiom::TV => Idiom::TV,
             UIUserInterfaceIdiom::CarPlay => Idiom::CarPlay,
-            _ => unimplemented!(),
+            _ => unreachable!(),
         }
     }
 }
@@ -266,7 +266,7 @@ pub type CFRunLoopObserverCallBack = extern "C" fn(
 );
 pub type CFRunLoopTimerCallBack = extern "C" fn(
     timer: CFRunLoopTimerRef,
-    info: *mut c_void
+    info: *mut c_void,
 );
 
 pub enum CFRunLoopObserverContext {}
