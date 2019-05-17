@@ -270,6 +270,26 @@ impl Window {
         warn!("`Window::set_ime_spot` is ignored on iOS")
     }
 
+    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
+        unsafe {
+            let monitor = self.get_current_monitor();
+            let uiscreen = monitor.inner.get_uiscreen();
+            let screen_space_bounds = self.screen_frame();
+            let screen_bounds: CGRect = msg_send![uiscreen, bounds];
+
+            // TODO: track fullscreen instead of relying on brittle float comparisons
+            if screen_space_bounds.origin.x == screen_bounds.origin.x
+                && screen_space_bounds.origin.y == screen_bounds.origin.y
+                && screen_space_bounds.size.width == screen_bounds.size.width
+                && screen_space_bounds.size.height == screen_bounds.size.height
+            {
+                Some(monitor)
+            } else {
+                None
+            }
+        }
+    }
+
     pub fn get_current_monitor(&self) -> RootMonitorHandle {
         unsafe {
             assert_main_thread!("`Window::get_current_monitor` can only be called on the main thread on iOS");
