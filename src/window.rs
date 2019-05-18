@@ -141,10 +141,6 @@ pub struct WindowAttributes {
     ///
     /// The default is `None`.
     pub window_icon: Option<Icon>,
-
-    /// [iOS only] Enable multitouch,
-    /// see [multipleTouchEnabled](https://developer.apple.com/documentation/uikit/uiview/1622519-multipletouchenabled)
-    pub multitouch: bool,
 }
 
 impl Default for WindowAttributes {
@@ -163,7 +159,6 @@ impl Default for WindowAttributes {
             decorations: true,
             always_on_top: false,
             window_icon: None,
-            multitouch: false,
         }
     }
 }
@@ -279,13 +274,6 @@ impl WindowBuilder {
     #[inline]
     pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> WindowBuilder {
         self.window.window_icon = window_icon;
-        self
-    }
-
-    /// Enables multitouch.
-    #[inline]
-    pub fn with_multitouch(mut self) -> WindowBuilder {
-        self.window.multitouch = true;
         self
     }
 

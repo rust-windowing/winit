@@ -534,10 +534,7 @@ impl<T: 'static> EventProcessor<T> {
                         let device_id = mkdid(xev.deviceid);
                         if (xev.flags & ffi::XIPointerEmulated) != 0 {
                             // Deliver multi-touch events instead of emulated mouse events.
-                            let return_now = self
-                                .with_window(xev.event, |window| window.multitouch)
-                                .unwrap_or(true);
-                            if return_now { return; }
+                            return;
                         }
 
                         let modifiers = ModifiersState::from(xev.mods);

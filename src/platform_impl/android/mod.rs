@@ -257,7 +257,7 @@ impl Window {
             return Err(OsError(format!("Android's native window is null")));
         }
 
-        android_glue::set_multitouch(win_attribs.multitouch);
+        android_glue::set_multitouch(true);
 
         Ok(Window {
             native_window: native_window as *const _,

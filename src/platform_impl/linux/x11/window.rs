@@ -66,7 +66,6 @@ pub struct UnownedWindow {
     cursor_grabbed: Mutex<bool>,
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
-    pub multitouch: bool, // never changes
     pub shared_state: Mutex<SharedState>,
     pending_redraws: Arc<::std::sync::Mutex<HashSet<WindowId>>>,
 }
@@ -212,7 +211,6 @@ impl UnownedWindow {
             cursor_grabbed: Mutex::new(false),
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
-            multitouch: window_attrs.multitouch,
             shared_state: SharedState::new(dpi_factor),
             pending_redraws: event_loop.pending_redraws.clone(),
         };
@@ -361,12 +359,10 @@ impl UnownedWindow {
                     | ffi::XI_EnterMask
                     | ffi::XI_LeaveMask
                     | ffi::XI_FocusInMask
-                    | ffi::XI_FocusOutMask;
-                if window_attrs.multitouch {
-                    mask |= ffi::XI_TouchBeginMask
-                        | ffi::XI_TouchUpdateMask
-                        | ffi::XI_TouchEndMask;
-                }
+                    | ffi::XI_FocusOutMask
+                    | ffi::XI_TouchBeginMask
+                    | ffi::XI_TouchUpdateMask
+                    | ffi::XI_TouchEndMask;
                 mask
             };
             xconn.select_xinput_events(window.xwindow, ffi::XIAllMasterDevices, mask).queue();
