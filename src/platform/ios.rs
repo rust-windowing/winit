@@ -142,11 +142,20 @@ impl Default for ValidOrientations {
     }
 }
 
+/// The device [idiom].
+/// 
+/// [idiom]: https://developer.apple.com/documentation/uikit/uidevice/1620037-userinterfaceidiom?language=objc
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Idiom {
     Unspecified,
+
+    /// iPhone and iPod touch.
     Phone,
+
+    /// iPad.
     Pad,
+
+    /// tvOS and Apple TV.
     TV,
     CarPlay,
 }
