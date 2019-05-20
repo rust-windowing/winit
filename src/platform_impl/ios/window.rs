@@ -40,6 +40,7 @@ pub struct Window {
 impl Drop for Window {
     fn drop(&mut self) {
         unsafe {
+            assert_main_thread!("`Window::drop` can only be run on the main thread on iOS");
             let () = msg_send![self.view, release];
             let () = msg_send![self.view_controller, release];
             let () = msg_send![self.window, release];
