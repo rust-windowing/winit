@@ -1,5 +1,8 @@
-use std::collections::VecDeque;
-use std::fmt;
+use std::{
+    collections::VecDeque,
+    fmt,
+    ops::{Deref, DerefMut},
+};
 
 use dpi::{PhysicalPosition, PhysicalSize};
 
@@ -11,8 +14,40 @@ use platform_impl::platform::ffi::{
     NSUInteger,
 };
 
-pub struct MonitorHandle {
+pub struct Inner {
     uiscreen: id,
+}
+
+impl Drop for Inner {
+    fn drop(&mut self) {
+        unsafe {
+            let () = msg_send![self.uiscreen, release];
+        }
+    }
+}
+
+pub struct MonitorHandle {
+    inner: Inner,
+}
+
+impl Deref for MonitorHandle {
+    type Target = Inner;
+
+    fn deref(&self) -> &Inner {
+        unsafe {
+            assert_main_thread!("`MonitorHandle` methods can only be run on the main thread on iOS");
+        }
+        &self.inner
+    }
+}
+
+impl DerefMut for MonitorHandle {
+    fn deref_mut(&mut self) -> &mut Inner {
+        unsafe {
+            assert_main_thread!("`MonitorHandle` methods can only be run on the main thread on iOS");
+        }
+        &mut self.inner
+    }
 }
 
 unsafe impl Send for MonitorHandle {}
@@ -27,7 +62,7 @@ impl Clone for MonitorHandle {
 impl Drop for MonitorHandle {
     fn drop(&mut self) {
         unsafe {
-            let () = msg_send![self.uiscreen, release];
+            assert_main_thread!("`MonitorHandle` can only be dropped on the main thread on iOS");
         }
     }
 }
@@ -56,14 +91,16 @@ impl fmt::Debug for MonitorHandle {
 impl MonitorHandle {
     pub fn retained_new(uiscreen: id) -> MonitorHandle {
         unsafe {
+            assert_main_thread!("`MonitorHandle` can only be cloned on the main thread on iOS");
             let () = msg_send![uiscreen, retain];
         }
-        MonitorHandle { uiscreen }
+        MonitorHandle { inner: Inner { uiscreen } }
     }
+}
 
+impl Inner {
     pub fn get_name(&self) -> Option<String> {
         unsafe {
-            assert_main_thread!("`MonitorHandle::get_name` can only be `called` on the main thread on iOS");
             if self.uiscreen == main_uiscreen().uiscreen {
                 Some("Primary".to_string())
             } else if self.uiscreen == mirrored_uiscreen().uiscreen {
@@ -79,7 +116,6 @@ impl MonitorHandle {
     
     pub fn get_dimensions(&self) -> PhysicalSize {
         unsafe {
-            assert_main_thread!("`MonitorHandle::get_dimensions` can only be `called` on the main thread on iOS");
             let bounds: CGRect = msg_send![self.get_uiscreen(), nativeBounds];
             (bounds.size.width as f64, bounds.size.height as f64).into()
         }
@@ -87,7 +123,6 @@ impl MonitorHandle {
     
     pub fn get_position(&self) -> PhysicalPosition {
         unsafe {
-            assert_main_thread!("`MonitorHandle::get_position` can only be `called` on the main thread on iOS");
             let bounds: CGRect = msg_send![self.get_uiscreen(), nativeBounds];
             (bounds.origin.x as f64, bounds.origin.y as f64).into()
         }
@@ -95,7 +130,6 @@ impl MonitorHandle {
     
     pub fn get_hidpi_factor(&self) -> f64 {
         unsafe {
-            assert_main_thread!("`MonitorHandle::get_hidpi_factor` can only be `called` on the main thread on iOS");
             let scale: CGFloat = msg_send![self.get_uiscreen(), nativeScale];
             scale as f64
         }
@@ -103,7 +137,7 @@ impl MonitorHandle {
 }
 
 // MonitorHandleExtIOS
-impl MonitorHandle {
+impl Inner {
     pub fn get_uiscreen(&self) -> id {
         self.uiscreen
     }

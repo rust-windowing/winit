@@ -1,4 +1,7 @@
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    ops::{Deref, DerefMut},
+};
 
 use objc::runtime::{Class, NO, Object, YES};
 
@@ -11,36 +14,36 @@ use window::{
     MouseCursor,
     WindowAttributes,
 };
-
-use platform_impl::platform::{
-    event_loop,
-    monitor,
-    view,
-    EventLoopWindowTarget,
-    MonitorHandle
+use platform_impl::{
+    platform::{
+        app_state::AppState,
+        event_loop,
+        ffi::{
+            id,
+            CGFloat,
+            CGPoint,
+            CGRect,
+            CGSize,
+            UIEdgeInsets,
+            UIInterfaceOrientationMask,
+        },
+        monitor,
+        view,
+        EventLoopWindowTarget,
+        MonitorHandle
+    },
 };
-use platform_impl::platform::app_state::AppState;
-use platform_impl::platform::ffi::{
-    id,
-    CGFloat,
-    CGPoint,
-    CGRect,
-    CGSize,
-    UIEdgeInsets,
-    UIInterfaceOrientationMask,
-};
 
-pub struct Window {
+pub struct Inner {
     pub window: id,
     pub view_controller: id,
     pub view: id,
     supports_safe_area: bool,
 }
 
-impl Drop for Window {
+impl Drop for Inner {
     fn drop(&mut self) {
         unsafe {
-            assert_main_thread!("`Window::drop` can only be run on the main thread on iOS");
             let () = msg_send![self.view, release];
             let () = msg_send![self.view_controller, release];
             let () = msg_send![self.window, release];
@@ -48,8 +51,243 @@ impl Drop for Window {
     }
 }
 
+impl Inner {
+    pub fn set_title(&self, _title: &str) {
+        debug!("`Window::set_title` is ignored on iOS")
+    }
+
+    pub fn show(&self) {
+        unsafe {
+            let () = msg_send![self.window, setHidden:NO];
+        }
+    }
+
+    pub fn hide(&self) {
+        unsafe {
+            let () = msg_send![self.window, setHidden:YES];
+        }
+    }
+
+    pub fn request_redraw(&self) {
+        unsafe {
+            let () = msg_send![self.view, setNeedsDisplay];
+        }
+    }
+    
+    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+        unsafe {
+            let safe_area = self.safe_area_screen_space();
+            Some(LogicalPosition {
+                x: safe_area.origin.x,
+                y: safe_area.origin.y,
+            })
+        }
+    }
+
+    pub fn get_position(&self) -> Option<LogicalPosition> {
+        unsafe {
+            let screen_frame = self.screen_frame();
+            Some(LogicalPosition {
+                x: screen_frame.origin.x,
+                y: screen_frame.origin.y,
+            })
+        }
+    }
+
+    pub fn set_position(&self, position: LogicalPosition) {
+        unsafe {
+            let screen_frame = self.screen_frame();
+            let new_screen_frame = CGRect {
+                origin: CGPoint {
+                    x: position.x as _,
+                    y: position.y as _,
+                },
+                size: screen_frame.size,
+            };
+            let bounds = self.from_screen_space(new_screen_frame);
+            let () = msg_send![self.window, setBounds:bounds];
+        }
+    }
+
+    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+        unsafe {
+            let safe_area = self.safe_area_screen_space();
+            Some(LogicalSize {
+                width: safe_area.size.width,
+                height: safe_area.size.height,
+            })
+        }
+    }
+
+    pub fn get_outer_size(&self) -> Option<LogicalSize> {
+        unsafe {
+            let screen_frame = self.screen_frame();
+            Some(LogicalSize {
+                width: screen_frame.size.width,
+                height: screen_frame.size.height,
+            })
+        }
+    }
+
+    pub fn set_inner_size(&self, _size: LogicalSize) {
+        unimplemented!("not clear what `Window::set_inner_size` means on iOS");
+    }
+
+    pub fn set_min_dimensions(&self, _dimensions: Option<LogicalSize>) {
+        warn!("`Window::set_min_dimensions` is ignored on iOS")
+    }
+
+    pub fn set_max_dimensions(&self, _dimensions: Option<LogicalSize>) {
+        warn!("`Window::set_max_dimensions` is ignored on iOS")
+    }
+
+    pub fn set_resizable(&self, _resizable: bool) {
+        warn!("`Window::set_resizable` is ignored on iOS")
+    }
+
+    pub fn get_hidpi_factor(&self) -> f64 {
+        unsafe {
+            let hidpi: CGFloat = msg_send![self.view, contentScaleFactor];
+            hidpi as _
+        }
+    }
+
+    pub fn set_cursor(&self, _cursor: MouseCursor) {
+        debug!("`Window::set_cursor` ignored on iOS")
+    }
+
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
+        Err("Setting cursor position is not possible on iOS.".to_owned())
+    }
+
+    pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
+        Err("Cursor grabbing is not possible on iOS.".to_owned())
+    }
+
+    pub fn hide_cursor(&self, _hide: bool) {
+        debug!("`Window::hide_cursor` is ignored on iOS")
+    }
+
+    pub fn set_maximized(&self, _maximized: bool) {
+        warn!("`Window::set_maximized` is ignored on iOS")
+    }
+
+    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+        unsafe {
+            match monitor {
+                Some(monitor) => {
+                    let uiscreen = monitor.get_uiscreen() as id;
+                    let current: id = msg_send![self.window, screen];
+                    let bounds: CGRect = msg_send![uiscreen, bounds];
+
+                    // this is pretty slow on iOS, so avoid doing it if we can
+                    if uiscreen != current {
+                        let () = msg_send![self.window, setScreen:uiscreen];
+                    }
+                    let () = msg_send![self.window, setFrame:bounds];
+                }
+                None => warn!("`Window::set_fullscreen(None)` ignored on iOS"),
+            }
+        }
+    }
+
+    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
+        unsafe {
+            let monitor = self.get_current_monitor();
+            let uiscreen = monitor.inner.get_uiscreen();
+            let screen_space_bounds = self.screen_frame();
+            let screen_bounds: CGRect = msg_send![uiscreen, bounds];
+
+            // TODO: track fullscreen instead of relying on brittle float comparisons
+            if screen_space_bounds.origin.x == screen_bounds.origin.x
+                && screen_space_bounds.origin.y == screen_bounds.origin.y
+                && screen_space_bounds.size.width == screen_bounds.size.width
+                && screen_space_bounds.size.height == screen_bounds.size.height
+            {
+                Some(monitor)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn set_decorations(&self, decorations: bool) {
+        unsafe {
+            let status_bar_hidden = if decorations { NO } else { YES };
+            let () = msg_send![self.view_controller, setPrefersStatusBarHidden:status_bar_hidden];
+        }
+    }
+
+    pub fn set_always_on_top(&self, _always_on_top: bool) {
+        warn!("`Window::set_always_on_top` is ignored on iOS")
+    }
+
+    pub fn set_window_icon(&self, _icon: Option<Icon>) {
+        warn!("`Window::set_window_icon` is ignored on iOS")
+    }
+
+    pub fn set_ime_spot(&self, _position: LogicalPosition) {
+        warn!("`Window::set_ime_spot` is ignored on iOS")
+    }
+
+    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+        unsafe {
+            let uiscreen: id = msg_send![self.window, screen];
+            RootMonitorHandle { inner: MonitorHandle::retained_new(uiscreen) }
+        }
+    }
+
+    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+        unsafe {
+            monitor::uiscreens()
+        }
+    }
+
+    pub fn get_primary_monitor(&self) -> MonitorHandle {
+        unsafe {
+            monitor::main_uiscreen()
+        }
+    }
+
+    pub fn id(&self) -> WindowId {
+        self.window.into()
+    }
+}
+
+pub struct Window {
+    pub inner: Inner,
+}
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        unsafe {
+            assert_main_thread!("`Window::drop` can only be run on the main thread on iOS");
+        }
+    }
+}
+
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
+
+impl Deref for Window {
+    type Target = Inner;
+
+    fn deref(&self) -> &Inner {
+        unsafe {
+            assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
+        }
+        &self.inner
+    }
+}
+
+impl DerefMut for Window {
+    fn deref_mut(&mut self) -> &mut Inner {
+        unsafe {
+            assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
+        }
+        &mut self.inner
+    }
+}
 
 impl Window {
     pub fn new<T>(
@@ -90,244 +328,27 @@ impl Window {
             let supports_safe_area = event_loop.capabilities().supports_safe_area;
 
             let result = Window {
-                window,
-                view_controller,
-                view,
-                supports_safe_area,
+                inner: Inner {
+                    window,
+                    view_controller,
+                    view,
+                    supports_safe_area,
+                },
             };
             AppState::set_key_window(window);
             Ok(result)
         }
     }
-
-    pub fn set_title(&self, _title: &str) {
-        debug!("`Window::set_title` is ignored on iOS")
-    }
-
-    pub fn show(&self) {
-        unsafe {
-            assert_main_thread!("`Window::show` can only be called on the main thread on iOS");
-            let () = msg_send![self.window, setHidden:NO];
-        }
-    }
-
-    pub fn hide(&self) {
-        unsafe {
-            assert_main_thread!("`Window::hide` can only be called on the main thread on iOS");
-            let () = msg_send![self.window, setHidden:YES];
-        }
-    }
-
-    pub fn request_redraw(&self) {
-        unsafe {
-            assert_main_thread!("`Window::request_redraw` can only be called on the main thread on iOS");
-            let () = msg_send![self.view, setNeedsDisplay];
-        }
-    }
-    
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
-        unsafe {
-            assert_main_thread!("`Window::get_inner_position` can only be called on the main thread on iOS");
-
-            let safe_area = self.safe_area_screen_space();
-            Some(LogicalPosition {
-                x: safe_area.origin.x,
-                y: safe_area.origin.y,
-            })
-        }
-    }
-
-    pub fn get_position(&self) -> Option<LogicalPosition> {
-        unsafe {
-            assert_main_thread!("`Window::get_position` can only be called on the main thread on iOS");
-            let screen_frame = self.screen_frame();
-            Some(LogicalPosition {
-                x: screen_frame.origin.x,
-                y: screen_frame.origin.y,
-            })
-        }
-    }
-
-    pub fn set_position(&self, position: LogicalPosition) {
-        unsafe {
-            assert_main_thread!("`Window::set_position` can only be called on the main thread on iOS");
-
-            let screen_frame = self.screen_frame();
-            let new_screen_frame = CGRect {
-                origin: CGPoint {
-                    x: position.x as _,
-                    y: position.y as _,
-                },
-                size: screen_frame.size,
-            };
-            let bounds = self.from_screen_space(new_screen_frame);
-            let () = msg_send![self.window, setBounds:bounds];
-        }
-    }
-
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
-        unsafe {
-            assert_main_thread!("`Window::get_inner_size` can only be called on the main thread on iOS");
-            let safe_area = self.safe_area_screen_space();
-            Some(LogicalSize {
-                width: safe_area.size.width,
-                height: safe_area.size.height,
-            })
-        }
-    }
-
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        unsafe {
-            assert_main_thread!("`Window::get_outer_size` can only be called on the main thread on iOS");
-            let screen_frame = self.screen_frame();
-            Some(LogicalSize {
-                width: screen_frame.size.width,
-                height: screen_frame.size.height,
-            })
-        }
-    }
-
-    pub fn set_inner_size(&self, _size: LogicalSize) {
-        unimplemented!("not clear what `Window::set_inner_size` means on iOS");
-    }
-
-    pub fn set_min_dimensions(&self, _dimensions: Option<LogicalSize>) {
-        warn!("`Window::set_min_dimensions` is ignored on iOS")
-    }
-
-    pub fn set_max_dimensions(&self, _dimensions: Option<LogicalSize>) {
-        warn!("`Window::set_max_dimensions` is ignored on iOS")
-    }
-
-    pub fn set_resizable(&self, _resizable: bool) {
-        warn!("`Window::set_resizable` is ignored on iOS")
-    }
-
-    pub fn get_hidpi_factor(&self) -> f64 {
-        unsafe {
-            assert_main_thread!("`Window::get_hidpi_factor` can only be called on the main thread on iOS");
-            let hidpi: CGFloat = msg_send![self.view, contentScaleFactor];
-            hidpi as _
-        }
-    }
-
-    pub fn set_cursor(&self, _cursor: MouseCursor) {
-        debug!("`Window::set_cursor` ignored on iOS")
-    }
-
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
-        Err("Setting cursor position is not possible on iOS.".to_owned())
-    }
-
-    pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
-        Err("Cursor grabbing is not possible on iOS.".to_owned())
-    }
-
-    pub fn hide_cursor(&self, _hide: bool) {
-        debug!("`Window::hide_cursor` is ignored on iOS")
-    }
-
-    pub fn set_maximized(&self, _maximized: bool) {
-        warn!("`Window::set_maximized` is ignored on iOS")
-    }
-
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
-        unsafe {
-            assert_main_thread!("`Window::set_fullscreen` can only be called on the main thread on iOS");
-            match monitor {
-                Some(monitor) => {
-                    let uiscreen = monitor.get_uiscreen() as id;
-                    let current: id = msg_send![self.window, screen];
-                    let bounds: CGRect = msg_send![uiscreen, bounds];
-
-                    // this is pretty slow on iOS, so avoid doing it if we can
-                    if uiscreen != current {
-                        let () = msg_send![self.window, setScreen:uiscreen];
-                    }
-                    let () = msg_send![self.window, setFrame:bounds];
-                }
-                None => warn!("`Window::set_fullscreen(None)` ignored on iOS"),
-            }
-        }
-    }
-
-    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
-        unsafe {
-            assert_main_thread!("`Window::get_fullscreen` can only be called on the main thread on iOS");
-            let monitor = self.get_current_monitor();
-            let uiscreen = monitor.inner.get_uiscreen();
-            let screen_space_bounds = self.screen_frame();
-            let screen_bounds: CGRect = msg_send![uiscreen, bounds];
-
-            // TODO: track fullscreen instead of relying on brittle float comparisons
-            if screen_space_bounds.origin.x == screen_bounds.origin.x
-                && screen_space_bounds.origin.y == screen_bounds.origin.y
-                && screen_space_bounds.size.width == screen_bounds.size.width
-                && screen_space_bounds.size.height == screen_bounds.size.height
-            {
-                Some(monitor)
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn set_decorations(&self, decorations: bool) {
-        unsafe {
-            assert_main_thread!("`Window::set_decorations` can only be called on the main thread on iOS");
-            let status_bar_hidden = if decorations { NO } else { YES };
-            let () = msg_send![self.view_controller, setPrefersStatusBarHidden:status_bar_hidden];
-        }
-    }
-
-    pub fn set_always_on_top(&self, _always_on_top: bool) {
-        warn!("`Window::set_always_on_top` is ignored on iOS")
-    }
-
-    pub fn set_window_icon(&self, _icon: Option<Icon>) {
-        warn!("`Window::set_window_icon` is ignored on iOS")
-    }
-
-    pub fn set_ime_spot(&self, _position: LogicalPosition) {
-        warn!("`Window::set_ime_spot` is ignored on iOS")
-    }
-
-    pub fn get_current_monitor(&self) -> RootMonitorHandle {
-        unsafe {
-            assert_main_thread!("`Window::get_current_monitor` can only be called on the main thread on iOS");
-            let uiscreen: id = msg_send![self.window, screen];
-            RootMonitorHandle { inner: MonitorHandle::retained_new(uiscreen) }
-        }
-    }
-
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
-        unsafe {
-            assert_main_thread!("`Window::get_current_monitor` can only be called on the main thread on iOS");
-            monitor::uiscreens()
-        }
-    }
-
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        unsafe {
-            assert_main_thread!("`Window::get_current_monitor` can only be called on the main thread on iOS");
-            monitor::main_uiscreen()
-        }
-    }
-
-    pub fn id(&self) -> WindowId {
-        self.window.into()
-    }
 }
 
 // WindowExtIOS
-impl Window {
+impl Inner {
     pub fn get_uiwindow(&self) -> id { self.window }
     pub fn get_uiviewcontroller(&self) -> id { self.view_controller }
     pub fn get_uiview(&self) -> id { self.view }
 
     pub fn set_hidpi_factor(&self, hidpi_factor: f64) {
         unsafe {
-            assert_main_thread!("`Window::set_hidpi_factor` can only be called on the main thread on iOS");
             assert!(dpi::validate_hidpi_factor(hidpi_factor), "`WindowExtIOS::set_hidpi_factor` received an invalid hidpi factor");
             let hidpi_factor = hidpi_factor as CGFloat;
             let () = msg_send![self.view, setContentScaleFactor:hidpi_factor];
@@ -336,7 +357,6 @@ impl Window {
 
     pub fn set_valid_orientations(&self, valid_orientations: ValidOrientations) {
         unsafe {
-            assert_main_thread!("`Window::set_valid_orientations` can only be called on the main thread on iOS");
             let idiom = event_loop::get_idiom();
             let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(valid_orientations, idiom);
             msg_send![self.view_controller, setSupportedInterfaceOrientations:supported_orientations];
@@ -344,7 +364,7 @@ impl Window {
     }
 }
 
-impl Window {
+impl Inner {
     // requires main thread
     unsafe fn screen_frame(&self) -> CGRect {
         self.to_screen_space(msg_send![self.window, bounds])
