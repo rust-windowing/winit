@@ -1504,7 +1504,7 @@ unsafe extern "system" fn public_window_callback<T>(
                     window_id: RootWindowId(WindowId(window)),
                     event: WindowEvent::OsSpecific(OsSpecificWindowEvent {
                         window,
-                        msg,
+                        message: msg,
                         wparam,
                         lparam,
                         retval: &mut retval as _,

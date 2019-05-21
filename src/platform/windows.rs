@@ -126,31 +126,16 @@ impl DeviceIdExtWindows for DeviceId {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OsSpecificWindowEvent {
     pub(crate) window: HWND,
-    pub(crate) msg: UINT,
-    pub(crate) wparam: WPARAM,
-    pub(crate) lparam: LPARAM,
+    /// The message identifier of the window event (`WM_*`).
+    pub message: UINT,
+    /// The first parameter of the window event (`WPARAM`).
+    pub wparam: WPARAM,
+    /// The second parameter of the window event(`LPARAM`).
+    pub lparam: LPARAM,
     pub(crate) retval: *mut Option<LRESULT>,
 }
 
 impl OsSpecificWindowEvent {
-    /// The message identifier of the window event (`WM_*`).
-    #[inline]
-    pub fn message(&self) -> u32 {
-        self.msg
-    }
-
-    /// The first parameter of the window event (`WPARAM`).
-    #[inline]
-    pub fn wparam(&self) -> usize {
-        self.wparam
-    }
-
-    /// The second parameter of the window event(`LPARAM`).
-    #[inline]
-    pub fn lparam(&self) -> isize {
-        self.lparam
-    }
-
     /// Marks the current event processed, returning the specified value
     /// as the result of the window procedure to the system.
     /// How the value is interpreted is dependent on the message's type.
@@ -177,7 +162,7 @@ impl OsSpecificWindowEvent {
     #[inline]
     pub unsafe fn set_overriden_reply(&self, f: impl FnOnce(isize) -> isize) {
         use winapi::um::commctrl;
-        let retval = f(commctrl::DefSubclassProc(self.window, self.msg, self.wparam, self.lparam));
+        let retval = f(commctrl::DefSubclassProc(self.window, self.message, self.wparam, self.lparam));
         *self.retval = Some(retval);
     }
 }
