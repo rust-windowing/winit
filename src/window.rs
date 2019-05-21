@@ -582,15 +582,12 @@ impl Window {
 #[derive(Debug, Clone)]
 pub enum CreationError {
     OsError(String),
-    /// TODO: remove this error
-    NotSupported,
 }
 
 impl CreationError {
     fn to_string(&self) -> &str {
         match *self {
             CreationError::OsError(ref text) => &text,
-            CreationError::NotSupported => "Some of the requested attributes are not supported",
         }
     }
 }
