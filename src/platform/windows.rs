@@ -159,6 +159,10 @@ impl OsSpecificWindowEvent {
     /// Calling this function outside this event's call to the closure passed to
     /// [`EventLoop::run`](../../event_loop/struct.EventLoop.html#method.run)
     /// will result in undefined behavior.
+    ///
+    /// The current `message`, `wparam`, `lparam` values within this struct will be
+    /// used. Calling this function after setting these to incorrect
+    /// values will result in undefined behavior.
     #[inline]
     pub unsafe fn set_overriden_reply(&self, f: impl FnOnce(isize) -> isize) {
         use winapi::um::commctrl;
