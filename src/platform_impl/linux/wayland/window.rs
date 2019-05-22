@@ -2,10 +2,10 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 
 use dpi::{LogicalPosition, LogicalSize};
-use error::{ExternalError, NotSupportedError};
+use error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use platform_impl::{MonitorHandle as PlatformMonitorHandle, PlatformSpecificWindowBuilderAttributes as PlAttributes};
 use monitor::MonitorHandle as RootMonitorHandle;
-use window::{CreationError, WindowAttributes, MouseCursor};
+use window::{WindowAttributes, MouseCursor};
 
 use sctk::surface::{get_dpi_factor, get_outputs};
 use sctk::window::{ConceptFrame, Event as WEvent, State as WState, Window as SWindow, Theme};
@@ -29,7 +29,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new<T>(evlp: &EventLoopWindowTarget<T>, attributes: WindowAttributes, pl_attribs: PlAttributes) -> Result<Window, CreationError> {
+    pub fn new<T>(evlp: &EventLoopWindowTarget<T>, attributes: WindowAttributes, pl_attribs: PlAttributes) -> Result<Window, RootOsError> {
         let (width, height) = attributes.inner_size.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));

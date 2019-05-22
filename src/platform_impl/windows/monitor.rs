@@ -3,7 +3,7 @@ use winapi::shared::windef::{HDC, HMONITOR, HWND, LPRECT, POINT};
 use winapi::um::winnt::LONG;
 use winapi::um::winuser;
 
-use std::{mem, ptr};
+use std::{mem, ptr, io};
 use std::collections::VecDeque;
 
 use super::{EventLoop, util};
@@ -99,7 +99,7 @@ impl Window {
     }
 }
 
-pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINFOEXW, util::WinError> {
+pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINFOEXW, io::Error> {
     let mut monitor_info: winuser::MONITORINFOEXW = unsafe { mem::uninitialized() };
     monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
     let status = unsafe {
@@ -109,7 +109,7 @@ pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINF
         )
     };
     if status == 0 {
-        Err(util::WinError::from_last_error())
+        Err(io::Error::last_os_error())
     } else {
         Ok(monitor_info)
     }

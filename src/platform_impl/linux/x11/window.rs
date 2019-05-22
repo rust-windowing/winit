@@ -8,12 +8,12 @@ use std::sync::Arc;
 use libc;
 use parking_lot::Mutex;
 
-use error::{ExternalError, NotSupportedError};
+use error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use window::{Icon, MouseCursor, WindowAttributes};
-use window::CreationError;
 use dpi::{LogicalPosition, LogicalSize};
 use platform_impl::MonitorHandle as PlatformMonitorHandle;
 use platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
+use platform_impl::x11::ime::ImeContextCreationError;
 use platform_impl::x11::MonitorHandle as X11MonitorHandle;
 use monitor::MonitorHandle as RootMonitorHandle;
 
@@ -76,7 +76,7 @@ impl UnownedWindow {
         event_loop: &EventLoopWindowTarget<T>,
         window_attrs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<UnownedWindow, CreationError> {
+    ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let root = event_loop.root;
 
@@ -105,7 +105,7 @@ impl UnownedWindow {
                     .unwrap_or(1.0)
             })
         } else {
-            return Err(CreationError::OsError(format!("No monitors were detected.")));
+            return Err(os_error!(OsError::XMisc("No monitors were detected.")));
         };
 
         info!("Guessed window DPI factor: {}", dpi_factor);
@@ -346,7 +346,7 @@ impl UnownedWindow {
                     &mut supported_ptr,
                 );
                 if supported_ptr == ffi::False {
-                    return Err(CreationError::OsError(format!("`XkbSetDetectableAutoRepeat` failed")));
+                    return Err(os_error!(OsError::XMisc("`XkbSetDetectableAutoRepeat` failed")));
                 }
             }
 
@@ -373,7 +373,11 @@ impl UnownedWindow {
                     .borrow_mut()
                     .create_context(window.xwindow);
                 if let Err(err) = result {
-                    return Err(CreationError::OsError(format!("Failed to create input context: {:?}", err)));
+                    let e = match err {
+                        ImeContextCreationError::XError(err) => OsError::XError(err),
+                        ImeContextCreationError::Null => OsError::XMisc("IME Context creation failed"),
+                    };
+                    return Err(os_error!(e));
                 }
             }
 
@@ -412,9 +416,7 @@ impl UnownedWindow {
         // We never want to give the user a broken window, since by then, it's too late to handle.
         xconn.sync_with_server()
             .map(|_| window)
-            .map_err(|x_err| CreationError::OsError(
-                format!("X server returned error while building window: {:?}", x_err)
-            ))
+            .map_err(|x_err| os_error!(OsError::XError(x_err)))
     }
 
     fn logicalize_coords(&self, (x, y): (i32, i32)) -> LogicalPosition {

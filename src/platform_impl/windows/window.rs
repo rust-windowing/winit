@@ -18,8 +18,8 @@ use winapi::um::wingdi::{CreateRectRgn, DeleteObject};
 use winapi::um::oleidl::LPDROPTARGET;
 use winapi::um::winnt::{LONG, LPCWSTR};
 
-use window::{CreationError, Icon, MouseCursor, WindowAttributes};
-use error::{ExternalError, NotSupportedError};
+use window::{Icon, MouseCursor, WindowAttributes};
+use error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use monitor::MonitorHandle as RootMonitorHandle;
 use platform_impl::platform::{
@@ -51,7 +51,7 @@ impl Window {
         event_loop: &EventLoopWindowTarget<T>,
         w_attr: WindowAttributes,
         pl_attr: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Window, CreationError> {
+    ) -> Result<Window, RootOsError> {
         // We dispatch an `init` function because of code style.
         // First person to remove the need for cloning here gets a cookie!
         //
@@ -564,9 +564,9 @@ pub unsafe fn adjust_size(
 
 unsafe fn init<T: 'static>(
     mut attributes: WindowAttributes,
-    mut pl_attribs: PlatformSpecificWindowBuilderAttributes,
+    pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
-) -> Result<Window, CreationError> {
+) -> Result<Window, RootOsError> {
     let title = OsStr::new(&attributes.title)
         .encode_wide()
         .chain(Some(0).into_iter())
@@ -576,22 +576,18 @@ unsafe fn init<T: 'static>(
         let icon = attributes.window_icon
             .take()
             .map(WinIcon::from_icon);
-        if icon.is_some() {
-            Some(icon.unwrap().map_err(|err| {
-                CreationError::OsError(format!("Failed to create `ICON_SMALL`: {:?}", err))
-            })?)
+        if let Some(icon) = icon {
+            Some(icon.map_err(|e| os_error!(e))?)
         } else {
             None
         }
     };
     let taskbar_icon = {
-        let icon = pl_attribs.taskbar_icon
+        let icon = attributes.window_icon
             .take()
             .map(WinIcon::from_icon);
-        if icon.is_some() {
-            Some(icon.unwrap().map_err(|err| {
-                CreationError::OsError(format!("Failed to create `ICON_BIG`: {:?}", err))
-            })?)
+        if let Some(icon) = icon {
+            Some(icon.map_err(|e| os_error!(e))?)
         } else {
             None
         }
@@ -611,7 +607,7 @@ unsafe fn init<T: 'static>(
             }
             dpi_factor
         } else {
-            return Err(CreationError::OsError(format!("No monitors were detected.")));
+            return Err(os_error!(io::Error::new(io::ErrorKind::NotFound, "No monitors were detected.")));
         };
         dpi_factor.unwrap_or_else(|| {
             util::get_cursor_pos()
@@ -659,8 +655,7 @@ unsafe fn init<T: 'static>(
         );
 
         if handle.is_null() {
-            return Err(CreationError::OsError(format!("CreateWindowEx function failed: {}",
-                                              format!("{}", io::Error::last_os_error()))));
+            return Err(os_error!(io::Error::last_os_error()));
         }
 
         WindowWrapper(handle)

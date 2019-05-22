@@ -17,10 +17,10 @@ use objc::{runtime::{Class, Object, Sel, BOOL, YES, NO}, declare::ClassDecl};
 
 use {
     dpi::{LogicalPosition, LogicalSize}, icon::Icon,
-    error::{ExternalError, NotSupportedError},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     window::{
-        CreationError, MouseCursor, WindowAttributes, WindowId as RootWindowId,
+        MouseCursor, WindowAttributes, WindowId as RootWindowId,
     },
 };
 use platform::macos::{ActivationPolicy, WindowExtMacOS};
@@ -257,7 +257,7 @@ impl UnownedWindow {
     pub fn new(
         mut win_attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<(Arc<Self>, IdRef), CreationError> {
+    ) -> Result<(Arc<Self>, IdRef), RootOsError> {
         unsafe {
             if !msg_send![class!(NSThread), isMainThread] {
                 panic!("Windows can only be created on the main thread on macOS");
@@ -268,17 +268,17 @@ impl UnownedWindow {
 
         let nsapp = create_app(pl_attribs.activation_policy).ok_or_else(|| {
             unsafe { pool.drain() };
-            CreationError::OsError(format!("Couldn't create `NSApplication`"))
+            os_error!(OsError::CreationError("Couldn't create `NSApplication`"))
         })?;
 
         let nswindow = create_window(&win_attribs, &pl_attribs).ok_or_else(|| {
             unsafe { pool.drain() };
-            CreationError::OsError(format!("Couldn't create `NSWindow`"))
+            os_error!(OsError::CreationError("Couldn't create `NSWindow`"))
         })?;
 
         let (nsview, cursor) = unsafe { create_view(*nswindow) }.ok_or_else(|| {
             unsafe { pool.drain() };
-            CreationError::OsError(format!("Couldn't create `NSView`"))
+            os_error!(OsError::CreationError("Couldn't create `NSView`"))
         })?;
 
         let input_context = unsafe { util::create_input_context(*nsview) };

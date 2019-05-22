@@ -11,11 +11,11 @@ use sctk::reexports::client::ConnectError;
 
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use icon::Icon;
-use error::{ExternalError, NotSupportedError};
+use error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use event::Event;
 use event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
 use monitor::MonitorHandle as RootMonitorHandle;
-use window::{WindowAttributes, CreationError, MouseCursor};
+use window::{WindowAttributes, MouseCursor};
 use self::x11::{XConnection, XError};
 use self::x11::ffi::XVisualInfo;
 pub use self::x11::XNotSupported;
@@ -140,7 +140,7 @@ impl Window {
         window_target: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Self, CreationError> {
+    ) -> Result<Self, RootOsError> {
         match *window_target {
             EventLoopWindowTarget::Wayland(ref window_target) => {
                 wayland::Window::new(window_target, attribs, pl_attribs).map(Window::Wayland)

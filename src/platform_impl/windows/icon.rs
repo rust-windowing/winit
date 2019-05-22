@@ -1,4 +1,4 @@
-use std::{self, mem, ptr};
+use std::{mem, ptr, io};
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 
@@ -8,7 +8,6 @@ use winapi::shared::windef::{HICON, HWND};
 use winapi::um::winuser;
 
 use icon::{Pixel, PIXEL_SIZE, Icon};
-use platform_impl::platform::util;
 
 impl Pixel {
     fn to_bgra(&mut self) {
@@ -31,7 +30,7 @@ unsafe impl Send for WinIcon {}
 
 impl WinIcon {
     #[allow(dead_code)]
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, util::WinError> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
         let wide_path: Vec<u16> = path.as_ref().as_os_str().encode_wide().collect();
         let handle = unsafe {
             winuser::LoadImageW(
@@ -46,15 +45,15 @@ impl WinIcon {
         if !handle.is_null() {
             Ok(WinIcon { handle })
         } else {
-            Err(util::WinError::from_last_error())
+            Err(io::Error::last_os_error())
         }
     }
 
-    pub fn from_icon(icon: Icon) -> Result<Self, util::WinError> {
+    pub fn from_icon(icon: Icon) -> Result<Self, io::Error> {
         Self::from_rgba(icon.rgba, icon.width, icon.height)
     }
 
-    pub fn from_rgba(mut rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, util::WinError> {
+    pub fn from_rgba(mut rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, io::Error> {
         assert_eq!(rgba.len() % PIXEL_SIZE, 0);
         let pixel_count = rgba.len() / PIXEL_SIZE;
         assert_eq!(pixel_count, (width * height) as usize);
@@ -80,7 +79,7 @@ impl WinIcon {
         if !handle.is_null() {
             Ok(WinIcon { handle })
         } else {
-            Err(util::WinError::from_last_error())
+            Err(io::Error::last_os_error())
         }
     }
 

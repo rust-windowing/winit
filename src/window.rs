@@ -1,8 +1,8 @@
 //! The `Window` struct and associated types.
-use std::{fmt, error};
+use std::fmt;
 
 use platform_impl;
-use error::{ExternalError, NotSupportedError};
+use error::{ExternalError, NotSupportedError, OsError};
 use event_loop::EventLoopWindowTarget;
 use monitor::{AvailableMonitorsIter, MonitorHandle};
 use dpi::{LogicalPosition, LogicalSize};
@@ -283,7 +283,7 @@ impl WindowBuilder {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     /// out of memory, etc.
     #[inline]
-    pub fn build<T: 'static>(mut self, window_target: &EventLoopWindowTarget<T>) -> Result<Window, CreationError> {
+    pub fn build<T: 'static>(mut self, window_target: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
         self.window.inner_size = Some(self.window.inner_size.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
@@ -311,7 +311,7 @@ impl Window {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     #[inline]
-    pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, CreationError> {
+    pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
         let builder = WindowBuilder::new();
         builder.build(event_loop)
     }
@@ -564,32 +564,6 @@ impl Window {
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.id())
-    }
-}
-
-/// Error that can happen while creating a window or a headless renderer.
-#[derive(Debug, Clone)]
-pub enum CreationError {
-    OsError(String),
-}
-
-impl CreationError {
-    fn to_string(&self) -> &str {
-        match *self {
-            CreationError::OsError(ref text) => &text,
-        }
-    }
-}
-
-impl fmt::Display for CreationError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        formatter.write_str(self.to_string())
-    }
-}
-
-impl error::Error for CreationError {
-    fn description(&self) -> &str {
-        self.to_string()
     }
 }
 

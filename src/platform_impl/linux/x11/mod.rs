@@ -25,11 +25,12 @@ use std::sync::{Arc, mpsc, Weak, Mutex};
 
 use libc::{self, setlocale, LC_CTYPE};
 
+use error::OsError as RootOsError;
 use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
 use event::{WindowEvent, Event};
 use platform_impl::PlatformSpecificWindowBuilderAttributes;
 use platform_impl::platform::sticky_exit_callback;
-use window::{CreationError, WindowAttributes};
+use window::{WindowAttributes};
 use self::dnd::{Dnd, DndState};
 use self::ime::{ImeReceiver, ImeSender, ImeCreationError, Ime};
 use self::event_processor::EventProcessor;
@@ -427,7 +428,7 @@ impl Window {
         event_loop: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes
-    ) -> Result<Self, CreationError> {
+    ) -> Result<Self, RootOsError> {
         let window = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
         event_loop.windows
             .borrow_mut()
