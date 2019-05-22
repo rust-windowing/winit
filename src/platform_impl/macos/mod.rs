@@ -44,6 +44,10 @@ pub struct Window {
     _delegate: util::IdRef,
 }
 
+pub enum OsError {
+    CGError(core_graphics::base::CGError),
+}
+
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 

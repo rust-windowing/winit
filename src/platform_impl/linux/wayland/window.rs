@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 
 use dpi::{LogicalPosition, LogicalSize};
+use error::{ExternalError, NotSupportedError};
 use platform_impl::{MonitorHandle as PlatformMonitorHandle, PlatformSpecificWindowBuilderAttributes as PlAttributes};
 use monitor::MonitorHandle as RootMonitorHandle;
 use window::{CreationError, WindowAttributes, MouseCursor};
@@ -154,13 +155,7 @@ impl Window {
         self.frame.lock().unwrap().set_title(title.into());
     }
 
-    #[inline]
-    pub fn show(&self) {
-        // TODO
-    }
-
-    #[inline]
-    pub fn hide(&self) {
+    pub fn set_visible(&self, _visible: bool) {
         // TODO
     }
 
@@ -275,13 +270,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), String> {
-        Err("Cursor grabbing is not yet possible on Wayland.".to_owned())
+    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _pos: LogicalPosition) -> Result<(), String> {
-        Err("Setting the cursor position is not yet possible on Wayland.".to_owned())
+    pub fn set_cursor_position(&self, _pos: LogicalPosition) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     pub fn get_display(&self) -> &Display {

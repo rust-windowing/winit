@@ -11,6 +11,7 @@ use sctk::reexports::client::ConnectError;
 
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use icon::Icon;
+use error::ExternalError;
 use event::Event;
 use event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
 use monitor::MonitorHandle as RootMonitorHandle;
@@ -50,6 +51,11 @@ lazy_static!(
         Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new))
     };
 );
+
+pub enum OsError {
+    XError(XError),
+    XMisc(&'static str),
+}
 
 pub enum Window {
     X(x11::Window),
@@ -162,18 +168,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn show(&self) {
+    pub fn set_visible(&self, visible: bool) {
         match self {
-            &Window::X(ref w) => w.show(),
-            &Window::Wayland(ref w) => w.show(),
-        }
-    }
-
-    #[inline]
-    pub fn hide(&self) {
-        match self {
-            &Window::X(ref w) => w.hide(),
-            &Window::Wayland(ref w) => w.hide(),
+            &Window::X(ref w) => w.set_visible(visible),
+            &Window::Wayland(ref w) => w.set_visible(visible),
         }
     }
 
@@ -258,7 +256,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         match self {
             &Window::X(ref window) => window.set_cursor_grab(grab),
             &Window::Wayland(ref window) => window.set_cursor_grab(grab),
@@ -282,7 +280,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
         match self {
             &Window::X(ref w) => w.set_cursor_position(position),
             &Window::Wayland(ref w) => w.set_cursor_position(position),

@@ -19,6 +19,7 @@ use winapi::um::oleidl::LPDROPTARGET;
 use winapi::um::winnt::{LONG, LPCWSTR};
 
 use window::{CreationError, Icon, MouseCursor, WindowAttributes};
+use error::ExternalError;
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use monitor::MonitorHandle as RootMonitorHandle;
 use platform_impl::platform::{
@@ -319,7 +320,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
         let (tx, rx) = channel();
@@ -327,7 +328,7 @@ impl Window {
         self.thread_executor.execute_in_thread(move || {
             let result = window_state.lock().mouse
                 .set_cursor_flags(window.0, |f| f.set(CursorFlags::GRABBED, grab))
-                .map_err(|e| e.to_string());
+                .map_err(|e| ExternalError::Os(os_error!(e)));
             let _ = tx.send(result);
         });
         rx.recv().unwrap()
@@ -353,21 +354,21 @@ impl Window {
         self.window_state.lock().dpi_factor
     }
 
-    fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), String> {
+    fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ExternalError> {
         let mut point = POINT { x, y };
         unsafe {
             if winuser::ClientToScreen(self.window.0, &mut point) == 0 {
-                return Err("`ClientToScreen` failed".to_owned());
+                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
             }
             if winuser::SetCursorPos(point.x, point.y) == 0 {
-                return Err("`SetCursorPos` failed".to_owned());
+                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
             }
         }
         Ok(())
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), ExternalError> {
         let dpi_factor = self.get_hidpi_factor();
         let (x, y) = logical_position.to_physical(dpi_factor).into();
         self.set_cursor_position_physical(x, y)

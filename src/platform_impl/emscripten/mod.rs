@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, Arc};
 
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use error::{ExternalError, NotSupportedError};
 use window::MonitorHandle as RootMonitorHandle;
 
 const DOCUMENT_NAME: &'static str = "#document\0";
@@ -23,6 +24,8 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 
 unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
 unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
+
+pub type OsError = std::io::Error;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
@@ -527,7 +530,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         let mut grabbed_lock = self.window.cursor_grabbed.lock().unwrap();
         if grab == *grabbed_lock { return Ok(()); }
         unsafe {
@@ -571,7 +574,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
         Err("Setting cursor position is not possible on Emscripten.".to_owned())
     }
 

@@ -23,8 +23,11 @@ use {
     WindowId as RootWindowId,
 };
 use CreationError::OsError;
+use error::{ExternalError, NotSupportedError};
 use events::{Touch, TouchPhase};
 use window::MonitorHandle as RootMonitorHandle;
+
+pub type OsError = std::io::Error;
 
 pub struct EventLoop {
     event_rx: Receiver<android_glue::Event>,
@@ -348,8 +351,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), String> {
-        Err("Cursor grabbing is not possible on Android.".to_owned())
+    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
@@ -358,8 +361,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
-        Err("Setting cursor position is not possible on Android.".to_owned())
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]

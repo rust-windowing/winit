@@ -8,11 +8,12 @@ use std::sync::Arc;
 use libc;
 use parking_lot::Mutex;
 
+use error::ExternalError;
 use window::{Icon, MouseCursor, WindowAttributes};
-use window::CreationError::{self, OsError};
+use window::CreationError;
 use dpi::{LogicalPosition, LogicalSize};
 use platform_impl::MonitorHandle as PlatformMonitorHandle;
-use platform_impl::PlatformSpecificWindowBuilderAttributes;
+use platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use platform_impl::x11::MonitorHandle as X11MonitorHandle;
 use monitor::MonitorHandle as RootMonitorHandle;
 
@@ -104,7 +105,7 @@ impl UnownedWindow {
                     .unwrap_or(1.0)
             })
         } else {
-            return Err(OsError(format!("No monitors were detected.")));
+            return Err(CreationError::OsError(format!("No monitors were detected.")));
         };
 
         info!("Guessed window DPI factor: {}", dpi_factor);
@@ -345,13 +346,13 @@ impl UnownedWindow {
                     &mut supported_ptr,
                 );
                 if supported_ptr == ffi::False {
-                    return Err(OsError(format!("`XkbSetDetectableAutoRepeat` failed")));
+                    return Err(CreationError::OsError(format!("`XkbSetDetectableAutoRepeat` failed")));
                 }
             }
 
             // Select XInput2 events
             let mask = {
-                let mut mask = ffi::XI_MotionMask
+                let mask = ffi::XI_MotionMask
                     | ffi::XI_ButtonPressMask
                     | ffi::XI_ButtonReleaseMask
                     //| ffi::XI_KeyPressMask
@@ -372,7 +373,7 @@ impl UnownedWindow {
                     .borrow_mut()
                     .create_context(window.xwindow);
                 if let Err(err) = result {
-                    return Err(OsError(format!("Failed to create input context: {:?}", err)));
+                    return Err(CreationError::OsError(format!("Failed to create input context: {:?}", err)));
                 }
             }
 
@@ -411,7 +412,7 @@ impl UnownedWindow {
         // We never want to give the user a broken window, since by then, it's too late to handle.
         xconn.sync_with_server()
             .map(|_| window)
-            .map_err(|x_err| OsError(
+            .map_err(|x_err| CreationError::OsError(
                 format!("X server returned error while building window: {:?}", x_err)
             ))
     }
@@ -698,20 +699,18 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn show(&self) {
-        unsafe {
-            (self.xconn.xlib.XMapRaised)(self.xconn.display, self.xwindow);
-            self.xconn.flush_requests()
-                .expect("Failed to call XMapRaised");
-        }
-    }
-
-    #[inline]
-    pub fn hide(&self) {
-        unsafe {
-            (self.xconn.xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
-            self.xconn.flush_requests()
-                .expect("Failed to call XUnmapWindow");
+    pub fn set_visible(&self, visible: bool) {
+        match visible {
+            true => unsafe {
+                (self.xconn.xlib.XMapRaised)(self.xconn.display, self.xwindow);
+                self.xconn.flush_requests()
+                    .expect("Failed to call XMapRaised");
+            },
+            false => unsafe {
+                (self.xconn.xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
+                self.xconn.flush_requests()
+                    .expect("Failed to call XUnmapWindow");
+            }
         }
     }
 
@@ -1113,7 +1112,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         let mut grabbed_lock = self.cursor_grabbed.lock();
         if grab == *grabbed_lock { return Ok(()); }
         unsafe {
@@ -1157,10 +1156,10 @@ impl UnownedWindow {
                 ffi::GrabNotViewable => Err("Cursor could not be grabbed: grab location not viewable"),
                 ffi::GrabFrozen => Err("Cursor could not be grabbed: frozen by another client"),
                 _ => unreachable!(),
-            }.map_err(|err| err.to_owned())
+            }.map_err(|err| ExternalError::Os(os_error!(OsError::XMisc(err))))
         } else {
             self.xconn.flush_requests()
-                .map_err(|err| format!("Failed to call `XUngrabPointer`: {:?}", err))
+                .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))
         };
         if result.is_ok() {
             *grabbed_lock = grab;
@@ -1187,7 +1186,7 @@ impl UnownedWindow {
         self.get_current_monitor().hidpi_factor
     }
 
-    pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), String> {
+    pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ExternalError> {
         unsafe {
             (self.xconn.xlib.XWarpPointer)(
                 self.xconn.display,
@@ -1200,12 +1199,12 @@ impl UnownedWindow {
                 x,
                 y,
             );
-            self.xconn.flush_requests().map_err(|e| format!("`XWarpPointer` failed: {:?}", e))
+            self.xconn.flush_requests().map_err(|e| ExternalError::Os(os_error!(OsError::XError(e))))
         }
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), ExternalError> {
         let (x, y) = logical_position.to_physical(self.get_hidpi_factor()).into();
         self.set_cursor_position_physical(x, y)
     }

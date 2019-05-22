@@ -17,6 +17,7 @@ use objc::{runtime::{Class, Object, Sel, BOOL, YES, NO}, declare::ClassDecl};
 
 use {
     dpi::{LogicalPosition, LogicalSize}, icon::Icon,
+    error::ExternalError,
     monitor::MonitorHandle as RootMonitorHandle,
     window::{
         CreationError, MouseCursor, WindowAttributes, WindowId as RootWindowId,
@@ -24,6 +25,7 @@ use {
 };
 use platform::macos::{ActivationPolicy, WindowExtMacOS};
 use platform_impl::platform::{
+    OsError,
     app_state::AppState, ffi, monitor::{self, MonitorHandle},
     util::{self, IdRef}, view::{self, new_view},
     window_delegate::new_delegate,
@@ -381,14 +383,11 @@ impl UnownedWindow {
         }
     }
 
-    #[inline]
-    pub fn show(&self) {
-        unsafe { util::make_key_and_order_front_async(*self.nswindow) };
-    }
-
-    #[inline]
-    pub fn hide(&self) {
-        unsafe { util::order_out_async(*self.nswindow) };
+    pub fn set_visible(&self, visible: bool) {
+        match visible {
+            true => unsafe { util::make_key_and_order_front_async(*self.nswindow) },
+            false => unsafe { util::order_out_async(*self.nswindow) },
+        }
     }
 
     pub fn request_redraw(&self) {
@@ -497,10 +496,10 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
         CGDisplay::associate_mouse_and_mouse_cursor_position(!grab)
-            .map_err(|status| format!("Failed to grab cursor: `CGError` {:?}", status))
+            .map_err(|status| ExternalError::Os(os_error!(OsError::CGError(status))))
     }
 
     #[inline]
@@ -524,17 +523,16 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, cursor_position: LogicalPosition) -> Result<(), String> {
-        let window_position = self.get_inner_position()
-            .ok_or("`get_inner_position` failed".to_owned())?;
+    pub fn set_cursor_position(&self, cursor_position: LogicalPosition) -> Result<(), ExternalError> {
+        let window_position = self.get_inner_position().unwrap();
         let point = appkit::CGPoint {
             x: (cursor_position.x + window_position.x) as CGFloat,
             y: (cursor_position.y + window_position.y) as CGFloat,
         };
         CGDisplay::warp_mouse_cursor_position(point)
-            .map_err(|e| format!("`CGWarpMouseCursorPosition` failed: {:?}", e))?;
+            .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
         CGDisplay::associate_mouse_and_mouse_cursor_position(true)
-            .map_err(|e| format!("`CGAssociateMouseAndMouseCursorPosition` failed: {:?}", e))?;
+            .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
 
         Ok(())
     }

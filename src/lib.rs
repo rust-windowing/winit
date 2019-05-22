@@ -115,6 +115,8 @@ extern crate smithay_client_toolkit as sctk;
 extern crate calloop;
 
 pub mod dpi;
+#[macro_use]
+pub mod error;
 pub mod event;
 pub mod event_loop;
 mod icon;

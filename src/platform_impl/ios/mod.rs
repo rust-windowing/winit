@@ -81,6 +81,7 @@ use {
     WindowEvent,
     WindowId as RootEventId,
 };
+use error::{ExternalError, NotSupportedError};
 use events::{Touch, TouchPhase};
 use window::MonitorHandle as RootMonitorHandle;
 
@@ -104,6 +105,8 @@ use self::ffi::{
  };
 
 static mut JMPBUF: Option<Box<JmpBuf>> = None;
+
+pub type OsError = std::io::Error;
 
 pub struct Window {
     _events_queue: Arc<RefCell<VecDeque<Event>>>,
@@ -385,13 +388,7 @@ impl Window {
         // N/A
     }
 
-    #[inline]
-    pub fn show(&self) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn hide(&self) {
+    pub fn set_visible(&self, _visible: bool) {
         // N/A
     }
 
@@ -448,8 +445,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), String> {
-        Err("Cursor grabbing is not possible on iOS.".to_owned())
+    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
+        Err(NotSupportedError::new())
     }
 
     #[inline]
@@ -463,8 +460,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
-        Err("Setting cursor position is not possible on iOS.".to_owned())
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
+        Err(NotSupportedError::new())
     }
 
     #[inline]

@@ -2,6 +2,7 @@
 use std::{fmt, error};
 
 use platform_impl;
+use error::ExternalError;
 use event_loop::EventLoopWindowTarget;
 use monitor::{AvailableMonitorsIter, MonitorHandle};
 use dpi::{LogicalPosition, LogicalSize};
@@ -468,7 +469,7 @@ impl Window {
 
     /// Changes the position of the cursor in window coordinates.
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
         self.window.set_cursor_position(position)
     }
 
@@ -480,7 +481,7 @@ impl Window {
     ///
     /// This has no effect on Android or iOS.
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_grab(grab)
     }
 

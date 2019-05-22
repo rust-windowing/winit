@@ -52,6 +52,8 @@ fn wrap_device_id(id: u32) -> RootDeviceId {
     RootDeviceId(DeviceId(id))
 }
 
+pub type OsError = std::io::Error;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(HWND);
 unsafe impl Send for WindowId {}
