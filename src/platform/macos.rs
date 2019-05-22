@@ -11,12 +11,12 @@ pub trait WindowExtMacOS {
     /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
-    fn get_nswindow(&self) -> *mut c_void;
+    fn nswindow(&self) -> *mut c_void;
 
     /// Returns a pointer to the cocoa `NSView` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
-    fn get_nsview(&self) -> *mut c_void;
+    fn nsview(&self) -> *mut c_void;
 
     /// Request user attention, causing the application's dock icon to bounce.
     /// Note that this has no effect if the application is already focused.
@@ -27,7 +27,7 @@ pub trait WindowExtMacOS {
     fn request_user_attention(&self, is_critical: bool);
 
     /// Returns whether or not the window is in simple fullscreen mode.
-    fn get_simple_fullscreen(&self) -> bool;
+    fn simple_fullscreen(&self) -> bool;
 
     /// Toggles a fullscreen mode that doesn't require a new macOS space.
     /// Returns a boolean indicating whether the transition was successful (this
@@ -41,13 +41,13 @@ pub trait WindowExtMacOS {
 
 impl WindowExtMacOS for Window {
     #[inline]
-    fn get_nswindow(&self) -> *mut c_void {
-        self.window.get_nswindow()
+    fn nswindow(&self) -> *mut c_void {
+        self.window.nswindow()
     }
 
     #[inline]
-    fn get_nsview(&self) -> *mut c_void {
-        self.window.get_nsview()
+    fn nsview(&self) -> *mut c_void {
+        self.window.nsview()
     }
 
     #[inline]
@@ -56,8 +56,8 @@ impl WindowExtMacOS for Window {
     }
 
     #[inline]
-    fn get_simple_fullscreen(&self) -> bool {
-        self.window.get_simple_fullscreen()
+    fn simple_fullscreen(&self) -> bool {
+        self.window.simple_fullscreen()
     }
 
     #[inline]
@@ -167,16 +167,16 @@ pub trait MonitorHandleExtMacOS {
     /// Returns the identifier of the monitor for Cocoa.
     fn native_id(&self) -> u32;
     /// Returns a pointer to the NSScreen representing this monitor.
-    fn get_nsscreen(&self) -> Option<*mut c_void>;
+    fn nsscreen(&self) -> Option<*mut c_void>;
 }
 
 impl MonitorHandleExtMacOS for MonitorHandle {
     #[inline]
     fn native_id(&self) -> u32 {
-        self.inner.get_native_identifier()
+        self.inner.native_identifier()
     }
 
-    fn get_nsscreen(&self) -> Option<*mut c_void> {
-        self.inner.get_nsscreen().map(|s| s as *mut c_void)
+    fn nsscreen(&self) -> Option<*mut c_void> {
+        self.inner.nsscreen().map(|s| s as *mut c_void)
     }
 }

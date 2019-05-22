@@ -15,7 +15,7 @@ use window::MonitorHandle as RootMonitorHandle;
 
 const DOCUMENT_NAME: &'static str = "#document\0";
 
-fn get_hidpi_factor() -> f64 {
+fn hidpi_factor() -> f64 {
     unsafe { ffi::emscripten_get_device_pixel_ratio() as f64 }
 }
 
@@ -44,23 +44,23 @@ pub struct MonitorHandle;
 
 impl MonitorHandle {
     #[inline]
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         Some("Canvas".to_owned())
     }
 
     #[inline]
-    pub fn get_outer_position(&self) -> PhysicalPosition {
+    pub fn outer_position(&self) -> PhysicalPosition {
         unimplemented!()
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> PhysicalSize {
+    pub fn dimensions(&self) -> PhysicalSize {
         (0, 0).into()
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
-        get_hidpi_factor()
+    pub fn hidpi_factor(&self) -> f64 {
+        hidpi_factor()
     }
 }
 
@@ -116,14 +116,14 @@ impl EventLoop {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut list = VecDeque::with_capacity(1);
         list.push_back(MonitorHandle);
         list
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         MonitorHandle
     }
 
@@ -211,7 +211,7 @@ extern "C" fn mouse_callback(
 
         match event_type {
             ffi::EMSCRIPTEN_EVENT_MOUSEMOVE => {
-                let dpi_factor = get_hidpi_factor();
+                let dpi_factor = hidpi_factor();
                 let position = LogicalPosition::from_physical(
                     ((*event).canvasX as f64, (*event).canvasY as f64),
                     dpi_factor,
@@ -331,7 +331,7 @@ extern fn touch_callback(
         for touch in 0..(*event).numTouches as usize {
             let touch = (*event).touches[touch];
             if touch.isChanged == ffi::EM_TRUE {
-                let dpi_factor = get_hidpi_factor();
+                let dpi_factor = hidpi_factor();
                 let location = LogicalPosition::from_physical(
                     (touch.canvasX as f64, touch.canvasY as f64),
                     dpi_factor,
@@ -448,12 +448,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Option<LogicalPosition> {
         Some((0, 0).into())
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Option<LogicalPosition> {
         Some((0, 0).into())
     }
 
@@ -462,7 +462,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> Option<LogicalSize> {
         unsafe {
             let mut width = 0;
             let mut height = 0;
@@ -473,7 +473,7 @@ impl Window {
             {
                 None
             } else {
-                let dpi_factor = self.get_hidpi_factor();
+                let dpi_factor = self.hidpi_factor();
                 let logical = LogicalSize::from_physical((width as u32, height as u32), dpi_factor);
                 Some(logical)
             }
@@ -481,14 +481,14 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        self.get_inner_size()
+    pub fn outer_size(&self) -> Option<LogicalSize> {
+        self.inner_size()
     }
 
     #[inline]
     pub fn set_inner_size(&self, size: LogicalSize) {
         unsafe {
-            let dpi_factor = self.get_hidpi_factor();
+            let dpi_factor = self.hidpi_factor();
             let physical = PhysicalSize::from_logical(size, dpi_factor);
             let (width, height): (u32, u32) = physical.into();
             ffi::emscripten_set_element_css_size(
@@ -569,8 +569,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
-        get_hidpi_factor()
+    pub fn hidpi_factor(&self) -> f64 {
+        hidpi_factor()
     }
 
     #[inline]
@@ -584,7 +584,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_fullscreen(&self) -> Option<::MonitorHandle> {
+    pub fn fullscreen(&self) -> Option<::MonitorHandle> {
         None
     }
 
@@ -614,19 +614,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+    pub fn current_monitor(&self) -> RootMonitorHandle {
         RootMonitorHandle { inner: MonitorHandle }
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut list = VecDeque::with_capacity(1);
         list.push_back(MonitorHandle);
         list
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         MonitorHandle
     }
 }

@@ -161,10 +161,10 @@ impl fmt::Debug for MonitorHandle {
         }
 
         let monitor_id_proxy = MonitorHandle {
-            name: self.get_name(),
-            dimensions: self.get_dimensions(),
-            position: self.get_outer_position(),
-            hidpi_factor: self.get_hidpi_factor(),
+            name: self.name(),
+            dimensions: self.dimensions(),
+            position: self.outer_position(),
+            hidpi_factor: self.hidpi_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -173,31 +173,31 @@ impl fmt::Debug for MonitorHandle {
 
 impl MonitorHandle {
     #[inline]
-    pub fn get_uiscreen(&self) -> id {
+    pub fn uiscreen(&self) -> id {
         let class = class!(UIScreen);
         unsafe { msg_send![class, mainScreen] }
     }
 
     #[inline]
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         Some("Primary".to_string())
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> PhysicalSize {
-        let bounds: CGRect = unsafe { msg_send![self.get_uiscreen(), nativeBounds] };
+    pub fn dimensions(&self) -> PhysicalSize {
+        let bounds: CGRect = unsafe { msg_send![self.uiscreen(), nativeBounds] };
         (bounds.size.width as f64, bounds.size.height as f64).into()
     }
 
     #[inline]
-    pub fn get_outer_position(&self) -> PhysicalPosition {
+    pub fn outer_position(&self) -> PhysicalPosition {
         // iOS assumes single screen
         (0, 0).into()
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
-        let scale: CGFloat = unsafe { msg_send![self.get_uiscreen(), nativeScale] };
+    pub fn hidpi_factor(&self) -> f64 {
+        let scale: CGFloat = unsafe { msg_send![self.uiscreen(), nativeScale] };
         scale as f64
     }
 }
@@ -220,14 +220,14 @@ impl EventLoop {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut rb = VecDeque::with_capacity(1);
         rb.push_back(MonitorHandle);
         rb
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         MonitorHandle
     }
 
@@ -345,7 +345,7 @@ impl Window {
                 (&mut *delegate).set_ivar("eventsQueue", mem::transmute::<_, *mut c_void>(events_queue));
 
                 // easiest? way to get access to PlatformSpecificWindowBuilderAttributes to configure the view
-                let rect: CGRect = msg_send![MonitorHandle.get_uiscreen(), bounds];
+                let rect: CGRect = msg_send![MonitorHandle.uiscreen(), bounds];
 
                 let uiview_class = class!(UIView);
                 let root_view_class = pl_attributes.root_view_class;
@@ -374,12 +374,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_uiwindow(&self) -> id {
+    pub fn uiwindow(&self) -> id {
         self.delegate_state.window
     }
 
     #[inline]
-    pub fn get_uiview(&self) -> id {
+    pub fn uiview(&self) -> id {
         self.delegate_state.view
     }
 
@@ -393,13 +393,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Option<LogicalPosition> {
         // N/A
         None
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Option<LogicalPosition> {
         // N/A
         None
     }
@@ -410,13 +410,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> Option<LogicalSize> {
         Some(self.delegate_state.size)
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        self.get_inner_size()
+    pub fn outer_size(&self) -> Option<LogicalSize> {
+        self.inner_size()
     }
 
     #[inline]
@@ -455,7 +455,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         self.delegate_state.scale
     }
 
@@ -471,7 +471,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
         // N/A
         // iOS has single screen maximized apps so nothing to do
         None
@@ -504,19 +504,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+    pub fn current_monitor(&self) -> RootMonitorHandle {
         RootMonitorHandle { inner: MonitorHandle }
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut rb = VecDeque::with_capacity(1);
         rb.push_back(MonitorHandle);
         rb
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         MonitorHandle
     }
 

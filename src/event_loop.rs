@@ -117,15 +117,15 @@ impl<T> EventLoop<T> {
     ///
     // Note: should be replaced with `-> impl Iterator` once stable.
     #[inline]
-    pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
-        let data = self.event_loop.get_available_monitors();
+    pub fn available_monitors(&self) -> AvailableMonitorsIter {
+        let data = self.event_loop.available_monitors();
         AvailableMonitorsIter{ data: data.into_iter() }
     }
 
     /// Returns the primary monitor of the system.
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle { inner: self.event_loop.get_primary_monitor() }
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle { inner: self.event_loop.primary_monitor() }
     }
 
     /// Hijacks the calling thread and initializes the `winit` event loop with the provided

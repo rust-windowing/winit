@@ -14,7 +14,7 @@ use sctk::reexports::client::protocol::{wl_seat, wl_surface};
 use sctk::output::OutputMgr;
 
 use super::{make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
-use platform_impl::platform::wayland::event_loop::{get_available_monitors, get_primary_monitor};
+use platform_impl::platform::wayland::event_loop::{available_monitors, primary_monitor};
 
 pub struct Window {
     surface: wl_surface::WlSurface,
@@ -160,13 +160,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Option<LogicalPosition> {
         // Not possible with wayland
         None
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Option<LogicalPosition> {
         // Not possible with wayland
         None
     }
@@ -176,7 +176,7 @@ impl Window {
         // Not possible with wayland
     }
 
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> Option<LogicalSize> {
         Some(self.size.lock().unwrap().clone().into())
     }
 
@@ -185,7 +185,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> Option<LogicalSize> {
         let (w, h) = self.size.lock().unwrap().clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
         Some((w, h).into())
@@ -232,9 +232,9 @@ impl Window {
         }
     }
 
-    pub fn get_fullscreen(&self) -> Option<MonitorHandle> {
+    pub fn fullscreen(&self) -> Option<MonitorHandle> {
         if *(self.fullscreen.lock().unwrap()) {
-            Some(self.get_current_monitor())
+            Some(self.current_monitor())
         } else {
             None
         }
@@ -279,15 +279,15 @@ impl Window {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn get_display(&self) -> &Display {
+    pub fn display(&self) -> &Display {
         &*self.display
     }
 
-    pub fn get_surface(&self) -> &wl_surface::WlSurface {
+    pub fn surface(&self) -> &wl_surface::WlSurface {
         &self.surface
     }
 
-    pub fn get_current_monitor(&self) -> MonitorHandle {
+    pub fn current_monitor(&self) -> MonitorHandle {
         let output = get_outputs(&self.surface).last().unwrap().clone();
         MonitorHandle {
             proxy: output,
@@ -295,12 +295,12 @@ impl Window {
         }
     }
 
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
-        get_available_monitors(&self.outputs)
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        available_monitors(&self.outputs)
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        get_primary_monitor(&self.outputs)
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        primary_monitor(&self.outputs)
     }
 }
 

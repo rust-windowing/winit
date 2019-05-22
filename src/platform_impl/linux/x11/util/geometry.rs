@@ -152,7 +152,7 @@ impl FrameExtentsHeuristic {
 }
 
 impl XConnection {
-    // This is adequate for get_inner_position
+    // This is adequate for inner_position
     pub fn translate_coords(&self, window: ffi::Window, root: ffi::Window) -> Result<TranslatedCoords, XError> {
         let mut translated_coords: TranslatedCoords = unsafe { mem::uninitialized() };
         unsafe {
@@ -171,7 +171,7 @@ impl XConnection {
         self.check_errors().map(|_| translated_coords)
     }
 
-    // This is adequate for get_inner_size
+    // This is adequate for inner_size
     pub fn get_geometry(&self, window: ffi::Window) -> Result<Geometry, XError> {
         let mut geometry: Geometry = unsafe { mem::uninitialized() };
         let _status = unsafe {

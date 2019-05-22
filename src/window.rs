@@ -287,7 +287,7 @@ impl WindowBuilder {
         self.window.inner_size = Some(self.window.inner_size.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
-                LogicalSize::from_physical(monitor.get_dimensions(), 1.0)
+                LogicalSize::from_physical(monitor.dimensions(), 1.0)
             } else {
                 // default dimensions
                 (1024, 768).into()
@@ -360,22 +360,22 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_outer_position(&self) -> Option<LogicalPosition> {
-        self.window.get_outer_position()
+    pub fn outer_position(&self) -> Option<LogicalPosition> {
+        self.window.outer_position()
     }
 
     /// Returns the position of the top-left hand corner of the window's client area relative to the
     /// top-left hand corner of the desktop.
     ///
-    /// The same conditions that apply to `get_outer_position` apply to this method.
+    /// The same conditions that apply to `outer_position` apply to this method.
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
-        self.window.get_inner_position()
+    pub fn inner_position(&self) -> Option<LogicalPosition> {
+        self.window.inner_position()
     }
 
     /// Modifies the position of the window.
     ///
-    /// See `get_outer_position` for more information about the coordinates.
+    /// See `outer_position` for more information about the coordinates.
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
@@ -391,24 +391,24 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
-        self.window.get_inner_size()
+    pub fn inner_size(&self) -> Option<LogicalSize> {
+        self.window.inner_size()
     }
 
     /// Returns the logical size of the entire window.
     ///
     /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
-    /// use `get_inner_size` instead.
+    /// use `inner_size` instead.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        self.window.get_outer_size()
+    pub fn outer_size(&self) -> Option<LogicalSize> {
+        self.window.outer_size()
     }
 
     /// Modifies the inner size of the window.
     ///
-    /// See `get_inner_size` for more information about the values.
+    /// See `inner_size` for more information about the values.
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
@@ -456,8 +456,8 @@ impl Window {
     /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
-        self.window.get_hidpi_factor()
+    pub fn hidpi_factor(&self) -> f64 {
+        self.window.hidpi_factor()
     }
 
     /// Modifies the mouse cursor of the window.
@@ -514,8 +514,8 @@ impl Window {
 
     /// Gets the window's current fullscreen state.
     #[inline]
-    pub fn get_fullscreen(&self) -> Option<MonitorHandle> {
-        self.window.get_fullscreen()
+    pub fn fullscreen(&self) -> Option<MonitorHandle> {
+        self.window.fullscreen()
     }
 
     /// Turn window decorations on or off.
@@ -551,25 +551,25 @@ impl Window {
 
     /// Returns the monitor on which the window currently resides
     #[inline]
-    pub fn get_current_monitor(&self) -> MonitorHandle {
-        self.window.get_current_monitor()
+    pub fn current_monitor(&self) -> MonitorHandle {
+        self.window.current_monitor()
     }
 
     /// Returns the list of all the monitors available on the system.
     ///
-    /// This is the same as `EventLoop::get_available_monitors`, and is provided for convenience.
+    /// This is the same as `EventLoop::available_monitors`, and is provided for convenience.
     #[inline]
-    pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
-        let data = self.window.get_available_monitors();
+    pub fn available_monitors(&self) -> AvailableMonitorsIter {
+        let data = self.window.available_monitors();
         AvailableMonitorsIter { data: data.into_iter() }
     }
 
     /// Returns the primary monitor of the system.
     ///
-    /// This is the same as `EventLoop::get_primary_monitor`, and is provided for convenience.
+    /// This is the same as `EventLoop::primary_monitor`, and is provided for convenience.
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle { inner: self.window.get_primary_monitor() }
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle { inner: self.window.primary_monitor() }
     }
 
     /// Returns an identifier unique to the window.

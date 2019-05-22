@@ -61,13 +61,13 @@ impl<T> EventLoop<T> {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
-        monitor::get_available_monitors()
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        monitor::available_monitors()
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        monitor::get_primary_monitor()
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        monitor::primary_monitor()
     }
 
     pub fn window_target(&self) -> &RootWindowTarget<T> {

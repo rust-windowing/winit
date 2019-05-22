@@ -50,7 +50,7 @@ unsafe extern "system" fn monitor_enum_proc(
     TRUE // continue enumeration
 }
 
-pub fn get_available_monitors() -> VecDeque<MonitorHandle> {
+pub fn available_monitors() -> VecDeque<MonitorHandle> {
     let mut monitors: VecDeque<MonitorHandle> = VecDeque::new();
     unsafe {
         winuser::EnumDisplayMonitors(
@@ -63,7 +63,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorHandle> {
     monitors
 }
 
-pub fn get_primary_monitor() -> MonitorHandle {
+pub fn primary_monitor() -> MonitorHandle {
     const ORIGIN: POINT = POINT { x: 0, y: 0 };
     let hmonitor = unsafe {
         winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY)
@@ -71,7 +71,7 @@ pub fn get_primary_monitor() -> MonitorHandle {
     MonitorHandle::from_hmonitor(hmonitor)
 }
 
-pub fn get_current_monitor(hwnd: HWND) -> MonitorHandle {
+pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
     let hmonitor = unsafe {
         winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST)
     };
@@ -80,22 +80,22 @@ pub fn get_current_monitor(hwnd: HWND) -> MonitorHandle {
 
 impl<T> EventLoop<T> {
     // TODO: Investigate opportunities for caching
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
-        get_available_monitors()
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        available_monitors()
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        get_primary_monitor()
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        primary_monitor()
     }
 }
 
 impl Window {
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
-        get_available_monitors()
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        available_monitors()
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        get_primary_monitor()
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        primary_monitor()
     }
 }
 
@@ -142,32 +142,32 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         Some(self.monitor_name.clone())
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> String {
+    pub fn native_identifier(&self) -> String {
         self.monitor_name.clone()
     }
 
     #[inline]
-    pub fn get_hmonitor(&self) -> HMONITOR {
+    pub fn hmonitor(&self) -> HMONITOR {
         self.hmonitor.0
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> PhysicalSize {
+    pub fn dimensions(&self) -> PhysicalSize {
         self.dimensions.into()
     }
 
     #[inline]
-    pub fn get_outer_position(&self) -> PhysicalPosition {
+    pub fn outer_position(&self) -> PhysicalPosition {
         self.position.into()
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         self.hidpi_factor
     }
 }

@@ -82,16 +82,16 @@ fn main() {
                         if !is_fullscreen {
                             window.set_fullscreen(None);
                         } else {
-                            window.set_fullscreen(Some(window.get_current_monitor()));
+                            window.set_fullscreen(Some(window.current_monitor()));
                         }
                     }
                     (VirtualKeyCode::S, ElementState::Pressed) => {
-                        println!("window.get_fullscreen {:?}", window.get_fullscreen());
+                        println!("window.fullscreen {:?}", window.fullscreen());
 
                         #[cfg(target_os = "macos")]
                         {
                             use winit::platform::macos::WindowExtMacOS;
-                            println!("window.get_simple_fullscreen {:?}", WindowExtMacOS::get_simple_fullscreen(&window));
+                            println!("window.simple_fullscreen {:?}", WindowExtMacOS::simple_fullscreen(&window));
                         }
                     }
                     (VirtualKeyCode::M, ElementState::Pressed) => {
@@ -113,8 +113,8 @@ fn main() {
 
 // Enumerate monitors and prompt user to choose one
 fn prompt_for_monitor(event_loop: &EventLoop<()>) -> MonitorHandle {
-    for (num, monitor) in event_loop.get_available_monitors().enumerate() {
-        println!("Monitor #{}: {:?}", num, monitor.get_name());
+    for (num, monitor) in event_loop.available_monitors().enumerate() {
+        println!("Monitor #{}: {:?}", num, monitor.name());
     }
 
     print!("Please write the number of the monitor to use: ");
@@ -123,9 +123,9 @@ fn prompt_for_monitor(event_loop: &EventLoop<()>) -> MonitorHandle {
     let mut num = String::new();
     io::stdin().read_line(&mut num).unwrap();
     let num = num.trim().parse().ok().expect("Please enter a number");
-    let monitor = event_loop.get_available_monitors().nth(num).expect("Please enter a valid ID");
+    let monitor = event_loop.available_monitors().nth(num).expect("Please enter a valid ID");
 
-    println!("Using {:?}", monitor.get_name());
+    println!("Using {:?}", monitor.name());
 
     monitor
 }

@@ -110,14 +110,14 @@ pub trait EventLoopExtUnix {
     fn is_x11(&self) -> bool;
 
     #[doc(hidden)]
-    fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
+    fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
     /// Returns a pointer to the `wl_display` object of wayland that is used by this `EventLoop`.
     ///
     /// Returns `None` if the `EventLoop` doesn't use wayland (if it uses xlib for example).
     ///
     /// The pointer will become invalid when the glutin `EventLoop` is destroyed.
-    fn get_wayland_display(&self) -> Option<*mut raw::c_void>;
+    fn wayland_display(&self) -> Option<*mut raw::c_void>;
 }
 
 impl<T> EventLoopExtUnix for EventLoop<T> {
@@ -154,7 +154,7 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
 
     #[inline]
     #[doc(hidden)]
-    fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>> {
+    fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.event_loop {
             LinuxEventLoop::X(ref e) => Some(e.x_connection().clone()),
             _ => None
@@ -162,9 +162,9 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
     }
 
     #[inline]
-    fn get_wayland_display(&self) -> Option<*mut raw::c_void> {
+    fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.event_loop {
-            LinuxEventLoop::Wayland(ref e) => Some(e.get_display().get_display_ptr() as *mut _),
+            LinuxEventLoop::Wayland(ref e) => Some(e.display().get_display_ptr() as *mut _),
             _ => None
         }
     }
@@ -175,19 +175,19 @@ pub trait WindowExtUnix {
     /// Returns the ID of the `Window` xlib object that is used by this window.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
-    fn get_xlib_window(&self) -> Option<raw::c_ulong>;
+    fn xlib_window(&self) -> Option<raw::c_ulong>;
 
     /// Returns a pointer to the `Display` object of xlib that is used by this window.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_xlib_display(&self) -> Option<*mut raw::c_void>;
+    fn xlib_display(&self) -> Option<*mut raw::c_void>;
 
-    fn get_xlib_screen_id(&self) -> Option<raw::c_int>;
+    fn xlib_screen_id(&self) -> Option<raw::c_int>;
 
     #[doc(hidden)]
-    fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>>;
+    fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
     /// Set window urgency hint (`XUrgencyHint`). Only relevant on X.
     fn set_urgent(&self, is_urgent: bool);
@@ -197,21 +197,21 @@ pub trait WindowExtUnix {
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_xcb_connection(&self) -> Option<*mut raw::c_void>;
+    fn xcb_connection(&self) -> Option<*mut raw::c_void>;
 
     /// Returns a pointer to the `wl_surface` object of wayland that is used by this window.
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_wayland_surface(&self) -> Option<*mut raw::c_void>;
+    fn wayland_surface(&self) -> Option<*mut raw::c_void>;
 
     /// Returns a pointer to the `wl_display` object of wayland that is used by this window.
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
-    fn get_wayland_display(&self) -> Option<*mut raw::c_void>;
+    fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
     /// Sets the color theme of the client side window decorations on wayland
     fn set_wayland_theme(&self, theme: WaylandTheme);
@@ -228,42 +228,42 @@ pub trait WindowExtUnix {
 
 impl WindowExtUnix for Window {
     #[inline]
-    fn get_xlib_window(&self) -> Option<raw::c_ulong> {
+    fn xlib_window(&self) -> Option<raw::c_ulong> {
         match self.window {
-            LinuxWindow::X(ref w) => Some(w.get_xlib_window()),
+            LinuxWindow::X(ref w) => Some(w.xlib_window()),
             _ => None
         }
     }
 
     #[inline]
-    fn get_xlib_display(&self) -> Option<*mut raw::c_void> {
+    fn xlib_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::X(ref w) => Some(w.get_xlib_display()),
+            LinuxWindow::X(ref w) => Some(w.xlib_display()),
             _ => None
         }
     }
 
     #[inline]
-    fn get_xlib_screen_id(&self) -> Option<raw::c_int> {
+    fn xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
-            LinuxWindow::X(ref w) => Some(w.get_xlib_screen_id()),
+            LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
             _ => None
         }
     }
 
     #[inline]
     #[doc(hidden)]
-    fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>> {
+    fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
-            LinuxWindow::X(ref w) => Some(w.get_xlib_xconnection()),
+            LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
             _ => None
         }
     }
 
     #[inline]
-    fn get_xcb_connection(&self) -> Option<*mut raw::c_void> {
+    fn xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::X(ref w) => Some(w.get_xcb_connection()),
+            LinuxWindow::X(ref w) => Some(w.xcb_connection()),
             _ => None
         }
     }
@@ -276,17 +276,17 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
-    fn get_wayland_surface(&self) -> Option<*mut raw::c_void> {
+    fn wayland_surface(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::Wayland(ref w) => Some(w.get_surface().as_ref().c_ptr() as *mut _),
+            LinuxWindow::Wayland(ref w) => Some(w.surface().as_ref().c_ptr() as *mut _),
             _ => None
         }
     }
 
     #[inline]
-    fn get_wayland_display(&self) -> Option<*mut raw::c_void> {
+    fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::Wayland(ref w) => Some(w.get_display().as_ref().c_ptr() as *mut _),
+            LinuxWindow::Wayland(ref w) => Some(w.display().as_ref().c_ptr() as *mut _),
             _ => None
         }
     }
@@ -398,6 +398,6 @@ pub trait MonitorHandleExtUnix {
 impl MonitorHandleExtUnix for MonitorHandle {
     #[inline]
     fn native_id(&self) -> u32 {
-        self.inner.get_native_identifier()
+        self.inner.native_identifier()
     }
 }

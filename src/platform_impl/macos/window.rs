@@ -104,7 +104,7 @@ fn create_window(
         let pool = NSAutoreleasePool::new(nil);
         let screen = match attrs.fullscreen {
             Some(ref monitor_id) => {
-                let monitor_screen = monitor_id.inner.get_nsscreen();
+                let monitor_screen = monitor_id.inner.nsscreen();
                 Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
             },
             _ => None,
@@ -326,7 +326,7 @@ impl UnownedWindow {
 
         // Set fullscreen mode after we setup everything
         if let Some(monitor) = fullscreen {
-            if monitor.inner != window.get_current_monitor().inner {
+            if monitor.inner != window.current_monitor().inner {
                 // To do this with native fullscreen, we probably need to
                 // warp the window... while we could use
                 // `enterFullScreenMode`, they're idiomatically different
@@ -394,7 +394,7 @@ impl UnownedWindow {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
 
-    pub fn get_outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Option<LogicalPosition> {
         let frame_rect = unsafe { NSWindow::frame(*self.nswindow) };
         Some((
             frame_rect.origin.x as f64,
@@ -402,7 +402,7 @@ impl UnownedWindow {
         ).into())
     }
 
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Option<LogicalPosition> {
         let content_rect = unsafe {
             NSWindow::contentRectForFrameRect_(
                 *self.nswindow,
@@ -431,13 +431,13 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> Option<LogicalSize> {
         let view_frame = unsafe { NSView::frame(*self.nsview) };
         Some((view_frame.size.width as f64, view_frame.size.height as f64).into())
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> Option<LogicalSize> {
         let view_frame = unsafe { NSWindow::frame(*self.nswindow) };
         Some((view_frame.size.width as f64, view_frame.size.height as f64).into())
     }
@@ -518,13 +518,13 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         unsafe { NSWindow::backingScaleFactor(*self.nswindow) as _ }
     }
 
     #[inline]
     pub fn set_cursor_position(&self, cursor_position: LogicalPosition) -> Result<(), ExternalError> {
-        let window_position = self.get_inner_position().unwrap();
+        let window_position = self.inner_position().unwrap();
         let point = appkit::CGPoint {
             x: (cursor_position.x + window_position.x) as CGFloat,
             y: (cursor_position.y + window_position.y) as CGFloat,
@@ -635,7 +635,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
         let shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.fullscreen.clone()
     }
@@ -746,7 +746,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+    pub fn current_monitor(&self) -> RootMonitorHandle {
         unsafe {
             let screen: id = msg_send![*self.nswindow, screen];
             let desc = NSScreen::deviceDescription(screen);
@@ -758,24 +758,24 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
-        monitor::get_available_monitors()
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        monitor::available_monitors()
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        monitor::get_primary_monitor()
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        monitor::primary_monitor()
     }
 }
 
 impl WindowExtMacOS for UnownedWindow {
     #[inline]
-    fn get_nswindow(&self) -> *mut c_void {
+    fn nswindow(&self) -> *mut c_void {
         *self.nswindow as *mut _
     }
 
     #[inline]
-    fn get_nsview(&self) -> *mut c_void {
+    fn nsview(&self) -> *mut c_void {
         *self.nsview as *mut _
     }
 
@@ -790,7 +790,7 @@ impl WindowExtMacOS for UnownedWindow {
     }
 
     #[inline]
-    fn get_simple_fullscreen(&self) -> bool {
+    fn simple_fullscreen(&self) -> bool {
         let shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.is_simple_fullscreen
     }
