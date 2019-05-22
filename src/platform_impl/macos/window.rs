@@ -17,7 +17,7 @@ use objc::{runtime::{Class, Object, Sel, BOOL, YES, NO}, declare::ClassDecl};
 
 use {
     dpi::{LogicalPosition, LogicalSize}, icon::Icon,
-    error::ExternalError,
+    error::{ExternalError, NotSupportedError},
     monitor::MonitorHandle as RootMonitorHandle,
     window::{
         CreationError, MouseCursor, WindowAttributes, WindowId as RootWindowId,
@@ -394,22 +394,22 @@ impl UnownedWindow {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
 
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         let frame_rect = unsafe { NSWindow::frame(*self.nswindow) };
-        Some((
+        Ok((
             frame_rect.origin.x as f64,
             util::bottom_left_to_top_left(frame_rect),
         ).into())
     }
 
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         let content_rect = unsafe {
             NSWindow::contentRectForFrameRect_(
                 *self.nswindow,
                 NSWindow::frame(*self.nswindow),
             )
         };
-        Some((
+        Ok((
             content_rect.origin.x as f64,
             util::bottom_left_to_top_left(content_rect),
         ).into())
@@ -431,15 +431,15 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> LogicalSize {
         let view_frame = unsafe { NSView::frame(*self.nsview) };
-        Some((view_frame.size.width as f64, view_frame.size.height as f64).into())
+        (view_frame.size.width as f64, view_frame.size.height as f64).into()
     }
 
     #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> LogicalSize {
         let view_frame = unsafe { NSWindow::frame(*self.nswindow) };
-        Some((view_frame.size.width as f64, view_frame.size.height as f64).into())
+        (view_frame.size.width as f64, view_frame.size.height as f64).into()
     }
 
     #[inline]

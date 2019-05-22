@@ -8,7 +8,7 @@ use std::sync::Arc;
 use libc;
 use parking_lot::Mutex;
 
-use error::ExternalError;
+use error::{ExternalError, NotSupportedError};
 use window::{Icon, MouseCursor, WindowAttributes};
 use window::CreationError;
 use dpi::{LogicalPosition, LogicalSize};
@@ -533,7 +533,7 @@ impl UnownedWindow {
             },
             Some(RootMonitorHandle { inner: PlatformMonitorHandle::X(monitor) }) => {
                 let window_position = self.outer_position_physical();
-                self.shared_state.lock().restore_position = window_position;
+                self.shared_state.lock().restore_position = Some(window_position);
                 let monitor_origin: (i32, i32) = monitor.outer_position().into();
                 self.set_position_inner(monitor_origin.0, monitor_origin.1).queue();
                 self.set_fullscreen_hint(true)
@@ -556,13 +556,11 @@ impl UnownedWindow {
         self.invalidate_cached_frame_extents();
     }
 
-    fn get_rect(&self) -> Option<util::AaRect> {
+    fn get_rect(&self) -> util::AaRect {
         // TODO: This might round-trip more times than needed.
-        if let (Some(position), Some(size)) = (self.outer_position_physical(), self.outer_size_physical()) {
-            Some(util::AaRect::new(position, size))
-        } else {
-            None
-        }
+        let position = self.outer_position_physical();
+        let size = self.outer_size_physical();
+        util::AaRect::new(position, size)
     }
 
     #[inline]
@@ -574,7 +572,7 @@ impl UnownedWindow {
             .cloned();
         monitor
             .unwrap_or_else(|| {
-                let monitor = self.xconn.get_monitor_for_window(self.get_rect()).to_owned();
+                let monitor = self.xconn.get_monitor_for_window(Some(self.get_rect())).to_owned();
                 self.shared_state.lock().last_monitor = Some(monitor.clone());
                 monitor
             })
@@ -723,11 +721,11 @@ impl UnownedWindow {
         (*self.shared_state.lock()).frame_extents.take();
     }
 
-    pub(crate) fn outer_position_physical(&self) -> Option<(i32, i32)> {
+    pub(crate) fn outer_position_physical(&self) -> (i32, i32) {
         let extents = (*self.shared_state.lock()).frame_extents.clone();
         if let Some(extents) = extents {
-            self.inner_position_physical()
-                .map(|(x, y)| extents.inner_pos_to_outer(x, y))
+            let (x, y) = self.inner_position_physical();
+            extents.inner_pos_to_outer(x, y)
         } else {
             self.update_cached_frame_extents();
             self.outer_position_physical()
@@ -735,27 +733,28 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         let extents = (*self.shared_state.lock()).frame_extents.clone();
         if let Some(extents) = extents {
-            self.inner_position()
-                .map(|logical| extents.inner_pos_to_outer_logical(logical, self.hidpi_factor()))
+            let logical = self.inner_position().unwrap();
+            Ok(extents.inner_pos_to_outer_logical(logical, self.hidpi_factor()))
         } else {
             self.update_cached_frame_extents();
             self.outer_position()
         }
     }
 
-    pub(crate) fn inner_position_physical(&self) -> Option<(i32, i32)> {
+    pub(crate) fn inner_position_physical(&self) -> (i32, i32) {
+        // This should be okay to unwrap since the only error XTranslateCoordinates can return
+        // is BadWindow, and if the window handle is bad we have bigger problems.
         self.xconn.translate_coords(self.xwindow, self.root)
-            .ok()
             .map(|coords| (coords.x_rel_root, coords.y_rel_root))
+            .unwrap()
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
-        self.inner_position_physical()
-            .map(|coords| self.logicalize_coords(coords))
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+        Ok(self.logicalize_coords(self.inner_position_physical()))
     }
 
     pub(crate) fn set_position_inner(&self, mut x: i32, mut y: i32) -> util::Flusher {
@@ -794,23 +793,24 @@ impl UnownedWindow {
         self.set_position_physical(x, y);
     }
 
-    pub(crate) fn inner_size_physical(&self) -> Option<(u32, u32)> {
+    pub(crate) fn inner_size_physical(&self) -> (u32, u32) {
+        // This should be okay to unwrap since the only error XGetGeometry can return
+        // is BadWindow, and if the window handle is bad we have bigger problems.
         self.xconn.get_geometry(self.xwindow)
-            .ok()
             .map(|geo| (geo.width, geo.height))
+            .unwrap()
     }
 
     #[inline]
-    pub fn inner_size(&self) -> Option<LogicalSize> {
-        self.inner_size_physical()
-            .map(|size| self.logicalize_size(size))
+    pub fn inner_size(&self) -> LogicalSize {
+        self.logicalize_size(self.inner_size_physical())
     }
 
-    pub(crate) fn outer_size_physical(&self) -> Option<(u32, u32)> {
+    pub(crate) fn outer_size_physical(&self) -> (u32, u32) {
         let extents = self.shared_state.lock().frame_extents.clone();
         if let Some(extents) = extents {
-            self.inner_size_physical()
-                .map(|(w, h)| extents.inner_size_to_outer(w, h))
+            let (w, h) = self.inner_size_physical();
+            extents.inner_size_to_outer(w, h)
         } else {
             self.update_cached_frame_extents();
             self.outer_size_physical()
@@ -818,11 +818,11 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> LogicalSize {
         let extents = self.shared_state.lock().frame_extents.clone();
         if let Some(extents) = extents {
-            self.inner_size()
-                .map(|logical| extents.inner_size_to_outer_logical(logical, self.hidpi_factor()))
+            let logical = self.inner_size();
+            extents.inner_size_to_outer_logical(logical, self.hidpi_factor())
         } else {
             self.update_cached_frame_extents();
             self.outer_size()
@@ -933,7 +933,7 @@ impl UnownedWindow {
             let shared_state_lock = self.shared_state.lock();
             (shared_state_lock.min_inner_size, shared_state_lock.max_inner_size)
         } else {
-            let window_size = self.inner_size();
+            let window_size = Some(self.inner_size());
             (window_size.clone(), window_size)
         };
 

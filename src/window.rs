@@ -2,7 +2,7 @@
 use std::{fmt, error};
 
 use platform_impl;
-use error::ExternalError;
+use error::{ExternalError, NotSupportedError};
 use event_loop::EventLoopWindowTarget;
 use monitor::{AvailableMonitorsIter, MonitorHandle};
 use dpi::{LogicalPosition, LogicalSize};
@@ -317,8 +317,6 @@ impl Window {
     }
 
     /// Modifies the title of the window.
-    ///
-    /// This is a no-op if the window has already been closed.
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title)
@@ -357,10 +355,8 @@ impl Window {
     ///
     /// The coordinates can be negative if the top-left hand corner of the window is outside
     ///  of the visible screen region.
-    ///
-    /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         self.window.outer_position()
     }
 
@@ -369,15 +365,13 @@ impl Window {
     ///
     /// The same conditions that apply to `outer_position` apply to this method.
     #[inline]
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         self.window.inner_position()
     }
 
     /// Modifies the position of the window.
     ///
     /// See `outer_position` for more information about the coordinates.
-    ///
-    /// This is a no-op if the window has already been closed.
     #[inline]
     pub fn set_outer_position(&self, position: LogicalPosition) {
         self.window.set_outer_position(position)
@@ -388,10 +382,8 @@ impl Window {
     /// The client area is the content of the window, excluding the title bar and borders.
     ///
     /// Converting the returned `LogicalSize` to `PhysicalSize` produces the size your framebuffer should be.
-    ///
-    /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> LogicalSize {
         self.window.inner_size()
     }
 
@@ -399,18 +391,14 @@ impl Window {
     ///
     /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
     /// use `inner_size` instead.
-    ///
-    /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> LogicalSize {
         self.window.outer_size()
     }
 
     /// Modifies the inner size of the window.
     ///
     /// See `inner_size` for more information about the values.
-    ///
-    /// This is a no-op if the window has already been closed.
     #[inline]
     pub fn set_inner_size(&self, size: LogicalSize) {
         self.window.set_inner_size(size)

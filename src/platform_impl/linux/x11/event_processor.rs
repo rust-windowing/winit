@@ -975,10 +975,7 @@ impl<T: 'static> EventProcessor<T> {
                                                             new_monitor.hidpi_factor
                                                         ),
                                                     });
-                                                    let (width, height) = match window.inner_size_physical() {
-                                                        Some(result) => result,
-                                                        None => continue,
-                                                    };
+                                                    let (width, height) = window.inner_size_physical();
                                                     let (_, _, flusher) = window.adjust_for_dpi(
                                                         prev_monitor.hidpi_factor,
                                                         new_monitor.hidpi_factor,

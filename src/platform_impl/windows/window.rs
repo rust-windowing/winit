@@ -19,7 +19,7 @@ use winapi::um::oleidl::LPDROPTARGET;
 use winapi::um::winnt::{LONG, LPCWSTR};
 
 use window::{CreationError, Icon, MouseCursor, WindowAttributes};
-use error::ExternalError;
+use error::{ExternalError, NotSupportedError};
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use monitor::MonitorHandle as RootMonitorHandle;
 use platform_impl::platform::{
@@ -127,35 +127,32 @@ impl Window {
         }
     }
 
-    pub(crate) fn outer_position_physical(&self) -> Option<(i32, i32)> {
+    pub(crate) fn outer_position_physical(&self) -> (i32, i32) {
         util::get_window_rect(self.window.0)
             .map(|rect| (rect.left as i32, rect.top as i32))
+            .unwrap()
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
-        self.outer_position_physical()
-            .map(|physical_position| {
-                let dpi_factor = self.hidpi_factor();
-                LogicalPosition::from_physical(physical_position, dpi_factor)
-            })
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+        let physical_position = self.outer_position_physical();
+        let dpi_factor = self.hidpi_factor();
+        Ok(LogicalPosition::from_physical(physical_position, dpi_factor))
     }
 
-    pub(crate) fn inner_position_physical(&self) -> Option<(i32, i32)> {
+    pub(crate) fn inner_position_physical(&self) -> (i32, i32) {
         let mut position: POINT = unsafe { mem::zeroed() };
         if unsafe { winuser::ClientToScreen(self.window.0, &mut position) } == 0 {
-            return None;
+            panic!("Unexpected ClientToScreen failure: please report this error to https://github.com/rust-windowing/winit")
         }
-        Some((position.x, position.y))
+        (position.x, position.y)
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
-        self.inner_position_physical()
-            .map(|physical_position| {
-                let dpi_factor = self.hidpi_factor();
-                LogicalPosition::from_physical(physical_position, dpi_factor)
-            })
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+        let physical_position = self.inner_position_physical();
+        let dpi_factor = self.hidpi_factor();
+        Ok(LogicalPosition::from_physical(physical_position, dpi_factor))
     }
 
     pub(crate) fn set_position_physical(&self, x: i32, y: i32) {
@@ -180,41 +177,38 @@ impl Window {
         self.set_position_physical(x, y);
     }
 
-    pub(crate) fn inner_size_physical(&self) -> Option<(u32, u32)> {
+    pub(crate) fn inner_size_physical(&self) -> (u32, u32) {
         let mut rect: RECT = unsafe { mem::uninitialized() };
         if unsafe { winuser::GetClientRect(self.window.0, &mut rect) } == 0 {
-            return None;
+            panic!("Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit")
         }
-        Some((
+        (
             (rect.right - rect.left) as u32,
             (rect.bottom - rect.top) as u32,
-        ))
+        )
     }
 
     #[inline]
-    pub fn inner_size(&self) -> Option<LogicalSize> {
-        self.inner_size_physical()
-            .map(|physical_size| {
-                let dpi_factor = self.hidpi_factor();
-                LogicalSize::from_physical(physical_size, dpi_factor)
-            })
+    pub fn inner_size(&self) -> LogicalSize {
+        let physical_size = self.inner_size_physical();
+        let dpi_factor = self.hidpi_factor();
+        LogicalSize::from_physical(physical_size, dpi_factor)
     }
 
-    pub(crate) fn outer_size_physical(&self) -> Option<(u32, u32)> {
+    pub(crate) fn outer_size_physical(&self) -> (u32, u32) {
         util::get_window_rect(self.window.0)
             .map(|rect| (
                 (rect.right - rect.left) as u32,
                 (rect.bottom - rect.top) as u32,
             ))
+            .unwrap()
     }
 
     #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
-        self.outer_size_physical()
-            .map(|physical_size| {
-                let dpi_factor = self.hidpi_factor();
-                LogicalSize::from_physical(physical_size, dpi_factor)
-            })
+    pub fn outer_size(&self) -> LogicalSize {
+        let physical_size = self.outer_size_physical();
+        let dpi_factor = self.hidpi_factor();
+        LogicalSize::from_physical(physical_size, dpi_factor)
     }
 
     pub(crate) fn set_inner_size_physical(&self, x: u32, y: u32) {
@@ -257,8 +251,8 @@ impl Window {
     pub(crate) fn set_min_inner_size_physical(&self, dimensions: Option<(u32, u32)>) {
         self.window_state.lock().min_size = dimensions.map(Into::into);
         // Make windows re-check the window size bounds.
-        self.inner_size_physical()
-            .map(|(width, height)| self.set_inner_size_physical(width, height));
+        let (width, height) = self.inner_size_physical();
+        self.set_inner_size_physical(width, height);
     }
 
     #[inline]
@@ -273,8 +267,8 @@ impl Window {
     pub fn set_max_inner_size_physical(&self, dimensions: Option<(u32, u32)>) {
         self.window_state.lock().max_size = dimensions.map(Into::into);
         // Make windows re-check the window size bounds.
-        self.inner_size_physical()
-            .map(|(width, height)| self.set_inner_size_physical(width, height));
+        let (width, height) = self.inner_size_physical();
+        self.set_inner_size_physical(width, height);
     }
 
     #[inline]

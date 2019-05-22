@@ -5,6 +5,8 @@ pub enum ExternalError {
     Os(OsError),
 }
 
+/// TODO: MANUALLY IMPLEMENT TRAITS
+#[derive(Debug)]
 pub struct NotSupportedError {
     _marker: (),
 }

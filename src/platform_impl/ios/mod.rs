@@ -393,15 +393,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
-        // N/A
-        None
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+        Err(NotSupportedError::new())
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
-        // N/A
-        None
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+        Err(NotSupportedError::new())
     }
 
     #[inline]
@@ -410,12 +408,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> Option<LogicalSize> {
-        Some(self.delegate_state.size)
+    pub fn inner_size(&self) -> LogicalSize {
+        self.delegate_state.size
     }
 
     #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> LogicalSize {
         self.inner_size()
     }
 

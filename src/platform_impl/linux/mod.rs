@@ -11,7 +11,7 @@ use sctk::reexports::client::ConnectError;
 
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use icon::Icon;
-use error::ExternalError;
+use error::{ExternalError, NotSupportedError};
 use event::Event;
 use event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
 use monitor::MonitorHandle as RootMonitorHandle;
@@ -176,7 +176,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         match self {
             &Window::X(ref w) => w.outer_position(),
             &Window::Wayland(ref w) => w.outer_position(),
@@ -184,7 +184,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         match self {
             &Window::X(ref m) => m.inner_position(),
             &Window::Wayland(ref m) => m.inner_position(),
@@ -200,7 +200,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> LogicalSize {
         match self {
             &Window::X(ref w) => w.inner_size(),
             &Window::Wayland(ref w) => w.inner_size(),
@@ -208,7 +208,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> LogicalSize {
         match self {
             &Window::X(ref w) => w.outer_size(),
             &Window::Wayland(ref w) => w.outer_size(),

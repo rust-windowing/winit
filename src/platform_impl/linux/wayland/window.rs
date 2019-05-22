@@ -160,15 +160,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
-        // Not possible with wayland
-        None
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+        Err(NotSupportedError::new())
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
-        // Not possible with wayland
-        None
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+        Err(NotSupportedError::new())
     }
 
     #[inline]
@@ -176,8 +174,8 @@ impl Window {
         // Not possible with wayland
     }
 
-    pub fn inner_size(&self) -> Option<LogicalSize> {
-        Some(self.size.lock().unwrap().clone().into())
+    pub fn inner_size(&self) -> LogicalSize {
+        self.size.lock().unwrap().clone().into()
     }
 
     pub fn request_redraw(&self) {
@@ -185,10 +183,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> LogicalSize {
         let (w, h) = self.size.lock().unwrap().clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
-        Some((w, h).into())
+        (w, h).into()
     }
 
     #[inline]
