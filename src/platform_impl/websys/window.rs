@@ -82,24 +82,21 @@ impl MonitorHandle {
 
 pub struct Window {
     pub(crate) canvas: ::web_sys::HtmlCanvasElement,
-    internal: Rc<WindowInternal>
 }
 
-pub(crate) struct WindowInternal {
-    pub pending_events: RefCell<Vec<::event::WindowEvent>>
-}
-
-impl WindowInternal {
-    pub fn events(&self) -> Vec<::event::WindowEvent> {
-        self.pending_events.replace(Vec::new())
-    }
+pub(crate) struct WindowInternal<'a, T: 'static> {
+    pub target: &'a EventLoopWindowTarget<T>,
+    _marker: std::marker::PhantomData<T>,
 }
 
 macro_rules! install_simple_handler {
     ($in:ty, $f:ident, $w:ident, $e:ident) => {
-        let mut win = $w.clone();
+        let win = $w.clone();
         let handler = Closure::wrap(Box::new(move |event: $in| {
-            win.pending_events.borrow_mut().push(event.into());
+            win.target.window_events.borrow_mut().push(event.into());
+            if win.target.is_sleeping() {
+                win.target.wake();
+            }
         }) as Box<FnMut($in)>);
         $e.$f(Some(handler.as_ref().unchecked_ref()));
         handler.forget();
@@ -144,20 +141,27 @@ impl Window {
         };
 
         let internal = Rc::new(WindowInternal {
-            pending_events: RefCell::new(Vec::with_capacity(3))
+            target: &target,
+            _marker: std::marker::PhantomData,
         });
 
-        target.set_window(internal.clone());
+        target.setup_window(&element);
 
+        // TODO: move these to event_loop.  we can pass 'static closures to web_sys::Closure,
+        // meaning i can't use the reference to target.  womp womp.
+        //
+        // we should still own the canvas, but events should be with the event loop.
+        // should bring back target.set_window, which can register the event handlers.
+        /*
         install_simple_handler!(::web_sys::MouseEvent, set_onmousedown, internal, element);
         install_simple_handler!(::web_sys::MouseEvent, set_onmouseup, internal, element);
         install_simple_handler!(::web_sys::MouseEvent, set_onmouseenter, internal, element);
         install_simple_handler!(::web_sys::MouseEvent, set_onmouseleave, internal, element);
+        */
 
 
         Ok(Window {
             canvas: element,
-            internal: internal.clone()
         })
     }
 
