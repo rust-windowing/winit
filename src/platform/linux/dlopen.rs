@@ -6,7 +6,7 @@ use std::os::raw::{c_void, c_char, c_int};
 pub const RTLD_LAZY: c_int = 0x001;
 pub const RTLD_NOW: c_int = 0x002;
 
-#[link="dl"]
+#[link(name = "dl")]
 extern {
     pub fn dlopen(filename: *const c_char, flag: c_int) -> *mut c_void;
     pub fn dlerror() -> *mut c_char;
