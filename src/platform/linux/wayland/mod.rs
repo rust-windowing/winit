@@ -16,20 +16,8 @@ mod window;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
 
-impl DeviceId {
-    pub unsafe fn dummy() -> Self {
-        DeviceId
-    }
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(usize);
-
-impl WindowId {
-    pub unsafe fn dummy() -> Self {
-        WindowId(0)
-    }
-}
 
 #[inline]
 fn make_wid(s: &Proxy<wl_surface::WlSurface>) -> WindowId {
