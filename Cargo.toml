@@ -66,5 +66,5 @@ features = [
 wayland-client = { version = "0.21", features = [ "dlopen", "egl", "cursor"] }
 smithay-client-toolkit = "0.4.3"
 x11-dl = "2.18.3"
-parking_lot = "0.7"
+parking_lot = "0.8"
 percent-encoding = "1.0"
