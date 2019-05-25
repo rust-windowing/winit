@@ -90,8 +90,8 @@ fn main() {
 
                         #[cfg(target_os = "macos")]
                         {
-                            use winit::os::macos::WindowExt;
-                            println!("window.get_simple_fullscreen {:?}", WindowExt::get_simple_fullscreen(&window));
+                            use winit::platform::macos::WindowExtMacOS;
+                            println!("window.get_simple_fullscreen {:?}", WindowExtMacOS::get_simple_fullscreen(&window));
                         }
                     }
                     (VirtualKeyCode::M, ElementState::Pressed) => {
