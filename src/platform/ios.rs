@@ -9,12 +9,12 @@ use window::{Window, WindowBuilder};
 /// Additional methods on `EventLoop` that are specific to iOS.
 pub trait EventLoopExtIOS {
     /// Returns the idiom (phone/tablet/tv/etc) for the current device.
-    fn get_idiom(&self) -> Idiom;
+    fn idiom(&self) -> Idiom;
 }
 
 impl<T: 'static> EventLoopExtIOS for EventLoop<T> {
-    fn get_idiom(&self) -> Idiom {
-        self.event_loop.get_idiom()
+    fn idiom(&self) -> Idiom {
+        self.event_loop.idiom()
     }
 }
 
@@ -23,28 +23,28 @@ pub trait WindowExtIOS {
     /// Returns a pointer to the `UIWindow` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
-    fn uiwindow(&self) -> *mut c_void;
+    fn ui_window(&self) -> *mut c_void;
 
     /// Returns a pointer to the `UIViewController` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
-    fn get_uiviewcontroller(&self) -> *mut c_void;
+    fn ui_view_controller(&self) -> *mut c_void;
 
     /// Returns a pointer to the `UIView` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
-    fn uiview(&self) -> *mut c_void;
+    fn ui_view(&self) -> *mut c_void;
 }
 
 impl WindowExtIOS for Window {
     #[inline]
-    fn uiwindow(&self) -> *mut c_void {
-        self.window.uiwindow() as _
+    fn ui_window(&self) -> *mut c_void {
+        self.window.ui_window() as _
     }
 
     #[inline]
-    fn uiview(&self) -> *mut c_void {
-        self.window.uiview() as _
+    fn ui_view(&self) -> *mut c_void {
+        self.window.ui_view() as _
     }
 
     #[inline]
@@ -64,13 +64,13 @@ pub trait WindowBuilderExtIOS {
     ///
     /// The class will be initialized by calling `[root_view initWithFrame:CGRect]`
     fn with_root_view_class(self, root_view_class: *const c_void) -> WindowBuilder;
-    
+
     /// Sets the `contentScaleFactor` of the underlying `UIWindow` to `hidpi_factor`.
-    /// 
+    ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
-    /// this to `MonitorHandle::get_hidpi_factor()`.
+    /// this to `MonitorHandle::hidpi_factor()`.
     fn with_hidpi_factor(self, hidpi_factor: f64) -> WindowBuilder;
-    
+
     /// Sets the valid orientations for the `Window`.
     fn with_valid_orientations(self, valid_orientations: ValidOrientations) -> WindowBuilder;
 }
@@ -115,7 +115,7 @@ pub enum ValidOrientations {
     LandscapeAndPortrait,
 
     Landscape,
-    
+
     /// Excludes `PortraitUpsideDown` on iphone
     Portrait,
 }
@@ -128,7 +128,7 @@ impl Default for ValidOrientations {
 }
 
 /// The device [idiom].
-/// 
+///
 /// [idiom]: https://developer.apple.com/documentation/uikit/uidevice/1620037-userinterfaceidiom?language=objc
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Idiom {

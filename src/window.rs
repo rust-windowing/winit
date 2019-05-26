@@ -386,7 +386,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window's [safe area] in the screen space coordinate system.
-    /// 
+    ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
     pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
@@ -418,7 +418,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window's
     ///   [safe area] in screen space coordinates.
-    /// 
+    ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
     pub fn inner_size(&self) -> LogicalSize {
@@ -505,7 +505,7 @@ impl Window {
     /// - **Android:** Always returns 1.0.
     /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
     ///   [`contentScaleFactor`].
-    /// 
+    ///
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
@@ -564,7 +564,7 @@ impl Window {
     /// Sets the window to maximized or back.
     ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
@@ -574,7 +574,7 @@ impl Window {
     /// Sets the window to fullscreen or back.
     ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<MonitorHandle>) {
@@ -584,7 +584,7 @@ impl Window {
     /// Gets the window's current fullscreen state.
     ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn fullscreen(&self) -> Option<MonitorHandle> {
@@ -594,10 +594,10 @@ impl Window {
     /// Turn window decorations on or off.
     ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **iOS:** Can only be called on the main thread. Controls whether the status bar is hidden
     ///   via [`setPrefersStatusBarHidden`].
-    /// 
+    ///
     /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
@@ -607,7 +607,7 @@ impl Window {
     /// Change whether or not the window will always be on top of other windows.
     ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {

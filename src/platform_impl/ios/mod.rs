@@ -342,12 +342,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn uiwindow(&self) -> id {
+    pub fn ui_window(&self) -> id {
         self.delegate_state.window
     }
 
     #[inline]
-    pub fn uiview(&self) -> id {
+    pub fn ui_view(&self) -> id {
         self.delegate_state.view
     }
 

@@ -56,15 +56,14 @@ impl Inner {
         debug!("`Window::set_title` is ignored on iOS")
     }
 
-    pub fn show(&self) {
-        unsafe {
-            let () = msg_send![self.window, setHidden:NO];
-        }
-    }
-
-    pub fn hide(&self) {
-        unsafe {
-            let () = msg_send![self.window, setHidden:YES];
+    pub fn set_visible(&self, visible: bool) {
+        match visible {
+            true => unsafe {
+                let () = msg_send![self.window, setHidden:NO];
+            },
+            false => unsafe {
+                let () = msg_send![self.window, setHidden:YES];
+            },
         }
     }
 
@@ -73,7 +72,7 @@ impl Inner {
             let () = msg_send![self.view, setNeedsDisplay];
         }
     }
-    
+
     pub fn get_inner_position(&self) -> Option<LogicalPosition> {
         unsafe {
             let safe_area = self.safe_area_screen_space();
@@ -344,7 +343,7 @@ impl Window {
 // WindowExtIOS
 impl Inner {
     pub fn get_uiwindow(&self) -> id { self.window }
-    pub fn get_uiviewcontroller(&self) -> id { self.view_controller }
+    pub fn ui_view_controller(&self) -> id { self.view_controller }
     pub fn get_uiview(&self) -> id { self.view }
 
     pub fn set_hidpi_factor(&self, hidpi_factor: f64) {
@@ -357,7 +356,7 @@ impl Inner {
 
     pub fn set_valid_orientations(&self, valid_orientations: ValidOrientations) {
         unsafe {
-            let idiom = event_loop::get_idiom();
+            let idiom = event_loop::idiom();
             let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(valid_orientations, idiom);
             msg_send![self.view_controller, setSupportedInterfaceOrientations:supported_orientations];
         }

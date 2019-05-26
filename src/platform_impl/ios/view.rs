@@ -31,7 +31,7 @@ use platform_impl::platform::window::{PlatformSpecificWindowBuilderAttributes};
 unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
     static mut CLASSES: Option<HashMap<*const Class, &'static Class>> = None;
     static mut ID: usize = 0;
-    
+
     if CLASSES.is_none() {
         CLASSES = Some(HashMap::default());
     }
@@ -289,7 +289,7 @@ pub unsafe fn create_view_controller(
     } else {
         YES
     };
-    let idiom = event_loop::get_idiom();
+    let idiom = event_loop::idiom();
     let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(
         platform_attributes.valid_orientations,
         idiom,
