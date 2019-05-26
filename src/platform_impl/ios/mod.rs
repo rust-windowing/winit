@@ -47,16 +47,14 @@
 //!
 //! This is how those event are represented in winit:
 //!
-//!  - applicationDidBecomeActive is Focused(true)
-//!  - applicationWillResignActive is Focused(false)
-//!  - applicationDidEnterBackground is Suspended(true)
-//!  - applicationWillEnterForeground is Suspended(false)
-//!  - applicationWillTerminate is Destroyed
+//!  - applicationDidBecomeActive is Suspended(false)
+//!  - applicationWillResignActive is Suspended(true)
+//!  - applicationWillTerminate is LoopDestroyed
 //!
-//! Keep in mind that after Destroyed event is received every attempt to draw with
+//! Keep in mind that after LoopDestroyed event is received every attempt to draw with
 //! opengl will result in segfault.
 //!
-//! Also note that app will not receive Destroyed event if suspended, it will be SIGKILL'ed
+//! Also note that app may not receive the LoopDestroyed event if suspended; it might be SIGKILL'ed.
 
 #![cfg(target_os = "ios")]
 
@@ -249,58 +247,28 @@ impl EventLoop {
                 }
             }
         }
-
-        unsafe {
-            // run runloop
-            let seconds: CFTimeInterval = 0.000002;
-            while CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, 1) == kCFRunLoopRunHandledSource {}
-        }
-
-        if let Some(event) = self.events_queue.borrow_mut().pop_front() {
-            callback(event)
-        }
-    }
-
-    pub fn run_forever<F>(&mut self, mut callback: F)
-        where F: FnMut(::Event) -> ::ControlFlow,
-    {
-        // Yeah that's a very bad implementation.
-        loop {
-            let mut control_flow = ::ControlFlow::Continue;
-            self.poll_events(|e| {
-                if let ::ControlFlow::Break = callback(e) {
-                    control_flow = ::ControlFlow::Break;
-                }
-            });
-            if let ::ControlFlow::Break = control_flow {
-                break;
-            }
-            ::std::thread::sleep(::std::time::Duration::from_millis(5));
-        }
-    }
-
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy
-    }
+    };
 }
 
-impl EventLoopProxy {
-    pub fn wakeup(&self) -> Result<(), ::EventLoopClosed> {
-        unimplemented!()
-    }
-}
+mod app_state;
+mod event_loop;
+mod ffi;
+mod monitor;
+mod view;
+mod window;
+
+pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
+pub use self::monitor::MonitorHandle;
+pub use self::window::{
+    PlatformSpecificWindowBuilderAttributes,
+    Window,
+    WindowId,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId;
-
-impl WindowId {
-    pub unsafe fn dummy() -> Self {
-        WindowId
-    }
+pub struct DeviceId {
+    uiscreen: ffi::id,
 }
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId;
 
 impl DeviceId {
     pub unsafe fn dummy() -> Self {
@@ -646,59 +614,7 @@ fn create_delegate_class() {
             }
         }
     }
-
-    let ui_responder = class!(UIResponder);
-    let mut decl = ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
-
-    unsafe {
-        decl.add_method(sel!(application:didFinishLaunchingWithOptions:),
-                        did_finish_launching as extern fn(&mut Object, Sel, id, id) -> BOOL);
-
-        decl.add_method(sel!(applicationDidBecomeActive:),
-                        did_become_active as extern fn(&Object, Sel, id));
-
-        decl.add_method(sel!(applicationWillResignActive:),
-                        will_resign_active as extern fn(&Object, Sel, id));
-
-        decl.add_method(sel!(applicationWillEnterForeground:),
-                        will_enter_foreground as extern fn(&Object, Sel, id));
-
-        decl.add_method(sel!(applicationDidEnterBackground:),
-                        did_enter_background as extern fn(&Object, Sel, id));
-
-        decl.add_method(sel!(applicationWillTerminate:),
-                        will_terminate as extern fn(&Object, Sel, id));
-
-
-        decl.add_method(sel!(touchesBegan:withEvent:),
-                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
-
-        decl.add_method(sel!(touchesMoved:withEvent:),
-                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
-
-        decl.add_method(sel!(touchesEnded:withEvent:),
-                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
-
-        decl.add_method(sel!(touchesCancelled:withEvent:),
-                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
-
-
-        decl.add_method(sel!(postLaunch:),
-                        post_launch as extern fn(&Object, Sel, id));
-
-        decl.add_ivar::<*mut c_void>("winitState");
-        decl.add_ivar::<*mut c_void>("eventsQueue");
-
-        decl.register();
-    }
 }
 
-#[inline]
-fn start_app() {
-    unsafe {
-        UIApplicationMain(0, ptr::null(), nil, NSString::alloc(nil).init_str("AppDelegate"));
-    }
-}
-
-// Constant device ID, to be removed when this backend is updated to report real device IDs.
-const DEVICE_ID: ::DeviceId = ::DeviceId(DeviceId);
+unsafe impl Send for DeviceId {}
+unsafe impl Sync for DeviceId {}
