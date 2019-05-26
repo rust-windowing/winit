@@ -78,10 +78,10 @@ impl fmt::Debug for MonitorHandle {
         }
 
         let monitor_id_proxy = MonitorHandle {
-            name: self.get_name(),
-            dimensions: self.get_dimensions(),
-            position: self.get_position(),
-            hidpi_factor: self.get_hidpi_factor(),
+            name: self.name(),
+            dimensions: self.dimensions(),
+            position: self.position(),
+            hidpi_factor: self.hidpi_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -99,7 +99,7 @@ impl MonitorHandle {
 }
 
 impl Inner {
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         unsafe {
             if self.uiscreen == main_uiscreen().uiscreen {
                 Some("Primary".to_string())
@@ -113,22 +113,22 @@ impl Inner {
             }
         }
     }
-    
-    pub fn get_dimensions(&self) -> PhysicalSize {
+
+    pub fn dimensions(&self) -> PhysicalSize {
         unsafe {
             let bounds: CGRect = msg_send![self.get_uiscreen(), nativeBounds];
             (bounds.size.width as f64, bounds.size.height as f64).into()
         }
     }
-    
-    pub fn get_position(&self) -> PhysicalPosition {
+
+    pub fn position(&self) -> PhysicalPosition {
         unsafe {
             let bounds: CGRect = msg_send![self.get_uiscreen(), nativeBounds];
             (bounds.origin.x as f64, bounds.origin.y as f64).into()
         }
     }
-    
-    pub fn get_hidpi_factor(&self) -> f64 {
+
+    pub fn hidpi_factor(&self) -> f64 {
         unsafe {
             let scale: CGFloat = msg_send![self.get_uiscreen(), nativeScale];
             scale as f64

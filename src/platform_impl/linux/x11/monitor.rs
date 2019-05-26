@@ -67,7 +67,7 @@ impl MonitorHandle {
         primary: bool,
     ) -> Option<Self> {
         let (name, hidpi_factor) = unsafe { xconn.get_output_info(resources, &repr)? };
-        let (dimensions, position) = unsafe { (repr.dimensions(), repr.outer_position()) };
+        let (dimensions, position) = unsafe { (repr.dimensions(), repr.position()) };
         let rect = util::AaRect::new(position, dimensions);
         Some(MonitorHandle {
             id,
@@ -93,7 +93,7 @@ impl MonitorHandle {
         self.dimensions.into()
     }
 
-    pub fn outer_position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition {
         self.position.into()
     }
 

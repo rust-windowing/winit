@@ -72,8 +72,8 @@ impl MonitorHandle {
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
     #[inline]
-    pub fn outer_position(&self) -> PhysicalPosition {
-        self.inner.outer_position()
+    pub fn position(&self) -> PhysicalPosition {
+        self.inner.position()
     }
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.

@@ -58,7 +58,7 @@ impl MonitorRepr {
         }
     }
 
-    pub unsafe fn outer_position(&self) -> (i32, i32) {
+    pub unsafe fn position(&self) -> (i32, i32) {
         match *self {
             MonitorRepr::Monitor(monitor) => ((*monitor).x as i32, (*monitor).y as i32),
             MonitorRepr::Crtc(crtc) => ((*crtc).x as i32, (*crtc).y as i32),

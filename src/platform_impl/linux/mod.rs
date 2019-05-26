@@ -118,10 +118,10 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition {
         match self {
-            &MonitorHandle::X(ref m) => m.outer_position(),
-            &MonitorHandle::Wayland(ref m) => m.outer_position(),
+            &MonitorHandle::X(ref m) => m.position(),
+            &MonitorHandle::Wayland(ref m) => m.position(),
         }
     }
 

@@ -535,7 +535,7 @@ impl fmt::Debug for MonitorHandle {
             name: self.name(),
             native_identifier: self.native_identifier(),
             dimensions: self.dimensions(),
-            position: self.outer_position(),
+            position: self.position(),
             hidpi_factor: self.hidpi_factor(),
         };
 
@@ -567,7 +567,7 @@ impl MonitorHandle {
         }.into()
     }
 
-    pub fn outer_position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition {
         self.mgr
             .with_info(&self.proxy, |_, info| info.location)
             .unwrap_or((0, 0))
