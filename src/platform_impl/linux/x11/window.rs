@@ -536,7 +536,7 @@ impl UnownedWindow {
             Some(RootMonitorHandle { inner: PlatformMonitorHandle::X(monitor) }) => {
                 let window_position = self.outer_position_physical();
                 self.shared_state.lock().restore_position = Some(window_position);
-                let monitor_origin: (i32, i32) = monitor.outer_position().into();
+                let monitor_origin: (i32, i32) = monitor.position().into();
                 self.set_position_inner(monitor_origin.0, monitor_origin.1).queue();
                 self.set_fullscreen_hint(true)
             }

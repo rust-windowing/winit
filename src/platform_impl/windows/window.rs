@@ -402,7 +402,7 @@ impl Window {
 
             match &monitor {
                 &Some(RootMonitorHandle { ref inner }) => {
-                    let (x, y): (i32, i32) = inner.outer_position().into();
+                    let (x, y): (i32, i32) = inner.position().into();
                     let (width, height): (u32, u32) = inner.dimensions().into();
 
                     let mut monitor = monitor.clone();
