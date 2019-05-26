@@ -1,23 +1,32 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
 use std::ffi::CString;
+use std::ops::BitOr;
 use std::os::raw::*;
 
+use objc::{Encode, Encoding};
 use objc::runtime::Object;
+
+use platform::ios::{Idiom, ValidOrientations};
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;
-
-pub type CFStringRef = *const c_void;
-pub type CFTimeInterval = f64;
-pub type Boolean = u32;
-
-pub const kCFRunLoopRunHandledSource: i32 = 4;
 
 #[cfg(target_pointer_width = "32")]
 pub type CGFloat = f32;
 #[cfg(target_pointer_width = "64")]
 pub type CGFloat = f64;
+
+pub type NSInteger = isize;
+pub type NSUInteger = usize;
+
+#[repr(C)]
+#[derive(Clone, Debug)]
+pub struct NSOperatingSystemVersion {
+    pub major: NSInteger,
+    pub minor: NSInteger,
+    pub patch: NSInteger,
+}
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -28,25 +37,139 @@ pub struct CGPoint {
 
 #[repr(C)]
 #[derive(Debug, Clone)]
-pub struct CGRect {
-    pub origin: CGPoint,
-    pub size: CGSize,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone)]
 pub struct CGSize {
     pub width: CGFloat,
     pub height: CGFloat,
 }
 
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct CGRect {
+    pub origin: CGPoint,
+    pub size: CGSize,
+}
+
+unsafe impl Encode for CGRect {
+    fn encode() -> Encoding {
+        unsafe {
+            if cfg!(target_pointer_width = "32") {
+                Encoding::from_str("{CGRect={CGPoint=ff}{CGSize=ff}}")
+            } else if cfg!(target_pointer_width = "64") {
+                Encoding::from_str("{CGRect={CGPoint=dd}{CGSize=dd}}")
+            } else {
+                unimplemented!()
+            }
+        }
+    }
+}
+#[derive(Debug)]
+#[allow(dead_code)]
+#[repr(isize)]
+pub enum UITouchPhase {
+    Began = 0,
+    Moved,
+    Stationary,
+    Ended,
+    Cancelled,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct UIEdgeInsets {
+    pub top: CGFloat,
+    pub left: CGFloat,
+    pub bottom: CGFloat,
+    pub right: CGFloat,
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UIUserInterfaceIdiom(NSInteger);
+
+unsafe impl Encode for UIUserInterfaceIdiom {
+    fn encode() -> Encoding { NSInteger::encode() }
+}
+
+impl UIUserInterfaceIdiom {
+    pub const Unspecified: UIUserInterfaceIdiom = UIUserInterfaceIdiom(-1);
+    pub const Phone: UIUserInterfaceIdiom = UIUserInterfaceIdiom(0);
+    pub const Pad: UIUserInterfaceIdiom = UIUserInterfaceIdiom(1);
+    pub const TV: UIUserInterfaceIdiom = UIUserInterfaceIdiom(2);
+    pub const CarPlay: UIUserInterfaceIdiom = UIUserInterfaceIdiom(3);
+}
+
+impl From<Idiom> for UIUserInterfaceIdiom {
+    fn from(idiom: Idiom) -> UIUserInterfaceIdiom {
+        match idiom {
+            Idiom::Unspecified => UIUserInterfaceIdiom::Unspecified,
+            Idiom::Phone => UIUserInterfaceIdiom::Phone,
+            Idiom::Pad => UIUserInterfaceIdiom::Pad,
+            Idiom::TV => UIUserInterfaceIdiom::TV,
+            Idiom::CarPlay => UIUserInterfaceIdiom::CarPlay,
+        }
+    }
+}
+
+impl Into<Idiom> for UIUserInterfaceIdiom {
+    fn into(self) -> Idiom {
+        match self {
+            UIUserInterfaceIdiom::Unspecified => Idiom::Unspecified,
+            UIUserInterfaceIdiom::Phone => Idiom::Phone,
+            UIUserInterfaceIdiom::Pad => Idiom::Pad,
+            UIUserInterfaceIdiom::TV => Idiom::TV,
+            UIUserInterfaceIdiom::CarPlay => Idiom::CarPlay,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug)]
+pub struct UIInterfaceOrientationMask(NSUInteger);
+
+unsafe impl Encode for UIInterfaceOrientationMask {
+    fn encode() -> Encoding { NSUInteger::encode() }
+}
+
+impl UIInterfaceOrientationMask {
+    pub const Portrait: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 1);
+    pub const PortraitUpsideDown: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 2);
+    pub const LandscapeLeft: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 4);
+    pub const LandscapeRight: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 3);
+    pub const Landscape: UIInterfaceOrientationMask = UIInterfaceOrientationMask(Self::LandscapeLeft.0 | Self::LandscapeRight.0);
+    pub const AllButUpsideDown: UIInterfaceOrientationMask = UIInterfaceOrientationMask(Self::Landscape.0 | Self::Portrait.0);
+    pub const All: UIInterfaceOrientationMask = UIInterfaceOrientationMask(Self::AllButUpsideDown.0 | Self::PortraitUpsideDown.0);
+}
+
+impl BitOr for UIInterfaceOrientationMask {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self {
+        UIInterfaceOrientationMask(self.0 | rhs.0)
+    }
+}
+
+impl UIInterfaceOrientationMask {
+    pub fn from_valid_orientations_idiom(
+        valid_orientations: ValidOrientations,
+        idiom: Idiom,
+    ) -> UIInterfaceOrientationMask {
+        match (valid_orientations, idiom) {
+            (ValidOrientations::LandscapeAndPortrait, Idiom::Phone) => UIInterfaceOrientationMask::AllButUpsideDown,
+            (ValidOrientations::LandscapeAndPortrait, _) => UIInterfaceOrientationMask::All,
+            (ValidOrientations::Landscape, _) => UIInterfaceOrientationMask::Landscape,
+            (ValidOrientations::Portrait, Idiom::Phone) => UIInterfaceOrientationMask::Portrait,
+            (ValidOrientations::Portrait, _) => UIInterfaceOrientationMask::Portrait | UIInterfaceOrientationMask::PortraitUpsideDown,
+        }
+    }
+}
+
 #[link(name = "UIKit", kind = "framework")]
 #[link(name = "CoreFoundation", kind = "framework")]
-#[link(name = "GlKit", kind = "framework")]
 extern {
-    pub static kCFRunLoopDefaultMode: CFStringRef;
+    pub static kCFRunLoopDefaultMode: CFRunLoopMode;
+    pub static kCFRunLoopCommonModes: CFRunLoopMode;
 
-    // int UIApplicationMain ( int argc, char *argv[], NSString *principalClassName, NSString *delegateClassName );
     pub fn UIApplicationMain(
         argc: c_int,
         argv: *const c_char,
@@ -54,30 +177,114 @@ extern {
         delegateClassName: id,
     ) -> c_int;
 
-    // SInt32 CFRunLoopRunInMode ( CFStringRef mode, CFTimeInterval seconds, Boolean returnAfterSourceHandled );
-    pub fn CFRunLoopRunInMode(
-        mode: CFStringRef,
-        seconds: CFTimeInterval,
-        returnAfterSourceHandled: Boolean,
-    ) -> i32;
+    pub fn CFRunLoopGetMain() -> CFRunLoopRef;
+    pub fn CFRunLoopWakeUp(rl: CFRunLoopRef);
+
+    pub fn CFRunLoopObserverCreate(
+        allocator: CFAllocatorRef,
+        activities: CFOptionFlags,
+        repeats: Boolean,
+        order: CFIndex,
+        callout: CFRunLoopObserverCallBack,
+        context: *mut CFRunLoopObserverContext,
+    ) -> CFRunLoopObserverRef;
+    pub fn CFRunLoopAddObserver(
+        rl: CFRunLoopRef,
+        observer: CFRunLoopObserverRef,
+        mode: CFRunLoopMode,
+    );
+
+    pub fn CFRunLoopTimerCreate(
+        allocator: CFAllocatorRef,
+        fireDate: CFAbsoluteTime,
+        interval: CFTimeInterval,
+        flags: CFOptionFlags,
+        order: CFIndex,
+        callout: CFRunLoopTimerCallBack,
+        context: *mut CFRunLoopTimerContext,
+    ) -> CFRunLoopTimerRef;
+    pub fn CFRunLoopAddTimer(
+        rl: CFRunLoopRef,
+        timer: CFRunLoopTimerRef,
+        mode: CFRunLoopMode,
+    );
+    pub fn CFRunLoopTimerSetNextFireDate(
+        timer: CFRunLoopTimerRef,
+        fireDate: CFAbsoluteTime,
+    );
+    pub fn CFRunLoopTimerInvalidate(time: CFRunLoopTimerRef);
+
+    pub fn CFRunLoopSourceCreate(
+        allocator: CFAllocatorRef,
+        order: CFIndex,
+        context: *mut CFRunLoopSourceContext,
+    ) -> CFRunLoopSourceRef;
+    pub fn CFRunLoopAddSource(
+        rl: CFRunLoopRef,
+        source: CFRunLoopSourceRef,
+        mode: CFRunLoopMode,
+    );
+    pub fn CFRunLoopSourceInvalidate(source: CFRunLoopSourceRef);
+    pub fn CFRunLoopSourceSignal(source: CFRunLoopSourceRef);
+
+    pub fn CFAbsoluteTimeGetCurrent() -> CFAbsoluteTime;
+    pub fn CFRelease(cftype: *const c_void);
 }
 
-extern {
-    pub fn setjmp(env: *mut c_void) -> c_int;
-    pub fn longjmp(env: *mut c_void, val: c_int) -> !;
+pub type Boolean = u8;
+pub enum CFAllocator {}
+pub type CFAllocatorRef = *mut CFAllocator;
+pub enum CFRunLoop {}
+pub type CFRunLoopRef = *mut CFRunLoop;
+pub type CFRunLoopMode = CFStringRef;
+pub enum CFRunLoopObserver {}
+pub type CFRunLoopObserverRef = *mut CFRunLoopObserver;
+pub enum CFRunLoopTimer {}
+pub type CFRunLoopTimerRef = *mut CFRunLoopTimer;
+pub enum CFRunLoopSource {}
+pub type CFRunLoopSourceRef = *mut CFRunLoopSource;
+pub enum CFString {}
+pub type CFStringRef = *const CFString;
+
+pub type CFHashCode = c_ulong;
+pub type CFIndex = c_long;
+pub type CFOptionFlags = c_ulong;
+pub type CFRunLoopActivity = CFOptionFlags;
+
+pub type CFAbsoluteTime = CFTimeInterval;
+pub type CFTimeInterval = f64;
+
+pub const kCFRunLoopEntry: CFRunLoopActivity = 0;
+pub const kCFRunLoopBeforeWaiting: CFRunLoopActivity = 1 << 5;
+pub const kCFRunLoopAfterWaiting: CFRunLoopActivity = 1 << 6;
+pub const kCFRunLoopExit: CFRunLoopActivity = 1 << 7;
+
+pub type CFRunLoopObserverCallBack = extern "C" fn(
+    observer: CFRunLoopObserverRef,
+    activity: CFRunLoopActivity,
+    info: *mut c_void,
+);
+pub type CFRunLoopTimerCallBack = extern "C" fn(
+    timer: CFRunLoopTimerRef,
+    info: *mut c_void,
+);
+
+pub enum CFRunLoopObserverContext {}
+pub enum CFRunLoopTimerContext {}
+
+#[repr(C)]
+pub struct CFRunLoopSourceContext {
+    pub version: CFIndex,
+    pub info: *mut c_void,
+    pub retain: extern "C" fn(*const c_void) -> *const c_void,
+    pub release: extern "C" fn(*const c_void),
+    pub copyDescription: extern "C" fn(*const c_void) -> CFStringRef,
+    pub equal: extern "C" fn(*const c_void, *const c_void) -> Boolean,
+    pub hash: extern "C" fn(*const c_void) -> CFHashCode,
+    pub schedule: extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode),
+    pub cancel: extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode),
+    pub perform: extern "C" fn(*mut c_void),
 }
-
-// values taken from "setjmp.h" header in xcode iPhoneOS/iPhoneSimulator SDK
-#[cfg(any(target_arch = "x86_64"))]
-pub const JBLEN: usize = (9 * 2) + 3 + 16;
-#[cfg(any(target_arch = "x86"))]
-pub const JBLEN: usize = 18;
-#[cfg(target_arch = "arm")]
-pub const JBLEN: usize = 10 + 16 + 2;
-#[cfg(target_arch = "aarch64")]
-pub const JBLEN: usize = (14 + 8 + 2) * 2;
-
-pub type JmpBuf = [c_int; JBLEN];
 
 pub trait NSString: Sized {
     unsafe fn alloc(_: Self) -> id {

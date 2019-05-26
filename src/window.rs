@@ -330,6 +330,10 @@ impl Window {
     /// Modifies the title of the window.
     ///
     /// This is a no-op if the window has already been closed.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Has no effect on iOS.
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title)
@@ -339,8 +343,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - Has no effect on Android
-    ///
+    /// - **Android:** Has no effect.
+    /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn show(&self) {
         self.window.show()
@@ -350,8 +354,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - Has no effect on Android
-    ///
+    /// - **Android:** Has no effect.
+    /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn hide(&self) {
         self.window.hide()
@@ -368,6 +372,10 @@ impl Window {
     /// * While processing `EventsCleared`.
     /// * While processing a `RedrawRequested` event that was sent during `EventsCleared` or any
     ///   directly subsequent `RedrawRequested` event.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread.
     pub fn request_redraw(&self) {
         self.window.request_redraw()
     }
@@ -383,6 +391,11 @@ impl Window {
     ///  of the visible screen region.
     ///
     /// Returns `None` if the window no longer exists.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
+    ///   window in the screen space coordinate system.
     #[inline]
     pub fn get_position(&self) -> Option<LogicalPosition> {
         self.window.get_position()
@@ -392,6 +405,13 @@ impl Window {
     /// top-left hand corner of the desktop.
     ///
     /// The same conditions that apply to `get_position` apply to this method.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
+    ///   window's [safe area] in the screen space coordinate system.
+    /// 
+    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
     pub fn get_inner_position(&self) -> Option<LogicalPosition> {
         self.window.get_inner_position()
@@ -402,6 +422,11 @@ impl Window {
     /// See `get_position` for more information about the coordinates.
     ///
     /// This is a no-op if the window has already been closed.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
+    ///   window in the screen space coordinate system.
     #[inline]
     pub fn set_position(&self, position: LogicalPosition) {
         self.window.set_position(position)
@@ -414,6 +439,13 @@ impl Window {
     /// Converting the returned `LogicalSize` to `PhysicalSize` produces the size your framebuffer should be.
     ///
     /// Returns `None` if the window no longer exists.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window's
+    ///   [safe area] in screen space coordinates.
+    /// 
+    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
     pub fn get_inner_size(&self) -> Option<LogicalSize> {
         self.window.get_inner_size()
@@ -425,6 +457,11 @@ impl Window {
     /// use `get_inner_size` instead.
     ///
     /// Returns `None` if the window no longer exists.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window in
+    ///   screen space coordinates.
     #[inline]
     pub fn get_outer_size(&self) -> Option<LogicalSize> {
         self.window.get_outer_size()
@@ -435,18 +472,31 @@ impl Window {
     /// See `get_inner_size` for more information about the values.
     ///
     /// This is a no-op if the window has already been closed.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Unimplemented. Currently this panics, as it's not clear what `set_inner_size`
+    ///   would mean for iOS.
     #[inline]
     pub fn set_inner_size(&self, size: LogicalSize) {
         self.window.set_inner_size(size)
     }
 
     /// Sets a minimum dimension size for the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
         self.window.set_min_dimensions(dimensions)
     }
 
     /// Sets a maximum dimension size for the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
         self.window.set_max_dimensions(dimensions)
@@ -462,6 +512,10 @@ impl Window {
     /// This only has an effect on desktop platforms.
     ///
     /// Due to a bug in XFCE, this has no effect on Xfwm.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
@@ -479,19 +533,31 @@ impl Window {
     ///
     /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
+    /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
+    ///   [`contentScaleFactor`].
+    /// 
+    /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
     pub fn get_hidpi_factor(&self) -> f64 {
         self.window.get_hidpi_factor()
     }
 
     /// Modifies the mouse cursor of the window.
-    /// Has no effect on Android.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
+    /// - **Android:** Has no effect.
     #[inline]
     pub fn set_cursor(&self, cursor: MouseCursor) {
         self.window.set_cursor(cursor);
     }
 
     /// Changes the position of the cursor in window coordinates.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Always returns an `Err`.
     #[inline]
     pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), String> {
         self.window.set_cursor_position(position)
@@ -501,9 +567,10 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// On macOS, this presently merely locks the cursor in a fixed location, which looks visually awkward.
-    ///
-    /// This has no effect on Android or iOS.
+    /// - **macOS:** This presently merely locks the cursor in a fixed location, which looks visually
+    ///   awkward.
+    /// - **Android:** Has no effect.
+    /// - **iOS:** Always returns an Err.
     #[inline]
     pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
         self.window.grab_cursor(grab)
@@ -513,42 +580,65 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// On Windows and X11, the cursor is only hidden within the confines of the window.
-    ///
-    /// On macOS, the cursor is hidden as long as the window has input focus, even if the cursor is outside of the
-    /// window.
-    ///
-    /// This has no effect on Android or iOS.
+    /// - **Windows:** The cursor is only hidden within the confines of the window.
+    /// - **X11:** The cursor is only hidden within the confines of the window.
+    /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
+    ///   outside of the window.
+    /// - **iOS:** Has no effect.
+    /// - **Android:** Has no effect.
     #[inline]
     pub fn hide_cursor(&self, hide: bool) {
         self.window.hide_cursor(hide)
     }
 
-    /// Sets the window to maximized or back
+    /// Sets the window to maximized or back.
+    ///
+    /// ## Platform-specific
+    /// 
+    /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.window.set_maximized(maximized)
     }
 
-    /// Sets the window to fullscreen or back
+    /// Sets the window to fullscreen or back.
+    ///
+    /// ## Platform-specific
+    /// 
+    /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<MonitorHandle>) {
         self.window.set_fullscreen(monitor)
     }
 
     /// Gets the window's current fullscreen state.
+    ///
+    /// ## Platform-specific
+    /// 
+    /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn get_fullscreen(&self) -> Option<MonitorHandle> {
         self.window.get_fullscreen()
     }
 
     /// Turn window decorations on or off.
+    ///
+    /// ## Platform-specific
+    /// 
+    /// - **iOS:** Can only be called on the main thread. Controls whether the status bar is hidden
+    ///   via [`setPrefersStatusBarHidden`].
+    /// 
+    /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
     }
 
     /// Change whether or not the window will always be on top of other windows.
+    ///
+    /// ## Platform-specific
+    /// 
+    /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         self.window.set_always_on_top(always_on_top)
@@ -568,12 +658,20 @@ impl Window {
     }
 
     /// Sets location of IME candidate box in client area coordinates relative to the top left.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS:** Has no effect.
     #[inline]
     pub fn set_ime_spot(&self, position: LogicalPosition) {
         self.window.set_ime_spot(position)
     }
 
     /// Returns the monitor on which the window currently resides
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn get_current_monitor(&self) -> MonitorHandle {
         self.window.get_current_monitor()
@@ -582,6 +680,10 @@ impl Window {
     /// Returns the list of all the monitors available on the system.
     ///
     /// This is the same as `EventLoop::get_available_monitors`, and is provided for convenience.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
         let data = self.window.get_available_monitors();
@@ -591,6 +693,10 @@ impl Window {
     /// Returns the primary monitor of the system.
     ///
     /// This is the same as `EventLoop::get_primary_monitor`, and is provided for convenience.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorHandle {
         MonitorHandle { inner: self.window.get_primary_monitor() }

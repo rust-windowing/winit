@@ -94,6 +94,10 @@ impl Default for ControlFlow {
 
 impl EventLoop<()> {
     /// Builds a new event loop with a `()` as the user event type.
+    /// 
+    /// ## Platform-specific
+    /// 
+    /// - **iOS:** Can only be called on the main thread.
     pub fn new() -> EventLoop<()> {
         EventLoop::<()>::new_user_event()
     }
@@ -106,6 +110,10 @@ impl<T> EventLoop<T> {
     /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
     /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
     /// fallback on x11. If this variable is set with any other value, winit will panic.
+    /// 
+    /// ## Platform-specific
+    /// 
+    /// - **iOS:** Can only be called on the main thread.
     pub fn new_user_event() -> EventLoop<T> {
         EventLoop {
             event_loop: platform_impl::EventLoop::new(),
