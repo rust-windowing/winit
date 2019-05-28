@@ -99,3 +99,5 @@ impl DeviceId {
 
 unsafe impl Send for DeviceId {}
 unsafe impl Sync for DeviceId {}
+
+pub enum OsError {}

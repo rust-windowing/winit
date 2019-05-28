@@ -113,13 +113,13 @@ impl WindowBuilderExtIOS for WindowBuilder {
 /// Additional methods on `MonitorHandle` that are specific to iOS.
 pub trait MonitorHandleExtIOS {
     /// Returns a pointer to the `UIScreen` that is used by this monitor.
-    fn uiscreen(&self) -> *mut c_void;
+    fn ui_screen(&self) -> *mut c_void;
 }
 
 impl MonitorHandleExtIOS for MonitorHandle {
     #[inline]
-    fn uiscreen(&self) -> *mut c_void {
-        self.inner.uiscreen() as _
+    fn ui_screen(&self) -> *mut c_void {
+        self.inner.ui_screen() as _
     }
 }
 

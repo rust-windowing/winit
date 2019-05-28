@@ -293,7 +293,7 @@ impl Window {
         event_loop: &EventLoopWindowTarget<T>,
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Window, OsError> {
+    ) -> Result<Window, RootOsError> {
         if let Some(_) = window_attributes.min_inner_size {
             warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
         }
