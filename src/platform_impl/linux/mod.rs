@@ -1,7 +1,7 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
 use std::collections::VecDeque;
-use std::{env, mem};
+use std::{env, mem, fmt};
 use std::ffi::CStr;
 use std::os::raw::*;
 use std::sync::Arc;
@@ -52,9 +52,19 @@ lazy_static!(
     };
 );
 
+#[derive(Debug, Clone)]
 pub enum OsError {
     XError(XError),
     XMisc(&'static str),
+}
+
+impl fmt::Display for OsError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            OsError::XError(e) => formatter.pad(&e.description),
+            OsError::XMisc(e) => formatter.pad(e),
+        }
+    }
 }
 
 pub enum Window {

@@ -13,7 +13,7 @@ mod view;
 mod window;
 mod window_delegate;
 
-use std::{ops::Deref, sync::Arc};
+use std::{fmt, ops::Deref, sync::Arc};
 
 use {
     event::DeviceId as RootDeviceId, window::WindowAttributes,
@@ -45,6 +45,7 @@ pub struct Window {
     _delegate: util::IdRef,
 }
 
+#[derive(Debug)]
 pub enum OsError {
     CGError(core_graphics::base::CGError),
     CreationError(&'static str)
@@ -69,5 +70,14 @@ impl Window {
     ) -> Result<Self, RootOsError> {
         let (window, _delegate) = UnownedWindow::new(attributes, pl_attribs)?;
         Ok(Window { window, _delegate })
+    }
+}
+
+impl fmt::Display for OsError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OsError::CGError(e) => f.pad(&format!("CGError {}", e)),
+            OsError::CreationError(e) => f.pad(e),
+        }
     }
 }
