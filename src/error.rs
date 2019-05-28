@@ -28,6 +28,7 @@ pub struct OsError {
 
 impl NotSupportedError {
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn new() -> NotSupportedError {
         NotSupportedError {
             _marker: ()
@@ -36,6 +37,7 @@ impl NotSupportedError {
 }
 
 impl OsError {
+    #[allow(dead_code)]
     pub(crate) fn new(line: u32, file: &'static str, error: platform_impl::OsError) -> OsError {
         OsError {
             line,
