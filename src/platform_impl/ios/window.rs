@@ -163,7 +163,7 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn set_cursor_visible(&self, visible: bool) {
+    pub fn set_cursor_visible(&self, _visible: bool) {
         debug!("`Window::set_cursor_visible` is ignored on iOS")
     }
 

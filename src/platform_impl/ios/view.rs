@@ -255,7 +255,7 @@ unsafe fn get_window_class() -> &'static Class {
 
 // requires main thread
 pub unsafe fn create_view(
-    window_attributes: &WindowAttributes,
+    _window_attributes: &WindowAttributes,
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     frame: CGRect,
 ) -> id {

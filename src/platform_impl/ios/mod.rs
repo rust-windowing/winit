@@ -107,6 +107,8 @@ pub enum OsError {}
 
 impl fmt::Display for OsError {
     fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
-        match self {}
+        match self {
+            _ => unreachable!()
+        }
     }
 }
