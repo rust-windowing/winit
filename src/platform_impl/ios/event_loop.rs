@@ -140,10 +140,10 @@ impl<T: 'static> EventLoop<T> {
 
 // EventLoopExtIOS
 impl<T: 'static> EventLoop<T> {
-    pub fn idiom(&self) -> Idiom {
+    pub fn get_idiom(&self) -> Idiom {
         // guaranteed to be on main thread
         unsafe {
-            self::idiom()
+            self::get_idiom()
         }
     }
 }
@@ -313,7 +313,7 @@ where
 }
 
 // must be called on main thread
-pub unsafe fn idiom() -> Idiom {
+pub unsafe fn get_idiom() -> Idiom {
     let device: id = msg_send![class!(UIDevice), currentDevice];
     let raw_idiom: UIUserInterfaceIdiom = msg_send![device, userInterfaceIdiom];
     raw_idiom.into()

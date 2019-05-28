@@ -78,10 +78,10 @@ impl fmt::Debug for MonitorHandle {
         }
 
         let monitor_id_proxy = MonitorHandle {
-            name: self.name(),
-            dimensions: self.dimensions(),
-            position: self.position(),
-            hidpi_factor: self.hidpi_factor(),
+            name: self.get_name(),
+            dimensions: self.get_dimensions(),
+            position: self.get_position(),
+            hidpi_factor: self.get_hidpi_factor(),
         };
 
         monitor_id_proxy.fmt(f)
