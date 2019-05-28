@@ -34,12 +34,27 @@ pub trait WindowExtIOS {
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
     fn ui_view(&self) -> *mut c_void;
+
+    /// Sets the HiDpi factor used by this window.
+    ///
+    /// This translates to `-[UIWindow setContentScaleFactor:hidpi_factor]`.
+    fn set_hidpi_factor(&self, hidpi_factor: f64);
+
+    /// Sets the valid orientations for screens showing this `Window`.
+    ///
+    /// On iPhones and iPods upside down portrait is never enabled.
+    fn set_valid_orientations(&self, valid_orientations: ValidOrientations);
 }
 
 impl WindowExtIOS for Window {
     #[inline]
     fn ui_window(&self) -> *mut c_void {
         self.window.ui_window() as _
+    }
+
+    #[inline]
+    fn ui_view_controller(&self) -> *mut c_void {
+        self.window.ui_view_controller() as _
     }
 
     #[inline]

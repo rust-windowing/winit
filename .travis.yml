@@ -4,38 +4,6 @@ cache: cargo
 
 matrix:
   include:
-    # Linux 32bit
-    - env: TARGET=i686-unknown-linux-gnu
-      os: linux
-      rust: nightly
-      addons:
-        apt:
-          # Cross compiler and cross compiled C libraries
-          packages: &i686_packages
-            - gcc-multilib
-    - env: TARGET=i686-unknown-linux-gnu
-      os: linux
-      rust: stable
-      addons:
-        apt:
-          packages: *i686_packages
-
-    # Linux 64bit
-    - env: TARGET=x86_64-unknown-linux-gnu
-      os: linux
-      rust: nightly
-    - env: TARGET=x86_64-unknown-linux-gnu
-      os: linux
-      rust: stable
-
-    # macOS
-    - env: TARGET=x86_64-apple-darwin
-      os: osx
-      rust: nightly
-    - env: TARGET=x86_64-apple-darwin
-      os: osx
-      rust: stable
-
     # iOS
     - env: TARGET=x86_64-apple-ios
       os: osx
@@ -43,6 +11,38 @@ matrix:
     - env: TARGET=x86_64-apple-ios
       os: osx
       rust: stable
+
+    # # Linux 32bit
+    # - env: TARGET=i686-unknown-linux-gnu
+    #   os: linux
+    #   rust: nightly
+    #   addons:
+    #     apt:
+    #       # Cross compiler and cross compiled C libraries
+    #       packages: &i686_packages
+    #         - gcc-multilib
+    # - env: TARGET=i686-unknown-linux-gnu
+    #   os: linux
+    #   rust: stable
+    #   addons:
+    #     apt:
+    #       packages: *i686_packages
+
+    # # Linux 64bit
+    # - env: TARGET=x86_64-unknown-linux-gnu
+    #   os: linux
+    #   rust: nightly
+    # - env: TARGET=x86_64-unknown-linux-gnu
+    #   os: linux
+    #   rust: stable
+
+    # # macOS
+    # - env: TARGET=x86_64-apple-darwin
+    #   os: osx
+    #   rust: nightly
+    # - env: TARGET=x86_64-apple-darwin
+    #   os: osx
+    #   rust: stable
 
 install:
   - rustup self update

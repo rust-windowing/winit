@@ -3,17 +3,22 @@ use std::error;
 
 use platform_impl;
 
+/// An error whose cause it outside Winit's control.
 #[derive(Debug)]
 pub enum ExternalError {
+    /// The operation is not supported by the backend.
     NotSupported(NotSupportedError),
+    /// The OS cannot perform the operation.
     Os(OsError),
 }
 
+/// The error type for when the requested operation is not supported by the backend.
 #[derive(Clone)]
 pub struct NotSupportedError {
     _marker: (),
 }
 
+/// The error type for when the OS cannot perform the requested operation.
 #[derive(Debug)]
 pub struct OsError {
     line: u32,
