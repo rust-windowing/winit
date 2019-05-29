@@ -876,6 +876,20 @@ unsafe extern "system" fn public_window_callback<T>(
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
+        winuser::WM_NCLBUTTONDOWN => {
+            // jumpstart the modal loop
+            winuser::RedrawWindow(
+                window,
+                ptr::null(),
+                ptr::null_mut(),
+                winuser::RDW_INTERNALPAINT
+            );
+            if wparam == winuser::HTCAPTION as _ {
+                winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
+            }
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
+        },
+
         winuser::WM_CLOSE => {
             use event::WindowEvent::CloseRequested;
             subclass_input.send_event(Event::WindowEvent {
@@ -902,6 +916,10 @@ unsafe extern "system" fn public_window_callback<T>(
             use event::WindowEvent::RedrawRequested;
             let mut runner = subclass_input.shared_data.runner_shared.runner.borrow_mut();
             if let Some(ref mut runner) = *runner {
+                // This check makes sure that calls to `request_redraw()` during `EventsCleared`
+                // handling dispatch `RedrawRequested` immediately after `EventsCleared`, without
+                // spinning up a new event loop iteration. We do this because that's what the API
+                // says to do.
                 match runner.runner_state {
                     RunnerState::Idle(..) |
                     RunnerState::DeferredNewEvents(..) => runner.call_event_handler(Event::WindowEvent {
@@ -915,25 +933,10 @@ unsafe extern "system" fn public_window_callback<T>(
         },
         winuser::WM_PAINT => {
             use event::WindowEvent::RedrawRequested;
-            let event = || Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: RedrawRequested,
-            };
-
-            let mut send_event = false;
-            {
-                let mut runner = subclass_input.shared_data.runner_shared.runner.borrow_mut();
-                if let Some(ref mut runner) = *runner {
-                    match runner.runner_state {
-                        RunnerState::Idle(..) |
-                        RunnerState::DeferredNewEvents(..) => runner.call_event_handler(event()),
-                        _ => send_event = true
-                    }
-                }
-            }
-            if send_event {
-                subclass_input.send_event(event());
-            }
+            });
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
@@ -984,7 +987,6 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_CHAR => {
-            use std::mem;
             use event::WindowEvent::ReceivedCharacter;
             let chr: char = mem::transmute(wparam as u32);
             subclass_input.send_event(Event::WindowEvent {
@@ -1057,7 +1059,6 @@ unsafe extern "system" fn public_window_callback<T>(
 
         winuser::WM_MOUSEWHEEL => {
             use event::MouseScrollDelta::LineDelta;
-            use event::TouchPhase;
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
@@ -1066,6 +1067,21 @@ unsafe extern "system" fn public_window_callback<T>(
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: WindowEvent::MouseWheel { delta: LineDelta(0.0, value), phase: TouchPhase::Moved, modifiers: event::get_key_mods() },
+            });
+
+            0
+        },
+
+        winuser::WM_MOUSEHWHEEL => {
+            use event::MouseScrollDelta::LineDelta;
+
+            let value = (wparam >> 16) as i16;
+            let value = value as i32;
+            let value = value as f32 / winuser::WHEEL_DELTA as f32;
+
+            subclass_input.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: WindowEvent::MouseWheel { delta: LineDelta(value, 0.0), phase: TouchPhase::Moved, modifiers: event::get_key_mods() },
             });
 
             0
@@ -1262,20 +1278,10 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_SETFOCUS => {
-            use event::WindowEvent::{Focused, CursorMoved};
+            use event::WindowEvent::Focused;
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: Focused(true),
-            });
-
-            let x = windowsx::GET_X_LPARAM(lparam) as f64;
-            let y = windowsx::GET_Y_LPARAM(lparam) as f64;
-            let dpi_factor = get_hwnd_scale_factor(window);
-            let position = LogicalPosition::from_physical((x, y), dpi_factor);
-
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: CursorMoved { position, modifiers: event::get_key_mods() },
             });
 
             0

@@ -66,12 +66,11 @@ fn main() {
                         #[cfg(target_os = "macos")]
                         {
                             if macos_use_simple_fullscreen {
-                                use winit::os::macos::WindowExt;
-                                if WindowExt::set_simple_fullscreen(&window, !is_fullscreen) {
+                                use winit::platform::macos::WindowExtMacOS;
+                                if WindowExtMacOS::set_simple_fullscreen(&window, !is_fullscreen) {
                                     is_fullscreen = !is_fullscreen;
                                 }
-
-                                return ControlFlow::Continue;
+                                return;
                             }
                         }
 
@@ -80,6 +79,15 @@ fn main() {
                             window.set_fullscreen(None);
                         } else {
                             window.set_fullscreen(Some(window.get_current_monitor()));
+                        }
+                    }
+                    (VirtualKeyCode::S, ElementState::Pressed) => {
+                        println!("window.get_fullscreen {:?}", window.get_fullscreen());
+
+                        #[cfg(target_os = "macos")]
+                        {
+                            use winit::platform::macos::WindowExtMacOS;
+                            println!("window.get_simple_fullscreen {:?}", WindowExtMacOS::get_simple_fullscreen(&window));
                         }
                     }
                     (VirtualKeyCode::M, ElementState::Pressed) => {

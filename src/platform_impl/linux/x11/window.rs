@@ -1,4 +1,5 @@
 use std::{cmp, env, mem};
+use std::collections::HashSet;
 use std::ffi::CString;
 use std::os::raw::*;
 use std::path::Path;
@@ -7,15 +8,15 @@ use std::sync::Arc;
 use libc;
 use parking_lot::Mutex;
 
-use {Icon, MouseCursor, WindowAttributes};
-use CreationError::{self, OsError};
+use window::{Icon, MouseCursor, WindowAttributes};
+use window::CreationError::{self, OsError};
 use dpi::{LogicalPosition, LogicalSize};
 use platform_impl::MonitorHandle as PlatformMonitorHandle;
 use platform_impl::PlatformSpecificWindowBuilderAttributes;
 use platform_impl::x11::MonitorHandle as X11MonitorHandle;
-use window::MonitorHandle as RootMonitorHandle;
+use monitor::MonitorHandle as RootMonitorHandle;
 
-use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventLoop};
+use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventLoopWindowTarget};
 
 unsafe extern "C" fn visibility_predicate(
     _display: *mut ffi::Display,
@@ -37,6 +38,7 @@ pub struct SharedState {
     pub guessed_dpi: Option<f64>,
     pub last_monitor: Option<X11MonitorHandle>,
     pub dpi_adjusted: Option<(f64, f64)>,
+    pub fullscreen: Option<RootMonitorHandle>,
     // Used to restore position after exiting fullscreen.
     pub restore_position: Option<(i32, i32)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
@@ -66,11 +68,12 @@ pub struct UnownedWindow {
     ime_sender: Mutex<ImeSender>,
     pub multitouch: bool, // never changes
     pub shared_state: Mutex<SharedState>,
+    pending_redraws: Arc<::std::sync::Mutex<HashSet<WindowId>>>,
 }
 
 impl UnownedWindow {
-    pub fn new(
-        event_loop: &EventLoop,
+    pub fn new<T>(
+        event_loop: &EventLoopWindowTarget<T>,
         window_attrs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, CreationError> {
@@ -183,6 +186,14 @@ impl UnownedWindow {
                     None => ffi::CopyFromParent,
                 },
                 ffi::InputOutput as c_uint,
+                // TODO: If window wants transparency and `visual_infos` is None,
+                // we need to find our own visual which has an `alphaMask` which
+                // is > 0, like we do in glutin.
+                //
+                // It is non obvious which masks, if any, we should pass to
+                // `XGetVisualInfo`. winit doesn't recieve any info about what
+                // properties the user wants. Users should consider choosing the
+                // visual themselves as glutin does.
                 match pl_attribs.visual_infos {
                     Some(vi) => vi.visual,
                     None => ffi::CopyFromParent as *mut ffi::Visual,
@@ -203,6 +214,7 @@ impl UnownedWindow {
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             multitouch: window_attrs.multitouch,
             shared_state: SharedState::new(dpi_factor),
+            pending_redraws: event_loop.pending_redraws.clone(),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -534,7 +546,13 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
+        self.shared_state.lock().fullscreen.clone()
+    }
+
+    #[inline]
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+        self.shared_state.lock().fullscreen = monitor.clone();
         self.set_fullscreen_inner(monitor)
             .flush()
             .expect("Failed to change window fullscreen state");
@@ -1210,4 +1228,9 @@ impl UnownedWindow {
 
     #[inline]
     pub fn id(&self) -> WindowId { WindowId(self.xwindow) }
+
+    #[inline]
+    pub fn request_redraw(&self) {
+        self.pending_redraws.lock().unwrap().insert(WindowId(self.xwindow));
+    }
 }

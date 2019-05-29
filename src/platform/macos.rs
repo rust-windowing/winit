@@ -1,7 +1,10 @@
 #![cfg(target_os = "macos")]
 
 use std::os::raw::c_void;
-use {LogicalSize, MonitorHandle, Window, WindowBuilder};
+
+use crate::dpi::LogicalSize;
+use crate::monitor::MonitorHandle;
+use crate::window::{Window, WindowBuilder};
 
 /// Additional methods on `Window` that are specific to MacOS.
 pub trait WindowExtMacOS {
@@ -22,6 +25,9 @@ pub trait WindowExtMacOS {
     /// - `false`: the dock icon will only bounce once.
     /// - `true`: the dock icon will bounce until the application is focused.
     fn request_user_attention(&self, is_critical: bool);
+
+    /// Returns whether or not the window is in simple fullscreen mode.
+    fn get_simple_fullscreen(&self) -> bool;
 
     /// Toggles a fullscreen mode that doesn't require a new macOS space.
     /// Returns a boolean indicating whether the transition was successful (this
@@ -47,6 +53,11 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn request_user_attention(&self, is_critical: bool) {
         self.window.request_user_attention(is_critical)
+    }
+
+    #[inline]
+    fn get_simple_fullscreen(&self) -> bool {
+        self.window.get_simple_fullscreen()
     }
 
     #[inline]

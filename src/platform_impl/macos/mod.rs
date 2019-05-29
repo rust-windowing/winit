@@ -1,9 +1,30 @@
 #![cfg(target_os = "macos")]
 
-pub use self::event_loop::{EventLoop, Proxy as EventLoopProxy};
-pub use self::monitor::MonitorHandle;
-pub use self::window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, Window2};
-use std::sync::Arc;
+mod app;
+mod app_delegate;
+mod app_state;
+mod event;
+mod event_loop;
+mod ffi;
+mod monitor;
+mod observer;
+mod util;
+mod view;
+mod window;
+mod window_delegate;
+
+use std::{ops::Deref, sync::Arc};
+
+use {
+    event::DeviceId as RootDeviceId, window::{CreationError, WindowAttributes},
+};
+pub use self::{
+    event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
+    monitor::MonitorHandle,
+    window::{
+        Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow,
+    },
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
@@ -14,38 +35,33 @@ impl DeviceId {
     }
 }
 
-use {CreationError};
+// Constant device ID; to be removed when if backend is updated to report real device IDs.
+pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
 
 pub struct Window {
-    pub window: Arc<Window2>,
+    window: Arc<UnownedWindow>,
+    // We keep this around so that it doesn't get dropped until the window does.
+    _delegate: util::IdRef,
 }
 
-impl ::std::ops::Deref for Window {
-    type Target = Window2;
+unsafe impl Send for Window {}
+unsafe impl Sync for Window {}
+
+impl Deref for Window {
+    type Target = UnownedWindow;
     #[inline]
-    fn deref(&self) -> &Window2 {
+    fn deref(&self) -> &Self::Target {
         &*self.window
     }
 }
 
 impl Window {
-
-    pub fn new(event_loop: &EventLoop,
-               attributes: ::WindowAttributes,
-               pl_attribs: PlatformSpecificWindowBuilderAttributes) -> Result<Self, CreationError>
-    {
-        let weak_shared = Arc::downgrade(&event_loop.shared);
-        let window = Arc::new(try!(Window2::new(weak_shared, attributes, pl_attribs)));
-        let weak_window = Arc::downgrade(&window);
-        event_loop.shared.windows.lock().unwrap().push(weak_window);
-        Ok(Window { window: window })
+    pub fn new<T: 'static>(
+        _window_target: &EventLoopWindowTarget<T>,
+        attributes: WindowAttributes,
+        pl_attribs: PlatformSpecificWindowBuilderAttributes,
+    ) -> Result<Self, CreationError> {
+        let (window, _delegate) = UnownedWindow::new(attributes, pl_attribs)?;
+        Ok(Window { window, _delegate })
     }
-
 }
-
-mod event_loop;
-mod ffi;
-mod monitor;
-mod util;
-mod view;
-mod window;

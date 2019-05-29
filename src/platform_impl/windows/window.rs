@@ -399,6 +399,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
+        let window_state = self.window_state.lock();
+        window_state.fullscreen.clone()
+    }
+
+    #[inline]
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
         unsafe {
             let window = self.window.clone();
@@ -667,9 +673,6 @@ unsafe fn init<T: 'static>(
                                               format!("{}", io::Error::last_os_error()))));
         }
 
-        winuser::SetWindowLongW(handle, winuser::GWL_STYLE, 0);
-        winuser::SetWindowLongW(handle, winuser::GWL_EXSTYLE, 0);
-
         WindowWrapper(handle)
     };
 
@@ -729,7 +732,7 @@ unsafe fn init<T: 'static>(
     window_flags.set(WindowFlags::MAXIMIZED, attributes.maximized);
 
     let window_state = {
-        let mut window_state = WindowState::new(
+        let window_state = WindowState::new(
             &attributes,
             window_icon,
             taskbar_icon,

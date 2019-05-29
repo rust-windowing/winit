@@ -2,7 +2,7 @@ use std::os::raw::*;
 
 use parking_lot::Mutex;
 
-use {PhysicalPosition, PhysicalSize};
+use dpi::{PhysicalPosition, PhysicalSize};
 use super::{util, XConnection, XError};
 use super::ffi::{
     RRCrtcChangeNotifyMask,
@@ -131,9 +131,14 @@ impl XConnection {
     fn query_monitor_list(&self) -> Vec<MonitorHandle> {
         unsafe {
             let root = (self.xlib.XDefaultRootWindow)(self.display);
-            // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
-            // Upon failure, `resources` will be null.
-            let resources = (self.xrandr.XRRGetScreenResources)(self.display, root);
+            let resources = if version_is_at_least(1, 3) {
+                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+            } else {
+                // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
+                // Upon failure, `resources` will be null.
+                (self.xrandr.XRRGetScreenResources)(self.display, root)
+            };
+
             if resources.is_null() {
                 panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
             }
