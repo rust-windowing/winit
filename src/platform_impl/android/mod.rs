@@ -400,7 +400,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, _spot: LogicalPosition) {
+    pub fn set_ime_position(&self, _spot: LogicalPosition) {
         // N/A
     }
 

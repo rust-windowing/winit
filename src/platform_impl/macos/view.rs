@@ -58,7 +58,7 @@ pub fn new_view(nswindow: id) -> (IdRef, Weak<Mutex<util::Cursor>>) {
     }
 }
 
-pub unsafe fn set_ime_spot(nsview: id, input_context: id, x: f64, y: f64) {
+pub unsafe fn set_ime_position(nsview: id, input_context: id, x: f64, y: f64) {
     let state_ptr: *mut c_void = *(*nsview).get_mut_ivar("winitState");
     let state = &mut *(state_ptr as *mut ViewState);
     let content_rect = NSWindow::contentRectForFrameRect_(

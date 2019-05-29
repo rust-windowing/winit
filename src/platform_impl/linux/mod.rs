@@ -347,9 +347,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, position: LogicalPosition) {
+    pub fn set_ime_position(&self, position: LogicalPosition) {
         match self {
-            &Window::X(ref w) => w.set_ime_spot(position),
+            &Window::X(ref w) => w.set_ime_position(position),
             &Window::Wayland(_) => (),
         }
     }

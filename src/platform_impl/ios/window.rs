@@ -225,8 +225,8 @@ impl Inner {
         warn!("`Window::set_window_icon` is ignored on iOS")
     }
 
-    pub fn set_ime_spot(&self, _position: LogicalPosition) {
-        warn!("`Window::set_ime_spot` is ignored on iOS")
+    pub fn set_ime_position(&self, _position: LogicalPosition) {
+        warn!("`Window::set_ime_position` is ignored on iOS")
     }
 
     pub fn current_monitor(&self) -> RootMonitorHandle {

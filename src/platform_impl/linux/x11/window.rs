@@ -1211,16 +1211,16 @@ impl UnownedWindow {
         self.set_cursor_position_physical(x, y)
     }
 
-    pub(crate) fn set_ime_spot_physical(&self, x: i32, y: i32) {
+    pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
         let _ = self.ime_sender
             .lock()
             .send((self.xwindow, x as i16, y as i16));
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, logical_spot: LogicalPosition) {
+    pub fn set_ime_position(&self, logical_spot: LogicalPosition) {
         let (x, y) = logical_spot.to_physical(self.hidpi_factor()).into();
-        self.set_ime_spot_physical(x, y);
+        self.set_ime_position_physical(x, y);
     }
 
     #[inline]

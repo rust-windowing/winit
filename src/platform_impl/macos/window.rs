@@ -734,9 +734,9 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, logical_spot: LogicalPosition) {
+    pub fn set_ime_position(&self, logical_spot: LogicalPosition) {
         unsafe {
-            view::set_ime_spot(
+            view::set_ime_position(
                 *self.nsview,
                 *self.input_context,
                 logical_spot.x,
