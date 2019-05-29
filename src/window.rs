@@ -512,15 +512,15 @@ impl Window {
         self.window.hidpi_factor()
     }
 
-    /// Modifies the mouse cursor of the window.
+    /// Modifies the cursor icon of the window.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
     /// - **Android:** Has no effect.
     #[inline]
-    pub fn set_cursor(&self, cursor: MouseCursor) {
-        self.window.set_cursor(cursor);
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+        self.window.set_cursor_icon(cursor);
     }
 
     /// Changes the position of the cursor in window coordinates.
@@ -682,7 +682,7 @@ impl Window {
 /// Describes the appearance of the mouse cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum MouseCursor {
+pub enum CursorIcon {
     /// The platform-dependent default cursor.
     Default,
     /// A simple crosshair.
@@ -736,8 +736,8 @@ pub enum MouseCursor {
     RowResize,
 }
 
-impl Default for MouseCursor {
+impl Default for CursorIcon {
     fn default() -> Self {
-        MouseCursor::Default
+        CursorIcon::Default
     }
 }

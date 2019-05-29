@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
 use winit::{
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop}, window::{MouseCursor, WindowBuilder},
+    event_loop::{ControlFlow, EventLoop}, window::{CursorIcon, WindowBuilder},
 };
 
 const WINDOW_COUNT: usize = 3;
@@ -36,9 +36,9 @@ fn main() {
                         use self::VirtualKeyCode::*;
                         match key {
                             A => window.set_always_on_top(state),
-                            C => window.set_cursor(match state {
-                                true => MouseCursor::Progress,
-                                false => MouseCursor::Default,
+                            C => window.set_cursor_icon(match state {
+                                true => CursorIcon::Progress,
+                                false => CursorIcon::Default,
                             }),
                             D => window.set_decorations(!state),
                             F => window.set_fullscreen(match state {

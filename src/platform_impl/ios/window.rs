@@ -11,7 +11,7 @@ use icon::Icon;
 use monitor::MonitorHandle as RootMonitorHandle;
 use platform::ios::{MonitorHandleExtIOS, ValidOrientations};
 use window::{
-    MouseCursor,
+    CursorIcon,
     WindowAttributes,
 };
 use platform_impl::{
@@ -151,8 +151,8 @@ impl Inner {
         }
     }
 
-    pub fn set_cursor(&self, _cursor: MouseCursor) {
-        debug!("`Window::set_cursor` ignored on iOS")
+    pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
+        debug!("`Window::set_cursor_icon` ignored on iOS")
     }
 
     pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {

@@ -525,7 +525,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor(&self, _cursor: ::MouseCursor) {
+    pub fn set_cursor_icon(&self, _cursor: ::CursorIcon) {
         // N/A
     }
 

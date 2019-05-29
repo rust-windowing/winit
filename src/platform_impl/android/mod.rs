@@ -15,7 +15,7 @@ use {
     Event,
     LogicalPosition,
     LogicalSize,
-    MouseCursor,
+    CursorIcon,
     PhysicalPosition,
     PhysicalSize,
     WindowAttributes,
@@ -346,7 +346,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor(&self, _: MouseCursor) {
+    pub fn set_cursor_icon(&self, _: CursorIcon) {
         // N/A
     }
 

@@ -5,7 +5,7 @@ use dpi::{LogicalPosition, LogicalSize};
 use error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use platform_impl::{MonitorHandle as PlatformMonitorHandle, PlatformSpecificWindowBuilderAttributes as PlAttributes};
 use monitor::MonitorHandle as RootMonitorHandle;
-use window::{WindowAttributes, MouseCursor};
+use window::{WindowAttributes, CursorIcon};
 
 use sctk::surface::{get_dpi_factor, get_outputs};
 use sctk::window::{ConceptFrame, Event as WEvent, State as WState, Window as SWindow, Theme};
@@ -258,7 +258,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor(&self, _cursor: MouseCursor) {
+    pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
         // TODO
     }
 

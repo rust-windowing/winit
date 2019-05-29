@@ -2,7 +2,7 @@ use std::{mem, ptr, slice, io};
 use std::ops::BitAnd;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use window::MouseCursor;
+use window::CursorIcon;
 use winapi::ctypes::wchar_t;
 use winapi::shared::minwindef::{BOOL, DWORD};
 use winapi::shared::windef::{HWND, POINT, RECT};
@@ -103,27 +103,27 @@ pub fn is_focused(window: HWND) -> bool {
     window == unsafe{ winuser::GetActiveWindow() }
 }
 
-impl MouseCursor {
+impl CursorIcon {
     pub(crate) fn to_windows_cursor(self) -> *const wchar_t {
         match self {
-            MouseCursor::Arrow | MouseCursor::Default => winuser::IDC_ARROW,
-            MouseCursor::Hand => winuser::IDC_HAND,
-            MouseCursor::Crosshair => winuser::IDC_CROSS,
-            MouseCursor::Text | MouseCursor::VerticalText => winuser::IDC_IBEAM,
-            MouseCursor::NotAllowed | MouseCursor::NoDrop => winuser::IDC_NO,
-            MouseCursor::Grab | MouseCursor::Grabbing |
-            MouseCursor::Move | MouseCursor::AllScroll => winuser::IDC_SIZEALL,
-            MouseCursor::EResize | MouseCursor::WResize |
-            MouseCursor::EwResize | MouseCursor::ColResize => winuser::IDC_SIZEWE,
-            MouseCursor::NResize | MouseCursor::SResize |
-            MouseCursor::NsResize | MouseCursor::RowResize => winuser::IDC_SIZENS,
-            MouseCursor::NeResize | MouseCursor::SwResize |
-            MouseCursor::NeswResize => winuser::IDC_SIZENESW,
-            MouseCursor::NwResize | MouseCursor::SeResize |
-            MouseCursor::NwseResize => winuser::IDC_SIZENWSE,
-            MouseCursor::Wait => winuser::IDC_WAIT,
-            MouseCursor::Progress => winuser::IDC_APPSTARTING,
-            MouseCursor::Help => winuser::IDC_HELP,
+            CursorIcon::Arrow | CursorIcon::Default => winuser::IDC_ARROW,
+            CursorIcon::Hand => winuser::IDC_HAND,
+            CursorIcon::Crosshair => winuser::IDC_CROSS,
+            CursorIcon::Text | CursorIcon::VerticalText => winuser::IDC_IBEAM,
+            CursorIcon::NotAllowed | CursorIcon::NoDrop => winuser::IDC_NO,
+            CursorIcon::Grab | CursorIcon::Grabbing |
+            CursorIcon::Move | CursorIcon::AllScroll => winuser::IDC_SIZEALL,
+            CursorIcon::EResize | CursorIcon::WResize |
+            CursorIcon::EwResize | CursorIcon::ColResize => winuser::IDC_SIZEWE,
+            CursorIcon::NResize | CursorIcon::SResize |
+            CursorIcon::NsResize | CursorIcon::RowResize => winuser::IDC_SIZENS,
+            CursorIcon::NeResize | CursorIcon::SwResize |
+            CursorIcon::NeswResize => winuser::IDC_SIZENESW,
+            CursorIcon::NwResize | CursorIcon::SeResize |
+            CursorIcon::NwseResize => winuser::IDC_SIZENWSE,
+            CursorIcon::Wait => winuser::IDC_WAIT,
+            CursorIcon::Progress => winuser::IDC_APPSTARTING,
+            CursorIcon::Help => winuser::IDC_HELP,
             _ => winuser::IDC_ARROW, // use arrow for the missing cases.
         }
     }

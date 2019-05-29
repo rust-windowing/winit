@@ -20,7 +20,7 @@ use {
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     window::{
-        MouseCursor, WindowAttributes, WindowId as RootWindowId,
+        CursorIcon, WindowAttributes, WindowId as RootWindowId,
     },
 };
 use platform::macos::{ActivationPolicy, WindowExtMacOS};
@@ -483,7 +483,7 @@ impl UnownedWindow {
         } // Otherwise, we don't change the mask until we exit fullscreen.
     }
 
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         let cursor = util::Cursor::from(cursor);
         if let Some(cursor_access) = self.cursor.upgrade() {
             *cursor_access.lock().unwrap() = cursor;

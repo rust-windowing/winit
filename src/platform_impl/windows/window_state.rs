@@ -1,5 +1,5 @@
 use monitor::MonitorHandle;
-use window::{MouseCursor, WindowAttributes};
+use window::{CursorIcon, WindowAttributes};
 use std::{io, ptr};
 use parking_lot::MutexGuard;
 use dpi::LogicalSize;
@@ -36,7 +36,7 @@ pub struct SavedWindow {
 
 #[derive(Clone)]
 pub struct MouseProperties {
-    pub cursor: MouseCursor,
+    pub cursor: CursorIcon,
     pub buttons_down: u32,
     cursor_flags: CursorFlags,
 }
@@ -90,7 +90,7 @@ impl WindowState {
     ) -> WindowState {
         WindowState {
             mouse: MouseProperties {
-                cursor: MouseCursor::default(),
+                cursor: CursorIcon::default(),
                 buttons_down: 0,
                 cursor_flags: CursorFlags::empty(),
             },

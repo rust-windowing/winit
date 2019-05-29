@@ -9,7 +9,7 @@ use libc;
 use parking_lot::Mutex;
 
 use error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use window::{Icon, MouseCursor, WindowAttributes};
+use window::{Icon, CursorIcon, WindowAttributes};
 use dpi::{LogicalPosition, LogicalSize};
 use platform_impl::MonitorHandle as PlatformMonitorHandle;
 use platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
@@ -63,7 +63,7 @@ pub struct UnownedWindow {
     xwindow: ffi::Window, // never changes
     root: ffi::Window, // never changes
     screen_id: i32, // never changes
-    cursor: Mutex<MouseCursor>,
+    cursor: Mutex<CursorIcon>,
     cursor_grabbed: Mutex<bool>,
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
@@ -998,7 +998,7 @@ impl UnownedWindow {
         0
     }
 
-    fn get_cursor(&self, cursor: MouseCursor) -> ffi::Cursor {
+    fn get_cursor(&self, cursor: CursorIcon) -> ffi::Cursor {
         let load = |name: &[u8]| {
             self.load_cursor(name)
         };
@@ -1012,48 +1012,48 @@ impl UnownedWindow {
         //
         // Try the better looking (or more suiting) names first.
         match cursor {
-            MouseCursor::Alias => load(b"link\0"),
-            MouseCursor::Arrow => load(b"arrow\0"),
-            MouseCursor::Cell => load(b"plus\0"),
-            MouseCursor::Copy => load(b"copy\0"),
-            MouseCursor::Crosshair => load(b"crosshair\0"),
-            MouseCursor::Default => load(b"left_ptr\0"),
-            MouseCursor::Hand => loadn(&[b"hand2\0", b"hand1\0"]),
-            MouseCursor::Help => load(b"question_arrow\0"),
-            MouseCursor::Move => load(b"move\0"),
-            MouseCursor::Grab => loadn(&[b"openhand\0", b"grab\0"]),
-            MouseCursor::Grabbing => loadn(&[b"closedhand\0", b"grabbing\0"]),
-            MouseCursor::Progress => load(b"left_ptr_watch\0"),
-            MouseCursor::AllScroll => load(b"all-scroll\0"),
-            MouseCursor::ContextMenu => load(b"context-menu\0"),
+            CursorIcon::Alias => load(b"link\0"),
+            CursorIcon::Arrow => load(b"arrow\0"),
+            CursorIcon::Cell => load(b"plus\0"),
+            CursorIcon::Copy => load(b"copy\0"),
+            CursorIcon::Crosshair => load(b"crosshair\0"),
+            CursorIcon::Default => load(b"left_ptr\0"),
+            CursorIcon::Hand => loadn(&[b"hand2\0", b"hand1\0"]),
+            CursorIcon::Help => load(b"question_arrow\0"),
+            CursorIcon::Move => load(b"move\0"),
+            CursorIcon::Grab => loadn(&[b"openhand\0", b"grab\0"]),
+            CursorIcon::Grabbing => loadn(&[b"closedhand\0", b"grabbing\0"]),
+            CursorIcon::Progress => load(b"left_ptr_watch\0"),
+            CursorIcon::AllScroll => load(b"all-scroll\0"),
+            CursorIcon::ContextMenu => load(b"context-menu\0"),
 
-            MouseCursor::NoDrop => loadn(&[b"no-drop\0", b"circle\0"]),
-            MouseCursor::NotAllowed => load(b"crossed_circle\0"),
+            CursorIcon::NoDrop => loadn(&[b"no-drop\0", b"circle\0"]),
+            CursorIcon::NotAllowed => load(b"crossed_circle\0"),
 
 
             // Resize cursors
-            MouseCursor::EResize => load(b"right_side\0"),
-            MouseCursor::NResize => load(b"top_side\0"),
-            MouseCursor::NeResize => load(b"top_right_corner\0"),
-            MouseCursor::NwResize => load(b"top_left_corner\0"),
-            MouseCursor::SResize => load(b"bottom_side\0"),
-            MouseCursor::SeResize => load(b"bottom_right_corner\0"),
-            MouseCursor::SwResize => load(b"bottom_left_corner\0"),
-            MouseCursor::WResize => load(b"left_side\0"),
-            MouseCursor::EwResize => load(b"h_double_arrow\0"),
-            MouseCursor::NsResize => load(b"v_double_arrow\0"),
-            MouseCursor::NwseResize => loadn(&[b"bd_double_arrow\0", b"size_bdiag\0"]),
-            MouseCursor::NeswResize => loadn(&[b"fd_double_arrow\0", b"size_fdiag\0"]),
-            MouseCursor::ColResize => loadn(&[b"split_h\0", b"h_double_arrow\0"]),
-            MouseCursor::RowResize => loadn(&[b"split_v\0", b"v_double_arrow\0"]),
+            CursorIcon::EResize => load(b"right_side\0"),
+            CursorIcon::NResize => load(b"top_side\0"),
+            CursorIcon::NeResize => load(b"top_right_corner\0"),
+            CursorIcon::NwResize => load(b"top_left_corner\0"),
+            CursorIcon::SResize => load(b"bottom_side\0"),
+            CursorIcon::SeResize => load(b"bottom_right_corner\0"),
+            CursorIcon::SwResize => load(b"bottom_left_corner\0"),
+            CursorIcon::WResize => load(b"left_side\0"),
+            CursorIcon::EwResize => load(b"h_double_arrow\0"),
+            CursorIcon::NsResize => load(b"v_double_arrow\0"),
+            CursorIcon::NwseResize => loadn(&[b"bd_double_arrow\0", b"size_bdiag\0"]),
+            CursorIcon::NeswResize => loadn(&[b"fd_double_arrow\0", b"size_fdiag\0"]),
+            CursorIcon::ColResize => loadn(&[b"split_h\0", b"h_double_arrow\0"]),
+            CursorIcon::RowResize => loadn(&[b"split_v\0", b"v_double_arrow\0"]),
 
-            MouseCursor::Text => loadn(&[b"text\0", b"xterm\0"]),
-            MouseCursor::VerticalText => load(b"vertical-text\0"),
+            CursorIcon::Text => loadn(&[b"text\0", b"xterm\0"]),
+            CursorIcon::VerticalText => load(b"vertical-text\0"),
 
-            MouseCursor::Wait => load(b"watch\0"),
+            CursorIcon::Wait => load(b"watch\0"),
 
-            MouseCursor::ZoomIn => load(b"zoom-in\0"),
-            MouseCursor::ZoomOut => load(b"zoom-out\0"),
+            CursorIcon::ZoomIn => load(b"zoom-in\0"),
+            CursorIcon::ZoomOut => load(b"zoom-out\0"),
         }
     }
 
@@ -1068,7 +1068,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         *self.cursor.lock() = cursor;
         if *self.cursor_visible.lock() {
             self.update_cursor(self.get_cursor(cursor));

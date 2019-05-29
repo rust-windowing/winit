@@ -18,7 +18,7 @@ use winapi::um::wingdi::{CreateRectRgn, DeleteObject};
 use winapi::um::oleidl::LPDROPTARGET;
 use winapi::um::winnt::{LONG, LPCWSTR};
 
-use window::{Icon, MouseCursor, WindowAttributes};
+use window::{Icon, CursorIcon, WindowAttributes};
 use error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use monitor::MonitorHandle as RootMonitorHandle;
@@ -302,7 +302,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         self.window_state.lock().mouse.cursor = cursor;
         self.thread_executor.execute_in_thread(move || unsafe {
             let cursor = winuser::LoadCursorW(

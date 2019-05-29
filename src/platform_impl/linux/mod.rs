@@ -15,7 +15,7 @@ use error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use event::Event;
 use event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
 use monitor::MonitorHandle as RootMonitorHandle;
-use window::{WindowAttributes, MouseCursor};
+use window::{WindowAttributes, CursorIcon};
 use self::x11::{XConnection, XError};
 use self::x11::ffi::XVisualInfo;
 pub use self::x11::XNotSupported;
@@ -258,10 +258,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         match self {
-            &Window::X(ref w) => w.set_cursor(cursor),
-            &Window::Wayland(ref w) => w.set_cursor(cursor)
+            &Window::X(ref w) => w.set_cursor_icon(cursor),
+            &Window::Wayland(ref w) => w.set_cursor_icon(cursor)
         }
     }
 
