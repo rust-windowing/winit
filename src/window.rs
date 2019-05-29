@@ -303,6 +303,7 @@ impl WindowBuilder {
     }
 }
 
+/// Base Window functions.
 impl Window {
     /// Creates a new Window for platforms where this is appropriate.
     ///
@@ -316,26 +317,31 @@ impl Window {
         builder.build(event_loop)
     }
 
-    /// Modifies the title of the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - Has no effect on iOS.
+    /// Returns an identifier unique to the window.
     #[inline]
-    pub fn set_title(&self, title: &str) {
-        self.window.set_title(title)
+    pub fn id(&self) -> WindowId {
+        WindowId(self.window.id())
     }
 
-    /// Modifies the window's visibility.
+    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// If `false`, this will hide the window. If `true`, this will show the window.
+    /// See the [`dpi`](dpi/index.html) module for more information.
+    ///
+    /// Note that this value can change depending on user action (for example if the window is
+    /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
+    /// the most robust way to track the DPI you need to use to draw.
+    ///
     /// ## Platform-specific
     ///
-    /// - **Android:** Has no effect.
-    /// - **iOS:** Can only be called on the main thread.
+    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **Android:** Always returns 1.0.
+    /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
+    ///   [`contentScaleFactor`].
+    ///
+    /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
-    pub fn set_visible(&self, visible: bool) {
-        self.window.set_visible(visible)
+    pub fn hidpi_factor(&self) -> f64 {
+        self.window.hidpi_factor()
     }
 
     /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
@@ -357,6 +363,25 @@ impl Window {
     pub fn request_redraw(&self) {
         self.window.request_redraw()
     }
+}
+
+/// Position and size functions.
+impl Window {
+    /// Returns the position of the top-left hand corner of the window's client area relative to the
+    /// top-left hand corner of the desktop.
+    ///
+    /// The same conditions that apply to `outer_position` apply to this method.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
+    ///   window's [safe area] in the screen space coordinate system.
+    ///
+    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    #[inline]
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+        self.window.inner_position()
+    }
 
     /// Returns the position of the top-left hand corner of the window relative to the
     ///  top-left hand corner of the desktop.
@@ -375,22 +400,6 @@ impl Window {
     #[inline]
     pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         self.window.outer_position()
-    }
-
-    /// Returns the position of the top-left hand corner of the window's client area relative to the
-    /// top-left hand corner of the desktop.
-    ///
-    /// The same conditions that apply to `outer_position` apply to this method.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
-    ///   window's [safe area] in the screen space coordinate system.
-    ///
-    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
-    #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
-        self.window.inner_position()
     }
 
     /// Modifies the position of the window.
@@ -425,6 +434,19 @@ impl Window {
         self.window.inner_size()
     }
 
+    /// Modifies the inner size of the window.
+    ///
+    /// See `inner_size` for more information about the values.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Unimplemented. Currently this panics, as it's not clear what `set_inner_size`
+    ///   would mean for iOS.
+    #[inline]
+    pub fn set_inner_size(&self, size: LogicalSize) {
+        self.window.set_inner_size(size)
+    }
+
     /// Returns the logical size of the entire window.
     ///
     /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
@@ -437,19 +459,6 @@ impl Window {
     #[inline]
     pub fn outer_size(&self) -> LogicalSize {
         self.window.outer_size()
-    }
-
-    /// Modifies the inner size of the window.
-    ///
-    /// See `inner_size` for more information about the values.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS:** Unimplemented. Currently this panics, as it's not clear what `set_inner_size`
-    ///   would mean for iOS.
-    #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
-        self.window.set_inner_size(size)
     }
 
     /// Sets a minimum dimension size for the window.
@@ -471,6 +480,31 @@ impl Window {
     pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
         self.window.set_max_inner_size(dimensions)
     }
+}
+
+/// Misc. attribute functions.
+impl Window {
+    /// Modifies the title of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Has no effect on iOS.
+    #[inline]
+    pub fn set_title(&self, title: &str) {
+        self.window.set_title(title)
+    }
+
+    /// Modifies the window's visibility.
+    ///
+    /// If `false`, this will hide the window. If `true`, this will show the window.
+    /// ## Platform-specific
+    ///
+    /// - **Android:** Has no effect.
+    /// - **iOS:** Can only be called on the main thread.
+    #[inline]
+    pub fn set_visible(&self, visible: bool) {
+        self.window.set_visible(visible)
+    }
 
     /// Sets whether the window is resizable or not.
     ///
@@ -489,76 +523,6 @@ impl Window {
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
-    }
-
-    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
-    ///
-    /// See the [`dpi`](dpi/index.html) module for more information.
-    ///
-    /// Note that this value can change depending on user action (for example if the window is
-    /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
-    /// the most robust way to track the DPI you need to use to draw.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
-    /// - **Android:** Always returns 1.0.
-    /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
-    ///   [`contentScaleFactor`].
-    ///
-    /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
-    #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.window.hidpi_factor()
-    }
-
-    /// Modifies the cursor icon of the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS:** Has no effect.
-    /// - **Android:** Has no effect.
-    #[inline]
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window.set_cursor_icon(cursor);
-    }
-
-    /// Changes the position of the cursor in window coordinates.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS:** Always returns an `Err`.
-    #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
-        self.window.set_cursor_position(position)
-    }
-
-    /// Grabs the cursor, preventing it from leaving the window.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **macOS:** This presently merely locks the cursor in a fixed location, which looks visually
-    ///   awkward.
-    /// - **Android:** Has no effect.
-    /// - **iOS:** Always returns an Err.
-    #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        self.window.set_cursor_grab(grab)
-    }
-
-    /// Hides the cursor, making it invisible but still usable.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Windows:** The cursor is only hidden within the confines of the window.
-    /// - **X11:** The cursor is only hidden within the confines of the window.
-    /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
-    ///   outside of the window.
-    /// - **iOS:** Has no effect.
-    /// - **Android:** Has no effect.
-    #[inline]
-    pub fn set_cursor_visible(&self, visible: bool) {
-        self.window.set_cursor_visible(visible)
     }
 
     /// Sets the window to maximized or back.
@@ -636,7 +600,62 @@ impl Window {
     pub fn set_ime_position(&self, position: LogicalPosition) {
         self.window.set_ime_position(position)
     }
+}
 
+/// Cursor functions.
+impl Window {
+    /// Modifies the cursor icon of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
+    /// - **Android:** Has no effect.
+    #[inline]
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+        self.window.set_cursor_icon(cursor);
+    }
+
+    /// Changes the position of the cursor in window coordinates.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Always returns an `Err`.
+    #[inline]
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
+        self.window.set_cursor_position(position)
+    }
+
+    /// Grabs the cursor, preventing it from leaving the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** This presently merely locks the cursor in a fixed location, which looks visually
+    ///   awkward.
+    /// - **Android:** Has no effect.
+    /// - **iOS:** Always returns an Err.
+    #[inline]
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+        self.window.set_cursor_grab(grab)
+    }
+
+    /// Hides the cursor, making it invisible but still usable.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** The cursor is only hidden within the confines of the window.
+    /// - **X11:** The cursor is only hidden within the confines of the window.
+    /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
+    ///   outside of the window.
+    /// - **iOS:** Has no effect.
+    /// - **Android:** Has no effect.
+    #[inline]
+    pub fn set_cursor_visible(&self, visible: bool) {
+        self.window.set_cursor_visible(visible)
+    }
+}
+
+/// Monitor info functions.
+impl Window {
     /// Returns the monitor on which the window currently resides
     ///
     /// ## Platform-specific
@@ -670,12 +689,6 @@ impl Window {
     #[inline]
     pub fn primary_monitor(&self) -> MonitorHandle {
         MonitorHandle { inner: self.window.primary_monitor() }
-    }
-
-    /// Returns an identifier unique to the window.
-    #[inline]
-    pub fn id(&self) -> WindowId {
-        WindowId(self.window.id())
     }
 }
 
