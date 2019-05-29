@@ -37,6 +37,8 @@
     - `LoopDestroyed` is emitted when the `run` or `run_return` method is about to exit.
 - Rename `MonitorId` to `MonitorHandle`.
 - Removed `serde` implementations from `ControlFlow`.
+- Rename several functions to improve both internal consistency and compliance with Rust API guidelines.
+- Remove `WindowBuilder::multitouch` field, since it was only implemented on a few platforms. Multitouch is always enabled now.
 
 # Version 0.19.1 (2019-04-08)
 
