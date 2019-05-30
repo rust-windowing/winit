@@ -87,8 +87,6 @@ extern crate serde;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
-#[cfg(target_os = "windows")]
-extern crate backtrace;
 #[macro_use]
 #[cfg(target_os = "windows")]
 extern crate bitflags;
