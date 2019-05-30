@@ -380,6 +380,7 @@ impl<T> EventLoopRunner<T> {
         // deferred.
         if let RunnerState::DeferredNewEvents(wait_start) = self.runner_state {
             match self.control_flow {
+                ControlFlow::Exit  |
                 ControlFlow::Wait => {
                     self.call_event_handler(
                         Event::NewEvents(StartCause::WaitCancelled {
@@ -409,7 +410,6 @@ impl<T> EventLoopRunner<T> {
                 ControlFlow::Poll => {
                     self.call_event_handler(Event::NewEvents(StartCause::Poll))
                 },
-                ControlFlow::Exit => unreachable!()
             }
         }
 
