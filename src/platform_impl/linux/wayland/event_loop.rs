@@ -266,7 +266,11 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::WaitUntil(deadline) => {
                     let start = Instant::now();
                     // compute the blocking duration
-                    let duration = deadline.duration_since(::std::cmp::max(deadline, start));
+                    let duration = if deadline > start {
+                        deadline - start
+                    } else {
+                        ::std::time::Duration::from_millis(0)
+                    };
                     self.inner_loop.dispatch(Some(duration), &mut ()).unwrap();
                     control_flow = ControlFlow::default();
                     let now = Instant::now();
