@@ -51,14 +51,14 @@ impl MonitorRepr {
         }
     }
 
-    pub unsafe fn get_dimensions(&self) -> (u32, u32) {
+    pub unsafe fn dimensions(&self) -> (u32, u32) {
         match *self {
             MonitorRepr::Monitor(monitor) => ((*monitor).width as u32, (*monitor).height as u32),
             MonitorRepr::Crtc(crtc) => ((*crtc).width as u32, (*crtc).height as u32),
         }
     }
 
-    pub unsafe fn get_position(&self) -> (i32, i32) {
+    pub unsafe fn position(&self) -> (i32, i32) {
         match *self {
             MonitorRepr::Monitor(monitor) => ((*monitor).x as i32, (*monitor).y as i32),
             MonitorRepr::Crtc(crtc) => ((*crtc).x as i32, (*crtc).y as i32),
@@ -123,7 +123,7 @@ impl XConnection {
             dpi / 96.
         } else {
             calc_dpi_factor(
-                repr.get_dimensions(),
+                repr.dimensions(),
                 ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
             )
         };

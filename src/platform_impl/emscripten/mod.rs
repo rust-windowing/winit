@@ -10,11 +10,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, Arc};
 
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use error::{ExternalError, NotSupportedError};
 use window::MonitorHandle as RootMonitorHandle;
 
 const DOCUMENT_NAME: &'static str = "#document\0";
 
-fn get_hidpi_factor() -> f64 {
+fn hidpi_factor() -> f64 {
     unsafe { ffi::emscripten_get_device_pixel_ratio() as f64 }
 }
 
@@ -23,6 +24,8 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 
 unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
 unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
+
+pub type OsError = std::io::Error;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
@@ -41,23 +44,23 @@ pub struct MonitorHandle;
 
 impl MonitorHandle {
     #[inline]
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         Some("Canvas".to_owned())
     }
 
     #[inline]
-    pub fn get_position(&self) -> PhysicalPosition {
+    pub fn outer_position(&self) -> PhysicalPosition {
         unimplemented!()
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> PhysicalSize {
+    pub fn dimensions(&self) -> PhysicalSize {
         (0, 0).into()
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
-        get_hidpi_factor()
+    pub fn hidpi_factor(&self) -> f64 {
+        hidpi_factor()
     }
 }
 
@@ -113,14 +116,14 @@ impl EventLoop {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut list = VecDeque::with_capacity(1);
         list.push_back(MonitorHandle);
         list
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         MonitorHandle
     }
 
@@ -163,7 +166,7 @@ impl WindowId {
 
 pub struct Window2 {
     cursor_grabbed: Mutex<bool>,
-    cursor_hidden: Mutex<bool>,
+    cursor_visible: Mutex<bool>,
     is_fullscreen: bool,
     events: Box<Mutex<VecDeque<::Event>>>,
 }
@@ -208,7 +211,7 @@ extern "C" fn mouse_callback(
 
         match event_type {
             ffi::EMSCRIPTEN_EVENT_MOUSEMOVE => {
-                let dpi_factor = get_hidpi_factor();
+                let dpi_factor = hidpi_factor();
                 let position = LogicalPosition::from_physical(
                     ((*event).canvasX as f64, (*event).canvasY as f64),
                     dpi_factor,
@@ -328,7 +331,7 @@ extern fn touch_callback(
         for touch in 0..(*event).numTouches as usize {
             let touch = (*event).touches[touch];
             if touch.isChanged == ffi::EM_TRUE {
-                let dpi_factor = get_hidpi_factor();
+                let dpi_factor = hidpi_factor();
                 let location = LogicalPosition::from_physical(
                     (touch.canvasX as f64, touch.canvasY as f64),
                     dpi_factor,
@@ -387,8 +390,8 @@ impl Window {
         }
 
         let w = Window2 {
-            cursor_grabbed: Default::default(),
-            cursor_hidden: Default::default(),
+            cursor_grabbed: Mutex::new(false),
+            cursor_visible: Mutex::new(true),
             events: Default::default(),
             is_fullscreen: attribs.fullscreen.is_some(),
         };
@@ -427,7 +430,7 @@ impl Window {
                 em_try(ffi::emscripten_set_fullscreenchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, Some(fullscreen_callback)))
                     .map_err(|e| ::CreationError::OsError(e))?;
             }
-        } else if let Some(size) = attribs.dimensions {
+        } else if let Some(size) = attribs.inner_size {
             window.set_inner_size(size);
         }
 
@@ -445,21 +448,21 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Option<LogicalPosition> {
         Some((0, 0).into())
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Option<LogicalPosition> {
         Some((0, 0).into())
     }
 
     #[inline]
-    pub fn set_position(&self, _: LogicalPosition) {
+    pub fn set_outer_position(&self, _: LogicalPosition) {
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> Option<LogicalSize> {
         unsafe {
             let mut width = 0;
             let mut height = 0;
@@ -470,7 +473,7 @@ impl Window {
             {
                 None
             } else {
-                let dpi_factor = self.get_hidpi_factor();
+                let dpi_factor = self.hidpi_factor();
                 let logical = LogicalSize::from_physical((width as u32, height as u32), dpi_factor);
                 Some(logical)
             }
@@ -478,14 +481,14 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        self.get_inner_size()
+    pub fn outer_size(&self) -> Option<LogicalSize> {
+        self.inner_size()
     }
 
     #[inline]
     pub fn set_inner_size(&self, size: LogicalSize) {
         unsafe {
-            let dpi_factor = self.get_hidpi_factor();
+            let dpi_factor = self.hidpi_factor();
             let physical = PhysicalSize::from_logical(size, dpi_factor);
             let (width, height): (u32, u32) = physical.into();
             ffi::emscripten_set_element_css_size(
@@ -497,12 +500,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
         // N/A
     }
 
     #[inline]
-    pub fn set_max_dimensions(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
         // N/A
     }
 
@@ -522,12 +525,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor(&self, _cursor: ::MouseCursor) {
+    pub fn set_cursor_icon(&self, _cursor: ::CursorIcon) {
         // N/A
     }
 
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         let mut grabbed_lock = self.window.cursor_grabbed.lock().unwrap();
         if grab == *grabbed_lock { return Ok(()); }
         unsafe {
@@ -554,24 +557,24 @@ impl Window {
     }
 
     #[inline]
-    pub fn hide_cursor(&self, hide: bool) {
-        let mut hidden_lock = self.window.cursor_hidden.lock().unwrap();
-        if hide == *hidden_lock { return; }
-        if hide {
-            unsafe { ffi::emscripten_hide_mouse() };
-        } else {
+    pub fn set_cursor_visible(&self, visible: bool) {
+        let mut visible_lock = self.window.cursor_visible.lock().unwrap();
+        if visible == *visible_lock { return; }
+        if visible {
             show_mouse();
+        } else {
+            unsafe { ffi::emscripten_hide_mouse() };
         }
-        *hidden_lock = hide;
+        *visible_lock = visible;
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
-        get_hidpi_factor()
+    pub fn hidpi_factor(&self) -> f64 {
+        hidpi_factor()
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
         Err("Setting cursor position is not possible on Emscripten.".to_owned())
     }
 
@@ -581,7 +584,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_fullscreen(&self) -> Option<::MonitorHandle> {
+    pub fn fullscreen(&self) -> Option<::MonitorHandle> {
         None
     }
 
@@ -606,24 +609,24 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, _logical_spot: LogicalPosition) {
+    pub fn set_ime_position(&self, _logical_spot: LogicalPosition) {
         // N/A
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+    pub fn current_monitor(&self) -> RootMonitorHandle {
         RootMonitorHandle { inner: MonitorHandle }
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut list = VecDeque::with_capacity(1);
         list.push_back(MonitorHandle);
         list
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         MonitorHandle
     }
 }
@@ -639,7 +642,7 @@ impl Drop for Window {
         unsafe {
             // Return back to normal cursor state
             self.hide_cursor(false);
-            self.grab_cursor(false);
+            self.set_cursor_grab(false);
 
             // Exit fullscreen if on
             if self.window.is_fullscreen {

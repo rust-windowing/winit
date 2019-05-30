@@ -119,14 +119,14 @@ impl<T: 'static> EventLoop<T> {
         EventLoopProxy::new(self.window_target.p.sender_to_clone.clone())
     }
 
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         // guaranteed to be on main thread
         unsafe {
             monitor::uiscreens()
         }
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         // guaranteed to be on main thread
         unsafe {
             monitor::main_uiscreen()
@@ -140,7 +140,7 @@ impl<T: 'static> EventLoop<T> {
 
 // EventLoopExtIOS
 impl<T: 'static> EventLoop<T> {
-    pub fn get_idiom(&self) -> Idiom {
+    pub fn idiom(&self) -> Idiom {
         // guaranteed to be on main thread
         unsafe {
             self::get_idiom()

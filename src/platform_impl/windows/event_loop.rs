@@ -52,7 +52,7 @@ use platform_impl::platform::dpi::{
     become_dpi_aware,
     dpi_to_scale_factor,
     enable_non_client_dpi_scaling,
-    get_hwnd_scale_factor,
+    hwnd_scale_factor,
 };
 use platform_impl::platform::drop_handler::FileDropHandler;
 use platform_impl::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
@@ -869,7 +869,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let windowpos = lparam as *const winuser::WINDOWPOS;
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
-                let dpi_factor = get_hwnd_scale_factor(window);
+                let dpi_factor = hwnd_scale_factor(window);
                 let logical_position = LogicalPosition::from_physical(
                     ((*windowpos).x, (*windowpos).y),
                     dpi_factor,
@@ -889,7 +889,7 @@ unsafe extern "system" fn public_window_callback<T>(
             let w = LOWORD(lparam as DWORD) as u32;
             let h = HIWORD(lparam as DWORD) as u32;
 
-            let dpi_factor = get_hwnd_scale_factor(window);
+            let dpi_factor = hwnd_scale_factor(window);
             let logical_size = LogicalSize::from_physical((w, h), dpi_factor);
             let event = Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -954,7 +954,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
-            let dpi_factor = get_hwnd_scale_factor(window);
+            let dpi_factor = hwnd_scale_factor(window);
             let position = LogicalPosition::from_physical((x, y), dpi_factor);
 
             subclass_input.send_event(Event::WindowEvent {
@@ -1305,7 +1305,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 inputs.as_mut_ptr(),
                 mem::size_of::<winuser::TOUCHINPUT>() as INT,
             ) > 0 {
-                let dpi_factor = get_hwnd_scale_factor(window);
+                let dpi_factor = hwnd_scale_factor(window);
                 for input in &inputs {
                     let x = (input.x as f64) / 100f64;
                     let y = (input.y as f64) / 100f64;

@@ -270,7 +270,7 @@ impl<T: 'static> EventProcessor<T> {
                     let new_inner_size = (xev.width as u32, xev.height as u32);
                     let new_inner_position = (xev.x as i32, xev.y as i32);
 
-                    let mut monitor = window.get_current_monitor(); // This must be done *before* locking!
+                    let mut monitor = window.current_monitor(); // This must be done *before* locking!
                     let mut shared_state_lock = window.shared_state.lock();
 
                     let (mut resized, moved) = {
@@ -534,10 +534,7 @@ impl<T: 'static> EventProcessor<T> {
                         let device_id = mkdid(xev.deviceid);
                         if (xev.flags & ffi::XIPointerEmulated) != 0 {
                             // Deliver multi-touch events instead of emulated mouse events.
-                            let return_now = self
-                                .with_window(xev.event, |window| window.multitouch)
-                                .unwrap_or(true);
-                            if return_now { return; }
+                            return;
                         }
 
                         let modifiers = ModifiersState::from(xev.mods);
@@ -622,7 +619,7 @@ impl<T: 'static> EventProcessor<T> {
                         });
                         if cursor_moved == Some(true) {
                             let dpi_factor = self.with_window(xev.event, |window| {
-                                window.get_hidpi_factor()
+                                window.hidpi_factor()
                             });
                             if let Some(dpi_factor) = dpi_factor {
                                 let position = LogicalPosition::from_physical(
@@ -721,7 +718,7 @@ impl<T: 'static> EventProcessor<T> {
                         });
 
                         if let Some(dpi_factor) = self.with_window(xev.event, |window| {
-                            window.get_hidpi_factor()
+                            window.hidpi_factor()
                         }) {
                             let position = LogicalPosition::from_physical(
                                 (xev.event_x as f64, xev.event_y as f64),
@@ -767,7 +764,7 @@ impl<T: 'static> EventProcessor<T> {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
                         let dpi_factor = match self.with_window(xev.event, |window| {
-                            window.get_hidpi_factor()
+                            window.hidpi_factor()
                         }) {
                             Some(dpi_factor) => dpi_factor,
                             None => return,
@@ -825,7 +822,7 @@ impl<T: 'static> EventProcessor<T> {
                             _ => unreachable!()
                         };
                          let dpi_factor = self.with_window(xev.event, |window| {
-                            window.get_hidpi_factor()
+                            window.hidpi_factor()
                         });
                         if let Some(dpi_factor) = dpi_factor {
                             let location = LogicalPosition::from_physical(
@@ -960,7 +957,7 @@ impl<T: 'static> EventProcessor<T> {
                     // In the future, it would be quite easy to emit monitor hotplug events.
                     let prev_list = monitor::invalidate_cached_monitor_list();
                     if let Some(prev_list) = prev_list {
-                        let new_list = wt.xconn.get_available_monitors();
+                        let new_list = wt.xconn.available_monitors();
                         for new_monitor in new_list {
                             prev_list
                                 .iter()
@@ -970,7 +967,7 @@ impl<T: 'static> EventProcessor<T> {
                                         for (window_id, window) in wt.windows.borrow().iter() {
                                             if let Some(window) = window.upgrade() {
                                                 // Check if the window is on this monitor
-                                                let monitor = window.get_current_monitor();
+                                                let monitor = window.current_monitor();
                                                 if monitor.name == new_monitor.name {
                                                     callback(Event::WindowEvent {
                                                         window_id: mkwid(window_id.0),
@@ -978,10 +975,7 @@ impl<T: 'static> EventProcessor<T> {
                                                             new_monitor.hidpi_factor
                                                         ),
                                                     });
-                                                    let (width, height) = match window.get_inner_size_physical() {
-                                                        Some(result) => result,
-                                                        None => continue,
-                                                    };
+                                                    let (width, height) = window.inner_size_physical();
                                                     let (_, _, flusher) = window.adjust_for_dpi(
                                                         prev_monitor.hidpi_factor,
                                                         new_monitor.hidpi_factor,

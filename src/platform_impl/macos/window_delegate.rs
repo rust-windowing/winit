@@ -37,7 +37,7 @@ impl WindowDelegateState {
         window: &Arc<UnownedWindow>,
         initial_fullscreen: bool,
     ) -> Self {
-        let dpi_factor = window.get_hidpi_factor();
+        let dpi_factor = window.hidpi_factor();
 
         let mut delegate_state = WindowDelegateState {
             nswindow: window.nswindow.clone(),
@@ -408,7 +408,7 @@ extern fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
         state.with_window(|window| {
-            let monitor = window.get_current_monitor();
+            let monitor = window.current_monitor();
             trace!("Locked shared state in `window_did_enter_fullscreen`");
             window.shared_state.lock().unwrap().fullscreen = Some(monitor);
             trace!("Unlocked shared state in `window_will_enter_fullscreen`");

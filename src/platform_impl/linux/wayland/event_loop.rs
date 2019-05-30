@@ -296,15 +296,15 @@ impl<T: 'static> EventLoop<T> {
         callback(::event::Event::LoopDestroyed, &self.window_target, &mut control_flow);
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        get_primary_monitor(&self.outputs)
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        primary_monitor(&self.outputs)
     }
 
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
-        get_available_monitors(&self.outputs)
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        available_monitors(&self.outputs)
     }
 
-    pub fn get_display(&self) -> &Display {
+    pub fn display(&self) -> &Display {
         &*self.display
     }
 
@@ -532,11 +532,11 @@ impl fmt::Debug for MonitorHandle {
         }
 
         let monitor_id_proxy = MonitorHandle {
-            name: self.get_name(),
-            native_identifier: self.get_native_identifier(),
-            dimensions: self.get_dimensions(),
-            position: self.get_position(),
-            hidpi_factor: self.get_hidpi_factor(),
+            name: self.name(),
+            native_identifier: self.native_identifier(),
+            dimensions: self.dimensions(),
+            position: self.position(),
+            hidpi_factor: self.hidpi_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -544,18 +544,18 @@ impl fmt::Debug for MonitorHandle {
 }
 
 impl MonitorHandle {
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         self.mgr.with_info(&self.proxy, |_, info| {
             format!("{} ({})", info.model, info.make)
         })
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> u32 {
+    pub fn native_identifier(&self) -> u32 {
         self.mgr.with_info(&self.proxy, |id, _| id).unwrap_or(0)
     }
 
-    pub fn get_dimensions(&self) -> PhysicalSize {
+    pub fn dimensions(&self) -> PhysicalSize {
         match self.mgr.with_info(&self.proxy, |_, info| {
             info.modes
                 .iter()
@@ -567,7 +567,7 @@ impl MonitorHandle {
         }.into()
     }
 
-    pub fn get_position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition {
         self.mgr
             .with_info(&self.proxy, |_, info| info.location)
             .unwrap_or((0, 0))
@@ -575,14 +575,14 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> i32 {
+    pub fn hidpi_factor(&self) -> i32 {
         self.mgr
             .with_info(&self.proxy, |_, info| info.scale_factor)
             .unwrap_or(1)
     }
 }
 
-pub fn get_primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
+pub fn primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
     outputs.with_all(|list| {
         if let Some(&(_, ref proxy, _)) = list.first() {
             MonitorHandle {
@@ -595,7 +595,7 @@ pub fn get_primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
     })
 }
 
-pub fn get_available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorHandle> {
+pub fn available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorHandle> {
     outputs.with_all(|list| {
         list.iter()
             .map(|&(_, ref proxy, _)| MonitorHandle {

@@ -17,13 +17,15 @@ use objc::{runtime::{Class, Object, Sel, BOOL, YES, NO}, declare::ClassDecl};
 
 use {
     dpi::{LogicalPosition, LogicalSize}, icon::Icon,
+    error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     window::{
-        CreationError, MouseCursor, WindowAttributes, WindowId as RootWindowId,
+        CursorIcon, WindowAttributes, WindowId as RootWindowId,
     },
 };
 use platform::macos::{ActivationPolicy, WindowExtMacOS};
 use platform_impl::platform::{
+    OsError,
     app_state::AppState, ffi, monitor::{self, MonitorHandle},
     util::{self, IdRef}, view::{self, new_view},
     window_delegate::new_delegate,
@@ -102,7 +104,7 @@ fn create_window(
         let pool = NSAutoreleasePool::new(nil);
         let screen = match attrs.fullscreen {
             Some(ref monitor_id) => {
-                let monitor_screen = monitor_id.inner.get_nsscreen();
+                let monitor_screen = monitor_id.inner.nsscreen();
                 Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
             },
             _ => None,
@@ -110,7 +112,7 @@ fn create_window(
         let frame = match screen {
             Some(screen) => appkit::NSScreen::frame(screen),
             None => {
-                let (width, height) = attrs.dimensions
+                let (width, height) = attrs.inner_size
                     .map(|logical| (logical.width, logical.height))
                     .unwrap_or_else(|| (800.0, 600.0));
                 NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height))
@@ -245,7 +247,7 @@ pub struct UnownedWindow {
     pub shared_state: Arc<Mutex<SharedState>>,
     decorations: AtomicBool,
     cursor: Weak<Mutex<util::Cursor>>,
-    cursor_hidden: AtomicBool,
+    cursor_visible: AtomicBool,
 }
 
 unsafe impl Send for UnownedWindow {}
@@ -255,7 +257,7 @@ impl UnownedWindow {
     pub fn new(
         mut win_attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<(Arc<Self>, IdRef), CreationError> {
+    ) -> Result<(Arc<Self>, IdRef), RootOsError> {
         unsafe {
             if !msg_send![class!(NSThread), isMainThread] {
                 panic!("Windows can only be created on the main thread on macOS");
@@ -266,17 +268,17 @@ impl UnownedWindow {
 
         let nsapp = create_app(pl_attribs.activation_policy).ok_or_else(|| {
             unsafe { pool.drain() };
-            CreationError::OsError(format!("Couldn't create `NSApplication`"))
+            os_error!(OsError::CreationError("Couldn't create `NSApplication`"))
         })?;
 
         let nswindow = create_window(&win_attribs, &pl_attribs).ok_or_else(|| {
             unsafe { pool.drain() };
-            CreationError::OsError(format!("Couldn't create `NSWindow`"))
+            os_error!(OsError::CreationError("Couldn't create `NSWindow`"))
         })?;
 
         let (nsview, cursor) = unsafe { create_view(*nswindow) }.ok_or_else(|| {
             unsafe { pool.drain() };
-            CreationError::OsError(format!("Couldn't create `NSView`"))
+            os_error!(OsError::CreationError("Couldn't create `NSView`"))
         })?;
 
         let input_context = unsafe { util::create_input_context(*nsview) };
@@ -289,8 +291,8 @@ impl UnownedWindow {
 
             nsapp.activateIgnoringOtherApps_(YES);
 
-            win_attribs.min_dimensions.map(|dim| set_min_dimensions(*nswindow, dim));
-            win_attribs.max_dimensions.map(|dim| set_max_dimensions(*nswindow, dim));
+            win_attribs.min_inner_size.map(|dim| set_min_inner_size(*nswindow, dim));
+            win_attribs.max_inner_size.map(|dim| set_max_inner_size(*nswindow, dim));
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
@@ -317,14 +319,14 @@ impl UnownedWindow {
             shared_state: Arc::new(Mutex::new(win_attribs.into())),
             decorations: AtomicBool::new(decorations),
             cursor,
-            cursor_hidden: Default::default(),
+            cursor_visible: AtomicBool::new(true),
         });
 
         let delegate = new_delegate(&window, fullscreen.is_some());
 
         // Set fullscreen mode after we setup everything
         if let Some(monitor) = fullscreen {
-            if monitor.inner != window.get_current_monitor().inner {
+            if monitor.inner != window.current_monitor().inner {
                 // To do this with native fullscreen, we probably need to
                 // warp the window... while we could use
                 // `enterFullScreenMode`, they're idiomatically different
@@ -381,42 +383,39 @@ impl UnownedWindow {
         }
     }
 
-    #[inline]
-    pub fn show(&self) {
-        unsafe { util::make_key_and_order_front_async(*self.nswindow) };
-    }
-
-    #[inline]
-    pub fn hide(&self) {
-        unsafe { util::order_out_async(*self.nswindow) };
+    pub fn set_visible(&self, visible: bool) {
+        match visible {
+            true => unsafe { util::make_key_and_order_front_async(*self.nswindow) },
+            false => unsafe { util::order_out_async(*self.nswindow) },
+        }
     }
 
     pub fn request_redraw(&self) {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
 
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         let frame_rect = unsafe { NSWindow::frame(*self.nswindow) };
-        Some((
+        Ok((
             frame_rect.origin.x as f64,
             util::bottom_left_to_top_left(frame_rect),
         ).into())
     }
 
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         let content_rect = unsafe {
             NSWindow::contentRectForFrameRect_(
                 *self.nswindow,
                 NSWindow::frame(*self.nswindow),
             )
         };
-        Some((
+        Ok((
             content_rect.origin.x as f64,
             util::bottom_left_to_top_left(content_rect),
         ).into())
     }
 
-    pub fn set_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: LogicalPosition) {
         let dummy = NSRect::new(
             NSPoint::new(
                 position.x,
@@ -432,15 +431,15 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> LogicalSize {
         let view_frame = unsafe { NSView::frame(*self.nsview) };
-        Some((view_frame.size.width as f64, view_frame.size.height as f64).into())
+        (view_frame.size.width as f64, view_frame.size.height as f64).into()
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> LogicalSize {
         let view_frame = unsafe { NSWindow::frame(*self.nswindow) };
-        Some((view_frame.size.width as f64, view_frame.size.height as f64).into())
+        (view_frame.size.width as f64, view_frame.size.height as f64).into()
     }
 
     #[inline]
@@ -450,17 +449,17 @@ impl UnownedWindow {
         }
     }
 
-    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
         unsafe {
             let dimensions = dimensions.unwrap_or_else(|| (0, 0).into());
-            set_min_dimensions(*self.nswindow, dimensions);
+            set_min_inner_size(*self.nswindow, dimensions);
         }
     }
 
-    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
         unsafe {
             let dimensions = dimensions.unwrap_or_else(|| (!0, !0).into());
-            set_max_dimensions(*self.nswindow, dimensions);
+            set_max_inner_size(*self.nswindow, dimensions);
         }
     }
 
@@ -484,7 +483,7 @@ impl UnownedWindow {
         } // Otherwise, we don't change the mask until we exit fullscreen.
     }
 
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         let cursor = util::Cursor::from(cursor);
         if let Some(cursor_access) = self.cursor.upgrade() {
             *cursor_access.lock().unwrap() = cursor;
@@ -497,44 +496,43 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
         CGDisplay::associate_mouse_and_mouse_cursor_position(!grab)
-            .map_err(|status| format!("Failed to grab cursor: `CGError` {:?}", status))
+            .map_err(|status| ExternalError::Os(os_error!(OsError::CGError(status))))
     }
 
     #[inline]
-    pub fn hide_cursor(&self, hide: bool) {
+    pub fn set_cursor_visible(&self, visible: bool) {
         let cursor_class = class!(NSCursor);
         // macOS uses a "hide counter" like Windows does, so we avoid incrementing it more than once.
         // (otherwise, `hide_cursor(false)` would need to be called n times!)
-        if hide != self.cursor_hidden.load(Ordering::Acquire) {
-            if hide {
-                let _: () = unsafe { msg_send![cursor_class, hide] };
-            } else {
+        if visible != self.cursor_visible.load(Ordering::Acquire) {
+            if visible {
                 let _: () = unsafe { msg_send![cursor_class, unhide] };
+            } else {
+                let _: () = unsafe { msg_send![cursor_class, hide] };
             }
-            self.cursor_hidden.store(hide, Ordering::Release);
+            self.cursor_visible.store(visible, Ordering::Release);
         }
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         unsafe { NSWindow::backingScaleFactor(*self.nswindow) as _ }
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, cursor_position: LogicalPosition) -> Result<(), String> {
-        let window_position = self.get_inner_position()
-            .ok_or("`get_inner_position` failed".to_owned())?;
+    pub fn set_cursor_position(&self, cursor_position: LogicalPosition) -> Result<(), ExternalError> {
+        let window_position = self.inner_position().unwrap();
         let point = appkit::CGPoint {
             x: (cursor_position.x + window_position.x) as CGFloat,
             y: (cursor_position.y + window_position.y) as CGFloat,
         };
         CGDisplay::warp_mouse_cursor_position(point)
-            .map_err(|e| format!("`CGWarpMouseCursorPosition` failed: {:?}", e))?;
+            .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
         CGDisplay::associate_mouse_and_mouse_cursor_position(true)
-            .map_err(|e| format!("`CGAssociateMouseAndMouseCursorPosition` failed: {:?}", e))?;
+            .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
 
         Ok(())
     }
@@ -637,7 +635,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
         let shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.fullscreen.clone()
     }
@@ -736,9 +734,9 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, logical_spot: LogicalPosition) {
+    pub fn set_ime_position(&self, logical_spot: LogicalPosition) {
         unsafe {
-            view::set_ime_spot(
+            view::set_ime_position(
                 *self.nsview,
                 *self.input_context,
                 logical_spot.x,
@@ -748,7 +746,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+    pub fn current_monitor(&self) -> RootMonitorHandle {
         unsafe {
             let screen: id = msg_send![*self.nswindow, screen];
             let desc = NSScreen::deviceDescription(screen);
@@ -760,24 +758,24 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
-        monitor::get_available_monitors()
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        monitor::available_monitors()
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        monitor::get_primary_monitor()
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        monitor::primary_monitor()
     }
 }
 
 impl WindowExtMacOS for UnownedWindow {
     #[inline]
-    fn get_nswindow(&self) -> *mut c_void {
+    fn nswindow(&self) -> *mut c_void {
         *self.nswindow as *mut _
     }
 
     #[inline]
-    fn get_nsview(&self) -> *mut c_void {
+    fn nsview(&self) -> *mut c_void {
         *self.nsview as *mut _
     }
 
@@ -792,7 +790,7 @@ impl WindowExtMacOS for UnownedWindow {
     }
 
     #[inline]
-    fn get_simple_fullscreen(&self) -> bool {
+    fn simple_fullscreen(&self) -> bool {
         let shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.is_simple_fullscreen
     }
@@ -869,7 +867,7 @@ impl Drop for UnownedWindow {
     }
 }
 
-unsafe fn set_min_dimensions<V: NSWindow + Copy>(window: V, mut min_size: LogicalSize) {
+unsafe fn set_min_inner_size<V: NSWindow + Copy>(window: V, mut min_size: LogicalSize) {
     let mut current_rect = NSWindow::frame(window);
     let content_rect = NSWindow::contentRectForFrameRect_(window, NSWindow::frame(window));
     // Convert from client area size to window size
@@ -893,7 +891,7 @@ unsafe fn set_min_dimensions<V: NSWindow + Copy>(window: V, mut min_size: Logica
     }
 }
 
-unsafe fn set_max_dimensions<V: NSWindow + Copy>(window: V, mut max_size: LogicalSize) {
+unsafe fn set_max_inner_size<V: NSWindow + Copy>(window: V, mut max_size: LogicalSize) {
     let mut current_rect = NSWindow::frame(window);
     let content_rect = NSWindow::contentRectForFrameRect_(window, NSWindow::frame(window));
     // Convert from client area size to window size

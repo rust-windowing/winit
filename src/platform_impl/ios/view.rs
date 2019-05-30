@@ -31,7 +31,7 @@ use platform_impl::platform::window::{PlatformSpecificWindowBuilderAttributes};
 unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
     static mut CLASSES: Option<HashMap<*const Class, &'static Class>> = None;
     static mut ID: usize = 0;
-    
+
     if CLASSES.is_none() {
         CLASSES = Some(HashMap::default());
     }
@@ -255,7 +255,7 @@ unsafe fn get_window_class() -> &'static Class {
 
 // requires main thread
 pub unsafe fn create_view(
-    window_attributes: &WindowAttributes,
+    _window_attributes: &WindowAttributes,
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     frame: CGRect,
 ) -> id {
@@ -265,9 +265,7 @@ pub unsafe fn create_view(
     assert!(!view.is_null(), "Failed to create `UIView` instance");
     let view: id = msg_send![view, initWithFrame:frame];
     assert!(!view.is_null(), "Failed to initialize `UIView` instance");
-    if window_attributes.multitouch {
-        let () = msg_send![view, setMultipleTouchEnabled:YES];
-    }
+    let () = msg_send![view, setMultipleTouchEnabled:YES];
 
     view
 }
@@ -318,7 +316,7 @@ pub unsafe fn create_window(
         let () = msg_send![window, setContentScaleFactor:hidpi_factor as CGFloat];
     }
     if let &Some(ref monitor) = &window_attributes.fullscreen {
-        let () = msg_send![window, setScreen:monitor.get_uiscreen()];
+        let () = msg_send![window, setScreen:monitor.ui_screen()];
     }
 
     window

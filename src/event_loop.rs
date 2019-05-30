@@ -94,9 +94,9 @@ impl Default for ControlFlow {
 
 impl EventLoop<()> {
     /// Builds a new event loop with a `()` as the user event type.
-    /// 
+    ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **iOS:** Can only be called on the main thread.
     pub fn new() -> EventLoop<()> {
         EventLoop::<()>::new_user_event()
@@ -110,30 +110,15 @@ impl<T> EventLoop<T> {
     /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
     /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
     /// fallback on x11. If this variable is set with any other value, winit will panic.
-    /// 
+    ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **iOS:** Can only be called on the main thread.
     pub fn new_user_event() -> EventLoop<T> {
         EventLoop {
             event_loop: platform_impl::EventLoop::new(),
             _marker: ::std::marker::PhantomData,
         }
-    }
-
-    /// Returns the list of all the monitors available on the system.
-    ///
-    // Note: should be replaced with `-> impl Iterator` once stable.
-    #[inline]
-    pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
-        let data = self.event_loop.get_available_monitors();
-        AvailableMonitorsIter{ data: data.into_iter() }
-    }
-
-    /// Returns the primary monitor of the system.
-    #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle { inner: self.event_loop.get_primary_monitor() }
     }
 
     /// Hijacks the calling thread and initializes the `winit` event loop with the provided
@@ -153,12 +138,26 @@ impl<T> EventLoop<T> {
         self.event_loop.run(event_handler)
     }
 
-    /// Creates an `EventLoopProxy` that can be used to wake up the `EventLoop` from another
-    /// thread.
+    /// Creates an `EventLoopProxy` that can be used to dispatch user events to the main event loop.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             event_loop_proxy: self.event_loop.create_proxy(),
         }
+    }
+
+    /// Returns the list of all the monitors available on the system.
+    ///
+    // Note: should be replaced with `-> impl Iterator` once stable.
+    #[inline]
+    pub fn available_monitors(&self) -> AvailableMonitorsIter {
+        let data = self.event_loop.available_monitors();
+        AvailableMonitorsIter{ data: data.into_iter() }
+    }
+
+    /// Returns the primary monitor of the system.
+    #[inline]
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle { inner: self.event_loop.primary_monitor() }
     }
 }
 

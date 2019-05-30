@@ -12,8 +12,9 @@ use super::{ffi, util, XConnection, XError};
 
 use self::inner::{close_im, ImeInner};
 use self::input_method::PotentialInputMethods;
-use self::context::{ImeContextCreationError, ImeContext};
+use self::context::ImeContext;
 use self::callbacks::*;
+pub use self::context::ImeContextCreationError;
 
 pub type ImeReceiver = Receiver<(ffi::Window, i16, i16)>;
 pub type ImeSender = Sender<(ffi::Window, i16, i16)>;

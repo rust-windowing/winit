@@ -5,5 +5,5 @@ use winit::window::WindowBuilder;
 fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-    println!("{:#?}\nPrimary: {:#?}", window.get_available_monitors(), window.get_primary_monitor());
+    println!("{:#?}\nPrimary: {:#?}", window.available_monitors(), window.primary_monitor());
 }

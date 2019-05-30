@@ -19,13 +19,13 @@ impl EventLoopExtAndroid for EventLoop {
 
 /// Additional methods on `Window` that are specific to Android.
 pub trait WindowExtAndroid {
-    fn get_native_window(&self) -> *const c_void;
+    fn native_window(&self) -> *const c_void;
 }
 
 impl WindowExtAndroid for Window {
     #[inline]
-    fn get_native_window(&self) -> *const c_void {
-        self.window.get_native_window()
+    fn native_window(&self) -> *const c_void {
+        self.window.native_window()
     }
 }
 

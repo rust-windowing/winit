@@ -6,12 +6,12 @@ use std::{
 use objc::runtime::{Class, NO, Object, YES};
 
 use dpi::{self, LogicalPosition, LogicalSize};
+use error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use icon::Icon;
 use monitor::MonitorHandle as RootMonitorHandle;
 use platform::ios::{MonitorHandleExtIOS, ValidOrientations};
 use window::{
-    CreationError,
-    MouseCursor,
+    CursorIcon,
     WindowAttributes,
 };
 use platform_impl::{
@@ -56,15 +56,14 @@ impl Inner {
         debug!("`Window::set_title` is ignored on iOS")
     }
 
-    pub fn show(&self) {
-        unsafe {
-            let () = msg_send![self.window, setHidden:NO];
-        }
-    }
-
-    pub fn hide(&self) {
-        unsafe {
-            let () = msg_send![self.window, setHidden:YES];
+    pub fn set_visible(&self, visible: bool) {
+        match visible {
+            true => unsafe {
+                let () = msg_send![self.window, setHidden:NO];
+            },
+            false => unsafe {
+                let () = msg_send![self.window, setHidden:YES];
+            },
         }
     }
 
@@ -73,28 +72,28 @@ impl Inner {
             let () = msg_send![self.view, setNeedsDisplay];
         }
     }
-    
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         unsafe {
             let safe_area = self.safe_area_screen_space();
-            Some(LogicalPosition {
+            Ok(LogicalPosition {
                 x: safe_area.origin.x,
                 y: safe_area.origin.y,
             })
         }
     }
 
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         unsafe {
             let screen_frame = self.screen_frame();
-            Some(LogicalPosition {
+            Ok(LogicalPosition {
                 x: screen_frame.origin.x,
                 y: screen_frame.origin.y,
             })
         }
     }
 
-    pub fn set_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: LogicalPosition) {
         unsafe {
             let screen_frame = self.screen_frame();
             let new_screen_frame = CGRect {
@@ -109,23 +108,23 @@ impl Inner {
         }
     }
 
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> LogicalSize {
         unsafe {
             let safe_area = self.safe_area_screen_space();
-            Some(LogicalSize {
+            LogicalSize {
                 width: safe_area.size.width,
                 height: safe_area.size.height,
-            })
+            }
         }
     }
 
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> LogicalSize {
         unsafe {
             let screen_frame = self.screen_frame();
-            Some(LogicalSize {
+            LogicalSize {
                 width: screen_frame.size.width,
                 height: screen_frame.size.height,
-            })
+            }
         }
     }
 
@@ -133,39 +132,39 @@ impl Inner {
         unimplemented!("not clear what `Window::set_inner_size` means on iOS");
     }
 
-    pub fn set_min_dimensions(&self, _dimensions: Option<LogicalSize>) {
-        warn!("`Window::set_min_dimensions` is ignored on iOS")
+    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
+        warn!("`Window::set_min_inner_size` is ignored on iOS")
     }
 
-    pub fn set_max_dimensions(&self, _dimensions: Option<LogicalSize>) {
-        warn!("`Window::set_max_dimensions` is ignored on iOS")
+    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
+        warn!("`Window::set_max_inner_size` is ignored on iOS")
     }
 
     pub fn set_resizable(&self, _resizable: bool) {
         warn!("`Window::set_resizable` is ignored on iOS")
     }
 
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         unsafe {
             let hidpi: CGFloat = msg_send![self.view, contentScaleFactor];
             hidpi as _
         }
     }
 
-    pub fn set_cursor(&self, _cursor: MouseCursor) {
-        debug!("`Window::set_cursor` ignored on iOS")
+    pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
+        debug!("`Window::set_cursor_icon` ignored on iOS")
     }
 
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
-        Err("Setting cursor position is not possible on iOS.".to_owned())
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
-        Err("Cursor grabbing is not possible on iOS.".to_owned())
+    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn hide_cursor(&self, _hide: bool) {
-        debug!("`Window::hide_cursor` is ignored on iOS")
+    pub fn set_cursor_visible(&self, _visible: bool) {
+        debug!("`Window::set_cursor_visible` is ignored on iOS")
     }
 
     pub fn set_maximized(&self, _maximized: bool) {
@@ -176,7 +175,7 @@ impl Inner {
         unsafe {
             match monitor {
                 Some(monitor) => {
-                    let uiscreen = monitor.get_uiscreen() as id;
+                    let uiscreen = monitor.ui_screen() as id;
                     let current: id = msg_send![self.window, screen];
                     let bounds: CGRect = msg_send![uiscreen, bounds];
 
@@ -191,10 +190,10 @@ impl Inner {
         }
     }
 
-    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
         unsafe {
-            let monitor = self.get_current_monitor();
-            let uiscreen = monitor.inner.get_uiscreen();
+            let monitor = self.current_monitor();
+            let uiscreen = monitor.inner.ui_screen();
             let screen_space_bounds = self.screen_frame();
             let screen_bounds: CGRect = msg_send![uiscreen, bounds];
 
@@ -226,24 +225,24 @@ impl Inner {
         warn!("`Window::set_window_icon` is ignored on iOS")
     }
 
-    pub fn set_ime_spot(&self, _position: LogicalPosition) {
-        warn!("`Window::set_ime_spot` is ignored on iOS")
+    pub fn set_ime_position(&self, _position: LogicalPosition) {
+        warn!("`Window::set_ime_position` is ignored on iOS")
     }
 
-    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+    pub fn current_monitor(&self) -> RootMonitorHandle {
         unsafe {
             let uiscreen: id = msg_send![self.window, screen];
             RootMonitorHandle { inner: MonitorHandle::retained_new(uiscreen) }
         }
     }
 
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         unsafe {
             monitor::uiscreens()
         }
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         unsafe {
             monitor::main_uiscreen()
         }
@@ -294,12 +293,12 @@ impl Window {
         event_loop: &EventLoopWindowTarget<T>,
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Window, CreationError> {
-        if let Some(_) = window_attributes.min_dimensions {
-            warn!("`WindowAttributes::min_dimensions` is ignored on iOS");
+    ) -> Result<Window, RootOsError> {
+        if let Some(_) = window_attributes.min_inner_size {
+            warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
         }
-        if let Some(_) = window_attributes.max_dimensions {
-            warn!("`WindowAttributes::max_dimensions` is ignored on iOS");
+        if let Some(_) = window_attributes.max_inner_size {
+            warn!("`WindowAttributes::max_inner_size` is ignored on iOS");
         }
         if window_attributes.always_on_top {
             warn!("`WindowAttributes::always_on_top` is unsupported on iOS");
@@ -309,11 +308,11 @@ impl Window {
         unsafe {
             let screen = window_attributes.fullscreen
                 .as_ref()
-                .map(|screen| screen.get_uiscreen() as _)
-                .unwrap_or_else(|| monitor::main_uiscreen().get_uiscreen());
+                .map(|screen| screen.ui_screen() as _)
+                .unwrap_or_else(|| monitor::main_uiscreen().ui_screen());
             let screen_bounds: CGRect = msg_send![screen, bounds];
 
-            let frame = match window_attributes.dimensions {
+            let frame = match window_attributes.inner_size {
                 Some(dim) => CGRect {
                     origin: screen_bounds.origin,
                     size: CGSize { width: dim.width, height: dim.height },
@@ -343,9 +342,9 @@ impl Window {
 
 // WindowExtIOS
 impl Inner {
-    pub fn get_uiwindow(&self) -> id { self.window }
-    pub fn get_uiviewcontroller(&self) -> id { self.view_controller }
-    pub fn get_uiview(&self) -> id { self.view }
+    pub fn ui_window(&self) -> id { self.window }
+    pub fn ui_view_controller(&self) -> id { self.view_controller }
+    pub fn ui_view(&self) -> id { self.view }
 
     pub fn set_hidpi_factor(&self, hidpi_factor: f64) {
         unsafe {

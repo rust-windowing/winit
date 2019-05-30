@@ -3,13 +3,13 @@
 //! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_id]
 //! type. This is retreived from an [`AvailableMonitorsIter`][monitor_iter], which can be acquired
 //! with:
-//! - [`EventLoop::get_available_monitors`][loop_get]
-//! - [`Window::get_available_monitors`][window_get].
+//! - [`EventLoop::available_monitors`][loop_get]
+//! - [`Window::available_monitors`][window_get].
 //!
 //! [monitor_id]: ./struct.MonitorHandle.html
 //! [monitor_iter]: ./struct.AvailableMonitorsIter.html
-//! [loop_get]: ../event_loop/struct.EventLoop.html#method.get_available_monitors
-//! [window_get]: ../window/struct.Window.html#method.get_available_monitors
+//! [loop_get]: ../event_loop/struct.EventLoop.html#method.available_monitors
+//! [window_get]: ../window/struct.Window.html#method.available_monitors
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
 use platform_impl;
@@ -18,11 +18,11 @@ use dpi::{PhysicalPosition, PhysicalSize};
 /// An iterator over all available monitors.
 ///
 /// Can be acquired with:
-/// - [`EventLoop::get_available_monitors`][loop_get]
-/// - [`Window::get_available_monitors`][window_get].
+/// - [`EventLoop::available_monitors`][loop_get]
+/// - [`Window::available_monitors`][window_get].
 ///
-/// [loop_get]: ../event_loop/struct.EventLoop.html#method.get_available_monitors
-/// [window_get]: ../window/struct.Window.html#method.get_available_monitors
+/// [loop_get]: ../event_loop/struct.EventLoop.html#method.available_monitors
+/// [window_get]: ../window/struct.Window.html#method.available_monitors
 // Implementation note: we retrieve the list once, then serve each element by one by one.
 // This may change in the future.
 #[derive(Debug)]
@@ -59,21 +59,21 @@ impl MonitorHandle {
     ///
     /// Returns `None` if the monitor doesn't exist anymore.
     #[inline]
-    pub fn get_name(&self) -> Option<String> {
-        self.inner.get_name()
+    pub fn name(&self) -> Option<String> {
+        self.inner.name()
     }
 
     /// Returns the monitor's resolution.
     #[inline]
-    pub fn get_dimensions(&self) -> PhysicalSize {
-        self.inner.get_dimensions()
+    pub fn dimensions(&self) -> PhysicalSize {
+        self.inner.dimensions()
     }
 
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
     #[inline]
-    pub fn get_position(&self) -> PhysicalPosition {
-        self.inner.get_position()
+    pub fn position(&self) -> PhysicalPosition {
+        self.inner.position()
     }
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
@@ -85,7 +85,7 @@ impl MonitorHandle {
     /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
-        self.inner.get_hidpi_factor()
+    pub fn hidpi_factor(&self) -> f64 {
+        self.inner.hidpi_factor()
     }
 }
