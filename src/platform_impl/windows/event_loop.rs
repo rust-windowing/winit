@@ -843,12 +843,27 @@ unsafe extern "system" fn public_window_callback<T>(
                 // handling dispatch `RedrawRequested` immediately after `EventsCleared`, without
                 // spinning up a new event loop iteration. We do this because that's what the API
                 // says to do.
-                match runner.runner_state {
-                    RunnerState::Idle(..) |
-                    RunnerState::DeferredNewEvents(..) => runner.call_event_handler(Event::WindowEvent {
+                let control_flow = runner.control_flow;
+                let mut request_redraw = || {
+                    runner.call_event_handler(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: RedrawRequested,
-                    }),
+                    });
+                };
+                match runner.runner_state {
+                    RunnerState::Idle(..) |
+                    RunnerState::DeferredNewEvents(..) => request_redraw(),
+                    RunnerState::HandlingEvents => {
+                        match control_flow {
+                            ControlFlow::Poll => request_redraw(),
+                            ControlFlow::WaitUntil(resume_time) => {
+                                if resume_time <= Instant::now() {
+                                    request_redraw()
+                                }
+                            },
+                            _ => ()
+                        }
+                    }
                     _ => ()
                 }
             }
