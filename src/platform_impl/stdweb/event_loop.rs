@@ -1,7 +1,7 @@
 use super::*;
 
 use dpi::LogicalPosition;
-use event::{DeviceId as RootDI, ElementState, Event, KeyboardInput, StartCause, WindowEvent};
+use event::{DeviceId as RootDI, ElementState, Event, KeyboardInput, MouseScrollDelta, StartCause, TouchPhase, WindowEvent};
 use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
 use window::{WindowId as RootWI};
 use stdweb::{
@@ -151,12 +151,15 @@ impl<T> EventLoop<T> {
                 }
             });
         });
+
+        runner.send_event(Event::NewEvents(StartCause::Init));
+
         stdweb::event_loop(); // TODO: this is only necessary for stdweb emscripten, should it be here?
 
         // Throw an exception to break out of Rust exceution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
         js! {
-            throw "Using exceptions for control flow, don't mind me";
+            throw "Using exceptions for control flow, don't mind me. This isn't actually an error!";
         }
         unreachable!();
     }
@@ -224,9 +227,27 @@ pub fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElem
             }
         });
     });
+    add_event(elrs, canvas, |elrs, event: MouseWheelEvent| {
+        let x = event.delta_x();
+        let y = event.delta_y();
+        let delta = match event.delta_mode() {
+            MouseWheelDeltaMode::Line => MouseScrollDelta::LineDelta(x as f32, y as f32),
+            MouseWheelDeltaMode::Pixel => MouseScrollDelta::PixelDelta(LogicalPosition { x, y }),
+            MouseWheelDeltaMode::Page => return,
+        };
+        elrs.send_event(Event::WindowEvent {
+            window_id: RootWI(WindowId),
+            event: WindowEvent::MouseWheel {
+                device_id: RootDI(DeviceId(0)),
+                delta,
+                phase: TouchPhase::Moved,
+                modifiers: mouse_modifiers_state(&event)
+            }
+        });
+    });
 }
 
-fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IEventTarget, mut handler: F) 
+fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IEventTarget, mut handler: F)
         where E: ConcreteEvent, F: FnMut(&EventLoopRunnerShared<T>, E) + 'static {
     let elrs = elrs.clone();
     
