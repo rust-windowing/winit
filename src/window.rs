@@ -638,7 +638,9 @@ impl Window {
         self.window.set_cursor_grab(grab)
     }
 
-    /// Hides the cursor, making it invisible but still usable.
+    /// Modifies the cursor's visibility.
+    ///
+    /// If `false`, this will hide the cursor. If `true`, this will show the cursor.
     ///
     /// ## Platform-specific
     ///
