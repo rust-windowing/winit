@@ -144,7 +144,7 @@ pub fn dpi_to_scale_factor(dpi: u32) -> f64 {
     dpi as f64 / BASE_DPI as f64
 }
 
-pub unsafe fn get_hwnd_dpi(hwnd: HWND) -> u32 {
+pub unsafe fn hwnd_dpi(hwnd: HWND) -> u32 {
     let hdc = winuser::GetDC(hwnd);
     if hdc.is_null() {
         panic!("[winit] `GetDC` returned null!");
@@ -184,6 +184,6 @@ pub unsafe fn get_hwnd_dpi(hwnd: HWND) -> u32 {
     }
 }
 
-pub fn get_hwnd_scale_factor(hwnd: HWND) -> f64 {
-    dpi_to_scale_factor(unsafe { get_hwnd_dpi(hwnd) })
+pub fn hwnd_scale_factor(hwnd: HWND) -> f64 {
+    dpi_to_scale_factor(unsafe { hwnd_dpi(hwnd) })
 }

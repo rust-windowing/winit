@@ -36,7 +36,7 @@ impl DeviceId {
 }
 
 impl DeviceId {
-    pub fn get_persistent_identifier(&self) -> Option<String> {
+    pub fn persistent_identifier(&self) -> Option<String> {
         if self.0 != 0 {
             raw_input::get_raw_input_device_name(self.0 as _)
         } else {
@@ -51,6 +51,8 @@ const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId(0));
 fn wrap_device_id(id: u32) -> RootDeviceId {
     RootDeviceId(DeviceId(id))
 }
+
+pub type OsError = std::io::Error;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(HWND);

@@ -1,10 +1,11 @@
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use error::{ExternalError, NotSupportedError, OsError as RootOE};
 use event::{Event, WindowEvent};
 use icon::Icon;
 use platform::stdweb::WindowExtStdweb;
 use monitor::{MonitorHandle as RootMH};
-use window::{CreationError, MouseCursor, Window as RootWindow, WindowAttributes, WindowId as RootWI};
-use super::{EventLoopWindowTarget, register};
+use window::{CursorIcon, Window as RootWindow, WindowAttributes, WindowId as RootWI};
+use super::{EventLoopWindowTarget, OsError, register};
 use std::collections::VecDeque;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::cell::RefCell;
@@ -21,19 +22,19 @@ use stdweb::web::{
 pub struct MonitorHandle;
 
 impl MonitorHandle {
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         1.0
     }
 
-    pub fn get_position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition {
         unimplemented!();
     }
 
-    pub fn get_dimensions(&self) -> PhysicalSize {
+    pub fn dimensions(&self) -> PhysicalSize {
         unimplemented!();
     }
 
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         unimplemented!();
     }
 }
@@ -59,14 +60,14 @@ pub struct Window {
 
 impl Window {
     pub fn new<T>(target: &EventLoopWindowTarget<T>, attr: WindowAttributes,
-                  _: PlatformSpecificWindowBuilderAttributes) -> Result<Self, CreationError> {
+                  _: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
         let element = document()
             .create_element("canvas")
-            .map_err(|_| CreationError::OsError("Failed to create canvas element".to_owned()))?;
+            .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?;
         let canvas: CanvasElement = element.try_into()
-            .map_err(|_| CreationError::OsError("Failed to create canvas element".to_owned()))?;
+            .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?;
         document().body()
-            .ok_or_else(|| CreationError::OsError("Failed to find body node".to_owned()))?
+            .ok_or_else(|| os_error!(OsError("Failed to find body node".to_owned())))?
             .append_child(&canvas);
 
         register(&target.runner, &canvas);
@@ -90,24 +91,20 @@ impl Window {
             })
         };
 
-        if let Some(dimensions) = attr.dimensions {
-            window.set_inner_size(dimensions);
+        if let Some(inner_size) = attr.inner_size {
+            window.set_inner_size(inner_size);
         } else {
             window.set_inner_size(LogicalSize {
                 width: 1024.0,
                 height: 768.0,
             })
         }
-        window.set_min_dimensions(attr.min_dimensions);
-        window.set_max_dimensions(attr.max_dimensions);
+        window.set_min_inner_size(attr.min_inner_size);
+        window.set_max_inner_size(attr.max_inner_size);
         window.set_resizable(attr.resizable);
         window.set_title(&attr.title);
         window.set_maximized(attr.maximized);
-        if attr.visible {
-            window.show();
-        } else {
-            window.hide();
-        }
+        window.set_visible(attr.visible);
         //window.set_transparent(attr.transparent);
         window.set_decorations(attr.decorations);
         window.set_always_on_top(attr.always_on_top);
@@ -120,11 +117,7 @@ impl Window {
         document().set_title(title);
     }
 
-    pub fn show(&self) {
-        // Intentionally a no-op
-    }
-
-    pub fn hide(&self) {
+    pub fn set_visible(&self, _visible: bool) {
         // Intentionally a no-op
     }
 
@@ -132,19 +125,19 @@ impl Window {
         (self.redraw)();
     }
 
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         let bounds = self.canvas.get_bounding_client_rect();
-        Some(LogicalPosition {
+        Ok(LogicalPosition {
             x: bounds.get_x(),
             y: bounds.get_y(),
         })
     }
 
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
-        Some(*self.position.borrow())
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+        Ok(*self.position.borrow())
     }
 
-    pub fn set_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: LogicalPosition) {
         *self.position.borrow_mut() = position;
         self.canvas.set_attribute("position", "fixed")
             .expect("Setting the position for the canvas");
@@ -155,19 +148,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
-        Some(LogicalSize {
+    pub fn inner_size(&self) -> LogicalSize {
+        LogicalSize {
             width: self.canvas.width() as f64,
             height: self.canvas.height() as f64
-        })
+        }
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        Some(LogicalSize {
+    pub fn outer_size(&self) -> LogicalSize {
+        LogicalSize {
             width: self.canvas.width() as f64,
             height: self.canvas.height() as f64
-        })
+        }
     }
 
     #[inline]
@@ -177,12 +170,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
     #[inline]
-    pub fn set_max_dimensions(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
@@ -192,50 +185,50 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         1.0
     }
 
     #[inline]
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         let text = match cursor {
-            MouseCursor::Default => "auto",
-            MouseCursor::Crosshair => "crosshair",
-            MouseCursor::Hand => "pointer",
-            MouseCursor::Arrow => "default",
-            MouseCursor::Move => "move",
-            MouseCursor::Text => "text",
-            MouseCursor::Wait => "wait",
-            MouseCursor::Help => "help",
-            MouseCursor::Progress => "progress",
+            CursorIcon::Default => "auto",
+            CursorIcon::Crosshair => "crosshair",
+            CursorIcon::Hand => "pointer",
+            CursorIcon::Arrow => "default",
+            CursorIcon::Move => "move",
+            CursorIcon::Text => "text",
+            CursorIcon::Wait => "wait",
+            CursorIcon::Help => "help",
+            CursorIcon::Progress => "progress",
 
-            MouseCursor::NotAllowed => "not-allowed",
-            MouseCursor::ContextMenu => "context-menu",
-            MouseCursor::Cell => "cell",
-            MouseCursor::VerticalText => "vertical-text",
-            MouseCursor::Alias => "alias",
-            MouseCursor::Copy => "copy",
-            MouseCursor::NoDrop => "no-drop",
-            MouseCursor::Grab => "grab",
-            MouseCursor::Grabbing => "grabbing",
-            MouseCursor::AllScroll => "all-scroll",
-            MouseCursor::ZoomIn => "zoom-in",
-            MouseCursor::ZoomOut => "zoom-out",
+            CursorIcon::NotAllowed => "not-allowed",
+            CursorIcon::ContextMenu => "context-menu",
+            CursorIcon::Cell => "cell",
+            CursorIcon::VerticalText => "vertical-text",
+            CursorIcon::Alias => "alias",
+            CursorIcon::Copy => "copy",
+            CursorIcon::NoDrop => "no-drop",
+            CursorIcon::Grab => "grab",
+            CursorIcon::Grabbing => "grabbing",
+            CursorIcon::AllScroll => "all-scroll",
+            CursorIcon::ZoomIn => "zoom-in",
+            CursorIcon::ZoomOut => "zoom-out",
 
-            MouseCursor::EResize => "e-resize",
-            MouseCursor::NResize => "n-resize",
-            MouseCursor::NeResize => "ne-resize",
-            MouseCursor::NwResize => "nw-resize",
-            MouseCursor::SResize => "s-resize",
-            MouseCursor::SeResize => "se-resize",
-            MouseCursor::SwResize => "sw-resize",
-            MouseCursor::WResize => "w-resize",
-            MouseCursor::EwResize => "ew-resize",
-            MouseCursor::NsResize => "ns-resize",
-            MouseCursor::NeswResize => "nesw-resize",
-            MouseCursor::NwseResize => "nwse-resize",
-            MouseCursor::ColResize => "col-resize",
-            MouseCursor::RowResize => "row-resize",
+            CursorIcon::EResize => "e-resize",
+            CursorIcon::NResize => "n-resize",
+            CursorIcon::NeResize => "ne-resize",
+            CursorIcon::NwResize => "nw-resize",
+            CursorIcon::SResize => "s-resize",
+            CursorIcon::SeResize => "se-resize",
+            CursorIcon::SwResize => "sw-resize",
+            CursorIcon::WResize => "w-resize",
+            CursorIcon::EwResize => "ew-resize",
+            CursorIcon::NsResize => "ns-resize",
+            CursorIcon::NeswResize => "nesw-resize",
+            CursorIcon::NwseResize => "nwse-resize",
+            CursorIcon::ColResize => "col-resize",
+            CursorIcon::RowResize => "row-resize",
         };
         *self.previous_pointer.borrow_mut() = text;
         self.canvas.set_attribute("cursor", text)
@@ -243,20 +236,20 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
         // TODO: pointer capture
         Ok(())
     }
 
     #[inline]
-    pub fn grab_cursor(&self, _grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
         // TODO: pointer capture
         Ok(())
     }
 
     #[inline]
-    pub fn hide_cursor(&self, hide: bool) {
-        if hide {
+    pub fn set_cursor_visible(&self, visible: bool) {
+        if !visible {
             self.canvas.set_attribute("cursor", "none")
                 .expect("Setting the cursor on the canvas");
         } else {
@@ -268,6 +261,12 @@ impl Window {
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
         // TODO: should there be a maximization / fullscreen API?
+    }
+
+    #[inline]
+    pub fn fullscreen(&self) -> Option<RootMH> {
+        // TODO: should there be a maximization / fullscreen API?
+        None
     }
 
     #[inline]
@@ -291,24 +290,24 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, _position: LogicalPosition) {
+    pub fn set_ime_position(&self, _position: LogicalPosition) {
         // TODO: what is this?
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMH {
+    pub fn current_monitor(&self) -> RootMH {
         RootMH {
             inner: MonitorHandle
         }
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDequeIter<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
         VecDeque::new().into_iter()
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         MonitorHandle
     }
 

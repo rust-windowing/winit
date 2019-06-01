@@ -87,8 +87,6 @@ extern crate serde;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
-#[cfg(target_os = "windows")]
-extern crate backtrace;
 #[macro_use]
 #[cfg(target_os = "windows")]
 extern crate bitflags;
@@ -97,6 +95,8 @@ extern crate bitflags;
 extern crate objc;
 #[cfg(target_os = "macos")]
 extern crate cocoa;
+#[cfg(target_os = "macos")]
+extern crate dispatch;
 #[cfg(target_os = "macos")]
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
@@ -116,6 +116,8 @@ extern crate stdweb;
 extern crate calloop;
 
 pub mod dpi;
+#[macro_use]
+pub mod error;
 pub mod event;
 pub mod event_loop;
 mod icon;

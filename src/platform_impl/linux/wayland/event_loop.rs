@@ -8,6 +8,7 @@ use std::time::Instant;
 use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
 use event::ModifiersState;
 use dpi::{PhysicalPosition, PhysicalSize};
+use platform_impl::platform::sticky_exit_callback;
 
 use super::window::WindowStore;
 use super::WindowId;
@@ -204,23 +205,39 @@ impl<T: 'static> EventLoop<T> {
             // empty buffer of events
             {
                 let mut guard = sink.lock().unwrap();
-                guard.empty_with(|evt| callback(evt, &self.window_target, &mut control_flow));
+                guard.empty_with(|evt| {
+                    sticky_exit_callback(evt, &self.window_target, &mut control_flow, &mut callback);
+                });
             }
             // empty user events
             {
                 let mut guard = user_events.borrow_mut();
                 for evt in guard.drain(..) {
-                    callback(::event::Event::UserEvent(evt), &self.window_target, &mut control_flow);
+                    sticky_exit_callback(
+                        ::event::Event::UserEvent(evt),
+                        &self.window_target,
+                        &mut control_flow,
+                        &mut callback
+                    );
                 }
             }
-
-            callback(::event::Event::EventsCleared, &self.window_target, &mut control_flow);
-
-            // fo a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
+            // do a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
+            // in response of resize & friends
             self.post_dispatch_triggers();
             {
                 let mut guard = sink.lock().unwrap();
-                guard.empty_with(|evt| callback(evt, &self.window_target, &mut control_flow));
+                guard.empty_with(|evt| {
+                    sticky_exit_callback(evt, &self.window_target, &mut control_flow, &mut callback);
+                });
+            }
+            // send Events cleared
+            {
+                sticky_exit_callback(
+                    ::event::Event::EventsCleared,
+                    &self.window_target,
+                    &mut control_flow,
+                    &mut callback
+                );
             }
 
             // send pending events to the server
@@ -249,7 +266,11 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::WaitUntil(deadline) => {
                     let start = Instant::now();
                     // compute the blocking duration
-                    let duration = deadline.duration_since(::std::cmp::max(deadline, start));
+                    let duration = if deadline > start {
+                        deadline - start
+                    } else {
+                        ::std::time::Duration::from_millis(0)
+                    };
                     self.inner_loop.dispatch(Some(duration), &mut ()).unwrap();
                     control_flow = ControlFlow::default();
                     let now = Instant::now();
@@ -279,12 +300,16 @@ impl<T: 'static> EventLoop<T> {
         callback(::event::Event::LoopDestroyed, &self.window_target, &mut control_flow);
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        get_primary_monitor(&self.outputs)
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        primary_monitor(&self.outputs)
     }
 
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
-        get_available_monitors(&self.outputs)
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        available_monitors(&self.outputs)
+    }
+
+    pub fn display(&self) -> &Display {
+        &*self.display
     }
 
     pub fn window_target(&self) -> &RootELW<T> {
@@ -511,11 +536,11 @@ impl fmt::Debug for MonitorHandle {
         }
 
         let monitor_id_proxy = MonitorHandle {
-            name: self.get_name(),
-            native_identifier: self.get_native_identifier(),
-            dimensions: self.get_dimensions(),
-            position: self.get_position(),
-            hidpi_factor: self.get_hidpi_factor(),
+            name: self.name(),
+            native_identifier: self.native_identifier(),
+            dimensions: self.dimensions(),
+            position: self.position(),
+            hidpi_factor: self.hidpi_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -523,18 +548,18 @@ impl fmt::Debug for MonitorHandle {
 }
 
 impl MonitorHandle {
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         self.mgr.with_info(&self.proxy, |_, info| {
             format!("{} ({})", info.model, info.make)
         })
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> u32 {
+    pub fn native_identifier(&self) -> u32 {
         self.mgr.with_info(&self.proxy, |id, _| id).unwrap_or(0)
     }
 
-    pub fn get_dimensions(&self) -> PhysicalSize {
+    pub fn dimensions(&self) -> PhysicalSize {
         match self.mgr.with_info(&self.proxy, |_, info| {
             info.modes
                 .iter()
@@ -546,7 +571,7 @@ impl MonitorHandle {
         }.into()
     }
 
-    pub fn get_position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition {
         self.mgr
             .with_info(&self.proxy, |_, info| info.location)
             .unwrap_or((0, 0))
@@ -554,14 +579,14 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> i32 {
+    pub fn hidpi_factor(&self) -> i32 {
         self.mgr
             .with_info(&self.proxy, |_, info| info.scale_factor)
             .unwrap_or(1)
     }
 }
 
-pub fn get_primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
+pub fn primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
     outputs.with_all(|list| {
         if let Some(&(_, ref proxy, _)) = list.first() {
             MonitorHandle {
@@ -574,7 +599,7 @@ pub fn get_primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
     })
 }
 
-pub fn get_available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorHandle> {
+pub fn available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorHandle> {
     outputs.with_all(|list| {
         list.iter()
             .map(|&(_, ref proxy, _)| MonitorHandle {

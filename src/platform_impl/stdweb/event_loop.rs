@@ -81,11 +81,11 @@ impl<T> EventLoop<T> {
         }
     }
 
-    pub fn get_available_monitors(&self) -> VecDequeIter<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
         VecDeque::new().into_iter()
     }
 
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         MonitorHandle
     }
 

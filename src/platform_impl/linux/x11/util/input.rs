@@ -1,7 +1,7 @@
 use std::str;
 
 use super::*;
-use events::ModifiersState;
+use event::ModifiersState;
 
 pub const VIRTUAL_CORE_POINTER: c_int = 2;
 pub const VIRTUAL_CORE_KEYBOARD: c_int = 3;

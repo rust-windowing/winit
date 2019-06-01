@@ -52,7 +52,7 @@ use platform_impl::platform::dpi::{
     become_dpi_aware,
     dpi_to_scale_factor,
     enable_non_client_dpi_scaling,
-    get_hwnd_scale_factor,
+    hwnd_scale_factor,
 };
 use platform_impl::platform::drop_handler::FileDropHandler;
 use platform_impl::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
@@ -380,6 +380,7 @@ impl<T> EventLoopRunner<T> {
         // deferred.
         if let RunnerState::DeferredNewEvents(wait_start) = self.runner_state {
             match self.control_flow {
+                ControlFlow::Exit  |
                 ControlFlow::Wait => {
                     self.call_event_handler(
                         Event::NewEvents(StartCause::WaitCancelled {
@@ -409,7 +410,6 @@ impl<T> EventLoopRunner<T> {
                 ControlFlow::Poll => {
                     self.call_event_handler(Event::NewEvents(StartCause::Poll))
                 },
-                ControlFlow::Exit => unreachable!()
             }
         }
 
@@ -799,6 +799,20 @@ unsafe extern "system" fn public_window_callback<T>(
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
+        winuser::WM_NCLBUTTONDOWN => {
+            // jumpstart the modal loop
+            winuser::RedrawWindow(
+                window,
+                ptr::null(),
+                ptr::null_mut(),
+                winuser::RDW_INTERNALPAINT
+            );
+            if wparam == winuser::HTCAPTION as _ {
+                winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
+            }
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
+        },
+
         winuser::WM_CLOSE => {
             use event::WindowEvent::CloseRequested;
             subclass_input.send_event(Event::WindowEvent {
@@ -825,12 +839,32 @@ unsafe extern "system" fn public_window_callback<T>(
             use event::WindowEvent::RedrawRequested;
             let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
             if let Some(ref mut runner) = *runner {
-                match runner.runner_state {
-                    RunnerState::Idle(..) |
-                    RunnerState::DeferredNewEvents(..) => runner.call_event_handler(Event::WindowEvent {
+                // This check makes sure that calls to `request_redraw()` during `EventsCleared`
+                // handling dispatch `RedrawRequested` immediately after `EventsCleared`, without
+                // spinning up a new event loop iteration. We do this because that's what the API
+                // says to do.
+                let control_flow = runner.control_flow;
+                let runner_state = runner.runner_state;
+                let mut request_redraw = || {
+                    runner.call_event_handler(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: RedrawRequested,
-                    }),
+                    });
+                };
+                match runner_state {
+                    RunnerState::Idle(..) |
+                    RunnerState::DeferredNewEvents(..) => request_redraw(),
+                    RunnerState::HandlingEvents => {
+                        match control_flow {
+                            ControlFlow::Poll => request_redraw(),
+                            ControlFlow::WaitUntil(resume_time) => {
+                                if resume_time <= Instant::now() {
+                                    request_redraw()
+                                }
+                            },
+                            _ => ()
+                        }
+                    }
                     _ => ()
                 }
             }
@@ -838,25 +872,10 @@ unsafe extern "system" fn public_window_callback<T>(
         },
         winuser::WM_PAINT => {
             use event::WindowEvent::RedrawRequested;
-            let event = || Event::WindowEvent {
+            subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: RedrawRequested,
-            };
-
-            let mut send_event = false;
-            {
-                let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
-                if let Some(ref mut runner) = *runner {
-                    match runner.runner_state {
-                        RunnerState::Idle(..) |
-                        RunnerState::DeferredNewEvents(..) => runner.call_event_handler(event()),
-                        _ => send_event = true
-                    }
-                }
-            }
-            if send_event {
-                subclass_input.send_event(event());
-            }
+            });
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         },
 
@@ -866,7 +885,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let windowpos = lparam as *const winuser::WINDOWPOS;
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
-                let dpi_factor = get_hwnd_scale_factor(window);
+                let dpi_factor = hwnd_scale_factor(window);
                 let logical_position = LogicalPosition::from_physical(
                     ((*windowpos).x, (*windowpos).y),
                     dpi_factor,
@@ -886,7 +905,7 @@ unsafe extern "system" fn public_window_callback<T>(
             let w = LOWORD(lparam as DWORD) as u32;
             let h = HIWORD(lparam as DWORD) as u32;
 
-            let dpi_factor = get_hwnd_scale_factor(window);
+            let dpi_factor = hwnd_scale_factor(window);
             let logical_size = LogicalSize::from_physical((w, h), dpi_factor);
             let event = Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -907,7 +926,6 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_CHAR => {
-            use std::mem;
             use event::WindowEvent::ReceivedCharacter;
             let chr: char = mem::transmute(wparam as u32);
             subclass_input.send_event(Event::WindowEvent {
@@ -952,7 +970,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
-            let dpi_factor = get_hwnd_scale_factor(window);
+            let dpi_factor = hwnd_scale_factor(window);
             let position = LogicalPosition::from_physical((x, y), dpi_factor);
 
             subclass_input.send_event(Event::WindowEvent {
@@ -980,7 +998,6 @@ unsafe extern "system" fn public_window_callback<T>(
 
         winuser::WM_MOUSEWHEEL => {
             use event::MouseScrollDelta::LineDelta;
-            use event::TouchPhase;
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
@@ -989,6 +1006,21 @@ unsafe extern "system" fn public_window_callback<T>(
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: LineDelta(0.0, value), phase: TouchPhase::Moved, modifiers: event::get_key_mods() },
+            });
+
+            0
+        },
+
+        winuser::WM_MOUSEHWHEEL => {
+            use event::MouseScrollDelta::LineDelta;
+
+            let value = (wparam >> 16) as i16;
+            let value = value as i32;
+            let value = value as f32 / winuser::WHEEL_DELTA as f32;
+
+            subclass_input.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: LineDelta(value, 0.0), phase: TouchPhase::Moved, modifiers: event::get_key_mods() },
             });
 
             0
@@ -1289,7 +1321,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 inputs.as_mut_ptr(),
                 mem::size_of::<winuser::TOUCHINPUT>() as INT,
             ) > 0 {
-                let dpi_factor = get_hwnd_scale_factor(window);
+                let dpi_factor = hwnd_scale_factor(window);
                 for input in &inputs {
                     let x = (input.x as f64) / 100f64;
                     let y = (input.y as f64) / 100f64;
@@ -1319,20 +1351,10 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_SETFOCUS => {
-            use event::WindowEvent::{Focused, CursorMoved};
+            use event::WindowEvent::Focused;
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: Focused(true),
-            });
-
-            let x = windowsx::GET_X_LPARAM(lparam) as f64;
-            let y = windowsx::GET_Y_LPARAM(lparam) as f64;
-            let dpi_factor = get_hwnd_scale_factor(window);
-            let position = LogicalPosition::from_physical((x, y), dpi_factor);
-
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: CursorMoved { device_id: DEVICE_ID, position, modifiers: event::get_key_mods() },
             });
 
             0

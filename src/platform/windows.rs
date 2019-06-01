@@ -33,7 +33,7 @@ pub trait WindowExtWindows {
     /// Returns the native handle that is used by this window.
     ///
     /// The pointer will become invalid when the native window was destroyed.
-    fn get_hwnd(&self) -> *mut libc::c_void;
+    fn hwnd(&self) -> *mut libc::c_void;
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
@@ -41,7 +41,7 @@ pub trait WindowExtWindows {
 
 impl WindowExtWindows for Window {
     #[inline]
-    fn get_hwnd(&self) -> *mut libc::c_void {
+    fn hwnd(&self) -> *mut libc::c_void {
         self.window.hwnd() as *mut _
     }
 
@@ -95,12 +95,12 @@ pub trait MonitorHandleExtWindows {
 impl MonitorHandleExtWindows for MonitorHandle {
     #[inline]
     fn native_id(&self) -> String {
-        self.inner.get_native_identifier()
+        self.inner.native_identifier()
     }
 
     #[inline]
     fn hmonitor(&self) -> *mut c_void {
-        self.inner.get_hmonitor() as *mut _
+        self.inner.hmonitor() as *mut _
     }
 }
 
@@ -109,12 +109,12 @@ pub trait DeviceIdExtWindows {
     /// Returns an identifier that persistently refers to this specific device.
     ///
     /// Will return `None` if the device is no longer available.
-    fn get_persistent_identifier(&self) -> Option<String>;
+    fn persistent_identifier(&self) -> Option<String>;
 }
 
 impl DeviceIdExtWindows for DeviceId {
     #[inline]
-    fn get_persistent_identifier(&self) -> Option<String> {
-        self.0.get_persistent_identifier()
+    fn persistent_identifier(&self) -> Option<String> {
+        self.0.persistent_identifier()
     }
 }
