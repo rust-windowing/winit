@@ -138,14 +138,6 @@ impl MonitorHandle {
         }
     }
 
-    pub(crate) fn contains_point(&self, point: &POINT) -> bool {
-        let left = self.position.0 as LONG;
-        let right = left + self.dimensions.0 as LONG;
-        let top = self.position.1 as LONG;
-        let bottom = top + self.dimensions.1 as LONG;
-        point.x >= left && point.x <= right && point.y >= top && point.y <= bottom
-    }
-
     #[inline]
     pub fn name(&self) -> Option<String> {
         Some(self.monitor_name.clone())

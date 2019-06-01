@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::window::CursorIcon;
 use winapi::ctypes::wchar_t;
 use winapi::shared::minwindef::{BOOL, DWORD};
-use winapi::shared::windef::{HWND, POINT, RECT};
+use winapi::shared::windef::{HWND, RECT};
 use winapi::um::winbase::lstrlenW;
 use winapi::um::winuser;
 
@@ -41,10 +41,6 @@ fn win_to_err<F: FnOnce() -> BOOL>(f: F) -> Result<(), io::Error> {
     } else {
         Err(io::Error::last_os_error())
     }
-}
-
-pub fn get_cursor_pos() -> Option<POINT> {
-    unsafe { status_map(|cursor_pos| winuser::GetCursorPos(cursor_pos)) }
 }
 
 pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {

@@ -5,7 +5,7 @@ use crate::platform_impl;
 use crate::error::{ExternalError, NotSupportedError, OsError};
 use crate::event_loop::EventLoopWindowTarget;
 use crate::monitor::{AvailableMonitorsIter, MonitorHandle};
-use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
 
 pub use crate::icon::*;
 
@@ -85,17 +85,17 @@ pub struct WindowAttributes {
     /// used.
     ///
     /// The default is `None`.
-    pub inner_size: Option<LogicalSize>,
+    pub inner_size: Option<Size>,
 
     /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
     ///
     /// The default is `None`.
-    pub min_inner_size: Option<LogicalSize>,
+    pub min_inner_size: Option<Size>,
 
     /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
     ///
     /// The default is `None`.
-    pub max_inner_size: Option<LogicalSize>,
+    pub max_inner_size: Option<Size>,
 
     /// Whether the window is resizable or not.
     ///
@@ -175,22 +175,22 @@ impl WindowBuilder {
 
     /// Requests the window to be of specific dimensions.
     #[inline]
-    pub fn with_inner_size(mut self, size: LogicalSize) -> WindowBuilder {
-        self.window.inner_size = Some(size);
+    pub fn with_inner_size<S: Into<Size>>(mut self, size: S) -> WindowBuilder {
+        self.window.inner_size = Some(size.into());
         self
     }
 
     /// Sets a minimum dimension size for the window
     #[inline]
-    pub fn with_min_inner_size(mut self, min_size: LogicalSize) -> WindowBuilder {
-        self.window.min_inner_size = Some(min_size);
+    pub fn with_min_inner_size<S: Into<Size>>(mut self, min_size: S) -> WindowBuilder {
+        self.window.min_inner_size = Some(min_size.into());
         self
     }
 
     /// Sets a maximum dimension size for the window
     #[inline]
-    pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> WindowBuilder {
-        self.window.max_inner_size = Some(max_size);
+    pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> WindowBuilder {
+        self.window.max_inner_size = Some(max_size.into());
         self
     }
 
@@ -286,11 +286,10 @@ impl WindowBuilder {
     pub fn build<T: 'static>(mut self, window_target: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
         self.window.inner_size = Some(self.window.inner_size.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
-                // resizing the window to the dimensions of the monitor when fullscreen
-                LogicalSize::from_physical(monitor.size(), monitor.hidpi_factor()) // DPI factor applies here since this is a borderless window and not real fullscreen
+                Size::new(monitor.size())
             } else {
                 // default dimensions
-                (1024, 768).into()
+                Size::new(LogicalSize::new(1024.0, 768.0))
             }
         }));
 
@@ -379,7 +378,7 @@ impl Window {
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         self.window.inner_position()
     }
 
@@ -398,7 +397,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window in the screen space coordinate system.
     #[inline]
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         self.window.outer_position()
     }
 
@@ -413,7 +412,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
     ///   window in the screen space coordinate system.
     #[inline]
-    pub fn set_outer_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: PhysicalPosition) {
         self.window.set_outer_position(position)
     }
 
@@ -421,16 +420,14 @@ impl Window {
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
     ///
-    /// Converting the returned `LogicalSize` to `PhysicalSize` produces the size your framebuffer should be.
-    ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window's
+    /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window's
     ///   [safe area] in screen space coordinates.
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> PhysicalSize {
         self.window.inner_size()
     }
 
@@ -443,8 +440,8 @@ impl Window {
     /// - **iOS:** Unimplemented. Currently this panics, as it's not clear what `set_inner_size`
     ///   would mean for iOS.
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
-        self.window.set_inner_size(size)
+    pub fn set_inner_size<S: Into<Size>>(&self, size: S) {
+        self.window.set_inner_size(size.into())
     }
 
     /// Returns the logical size of the entire window.
@@ -454,10 +451,10 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window in
+    /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window in
     ///   screen space coordinates.
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize {
         self.window.outer_size()
     }
 
@@ -467,8 +464,8 @@ impl Window {
     ///
     /// - **iOS:** Has no effect.
     #[inline]
-    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.window.set_min_inner_size(dimensions)
+    pub fn set_min_inner_size<S: Into<Size>>(&self, min_size: Option<S>) {
+        self.window.set_min_inner_size(min_size.map(|s| s.into()))
     }
 
     /// Sets a maximum dimension size for the window.
@@ -477,8 +474,8 @@ impl Window {
     ///
     /// - **iOS:** Has no effect.
     #[inline]
-    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.window.set_max_inner_size(dimensions)
+    pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
+        self.window.set_max_inner_size(max_size.map(|s| s.into()))
     }
 }
 

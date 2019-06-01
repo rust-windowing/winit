@@ -26,9 +26,7 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use parking_lot::Mutex;
 
-use winapi::ctypes::c_int;
 use winapi::shared::minwindef::{
-    BOOL,
     DWORD,
     HIWORD,
     INT,
@@ -41,11 +39,11 @@ use winapi::shared::minwindef::{
 use winapi::shared::windef::{HWND, POINT, RECT};
 use winapi::shared::{windowsx, winerror};
 use winapi::um::{winuser, winbase, ole2, processthreadsapi, commctrl, libloaderapi};
-use winapi::um::winnt::{LONG, LPCSTR, SHORT};
+use winapi::um::winnt::{LPCSTR, SHORT};
 
 use crate::window::WindowId as RootWindowId;
 use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize};
+use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{DeviceEvent, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent};
 use crate::platform_impl::platform::{event, WindowId, DEVICE_ID, wrap_device_id, util};
 use crate::platform_impl::platform::dpi::{
@@ -641,13 +639,6 @@ lazy_static! {
     pub static ref DESTROY_MSG_ID: u32 = {
         unsafe {
             winuser::RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr() as LPCSTR)
-        }
-    };
-    // Message sent by a `Window` after creation if it has a DPI != 96.
-    // WPARAM is the the DPI (u32). LOWORD of LPARAM is width, and HIWORD is height.
-    pub static ref INITIAL_DPI_MSG_ID: u32 = {
-        unsafe {
-            winuser::RegisterWindowMessageA("Winit::InitialDpiMsg\0".as_ptr() as LPCSTR)
         }
     };
     // Message sent by a `Window` if it's requesting a redraw without sending a NewEvents.
@@ -1471,46 +1462,6 @@ unsafe extern "system" fn public_window_callback<T>(
             } else if msg == *SET_RETAIN_STATE_ON_SIZE_MSG_ID {
                 let mut window_state = subclass_input.window_state.lock();
                 window_state.set_window_flags_in_place(|f| f.set(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE, wparam != 0));
-                0
-            } else if msg == *INITIAL_DPI_MSG_ID {
-                use crate::event::WindowEvent::HiDpiFactorChanged;
-                let scale_factor = dpi_to_scale_factor(wparam as u32);
-                subclass_input.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: HiDpiFactorChanged(scale_factor),
-                });
-                // Automatically resize for actual DPI
-                let width = LOWORD(lparam as DWORD) as u32;
-                let height = HIWORD(lparam as DWORD) as u32;
-                let (adjusted_width, adjusted_height): (u32, u32) = PhysicalSize::from_logical(
-                    (width, height),
-                    scale_factor,
-                ).into();
-                // We're not done yet! `SetWindowPos` needs the window size, not the client area size.
-                let mut rect = RECT {
-                    top: 0,
-                    left: 0,
-                    bottom: adjusted_height as LONG,
-                    right: adjusted_width as LONG,
-                };
-                let dw_style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
-                let b_menu = !winuser::GetMenu(window).is_null() as BOOL;
-                let dw_style_ex = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
-                winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
-                let outer_x = (rect.right - rect.left).abs() as c_int;
-                let outer_y = (rect.top - rect.bottom).abs() as c_int;
-                winuser::SetWindowPos(
-                    window,
-                    ptr::null_mut(),
-                    0,
-                    0,
-                    outer_x,
-                    outer_y,
-                    winuser::SWP_NOMOVE
-                    | winuser::SWP_NOREPOSITION
-                    | winuser::SWP_NOZORDER
-                    | winuser::SWP_NOACTIVATE,
-                );
                 0
             } else {
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)

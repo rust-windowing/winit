@@ -2,7 +2,7 @@ use crate::monitor::MonitorHandle;
 use crate::window::{CursorIcon, WindowAttributes};
 use std::{io, ptr};
 use parking_lot::MutexGuard;
-use crate::dpi::LogicalSize;
+use crate::dpi::Size;
 use crate::platform_impl::platform::{util, event_loop};
 use crate::platform_impl::platform::icon::WinIcon;
 use winapi::shared::windef::{RECT, HWND};
@@ -15,8 +15,8 @@ pub struct WindowState {
     pub mouse: MouseProperties,
 
     /// Used by `WM_GETMINMAXINFO`.
-    pub min_size: Option<LogicalSize>,
-    pub max_size: Option<LogicalSize>,
+    pub min_size: Option<Size>,
+    pub max_size: Option<Size>,
 
     pub window_icon: Option<WinIcon>,
     pub taskbar_icon: Option<WinIcon>,
