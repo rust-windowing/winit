@@ -20,4 +20,6 @@ pub mod macos;
 pub mod unix;
 pub mod windows;
 
+pub mod stdweb;
+
 pub mod desktop;

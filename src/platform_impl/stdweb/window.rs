@@ -1,8 +1,9 @@
 use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use event::{Event, WindowEvent};
 use icon::Icon;
+use platform::stdweb::WindowExtStdweb;
 use monitor::{MonitorHandle as RootMH};
-use window::{CreationError, MouseCursor, WindowAttributes, WindowId as RootWI};
+use window::{CreationError, MouseCursor, Window as RootWindow, WindowAttributes, WindowId as RootWI};
 use super::{EventLoopWindowTarget, register};
 use std::collections::VecDeque;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
@@ -315,5 +316,11 @@ impl Window {
     pub fn id(&self) -> WindowId {
         // TODO ?
         unsafe { WindowId::dummy() }
+    }
+}
+
+impl WindowExtStdweb for RootWindow {
+    fn canvas(&self) -> CanvasElement {
+        self.window.canvas.clone()
     }
 }
