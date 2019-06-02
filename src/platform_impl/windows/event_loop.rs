@@ -833,17 +833,53 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_NCLBUTTONDOWN => {
-            // jumpstart the modal loop
-            winuser::RedrawWindow(
-                window,
-                ptr::null(),
-                ptr::null_mut(),
-                winuser::RDW_INTERNALPAINT,
-            );
-            if wparam == winuser::HTCAPTION as _ {
-                winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
+            match wparam as isize {
+                winuser::HTMAXBUTTON | winuser::HTMINBUTTON | winuser::HTCLOSE => {
+                    // Discard the non-client button-down event and defer the processing until
+                    // the non-client button-up event. This prevents a pause in the message loop
+                    // while the user has the mouse button pressed on one of these buttons.
+                    0
+                }
+                _ => {
+                    // jumpstart the modal loop
+                    winuser::RedrawWindow(
+                        window,
+                        ptr::null(),
+                        ptr::null_mut(),
+                        winuser::RDW_INTERNALPAINT,
+                    );
+                    if wparam == winuser::HTCAPTION as _ {
+                        winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
+                    }
+                    commctrl::DefSubclassProc(window, msg, wparam, lparam)
+                }
             }
-            commctrl::DefSubclassProc(window, msg, wparam, lparam)
+        }
+
+        winuser::WM_NCLBUTTONUP => {
+            // Manually apply min, max, restore, and close since we discarded the button down event.
+            match wparam as isize {
+                winuser::HTMAXBUTTON => {
+                    let window_state = subclass_input.window_state.lock();
+                    let window_flags = window_state.window_flags();
+                    drop(window_state);
+                    if window_flags.contains(WindowFlags::MAXIMIZED) {
+                        winuser::ShowWindow(window, winuser::SW_RESTORE);
+                    } else {
+                        winuser::ShowWindow(window, winuser::SW_MAXIMIZE);
+                    }
+                    0
+                }
+                winuser::HTMINBUTTON => {
+                    winuser::ShowWindow(window, winuser::SW_MINIMIZE);
+                    0
+                }
+                winuser::HTCLOSE => {
+                    winuser::PostMessageW(window, winuser::WM_CLOSE, 0, 0);
+                    0
+                }
+                _ => commctrl::DefSubclassProc(window, msg, wparam, lparam),
+            }
         }
 
         winuser::WM_CLOSE => {
