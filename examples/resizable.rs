@@ -1,5 +1,6 @@
 extern crate winit;
 use winit::window::WindowBuilder;
+use winit::dpi::LogicalSize;
 use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState, KeyboardInput};
 use winit::event_loop::{EventLoop, ControlFlow};
 
@@ -10,7 +11,7 @@ fn main() {
 
     let window = WindowBuilder::new()
         .with_title("Hit space to toggle resizability.")
-        .with_inner_size((400, 200).into())
+        .with_inner_size(LogicalSize::new(400.0, 200.0))
         .with_resizable(resizable)
         .build(&event_loop)
         .unwrap();
