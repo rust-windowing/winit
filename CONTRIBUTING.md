@@ -1,3 +1,7 @@
+# PLEASE MAKE PRs AGAINST THE `eventloop-2.0` BRANCH.
+
+All development work for our next version is being done against that branch. Refer to [#459](https://github.com/rust-windowing/winit/issues/459) and [the associated milestone](https://github.com/rust-windowing/winit/milestone/2) for details on what that branch changes.
+
 # Winit Contributing Guidelines
 
 ## Scope
