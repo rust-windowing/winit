@@ -5,7 +5,7 @@ use crate::platform_impl;
 use crate::error::{ExternalError, NotSupportedError, OsError};
 use crate::event_loop::EventLoopWindowTarget;
 use crate::monitor::{AvailableMonitorsIter, MonitorHandle};
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Size};
+use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Size, Position};
 
 pub use crate::icon::*;
 
@@ -412,8 +412,8 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
     ///   window in the screen space coordinate system.
     #[inline]
-    pub fn set_outer_position(&self, position: PhysicalPosition) {
-        self.window.set_outer_position(position)
+    pub fn set_outer_position<P: Into<Position>>(&self, position: P) {
+        self.window.set_outer_position(position.into())
     }
 
     /// Returns the logical size of the window's client area.
@@ -594,8 +594,8 @@ impl Window {
     ///
     /// **iOS:** Has no effect.
     #[inline]
-    pub fn set_ime_position(&self, position: LogicalPosition) {
-        self.window.set_ime_position(position)
+    pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
+        self.window.set_ime_position(position.into())
     }
 }
 
@@ -618,8 +618,8 @@ impl Window {
     ///
     /// - **iOS:** Always returns an `Err`.
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
-        self.window.set_cursor_position(position)
+    pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
+        self.window.set_cursor_position(position.into())
     }
 
     /// Grabs the cursor, preventing it from leaving the window.

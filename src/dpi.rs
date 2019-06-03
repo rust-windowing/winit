@@ -100,7 +100,7 @@ pub struct LogicalPosition {
 
 impl LogicalPosition {
     #[inline]
-    pub fn new(x: f64, y: f64) -> Self {
+    pub const fn new(x: f64, y: f64) -> Self {
         LogicalPosition { x, y }
     }
 
@@ -161,7 +161,7 @@ pub struct PhysicalPosition {
 
 impl PhysicalPosition {
     #[inline]
-    pub fn new(x: f64, y: f64) -> Self {
+    pub const fn new(x: f64, y: f64) -> Self {
         PhysicalPosition { x, y }
     }
 
@@ -222,7 +222,7 @@ pub struct LogicalSize {
 
 impl LogicalSize {
     #[inline]
-    pub fn new(width: f64, height: f64) -> Self {
+    pub const fn new(width: f64, height: f64) -> Self {
         LogicalSize { width, height }
     }
 
@@ -279,7 +279,7 @@ pub struct PhysicalSize {
 
 impl PhysicalSize {
     #[inline]
-    pub fn new(width: u32, height: u32) -> Self {
+    pub const fn new(width: u32, height: u32) -> Self {
         PhysicalSize { width, height }
     }
 
@@ -350,5 +350,47 @@ impl From<LogicalSize> for Size {
     #[inline]
     fn from(size: LogicalSize) -> Size {
         Size::Logical(size)
+    }
+}
+
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Position {
+    Physical(PhysicalPosition),
+    Logical(LogicalPosition),
+}
+
+impl Position {
+    pub fn new<S: Into<Position>>(position: S) -> Position {
+        position.into()
+    }
+
+    pub fn to_logical(&self, dpi_factor: f64) -> LogicalPosition {
+        match *self {
+            Position::Physical(position) => position.to_logical(dpi_factor),
+            Position::Logical(position) => position,
+        }
+    }
+
+    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalPosition {
+        match *self {
+            Position::Physical(position) => position,
+            Position::Logical(position) => position.to_physical(dpi_factor),
+        }
+    }
+}
+
+impl From<PhysicalPosition> for Position {
+    #[inline]
+    fn from(position: PhysicalPosition) -> Position {
+        Position::Physical(position)
+    }
+}
+
+impl From<LogicalPosition> for Position {
+    #[inline]
+    fn from(position: LogicalPosition) -> Position {
+        Position::Logical(position)
     }
 }

@@ -20,7 +20,7 @@ use winapi::um::winnt::{LONG, LPCWSTR};
 
 use crate::window::{Icon, CursorIcon, WindowAttributes};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize, Size};
+use crate::dpi::{PhysicalPosition, PhysicalSize, Size, Position};
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform_impl::platform::{
     {PlatformSpecificWindowBuilderAttributes, WindowId},
@@ -150,25 +150,9 @@ impl Window {
         Ok(PhysicalPosition::new(position.x as f64, position.y as f64))
     }
 
-    pub(crate) fn set_position_physical(&self, x: i32, y: i32) {
-        unsafe {
-            winuser::SetWindowPos(
-                self.window.0,
-                ptr::null_mut(),
-                x as c_int,
-                y as c_int,
-                0,
-                0,
-                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOSIZE,
-            );
-            winuser::UpdateWindow(self.window.0);
-        }
-    }
-
     #[inline]
-    pub fn set_outer_position(&self, position: PhysicalPosition) {
-        let (x, y): (i32, i32) = position.into();
-        self.set_position_physical(x, y);
+    pub fn set_outer_position(&self, position: Position) {
+        let (x, y): (i32, i32) = position.to_physical(self.hidpi_factor()).into();
         unsafe {
             winuser::SetWindowPos(
                 self.window.0,
@@ -326,7 +310,11 @@ impl Window {
         self.window_state.lock().dpi_factor
     }
 
-    fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ExternalError> {
+    #[inline]
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+        let dpi_factor = self.hidpi_factor();
+        let (x, y) = position.to_physical(dpi_factor).into();
+
         let mut point = POINT { x, y };
         unsafe {
             if winuser::ClientToScreen(self.window.0, &mut point) == 0 {
@@ -337,13 +325,6 @@ impl Window {
             }
         }
         Ok(())
-    }
-
-    #[inline]
-    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), ExternalError> {
-        let dpi_factor = self.hidpi_factor();
-        let (x, y) = logical_position.to_physical(dpi_factor).into();
-        self.set_cursor_position_physical(x, y)
     }
 
     #[inline]
@@ -496,7 +477,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _logical_spot: LogicalPosition) {
+    pub fn set_ime_position(&self, _position: Position) {
         unimplemented!();
     }
 }
