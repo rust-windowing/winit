@@ -76,13 +76,37 @@ impl Window {
 
     #[inline]
     pub fn show(&self) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.events_loop_proxy.execute_in_thread(move |_| {
+            WindowState::set_window_flags(
+                window_state.lock().unwrap(),
+                window.0,
+                None,
+                |f| f.set(WindowFlags::VISIBLE, true),
+            );
+        });
+
         unsafe {
             winuser::ShowWindow(self.window.0, winuser::SW_SHOW);
-        }
+        }    
     }
 
     #[inline]
     pub fn hide(&self) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.events_loop_proxy.execute_in_thread(move |_| {
+            WindowState::set_window_flags(
+                window_state.lock().unwrap(),
+                window.0,
+                None,
+                |f| f.set(WindowFlags::VISIBLE, false),
+            );
+        });
+
         unsafe {
             winuser::ShowWindow(self.window.0, winuser::SW_HIDE);
         }
