@@ -838,6 +838,8 @@ unsafe extern "system" fn public_window_callback<T>(
                     // Discard the non-client button-down event and defer the processing until
                     // the non-client button-up event. This prevents a pause in the message loop
                     // while the user has the mouse button pressed on one of these buttons.
+                    let mut window_state = subclass_input.window_state.lock();
+                    window_state.deferred_nclbuttondown_wparam = Some(wparam);
                     0
                 }
                 _ => {
@@ -857,9 +859,18 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_NCLBUTTONUP => {
-            // Manually apply min, max, restore, and close since we discarded the button down event.
-            match wparam as isize {
-                winuser::HTMAXBUTTON => {
+            let deferred_wparam = subclass_input
+                .window_state
+                .lock()
+                .deferred_nclbuttondown_wparam
+                .filter(|deferred_wparam| *deferred_wparam == wparam)
+                .map(|wparam| wparam as isize)
+                .take();
+            // Manually apply min, max, restore, and close since we discarded the button down event,
+            // but only in the event that the user did not cancel the operation. If the user canelled
+            // the operation, WM_LBUTTONUP will fire and we'll clear the deferred state there as well.
+            match deferred_wparam {
+                Some(winuser::HTMAXBUTTON) => {
                     let window_state = subclass_input.window_state.lock();
                     let window_flags = window_state.window_flags();
                     drop(window_state);
@@ -870,11 +881,11 @@ unsafe extern "system" fn public_window_callback<T>(
                     }
                     0
                 }
-                winuser::HTMINBUTTON => {
+                Some(winuser::HTMINBUTTON) => {
                     winuser::ShowWindow(window, winuser::SW_MINIMIZE);
                     0
                 }
-                winuser::HTCLOSE => {
+                Some(winuser::HTCLOSE) => {
                     winuser::PostMessageW(window, winuser::WM_CLOSE, 0, 0);
                     0
                 }
@@ -1184,6 +1195,12 @@ unsafe extern "system" fn public_window_callback<T>(
             use crate::event::{
                 ElementState::Released, MouseButton::Left, WindowEvent::MouseInput,
             };
+
+            subclass_input
+                .window_state
+                .lock()
+                .deferred_nclbuttondown_wparam
+                .take();
 
             release_mouse(&mut *subclass_input.window_state.lock());
 

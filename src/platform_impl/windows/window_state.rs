@@ -8,7 +8,7 @@ use parking_lot::MutexGuard;
 use std::{io, ptr};
 use winapi::{
     shared::{
-        minwindef::DWORD,
+        minwindef::{DWORD, WPARAM},
         windef::{HWND, RECT},
     },
     um::winuser,
@@ -30,6 +30,7 @@ pub struct WindowState {
     pub dpi_factor: f64,
 
     pub fullscreen: Option<MonitorHandle>,
+    pub deferred_nclbuttondown_wparam: Option<WPARAM>,
     window_flags: WindowFlags,
 }
 
@@ -111,6 +112,7 @@ impl WindowState {
 
             fullscreen: None,
             window_flags: WindowFlags::empty(),
+            deferred_nclbuttondown_wparam: None,
         }
     }
 
