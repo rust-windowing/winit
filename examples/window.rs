@@ -1,4 +1,8 @@
 extern crate winit;
+#[cfg(feature = "stdweb")]
+#[macro_use]
+extern crate stdweb;
+#[cfg(feature = "wasm-bindgen")]
 #[macro_use]
 extern crate stdweb;
 
@@ -13,10 +17,10 @@ fn main() {
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();
-    console!(log, "Built window!");
+    //console!(log, "Built window!");
 
     event_loop.run(|event, _, control_flow| {
-        console!(log, format!("{:?}", event));
+        //console!(log, format!("{:?}", event));
 
         match event {
             Event::WindowEvent {

@@ -20,6 +20,9 @@ libc = "0.2"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 
+[features]
+web-sys-support = ["web-sys", "wasm-bindgen"]
+
 [dev-dependencies]
 image = "0.21"
 env_logger = "0.5"
@@ -73,6 +76,30 @@ percent-encoding = "1.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
 version = "0.8"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+version = "0.3.22"
+optional = true
+features = [
+    'Document',
+    'Event',
+    'EventTarget',
+    'FocusEvent',
+    'HtmlCanvasElement',
+    'KeyboardEvent',
+    'MouseEvent',
+    'PointerEvent',
+    'Window',
+    'WheelEvent'
+]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
+version = "0.2.45"
+optional = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.stdweb]
+version = "0.4.17"
+optional = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = { path = "../stdweb", optional = true }
