@@ -12,8 +12,6 @@ pub use self::events::{
 };
 pub use self::window::{MonitorHandle, PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
-// TODO: unify with stdweb impl.
-
 #[derive(Debug)]
 pub struct OsError(String);
 
@@ -21,4 +19,12 @@ impl fmt::Display for OsError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
+}
+
+fn window() -> web_sys::Window {
+    web_sys::window().unwrap()
+}
+
+fn document() -> web_sys::Document {
+    window().document().unwrap()
 }

@@ -6,13 +6,14 @@ use event::{
     TouchPhase, WindowEvent,
 };
 use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
+use platform_impl::platform::document;
 use std::cell::RefCell;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use wasm_bindgen::{prelude::*, JsCast};
-use web_sys::{Document, EventTarget, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
+use web_sys::{EventTarget, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
 use window::WindowId as RootWI;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -70,7 +71,7 @@ struct EventLoopRunner<T> {
 
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(module = "util.js", js_name = "throwToEscapeEventLoop")]
+    #[wasm_bindgen(module = "/src/platform_impl/web_sys/util.js", js_name = "throwToEscapeEventLoop")]
     fn throw_to_escape_event_loop();
 }
 
@@ -233,7 +234,7 @@ pub fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &HtmlCanvas
         let delta = match event.delta_mode() {
             WheelEvent::DOM_DELTA_LINE => MouseScrollDelta::LineDelta(x as f32, y as f32),
             WheelEvent::DOM_DELTA_PIXEL => MouseScrollDelta::PixelDelta(LogicalPosition { x, y }),
-            WheelEvent::DOM_DELTA_PAGE => return,
+            _ => return,
         };
         elrs.send_event(Event::WindowEvent {
             window_id: RootWI(WindowId),
@@ -367,8 +368,4 @@ impl<T> ELRShared<T> {
             }
         }
     }
-}
-
-fn document() -> Document {
-    web_sys::window().unwrap().document().unwrap()
 }

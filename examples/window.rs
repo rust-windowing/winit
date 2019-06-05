@@ -4,7 +4,7 @@ extern crate winit;
 extern crate stdweb;
 #[cfg(feature = "wasm-bindgen")]
 #[macro_use]
-extern crate stdweb;
+extern crate wasm_bindgen;
 
 use winit::window::WindowBuilder;
 use winit::event::{Event, WindowEvent};
