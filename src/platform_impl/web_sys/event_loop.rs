@@ -69,9 +69,9 @@ struct EventLoopRunner<T> {
     event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(module = "/src/platform_impl/web_sys/util.js")]
 extern "C" {
-    #[wasm_bindgen(module = "/src/platform_impl/web_sys/util.js", js_name = "throwToEscapeEventLoop")]
+    #[wasm_bindgen(js_name = "throwToEscapeEventLoop")]
     fn throw_to_escape_event_loop();
 }
 
