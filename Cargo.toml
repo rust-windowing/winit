@@ -21,7 +21,7 @@ log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 
 [features]
-web-sys-support = ["web-sys", "wasm-bindgen"]
+web_sys = ["web-sys", "wasm-bindgen"]
 
 [dev-dependencies]
 image = "0.21"
@@ -81,6 +81,7 @@ version = "0.8"
 version = "0.3.22"
 optional = true
 features = [
+    'console',
     'Document',
     'DomRect',
     'Element',
@@ -108,3 +109,7 @@ optional = true
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = { path = "../stdweb", optional = true }
 instant = { version = "0.1", features = ["stdweb"] }
+
+[[example]]
+name = "window"
+crate-type = ["cdylib"]
