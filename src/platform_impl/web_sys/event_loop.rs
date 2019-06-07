@@ -259,7 +259,7 @@ fn add_event<T: 'static, E, F>(
 {
     let elrs = elrs.clone();
 
-    target.add_event_listener_with_callback(event, Closure::wrap(Box::new(move |event: E| {
+    let closure = Closure::wrap(Box::new(move |event: E| {
         // Don't capture the event if the events loop has been destroyed
         match &*elrs.runner.borrow() {
             Some(ref runner) if runner.control == ControlFlow::Exit => return,
@@ -272,7 +272,10 @@ fn add_event<T: 'static, E, F>(
         event_ref.cancel_bubble();
 
         handler(&elrs, event);
-    }) as Box<FnMut(E)>).as_ref().unchecked_ref());
+    }) as Box<FnMut(E)>);
+
+    target.add_event_listener_with_callback(event, &closure.as_ref().unchecked_ref());
+    closure.forget(); // TODO: don't leak this.
 }
 
 impl<T> ELRShared<T> {

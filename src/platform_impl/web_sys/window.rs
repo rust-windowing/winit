@@ -69,12 +69,13 @@ impl Window {
         let runner = target.runner.clone();
         let redraw = Box::new(move || {
             let runner = runner.clone();
-            window().request_animation_frame(Closure::wrap(Box::new(move |_: f64| {
+            let closure = Closure::once_into_js(move |_: f64| {
                 runner.send_event(Event::WindowEvent {
                     window_id: RootWI(WindowId),
                     event: WindowEvent::RedrawRequested
                 });
-            }) as Box<Fn(f64)>).as_ref().unchecked_ref());
+            });
+            window().request_animation_frame(closure.as_ref().unchecked_ref());
         });
 
         let window = Window {
