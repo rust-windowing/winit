@@ -156,6 +156,7 @@ Legend:
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
 |Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
+|Video mode query                 |✔️     |✔️     |✔️         |✔️             |❌    |✔️     |❌        |
 |HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️         |
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |❌        |
 

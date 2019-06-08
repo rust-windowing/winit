@@ -1,6 +1,7 @@
 use std::{env, slice};
 use std::str::FromStr;
 
+use monitor::VideoMode;
 use dpi::validate_hidpi_factor;
 use super::*;
 
@@ -101,7 +102,7 @@ impl XConnection {
         &self,
         resources: *mut ffi::XRRScreenResources,
         repr: &MonitorRepr,
-    ) -> Option<(String, f64)> {
+    ) -> Option<(String, f64, Vec<VideoMode>)> {
         let output_info = (self.xrandr.XRRGetOutputInfo)(
             self.display,
             resources,
@@ -114,6 +115,33 @@ impl XConnection {
             let _ = self.check_errors(); // discard `BadRROutput` error
             return None;
         }
+
+        let screen = (self.xlib.XDefaultScreen)(self.display);
+        let bit_depth = (self.xlib.XDefaultDepth)(self.display, screen);
+
+        let output_modes =
+            slice::from_raw_parts((*output_info).modes, (*output_info).nmode as usize);
+        let resource_modes = slice::from_raw_parts((*resources).modes, (*resources).nmode as usize);
+
+        let modes = resource_modes
+            .iter()
+            // XRROutputInfo contains an array of mode ids that correspond to
+            // modes in the array in XRRScreenResources
+            .filter(|x| output_modes.iter().any(|id| x.id == *id))
+            .map(|x| {
+                let refresh_rate = if x.dotClock > 0 && x.hTotal > 0 && x.vTotal > 0 {
+                    x.dotClock as u64 * 1000 / (x.hTotal as u64 * x.vTotal as u64)
+                } else {
+                    0
+                };
+
+                VideoMode {
+                    dimensions: (x.width, x.height),
+                    refresh_rate: (refresh_rate as f32 / 1000.0).round() as u16,
+                    bit_depth: bit_depth as u16,
+                }
+            });
+
         let name_slice = slice::from_raw_parts(
             (*output_info).name as *mut u8,
             (*output_info).nameLen as usize,
@@ -129,6 +157,6 @@ impl XConnection {
         };
 
         (self.xrandr.XRRFreeOutputInfo)(output_info);
-        Some((name, hidpi_factor))
+        Some((name, hidpi_factor, modes.collect()))
     }
 }

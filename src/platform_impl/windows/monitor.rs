@@ -1,21 +1,23 @@
-use winapi::shared::minwindef::{BOOL, DWORD, LPARAM, TRUE};
+use winapi::shared::minwindef::{BOOL, DWORD, LPARAM, TRUE, WORD};
 use winapi::shared::windef::{HDC, HMONITOR, HWND, LPRECT, POINT};
 use winapi::um::winnt::LONG;
-use winapi::um::winuser;
+use winapi::um::{wingdi, winuser};
 
-use std::{mem, ptr, io};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
+use std::{io, mem, ptr};
 
-use super::{EventLoop, util};
+use super::{util, EventLoop};
 use dpi::{PhysicalPosition, PhysicalSize};
+use monitor::VideoMode;
 use platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use platform_impl::platform::window::Window;
 
 /// Win32 implementation of the main `MonitorHandle` object.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MonitorHandle {
     /// Monitor handle.
     hmonitor: HMonitor,
+    monitor_info: winuser::MONITORINFOEXW,
     /// The system name of the monitor.
     monitor_name: String,
     /// True if this is the primary monitor.
@@ -28,6 +30,12 @@ pub struct MonitorHandle {
     dimensions: (u32, u32),
     /// DPI scale factor.
     hidpi_factor: f64,
+}
+
+impl std::fmt::Debug for MonitorHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "MonitorHandle {{ hmonitor: {:?}, monitor_name: {:?}, primary: {}, position: {:?}, dimensions: {:?}, hidpi_factor: {} }}", self.hmonitor, self.monitor_name, self.primary, self.position, self.dimensions, self.hidpi_factor)
+    }
 }
 
 // Send is not implemented for HMONITOR, we have to wrap it and implement it manually.
@@ -130,6 +138,7 @@ impl MonitorHandle {
             position: (place.left as i32, place.top as i32),
             dimensions,
             hidpi_factor: dpi_to_scale_factor(get_monitor_dpi(hmonitor).unwrap_or(96)),
+            monitor_info,
         }
     }
 
@@ -169,5 +178,45 @@ impl MonitorHandle {
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
         self.hidpi_factor
+    }
+
+    #[inline]
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        // EnumDisplaySettingsExW can return duplicate values (or some of the
+        // fields are probably changing, but we aren't looking at those fields
+        // anyway), so we're using a HashSet deduplicate
+        let mut modes = HashSet::new();
+        let mut i = 0;
+
+        loop {
+            unsafe {
+                let mut mode: wingdi::DEVMODEW = mem::zeroed();
+                mode.dmSize = mem::size_of_val(&mode) as WORD;
+                if winuser::EnumDisplaySettingsExW(
+                    self.monitor_info.szDevice.as_ptr(),
+                    i,
+                    &mut mode,
+                    0,
+                ) == 0
+                {
+                    break;
+                }
+                i += 1;
+
+                const REQUIRED_FIELDS: DWORD = wingdi::DM_BITSPERPEL
+                    | wingdi::DM_PELSWIDTH
+                    | wingdi::DM_PELSHEIGHT
+                    | wingdi::DM_DISPLAYFREQUENCY;
+                assert!(mode.dmFields & REQUIRED_FIELDS == REQUIRED_FIELDS);
+
+                modes.insert(VideoMode {
+                    dimensions: (mode.dmPelsWidth, mode.dmPelsHeight),
+                    bit_depth: mode.dmBitsPerPel as u16,
+                    refresh_rate: mode.dmDisplayFrequency as u16,
+                });
+            }
+        }
+
+        modes.into_iter()
     }
 }

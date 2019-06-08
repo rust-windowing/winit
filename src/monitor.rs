@@ -44,6 +44,27 @@ impl Iterator for AvailableMonitorsIter {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct VideoMode {
+    pub(crate) dimensions: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+}
+
+impl VideoMode {
+    pub fn dimensions(&self) -> PhysicalSize {
+        self.dimensions.into()
+    }
+
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+}
+
 /// Handle to a monitor.
 ///
 /// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
@@ -87,5 +108,11 @@ impl MonitorHandle {
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
         self.inner.hidpi_factor()
+    }
+
+    /// Returns all fullscreen video modes supported by this monitor.
+    #[inline]
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        self.inner.video_modes()
     }
 }

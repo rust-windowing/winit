@@ -14,7 +14,7 @@ use icon::Icon;
 use error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use event::Event;
 use event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
-use monitor::MonitorHandle as RootMonitorHandle;
+use monitor::{MonitorHandle as RootMonitorHandle, VideoMode};
 use window::{WindowAttributes, CursorIcon};
 use self::x11::{XConnection, XError};
 use self::x11::ffi::XVisualInfo;
@@ -140,6 +140,14 @@ impl MonitorHandle {
         match self {
             &MonitorHandle::X(ref m) => m.hidpi_factor(),
             &MonitorHandle::Wayland(ref m) => m.hidpi_factor() as f64,
+        }
+    }
+
+    #[inline]
+    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+        match self {
+            MonitorHandle::X(m) => Box::new(m.video_modes()),
+            MonitorHandle::Wayland(m) => Box::new(m.video_modes()),
         }
     }
 }

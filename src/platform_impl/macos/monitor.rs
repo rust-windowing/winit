@@ -1,9 +1,18 @@
 use std::{collections::VecDeque, fmt};
 
-use cocoa::{appkit::NSScreen, base::{id, nil}, foundation::{NSString, NSUInteger}};
-use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
+use cocoa::{
+    appkit::NSScreen,
+    base::{id, nil},
+    foundation::{NSString, NSUInteger},
+};
+use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayMode};
+use core_video_sys::{
+    kCVReturnSuccess, kCVTimeIsIndefinite, CVDisplayLinkCreateWithCGDisplay,
+    CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
+};
 
 use dpi::{PhysicalPosition, PhysicalSize};
+use monitor::VideoMode;
 use platform_impl::platform::util::IdRef;
 
 #[derive(Clone, PartialEq)]
@@ -91,6 +100,44 @@ impl MonitorHandle {
             None => return 1.0, // default to 1.0 when we can't find the screen
         };
         unsafe { NSScreen::backingScaleFactor(screen) as f64 }
+    }
+
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        let cv_refresh_rate = unsafe {
+            let mut display_link = std::ptr::null_mut();
+            assert_eq!(
+                CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link),
+                kCVReturnSuccess
+            );
+            let time = CVDisplayLinkGetNominalOutputVideoRefreshPeriod(display_link);
+            CVDisplayLinkRelease(display_link);
+
+            // This value is indefinite if an invalid display link was specified
+            assert!(time.flags & kCVTimeIsIndefinite == 0);
+
+            time.timeScale as i64 / time.timeValue
+        };
+
+        CGDisplayMode::all_display_modes(self.0, std::ptr::null())
+            .expect("failed to obtain list of display modes")
+            .into_iter()
+            .map(move |mode| {
+                let cg_refresh_rate = mode.refresh_rate().round() as i64;
+
+                // CGDisplayModeGetRefreshRate returns 0.0 for any display that
+                // isn't a CRT
+                let refresh_rate = if cg_refresh_rate > 0 {
+                    cg_refresh_rate
+                } else {
+                    cv_refresh_rate
+                };
+
+                VideoMode {
+                    dimensions: (mode.width() as u32, mode.height() as u32),
+                    refresh_rate: refresh_rate as u16,
+                    bit_depth: mode.bit_depth() as u16,
+                }
+            })
     }
 
     pub(crate) fn ns_screen(&self) -> Option<id> {
