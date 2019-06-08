@@ -1,5 +1,9 @@
 use wasm_bindgen::prelude::*;
-use window::CreationError;
+
+#[macro_use]
+use ::error::OsError as WOsError;
+
+use super::OsError;
 
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
 macro_rules! log {
@@ -13,8 +17,8 @@ extern "C" {
     pub fn js_exit();
 }
  
-impl From<wasm_bindgen::JsValue> for CreationError {
+impl From<wasm_bindgen::JsValue> for WOsError {
     fn from(error: wasm_bindgen::JsValue) -> Self {
-        CreationError::OsError(error.as_string().unwrap_or("Window error".to_string()))
+        os_error!(OsError{})
     }
 }

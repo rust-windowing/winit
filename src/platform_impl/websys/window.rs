@@ -1,10 +1,14 @@
-use window::{WindowAttributes, CreationError, MouseCursor};
+use window::{WindowAttributes};
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::cell::RefCell;
 use dpi::{PhysicalPosition, LogicalPosition, PhysicalSize, LogicalSize};
 use icon::Icon;
 use super::event_loop::{EventLoopWindowTarget};
+
+use ::error::{ExternalError, NotSupportedError};
+use ::monitor::AvailableMonitorsIter;
+use ::window::CursorIcon;
 
 use ::wasm_bindgen::prelude::*;
 use ::wasm_bindgen::JsCast;
@@ -49,20 +53,20 @@ impl MonitorHandle {
     ///
     /// Returns `None` if the monitor doesn't exist anymore.
     #[inline]
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         unimplemented!()
     }
 
     /// Returns the monitor's resolution.
     #[inline]
-    pub fn get_dimensions(&self) -> PhysicalSize {
+    pub fn dimensions(&self) -> PhysicalSize {
         unimplemented!()
     }
 
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
     #[inline]
-    pub fn get_position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition {
         unimplemented!()
     }
 
@@ -75,7 +79,7 @@ impl MonitorHandle {
     /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         unimplemented!()
     }
 }
@@ -114,7 +118,7 @@ impl Window {
     pub fn new<T: 'static>(target: &EventLoopWindowTarget<T>, 
                            attr: WindowAttributes,
                            ps_attr: PlatformSpecificWindowBuilderAttributes) 
-                           -> Result<Window, CreationError> {
+                           -> Result<Window, ::error::OsError> {
         let window = ::web_sys::window()
             .expect("No global window object found!");
         let document = window.document()
@@ -165,145 +169,10 @@ impl Window {
         })
     }
 
-    /// Modifies the title of the window.
-    ///
-    /// This is a no-op if the window has already been closed.
+    /// Returns an identifier unique to the window.
     #[inline]
-    pub fn set_title(&self, title: &str) {
-    }
-
-    /// Shows the window if it was hidden.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - Has no effect on Android
-    ///
-    #[inline]
-    pub fn show(&self) {
-        unimplemented!()
-    }
-
-    /// Hides the window if it was visible.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - Has no effect on Android
-    ///
-    #[inline]
-    pub fn hide(&self) {
-        unimplemented!()
-    }
-
-    /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
-    /// events have been processed by the event loop.
-    ///
-    /// This is the **strongly encouraged** method of redrawing windows, as it can integrates with
-    /// OS-requested redraws (e.g. when a window gets resized).
-    ///
-    /// This function can cause `RedrawRequested` events to be emitted after `Event::EventsCleared`
-    /// but before `Event::NewEvents` if called in the following circumstances:
-    /// * While processing `EventsCleared`.
-    /// * While processing a `RedrawRequested` event that was sent during `EventsCleared` or any
-    ///   directly subsequent `RedrawRequested` event.
-    pub fn request_redraw(&self) {
-        unimplemented!()
-    }
-
-    /// Returns the position of the top-left hand corner of the window relative to the
-    ///  top-left hand corner of the desktop.
-    ///
-    /// Note that the top-left hand corner of the desktop is not necessarily the same as
-    ///  the screen. If the user uses a desktop with multiple monitors, the top-left hand corner
-    ///  of the desktop is the top-left hand corner of the monitor at the top-left of the desktop.
-    ///
-    /// The coordinates can be negative if the top-left hand corner of the window is outside
-    ///  of the visible screen region.
-    ///
-    /// Returns `None` if the window no longer exists.
-    #[inline]
-    pub fn get_position(&self) -> Option<LogicalPosition> {
-        unimplemented!()
-    }
-
-    /// Returns the position of the top-left hand corner of the window's client area relative to the
-    /// top-left hand corner of the desktop.
-    ///
-    /// The same conditions that apply to `get_position` apply to this method.
-    #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
-        // websys: we have no concept of "inner" client area, so just return position.
-        self.get_position()
-    }
-
-    /// Modifies the position of the window.
-    ///
-    /// See `get_position` for more information about the coordinates.
-    ///
-    /// This is a no-op if the window has already been closed.
-    #[inline]
-    pub fn set_position(&self, position: LogicalPosition) {
-        unimplemented!()
-    }
-
-    /// Returns the logical size of the window's client area.
-    ///
-    /// The client area is the content of the window, excluding the title bar and borders.
-    ///
-    /// Converting the returned `LogicalSize` to `PhysicalSize` produces the size your framebuffer should be.
-    ///
-    /// Returns `None` if the window no longer exists.
-    #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
-        // websys: we have no concept of "inner" client area, so just return size.
-        self.get_outer_size()
-    }
-
-    /// Returns the logical size of the entire window.
-    ///
-    /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
-    /// use `get_inner_size` instead.
-    ///
-    /// Returns `None` if the window no longer exists.
-    #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        unimplemented!()
-    }
-
-    /// Modifies the inner size of the window.
-    ///
-    /// See `get_inner_size` for more information about the values.
-    ///
-    /// This is a no-op if the window has already been closed.
-    #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
-        unimplemented!()
-    }
-
-    /// Sets a minimum dimension size for the window.
-    #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
-        unimplemented!()
-    }
-
-    /// Sets a maximum dimension size for the window.
-    #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
-        unimplemented!()
-    }
-
-    /// Sets whether the window is resizable or not.
-    ///
-    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
-    /// triggered by DPI scaling, entering fullscreen mode, etc.
-    ///
-    /// ## Platform-specific
-    ///
-    /// This only has an effect on desktop platforms.
-    ///
-    /// Due to a bug in XFCE, this has no effect on Xfwm.
-    #[inline]
-    pub fn set_resizable(&self, resizable: bool) {
-        unimplemented!()
+    pub fn id(&self) -> WindowId {
+        WindowId::dummy()
     }
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
@@ -318,70 +187,244 @@ impl Window {
     ///
     /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
+    /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
+    ///   [`contentScaleFactor`].
+    ///
+    /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         1.0
     }
 
-    /// Modifies the mouse cursor of the window.
-    /// Has no effect on Android.
-    #[inline]
-    pub fn set_cursor(&self, cursor: MouseCursor) {
-        unimplemented!()
-    }
-
-    /// Changes the position of the cursor in window coordinates.
-    #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), String> {
-        unimplemented!()
-    }
-
-    /// Grabs the cursor, preventing it from leaving the window.
+    /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
+    /// events have been processed by the event loop.
+    ///
+    /// This is the **strongly encouraged** method of redrawing windows, as it can integrates with
+    /// OS-requested redraws (e.g. when a window gets resized).
+    ///
+    /// This function can cause `RedrawRequested` events to be emitted after `Event::EventsCleared`
+    /// but before `Event::NewEvents` if called in the following circumstances:
+    /// * While processing `EventsCleared`.
+    /// * While processing a `RedrawRequested` event that was sent during `EventsCleared` or any
+    ///   directly subsequent `RedrawRequested` event.
     ///
     /// ## Platform-specific
     ///
-    /// On macOS, this presently merely locks the cursor in a fixed location, which looks visually awkward.
-    ///
-    /// This has no effect on Android or iOS.
+    /// - **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+    pub fn request_redraw(&self) {
         unimplemented!()
     }
+}
 
-    /// Hides the cursor, making it invisible but still usable.
+/// Position and size functions.
+impl Window {
+    /// Returns the position of the top-left hand corner of the window's client area relative to the
+    /// top-left hand corner of the desktop.
+    ///
+    /// The same conditions that apply to `outer_position` apply to this method.
     ///
     /// ## Platform-specific
     ///
-    /// On Windows and X11, the cursor is only hidden within the confines of the window.
+    /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
+    ///   window's [safe area] in the screen space coordinate system.
     ///
-    /// On macOS, the cursor is hidden as long as the window has input focus, even if the cursor is outside of the
-    /// window.
-    ///
-    /// This has no effect on Android or iOS.
+    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
-    pub fn hide_cursor(&self, hide: bool) {
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         unimplemented!()
     }
 
-    /// Sets the window to maximized or back
+    /// Returns the position of the top-left hand corner of the window relative to the
+    ///  top-left hand corner of the desktop.
+    ///
+    /// Note that the top-left hand corner of the desktop is not necessarily the same as
+    ///  the screen. If the user uses a desktop with multiple monitors, the top-left hand corner
+    ///  of the desktop is the top-left hand corner of the monitor at the top-left of the desktop.
+    ///
+    /// The coordinates can be negative if the top-left hand corner of the window is outside
+    ///  of the visible screen region.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
+    ///   window in the screen space coordinate system.
+    #[inline]
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+        unimplemented!()
+    }
+
+    /// Modifies the position of the window.
+    ///
+    /// See `outer_position` for more information about the coordinates.
+    ///
+    /// This is a no-op if the window has already been closed.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
+    ///   window in the screen space coordinate system.
+    #[inline]
+    pub fn set_outer_position(&self, position: LogicalPosition) {
+        unimplemented!()
+    }
+
+    /// Returns the logical size of the window's client area.
+    ///
+    /// The client area is the content of the window, excluding the title bar and borders.
+    ///
+    /// Converting the returned `LogicalSize` to `PhysicalSize` produces the size your framebuffer should be.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window's
+    ///   [safe area] in screen space coordinates.
+    ///
+    /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    #[inline]
+    pub fn inner_size(&self) -> LogicalSize {
+        unimplemented!()
+    }
+
+    /// Modifies the inner size of the window.
+    ///
+    /// See `inner_size` for more information about the values.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Unimplemented. Currently this panics, as it's not clear what `set_inner_size`
+    ///   would mean for iOS.
+    #[inline]
+    pub fn set_inner_size(&self, size: LogicalSize) {
+        unimplemented!()
+    }
+
+    /// Returns the logical size of the entire window.
+    ///
+    /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
+    /// use `inner_size` instead.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window in
+    ///   screen space coordinates.
+    #[inline]
+    pub fn outer_size(&self) -> LogicalSize {
+        unimplemented!()
+    }
+
+    /// Sets a minimum dimension size for the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
+    #[inline]
+    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
+        unimplemented!()
+    }
+
+    /// Sets a maximum dimension size for the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
+    #[inline]
+    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
+        unimplemented!()
+    }
+}
+
+/// Misc. attribute functions.
+impl Window {
+    /// Modifies the title of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Has no effect on iOS.
+    #[inline]
+    pub fn set_title(&self, title: &str) {
+        unimplemented!()
+    }
+
+    /// Modifies the window's visibility.
+    ///
+    /// If `false`, this will hide the window. If `true`, this will show the window.
+    /// ## Platform-specific
+    ///
+    /// - **Android:** Has no effect.
+    /// - **iOS:** Can only be called on the main thread.
+    #[inline]
+    pub fn set_visible(&self, visible: bool) {
+        unimplemented!()
+    }
+
+    /// Sets whether the window is resizable or not.
+    ///
+    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
+    /// triggered by DPI scaling, entering fullscreen mode, etc.
+    ///
+    /// ## Platform-specific
+    ///
+    /// This only has an effect on desktop platforms.
+    ///
+    /// Due to a bug in XFCE, this has no effect on Xfwm.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
+    #[inline]
+    pub fn set_resizable(&self, resizable: bool) {
+        unimplemented!()
+    }
+
+    /// Sets the window to maximized or back.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         unimplemented!()
     }
 
-    /// Sets the window to fullscreen or back
+    /// Sets the window to fullscreen or back.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<::monitor::MonitorHandle>) {
         unimplemented!()
     }
 
+    /// Gets the window's current fullscreen state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread.
+    #[inline]
+    pub fn fullscreen(&self) -> Option<::monitor::MonitorHandle> {
+        unimplemented!()
+    }
+
     /// Turn window decorations on or off.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Controls whether the status bar is hidden
+    ///   via [`setPrefersStatusBarHidden`].
+    ///
+    /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         unimplemented!()
     }
 
     /// Change whether or not the window will always be on top of other windows.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         unimplemented!()
@@ -401,40 +444,107 @@ impl Window {
     }
 
     /// Sets location of IME candidate box in client area coordinates relative to the top left.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS:** Has no effect.
     #[inline]
-    pub fn set_ime_spot(&self, position: LogicalPosition) {
+    pub fn set_ime_position(&self, position: LogicalPosition) {
+        unimplemented!()
+    }
+}
+
+/// Cursor functions.
+impl Window {
+    /// Modifies the cursor icon of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect.
+    /// - **Android:** Has no effect.
+    #[inline]
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         unimplemented!()
     }
 
-    /// Returns the monitor on which the window currently resides
+    /// Changes the position of the cursor in window coordinates.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Always returns an `Err`.
     #[inline]
-    pub fn get_current_monitor(&self) -> ::monitor::MonitorHandle {
-        ::monitor::MonitorHandle{inner: MonitorHandle{}}
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
+        unimplemented!()
+    }
+
+    /// Grabs the cursor, preventing it from leaving the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** This presently merely locks the cursor in a fixed location, which looks visually
+    ///   awkward.
+    /// - **Android:** Has no effect.
+    /// - **iOS:** Always returns an Err.
+    #[inline]
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+        unimplemented!()
+    }
+
+    /// Modifies the cursor's visibility.
+    ///
+    /// If `false`, this will hide the cursor. If `true`, this will show the cursor.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** The cursor is only hidden within the confines of the window.
+    /// - **X11:** The cursor is only hidden within the confines of the window.
+    /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
+    ///   outside of the window.
+    /// - **iOS:** Has no effect.
+    /// - **Android:** Has no effect.
+    #[inline]
+    pub fn set_cursor_visible(&self, visible: bool) {
+        unimplemented!()
+    }
+}
+
+/// Monitor info functions.
+impl Window {
+    /// Returns the monitor on which the window currently resides
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS:** Can only be called on the main thread.
+    #[inline]
+    pub fn current_monitor(&self) -> ::monitor::MonitorHandle {
+        unimplemented!()
     }
 
     /// Returns the list of all the monitors available on the system.
     ///
-    /// This is the same as `EventLoop::get_available_monitors`, and is provided for convenience.
+    /// This is the same as `EventLoop::available_monitors`, and is provided for convenience.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> std::collections::VecDeque<MonitorHandle> {
         unimplemented!()
     }
 
     /// Returns the primary monitor of the system.
     ///
-    /// This is the same as `EventLoop::get_primary_monitor`, and is provided for convenience.
+    /// This is the same as `EventLoop::primary_monitor`, and is provided for convenience.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle {}
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle { }
     }
-
-    /// Returns an identifier unique to the window.
-    #[inline]
-    pub fn id(&self) -> WindowId {
-        unimplemented!()
-    }
-
 }
+
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId {
@@ -447,7 +557,7 @@ impl WindowId {
     /// by this function.  No other guarantees are made. This may be equal to a real `WindowId`.
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
-    pub unsafe fn dummy() -> Self {
+    pub fn dummy() -> Self {
         WindowId{}
     }
 }
