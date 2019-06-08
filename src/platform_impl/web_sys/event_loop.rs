@@ -69,12 +69,6 @@ struct EventLoopRunner<T> {
     event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
 }
 
-#[wasm_bindgen(module = "/src/platform_impl/web_sys/util.js")]
-extern "C" {
-    #[wasm_bindgen(js_name = "throwToEscapeEventLoop")]
-    fn throw_to_escape_event_loop();
-}
-
 impl<T> EventLoop<T> {
     pub fn new() -> Self {
         EventLoop {
@@ -161,8 +155,7 @@ impl<T> EventLoop<T> {
 
         // Throw an exception to break out of Rust exceution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
-        throw_to_escape_event_loop();
-        unreachable!();
+        wasm_bindgen::throw_str("Using exceptions for control flow, don't mind me. This isn't actually an error!");
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
