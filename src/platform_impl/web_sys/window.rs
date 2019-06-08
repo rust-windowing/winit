@@ -62,7 +62,7 @@ impl Window {
         let canvas: HtmlCanvasElement = element.unchecked_into();
         document().body()
             .ok_or_else(|| os_error!(OsError("Failed to find body node".to_owned())))?
-            .append_child(&canvas);
+            .append_child(&canvas).map_err(|_| os_error!(OsError("Failed to append canvas".to_owned())))?;
 
         register(&target.runner, &canvas);
 

@@ -265,7 +265,7 @@ fn add_event<T: 'static, E, F>(
         event_ref.cancel_bubble();
 
         handler(&elrs, event);
-    }) as Box<FnMut(E)>);
+    }) as Box<dyn FnMut(E)>);
 
     target.add_event_listener_with_callback(event, &closure.as_ref().unchecked_ref());
     closure.forget(); // TODO: don't leak this.

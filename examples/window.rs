@@ -3,7 +3,6 @@ extern crate winit;
 #[macro_use]
 extern crate stdweb;
 #[cfg(feature = "wasm-bindgen")]
-#[macro_use]
 extern crate wasm_bindgen;
 #[cfg(feature = "wasm-bindgen")]
 extern crate web_sys;
