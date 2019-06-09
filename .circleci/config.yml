@@ -32,7 +32,7 @@ jobs:
           paths:
             - target
 
-  wasm-test:
+  emscripten-test:
     working_directory: ~/winit
     docker:
       - image: tomaka/rustc-emscripten
@@ -43,7 +43,22 @@ jobs:
           key: wasm-test-cache-{{ checksum "Cargo.toml" }}
       - run: cargo build --example window --target wasm32-unknown-emscripten
       - save_cache:
+          key: emscripten-test-cache-{{ checksum "Cargo.toml" }}
+          paths:
+            - target
+
+  websys-test:
+    working_directory: ~/winit
+    docker:
+      - image: tomaka/rustc-emscripten
+    steps:
+      - run: apt-get -qq update && apt-get install -y git
+      - checkout
+      - restore_cache:
           key: wasm-test-cache-{{ checksum "Cargo.toml" }}
+      - run: cargo build --example wasm_bindgen --target wasm32-unknown-unknown --features websys
+      - save_cache:
+          key: websys-test-cache-{{ checksum "Cargo.toml" }}
           paths:
             - target
   
@@ -53,4 +68,5 @@ workflows:
     jobs:
       - android-test
       - asmjs-test
-      - wasm-test
+      - emscripten-test
+      - websys-test
