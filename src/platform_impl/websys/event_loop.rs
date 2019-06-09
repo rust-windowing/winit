@@ -1,7 +1,7 @@
 use ::event_loop::{ControlFlow, EventLoopClosed};
 use ::event_loop::EventLoopWindowTarget as WinitELT;
 use ::event::{Event, StartCause};
-use super::window::{MonitorHandle, Window, WindowId, WindowInternal};
+use super::window::{MonitorHandle, WindowId};
 #[macro_use]
 use platform_impl::platform::wasm_util as util;
 
@@ -11,7 +11,7 @@ use std::cell::{Cell, RefCell};
 
 use ::wasm_bindgen::prelude::*;
 use ::wasm_bindgen::JsCast;
-use ::web_sys::{Element, HtmlCanvasElement};
+use ::web_sys::{HtmlCanvasElement};
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum EventLoopState {

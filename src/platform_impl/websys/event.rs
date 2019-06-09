@@ -4,7 +4,6 @@ use ::event::WindowEvent as WindowEvent;
 use ::event::DeviceId as WDeviceId;
 use ::event::{ElementState, MouseButton};
 
-use ::wasm_bindgen::prelude::*;
 use ::web_sys::MouseEvent;
 use super::window::DeviceId;
 

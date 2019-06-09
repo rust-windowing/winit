@@ -92,5 +92,7 @@ features = [
     'MouseEvent',
     'Node',
     'Window',
-    'console'
+    'console',
+    'CssStyleDeclaration',
+    'DomRect',
 ]

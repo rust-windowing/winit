@@ -1,17 +1,16 @@
 use window::{WindowAttributes};
 use std::collections::VecDeque;
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::Cell;
 use dpi::{PhysicalPosition, LogicalPosition, PhysicalSize, LogicalSize};
 use icon::Icon;
 use super::event_loop::{EventLoopWindowTarget};
 
 use ::error::{ExternalError, NotSupportedError};
-use ::monitor::AvailableMonitorsIter;
 use ::window::CursorIcon;
 
-use ::wasm_bindgen::prelude::*;
 use ::wasm_bindgen::JsCast;
+use web_sys::HtmlElement;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(u32);
@@ -54,20 +53,30 @@ impl MonitorHandle {
     /// Returns `None` if the monitor doesn't exist anymore.
     #[inline]
     pub fn name(&self) -> Option<String> {
-        unimplemented!()
+        Some(String::from("Browser Window"))
     }
 
     /// Returns the monitor's resolution.
     #[inline]
     pub fn dimensions(&self) -> PhysicalSize {
-        unimplemented!()
+        let win = ::web_sys::window().expect("there to be a window");
+        let w = match win.inner_width() {
+            Ok(val) => val.as_f64().unwrap(),
+            Err(val) => 0.0
+        };
+        let h = match win.inner_height() {
+            Ok(val) => val.as_f64().unwrap(),
+            Err(val) => 0.0
+        };
+
+        (w, h).into()
     }
 
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
     #[inline]
     pub fn position(&self) -> PhysicalPosition {
-        unimplemented!()
+        (0, 0).into()
     }
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
@@ -80,31 +89,18 @@ impl MonitorHandle {
     /// - **Android:** Always returns 1.0.
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
-        unimplemented!()
+        1.0
     }
 }
 
 pub struct Window {
     pub(crate) canvas: ::web_sys::HtmlCanvasElement,
+    pub(crate) redraw_requested: Cell<bool>
 }
 
 pub(crate) struct WindowInternal<'a, T: 'static> {
     pub target: &'a EventLoopWindowTarget<T>,
     _marker: std::marker::PhantomData<T>,
-}
-
-macro_rules! install_simple_handler {
-    ($in:ty, $f:ident, $w:ident, $e:ident) => {
-        let win = $w.clone();
-        let handler = Closure::wrap(Box::new(move |event: $in| {
-            win.target.window_events.borrow_mut().push(event.into());
-            if win.target.is_sleeping() {
-                win.target.wake();
-            }
-        }) as Box<FnMut($in)>);
-        $e.$f(Some(handler.as_ref().unchecked_ref()));
-        handler.forget();
-    }
 }
 
 impl Window {
@@ -138,34 +134,17 @@ impl Window {
                     .expect("Could not create a canvas")
                     .dyn_into::<::web_sys::HtmlCanvasElement>().unwrap();
                 
-                parent.append_child(&canvas);
+                parent.append_child(&canvas)?;
 
                 canvas
             }
         };
 
-        let internal = Rc::new(WindowInternal {
-            target: &target,
-            _marker: std::marker::PhantomData,
-        });
-
         target.setup_window(&element);
-
-        // TODO: move these to event_loop.  we can pass 'static closures to web_sys::Closure,
-        // meaning i can't use the reference to target.  womp womp.
-        //
-        // we should still own the canvas, but events should be with the event loop.
-        // should bring back target.set_window, which can register the event handlers.
-        /*
-        install_simple_handler!(::web_sys::MouseEvent, set_onmousedown, internal, element);
-        install_simple_handler!(::web_sys::MouseEvent, set_onmouseup, internal, element);
-        install_simple_handler!(::web_sys::MouseEvent, set_onmouseenter, internal, element);
-        install_simple_handler!(::web_sys::MouseEvent, set_onmouseleave, internal, element);
-        */
-
 
         Ok(Window {
             canvas: element,
+            redraw_requested: Cell::new(false)
         })
     }
 
@@ -213,7 +192,12 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn request_redraw(&self) {
-        unimplemented!()
+        self.redraw_requested.replace(true);
+    }
+
+    #[inline]
+    fn canvas_as_element(&self) -> &HtmlElement {
+        &self.canvas
     }
 }
 
@@ -232,7 +216,8 @@ impl Window {
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
     pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
-        unimplemented!()
+        let rect = self.canvas_as_element().get_bounding_client_rect();
+        Ok((rect.x(), rect.y()).into())
     }
 
     /// Returns the position of the top-left hand corner of the window relative to the
@@ -251,7 +236,7 @@ impl Window {
     ///   window in the screen space coordinate system.
     #[inline]
     pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
-        unimplemented!()
+        self.inner_position()
     }
 
     /// Modifies the position of the window.
@@ -266,6 +251,7 @@ impl Window {
     ///   window in the screen space coordinate system.
     #[inline]
     pub fn set_outer_position(&self, position: LogicalPosition) {
+        // TODO: support this?
         unimplemented!()
     }
 
@@ -283,7 +269,8 @@ impl Window {
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
     pub fn inner_size(&self) -> LogicalSize {
-        unimplemented!()
+        let rect = self.canvas_as_element().get_bounding_client_rect();
+        (rect.width(), rect.height()).into()
     }
 
     /// Modifies the inner size of the window.
@@ -310,7 +297,7 @@ impl Window {
     ///   screen space coordinates.
     #[inline]
     pub fn outer_size(&self) -> LogicalSize {
-        unimplemented!()
+        self.inner_size()
     }
 
     /// Sets a minimum dimension size for the window.
@@ -384,7 +371,7 @@ impl Window {
     /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        unimplemented!()
+        // no-op
     }
 
     /// Sets the window to fullscreen or back.
@@ -394,7 +381,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<::monitor::MonitorHandle>) {
-        unimplemented!()
+        // no-op
     }
 
     /// Gets the window's current fullscreen state.
@@ -404,7 +391,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn fullscreen(&self) -> Option<::monitor::MonitorHandle> {
-        unimplemented!()
+        None
     }
 
     /// Turn window decorations on or off.
@@ -417,7 +404,7 @@ impl Window {
     /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
-        unimplemented!()
+        // no-op
     }
 
     /// Change whether or not the window will always be on top of other windows.
@@ -427,7 +414,7 @@ impl Window {
     /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
-        unimplemented!()
+        // no-op
     }
 
     /// Sets the window icon. On Windows and X11, this is typically the small icon in the top-left
@@ -440,6 +427,7 @@ impl Window {
     /// This only has an effect on Windows and X11.
     #[inline]
     pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+        // TODO: set favicon?
         unimplemented!()
     }
 
@@ -450,7 +438,7 @@ impl Window {
     /// **iOS:** Has no effect.
     #[inline]
     pub fn set_ime_position(&self, position: LogicalPosition) {
-        unimplemented!()
+        // no-op
     }
 }
 
@@ -464,7 +452,41 @@ impl Window {
     /// - **Android:** Has no effect.
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        unimplemented!()
+        let cursor_style = match cursor {
+            CursorIcon::Crosshair => "crosshair",
+            CursorIcon::Hand => "pointer",
+            CursorIcon::Move => "move",
+            CursorIcon::Text => "text",
+            CursorIcon::Wait => "wait",
+            CursorIcon::Help => "help",
+            CursorIcon::Progress => "progress",
+
+            /// Cursor showing that something cannot be done.
+            CursorIcon::NotAllowed => "not-allowed",
+            CursorIcon::ContextMenu => "context-menu",
+            CursorIcon::Cell => "cell",
+            CursorIcon::VerticalText => "vertical-text",
+            CursorIcon::Alias => "alias",
+            CursorIcon::Copy => "copy",
+            CursorIcon::NoDrop => "no-drop",
+
+            CursorIcon::EResize => "e-resize",
+            CursorIcon::NResize => "n-resize",
+            CursorIcon::NeResize => "ne-resize",
+            CursorIcon::NwResize => "nw-resize",
+            CursorIcon::SResize => "s-resize",
+            CursorIcon::SeResize => "se-resize",
+            CursorIcon::SwResize => "sw-resize",
+            CursorIcon::WResize => "w-resize",
+            CursorIcon::EwResize => "ew-resize",
+            CursorIcon::NsResize => "ns-resize",
+            CursorIcon::NeswResize => "nesw-resize",
+            CursorIcon::NwseResize => "nwse-resize",
+            CursorIcon::ColResize => "col-resize",
+            CursorIcon::RowResize => "row-resize",
+            _ => "auto",
+        };
+        self.canvas_as_element().style().set_property("cursor", cursor_style).unwrap();
     }
 
     /// Changes the position of the cursor in window coordinates.
@@ -474,7 +496,8 @@ impl Window {
     /// - **iOS:** Always returns an `Err`.
     #[inline]
     pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
-        unimplemented!()
+        // unsupported
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     /// Grabs the cursor, preventing it from leaving the window.
@@ -487,7 +510,8 @@ impl Window {
     /// - **iOS:** Always returns an Err.
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        unimplemented!()
+        // unsupported
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     /// Modifies the cursor's visibility.
@@ -504,7 +528,12 @@ impl Window {
     /// - **Android:** Has no effect.
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        unimplemented!()
+        let style = self.canvas_as_element().style();
+        if visible {
+            style.set_property("cursor", "none").unwrap();
+        } else {
+            style.set_property("cursor", "auto").unwrap();
+        }
     }
 }
 
@@ -517,7 +546,7 @@ impl Window {
     /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn current_monitor(&self) -> ::monitor::MonitorHandle {
-        unimplemented!()
+        ::monitor::MonitorHandle{ inner: MonitorHandle{} }
     }
 
     /// Returns the list of all the monitors available on the system.
@@ -528,8 +557,8 @@ impl Window {
     ///
     /// **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn available_monitors(&self) -> std::collections::VecDeque<MonitorHandle> {
-        unimplemented!()
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        vec![MonitorHandle{}].into()
     }
 
     /// Returns the primary monitor of the system.

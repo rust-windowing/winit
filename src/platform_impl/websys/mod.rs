@@ -1,7 +1,7 @@
 pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
 pub use self::window::{DeviceId, MonitorHandle, Window, WindowId, PlatformSpecificWindowBuilderAttributes};
 
-use std::fmt::{Display, Debug, Error, Formatter};
+use std::fmt::{Display, Error, Formatter};
 
 #[macro_use]
 mod wasm_util;

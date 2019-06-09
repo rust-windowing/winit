@@ -1,6 +1,4 @@
 use wasm_bindgen::prelude::*;
-
-#[macro_use]
 use ::error::OsError as WOsError;
 
 use super::OsError;
