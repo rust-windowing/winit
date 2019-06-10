@@ -366,13 +366,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
 
     #[inline]
     fn with_resize_increments<S: Into<LogicalSize>>(mut self, increments: S) -> WindowBuilder {
-        self.platform_specific.resize_increments = Some(increments.into());
+        self.platform_specific.resize_increments = Some(increments.into().into());
         self
     }
 
     #[inline]
     fn with_base_size<S: Into<LogicalSize>>(mut self, base_size: S) -> WindowBuilder {
-        self.platform_specific.base_size = Some(base_size.into());
+        self.platform_specific.base_size = Some(base_size.into().into());
         self
     }
 
