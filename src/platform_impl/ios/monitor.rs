@@ -136,7 +136,7 @@ impl Inner {
     }
 }
 
-// MonitorHandleExtIOS
+// MonitorHandleExt
 impl Inner {
     pub fn ui_screen(&self) -> id {
         self.uiscreen

@@ -138,7 +138,7 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
-// EventLoopExtIOS
+// EventLoopExt
 impl<T: 'static> EventLoop<T> {
     pub fn idiom(&self) -> Idiom {
         // guaranteed to be on main thread

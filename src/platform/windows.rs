@@ -12,13 +12,13 @@ use window::{Icon, Window, WindowBuilder};
 use platform_impl::EventLoop as WindowsEventLoop;
 
 /// Additional methods on `EventLoop` that are specific to Windows.
-pub trait EventLoopExtWindows {
+pub trait EventLoopExt {
     /// By default, winit on Windows will attempt to enable process-wide DPI awareness. If that's
     /// undesirable, you can create an `EventLoop` using this function instead.
     fn new_dpi_unaware() -> Self where Self: Sized;
 }
 
-impl<T> EventLoopExtWindows for EventLoop<T> {
+impl<T> EventLoopExt for EventLoop<T> {
     #[inline]
     fn new_dpi_unaware() -> Self {
         EventLoop {
@@ -29,7 +29,7 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
 }
 
 /// Additional methods on `Window` that are specific to Windows.
-pub trait WindowExtWindows {
+pub trait WindowExt {
     /// Returns the native handle that is used by this window.
     ///
     /// The pointer will become invalid when the native window was destroyed.
@@ -39,7 +39,7 @@ pub trait WindowExtWindows {
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 }
 
-impl WindowExtWindows for Window {
+impl WindowExt for Window {
     #[inline]
     fn hwnd(&self) -> *mut libc::c_void {
         self.window.hwnd() as *mut _
@@ -52,7 +52,7 @@ impl WindowExtWindows for Window {
 }
 
 /// Additional methods on `WindowBuilder` that are specific to Windows.
-pub trait WindowBuilderExtWindows {
+pub trait WindowBuilderExt {
     /// Sets a parent to the window to be created.
     fn with_parent_window(self, parent: HWND) -> WindowBuilder;
 
@@ -63,7 +63,7 @@ pub trait WindowBuilderExtWindows {
     fn with_no_redirection_bitmap(self, flag: bool) -> WindowBuilder;
 }
 
-impl WindowBuilderExtWindows for WindowBuilder {
+impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_parent_window(mut self, parent: HWND) -> WindowBuilder {
         self.platform_specific.parent = Some(parent);
@@ -84,7 +84,7 @@ impl WindowBuilderExtWindows for WindowBuilder {
 }
 
 /// Additional methods on `MonitorHandle` that are specific to Windows.
-pub trait MonitorHandleExtWindows {
+pub trait MonitorHandleExt {
     /// Returns the name of the monitor adapter specific to the Win32 API.
     fn native_id(&self) -> String;
 
@@ -92,7 +92,7 @@ pub trait MonitorHandleExtWindows {
     fn hmonitor(&self) -> *mut c_void;
 }
 
-impl MonitorHandleExtWindows for MonitorHandle {
+impl MonitorHandleExt for MonitorHandle {
     #[inline]
     fn native_id(&self) -> String {
         self.inner.native_identifier()
@@ -105,14 +105,14 @@ impl MonitorHandleExtWindows for MonitorHandle {
 }
 
 /// Additional methods on `DeviceId` that are specific to Windows.
-pub trait DeviceIdExtWindows {
+pub trait DeviceIdExt {
     /// Returns an identifier that persistently refers to this specific device.
     ///
     /// Will return `None` if the device is no longer available.
     fn persistent_identifier(&self) -> Option<String>;
 }
 
-impl DeviceIdExtWindows for DeviceId {
+impl DeviceIdExt for DeviceId {
     #[inline]
     fn persistent_identifier(&self) -> Option<String> {
         self.0.persistent_identifier()

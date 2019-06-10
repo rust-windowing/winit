@@ -7,7 +7,7 @@ use crate::monitor::MonitorHandle;
 use crate::window::{Window, WindowBuilder};
 
 /// Additional methods on `Window` that are specific to MacOS.
-pub trait WindowExtMacOS {
+pub trait WindowExt {
     /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
@@ -39,7 +39,7 @@ pub trait WindowExtMacOS {
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
 }
 
-impl WindowExtMacOS for Window {
+impl WindowExt for Window {
     #[inline]
     fn nswindow(&self) -> *mut c_void {
         self.window.nswindow()
@@ -93,7 +93,7 @@ impl Default for ActivationPolicy {
 ///  - `with_titlebar_hidden`
 ///  - `with_titlebar_buttons_hidden`
 ///  - `with_fullsize_content_view`
-pub trait WindowBuilderExtMacOS {
+pub trait WindowBuilderExt {
     /// Sets the activation policy for the window being built.
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
@@ -112,7 +112,7 @@ pub trait WindowBuilderExtMacOS {
     fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
 }
 
-impl WindowBuilderExtMacOS for WindowBuilder {
+impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_activation_policy(mut self, activation_policy: ActivationPolicy) -> WindowBuilder {
         self.platform_specific.activation_policy = activation_policy;
@@ -163,14 +163,14 @@ impl WindowBuilderExtMacOS for WindowBuilder {
 }
 
 /// Additional methods on `MonitorHandle` that are specific to MacOS.
-pub trait MonitorHandleExtMacOS {
+pub trait MonitorHandleExt {
     /// Returns the identifier of the monitor for Cocoa.
     fn native_id(&self) -> u32;
     /// Returns a pointer to the NSScreen representing this monitor.
     fn nsscreen(&self) -> Option<*mut c_void>;
 }
 
-impl MonitorHandleExtMacOS for MonitorHandle {
+impl MonitorHandleExt for MonitorHandle {
     #[inline]
     fn native_id(&self) -> u32 {
         self.inner.native_identifier()

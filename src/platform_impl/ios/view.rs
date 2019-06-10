@@ -10,7 +10,7 @@ use event::{
     TouchPhase,
     WindowEvent
 };
-use platform::ios::MonitorHandleExtIOS;
+use platform::ios::MonitorHandleExt;
 use window::{WindowAttributes, WindowId as RootWindowId};
 
 use platform_impl::platform::app_state::AppState;

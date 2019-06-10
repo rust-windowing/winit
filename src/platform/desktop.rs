@@ -8,7 +8,7 @@ use event::Event;
 use event_loop::{EventLoop, EventLoopWindowTarget, ControlFlow};
 
 /// Additional methods on `EventLoop` that are specific to desktop platforms.
-pub trait EventLoopExtDesktop {
+pub trait EventLoopExt {
     /// A type provided by the user that can be passed through `Event::UserEvent`.
     type UserEvent;
 
@@ -20,7 +20,7 @@ pub trait EventLoopExtDesktop {
         where F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
 }
 
-impl<T> EventLoopExtDesktop for EventLoop<T> {
+impl<T> EventLoopExt for EventLoop<T> {
     type UserEvent = T;
 
     fn run_return<F>(&mut self, event_handler: F)

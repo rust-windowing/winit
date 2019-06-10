@@ -23,7 +23,7 @@ use {
         CursorIcon, WindowAttributes, WindowId as RootWindowId,
     },
 };
-use platform::macos::{ActivationPolicy, WindowExtMacOS};
+use platform::macos::{ActivationPolicy, WindowExt};
 use platform_impl::platform::{
     OsError,
     app_state::AppState, ffi, monitor::{self, MonitorHandle},
@@ -768,7 +768,7 @@ impl UnownedWindow {
     }
 }
 
-impl WindowExtMacOS for UnownedWindow {
+impl WindowExt for UnownedWindow {
     #[inline]
     fn nswindow(&self) -> *mut c_void {
         *self.nswindow as *mut _

@@ -70,8 +70,8 @@ fn main() {
                         #[cfg(target_os = "macos")]
                         {
                             if macos_use_simple_fullscreen {
-                                use winit::platform::macos::WindowExtMacOS;
-                                if WindowExtMacOS::set_simple_fullscreen(&window, !is_fullscreen) {
+                                use winit::platform::macos::WindowExt;
+                                if WindowExt::set_simple_fullscreen(&window, !is_fullscreen) {
                                     is_fullscreen = !is_fullscreen;
                                 }
                                 return;
@@ -90,8 +90,8 @@ fn main() {
 
                         #[cfg(target_os = "macos")]
                         {
-                            use winit::platform::macos::WindowExtMacOS;
-                            println!("window.simple_fullscreen {:?}", WindowExtMacOS::simple_fullscreen(&window));
+                            use winit::platform::macos::WindowExt;
+                            println!("window.simple_fullscreen {:?}", WindowExt::simple_fullscreen(&window));
                         }
                     }
                     (VirtualKeyCode::M, ElementState::Pressed) => {

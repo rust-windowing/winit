@@ -6,23 +6,23 @@ use Window;
 use WindowBuilder;
 
 /// Additional methods on `EventLoop` that are specific to Android.
-pub trait EventLoopExtAndroid {
+pub trait EventLoopExt {
     /// Makes it possible for glutin to register a callback when a suspend event happens on Android
     fn set_suspend_callback(&self, cb: Option<Box<Fn(bool) -> ()>>);
 }
 
-impl EventLoopExtAndroid for EventLoop {
+impl EventLoopExt for EventLoop {
     fn set_suspend_callback(&self, cb: Option<Box<Fn(bool) -> ()>>) {
         self.event_loop.set_suspend_callback(cb);
     }
 }
 
 /// Additional methods on `Window` that are specific to Android.
-pub trait WindowExtAndroid {
+pub trait WindowExt {
     fn native_window(&self) -> *const c_void;
 }
 
-impl WindowExtAndroid for Window {
+impl WindowExt for Window {
     #[inline]
     fn native_window(&self) -> *const c_void {
         self.window.native_window()
@@ -30,9 +30,9 @@ impl WindowExtAndroid for Window {
 }
 
 /// Additional methods on `WindowBuilder` that are specific to Android.
-pub trait WindowBuilderExtAndroid {
+pub trait WindowBuilderExt {
 
 }
 
-impl WindowBuilderExtAndroid for WindowBuilder {
+impl WindowBuilderExt for WindowBuilder {
 }

@@ -7,19 +7,19 @@ use monitor::MonitorHandle;
 use window::{Window, WindowBuilder};
 
 /// Additional methods on `EventLoop` that are specific to iOS.
-pub trait EventLoopExtIOS {
+pub trait EventLoopExt {
     /// Returns the idiom (phone/tablet/tv/etc) for the current device.
     fn idiom(&self) -> Idiom;
 }
 
-impl<T: 'static> EventLoopExtIOS for EventLoop<T> {
+impl<T: 'static> EventLoopExt for EventLoop<T> {
     fn idiom(&self) -> Idiom {
         self.event_loop.idiom()
     }
 }
 
 /// Additional methods on `Window` that are specific to iOS.
-pub trait WindowExtIOS {
+pub trait WindowExt {
     /// Returns a pointer to the `UIWindow` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
@@ -46,7 +46,7 @@ pub trait WindowExtIOS {
     fn set_valid_orientations(&self, valid_orientations: ValidOrientations);
 }
 
-impl WindowExtIOS for Window {
+impl WindowExt for Window {
     #[inline]
     fn ui_window(&self) -> *mut c_void {
         self.window.ui_window() as _
@@ -74,7 +74,7 @@ impl WindowExtIOS for Window {
 }
 
 /// Additional methods on `WindowBuilder` that are specific to iOS.
-pub trait WindowBuilderExtIOS {
+pub trait WindowBuilderExt {
     /// Sets the root view class used by the `Window`, otherwise a barebones `UIView` is provided.
     ///
     /// The class will be initialized by calling `[root_view initWithFrame:CGRect]`
@@ -90,7 +90,7 @@ pub trait WindowBuilderExtIOS {
     fn with_valid_orientations(self, valid_orientations: ValidOrientations) -> WindowBuilder;
 }
 
-impl WindowBuilderExtIOS for WindowBuilder {
+impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_root_view_class(mut self, root_view_class: *const c_void) -> WindowBuilder {
         self.platform_specific.root_view_class = unsafe { &*(root_view_class as *const _) };
@@ -111,12 +111,12 @@ impl WindowBuilderExtIOS for WindowBuilder {
 }
 
 /// Additional methods on `MonitorHandle` that are specific to iOS.
-pub trait MonitorHandleExtIOS {
+pub trait MonitorHandleExt {
     /// Returns a pointer to the `UIScreen` that is used by this monitor.
     fn ui_screen(&self) -> *mut c_void;
 }
 
-impl MonitorHandleExtIOS for MonitorHandle {
+impl MonitorHandleExt for MonitorHandle {
     #[inline]
     fn ui_screen(&self) -> *mut c_void {
         self.inner.ui_screen() as _

@@ -20,7 +20,7 @@
       - `Exit` aborts the event loop.
     - Takes a closure that implements `'static + FnMut(Event<T>, &EventLoop<T>, &mut ControlFlow)`.
       - `&EventLoop<T>` is provided to allow new `Window`s to be created.
-  - **Major:** `platform::desktop` module exposes `EventLoopExtDesktop` trait with `run_return` method.
+  - **Major:** `platform::desktop` module exposes `EventLoopExt` trait with `run_return` method.
     - Behaves identically to `run`, but returns control flow to the calling context and can take non-`'static` closures.
   - `EventLoop`'s `poll_events` and `run_forever` methods have been removed in favor of `run` and `run_return`.
 - Changes to events:

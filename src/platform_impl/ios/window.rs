@@ -9,7 +9,7 @@ use dpi::{self, LogicalPosition, LogicalSize};
 use error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use icon::Icon;
 use monitor::MonitorHandle as RootMonitorHandle;
-use platform::ios::{MonitorHandleExtIOS, ValidOrientations};
+use platform::ios::{MonitorHandleExt, ValidOrientations};
 use window::{
     CursorIcon,
     WindowAttributes,
@@ -340,7 +340,7 @@ impl Window {
     }
 }
 
-// WindowExtIOS
+// WindowExt
 impl Inner {
     pub fn ui_window(&self) -> id { self.window }
     pub fn ui_view_controller(&self) -> id { self.view_controller }
@@ -348,7 +348,7 @@ impl Inner {
 
     pub fn set_hidpi_factor(&self, hidpi_factor: f64) {
         unsafe {
-            assert!(dpi::validate_hidpi_factor(hidpi_factor), "`WindowExtIOS::set_hidpi_factor` received an invalid hidpi factor");
+            assert!(dpi::validate_hidpi_factor(hidpi_factor), "`WindowExt::set_hidpi_factor` received an invalid hidpi factor");
             let hidpi_factor = hidpi_factor as CGFloat;
             let () = msg_send![self.view, setContentScaleFactor:hidpi_factor];
         }
