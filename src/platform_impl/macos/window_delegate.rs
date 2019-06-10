@@ -13,8 +13,8 @@ use platform_impl::platform::{
 };
 
 pub struct WindowDelegateState {
-    nswindow: IdRef, // never changes
-    nsview: IdRef, // never changes
+    ns_window: IdRef, // never changes
+    ns_view: IdRef, // never changes
 
     window: Weak<UnownedWindow>,
 
@@ -40,8 +40,8 @@ impl WindowDelegateState {
         let dpi_factor = window.hidpi_factor();
 
         let mut delegate_state = WindowDelegateState {
-            nswindow: window.nswindow.clone(),
-            nsview: window.nsview.clone(),
+            ns_window: window.ns_window.clone(),
+            ns_view: window.ns_view.clone(),
             window: Arc::downgrade(&window),
             initial_fullscreen,
             previous_position: None,
@@ -66,24 +66,24 @@ impl WindowDelegateState {
 
     pub fn emit_event(&mut self, event: WindowEvent) {
         let event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(*self.nswindow)),
+            window_id: WindowId(get_window_id(*self.ns_window)),
             event,
         };
         AppState::queue_event(event);
     }
 
     pub fn emit_resize_event(&mut self) {
-        let rect = unsafe { NSView::frame(*self.nsview) };
+        let rect = unsafe { NSView::frame(*self.ns_view) };
         let size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
         let event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(*self.nswindow)),
+            window_id: WindowId(get_window_id(*self.ns_window)),
             event: WindowEvent::Resized(size),
         };
         AppState::send_event_immediately(event);
     }
 
     fn emit_move_event(&mut self) {
-        let rect = unsafe { NSWindow::frame(*self.nswindow) };
+        let rect = unsafe { NSWindow::frame(*self.ns_window) };
         let x = rect.origin.x as f64;
         let y = util::bottom_left_to_top_left(rect);
         let moved = self.previous_position != Some((x, y));
@@ -219,7 +219,7 @@ extern fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> id {
         if this != nil {
             (*this).set_ivar("winitState", state);
             with_state(&*this, |state| {
-                let () = msg_send![*state.nswindow, setDelegate:this];
+                let () = msg_send![*state.ns_window, setDelegate:this];
             });
         }
         this
@@ -240,7 +240,7 @@ extern fn window_will_close(this: &Object, _: Sel, _: id) {
         let pool = NSAutoreleasePool::new(nil);
         // Since El Capitan, we need to be careful that delegate methods can't
         // be called after the window closes.
-        let () = msg_send![*state.nswindow, setDelegate:nil];
+        let () = msg_send![*state.ns_window, setDelegate:nil];
         pool.drain();
         state.emit_event(WindowEvent::Destroyed);
     });
@@ -269,7 +269,7 @@ extern fn window_did_change_screen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidChangeScreen:`");
     with_state(this, |state| {
         let dpi_factor = unsafe {
-            NSWindow::backingScaleFactor(*state.nswindow)
+            NSWindow::backingScaleFactor(*state.ns_window)
          } as f64;
         if state.previous_dpi_factor != dpi_factor {
             state.previous_dpi_factor = dpi_factor;
@@ -285,7 +285,7 @@ extern fn window_did_change_backing_properties(this: &Object, _:Sel, _:id) {
     trace!("Triggered `windowDidChangeBackingProperties:`");
     with_state(this, |state| {
         let dpi_factor = unsafe {
-            NSWindow::backingScaleFactor(*state.nswindow)
+            NSWindow::backingScaleFactor(*state.ns_window)
         } as f64;
         if state.previous_dpi_factor != dpi_factor {
             state.previous_dpi_factor = dpi_factor;
@@ -447,7 +447,7 @@ extern fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidFailToEnterFullscreen:`");
     with_state(this, |state| {
         if state.initial_fullscreen {
-            let _: () = unsafe { msg_send![*state.nswindow,
+            let _: () = unsafe { msg_send![*state.ns_window,
                 performSelector:sel!(toggleFullScreen:)
                 withObject:nil
                 afterDelay: 0.5

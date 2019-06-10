@@ -11,12 +11,12 @@ pub trait WindowExtMacOS {
     /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
-    fn nswindow(&self) -> *mut c_void;
+    fn ns_window(&self) -> *mut c_void;
 
     /// Returns a pointer to the cocoa `NSView` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
-    fn nsview(&self) -> *mut c_void;
+    fn ns_view(&self) -> *mut c_void;
 
     /// Request user attention, causing the application's dock icon to bounce.
     /// Note that this has no effect if the application is already focused.
@@ -41,13 +41,13 @@ pub trait WindowExtMacOS {
 
 impl WindowExtMacOS for Window {
     #[inline]
-    fn nswindow(&self) -> *mut c_void {
-        self.window.nswindow()
+    fn ns_window(&self) -> *mut c_void {
+        self.window.ns_window()
     }
 
     #[inline]
-    fn nsview(&self) -> *mut c_void {
-        self.window.nsview()
+    fn ns_view(&self) -> *mut c_void {
+        self.window.ns_view()
     }
 
     #[inline]
@@ -167,7 +167,7 @@ pub trait MonitorHandleExtMacOS {
     /// Returns the identifier of the monitor for Cocoa.
     fn native_id(&self) -> u32;
     /// Returns a pointer to the NSScreen representing this monitor.
-    fn nsscreen(&self) -> Option<*mut c_void>;
+    fn ns_screen(&self) -> Option<*mut c_void>;
 }
 
 impl MonitorHandleExtMacOS for MonitorHandle {
@@ -176,7 +176,7 @@ impl MonitorHandleExtMacOS for MonitorHandle {
         self.inner.native_identifier()
     }
 
-    fn nsscreen(&self) -> Option<*mut c_void> {
-        self.inner.nsscreen().map(|s| s as *mut c_void)
+    fn ns_screen(&self) -> Option<*mut c_void> {
+        self.inner.ns_screen().map(|s| s as *mut c_void)
     }
 }

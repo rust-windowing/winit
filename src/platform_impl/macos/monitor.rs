@@ -86,14 +86,14 @@ impl MonitorHandle {
     }
 
     pub fn hidpi_factor(&self) -> f64 {
-        let screen = match self.nsscreen() {
+        let screen = match self.ns_screen() {
             Some(screen) => screen,
             None => return 1.0, // default to 1.0 when we can't find the screen
         };
         unsafe { NSScreen::backingScaleFactor(screen) as f64 }
     }
 
-    pub(crate) fn nsscreen(&self) -> Option<id> {
+    pub(crate) fn ns_screen(&self) -> Option<id> {
         unsafe {
             let native_id = self.native_identifier();
             let screens = NSScreen::screens(nil);
