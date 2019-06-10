@@ -10,7 +10,7 @@ pub trait EventsLoopExt {
     /// to the the given `NSEventMask`.
     ///
     /// The default is `NSAnyEventMask | NSEventMaskPressure`.
-    fn with_nseventmask(nseventmask: NSEventMask) -> Self;
+    fn with_nseventmask(nseventmask: NSEventMask) -> Self where Self: Sized;
 
     /// Returns the `NSEventMask` used for listening to events.
     fn get_nseventmask(&self) -> NSEventMask;
