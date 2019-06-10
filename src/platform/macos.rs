@@ -109,7 +109,7 @@ pub trait WindowBuilderExtMacOS {
     /// Makes the window content appear behind the titlebar.
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
     /// Build window with `resizeIncrements` property. Values must not be 0.
-    fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
+    fn with_resize_increments<S: Into<LogicalSize>>(self, increments: S) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -156,8 +156,8 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize) -> WindowBuilder {
-        self.platform_specific.resize_increments = Some(increments.into());
+    fn with_resize_increments<S: Into<LogicalSize>>(mut self, increments: S) -> WindowBuilder {
+        self.platform_specific.resize_increments = Some(increments.into().into());
         self
     }
 }

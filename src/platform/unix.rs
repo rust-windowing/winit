@@ -319,9 +319,9 @@ pub trait WindowBuilderExtUnix {
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     fn with_gtk_theme_variant(self, variant: String) -> WindowBuilder;
     /// Build window with resize increment hint. Only implemented on X11.
-    fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
+    fn with_resize_increments<S: Into<LogicalSize>>(self, increments: S) -> WindowBuilder;
     /// Build window with base size hint. Only implemented on X11.
-    fn with_base_size(self, base_size: LogicalSize) -> WindowBuilder;
+    fn with_base_size<S: Into<LogicalSize>>(self, base_size: S) -> WindowBuilder;
 
     /// Build window with a given application ID. It should match the `.desktop` file distributed with
     /// your program. Only relevant on Wayland.
@@ -365,13 +365,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize) -> WindowBuilder {
+    fn with_resize_increments<S: Into<LogicalSize>>(mut self, increments: S) -> WindowBuilder {
         self.platform_specific.resize_increments = Some(increments.into());
         self
     }
 
     #[inline]
-    fn with_base_size(mut self, base_size: LogicalSize) -> WindowBuilder {
+    fn with_base_size<S: Into<LogicalSize>>(mut self, base_size: S) -> WindowBuilder {
         self.platform_specific.base_size = Some(base_size.into());
         self
     }

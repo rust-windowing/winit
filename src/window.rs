@@ -175,22 +175,22 @@ impl WindowBuilder {
 
     /// Requests the window to be of specific dimensions.
     #[inline]
-    pub fn with_inner_size(mut self, size: LogicalSize) -> WindowBuilder {
-        self.window.inner_size = Some(size);
+    pub fn with_inner_size<S: Into<LogicalSize>>(mut self, size: S) -> WindowBuilder {
+        self.window.inner_size = Some(size.into());
         self
     }
 
     /// Sets a minimum dimension size for the window
     #[inline]
-    pub fn with_min_inner_size(mut self, min_size: LogicalSize) -> WindowBuilder {
-        self.window.min_inner_size = Some(min_size);
+    pub fn with_min_inner_size<S: Into<LogicalSize>>(mut self, min_size: S) -> WindowBuilder {
+        self.window.min_inner_size = Some(min_size.into());
         self
     }
 
     /// Sets a maximum dimension size for the window
     #[inline]
-    pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> WindowBuilder {
-        self.window.max_inner_size = Some(max_size);
+    pub fn with_max_inner_size<S: Into<LogicalSize>>(mut self, max_size: S) -> WindowBuilder {
+        self.window.max_inner_size = Some(max_size.into());
         self
     }
 
@@ -413,8 +413,8 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
     ///   window in the screen space coordinate system.
     #[inline]
-    pub fn set_outer_position(&self, position: LogicalPosition) {
-        self.window.set_outer_position(position)
+    pub fn set_outer_position<P: Into<LogicalPosition>>(&self, position: P) {
+        self.window.set_outer_position(position.into())
     }
 
     /// Returns the logical size of the window's client area.
@@ -443,8 +443,8 @@ impl Window {
     /// - **iOS:** Unimplemented. Currently this panics, as it's not clear what `set_inner_size`
     ///   would mean for iOS.
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
-        self.window.set_inner_size(size)
+    pub fn set_inner_size<S: Into<LogicalSize>>(&self, size: S) {
+        self.window.set_inner_size(size.into())
     }
 
     /// Returns the logical size of the entire window.
@@ -597,8 +597,8 @@ impl Window {
     ///
     /// **iOS:** Has no effect.
     #[inline]
-    pub fn set_ime_position(&self, position: LogicalPosition) {
-        self.window.set_ime_position(position)
+    pub fn set_ime_position<P: Into<LogicalPosition>>(&self, position: P) {
+        self.window.set_ime_position(position.into())
     }
 }
 
@@ -621,8 +621,8 @@ impl Window {
     ///
     /// - **iOS:** Always returns an `Err`.
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
-        self.window.set_cursor_position(position)
+    pub fn set_cursor_position<P: Into<LogicalPosition>>(&self, position: P) -> Result<(), ExternalError> {
+        self.window.set_cursor_position(position.into())
     }
 
     /// Grabs the cursor, preventing it from leaving the window.
