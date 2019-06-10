@@ -10,6 +10,7 @@ use std::os::raw::*;
 use super::DeviceId;
 
 pub struct EventsLoop {
+    event_mask: NSEventMask,
     modifiers: Modifiers,
     pub shared: Arc<Shared>,
 }
@@ -163,6 +164,10 @@ impl UserCallback {
 impl EventsLoop {
 
     pub fn new() -> Self {
+        Self::with_mask(NSEventMask::NSAnyEventMask | NSEventMask::NSEventMaskPressure)
+    }
+
+    pub fn with_mask(event_mask: NSEventMask) -> Self {
         // Mark this thread as the main thread of the Cocoa event system.
         //
         // This must be done before any worker threads get a chance to call it
@@ -173,6 +178,7 @@ impl EventsLoop {
         EventsLoop {
             shared: Arc::new(Shared::new()),
             modifiers: Modifiers::new(),
+            event_mask,
         }
     }
 
@@ -197,7 +203,7 @@ impl EventsLoop {
 
                 // Poll for the next event, returning `nil` if there are none.
                 let ns_event = appkit::NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                    NSEventMask::NSAnyEventMask.bits() | NSEventMask::NSEventMaskPressure.bits(),
+                    self.event_mask.bits(),
                     foundation::NSDate::distantPast(cocoa::base::nil),
                     foundation::NSDefaultRunLoopMode,
                     cocoa::base::YES);

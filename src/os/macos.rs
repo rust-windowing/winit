@@ -1,7 +1,27 @@
 #![cfg(target_os = "macos")]
 
 use std::os::raw::c_void;
-use {LogicalSize, MonitorId, Window, WindowBuilder};
+use cocoa::appkit::NSEventMask;
+use {EventsLoop, LogicalSize, MonitorId, Window, WindowBuilder};
+
+/// Additional methods on `EventsLoop` that are specific to MacOS.
+pub trait EventsLoopExt {
+    /// Builds a new events loop that will only listen to events that correspond
+    /// to the the given `NSEventMask`.
+    ///
+    /// The default is `NSAnyEventMask | NSEventMaskPressure`.
+    fn with_mask(event_mask: NSEventMask) -> Self;
+}
+
+impl EventsLoopExt for EventsLoop {
+    #[inline]
+    fn with_mask(event_mask: NSEventMask) -> Self {
+        EventsLoop {
+            events_loop: ::platform::EventsLoop::with_mask(event_mask),
+            _marker: ::std::marker::PhantomData,
+        }
+    }
+}
 
 /// Additional methods on `Window` that are specific to MacOS.
 pub trait WindowExt {
