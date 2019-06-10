@@ -467,8 +467,8 @@ impl Window {
     ///
     /// - **iOS:** Has no effect.
     #[inline]
-    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.window.set_min_inner_size(dimensions)
+    pub fn set_min_inner_size<S: Into<LogicalSize>>(&self, dimensions: Option<S>) {
+        self.window.set_min_inner_size(dimensions.map(Into::into))
     }
 
     /// Sets a maximum dimension size for the window.
@@ -477,8 +477,8 @@ impl Window {
     ///
     /// - **iOS:** Has no effect.
     #[inline]
-    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.window.set_max_inner_size(dimensions)
+    pub fn set_max_inner_size<S: Into<LogicalSize>>(&self, dimensions: Option<S>) {
+        self.window.set_max_inner_size(dimensions.map(Into::into))
     }
 }
 
