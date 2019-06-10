@@ -1,6 +1,7 @@
 # Unreleased
 
 - On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
+- On macOS, added the ability to choose `NSEventMask` used by `EventsLoop`
 
 # Version 0.19.1 (2019-04-08)
 
