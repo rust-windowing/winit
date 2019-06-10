@@ -39,6 +39,7 @@
 - Removed `serde` implementations from `ControlFlow`.
 - Rename several functions to improve both internal consistency and compliance with Rust API guidelines.
 - Remove `WindowBuilder::multitouch` field, since it was only implemented on a few platforms. Multitouch is always enabled now.
+- **Breaking:** On macOS, change `ns` identifiers to use snake_case for consistency with iOS's `ui` identifiers.
 
 # Version 0.19.1 (2019-04-08)
 
