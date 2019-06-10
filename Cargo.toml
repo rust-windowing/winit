@@ -16,7 +16,7 @@ features = ["serde"]
 [dependencies]
 lazy_static = "1"
 libc = "0.2"
-log = "0.4"
+log = { version = "0.4", optional = true }
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 
 [dev-dependencies]
@@ -72,3 +72,6 @@ percent-encoding = "1.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
 version = "0.8"
+
+[features]
+default = ["log"]

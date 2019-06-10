@@ -79,6 +79,7 @@
 #[macro_use]
 extern crate lazy_static;
 extern crate libc;
+#[cfg(feature = "log")]
 #[macro_use]
 extern crate log;
 #[cfg(feature = "serde")]
@@ -118,6 +119,8 @@ pub mod error;
 pub mod event;
 pub mod event_loop;
 mod icon;
+#[macro_use]
+mod macros;
 mod platform_impl;
 pub mod window;
 pub mod monitor;
