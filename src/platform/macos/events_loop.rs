@@ -10,7 +10,7 @@ use std::os::raw::*;
 use super::DeviceId;
 
 pub struct EventsLoop {
-    event_mask: NSEventMask,
+    pub event_mask: NSEventMask,
     modifiers: Modifiers,
     pub shared: Arc<Shared>,
 }

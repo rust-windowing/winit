@@ -11,6 +11,12 @@ pub trait EventsLoopExt {
     ///
     /// The default is `NSAnyEventMask | NSEventMaskPressure`.
     fn with_mask(event_mask: NSEventMask) -> Self;
+
+    /// Returns the `NSEventMask` used for listening to events.
+    fn get_mask(&self) -> NSEventMask;
+
+    /// Sets the `NSEventMask` used for listening to events.
+    fn set_mask(&mut self, event_mask: NSEventMask);
 }
 
 impl EventsLoopExt for EventsLoop {
@@ -20,6 +26,16 @@ impl EventsLoopExt for EventsLoop {
             events_loop: ::platform::EventsLoop::with_mask(event_mask),
             _marker: ::std::marker::PhantomData,
         }
+    }
+
+    #[inline]
+    fn get_mask(&self) -> NSEventMask {
+        self.events_loop.event_mask
+    }
+
+    #[inline]
+    fn set_mask(&mut self, mask: NSEventMask) {
+        self.events_loop.event_mask = mask;
     }
 }
 
