@@ -255,7 +255,7 @@ impl EventsLoop {
 
                 // Wait for the next event. Note that this function blocks during resize.
                 let ns_event = appkit::NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
-                    NSEventMask::NSAnyEventMask.bits() | NSEventMask::NSEventMaskPressure.bits(),
+                    self.nseventmask.bits(),
                     foundation::NSDate::distantFuture(cocoa::base::nil),
                     foundation::NSDefaultRunLoopMode,
                     cocoa::base::YES);
