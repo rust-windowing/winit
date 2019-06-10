@@ -17,7 +17,7 @@ fn main() {
     let mut window_senders = HashMap::with_capacity(WINDOW_COUNT);
     for _ in 0..WINDOW_COUNT {
         let window = WindowBuilder::new()
-            .with_inner_size(WINDOW_SIZE.into())
+            .with_inner_size(WINDOW_SIZE)
             .build(&event_loop)
             .unwrap();
         let (tx, rx) = mpsc::channel();
@@ -55,7 +55,7 @@ fn main() {
                                 println!("-> inner_size     : {:?}", window.inner_size());
                             },
                             L => window.set_min_inner_size(match state {
-                                true => Some(WINDOW_SIZE.into()),
+                                true => Some(WINDOW_SIZE),
                                 false => None,
                             }),
                             M => window.set_maximized(state),
@@ -71,11 +71,11 @@ fn main() {
                             S => window.set_inner_size(match state {
                                 true => (WINDOW_SIZE.0 + 100, WINDOW_SIZE.1 + 100),
                                 false => WINDOW_SIZE,
-                            }.into()),
+                            }),
                             W => window.set_cursor_position((
                                 WINDOW_SIZE.0 as i32 / 2,
                                 WINDOW_SIZE.1 as i32 / 2,
-                            ).into()).unwrap(),
+                            )).unwrap(),
                             Z => {
                                 window.set_visible(false);
                                 thread::sleep(Duration::from_secs(1));
