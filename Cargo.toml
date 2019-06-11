@@ -18,6 +18,7 @@ lazy_static = "1"
 libc = "0.2"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
+derivative = "1.0.2"
 
 [dev-dependencies]
 image = "0.21"

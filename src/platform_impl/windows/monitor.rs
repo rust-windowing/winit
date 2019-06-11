@@ -13,10 +13,12 @@ use platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use platform_impl::platform::window::Window;
 
 /// Win32 implementation of the main `MonitorHandle` object.
-#[derive(Clone)]
+#[derive(Derivative)]
+#[derivative(Debug, Clone)]
 pub struct MonitorHandle {
     /// Monitor handle.
     hmonitor: HMonitor,
+    #[derivative(Debug = "ignore")]
     monitor_info: winuser::MONITORINFOEXW,
     /// The system name of the monitor.
     monitor_name: String,
@@ -30,12 +32,6 @@ pub struct MonitorHandle {
     dimensions: (u32, u32),
     /// DPI scale factor.
     hidpi_factor: f64,
-}
-
-impl std::fmt::Debug for MonitorHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "MonitorHandle {{ hmonitor: {:?}, monitor_name: {:?}, primary: {}, position: {:?}, dimensions: {:?}, hidpi_factor: {} }}", self.hmonitor, self.monitor_name, self.primary, self.position, self.dimensions, self.hidpi_factor)
-    }
 }
 
 // Send is not implemented for HMONITOR, we have to wrap it and implement it manually.

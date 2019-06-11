@@ -84,6 +84,8 @@ extern crate log;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate derivative;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
