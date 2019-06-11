@@ -654,14 +654,14 @@ unsafe fn init<T: 'static>(
         thread_executor: event_loop.create_thread_executor(),
     };
 
+    let dimensions = attributes.inner_size.unwrap_or_else(|| PhysicalSize::new(1024, 768).into());
+    win.set_inner_size(dimensions);
+    win.set_visible(attributes.visible);
+
     if let Some(_) = attributes.fullscreen {
         win.set_fullscreen(attributes.fullscreen);
         force_window_active(win.window.0);
     }
-
-    let dimensions = attributes.inner_size.unwrap_or_else(|| PhysicalSize::new(1024, 768).into());
-    win.set_inner_size(dimensions);
-    win.set_visible(attributes.visible);
 
     Ok(win)
 }
