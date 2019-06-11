@@ -42,6 +42,7 @@
 - **Breaking:** On macOS, change `ns` identifiers to use snake_case for consistency with iOS's `ui` identifiers.
 - Add `MonitorHandle::video_modes` method for retrieving supported video modes for the given monitor.
 - On Wayland, the window now exists even if nothing has been drawn.
+- On Windows, fix initial dimensions of a fullscreen window.
 
 # Version 0.19.1 (2019-04-08)
 
