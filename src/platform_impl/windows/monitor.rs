@@ -186,15 +186,10 @@ impl MonitorHandle {
 
         loop {
             unsafe {
+                let device_name = self.monitor_info.szDevice.as_ptr();
                 let mut mode: wingdi::DEVMODEW = mem::zeroed();
                 mode.dmSize = mem::size_of_val(&mode) as WORD;
-                if winuser::EnumDisplaySettingsExW(
-                    self.monitor_info.szDevice.as_ptr(),
-                    i,
-                    &mut mode,
-                    0,
-                ) == 0
-                {
+                if winuser::EnumDisplaySettingsExW(device_name, i, &mut mode, 0) == 0 {
                     break;
                 }
                 i += 1;
