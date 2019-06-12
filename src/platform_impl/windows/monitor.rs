@@ -162,7 +162,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         self.dimensions.into()
     }
 
@@ -201,7 +201,7 @@ impl MonitorHandle {
                 assert!(mode.dmFields & REQUIRED_FIELDS == REQUIRED_FIELDS);
 
                 modes.insert(VideoMode {
-                    dimensions: (mode.dmPelsWidth, mode.dmPelsHeight),
+                    size: (mode.dmPelsWidth, mode.dmPelsHeight),
                     bit_depth: mode.dmBitsPerPel as u16,
                     refresh_rate: mode.dmDisplayFrequency as u16,
                 });
