@@ -234,14 +234,14 @@ impl WindowBuilder {
 
     /// Sets whether the window will be initially hidden or visible.
     #[inline]
-    pub fn with_visibility(mut self, visible: bool) -> WindowBuilder {
+    pub fn with_visible(mut self, visible: bool) -> WindowBuilder {
         self.window.visible = visible;
         self
     }
 
     /// Sets whether the background of the window should be transparent.
     #[inline]
-    pub fn with_transparency(mut self, transparent: bool) -> WindowBuilder {
+    pub fn with_transparent(mut self, transparent: bool) -> WindowBuilder {
         self.window.transparent = transparent;
         self
     }
