@@ -84,6 +84,8 @@ extern crate log;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate derivative;
 
 #[cfg(target_os = "windows")]
 extern crate winapi;
@@ -101,6 +103,8 @@ extern crate dispatch;
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
 extern crate core_graphics;
+#[cfg(target_os = "macos")]
+extern crate core_video_sys;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 extern crate x11_dl;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "windows"))]

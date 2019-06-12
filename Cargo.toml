@@ -18,6 +18,7 @@ lazy_static = "1"
 libc = "0.2"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
+derivative = "1.0.2"
 
 [dev-dependencies]
 image = "0.21"
@@ -33,6 +34,7 @@ objc = "0.2.3"
 cocoa = "0.18.4"
 core-foundation = "0.6"
 core-graphics = "0.17.3"
+core-video-sys = "0.1.2"
 dispatch = "0.1.4"
 objc = "0.2.3"
 

@@ -9,6 +9,7 @@ use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW}
 use event::ModifiersState;
 use dpi::{PhysicalPosition, PhysicalSize};
 use platform_impl::platform::sticky_exit_callback;
+use monitor::VideoMode;
 
 use super::window::WindowStore;
 use super::WindowId;
@@ -583,6 +584,20 @@ impl MonitorHandle {
         self.mgr
             .with_info(&self.proxy, |_, info| info.scale_factor)
             .unwrap_or(1)
+    }
+
+    #[inline]
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode>
+    {
+        self.mgr
+            .with_info(&self.proxy, |_, info| info.modes.clone())
+            .unwrap_or(vec![])
+            .into_iter()
+            .map(|x| VideoMode {
+                dimensions: (x.dimensions.0 as u32, x.dimensions.1 as u32),
+                refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
+                bit_depth: 32
+            })
     }
 }
 

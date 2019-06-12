@@ -1,18 +1,13 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     fmt,
     ops::{Deref, DerefMut},
 };
 
 use dpi::{PhysicalPosition, PhysicalSize};
+use monitor::VideoMode;
 
-use platform_impl::platform::ffi::{
-    id,
-    nil,
-    CGFloat,
-    CGRect,
-    NSUInteger,
-};
+use platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger};
 
 pub struct Inner {
     uiscreen: id,
@@ -133,6 +128,27 @@ impl Inner {
             let scale: CGFloat = msg_send![self.ui_screen(), nativeScale];
             scale as f64
         }
+    }
+
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        let refresh_rate: NSInteger = unsafe { msg_send![self.uiscreen, maximumFramesPerSecond] };
+
+        let available_modes: id = unsafe { msg_send![self.uiscreen, availableModes] };
+        let available_mode_count: NSUInteger = unsafe { msg_send![available_modes, count] };
+
+        let mut modes = HashSet::with_capacity(available_mode_count);
+
+        for i in 0..available_mode_count {
+            let mode: id = unsafe { msg_send![available_modes, objectAtIndex: i] };
+            let size: CGSize = unsafe { msg_send![mode, size] };
+            modes.insert(VideoMode {
+                dimensions: (size.width as u32, size.height as u32),
+                bit_depth: 32,
+                refresh_rate: refresh_rate as u16,
+            });
+        }
+
+        modes.into_iter()
     }
 }
 

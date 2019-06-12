@@ -3,6 +3,7 @@ use std::os::raw::*;
 use parking_lot::Mutex;
 
 use dpi::{PhysicalPosition, PhysicalSize};
+use monitor::VideoMode;
 use super::{util, XConnection, XError};
 use super::ffi::{
     RRCrtcChangeNotifyMask,
@@ -56,6 +57,8 @@ pub struct MonitorHandle {
     pub(crate) hidpi_factor: f64,
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
+    /// Supported video modes on this monitor
+    video_modes: Vec<VideoMode>,
 }
 
 impl MonitorHandle {
@@ -66,7 +69,7 @@ impl MonitorHandle {
         repr: util::MonitorRepr,
         primary: bool,
     ) -> Option<Self> {
-        let (name, hidpi_factor) = unsafe { xconn.get_output_info(resources, &repr)? };
+        let (name, hidpi_factor, video_modes) = unsafe { xconn.get_output_info(resources, &repr)? };
         let (dimensions, position) = unsafe { (repr.dimensions(), repr.position()) };
         let rect = util::AaRect::new(position, dimensions);
         Some(MonitorHandle {
@@ -77,6 +80,7 @@ impl MonitorHandle {
             position,
             primary,
             rect,
+            video_modes,
         })
     }
 
@@ -100,6 +104,11 @@ impl MonitorHandle {
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
         self.hidpi_factor
+    }
+
+    #[inline]
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        self.video_modes.clone().into_iter()
     }
 }
 
