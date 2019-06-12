@@ -7,7 +7,7 @@ fn main() {
     let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new().with_decorations(false)
-                                                 .with_transparency(true)
+                                                 .with_transparent(true)
                                                  .build(&event_loop).unwrap();
 
     window.set_title("A fantastic window!");
