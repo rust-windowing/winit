@@ -1,3 +1,9 @@
+# This branch has been archived
+
+Please direct all work against `master`.
+
+--------
+
 # winit - Cross-platform window creation and management in Rust
 
 [![Crates.io](https://img.shields.io/crates/v/winit.svg)](https://crates.io/crates/winit)
@@ -9,11 +15,6 @@
 [dependencies]
 winit = "0.19.1"
 ```
-
-# Please make PRs against `eventloop-2.0` branch.
-
-All development work for our next version is being done against the [eventloop-2.0](https://github.com/rust-windowing/winit/tree/eventloop-2.0) branch. 
-Refer to [#459](https://github.com/rust-windowing/winit/issues/459) and [the associated milestone](https://github.com/rust-windowing/winit/milestone/2) for details on what that branch changes.
 
 ## [Documentation](https://docs.rs/winit)
 
