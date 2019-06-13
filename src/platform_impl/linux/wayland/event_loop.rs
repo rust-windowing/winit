@@ -249,12 +249,10 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::Poll => {
                     // non-blocking dispatch
                     self.inner_loop.dispatch(Some(::std::time::Duration::from_millis(0)), &mut ()).unwrap();
-                    control_flow = ControlFlow::default();
                     callback(::event::Event::NewEvents(::event::StartCause::Poll), &self.window_target, &mut control_flow);
                 },
                 ControlFlow::Wait => {
                     self.inner_loop.dispatch(None, &mut ()).unwrap();
-                    control_flow = ControlFlow::default();
                     callback(
                         ::event::Event::NewEvents(::event::StartCause::WaitCancelled {
                             start: Instant::now(),
@@ -273,7 +271,6 @@ impl<T: 'static> EventLoop<T> {
                         ::std::time::Duration::from_millis(0)
                     };
                     self.inner_loop.dispatch(Some(duration), &mut ()).unwrap();
-                    control_flow = ControlFlow::default();
                     let now = Instant::now();
                     if now < deadline {
                         callback(
