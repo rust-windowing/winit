@@ -531,7 +531,7 @@ impl fmt::Debug for MonitorHandle {
         struct MonitorHandle {
             name: Option<String>,
             native_identifier: u32,
-            dimensions: PhysicalSize,
+            size: PhysicalSize,
             position: PhysicalPosition,
             hidpi_factor: i32,
         }
@@ -539,7 +539,7 @@ impl fmt::Debug for MonitorHandle {
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
             native_identifier: self.native_identifier(),
-            dimensions: self.dimensions(),
+            size: self.size(),
             position: self.position(),
             hidpi_factor: self.hidpi_factor(),
         };
@@ -560,7 +560,7 @@ impl MonitorHandle {
         self.mgr.with_info(&self.proxy, |id, _| id).unwrap_or(0)
     }
 
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         match self.mgr.with_info(&self.proxy, |_, info| {
             info.modes
                 .iter()
@@ -594,7 +594,7 @@ impl MonitorHandle {
             .unwrap_or(vec![])
             .into_iter()
             .map(|x| VideoMode {
-                dimensions: (x.dimensions.0 as u32, x.dimensions.1 as u32),
+                size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
                 refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
                 bit_depth: 32
             })

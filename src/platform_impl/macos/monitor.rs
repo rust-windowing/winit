@@ -41,7 +41,7 @@ impl fmt::Debug for MonitorHandle {
         struct MonitorHandle {
             name: Option<String>,
             native_identifier: u32,
-            dimensions: PhysicalSize,
+            size: PhysicalSize,
             position: PhysicalPosition,
             hidpi_factor: f64,
         }
@@ -49,7 +49,7 @@ impl fmt::Debug for MonitorHandle {
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
             native_identifier: self.native_identifier(),
-            dimensions: self.dimensions(),
+            size: self.size(),
             position: self.position(),
             hidpi_factor: self.hidpi_factor(),
         };
@@ -74,7 +74,7 @@ impl MonitorHandle {
         self.0
     }
 
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         let MonitorHandle(display_id) = *self;
         let display = CGDisplay::new(display_id);
         let height = display.pixels_high();
@@ -133,7 +133,7 @@ impl MonitorHandle {
                 };
 
                 VideoMode {
-                    dimensions: (mode.width() as u32, mode.height() as u32),
+                    size: (mode.width() as u32, mode.height() as u32),
                     refresh_rate: refresh_rate as u16,
                     bit_depth: mode.bit_depth() as u16,
                 }

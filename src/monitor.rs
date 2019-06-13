@@ -52,15 +52,15 @@ impl Iterator for AvailableMonitorsIter {
 /// [monitor_get]: ../monitor/struct.MonitorHandle.html#method.video_modes
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct VideoMode {
-    pub(crate) dimensions: (u32, u32),
+    pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
 }
 
 impl VideoMode {
     /// Returns the resolution of this video mode.
-    pub fn dimensions(&self) -> PhysicalSize {
-        self.dimensions.into()
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
     }
 
     /// Returns the bit depth of this video mode, as in how many bits you have
@@ -104,8 +104,8 @@ impl MonitorHandle {
 
     /// Returns the monitor's resolution.
     #[inline]
-    pub fn dimensions(&self) -> PhysicalSize {
-        self.inner.dimensions()
+    pub fn size(&self) -> PhysicalSize {
+        self.inner.size()
     }
 
     /// Returns the top-left corner position of the monitor relative to the larger full

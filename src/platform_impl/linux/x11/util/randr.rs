@@ -52,7 +52,7 @@ impl MonitorRepr {
         }
     }
 
-    pub unsafe fn dimensions(&self) -> (u32, u32) {
+    pub unsafe fn size(&self) -> (u32, u32) {
         match *self {
             MonitorRepr::Monitor(monitor) => ((*monitor).width as u32, (*monitor).height as u32),
             MonitorRepr::Crtc(crtc) => ((*crtc).width as u32, (*crtc).height as u32),
@@ -136,7 +136,7 @@ impl XConnection {
                 };
 
                 VideoMode {
-                    dimensions: (x.width, x.height),
+                    size: (x.width, x.height),
                     refresh_rate: (refresh_rate as f32 / 1000.0).round() as u16,
                     bit_depth: bit_depth as u16,
                 }
@@ -151,7 +151,7 @@ impl XConnection {
             dpi / 96.
         } else {
             calc_dpi_factor(
-                repr.dimensions(),
+                repr.size(),
                 ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
             )
         };

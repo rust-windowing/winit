@@ -67,14 +67,14 @@ impl fmt::Debug for MonitorHandle {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,
-            dimensions: PhysicalSize,
+            size: PhysicalSize,
             position: PhysicalPosition,
             hidpi_factor: f64,
         }
 
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
-            dimensions: self.dimensions(),
+            size: self.size(),
             position: self.position(),
             hidpi_factor: self.hidpi_factor(),
         };
@@ -109,7 +109,7 @@ impl Inner {
         }
     }
 
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         unsafe {
             let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
             (bounds.size.width as f64, bounds.size.height as f64).into()
@@ -142,7 +142,7 @@ impl Inner {
             let mode: id = unsafe { msg_send![available_modes, objectAtIndex: i] };
             let size: CGSize = unsafe { msg_send![mode, size] };
             modes.insert(VideoMode {
-                dimensions: (size.width as u32, size.height as u32),
+                size: (size.width as u32, size.height as u32),
                 bit_depth: 32,
                 refresh_rate: refresh_rate as u16,
             });

@@ -120,10 +120,10 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         match self {
-            &MonitorHandle::X(ref m) => m.dimensions(),
-            &MonitorHandle::Wayland(ref m) => m.dimensions(),
+            &MonitorHandle::X(ref m) => m.size(),
+            &MonitorHandle::Wayland(ref m) => m.size(),
         }
     }
 
