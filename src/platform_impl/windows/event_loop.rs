@@ -43,14 +43,13 @@ use winapi::um::winnt::{LPCSTR, SHORT};
 
 use crate::window::WindowId as RootWindowId;
 use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
-use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use crate::event::{DeviceEvent, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent};
 use crate::platform_impl::platform::{event, WindowId, DEVICE_ID, wrap_device_id, util};
 use crate::platform_impl::platform::dpi::{
     become_dpi_aware,
     dpi_to_scale_factor,
     enable_non_client_dpi_scaling,
-    hwnd_scale_factor,
 };
 use crate::platform_impl::platform::drop_handler::FileDropHandler;
 use crate::platform_impl::platform::event::{handle_extended_keys, process_key_params, vkey_to_winit_vkey};
@@ -876,14 +875,12 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let windowpos = lparam as *const winuser::WINDOWPOS;
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
-                let dpi_factor = hwnd_scale_factor(window);
-                let logical_position = LogicalPosition::from_physical(
-                    ((*windowpos).x, (*windowpos).y),
-                    dpi_factor,
+                let physical_position = PhysicalPosition::new(
+                    (*windowpos).x as f64, (*windowpos).y as f64,
                 );
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
-                    event: Moved(logical_position),
+                    event: Moved(physical_position),
                 });
             }
 
@@ -896,11 +893,10 @@ unsafe extern "system" fn public_window_callback<T>(
             let w = LOWORD(lparam as DWORD) as u32;
             let h = HIWORD(lparam as DWORD) as u32;
 
-            let dpi_factor = hwnd_scale_factor(window);
-            let logical_size = LogicalSize::from_physical((w, h), dpi_factor);
+            let physical_size = PhysicalSize::new(w, h);
             let event = Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: Resized(logical_size),
+                event: Resized(physical_size),
             };
 
             {
@@ -961,8 +957,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
-            let dpi_factor = hwnd_scale_factor(window);
-            let position = LogicalPosition::from_physical((x, y), dpi_factor);
+            let position = PhysicalPosition::new(x, y);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1312,11 +1307,10 @@ unsafe extern "system" fn public_window_callback<T>(
                 inputs.as_mut_ptr(),
                 mem::size_of::<winuser::TOUCHINPUT>() as INT,
             ) > 0 {
-                let dpi_factor = hwnd_scale_factor(window);
                 for input in &inputs {
                     let x = (input.x as f64) / 100f64;
                     let y = (input.y as f64) / 100f64;
-                    let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                    let location = PhysicalPosition::new(x, y);
                     subclass_input.send_event( Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {

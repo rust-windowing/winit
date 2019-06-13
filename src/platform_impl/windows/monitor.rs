@@ -1,6 +1,5 @@
 use winapi::shared::minwindef::{BOOL, DWORD, LPARAM, TRUE, WORD};
 use winapi::shared::windef::{HDC, HMONITOR, HWND, LPRECT, POINT};
-use winapi::um::winnt::LONG;
 use winapi::um::{wingdi, winuser};
 
 use std::collections::{HashSet, VecDeque};

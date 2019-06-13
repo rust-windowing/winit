@@ -7,7 +7,7 @@
 use std::time::Instant;
 use std::path::PathBuf;
 
-use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::window::WindowId;
 use crate::platform_impl;
 
@@ -87,10 +87,10 @@ pub enum StartCause {
 #[derive(Clone, Debug, PartialEq)]
 pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(LogicalSize),
+    Resized(PhysicalSize),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(LogicalPosition),
+    Moved(PhysicalPosition),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -134,7 +134,7 @@ pub enum WindowEvent {
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: LogicalPosition,
+        position: PhysicalPosition,
         modifiers: ModifiersState
     },
 
@@ -291,7 +291,7 @@ pub enum TouchPhase {
 pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
-    pub location: LogicalPosition,
+    pub location: PhysicalPosition,
     /// unique identifier of a finger.
     pub id: u64
 }
