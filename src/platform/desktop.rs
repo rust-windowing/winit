@@ -27,14 +27,14 @@ pub trait EventLoopExtDesktop {
     ///
     /// You are strongly encouraged to use `run`, unless the use of this is absolutely necessary.
     fn run_return<F>(&mut self, event_handler: F)
-        where F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
+        where F: FnMut(Event<'_, Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
 }
 
 impl<T> EventLoopExtDesktop for EventLoop<T> {
     type UserEvent = T;
 
     fn run_return<F>(&mut self, event_handler: F)
-        where F: FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow)
+        where F: FnMut(Event<'_, Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow)
     {
         self.event_loop.run_return(event_handler)
     }

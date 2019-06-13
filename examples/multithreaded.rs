@@ -106,7 +106,9 @@ fn main() {
                         window_senders.remove(&window_id);
                     },
                     _ => if let Some(tx) = window_senders.get(&window_id) {
-                        tx.send(event).unwrap();
+                        if let Some(event) = event.to_static() {
+                            tx.send(event).unwrap();
+                        }
                     },
                 }
             }
