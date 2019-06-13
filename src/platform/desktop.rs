@@ -16,6 +16,16 @@ pub trait EventLoopExtDesktop {
     ///
     /// Unlike `run`, this function accepts non-`'static` (i.e. non-`move`) closures and returns
     /// control flow to the caller when `control_flow` is set to `ControlFlow::Exit`.
+    ///
+    /// # Caveats
+    /// Despite its apperance at first glance, this is *not* a perfect replacement for
+    /// `poll_events`. For example, this function will not return on Windows or macOS while a
+    /// window is getting resized, resulting in all application logic outside of the
+    /// `event_handler` closure not running until the resize operation ends. Other OS operations
+    /// may also result in such freezes. This behavior is caused by fundamental limitations in the
+    /// underyling OS APIs, which cannot be hidden by Winit without severe stability reprecussions.
+    ///
+    /// You are strongly encouraged to use `run`, unless the use of this is absolutely necessary.
     fn run_return<F>(&mut self, event_handler: F)
         where F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
 }
