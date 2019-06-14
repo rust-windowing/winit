@@ -56,6 +56,8 @@ impl<'a, T> Event<'a, T> {
         }
     }
 
+    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
+    /// Otherwise, return `None`.
     pub fn to_static(self) -> Option<Event<'static, T>> {
         use self::Event::*;
         match self {
