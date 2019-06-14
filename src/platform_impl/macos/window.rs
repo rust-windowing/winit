@@ -217,10 +217,17 @@ pub struct SharedState {
     pub resizable: bool,
     pub fullscreen: Option<RootMonitorHandle>,
     pub maximized: bool,
-    standard_frame: Option<NSRect>,
+    pub standard_frame: Option<NSRect>,
     is_simple_fullscreen: bool,
     pub saved_style: Option<NSWindowStyleMask>,
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
+}
+
+impl SharedState {
+    pub fn saved_standard_frame(&self) -> NSRect {
+        self.standard_frame
+            .unwrap_or_else(|| NSRect::new(NSPoint::new(50.0, 50.0), NSSize::new(800.0, 600.0)))
+    }
 }
 
 impl From<WindowAttributes> for SharedState {
@@ -378,8 +385,7 @@ impl UnownedWindow {
 
     pub fn set_title(&self, title: &str) {
         unsafe {
-            let title = IdRef::new(NSString::alloc(nil).init_str(title));
-            self.ns_window.setTitle_(*title);
+            util::set_title_async(*self.ns_window, title.to_string());
         }
     }
 
@@ -570,13 +576,6 @@ impl UnownedWindow {
         }
     }
 
-    fn saved_standard_frame(shared_state: &mut SharedState) -> NSRect {
-        shared_state.standard_frame.unwrap_or_else(|| NSRect::new(
-            NSPoint::new(50.0, 50.0),
-            NSSize::new(800.0, 600.0),
-        ))
-    }
-
     pub(crate) fn restore_state_from_fullscreen(&self) {
         let maximized = {
             trace!("Locked shared state in `restore_state_from_fullscreen`");
@@ -596,42 +595,17 @@ impl UnownedWindow {
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let is_zoomed = self.is_zoomed();
-        if is_zoomed == maximized { return };
-
-        trace!("Locked shared state in `set_maximized`");
-        let mut shared_state_lock = self.shared_state.lock().unwrap();
-
-        // Save the standard frame sized if it is not zoomed
-        if !is_zoomed {
-            unsafe {
-                shared_state_lock.standard_frame = Some(NSWindow::frame(*self.ns_window));
-            }
-        }
-
-        shared_state_lock.maximized = maximized;
-
-        let curr_mask = unsafe { self.ns_window.styleMask() };
-        if shared_state_lock.fullscreen.is_some() {
-            // Handle it in window_did_exit_fullscreen
+        if is_zoomed == maximized {
             return;
-        } else if curr_mask.contains(NSWindowStyleMask::NSResizableWindowMask) {
-            // Just use the native zoom if resizable
-            unsafe { self.ns_window.zoom_(nil) };
-        } else {
-            // if it's not resizable, we set the frame directly
-            unsafe {
-                let new_rect = if maximized {
-                    let screen = NSScreen::mainScreen(nil);
-                    NSScreen::visibleFrame(screen)
-                } else {
-                    Self::saved_standard_frame(&mut *shared_state_lock)
-                };
-                // This probably isn't thread-safe!
-                self.ns_window.setFrame_display_(new_rect, 0);
-            }
+        };
+        unsafe {
+            util::set_maximized_async(
+                *self.ns_window,
+                is_zoomed,
+                maximized,
+                Arc::downgrade(&self.shared_state),
+            );
         }
-
-        trace!("Unlocked shared state in `set_maximized`");
     }
 
     #[inline]
@@ -847,7 +821,7 @@ impl WindowExtMacOS for UnownedWindow {
                     app.setPresentationOptions_(presentation_opts);
                 }
 
-                let frame = Self::saved_standard_frame(&mut *shared_state_lock);
+                let frame = shared_state_lock.saved_standard_frame();
                 NSWindow::setFrame_display_(*self.ns_window, frame, YES);
                 NSWindow::setMovable_(*self.ns_window, YES);
 
