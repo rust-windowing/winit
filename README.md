@@ -50,8 +50,8 @@ fn main() {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
+                window_id,
+            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
             _ => *control_flow = ControlFlow::Wait,
         }
     });

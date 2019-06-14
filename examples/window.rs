@@ -6,7 +6,7 @@ use winit::event_loop::{EventLoop, ControlFlow};
 fn main() {
     let event_loop = EventLoop::new();
 
-    let _window = WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();
@@ -17,8 +17,8 @@ fn main() {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
+                window_id,
+            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
             _ => *control_flow = ControlFlow::Wait,
         }
     });
