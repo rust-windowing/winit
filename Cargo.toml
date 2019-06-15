@@ -74,5 +74,5 @@ percent-encoding = "1.0"
 version = "0.8"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.stdweb]
-version = "0.4.17"
+path = "../stdweb"
 optional = true

@@ -10,6 +10,7 @@ use stdweb::{
         document,
         event::*,
         html_element::CanvasElement,
+        TimeoutHandle,
     },
 };
 use std::cell::RefCell;
@@ -17,6 +18,7 @@ use std::collections::VecDeque;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::time::Instant;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(i32);
@@ -66,9 +68,42 @@ pub struct ELRShared<T> {
 }
 
 struct EventLoopRunner<T> {
-    control: ControlFlow,
+    control: ControlFlowStatus,
     is_busy: bool,
     event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
+}
+
+enum ControlFlowStatus {
+    WaitUntil {
+        timeout: TimeoutHandle,
+        start: Instant,
+        end: Instant
+    },
+    Wait {
+        start: Instant,
+    },
+    Poll {
+        timeout: TimeoutHandle
+    },
+    Exit
+}
+
+impl ControlFlowStatus {
+    fn to_control_flow(&self) -> ControlFlow {
+        match self {
+            ControlFlowStatus::WaitUntil { end, .. } => ControlFlow::WaitUntil(*end),
+            ControlFlowStatus::Wait { .. } => ControlFlow::Wait,
+            ControlFlowStatus::Poll { .. } => ControlFlow::Poll,
+            ControlFlowStatus::Exit => ControlFlow::Exit,
+        }
+    }
+
+    fn is_exit(&self) -> bool {
+        match self {
+            ControlFlowStatus::Exit => true,
+            _ => false,
+        }
+    }
 }
 
 impl<T> EventLoop<T> {
@@ -151,8 +186,6 @@ impl<T> EventLoop<T> {
                 }
             });
         });
-
-        runner.send_event(Event::NewEvents(StartCause::Init));
 
         stdweb::event_loop(); // TODO: this is only necessary for stdweb emscripten, should it be here?
 
@@ -254,7 +287,7 @@ fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IE
     target.add_event_listener(move |event: E| {
         // Don't capture the event if the events loop has been destroyed
         match &*elrs.runner.borrow() {
-            Some(ref runner) if runner.control == ControlFlow::Exit => return,
+            Some(ref runner) if runner.control.is_exit() => return,
             _ => ()
         }
 
@@ -271,10 +304,11 @@ impl<T> ELRShared<T> {
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootEventLoopWindowTarget reference
     fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
+        // TODO: Start the poll here
         *self.runner.borrow_mut() = Some(EventLoopRunner {
-            control: ControlFlow::Poll,
+            control: ControlFlowStatus::Exit,
             is_busy: false,
-            event_handler
+            event_handler,
         });
     }
 
@@ -287,30 +321,32 @@ impl<T> ELRShared<T> {
             return;
         }
 
+        // TODO: Determine if a timeout needs to be cleared
+
         let start_cause = StartCause::Poll; // TODO: determine start cause
 
         // Determine if event handling is in process, and then release the borrow on the runner
-        let is_busy = if let Some(ref runner) = *self.runner.borrow() {
-            runner.is_busy
-        } else {
-            true // If there is no event runner yet, then there's no point in processing events
-        };
+        match *self.runner.borrow() {
+            Some(ref runner) if !runner.is_busy => {
+                let mut control = runner.control.to_control_flow();
+                // Handle starting a new batch of events
+                //
+                // The user is informed via Event::NewEvents that there is a batch of events to process
+                // However, there is only one of these per batch of events
+                self.handle_event(Event::NewEvents(start_cause), &mut control);
+                self.handle_event(event, &mut control);
+                self.handle_event(Event::EventsCleared, &mut control);
 
-        if is_busy {
-            self.events.borrow_mut().push_back(event);
-        } else {
-            // Handle starting a new batch of events
-            //
-            // The user is informed via Event::NewEvents that there is a batch of events to process
-            // However, there is only one of these per batch of events
-            self.handle_event(Event::NewEvents(start_cause));
-            self.handle_event(event);
-            self.handle_event(Event::EventsCleared);
+                // TODO: integrate control flow change and set up the next iteration
 
-            // If the event loop is closed, it has been closed this iteration and now the closing
-            // event should be emitted
-            if self.closed() {
-                self.handle_event(Event::LoopDestroyed);
+                // If the event loop is closed, it has been closed this iteration and now the closing
+                // event should be emitted
+                if self.closed() {
+                    self.handle_event(Event::LoopDestroyed, &mut control);
+                }
+            }
+            _ => {
+                self.events.borrow_mut().push_back(event);
             }
         }
     }
@@ -318,7 +354,7 @@ impl<T> ELRShared<T> {
     // Check if the event loop is currntly closed
     fn closed(&self) -> bool {
         match *self.runner.borrow() {
-            Some(ref runner) => runner.control == ControlFlow::Exit,
+            Some(ref runner) => runner.control.is_exit(),
             None => false, // If the event loop is None, it has not been intialised yet, so it cannot be closed
         }
     }
@@ -326,7 +362,7 @@ impl<T> ELRShared<T> {
     // handle_event takes in events and either queues them or applies a callback
     //
     // It should only ever be called from send_event
-    fn handle_event(&self, event: Event<T>) {
+    fn handle_event(&self, event: Event<T>, control: &mut ControlFlow) {
         let closed = self.closed();
 
         match *self.runner.borrow_mut() {
@@ -335,11 +371,11 @@ impl<T> ELRShared<T> {
                 runner.is_busy = true;
 
                 // TODO: bracket this in control flow events?
-                (runner.event_handler)(event, &mut runner.control);
-
+                (runner.event_handler)(event, control);
+                
                 // Maintain closed state, even if the callback changes it
                 if closed {
-                    runner.control = ControlFlow::Exit;
+                    *control = ControlFlow::Exit;
                 }
 
                 // An event is no longer being processed
@@ -355,7 +391,7 @@ impl<T> ELRShared<T> {
         if !closed && self.runner.borrow().is_some() {
             // Take an event out of the queue and handle it
             if let Some(event) = self.events.borrow_mut().pop_front() {
-                self.handle_event(event);
+                self.handle_event(event, control);
             }
         }
     }
