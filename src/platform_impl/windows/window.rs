@@ -18,11 +18,11 @@ use winapi::um::wingdi::{CreateRectRgn, DeleteObject};
 use winapi::um::oleidl::LPDROPTARGET;
 use winapi::um::winnt::{LONG, LPCWSTR};
 
-use window::{Icon, CursorIcon, WindowAttributes};
-use error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use dpi::{LogicalPosition, LogicalSize, PhysicalSize};
-use monitor::MonitorHandle as RootMonitorHandle;
-use platform_impl::platform::{
+use crate::window::{Icon, CursorIcon, WindowAttributes};
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize};
+use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::platform_impl::platform::{
     {PlatformSpecificWindowBuilderAttributes, WindowId},
     dpi::{dpi_to_scale_factor, hwnd_dpi},
     drop_handler::FileDropHandler,

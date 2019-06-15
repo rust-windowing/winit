@@ -4,10 +4,10 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use dpi::{PhysicalPosition, PhysicalSize};
-use monitor::VideoMode;
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoMode;
 
-use platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger};
+use crate::platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger};
 
 pub struct Inner {
     uiscreen: id,

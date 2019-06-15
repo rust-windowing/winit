@@ -4,11 +4,11 @@ use std::mem::ManuallyDrop;
 use std::os::raw::c_void;
 use std::time::Instant;
 
-use event::{Event, StartCause};
-use event_loop::ControlFlow;
+use crate::event::{Event, StartCause};
+use crate::event_loop::ControlFlow;
 
-use platform_impl::platform::event_loop::{EventHandler, Never};
-use platform_impl::platform::ffi::{
+use crate::platform_impl::platform::event_loop::{EventHandler, Never};
+use crate::platform_impl::platform::ffi::{
     id,
     CFAbsoluteTimeGetCurrent,
     CFRelease,

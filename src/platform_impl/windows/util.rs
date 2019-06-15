@@ -2,7 +2,7 @@ use std::{mem, ptr, slice, io};
 use std::ops::BitAnd;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use window::CursorIcon;
+use crate::window::CursorIcon;
 use winapi::ctypes::wchar_t;
 use winapi::shared::minwindef::{BOOL, DWORD};
 use winapi::shared::windef::{HWND, POINT, RECT};

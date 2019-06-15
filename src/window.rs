@@ -1,13 +1,13 @@
 //! The `Window` struct and associated types.
 use std::fmt;
 
-use platform_impl;
-use error::{ExternalError, NotSupportedError, OsError};
-use event_loop::EventLoopWindowTarget;
-use monitor::{AvailableMonitorsIter, MonitorHandle};
-use dpi::{LogicalPosition, LogicalSize};
+use crate::platform_impl;
+use crate::error::{ExternalError, NotSupportedError, OsError};
+use crate::event_loop::EventLoopWindowTarget;
+use crate::monitor::{AvailableMonitorsIter, MonitorHandle};
+use crate::dpi::{LogicalPosition, LogicalSize};
 
-pub use icon::*;
+pub use crate::icon::*;
 
 /// Represents a window.
 ///

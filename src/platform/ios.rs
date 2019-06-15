@@ -2,9 +2,9 @@
 
 use std::os::raw::c_void;
 
-use event_loop::EventLoop;
-use monitor::MonitorHandle;
-use window::{Window, WindowBuilder};
+use crate::event_loop::EventLoop;
+use crate::monitor::MonitorHandle;
+use crate::window::{Window, WindowBuilder};
 
 /// Additional methods on `EventLoop` that are specific to iOS.
 pub trait EventLoopExtIOS {

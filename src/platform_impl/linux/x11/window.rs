@@ -8,14 +8,14 @@ use std::sync::Arc;
 use libc;
 use parking_lot::Mutex;
 
-use error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use window::{Icon, CursorIcon, WindowAttributes};
-use dpi::{LogicalPosition, LogicalSize};
-use platform_impl::MonitorHandle as PlatformMonitorHandle;
-use platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
-use platform_impl::x11::ime::ImeContextCreationError;
-use platform_impl::x11::MonitorHandle as X11MonitorHandle;
-use monitor::MonitorHandle as RootMonitorHandle;
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::window::{Icon, CursorIcon, WindowAttributes};
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::platform_impl::MonitorHandle as PlatformMonitorHandle;
+use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
+use crate::platform_impl::x11::ime::ImeContextCreationError;
+use crate::platform_impl::x11::MonitorHandle as X11MonitorHandle;
+use crate::monitor::MonitorHandle as RootMonitorHandle;
 
 use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventLoopWindowTarget};
 

@@ -6,8 +6,8 @@ use cocoa::{
 };
 use objc::{runtime::{Class, Object, Sel, BOOL, YES, NO}, declare::ClassDecl};
 
-use {dpi::LogicalSize, event::{Event, WindowEvent}, window::WindowId};
-use platform_impl::platform::{
+use crate::{dpi::LogicalSize, event::{Event, WindowEvent}, window::WindowId};
+use crate::platform_impl::platform::{
     app_state::AppState, util::{self, IdRef},
     window::{get_window_id, UnownedWindow},
 };

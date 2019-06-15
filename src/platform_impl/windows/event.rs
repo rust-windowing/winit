@@ -2,7 +2,7 @@ use std::{char, ptr};
 use std::os::raw::c_int;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
-use event::{ScanCode, ModifiersState, VirtualKeyCode};
+use crate::event::{ScanCode, ModifiersState, VirtualKeyCode};
 
 use winapi::shared::minwindef::{WPARAM, LPARAM, UINT, HKL, HKL__};
 use winapi::um::winuser;

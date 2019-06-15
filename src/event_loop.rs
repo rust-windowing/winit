@@ -13,9 +13,9 @@ use std::{fmt, error};
 use std::time::Instant;
 use std::ops::Deref;
 
-use platform_impl;
-use event::Event;
-use monitor::{AvailableMonitorsIter, MonitorHandle};
+use crate::platform_impl;
+use crate::event::Event;
+use crate::monitor::{AvailableMonitorsIter, MonitorHandle};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.

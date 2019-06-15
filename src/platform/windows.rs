@@ -5,11 +5,11 @@ use std::os::raw::c_void;
 use libc;
 use winapi::shared::windef::HWND;
 
-use event::DeviceId;
-use monitor::MonitorHandle;
-use event_loop::EventLoop;
-use window::{Icon, Window, WindowBuilder};
-use platform_impl::EventLoop as WindowsEventLoop;
+use crate::event::DeviceId;
+use crate::monitor::MonitorHandle;
+use crate::event_loop::EventLoop;
+use crate::window::{Icon, Window, WindowBuilder};
+use crate::platform_impl::EventLoop as WindowsEventLoop;
 
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopExtWindows {

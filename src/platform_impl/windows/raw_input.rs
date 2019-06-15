@@ -31,8 +31,8 @@ use winapi::um::winuser::{
     RID_INPUT,
 };
 
-use platform_impl::platform::util;
-use event::ElementState;
+use crate::platform_impl::platform::util;
+use crate::event::ElementState;
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {

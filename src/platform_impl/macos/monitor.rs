@@ -11,9 +11,9 @@ use core_video_sys::{
     CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
 };
 
-use dpi::{PhysicalPosition, PhysicalSize};
-use monitor::VideoMode;
-use platform_impl::platform::util::IdRef;
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoMode;
+use crate::platform_impl::platform::util::IdRef;
 
 #[derive(Clone, PartialEq)]
 pub struct MonitorHandle(CGDirectDisplayID);

@@ -11,21 +11,21 @@ use std::os::raw::c_void;
 use std::sync::mpsc::{Receiver, channel};
 
 use {
-    CreationError,
-    Event,
-    LogicalPosition,
-    LogicalSize,
-    CursorIcon,
-    PhysicalPosition,
-    PhysicalSize,
-    WindowAttributes,
-    WindowEvent,
-    WindowId as RootWindowId,
+    crate::CreationError,
+    crate::Event,
+    crate::LogicalPosition,
+    crate::LogicalSize,
+    crate::CursorIcon,
+    crate::PhysicalPosition,
+    crate::PhysicalSize,
+    crate::WindowAttributes,
+    crate::WindowEvent,
+    crate::WindowId as RootWindowId,
 };
 use CreationError::OsError;
-use error::{ExternalError, NotSupportedError};
-use events::{Touch, TouchPhase};
-use window::MonitorHandle as RootMonitorHandle;
+use crate::error::{ExternalError, NotSupportedError};
+use crate::events::{Touch, TouchPhase};
+use crate::window::MonitorHandle as RootMonitorHandle;
 
 pub type OsError = std::io::Error;
 

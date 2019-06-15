@@ -1,7 +1,7 @@
 use std::fmt;
 use std::error;
 
-use platform_impl;
+use crate::platform_impl;
 
 /// An error whose cause it outside Winit's control.
 #[derive(Debug)]

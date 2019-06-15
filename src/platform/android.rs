@@ -1,9 +1,9 @@
 #![cfg(any(target_os = "android"))]
 
 use std::os::raw::c_void;
-use EventLoop;
-use Window;
-use WindowBuilder;
+use crate::EventLoop;
+use crate::Window;
+use crate::WindowBuilder;
 
 /// Additional methods on `EventLoop` that are specific to Android.
 pub trait EventLoopExtAndroid {

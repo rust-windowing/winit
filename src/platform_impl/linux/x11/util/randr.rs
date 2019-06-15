@@ -1,8 +1,8 @@
 use std::{env, slice};
 use std::str::FromStr;
 
-use monitor::VideoMode;
-use dpi::validate_hidpi_factor;
+use crate::monitor::VideoMode;
+use crate::dpi::validate_hidpi_factor;
 use super::*;
 
 pub fn calc_dpi_factor(

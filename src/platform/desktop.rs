@@ -4,8 +4,8 @@
     target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"
 ))]
 
-use event::Event;
-use event_loop::{EventLoop, EventLoopWindowTarget, ControlFlow};
+use crate::event::Event;
+use crate::event_loop::{EventLoop, EventLoopWindowTarget, ControlFlow};
 
 /// Additional methods on `EventLoop` that are specific to desktop platforms.
 pub trait EventLoopExtDesktop {

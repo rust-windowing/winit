@@ -15,7 +15,7 @@ mod window_delegate;
 
 use std::{fmt, ops::Deref, sync::Arc};
 
-use {
+use crate::{
     event::DeviceId as RootDeviceId, window::WindowAttributes,
     error::OsError as RootOsError,
 };

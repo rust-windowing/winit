@@ -3,8 +3,8 @@ use std::collections::VecDeque;
 use cocoa::{appkit::{self, NSEvent}, base::id};
 use objc::{declare::ClassDecl, runtime::{Class, Object, Sel}};
 
-use event::{DeviceEvent, Event};
-use platform_impl::platform::{app_state::AppState, DEVICE_ID, util};
+use crate::event::{DeviceEvent, Event};
+use crate::platform_impl::platform::{app_state::AppState, DEVICE_ID, util};
 
 pub struct AppClass(pub *const Class);
 unsafe impl Send for AppClass {}

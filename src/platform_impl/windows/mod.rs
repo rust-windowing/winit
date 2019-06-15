@@ -7,8 +7,8 @@ pub use self::event_loop::{EventLoop, EventLoopWindowTarget, EventLoopProxy};
 pub use self::monitor::MonitorHandle;
 pub use self::window::Window;
 
-use window::Icon;
-use event::DeviceId as RootDeviceId;
+use crate::window::Icon;
+use crate::event::DeviceId as RootDeviceId;
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {

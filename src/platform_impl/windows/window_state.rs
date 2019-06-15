@@ -1,10 +1,10 @@
-use monitor::MonitorHandle;
-use window::{CursorIcon, WindowAttributes};
+use crate::monitor::MonitorHandle;
+use crate::window::{CursorIcon, WindowAttributes};
 use std::{io, ptr};
 use parking_lot::MutexGuard;
-use dpi::LogicalSize;
-use platform_impl::platform::{util, event_loop};
-use platform_impl::platform::icon::WinIcon;
+use crate::dpi::LogicalSize;
+use crate::platform_impl::platform::{util, event_loop};
+use crate::platform_impl::platform::icon::WinIcon;
 use winapi::shared::windef::{RECT, HWND};
 use winapi::shared::minwindef::DWORD;
 use winapi::um::winuser;

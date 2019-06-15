@@ -4,7 +4,7 @@ use cocoa::{
 };
 use objc::runtime::Sel;
 
-use window::CursorIcon;
+use crate::window::CursorIcon;
 
 pub enum Cursor {
     Native(&'static str),

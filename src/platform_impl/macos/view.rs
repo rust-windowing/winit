@@ -9,14 +9,14 @@ use cocoa::{
 };
 use objc::{declare::ClassDecl, runtime::{BOOL, Class, NO, Object, Protocol, Sel, YES}};
 
-use {
+use crate::{
     event::{
         DeviceEvent, ElementState, Event, KeyboardInput, MouseButton,
         MouseScrollDelta, TouchPhase, VirtualKeyCode, WindowEvent,
     },
     window::WindowId,
 };
-use platform_impl::platform::{
+use crate::platform_impl::platform::{
     app_state::AppState, DEVICE_ID,
     event::{check_function_keys, event_mods, modifier_event, char_to_keycode, get_scancode, scancode_to_keycode},
     util::{self, IdRef}, ffi::*, window::get_window_id,

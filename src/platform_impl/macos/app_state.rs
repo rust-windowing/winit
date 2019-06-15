@@ -6,12 +6,12 @@ use std::{
 
 use cocoa::{appkit::NSApp, base::nil};
 
-use {
+use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     window::WindowId,
 };
-use platform_impl::platform::{observer::EventLoopWaker, util::Never};
+use crate::platform_impl::platform::{observer::EventLoopWaker, util::Never};
 
 lazy_static! {
     static ref HANDLER: Handler = Default::default();
