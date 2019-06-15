@@ -8,6 +8,23 @@ use std::{
     },
 };
 
+use crate::{
+    dpi::{LogicalPosition, LogicalSize},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    icon::Icon,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    platform::macos::{ActivationPolicy, WindowExtMacOS},
+    platform_impl::platform::{
+        app_state::AppState,
+        ffi,
+        monitor::{self, MonitorHandle, VideoMode},
+        util::{self, IdRef},
+        view::{self, new_view},
+        window_delegate::new_delegate,
+        OsError,
+    },
+    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
+};
 use cocoa::{
     appkit::{
         self, CGFloat, NSApp, NSApplication, NSApplicationActivationPolicy,
@@ -17,28 +34,10 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize, NSString},
 };
-use core_graphics::display::CGDisplay;
+use core_graphics::display::{CGConfigureOption, CGDisplay, CGDisplayMode};
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
-};
-
-use crate::{
-    dpi::{LogicalPosition, LogicalSize},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    icon::Icon,
-    monitor::MonitorHandle as RootMonitorHandle,
-    platform::macos::{ActivationPolicy, WindowExtMacOS},
-    platform_impl::platform::{
-        app_state::AppState,
-        ffi,
-        monitor::{self, MonitorHandle},
-        util::{self, IdRef},
-        view::{self, new_view},
-        window_delegate::new_delegate,
-        OsError,
-    },
-    window::{CursorIcon, WindowAttributes, WindowId as RootWindowId},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -113,11 +112,14 @@ fn create_window(
     unsafe {
         let pool = NSAutoreleasePool::new(nil);
         let screen = match attrs.fullscreen {
-            Some(ref monitor_id) => {
-                let monitor_screen = monitor_id.inner.ns_screen();
+            Some(Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor }))
+            | Some(Fullscreen::Exclusive(RootVideoMode {
+                video_mode: VideoMode { ref monitor, .. },
+            })) => {
+                let monitor_screen = monitor.ns_screen();
                 Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
             }
-            _ => None,
+            None => None,
         };
         let frame = match screen {
             Some(screen) => appkit::NSScreen::frame(screen),
@@ -233,12 +235,13 @@ lazy_static! {
 #[derive(Default)]
 pub struct SharedState {
     pub resizable: bool,
-    pub fullscreen: Option<RootMonitorHandle>,
+    pub fullscreen: Option<Fullscreen>,
     pub maximized: bool,
     pub standard_frame: Option<NSRect>,
     is_simple_fullscreen: bool,
     pub saved_style: Option<NSWindowStyleMask>,
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
+    pub saved_desktop_display_mode: Option<(CGDisplay, CGDisplayMode)>,
 }
 
 impl SharedState {
@@ -355,16 +358,7 @@ impl UnownedWindow {
         let delegate = new_delegate(&window, fullscreen.is_some());
 
         // Set fullscreen mode after we setup everything
-        if let Some(monitor) = fullscreen {
-            if monitor.inner != window.current_monitor().inner {
-                // To do this with native fullscreen, we probably need to
-                // warp the window... while we could use
-                // `enterFullScreenMode`, they're idiomatically different
-                // fullscreen modes, so we'd have to support both anyway.
-                unimplemented!();
-            }
-            window.set_fullscreen(Some(monitor));
-        }
+        window.set_fullscreen(fullscreen);
 
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
@@ -627,44 +621,95 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         let shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.fullscreen.clone()
     }
 
     #[inline]
-    /// TODO: Right now set_fullscreen do not work on switching monitors
-    /// in fullscreen mode
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
-        let shared_state_lock = self.shared_state.lock().unwrap();
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        trace!("Locked shared state in `set_fullscreen`");
+        let mut shared_state_lock = self.shared_state.lock().unwrap();
         if shared_state_lock.is_simple_fullscreen {
             return;
         }
+        let old_fullscreen = shared_state_lock.fullscreen.clone();
 
-        let not_fullscreen = {
-            trace!("Locked shared state in `set_fullscreen`");
-            let current = &shared_state_lock.fullscreen;
-            match (current, monitor) {
-                (&Some(ref a), Some(ref b)) if a.inner != b.inner => {
-                    // Our best bet is probably to move to the origin of the
-                    // target monitor.
-                    unimplemented!()
-                }
-                (&None, None) | (&Some(_), Some(_)) => return,
-                _ => (),
+        // TODO: Right now set_fullscreen does not work on switching monitors in
+        // fullscreen mode! Our best bet is probably to move to the origin of
+        // the target monitor.
+        if fullscreen.is_some() {
+            let current_monitor = &self.current_monitor().inner;
+            let new_monitor = match fullscreen {
+                Some(Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor })) => monitor,
+                Some(Fullscreen::Exclusive(RootVideoMode {
+                    video_mode: VideoMode { ref monitor, .. },
+                })) => monitor,
+                None => current_monitor,
+            };
+            if new_monitor != current_monitor {
+                unimplemented!("fullscreen on non-current monitor")
             }
-            trace!("Unlocked shared state in `set_fullscreen`");
-            current.is_none()
-        };
+        }
 
-        unsafe {
-            util::toggle_full_screen_async(
-                *self.ns_window,
-                *self.ns_view,
-                not_fullscreen,
-                Arc::downgrade(&self.shared_state),
-            )
-        };
+        fn change_display_mode(display: &CGDisplay, video_mode: &CGDisplayMode) {
+            let config = display
+                .begin_configuration()
+                .expect("failed to begin display configuration");
+            display
+                .configure_display_with_display_mode(&config, video_mode)
+                .expect("failed to set display mode");
+            display
+                .complete_configuration(&config, CGConfigureOption::ConfigureForAppOnly)
+                .expect("failed to apply new display configuration");
+        }
+
+        if let Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })) = fullscreen {
+            let display = CGDisplay::new(video_mode.monitor().inner.native_identifier());
+
+            // If we're entering exclusive fullscreen and weren't already, store
+            // the desktop display mode so we can restore it upon exiting
+            // fullscreen
+            match old_fullscreen {
+                Some(Fullscreen::Exclusive(_)) => (),
+                Some(Fullscreen::Borderless(_)) | None => {
+                    shared_state_lock.saved_desktop_display_mode =
+                        Some((display, display.display_mode().unwrap()))
+                }
+            };
+
+            // TODO: capture display so other applications can't mess with our
+            // fullscreen mode
+            change_display_mode(&display, &video_mode.native_mode);
+        } else {
+            // Restore desktop display mode
+            if let Some((display, display_mode)) =
+                shared_state_lock.saved_desktop_display_mode.take()
+            {
+                change_display_mode(&display, &display_mode);
+                // TODO: release display
+            }
+        }
+
+        drop(shared_state_lock);
+        trace!("Unlocked shared state in `set_fullscreen`");
+
+        // Toggle window "fullscreen" (this is the thing that happens when you
+        // press the maximize button and the window goes fullscreen on a new
+        // space) if the fullscreen state has changed (note that we only want to
+        // toggle on transitions between windowed and fullscreen mode, not
+        // between different fullscreen modes, hence why we're comparing
+        // `is_some()`)
+        if old_fullscreen.is_some() != fullscreen.is_some() {
+            unsafe {
+                util::toggle_full_screen_async(
+                    *self.ns_window,
+                    *self.ns_view,
+                    old_fullscreen.is_none(),
+                    Arc::downgrade(&self.shared_state),
+                )
+            };
+        }
     }
 
     #[inline]

@@ -14,32 +14,68 @@ use std::{
 use super::{util, EventLoop};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::VideoMode,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::{
         dpi::{dpi_to_scale_factor, get_monitor_dpi},
         window::Window,
     },
 };
 
+#[derive(Derivative)]
+#[derivative(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct VideoMode {
+    pub(crate) size: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+    pub(crate) monitor: MonitorHandle,
+    #[derivative(Debug = "ignore", PartialEq = "ignore", Hash = "ignore")]
+    pub(crate) native_video_mode: wingdi::DEVMODEW,
+}
+
+impl VideoMode {
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
+    }
+
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+
+    pub fn monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle {
+            inner: self.monitor.clone(),
+        }
+    }
+}
+
 /// Win32 implementation of the main `MonitorHandle` object.
 #[derive(Derivative)]
-#[derivative(Debug, Clone)]
+#[derivative(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct MonitorHandle {
     /// Monitor handle.
     hmonitor: HMonitor,
-    #[derivative(Debug = "ignore")]
+    #[derivative(Hash = "ignore", PartialEq = "ignore", Debug = "ignore")]
     monitor_info: winuser::MONITORINFOEXW,
     /// The system name of the monitor.
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     monitor_name: String,
     /// True if this is the primary monitor.
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     primary: bool,
     /// The position of the monitor in pixels on the desktop.
     ///
     /// A window that is positioned at these coordinates will overlap the monitor.
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     position: (i32, i32),
     /// The current resolution in pixels on the monitor.
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     dimensions: (u32, u32),
     /// DPI scale factor.
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     hidpi_factor: f64,
 }
 
@@ -47,7 +83,7 @@ pub struct MonitorHandle {
 // For more info see:
 // https://github.com/retep998/winapi-rs/issues/360
 // https://github.com/retep998/winapi-rs/issues/396
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 struct HMonitor(HMONITOR);
 
 unsafe impl Send for HMonitor {}
@@ -182,7 +218,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
         // anyway), so we're using a HashSet deduplicate
@@ -209,10 +245,14 @@ impl MonitorHandle {
                     size: (mode.dmPelsWidth, mode.dmPelsHeight),
                     bit_depth: mode.dmBitsPerPel as u16,
                     refresh_rate: mode.dmDisplayFrequency as u16,
+                    monitor: self.clone(),
+                    native_video_mode: mode,
                 });
             }
         }
 
-        modes.into_iter()
+        modes
+            .into_iter()
+            .map(|video_mode| RootVideoMode { video_mode })
     }
 }

@@ -13,9 +13,40 @@ use core_video_sys::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::VideoMode,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::util::IdRef,
 };
+
+#[derive(Derivative)]
+#[derivative(Debug, Clone)]
+pub struct VideoMode {
+    pub(crate) size: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+    pub(crate) monitor: MonitorHandle,
+    #[derivative(Debug = "ignore")]
+    pub(crate) native_mode: CGDisplayMode,
+}
+
+impl VideoMode {
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
+    }
+
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+
+    pub fn monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle {
+            inner: self.monitor.clone(),
+        }
+    }
+}
 
 #[derive(Clone, PartialEq)]
 pub struct MonitorHandle(CGDirectDisplayID);
@@ -101,7 +132,7 @@ impl MonitorHandle {
         unsafe { NSScreen::backingScaleFactor(screen) as f64 }
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
         let cv_refresh_rate = unsafe {
             let mut display_link = std::ptr::null_mut();
             assert_eq!(
@@ -117,6 +148,8 @@ impl MonitorHandle {
             time.timeScale as i64 / time.timeValue
         };
 
+        let monitor = self.clone();
+
         CGDisplayMode::all_display_modes(self.0, std::ptr::null())
             .expect("failed to obtain list of display modes")
             .into_iter()
@@ -131,11 +164,15 @@ impl MonitorHandle {
                     cv_refresh_rate
                 };
 
-                VideoMode {
+                let video_mode = VideoMode {
                     size: (mode.width() as u32, mode.height() as u32),
                     refresh_rate: refresh_rate as u16,
                     bit_depth: mode.bit_depth() as u16,
-                }
+                    monitor: monitor.clone(),
+                    native_mode: mode,
+                };
+
+                RootVideoMode { video_mode }
             })
     }
 

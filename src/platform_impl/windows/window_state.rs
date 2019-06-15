@@ -1,11 +1,10 @@
 use crate::{
     dpi::LogicalSize,
-    monitor::MonitorHandle,
     platform_impl::platform::{event_loop, icon::WinIcon, util},
-    window::{CursorIcon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 use parking_lot::MutexGuard;
-use std::{io, ptr};
+use std::{ffi::OsStr, io, os::windows::ffi::OsStrExt, ptr};
 use winapi::{
     shared::{
         minwindef::DWORD,
@@ -29,7 +28,7 @@ pub struct WindowState {
     pub saved_window: Option<SavedWindow>,
     pub dpi_factor: f64,
 
-    pub fullscreen: Option<MonitorHandle>,
+    pub fullscreen: Option<Fullscreen>,
     window_flags: WindowFlags,
 }
 
@@ -133,6 +132,53 @@ impl WindowState {
         this.window_flags
             .set(WindowFlags::MARKER_FULLSCREEN, is_fullscreen);
         let new_flags = this.window_flags;
+
+        // Change video mode if necessary
+        if old_flags & WindowFlags::MARKER_FULLSCREEN != new_flags & WindowFlags::MARKER_FULLSCREEN
+        {
+            let res = if let Some(Fullscreen::Exclusive(ref video_mode)) = this.fullscreen {
+                let monitor = video_mode.monitor();
+
+                // The display name on Windows is the same we get from
+                // EnumDisplayDevices, so it's good for ChangeDisplaySettingsExW
+                let mut display_name = OsStr::new(monitor.name().as_ref().unwrap())
+                    .encode_wide()
+                    .collect::<Vec<_>>();
+                // encode_wide does not add a null-terminator but
+                // ChangeDisplaySettingsExW requires a null-terminated string
+                display_name.push(0);
+
+                let mut native_video_mode = video_mode.video_mode.native_video_mode.clone();
+
+                unsafe {
+                    winuser::ChangeDisplaySettingsExW(
+                        display_name.as_ptr(),
+                        &mut native_video_mode,
+                        std::ptr::null_mut(),
+                        winuser::CDS_FULLSCREEN,
+                        std::ptr::null_mut(),
+                    )
+                }
+            } else {
+                unsafe {
+                    winuser::ChangeDisplaySettingsExW(
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        winuser::CDS_FULLSCREEN,
+                        std::ptr::null_mut(),
+                    )
+                }
+            };
+
+            // These are separate asserts so we can easily see which error we
+            // hit here
+            debug_assert!(res != winuser::DISP_CHANGE_BADFLAGS);
+            debug_assert!(res != winuser::DISP_CHANGE_BADMODE);
+            debug_assert!(res != winuser::DISP_CHANGE_BADPARAM);
+            debug_assert!(res != winuser::DISP_CHANGE_FAILED);
+            assert_eq!(res, winuser::DISP_CHANGE_SUCCESSFUL);
+        }
 
         drop(this);
         old_flags.apply_diff(window, new_flags, set_client_rect);

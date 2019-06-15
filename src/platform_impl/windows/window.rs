@@ -46,7 +46,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorIcon, Icon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Icon, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -424,49 +424,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         let window_state = self.window_state.lock();
         window_state.fullscreen.clone()
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         unsafe {
             let window = self.window.clone();
             let window_state = Arc::clone(&self.window_state);
 
-            match &monitor {
-                &Some(RootMonitorHandle { ref inner }) => {
-                    let (x, y): (i32, i32) = inner.position().into();
-                    let (width, height): (u32, u32) = inner.size().into();
-
-                    let mut monitor = monitor.clone();
-                    self.thread_executor.execute_in_thread(move || {
-                        let mut window_state_lock = window_state.lock();
-
-                        let client_rect =
-                            util::get_client_rect(window.0).expect("get client rect failed!");
-                        window_state_lock.saved_window = Some(SavedWindow {
-                            client_rect,
-                            dpi_factor: window_state_lock.dpi_factor,
-                        });
-
-                        window_state_lock.fullscreen = monitor.take();
-                        WindowState::refresh_window_state(
-                            window_state_lock,
-                            window.0,
-                            Some(RECT {
-                                left: x,
-                                top: y,
-                                right: x + width as c_int,
-                                bottom: y + height as c_int,
-                            }),
-                        );
-
-                        mark_fullscreen(window.0, true);
-                    });
-                }
-                &None => {
+            match fullscreen {
+                None => {
                     self.thread_executor.execute_in_thread(move || {
                         let mut window_state_lock = window_state.lock();
                         window_state_lock.fullscreen = None;
@@ -487,6 +457,43 @@ impl Window {
                         }
 
                         mark_fullscreen(window.0, false);
+                        return;
+                    });
+                }
+                Some(fullscreen) => {
+                    let (position, size): ((i32, i32), (u32, u32)) = match fullscreen {
+                        Fullscreen::Exclusive(ref video_mode) => (
+                            video_mode.monitor().position().into(),
+                            video_mode.size().into(),
+                        ),
+                        Fullscreen::Borderless(ref monitor) => {
+                            (monitor.position().into(), monitor.size().into())
+                        }
+                    };
+
+                    self.thread_executor.execute_in_thread(move || {
+                        let mut window_state_lock = window_state.lock();
+
+                        let client_rect =
+                            util::get_client_rect(window.0).expect("get client rect failed!");
+                        window_state_lock.saved_window = Some(SavedWindow {
+                            client_rect,
+                            dpi_factor: window_state_lock.dpi_factor,
+                        });
+
+                        window_state_lock.fullscreen = Some(fullscreen.clone());
+                        WindowState::refresh_window_state(
+                            window_state_lock,
+                            window.0,
+                            Some(RECT {
+                                left: position.0,
+                                top: position.1,
+                                right: position.0 + size.0 as c_int,
+                                bottom: position.1 + size.1 as c_int,
+                            }),
+                        );
+
+                        mark_fullscreen(window.0, true);
                     });
                 }
             }

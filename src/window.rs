@@ -5,7 +5,7 @@ use crate::{
     dpi::{LogicalPosition, LogicalSize},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
-    monitor::{AvailableMonitorsIter, MonitorHandle},
+    monitor::{AvailableMonitorsIter, MonitorHandle, VideoMode},
     platform_impl,
 };
 
@@ -110,7 +110,7 @@ pub struct WindowAttributes {
     /// Whether the window should be set as fullscreen upon creation.
     ///
     /// The default is `None`.
-    pub fullscreen: Option<MonitorHandle>,
+    pub fullscreen: Option<Fullscreen>,
 
     /// The title of the window in the title bar.
     ///
@@ -222,10 +222,10 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets the window fullscreen state. None means a normal window, Some(MonitorHandle)
+    /// Sets the window fullscreen state. None means a normal window, Some(Fullscreen)
     /// means a fullscreen window on that specific monitor
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: Option<MonitorHandle>) -> WindowBuilder {
+    pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> WindowBuilder {
         self.window.fullscreen = monitor;
         self
     }
@@ -288,20 +288,9 @@ impl WindowBuilder {
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
     #[inline]
     pub fn build<T: 'static>(
-        mut self,
+        self,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Result<Window, OsError> {
-        self.window.inner_size = Some(self.window.inner_size.unwrap_or_else(|| {
-            if let Some(ref monitor) = self.window.fullscreen {
-                // resizing the window to the dimensions of the monitor when fullscreen
-                LogicalSize::from_physical(monitor.size(), monitor.hidpi_factor()) // DPI factor applies here since this is a borderless window and not real fullscreen
-            } else {
-                // default dimensions
-                (1024, 768).into()
-            }
-        }));
-
-        // building
         platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)
             .map(|window| Window { window })
     }
@@ -545,8 +534,8 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<MonitorHandle>) {
-        self.window.set_fullscreen(monitor)
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        self.window.set_fullscreen(fullscreen)
     }
 
     /// Gets the window's current fullscreen state.
@@ -555,7 +544,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn fullscreen(&self) -> Option<MonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.window.fullscreen()
     }
 
@@ -763,4 +752,10 @@ impl Default for CursorIcon {
     fn default() -> Self {
         CursorIcon::Default
     }
+}
+
+#[derive(Clone, Debug)]
+pub enum Fullscreen {
+    Exclusive(VideoMode),
+    Borderless(MonitorHandle),
 }

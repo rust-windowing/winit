@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 use winit::{
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{CursorIcon, WindowBuilder},
+    window::{CursorIcon, Fullscreen, WindowBuilder},
 };
 
 const WINDOW_COUNT: usize = 3;
@@ -44,9 +44,14 @@ fn main() {
                                 false => CursorIcon::Default,
                             }),
                             D => window.set_decorations(!state),
-                            F => window.set_fullscreen(match state {
-                                true => Some(window.current_monitor()),
-                                false => None,
+                            F => window.set_fullscreen(match (state, modifiers.alt) {
+                                (true, false) => {
+                                    Some(Fullscreen::Borderless(window.current_monitor()))
+                                }
+                                (true, true) => Some(Fullscreen::Exclusive(
+                                    window.current_monitor().video_modes().next().unwrap(),
+                                )),
+                                (false, _) => None,
                             }),
                             G => window.set_cursor_grab(state).unwrap(),
                             H => window.set_cursor_visible(!state),

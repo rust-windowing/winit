@@ -22,7 +22,7 @@ use crate::{
         util::{self, IdRef},
         window::{get_window_id, UnownedWindow},
     },
-    window::WindowId,
+    window::{Fullscreen, WindowId},
 };
 
 pub struct WindowDelegateState {
@@ -415,7 +415,7 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
         state.with_window(|window| {
             let monitor = window.current_monitor();
             trace!("Locked shared state in `window_did_enter_fullscreen`");
-            window.shared_state.lock().unwrap().fullscreen = Some(monitor);
+            window.shared_state.lock().unwrap().fullscreen = Some(Fullscreen::Borderless(monitor));
             trace!("Unlocked shared state in `window_will_enter_fullscreen`");
         });
         state.initial_fullscreen = false;
