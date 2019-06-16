@@ -14,12 +14,12 @@ use crate::monitor::VideoMode;
 use super::window::WindowStore;
 use super::WindowId;
 
-use crate::sctk::output::OutputMgr;
-use crate::sctk::reexports::client::protocol::{
+use smithay_client_toolkit::output::OutputMgr;
+use smithay_client_toolkit::reexports::client::protocol::{
     wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat, wl_touch,
 };
-use crate::sctk::reexports::client::{ConnectError, Display, EventQueue, GlobalEvent};
-use crate::sctk::Environment;
+use smithay_client_toolkit::reexports::client::{ConnectError, Display, EventQueue, GlobalEvent};
+use smithay_client_toolkit::Environment;
 
 pub struct WindowEventsSink {
     buffer: VecDeque<(crate::event::WindowEvent, crate::window::WindowId)>,
@@ -523,7 +523,7 @@ impl Clone for MonitorHandle {
 }
 
 impl fmt::Debug for MonitorHandle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,

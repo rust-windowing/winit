@@ -46,13 +46,13 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T> fmt::Debug for EventLoop<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.pad("EventLoop { .. }")
     }
 }
 
 impl<T> fmt::Debug for EventLoopWindowTarget<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.pad("EventLoopWindowTarget { .. }")
     }
 }
@@ -184,7 +184,7 @@ impl<T: 'static> EventLoopProxy<T> {
 }
 
 impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.pad("EventLoopProxy { .. }")
     }
 }
@@ -195,7 +195,7 @@ impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
 pub struct EventLoopClosed;
 
 impl fmt::Display for EventLoopClosed {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", error::Error::description(self))
     }
 }

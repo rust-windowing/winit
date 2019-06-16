@@ -38,7 +38,7 @@ struct EventLoopHandler<F, T: 'static> {
 }
 
 impl<F, T> Debug for EventLoopHandler<F, T> {
-    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.debug_struct("EventLoopHandler")
             .field("window_target", &self.window_target)
             .finish()

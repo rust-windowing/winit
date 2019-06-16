@@ -113,7 +113,7 @@ impl WindowState {
         self.window_flags
     }
 
-    pub fn set_window_flags<F>(mut this: MutexGuard<Self>, window: HWND, set_client_rect: Option<RECT>, f: F)
+    pub fn set_window_flags<F>(mut this: MutexGuard<'_, Self>, window: HWND, set_client_rect: Option<RECT>, f: F)
         where F: FnOnce(&mut WindowFlags)
     {
         let old_flags = this.window_flags;
@@ -127,7 +127,7 @@ impl WindowState {
         old_flags.apply_diff(window, new_flags, set_client_rect);
     }
 
-    pub fn refresh_window_state(this: MutexGuard<Self>, window: HWND, set_client_rect: Option<RECT>) {
+    pub fn refresh_window_state(this: MutexGuard<'_, Self>, window: HWND, set_client_rect: Option<RECT>) {
         Self::set_window_flags(this, window, set_client_rect, |_| ());
     }
 

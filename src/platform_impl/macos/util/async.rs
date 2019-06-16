@@ -5,7 +5,7 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSPoint, NSSize},
 };
-use crate::dispatch::ffi::{dispatch_async_f, dispatch_get_main_queue, dispatch_sync_f};
+use dispatch::ffi::{dispatch_async_f, dispatch_get_main_queue, dispatch_sync_f};
 
 use crate::dpi::LogicalSize;
 use crate::platform_impl::platform::{ffi, window::SharedState};

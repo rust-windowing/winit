@@ -1,10 +1,10 @@
 use std::sync::{Arc, Mutex};
 
 use super::{make_wid, DeviceId};
-use crate::sctk::keyboard::{
+use smithay_client_toolkit::keyboard::{
     self, map_keyboard_auto_with_repeat, Event as KbEvent, KeyRepeatEvent, KeyRepeatKind,
 };
-use crate::sctk::reexports::client::protocol::{wl_keyboard, wl_seat};
+use smithay_client_toolkit::reexports::client::protocol::{wl_keyboard, wl_seat};
 
 use crate::event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
 
@@ -23,7 +23,7 @@ pub fn init_keyboard(
     let ret = map_keyboard_auto_with_repeat(
         seat,
         KeyRepeatKind::System,
-        move |evt: KbEvent, _| match evt {
+        move |evt: KbEvent<'_>, _| match evt {
             KbEvent::Enter { surface, .. } => {
                 let wid = make_wid(&surface);
                 my_sink.send((WindowEvent::Focused(true), wid)).unwrap();
@@ -173,7 +173,7 @@ fn key_to_vkey(rawkey: u32, keysym: u32) -> Option<VirtualKeyCode> {
 }
 
 fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
-    use crate::sctk::keyboard::keysyms;
+    use smithay_client_toolkit::keyboard::keysyms;
     match keysym {
         // letters
         keysyms::XKB_KEY_A | keysyms::XKB_KEY_a => Some(VirtualKeyCode::A),

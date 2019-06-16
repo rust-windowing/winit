@@ -237,10 +237,10 @@ pub(crate) struct EventLoopRunner<T> {
     runner_state: RunnerState,
     modal_redraw_window: HWND,
     in_modal_loop: bool,
-    event_handler: Box<FnMut(Event<T>, &mut ControlFlow)>,
+    event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
     panic_error: Option<PanicError>,
 }
-type PanicError = Box<Any + Send + 'static>;
+type PanicError = Box<dyn Any + Send + 'static>;
 
 impl<T> ELRShared<T> {
     pub(crate) unsafe fn send_event(&self, event: Event<T>) {
@@ -297,8 +297,8 @@ impl<T> EventLoopRunner<T> {
             in_modal_loop: false,
             modal_redraw_window: event_loop.window_target.p.thread_msg_target,
             event_handler: mem::transmute::<
-                Box<FnMut(Event<T>, &mut ControlFlow)>,
-                Box<FnMut(Event<T>, &mut ControlFlow)>
+                Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<T>, &mut ControlFlow)>
             >(Box::new(f)),
             panic_error: None,
         }
@@ -583,7 +583,7 @@ impl EventLoopThreadExecutor {
                 function();
             } else {
                 // We double-box because the first box is a fat pointer.
-                let boxed = Box::new(function) as Box<FnMut()>;
+                let boxed = Box::new(function) as Box<dyn FnMut()>;
                 let boxed2: ThreadExecFn = Box::new(boxed);
 
                 let raw = Box::into_raw(boxed2);
@@ -598,7 +598,7 @@ impl EventLoopThreadExecutor {
     }
 }
 
-type ThreadExecFn = Box<Box<FnMut()>>;
+type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
 #[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
@@ -629,7 +629,7 @@ lazy_static! {
         }
     };
     // Message sent when we want to execute a closure in the thread.
-    // WPARAM contains a Box<Box<FnMut()>> that must be retrieved with `Box::from_raw`,
+    // WPARAM contains a Box<Box<dyn FnMut()>> that must be retrieved with `Box::from_raw`,
     // and LPARAM is unused.
     static ref EXEC_MSG_ID: u32 = {
         unsafe {

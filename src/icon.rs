@@ -31,7 +31,7 @@ pub enum BadIcon {
 }
 
 impl fmt::Display for BadIcon {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let msg = match self {
             &BadIcon::ByteCountNotDivisibleBy4 { byte_count } => format!(
                 "The length of the `rgba` argument ({:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
@@ -56,7 +56,7 @@ impl Error for BadIcon {
         "A valid icon cannot be created from these arguments"
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         Some(self)
     }
 }

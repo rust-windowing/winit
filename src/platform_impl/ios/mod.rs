@@ -106,7 +106,7 @@ unsafe impl Sync for DeviceId {}
 pub enum OsError {}
 
 impl fmt::Display for OsError {
-    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             _ => unreachable!()
         }

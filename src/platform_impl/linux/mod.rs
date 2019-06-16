@@ -7,7 +7,7 @@ use std::os::raw::*;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use crate::sctk::reexports::client::ConnectError;
+use smithay_client_toolkit::reexports::client::ConnectError;
 
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use crate::icon::Icon;
@@ -59,7 +59,7 @@ pub enum OsError {
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             OsError::XError(e) => formatter.pad(&e.description),
             OsError::XMisc(e) => formatter.pad(e),

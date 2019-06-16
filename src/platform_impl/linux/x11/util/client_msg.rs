@@ -8,7 +8,7 @@ impl XConnection {
         target_window: c_ulong,
         event_mask: Option<c_long>,
         event: T,
-    ) -> Flusher {
+    ) -> Flusher<'_> {
         let event_mask = event_mask.unwrap_or(ffi::NoEventMask);
         unsafe {
             (self.xlib.XSendEvent)(
@@ -29,7 +29,7 @@ impl XConnection {
         message_type: ffi::Atom,
         event_mask: Option<c_long>,
         data: ClientMsgPayload,
-    ) -> Flusher {
+    ) -> Flusher<'_> {
         let mut event: ffi::XClientMessageEvent = unsafe { mem::uninitialized() };
         event.type_ = ffi::ClientMessage;
         event.display = self.display;
@@ -50,7 +50,7 @@ impl XConnection {
         message_type: ffi::Atom,
         event_mask: Option<c_long>,
         data: &[T],
-    ) -> Flusher {
+    ) -> Flusher<'_> {
         let format = T::FORMAT;
         let size_of_t = mem::size_of::<T>();
         debug_assert_eq!(size_of_t, format.get_actual_size());

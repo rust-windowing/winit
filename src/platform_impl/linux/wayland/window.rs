@@ -8,11 +8,11 @@ use crate::platform_impl::{MonitorHandle as PlatformMonitorHandle, PlatformSpeci
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::window::{WindowAttributes, CursorIcon};
 
-use crate::sctk::surface::{get_dpi_factor, get_outputs};
-use crate::sctk::window::{ConceptFrame, Event as WEvent, State as WState, Window as SWindow, Theme};
-use crate::sctk::reexports::client::{Display, NewProxy};
-use crate::sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_subsurface, wl_shm};
-use crate::sctk::output::OutputMgr;
+use smithay_client_toolkit::surface::{get_dpi_factor, get_outputs};
+use smithay_client_toolkit::window::{ConceptFrame, Event as WEvent, State as WState, Window as SWindow, Theme};
+use smithay_client_toolkit::reexports::client::{Display, NewProxy};
+use smithay_client_toolkit::reexports::client::protocol::{wl_seat, wl_surface, wl_subsurface, wl_shm};
+use smithay_client_toolkit::output::OutputMgr;
 
 use super::{make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
 use crate::platform_impl::platform::wayland::event_loop::{available_monitors, primary_monitor};
@@ -60,7 +60,7 @@ impl Window {
         let my_bg_surface = bg_surface.clone();
 
         // prepare a 1px buffer to display on the root window
-        let mut pool = sctk::utils::MemPool::new(&evlp.env.shm, || {}).unwrap();
+        let mut pool = smithay_client_toolkit::utils::MemPool::new(&evlp.env.shm, || {}).unwrap();
         pool.resize(4).unwrap();
         pool.seek(SeekFrom::Start(0)).unwrap();
         pool.write(&[0, 0, 0, 0]).unwrap();

@@ -6,8 +6,8 @@ use super::DeviceId;
 use super::event_loop::WindowEventsSink;
 use super::window::WindowStore;
 
-use crate::sctk::reexports::client::protocol::wl_pointer::{self, Event as PtrEvent, WlPointer};
-use crate::sctk::reexports::client::protocol::wl_seat;
+use smithay_client_toolkit::reexports::client::protocol::wl_pointer::{self, Event as PtrEvent, WlPointer};
+use smithay_client_toolkit::reexports::client::protocol::wl_seat;
 
 pub fn implement_pointer(
     seat: &wl_seat::WlSeat,

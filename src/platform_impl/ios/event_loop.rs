@@ -281,7 +281,7 @@ struct EventLoopHandler<F, T: 'static> {
 }
 
 impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
-    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.debug_struct("EventLoopHandler")
             .field("event_loop", &self.event_loop)
             .finish()

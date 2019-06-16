@@ -4,7 +4,7 @@ use std::os::raw;
 use std::ptr;
 use std::sync::Arc;
 
-use crate::sctk::window::{ButtonState, Theme};
+use smithay_client_toolkit::window::{ButtonState, Theme};
 
 use crate::dpi::LogicalSize;
 use crate::event_loop::EventLoop;

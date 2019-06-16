@@ -1,5 +1,5 @@
-extern crate winit;
 
+#[allow(dead_code)]
 fn needs_sync<T:Sync>() {}
 
 #[test]

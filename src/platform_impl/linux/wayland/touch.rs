@@ -6,8 +6,8 @@ use super::{DeviceId, WindowId};
 use super::event_loop::WindowEventsSink;
 use super::window::WindowStore;
 
-use crate::sctk::reexports::client::protocol::wl_touch::{Event as TouchEvent, WlTouch};
-use crate::sctk::reexports::client::protocol::wl_seat;
+use smithay_client_toolkit::reexports::client::protocol::wl_touch::{Event as TouchEvent, WlTouch};
+use smithay_client_toolkit::reexports::client::protocol::wl_seat;
 
 struct TouchPoint {
     wid: WindowId,

@@ -35,7 +35,7 @@ pub struct Window {
 }
 
 impl fmt::Debug for Window {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.pad("Window { .. }")
     }
 }
@@ -71,7 +71,7 @@ pub struct WindowBuilder {
 }
 
 impl fmt::Debug for WindowBuilder {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.debug_struct("WindowBuilder")
             .field("window", &self.window)
             .finish()
