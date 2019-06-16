@@ -146,10 +146,8 @@ impl<T> EventLoop<T> {
     }
 
     /// Returns the list of all the monitors available on the system.
-    ///
-    // Note: should be replaced with `-> impl Iterator` once stable.
     #[inline]
-    pub fn available_monitors(&self) -> AvailableMonitorsIter {
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         let data = self.event_loop.available_monitors();
         AvailableMonitorsIter{ data: data.into_iter() }
     }
