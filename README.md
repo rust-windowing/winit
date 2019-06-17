@@ -38,15 +38,9 @@ use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
     let event_loop = EventLoop::new();
-
-    let window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .build(&event_loop)
-        .unwrap();
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     event_loop.run(move |event, _, control_flow| {
-        println!("{:?}", event);
-
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
