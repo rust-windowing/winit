@@ -46,9 +46,10 @@ This table summarizes who can be contacted in which case, with the following leg
 - `T` - Tester: has the ability of testing the platform
 - ` `: knows nothing of this platform
 
-| Platform            | Windows | macOS | X11   | Wayland | Android | iOS   | Emscripten |
-| :---                | :---:   | :---: | :---: | :---:   | :---:   | :---: | :---:      |
-| @mitchmindtree      | T       |       | T     | T       |         |       |            |
-| @Osspial            | M       |       | T     | T       | T       |       | T          |
-| @vberger            |         |       | T     | M       |         |       |            |
-| @mtak-              |         | T     |       |         | T       | M     |            |
+| Platform            | Windows | macOS | X11   | Wayland | Android | iOS   | Emscripten | Stdweb |
+| :---                | :---:   | :---: | :---: | :---:   | :---:   | :---: | :---:      |  :---: |
+| @mitchmindtree      | T       |       | T     | T       |         |       |            |        |
+| @Osspial            | M       |       | T     | T       | T       |       | T          |        |
+| @vberger            |         |       | T     | M       |         |       |            |        |
+| @mtak-              |         | T     |       |         | T       | M     |            |        |
+| @ryanisacg          | T       | T     |       |         |         |       |            |   M    |
