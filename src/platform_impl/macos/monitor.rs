@@ -20,14 +20,11 @@ use crate::{
 #[derive(Derivative)]
 #[derivative(Debug, Clone, PartialEq)]
 pub struct VideoMode {
-    #[derivative(PartialEq = "ignore")]
     pub(crate) size: (u32, u32),
-    #[derivative(PartialEq = "ignore")]
     pub(crate) bit_depth: u16,
-    #[derivative(PartialEq = "ignore")]
     pub(crate) refresh_rate: u16,
     pub(crate) monitor: MonitorHandle,
-    #[derivative(Debug = "ignore")]
+    #[derivative(Debug = "ignore", PartialEq = "ignore")]
     pub(crate) native_mode: CGDisplayMode,
 }
 

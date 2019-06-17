@@ -672,7 +672,7 @@ impl UnownedWindow {
             }
         }
 
-        if let Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })) = fullscreen {
+        if let Some(Fullscreen::Exclusive(ref video_mode)) = fullscreen {
             let display_id = video_mode.monitor().inner.native_identifier();
             let display = CGDisplay::new(display_id);
 
@@ -711,11 +711,23 @@ impl UnownedWindow {
                 assert_eq!(ffi::CGDisplayCapture(display_id), ffi::kCGErrorSuccess);
             }
 
+            // Capturing (and subsequently releasing) the display invalidates
+            // all display modes, so the stored display mode may no longer be
+            // valid. Calling functions on it still yields correct results, but
+            // configuring the display to use that display mode will no longer
+            // succeed, so query display modes anew and look for a mode that
+            // matches the description of our stored mode.
+            let video_mode = video_mode
+                .monitor()
+                .video_modes()
+                .find(|x| x == video_mode)
+                .expect("failed to find a video mode matching the stored video mode");
+
             let config = display
                 .begin_configuration()
                 .expect("failed to begin display configuration");
             display
-                .configure_display_with_display_mode(&config, &video_mode.native_mode)
+                .configure_display_with_display_mode(&config, &video_mode.video_mode.native_mode)
                 .expect("failed to set display mode");
             display
                 .complete_configuration(&config, CGConfigureOption::ConfigureForAppOnly)
