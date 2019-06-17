@@ -347,7 +347,7 @@ impl Window {
     /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
     /// events have been processed by the event loop.
     ///
-    /// This is the **strongly encouraged** method of redrawing windows, as it can integrates with
+    /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized).
     ///
     /// This function can cause `RedrawRequested` events to be emitted after `Event::EventsCleared`
