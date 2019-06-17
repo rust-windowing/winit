@@ -3,6 +3,7 @@ use super::*;
 use dpi::LogicalPosition;
 use event::{DeviceId as RootDI, ElementState, Event, KeyboardInput, MouseScrollDelta, StartCause, TouchPhase, WindowEvent};
 use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
+use instant::{Duration, Instant};
 use window::{WindowId as RootWI};
 use stdweb::{
     traits::*,
@@ -10,15 +11,17 @@ use stdweb::{
         document,
         event::*,
         html_element::CanvasElement,
+        window,
         TimeoutHandle,
     },
 };
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::collections::vec_deque::IntoIter as VecDequeIter;
-use std::marker::PhantomData;
-use std::rc::Rc;
-use std::time::Instant;
+use std::{
+    cell::RefCell,
+    collections::{VecDeque, vec_deque::IntoIter as VecDequeIter},
+    clone::Clone,
+    marker::PhantomData,
+    rc::Rc,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(i32);
@@ -40,31 +43,37 @@ pub struct EventLoopWindowTarget<T: 'static> {
 impl<T> EventLoopWindowTarget<T> {
     fn new() -> Self {
         EventLoopWindowTarget {
-            runner: Rc::new(ELRShared {
+            runner: EventLoopRunnerShared(Rc::new(ELRShared {
                 runner: RefCell::new(None),
                 events: RefCell::new(VecDeque::new())
-            })
+            }))
         }
     }
 }
 
 #[derive(Clone)]
-pub struct EventLoopProxy<T> {
+pub struct EventLoopProxy<T: 'static> {
     runner: EventLoopRunnerShared<T>
 }
 
-impl<T> EventLoopProxy<T> {
+impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
         self.runner.send_event(Event::UserEvent(event));
         Ok(())
     }
 }
 
-pub type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
+pub struct EventLoopRunnerShared<T>(Rc<ELRShared<T>>);
+
+impl<T> Clone for EventLoopRunnerShared<T> {
+    fn clone(&self) -> Self {
+        EventLoopRunnerShared(self.0.clone())
+    }
+}
 
 pub struct ELRShared<T> {
     runner: RefCell<Option<EventLoopRunner<T>>>,
-    events: RefCell<VecDeque<Event<T>>>, // TODO: this may not be necessary?
+    events: RefCell<VecDeque<Event<T>>>,
 }
 
 struct EventLoopRunner<T> {
@@ -74,6 +83,7 @@ struct EventLoopRunner<T> {
 }
 
 enum ControlFlowStatus {
+    Init,
     WaitUntil {
         timeout: TimeoutHandle,
         start: Instant,
@@ -91,6 +101,7 @@ enum ControlFlowStatus {
 impl ControlFlowStatus {
     fn to_control_flow(&self) -> ControlFlow {
         match self {
+            ControlFlowStatus::Init => ControlFlow::Poll, // During the Init loop, the user should get Poll, the default control value
             ControlFlowStatus::WaitUntil { end, .. } => ControlFlow::WaitUntil(*end),
             ControlFlowStatus::Wait { .. } => ControlFlow::Wait,
             ControlFlowStatus::Poll { .. } => ControlFlow::Poll,
@@ -286,7 +297,7 @@ fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IE
     
     target.add_event_listener(move |event: E| {
         // Don't capture the event if the events loop has been destroyed
-        match &*elrs.runner.borrow() {
+        match &*elrs.0.runner.borrow() {
             Some(ref runner) if runner.control.is_exit() => return,
             _ => ()
         }
@@ -299,17 +310,17 @@ fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IE
     });
 }
 
-impl<T> ELRShared<T> {
+impl<T: 'static> EventLoopRunnerShared<T> {
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootEventLoopWindowTarget reference
     fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
-        // TODO: Start the poll here
-        *self.runner.borrow_mut() = Some(EventLoopRunner {
-            control: ControlFlowStatus::Exit,
+        *self.0.runner.borrow_mut() = Some(EventLoopRunner {
+            control: ControlFlowStatus::Init,
             is_busy: false,
             event_handler,
         });
+        self.send_event(Event::NewEvents(StartCause::Init));
     }
 
     // Add an event to the event loop runner
@@ -321,23 +332,46 @@ impl<T> ELRShared<T> {
             return;
         }
 
-        // TODO: Determine if a timeout needs to be cleared
-
-        let start_cause = StartCause::Poll; // TODO: determine start cause
-
         // Determine if event handling is in process, and then release the borrow on the runner
-        match *self.runner.borrow() {
+        match *self.0.runner.borrow() {
             Some(ref runner) if !runner.is_busy => {
+                let (start_cause, event_is_start) = if let Event::NewEvents(cause) = event {
+                    (cause, true)
+                } else {
+                    (match runner.control {
+                        ControlFlowStatus::Init => StartCause::Init,
+                        ControlFlowStatus::Poll { ref timeout } =>  {
+                            timeout.clear();
+
+                            StartCause::Poll
+                        }
+                        ControlFlowStatus::Wait { start } => StartCause::WaitCancelled {
+                            start,
+                            requested_resume: None,
+                        },
+                        ControlFlowStatus::WaitUntil { start, end, ref timeout } => {
+                            timeout.clear();
+
+                            StartCause::WaitCancelled {
+                                start,
+                                requested_resume: Some(end)
+                            }
+                        },
+                        ControlFlowStatus::Exit => { return; }
+                    }, false)
+                };
                 let mut control = runner.control.to_control_flow();
                 // Handle starting a new batch of events
                 //
                 // The user is informed via Event::NewEvents that there is a batch of events to process
                 // However, there is only one of these per batch of events
                 self.handle_event(Event::NewEvents(start_cause), &mut control);
-                self.handle_event(event, &mut control);
+                if !event_is_start {
+                    self.handle_event(event, &mut control);
+                }
                 self.handle_event(Event::EventsCleared, &mut control);
 
-                // TODO: integrate control flow change and set up the next iteration
+                self.apply_control_flow(control);
 
                 // If the event loop is closed, it has been closed this iteration and now the closing
                 // event should be emitted
@@ -346,16 +380,8 @@ impl<T> ELRShared<T> {
                 }
             }
             _ => {
-                self.events.borrow_mut().push_back(event);
+                self.0.events.borrow_mut().push_back(event);
             }
-        }
-    }
-
-    // Check if the event loop is currntly closed
-    fn closed(&self) -> bool {
-        match *self.runner.borrow() {
-            Some(ref runner) => runner.control.is_exit(),
-            None => false, // If the event loop is None, it has not been intialised yet, so it cannot be closed
         }
     }
 
@@ -365,12 +391,11 @@ impl<T> ELRShared<T> {
     fn handle_event(&self, event: Event<T>, control: &mut ControlFlow) {
         let closed = self.closed();
 
-        match *self.runner.borrow_mut() {
+        match *self.0.runner.borrow_mut() {
             Some(ref mut runner) => {
                 // An event is being processed, so the runner should be marked busy
                 runner.is_busy = true;
 
-                // TODO: bracket this in control flow events?
                 (runner.event_handler)(event, control);
                 
                 // Maintain closed state, even if the callback changes it
@@ -383,18 +408,61 @@ impl<T> ELRShared<T> {
             }
             // If an event is being handled without a runner somehow, add it to the event queue so
             // it will eventually be processed
-            _ => self.events.borrow_mut().push_back(event)
+            _ => self.0.events.borrow_mut().push_back(event)
         }
 
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
-        if !closed && self.runner.borrow().is_some() {
+        if !closed && self.0.runner.borrow().is_some() {
             // Take an event out of the queue and handle it
-            if let Some(event) = self.events.borrow_mut().pop_front() {
+            if let Some(event) = self.0.events.borrow_mut().pop_front() {
                 self.handle_event(event, control);
             }
         }
     }
 
+    // Apply the new ControlFlow that has been selected by the user
+    // Start any necessary timeouts etc
+    fn apply_control_flow(&self, control_flow: ControlFlow) {
+        let control_flow_status = match control_flow {
+           ControlFlow::Poll => {
+                let cloned = self.clone();
+                ControlFlowStatus::Poll {
+                    timeout: window().set_clearable_timeout(move || cloned.send_event(Event::NewEvents(StartCause::Poll)), 0)
+                }
+            }
+            ControlFlow::Wait => ControlFlowStatus::Wait { start: Instant::now() },
+            ControlFlow::WaitUntil(end) => {
+                let cloned = self.clone();
+                let start = Instant::now();
+                let delay = if end <= start {
+                    Duration::from_millis(0)
+                } else {
+                    end - start
+                };
+                ControlFlowStatus::WaitUntil {
+                    start,
+                    end,
+                    timeout: window().set_clearable_timeout(move || cloned.send_event(Event::NewEvents(StartCause::Poll)), delay.as_millis() as u32)
+                }
+            }
+            ControlFlow::Exit => ControlFlowStatus::Exit,
+        };
+        
+        match *self.0.runner.borrow_mut() {
+            Some(ref mut runner) => {
+                runner.control = control_flow_status;
+            }
+            None => ()
+        }
+    }
+
+    // Check if the event loop is currntly closed
+    fn closed(&self) -> bool {
+        match *self.0.runner.borrow() {
+            Some(ref runner) => runner.control.is_exit(),
+            None => false, // If the event loop is None, it has not been intialised yet, so it cannot be closed
+        }
+    }
 }
 

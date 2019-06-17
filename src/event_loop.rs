@@ -10,7 +10,7 @@
 //! [event_loop_proxy]: ./struct.EventLoopProxy.html
 //! [send_event]: ./struct.EventLoopProxy.html#method.send_event
 use std::{fmt, error};
-use std::time::Instant;
+use instant::Instant;
 use std::ops::Deref;
 
 use platform_impl;
@@ -69,7 +69,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 /// the control flow to `Poll`.
 ///
 /// [events_cleared]: ../event/enum.Event.html#variant.EventsCleared
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.

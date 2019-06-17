@@ -14,6 +14,7 @@ categories = ["gui"]
 features = ["serde"]
 
 [dependencies]
+instant = "0.1"
 lazy_static = "1"
 libc = "0.2"
 log = "0.4"
@@ -73,6 +74,6 @@ percent-encoding = "1.0"
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
 version = "0.8"
 
-[target.'cfg(target_arch = "wasm32")'.dependencies.stdweb]
-path = "../stdweb"
-optional = true
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+stdweb = { path = "../stdweb", optional = true }
+instant = { version = "0.1", features = ["stdweb"] }

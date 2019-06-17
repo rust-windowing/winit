@@ -75,6 +75,7 @@
 //! [`LoopDestroyed`]: ./event/enum.Event.html#variant.LoopDestroyed
 //! [`platform`]: ./platform/index.html
 
+extern crate instant;
 #[allow(unused_imports)]
 #[macro_use]
 extern crate lazy_static;
