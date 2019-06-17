@@ -532,7 +532,27 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS:** `Fullscreen::Exclusive` provides true exclusive mode with a
+    ///   video mode change. *Caveat!* macOS doesn't provide task switching (or
+    ///   spaces!) while in exclusive fullscreen mode. This mode should be used
+    ///   when a video mode change is desired, but for a better user experience,
+    ///   borderless fullscreen might be preferred.
+    ///
+    ///   `Fullscreen::Borderless` provides a borderless fullscreen window on a
+    ///   separate space. This is the idiomatic way for fullscreen games to work
+    ///   on macOS. See [`WindowExtMacOs::set_simple_fullscreen`][simple] if
+    ///   separate spaces are not preferred.
+    ///
+    ///   *Note!* For games and kiosk applications, you will generally want to
+    ///   hide and disable the dock and the menu bar while in fullscreen mode.
+    ///   This applies to both exclusive and borderless mode. See
+    ///   [`WindowExtMacOs::set_fullscreen_presentation_options`][presentation].
     /// - **iOS:** Can only be called on the main thread.
+    ///
+    /// [simple]:
+    /// ../platform/macos/trait.WindowExtMacOS.html#tymethod.set_simple_fullscreen
+    /// [presentation]:
+    /// ../platform/macos/trait.WindowExtMacOS.html#tymethod.set_fullscreen_presentation_options
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.window.set_fullscreen(fullscreen)
@@ -754,7 +774,7 @@ impl Default for CursorIcon {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Fullscreen {
     Exclusive(VideoMode),
     Borderless(MonitorHandle),

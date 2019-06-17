@@ -108,3 +108,64 @@ pub enum NSWindowLevel {
     NSPopUpMenuWindowLevel = kCGPopUpMenuWindowLevelKey as _,
     NSScreenSaverWindowLevel = kCGScreenSaverWindowLevelKey as _,
 }
+
+use core_graphics::{
+    base::CGError,
+    display::{CGDirectDisplayID, CGDisplayConfigRef},
+};
+
+pub type CGDisplayFadeInterval = f32;
+pub type CGDisplayReservationInterval = f32;
+pub type CGDisplayBlendFraction = f32;
+
+pub const kCGDisplayBlendNormal: f32 = 0.0;
+pub const kCGDisplayBlendSolidColor: f32 = 1.0;
+
+pub type CGDisplayFadeReservationToken = u32;
+pub const kCGDisplayFadeReservationInvalidToken: CGDisplayFadeReservationToken = 0;
+
+pub type Boolean = u8;
+pub const FALSE: Boolean = 0;
+pub const TRUE: Boolean = 1;
+
+pub const kCGErrorSuccess: i32 = 0;
+pub const kCGErrorFailure: i32 = 1000;
+pub const kCGErrorIllegalArgument: i32 = 1001;
+pub const kCGErrorInvalidConnection: i32 = 1002;
+pub const kCGErrorInvalidContext: i32 = 1003;
+pub const kCGErrorCannotComplete: i32 = 1004;
+pub const kCGErrorNotImplemented: i32 = 1006;
+pub const kCGErrorRangeCheck: i32 = 1007;
+pub const kCGErrorTypeCheck: i32 = 1008;
+pub const kCGErrorInvalidOperation: i32 = 1010;
+pub const kCGErrorNoneAvailable: i32 = 1011;
+
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    pub fn CGRestorePermanentDisplayConfiguration();
+    pub fn CGDisplayCapture(display: CGDirectDisplayID) -> CGError;
+    pub fn CGDisplayRelease(display: CGDirectDisplayID) -> CGError;
+    pub fn CGConfigureDisplayFadeEffect(
+        config: CGDisplayConfigRef,
+        fadeOutSeconds: CGDisplayFadeInterval,
+        fadeInSeconds: CGDisplayFadeInterval,
+        fadeRed: f32,
+        fadeGreen: f32,
+        fadeBlue: f32,
+    ) -> CGError;
+    pub fn CGAcquireDisplayFadeReservation(
+        seconds: CGDisplayReservationInterval,
+        token: *mut CGDisplayFadeReservationToken,
+    ) -> CGError;
+    pub fn CGDisplayFade(
+        token: CGDisplayFadeReservationToken,
+        duration: CGDisplayFadeInterval,
+        startBlend: CGDisplayBlendFraction,
+        endBlend: CGDisplayBlendFraction,
+        redBlend: f32,
+        greenBlend: f32,
+        blueBlend: f32,
+        synchronous: Boolean,
+    ) -> CGError;
+    pub fn CGReleaseDisplayFadeReservation(token: CGDisplayFadeReservationToken) -> CGError;
+}

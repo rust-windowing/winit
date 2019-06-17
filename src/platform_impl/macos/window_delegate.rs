@@ -443,8 +443,21 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
         state.with_window(|window| {
             let monitor = window.current_monitor();
             trace!("Locked shared state in `window_did_enter_fullscreen`");
-            window.shared_state.lock().unwrap().fullscreen = Some(Fullscreen::Borderless(monitor));
-            trace!("Unlocked shared state in `window_will_enter_fullscreen`");
+            let mut shared_state = window.shared_state.lock().unwrap();
+            match shared_state.fullscreen {
+                // Exclusive mode sets the state in `set_fullscreen` as the user
+                // can't enter exclusive mode by other means (like the
+                // fullscreen button on the window decorations)
+                Some(Fullscreen::Exclusive(_)) => (),
+                // `window_did_enter_fullscreen` shouldn't be triggered if we're
+                // already in fullscreen
+                Some(Fullscreen::Borderless(_)) => unreachable!(),
+                // Otherwise, update the fullscreen state (we reached fullscreen
+                // either via `set_fullscreen` or by the user fullscreening the
+                // window from the fullscreen button)
+                None => shared_state.fullscreen = Some(Fullscreen::Borderless(monitor)),
+            }
+            trace!("Unlocked shared state in `window_did_enter_fullscreen`");
         });
         state.initial_fullscreen = false;
     });

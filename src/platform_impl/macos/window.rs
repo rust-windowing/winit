@@ -594,18 +594,28 @@ impl UnownedWindow {
     }
 
     pub(crate) fn restore_state_from_fullscreen(&self) {
-        let maximized = {
-            trace!("Locked shared state in `restore_state_from_fullscreen`");
-            let mut shared_state_lock = self.shared_state.lock().unwrap();
+        trace!("Locked shared state in `restore_state_from_fullscreen`");
+        let mut shared_state_lock = self.shared_state.lock().unwrap();
 
-            shared_state_lock.fullscreen = None;
+        if let Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })) =
+            shared_state_lock.fullscreen.take()
+        {
+            unsafe {
+                ffi::CGRestorePermanentDisplayConfiguration();
+                assert_eq!(
+                    ffi::CGDisplayRelease(video_mode.monitor().inner.native_identifier()),
+                    ffi::kCGErrorSuccess
+                );
+            }
+        }
 
-            let mask = self.saved_style(&mut *shared_state_lock);
+        let maximized = shared_state_lock.maximized;
+        let mask = self.saved_style(&mut *shared_state_lock);
 
-            self.set_style_mask_async(mask);
-            shared_state_lock.maximized
-        };
+        drop(shared_state_lock);
         trace!("Unocked shared state in `restore_state_from_fullscreen`");
+
+        self.set_style_mask_async(mask);
         self.set_maximized(maximized);
     }
 
@@ -636,9 +646,14 @@ impl UnownedWindow {
         trace!("Locked shared state in `set_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
         if shared_state_lock.is_simple_fullscreen {
+            trace!("Unlocked shared state in `set_fullscreen`");
             return;
         }
         let old_fullscreen = shared_state_lock.fullscreen.clone();
+        if fullscreen == old_fullscreen {
+            trace!("Unlocked shared state in `set_fullscreen`");
+            return;
+        }
 
         // TODO: Right now set_fullscreen does not work on switching monitors in
         // fullscreen mode! Our best bet is probably to move to the origin of
@@ -657,54 +672,80 @@ impl UnownedWindow {
             }
         }
 
-        fn change_display_mode(display: &CGDisplay, video_mode: &CGDisplayMode) {
+        if let Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })) = fullscreen {
+            let display_id = video_mode.monitor().inner.native_identifier();
+            let display = CGDisplay::new(display_id);
+
+            // Note: `enterFullScreenMode:withOptions:` seems to do the exact
+            // same thing as we're doing here (captures the display, sets the
+            // video mode, and hides the menu bar and dock), with the exception
+            // of that I couldn't figure out how to set the display mode with
+            // it. I think `enterFullScreenMode:withOptions:` is still using the
+            // older display mode API where display modes were of the type
+            // `CFDictionary`, but this has changed, so we can't obtain the
+            // correct parameter for this any longer. Apple's code samples for
+            // this function seem to just pass in "YES" for the display mode
+            // parameter, which is not consistent with the docs saying that it
+            // takes a `NSDictionary`..
+
+            let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
+
+            unsafe {
+                // Fade to black (and wait for the fade to complete) to hide the
+                // flicker from capturing the display and switching display mode
+                if ffi::CGAcquireDisplayFadeReservation(5.0, &mut fade_token)
+                    == ffi::kCGErrorSuccess
+                {
+                    ffi::CGDisplayFade(
+                        fade_token,
+                        0.3,
+                        ffi::kCGDisplayBlendNormal,
+                        ffi::kCGDisplayBlendSolidColor,
+                        0.0,
+                        0.0,
+                        0.0,
+                        ffi::TRUE,
+                    );
+                }
+
+                assert_eq!(ffi::CGDisplayCapture(display_id), ffi::kCGErrorSuccess);
+            }
+
             let config = display
                 .begin_configuration()
                 .expect("failed to begin display configuration");
             display
-                .configure_display_with_display_mode(&config, video_mode)
+                .configure_display_with_display_mode(&config, &video_mode.native_mode)
                 .expect("failed to set display mode");
             display
                 .complete_configuration(&config, CGConfigureOption::ConfigureForAppOnly)
                 .expect("failed to apply new display configuration");
-        }
 
-        if let Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })) = fullscreen {
-            let display = CGDisplay::new(video_mode.monitor().inner.native_identifier());
-
-            // If we're entering exclusive fullscreen and weren't already, store
-            // the desktop display mode so we can restore it upon exiting
-            // fullscreen
-            match old_fullscreen {
-                Some(Fullscreen::Exclusive(_)) => (),
-                Some(Fullscreen::Borderless(_)) | None => {
-                    shared_state_lock.saved_desktop_display_mode =
-                        Some((display, display.display_mode().unwrap()))
+            // After the display has been configured, fade back in
+            // asynchronously
+            unsafe {
+                if fade_token != ffi::kCGDisplayFadeReservationInvalidToken {
+                    ffi::CGDisplayFade(
+                        fade_token,
+                        0.6,
+                        ffi::kCGDisplayBlendSolidColor,
+                        ffi::kCGDisplayBlendNormal,
+                        0.0,
+                        0.0,
+                        0.0,
+                        ffi::FALSE,
+                    );
+                    ffi::CGReleaseDisplayFadeReservation(fade_token);
                 }
-            };
-
-            // TODO: capture display so other applications can't mess with our
-            // fullscreen mode
-            change_display_mode(&display, &video_mode.native_mode);
-        } else {
-            // Restore desktop display mode
-            if let Some((display, display_mode)) =
-                shared_state_lock.saved_desktop_display_mode.take()
-            {
-                change_display_mode(&display, &display_mode);
-                // TODO: release display
             }
+
+            // This is set in `window_did_enter_fullscreen` for borderless
+            // fullscreen, but for exclusive mode we set it here, as we can only
+            // enter exclusive mode from this function (and not also by user
+            // action like borderless)
+            shared_state_lock.fullscreen = fullscreen.clone();
         }
 
-        drop(shared_state_lock);
-        trace!("Unlocked shared state in `set_fullscreen`");
-
-        // Toggle window "fullscreen" (this is the thing that happens when you
-        // press the maximize button and the window goes fullscreen on a new
-        // space) if the fullscreen state has changed (note that we only want to
-        // toggle on transitions between windowed and fullscreen mode, not
-        // between different fullscreen modes, hence why we're comparing
-        // `is_some()`)
         if old_fullscreen.is_some() != fullscreen.is_some() {
             unsafe {
                 util::toggle_full_screen_async(
@@ -715,6 +756,8 @@ impl UnownedWindow {
                 )
             };
         }
+
+        trace!("Unlocked shared state in `set_fullscreen`");
     }
 
     #[inline]

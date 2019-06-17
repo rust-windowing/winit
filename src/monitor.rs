@@ -53,7 +53,7 @@ impl Iterator for AvailableMonitorsIter {
 ///
 /// [monitor_get]: ../monitor/struct.MonitorHandle.html#method.video_modes
 #[derive(Derivative)]
-#[derivative(Clone, Debug = "transparent")]
+#[derivative(Clone, Debug = "transparent", PartialEq)]
 pub struct VideoMode {
     pub(crate) video_mode: platform_impl::VideoMode,
 }
@@ -108,7 +108,7 @@ impl std::fmt::Display for VideoMode {
 /// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
 ///
 /// [`Window`]: ../window/struct.Window.html
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MonitorHandle {
     pub(crate) inner: platform_impl::MonitorHandle,
 }
