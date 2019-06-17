@@ -5,9 +5,9 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{self, NSView, NSWindow},
+    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
     base::{id, nil},
-    foundation::NSAutoreleasePool,
+    foundation::{NSAutoreleasePool, NSUInteger},
 };
 use objc::{
     declare::ClassDecl,
@@ -182,6 +182,11 @@ lazy_static! {
             dragging_exited as extern "C" fn(&Object, Sel, id),
         );
 
+        decl.add_method(
+            sel!(window:willUseFullScreenPresentationOptions:),
+            window_will_use_fullscreen_presentation_options
+                as extern "C" fn(&Object, Sel, id, NSUInteger) -> NSUInteger,
+        );
         decl.add_method(
             sel!(windowDidEnterFullScreen:),
             window_did_enter_fullscreen as extern "C" fn(&Object, Sel, id),
@@ -406,6 +411,29 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
         })
     });
     trace!("Completed `windowWillEnterFullscreen:`");
+}
+
+extern "C" fn window_will_use_fullscreen_presentation_options(
+    this: &Object,
+    _: Sel,
+    _: id,
+    proposed_options: NSUInteger,
+) -> NSUInteger {
+    let state = unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        &mut *(state_ptr as *mut WindowDelegateState)
+    };
+    let window = state.window.upgrade().unwrap();
+    trace!("Locked shared state in `window_will_use_fullscreen_presentation_options`");
+    let opts = window
+        .shared_state
+        .lock()
+        .unwrap()
+        .fullscreen_presentation_options
+        .map(|x| x.bits())
+        .unwrap_or(proposed_options);
+    trace!("Unlocked shared state in `window_will_use_fullscreen_presentation_options`");
+    opts
 }
 
 /// Invoked when entered fullscreen

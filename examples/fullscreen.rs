@@ -1,7 +1,11 @@
+#[cfg(target_os = "macos")]
+use cocoa::appkit::NSApplicationPresentationOptions;
 use std::io::{stdin, stdout, Write};
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::monitor::{MonitorHandle, VideoMode};
+#[cfg(target_os = "macos")]
+use winit::platform::macos::WindowExtMacOS;
 use winit::window::{Fullscreen, WindowBuilder};
 
 fn main() {
@@ -29,6 +33,13 @@ fn main() {
         .with_fullscreen(fullscreen.clone())
         .build(&event_loop)
         .unwrap();
+
+    #[cfg(target_os = "macos")]
+    window.set_fullscreen_presentation_options(
+        NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+            | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+            | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar,
+    );
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;

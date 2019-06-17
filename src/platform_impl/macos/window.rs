@@ -240,8 +240,13 @@ pub struct SharedState {
     pub standard_frame: Option<NSRect>,
     is_simple_fullscreen: bool,
     pub saved_style: Option<NSWindowStyleMask>,
+    /// Presentation options saved before entering `set_simple_fullscreen`, and
+    /// restored upon exiting it
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
     pub saved_desktop_display_mode: Option<(CGDisplay, CGDisplayMode)>,
+    /// Requested fullscreen presentation options via
+    /// `WindowExtMacOS::set_fullscreen_presentation_options`
+    pub fullscreen_presentation_options: Option<NSApplicationPresentationOptions>,
 }
 
 impl SharedState {
@@ -836,6 +841,15 @@ impl WindowExtMacOS for UnownedWindow {
     fn simple_fullscreen(&self) -> bool {
         let shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.is_simple_fullscreen
+    }
+
+    #[inline]
+    fn set_fullscreen_presentation_options(
+        &self,
+        proposed_options: NSApplicationPresentationOptions,
+    ) {
+        let mut shared_state_lock = self.shared_state.lock().unwrap();
+        shared_state_lock.fullscreen_presentation_options = Some(proposed_options);
     }
 
     #[inline]
