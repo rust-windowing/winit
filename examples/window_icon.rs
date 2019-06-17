@@ -43,7 +43,7 @@ fn main() {
             match event {
                 CloseRequested => *control_flow = ControlFlow::Exit,
                 DroppedFile(path) => {
-                    use image::GenericImageView;
+                    
 
                     window.set_window_icon(Some(load_icon(&path)));
                 },

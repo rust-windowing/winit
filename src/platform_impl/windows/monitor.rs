@@ -7,10 +7,10 @@ use std::collections::{HashSet, VecDeque};
 use std::{io, mem, ptr};
 
 use super::{util, EventLoop};
-use dpi::{PhysicalPosition, PhysicalSize};
-use monitor::VideoMode;
-use platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
-use platform_impl::platform::window::Window;
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoMode;
+use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
+use crate::platform_impl::platform::window::Window;
 
 /// Win32 implementation of the main `MonitorHandle` object.
 #[derive(Derivative)]

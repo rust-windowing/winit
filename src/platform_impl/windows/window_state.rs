@@ -1,10 +1,10 @@
-use monitor::MonitorHandle;
-use window::{CursorIcon, WindowAttributes};
+use crate::monitor::MonitorHandle;
+use crate::window::{CursorIcon, WindowAttributes};
 use std::{io, ptr};
 use parking_lot::MutexGuard;
-use dpi::LogicalSize;
-use platform_impl::platform::{util, event_loop};
-use platform_impl::platform::icon::WinIcon;
+use crate::dpi::LogicalSize;
+use crate::platform_impl::platform::{util, event_loop};
+use crate::platform_impl::platform::icon::WinIcon;
 use winapi::shared::windef::{RECT, HWND};
 use winapi::shared::minwindef::DWORD;
 use winapi::um::winuser;
@@ -113,7 +113,7 @@ impl WindowState {
         self.window_flags
     }
 
-    pub fn set_window_flags<F>(mut this: MutexGuard<Self>, window: HWND, set_client_rect: Option<RECT>, f: F)
+    pub fn set_window_flags<F>(mut this: MutexGuard<'_, Self>, window: HWND, set_client_rect: Option<RECT>, f: F)
         where F: FnOnce(&mut WindowFlags)
     {
         let old_flags = this.window_flags;
@@ -127,7 +127,7 @@ impl WindowState {
         old_flags.apply_diff(window, new_flags, set_client_rect);
     }
 
-    pub fn refresh_window_state(this: MutexGuard<Self>, window: HWND, set_client_rect: Option<RECT>) {
+    pub fn refresh_window_state(this: MutexGuard<'_, Self>, window: HWND, set_client_rect: Option<RECT>) {
         Self::set_window_flags(this, window, set_client_rect, |_| ());
     }
 

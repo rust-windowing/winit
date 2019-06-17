@@ -152,7 +152,7 @@ impl InputMethodName {
 }
 
 impl fmt::Debug for InputMethodName {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.string.fmt(f)
     }
 }
@@ -254,7 +254,7 @@ impl PotentialInputMethods {
     pub fn open_im(
         &mut self,
         xconn: &Arc<XConnection>,
-        callback: Option<&Fn() -> ()>,
+        callback: Option<&dyn Fn() -> ()>,
     ) -> InputMethodResult {
         use self::InputMethodResult::*;
 

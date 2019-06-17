@@ -11,27 +11,27 @@ use std::os::raw::c_void;
 use std::sync::mpsc::{Receiver, channel};
 
 use {
-    CreationError,
-    Event,
-    LogicalPosition,
-    LogicalSize,
-    CursorIcon,
-    PhysicalPosition,
-    PhysicalSize,
-    WindowAttributes,
-    WindowEvent,
-    WindowId as RootWindowId,
+    crate::CreationError,
+    crate::Event,
+    crate::LogicalPosition,
+    crate::LogicalSize,
+    crate::CursorIcon,
+    crate::PhysicalPosition,
+    crate::PhysicalSize,
+    crate::WindowAttributes,
+    crate::WindowEvent,
+    crate::WindowId as RootWindowId,
 };
 use CreationError::OsError;
-use error::{ExternalError, NotSupportedError};
-use events::{Touch, TouchPhase};
-use window::MonitorHandle as RootMonitorHandle;
+use crate::error::{ExternalError, NotSupportedError};
+use crate::events::{Touch, TouchPhase};
+use crate::window::MonitorHandle as RootMonitorHandle;
 
 pub type OsError = std::io::Error;
 
 pub struct EventLoop {
     event_rx: Receiver<android_glue::Event>,
-    suspend_callback: RefCell<Option<Box<Fn(bool) -> ()>>>,
+    suspend_callback: RefCell<Option<Box<dyn Fn(bool) -> ()>>>,
 }
 
 #[derive(Clone)]
@@ -136,7 +136,7 @@ impl EventLoop {
         };
     }
 
-    pub fn set_suspend_callback(&self, cb: Option<Box<Fn(bool) -> ()>>) {
+    pub fn set_suspend_callback(&self, cb: Option<Box<dyn Fn(bool) -> ()>>) {
         *self.suspend_callback.borrow_mut() = cb;
     }
 
@@ -196,7 +196,7 @@ pub struct Window {
 pub struct MonitorHandle;
 
 impl fmt::Debug for MonitorHandle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,

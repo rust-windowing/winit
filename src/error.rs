@@ -1,7 +1,7 @@
 use std::fmt;
 use std::error;
 
-use platform_impl;
+use crate::platform_impl;
 
 /// An error whose cause it outside Winit's control.
 #[derive(Debug)]
@@ -55,13 +55,13 @@ macro_rules! os_error {
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         formatter.pad(&format!("os error at {}:{}: {}", self.file, self.line, self.error))
     }
 }
 
 impl fmt::Display for ExternalError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             ExternalError::NotSupported(e) => e.fmt(formatter),
             ExternalError::Os(e) => e.fmt(formatter),
@@ -70,13 +70,13 @@ impl fmt::Display for ExternalError {
 }
 
 impl fmt::Debug for NotSupportedError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         formatter.debug_struct("NotSupportedError").finish()
     }
 }
 
 impl fmt::Display for NotSupportedError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         formatter.pad("the requested operation is not supported by Winit")
     }
 }

@@ -15,7 +15,7 @@ mod window_delegate;
 
 use std::{fmt, ops::Deref, sync::Arc};
 
-use {
+use crate::{
     event::DeviceId as RootDeviceId, window::WindowAttributes,
     error::OsError as RootOsError,
 };
@@ -74,7 +74,7 @@ impl Window {
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             OsError::CGError(e) => f.pad(&format!("CGError {}", e)),
             OsError::CreationError(e) => f.pad(e),

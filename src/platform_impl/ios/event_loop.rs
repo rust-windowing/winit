@@ -5,16 +5,16 @@ use std::fmt::{self, Debug, Formatter};
 use std::marker::PhantomData;
 use std::sync::mpsc::{self, Sender, Receiver};
 
-use event::Event;
-use event_loop::{
+use crate::event::Event;
+use crate::event_loop::{
     ControlFlow,
     EventLoopWindowTarget as RootEventLoopWindowTarget,
     EventLoopClosed,
 };
-use platform::ios::Idiom;
+use crate::platform::ios::Idiom;
 
-use platform_impl::platform::app_state::AppState;
-use platform_impl::platform::ffi::{
+use crate::platform_impl::platform::app_state::AppState;
+use crate::platform_impl::platform::ffi::{
     id,
     nil,
     CFIndex,
@@ -42,9 +42,9 @@ use platform_impl::platform::ffi::{
     UIApplicationMain,
     UIUserInterfaceIdiom,
 };
-use platform_impl::platform::monitor;
-use platform_impl::platform::MonitorHandle;
-use platform_impl::platform::view;
+use crate::platform_impl::platform::monitor;
+use crate::platform_impl::platform::MonitorHandle;
+use crate::platform_impl::platform::view;
 
 pub struct EventLoopWindowTarget<T: 'static> {
     receiver: Receiver<T>,
@@ -281,7 +281,7 @@ struct EventLoopHandler<F, T: 'static> {
 }
 
 impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
-    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.debug_struct("EventLoopHandler")
             .field("event_loop", &self.event_loop)
             .finish()

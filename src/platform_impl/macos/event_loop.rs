@@ -4,11 +4,11 @@ use std::{
 
 use cocoa::{appkit::NSApp, base::{id, nil}, foundation::NSAutoreleasePool};
 
-use {
+use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
 };
-use platform_impl::platform::{
+use crate::platform_impl::platform::{
     app::APP_CLASS, app_delegate::APP_DELEGATE_CLASS,
     app_state::AppState, monitor::{self, MonitorHandle},
     observer::*, util::IdRef,

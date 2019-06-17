@@ -12,8 +12,8 @@
 //! [window_get]: ../window/struct.Window.html#method.available_monitors
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
-use platform_impl;
-use dpi::{PhysicalPosition, PhysicalSize};
+use crate::platform_impl;
+use crate::dpi::{PhysicalPosition, PhysicalSize};
 
 /// An iterator over all available monitors.
 ///

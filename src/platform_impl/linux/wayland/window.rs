@@ -2,20 +2,20 @@ use std::collections::VecDeque;
 use std::io::{Seek, SeekFrom, Write};
 use std::sync::{Arc, Mutex, Weak};
 
-use dpi::{LogicalPosition, LogicalSize};
-use error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use platform_impl::{MonitorHandle as PlatformMonitorHandle, PlatformSpecificWindowBuilderAttributes as PlAttributes};
-use monitor::MonitorHandle as RootMonitorHandle;
-use window::{WindowAttributes, CursorIcon};
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::platform_impl::{MonitorHandle as PlatformMonitorHandle, PlatformSpecificWindowBuilderAttributes as PlAttributes};
+use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::window::{WindowAttributes, CursorIcon};
 
-use sctk::surface::{get_dpi_factor, get_outputs};
-use sctk::window::{ConceptFrame, Event as WEvent, State as WState, Window as SWindow, Theme};
-use sctk::reexports::client::{Display, NewProxy};
-use sctk::reexports::client::protocol::{wl_seat, wl_surface, wl_subsurface, wl_shm};
-use sctk::output::OutputMgr;
+use smithay_client_toolkit::surface::{get_dpi_factor, get_outputs};
+use smithay_client_toolkit::window::{ConceptFrame, Event as WEvent, State as WState, Window as SWindow, Theme};
+use smithay_client_toolkit::reexports::client::{Display, NewProxy};
+use smithay_client_toolkit::reexports::client::protocol::{wl_seat, wl_surface, wl_subsurface, wl_shm};
+use smithay_client_toolkit::output::OutputMgr;
 
 use super::{make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
-use platform_impl::platform::wayland::event_loop::{available_monitors, primary_monitor};
+use crate::platform_impl::platform::wayland::event_loop::{available_monitors, primary_monitor};
 
 pub struct Window {
     _bg_surface: wl_surface::WlSurface,
@@ -60,7 +60,7 @@ impl Window {
         let my_bg_surface = bg_surface.clone();
 
         // prepare a 1px buffer to display on the root window
-        let mut pool = sctk::utils::MemPool::new(&evlp.env.shm, || {}).unwrap();
+        let mut pool = smithay_client_toolkit::utils::MemPool::new(&evlp.env.shm, || {}).unwrap();
         pool.resize(4).unwrap();
         pool.seek(SeekFrom::Start(0)).unwrap();
         pool.write(&[0, 0, 0, 0]).unwrap();

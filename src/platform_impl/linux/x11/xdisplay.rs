@@ -90,7 +90,7 @@ impl XConnection {
 }
 
 impl fmt::Debug for XConnection {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.display.fmt(f)
     }
 }
@@ -119,7 +119,7 @@ impl Error for XError {
 }
 
 impl fmt::Display for XError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(formatter, "X error: {} (code: {}, request code: {}, minor code: {})",
                self.description, self.error_code, self.request_code, self.minor_code)
     }
@@ -151,7 +151,7 @@ impl Error for XNotSupported {
     }
 
     #[inline]
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         match *self {
             XNotSupported::LibraryOpenError(ref err) => Some(err),
             _ => None
@@ -160,7 +160,7 @@ impl Error for XNotSupported {
 }
 
 impl fmt::Display for XNotSupported {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         formatter.write_str(self.description())
     }
 }

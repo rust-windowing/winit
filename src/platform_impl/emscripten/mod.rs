@@ -9,9 +9,9 @@ use std::os::raw::{c_char, c_void, c_double, c_ulong, c_int};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, Arc};
 
-use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use error::{ExternalError, NotSupportedError};
-use window::MonitorHandle as RootMonitorHandle;
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use crate::error::{ExternalError, NotSupportedError};
+use crate::window::MonitorHandle as RootMonitorHandle;
 
 const DOCUMENT_NAME: &'static str = "#document\0";
 

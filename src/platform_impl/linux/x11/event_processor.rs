@@ -12,9 +12,9 @@ use super::{
     events, util, DndState, Dnd, DeviceInfo
 };
 
-use event_loop::EventLoopWindowTarget as RootELW;
-use event::{DeviceEvent, Event, KeyboardInput, ModifiersState, WindowEvent};
-use dpi::{LogicalPosition,LogicalSize};
+use crate::event_loop::EventLoopWindowTarget as RootELW;
+use crate::event::{DeviceEvent, Event, KeyboardInput, ModifiersState, WindowEvent};
+use crate::dpi::{LogicalPosition,LogicalSize};
 
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
@@ -440,7 +440,7 @@ impl<T: 'static> EventProcessor<T> {
             }
 
             ffi::KeyPress | ffi::KeyRelease => {
-                use event::ElementState::{Pressed, Released};
+                use crate::event::ElementState::{Pressed, Released};
 
                 // Note that in compose/pre-edit sequences, this will always be Released.
                 let state = if xev.get_type() == ffi::KeyPress {
@@ -521,11 +521,11 @@ impl<T: 'static> EventProcessor<T> {
                     return;
                 }
 
-                use event::WindowEvent::{Focused, CursorEntered, MouseInput, CursorLeft, CursorMoved, MouseWheel, AxisMotion};
-                use event::ElementState::{Pressed, Released};
-                use event::MouseButton::{Left, Right, Middle, Other};
-                use event::MouseScrollDelta::LineDelta;
-                use event::{Touch, TouchPhase};
+                use crate::event::WindowEvent::{Focused, CursorEntered, MouseInput, CursorLeft, CursorMoved, MouseWheel, AxisMotion};
+                use crate::event::ElementState::{Pressed, Released};
+                use crate::event::MouseButton::{Left, Right, Middle, Other};
+                use crate::event::MouseScrollDelta::LineDelta;
+                use crate::event::{Touch, TouchPhase};
 
                 match xev.evtype {
                     ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {

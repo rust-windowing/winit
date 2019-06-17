@@ -1,6 +1,6 @@
 use std::{self, ptr, os::raw::*, time::Instant};
 
-use platform_impl::platform::app_state::AppState;
+use crate::platform_impl::platform::app_state::AppState;
 
 #[link(name = "CoreFoundation", kind = "framework")]
 extern {

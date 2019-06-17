@@ -11,9 +11,9 @@ use core_video_sys::{
     CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
 };
 
-use dpi::{PhysicalPosition, PhysicalSize};
-use monitor::VideoMode;
-use platform_impl::platform::util::IdRef;
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoMode;
+use crate::platform_impl::platform::util::IdRef;
 
 #[derive(Clone, PartialEq)]
 pub struct MonitorHandle(CGDirectDisplayID);
@@ -35,7 +35,7 @@ pub fn primary_monitor() -> MonitorHandle {
 }
 
 impl fmt::Debug for MonitorHandle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // TODO: Do this using the proper fmt API
         #[derive(Debug)]
         struct MonitorHandle {

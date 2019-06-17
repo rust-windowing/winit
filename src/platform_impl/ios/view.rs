@@ -3,20 +3,20 @@ use std::collections::HashMap;
 use objc::declare::ClassDecl;
 use objc::runtime::{BOOL, Class, NO, Object, Sel, YES};
 
-use event::{
+use crate::event::{
     DeviceId as RootDeviceId,
     Event,
     Touch,
     TouchPhase,
     WindowEvent
 };
-use platform::ios::MonitorHandleExtIOS;
-use window::{WindowAttributes, WindowId as RootWindowId};
+use crate::platform::ios::MonitorHandleExtIOS;
+use crate::window::{WindowAttributes, WindowId as RootWindowId};
 
-use platform_impl::platform::app_state::AppState;
-use platform_impl::platform::DeviceId;
-use platform_impl::platform::event_loop;
-use platform_impl::platform::ffi::{
+use crate::platform_impl::platform::app_state::AppState;
+use crate::platform_impl::platform::DeviceId;
+use crate::platform_impl::platform::event_loop;
+use crate::platform_impl::platform::ffi::{
     id,
     nil,
     CGFloat,
@@ -25,7 +25,7 @@ use platform_impl::platform::ffi::{
     UIInterfaceOrientationMask,
     UITouchPhase,
 };
-use platform_impl::platform::window::{PlatformSpecificWindowBuilderAttributes};
+use crate::platform_impl::platform::window::{PlatformSpecificWindowBuilderAttributes};
 
 // requires main thread
 unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {

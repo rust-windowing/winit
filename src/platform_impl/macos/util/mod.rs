@@ -1,7 +1,7 @@
-mod async;
+mod r#async;
 mod cursor;
 
-pub use self::{async::*, cursor::*};
+pub use self::{r#async::*, cursor::*};
 
 use std::ops::Deref;
 use std::ops::BitAnd;
@@ -14,7 +14,7 @@ use cocoa::{
 use core_graphics::display::CGDisplay;
 use objc::runtime::{BOOL, Class, Object, Sel, YES};
 
-use platform_impl::platform::ffi;
+use crate::platform_impl::platform::ffi;
 
 // Replace with `!` once stable
 #[derive(Debug)]

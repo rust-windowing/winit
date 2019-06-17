@@ -5,24 +5,24 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
-use event::ModifiersState;
-use dpi::{PhysicalPosition, PhysicalSize};
-use platform_impl::platform::sticky_exit_callback;
-use monitor::VideoMode;
+use crate::event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
+use crate::event::ModifiersState;
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::platform_impl::platform::sticky_exit_callback;
+use crate::monitor::VideoMode;
 
 use super::window::WindowStore;
 use super::WindowId;
 
-use sctk::output::OutputMgr;
-use sctk::reexports::client::protocol::{
+use smithay_client_toolkit::output::OutputMgr;
+use smithay_client_toolkit::reexports::client::protocol::{
     wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat, wl_touch,
 };
-use sctk::reexports::client::{ConnectError, Display, EventQueue, GlobalEvent};
-use sctk::Environment;
+use smithay_client_toolkit::reexports::client::{ConnectError, Display, EventQueue, GlobalEvent};
+use smithay_client_toolkit::Environment;
 
 pub struct WindowEventsSink {
-    buffer: VecDeque<(::event::WindowEvent, ::window::WindowId)>,
+    buffer: VecDeque<(crate::event::WindowEvent, crate::window::WindowId)>,
 }
 
 impl WindowEventsSink {
@@ -32,16 +32,16 @@ impl WindowEventsSink {
         }
     }
 
-    pub fn send_event(&mut self, evt: ::event::WindowEvent, wid: WindowId) {
-        self.buffer.push_back((evt, ::window::WindowId(::platform_impl::WindowId::Wayland(wid))));
+    pub fn send_event(&mut self, evt: crate::event::WindowEvent, wid: WindowId) {
+        self.buffer.push_back((evt, crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid))));
     }
 
     fn empty_with<F, T>(&mut self, mut callback: F)
     where
-        F: FnMut(::event::Event<T>),
+        F: FnMut(crate::event::Event<T>),
     {
         for (evt, wid) in self.buffer.drain(..) {
-            callback(::event::Event::WindowEvent { event: evt, window_id: wid})
+            callback(crate::event::Event::WindowEvent { event: evt, window_id: wid})
         }
     }
 }
@@ -58,7 +58,7 @@ pub struct EventLoop<T: 'static> {
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     user_sender: ::calloop::channel::Sender<T>,
-    _kbd_source: ::calloop::Source<::calloop::channel::Channel<(::event::WindowEvent, super::WindowId)>>,
+    _kbd_source: ::calloop::Source<::calloop::channel::Channel<(crate::event::WindowEvent, super::WindowId)>>,
     window_target: RootELW<T>
 }
 
@@ -160,7 +160,7 @@ impl<T: 'static> EventLoop<T> {
             user_sender,
             _kbd_source: kbd_source,
             window_target: RootELW {
-                p: ::platform_impl::EventLoopWindowTarget::Wayland(EventLoopWindowTarget {
+                p: crate::platform_impl::EventLoopWindowTarget::Wayland(EventLoopWindowTarget {
                     evq: RefCell::new(source),
                     store,
                     env,
@@ -181,14 +181,14 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn run<F>(mut self, callback: F) -> !
-        where F: 'static + FnMut(::event::Event<T>, &RootELW<T>, &mut ControlFlow)
+        where F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         self.run_return(callback);
         ::std::process::exit(0);
     }
 
     pub fn run_return<F>(&mut self, mut callback: F)
-        where F: FnMut(::event::Event<T>, &RootELW<T>, &mut ControlFlow)
+        where F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         // send pending events to the server
         self.display.flush().expect("Wayland connection lost.");
@@ -198,7 +198,7 @@ impl<T: 'static> EventLoop<T> {
         let sink = self.sink.clone();
         let user_events = self.pending_user_events.clone();
 
-        callback(::event::Event::NewEvents(::event::StartCause::Init), &self.window_target, &mut control_flow);
+        callback(crate::event::Event::NewEvents(crate::event::StartCause::Init), &self.window_target, &mut control_flow);
 
         loop {
             self.post_dispatch_triggers();
@@ -215,7 +215,7 @@ impl<T: 'static> EventLoop<T> {
                 let mut guard = user_events.borrow_mut();
                 for evt in guard.drain(..) {
                     sticky_exit_callback(
-                        ::event::Event::UserEvent(evt),
+                        crate::event::Event::UserEvent(evt),
                         &self.window_target,
                         &mut control_flow,
                         &mut callback
@@ -234,7 +234,7 @@ impl<T: 'static> EventLoop<T> {
             // send Events cleared
             {
                 sticky_exit_callback(
-                    ::event::Event::EventsCleared,
+                    crate::event::Event::EventsCleared,
                     &self.window_target,
                     &mut control_flow,
                     &mut callback
@@ -249,12 +249,12 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::Poll => {
                     // non-blocking dispatch
                     self.inner_loop.dispatch(Some(::std::time::Duration::from_millis(0)), &mut ()).unwrap();
-                    callback(::event::Event::NewEvents(::event::StartCause::Poll), &self.window_target, &mut control_flow);
+                    callback(crate::event::Event::NewEvents(crate::event::StartCause::Poll), &self.window_target, &mut control_flow);
                 },
                 ControlFlow::Wait => {
                     self.inner_loop.dispatch(None, &mut ()).unwrap();
                     callback(
-                        ::event::Event::NewEvents(::event::StartCause::WaitCancelled {
+                        crate::event::Event::NewEvents(crate::event::StartCause::WaitCancelled {
                             start: Instant::now(),
                             requested_resume: None
                         }),
@@ -274,7 +274,7 @@ impl<T: 'static> EventLoop<T> {
                     let now = Instant::now();
                     if now < deadline {
                         callback(
-                            ::event::Event::NewEvents(::event::StartCause::WaitCancelled {
+                            crate::event::Event::NewEvents(crate::event::StartCause::WaitCancelled {
                                 start,
                                 requested_resume: Some(deadline)
                             }),
@@ -283,7 +283,7 @@ impl<T: 'static> EventLoop<T> {
                         );
                     } else {
                         callback(
-                            ::event::Event::NewEvents(::event::StartCause::ResumeTimeReached {
+                            crate::event::Event::NewEvents(crate::event::StartCause::ResumeTimeReached {
                                 start,
                                 requested_resume: deadline
                             }),
@@ -295,7 +295,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        callback(::event::Event::LoopDestroyed, &self.window_target, &mut control_flow);
+        callback(crate::event::Event::LoopDestroyed, &self.window_target, &mut control_flow);
     }
 
     pub fn primary_monitor(&self) -> MonitorHandle {
@@ -323,7 +323,7 @@ impl<T> EventLoop<T> {
     fn post_dispatch_triggers(&mut self) {
         let mut sink = self.sink.lock().unwrap();
         let window_target = match self.window_target.p {
-            ::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+            crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
             _ => unreachable!()
         };
         // prune possible dead windows
@@ -333,7 +333,7 @@ impl<T> EventLoop<T> {
                 let pruned = window_target.store.lock().unwrap().cleanup();
                 *cleanup_needed = false;
                 for wid in pruned {
-                    sink.send_event(::event::WindowEvent::Destroyed, wid);
+                    sink.send_event(crate::event::WindowEvent::Destroyed, wid);
                 }
             }
         }
@@ -344,8 +344,8 @@ impl<T> EventLoop<T> {
                     if let Some((w, h)) = newsize {
                         frame.resize(w, h);
                         frame.refresh();
-                        let logical_size = ::dpi::LogicalSize::new(w as f64, h as f64);
-                        sink.send_event(::event::WindowEvent::Resized(logical_size), wid);
+                        let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
+                        sink.send_event(crate::event::WindowEvent::Resized(logical_size), wid);
                         *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
@@ -355,13 +355,13 @@ impl<T> EventLoop<T> {
                     }
                 }
                 if let Some(dpi) = new_dpi {
-                    sink.send_event(::event::WindowEvent::HiDpiFactorChanged(dpi as f64), wid);
+                    sink.send_event(crate::event::WindowEvent::HiDpiFactorChanged(dpi as f64), wid);
                 }
                 if refresh {
-                    sink.send_event(::event::WindowEvent::RedrawRequested, wid);
+                    sink.send_event(crate::event::WindowEvent::RedrawRequested, wid);
                 }
                 if closed {
-                    sink.send_event(::event::WindowEvent::CloseRequested, wid);
+                    sink.send_event(crate::event::WindowEvent::CloseRequested, wid);
                 }
             },
         )
@@ -376,7 +376,7 @@ struct SeatManager {
     sink: Arc<Mutex<WindowEventsSink>>,
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
-    kbd_sender: ::calloop::channel::Sender<(::event::WindowEvent, super::WindowId)>
+    kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>
 }
 
 impl SeatManager {
@@ -417,7 +417,7 @@ impl SeatManager {
 struct SeatData {
     sink: Arc<Mutex<WindowEventsSink>>,
     store: Arc<Mutex<WindowStore>>,
-    kbd_sender: ::calloop::channel::Sender<(::event::WindowEvent, super::WindowId)>,
+    kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     pointer: Option<wl_pointer::WlPointer>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
@@ -523,7 +523,7 @@ impl Clone for MonitorHandle {
 }
 
 impl fmt::Debug for MonitorHandle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,

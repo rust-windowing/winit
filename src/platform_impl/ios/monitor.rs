@@ -4,10 +4,10 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use dpi::{PhysicalPosition, PhysicalSize};
-use monitor::VideoMode;
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoMode;
 
-use platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger};
+use crate::platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger};
 
 pub struct Inner {
     uiscreen: id,
@@ -63,7 +63,7 @@ impl Drop for MonitorHandle {
 }
 
 impl fmt::Debug for MonitorHandle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,

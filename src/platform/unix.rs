@@ -4,26 +4,26 @@ use std::os::raw;
 use std::ptr;
 use std::sync::Arc;
 
-use sctk::window::{ButtonState, Theme};
+use smithay_client_toolkit::window::{ButtonState, Theme};
 
-use dpi::LogicalSize;
-use event_loop::EventLoop;
-use monitor::MonitorHandle;
-use window::{Window, WindowBuilder};
+use crate::dpi::LogicalSize;
+use crate::event_loop::EventLoop;
+use crate::monitor::MonitorHandle;
+use crate::window::{Window, WindowBuilder};
 
-use platform_impl::{
+use crate::platform_impl::{
     EventLoop as LinuxEventLoop,
     Window as LinuxWindow,
 };
-use platform_impl::x11::XConnection;
-use platform_impl::x11::ffi::XVisualInfo;
+use crate::platform_impl::x11::XConnection;
+use crate::platform_impl::x11::ffi::XVisualInfo;
 
 // TODO: stupid hack so that glutin can do its work
 #[doc(hidden)]
-pub use platform_impl::x11;
+pub use crate::platform_impl::x11;
 
-pub use platform_impl::XNotSupported;
-pub use platform_impl::x11::util::WindowType as XWindowType;
+pub use crate::platform_impl::XNotSupported;
+pub use crate::platform_impl::x11::util::WindowType as XWindowType;
 
 /// Theme for wayland client side decorations
 ///

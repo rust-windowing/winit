@@ -2,8 +2,8 @@ use std::os::raw::*;
 
 use parking_lot::Mutex;
 
-use dpi::{PhysicalPosition, PhysicalSize};
-use monitor::VideoMode;
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoMode;
 use super::{util, XConnection, XError};
 use super::ffi::{
     RRCrtcChangeNotifyMask,

@@ -8,14 +8,14 @@ use std::sync::Arc;
 use libc;
 use parking_lot::Mutex;
 
-use error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use window::{Icon, CursorIcon, WindowAttributes};
-use dpi::{LogicalPosition, LogicalSize};
-use platform_impl::MonitorHandle as PlatformMonitorHandle;
-use platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
-use platform_impl::x11::ime::ImeContextCreationError;
-use platform_impl::x11::MonitorHandle as X11MonitorHandle;
-use monitor::MonitorHandle as RootMonitorHandle;
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::window::{Icon, CursorIcon, WindowAttributes};
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::platform_impl::MonitorHandle as PlatformMonitorHandle;
+use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
+use crate::platform_impl::x11::ime::ImeContextCreationError;
+use crate::platform_impl::x11::MonitorHandle as X11MonitorHandle;
+use crate::monitor::MonitorHandle as RootMonitorHandle;
 
 use super::{ffi, util, ImeSender, XConnection, XError, WindowId, EventLoopWindowTarget};
 
@@ -429,7 +429,7 @@ impl UnownedWindow {
         LogicalSize::from_physical((width, height), dpi)
     }
 
-    fn set_pid(&self) -> Option<util::Flusher> {
+    fn set_pid(&self) -> Option<util::Flusher<'_>> {
         let pid_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_PID\0") };
         let client_machine_atom = unsafe { self.xconn.get_atom_unchecked(b"WM_CLIENT_MACHINE\0") };
         unsafe {
@@ -462,7 +462,7 @@ impl UnownedWindow {
         }
     }
 
-    fn set_window_type(&self, window_type: util::WindowType) -> util::Flusher {
+    fn set_window_type(&self, window_type: util::WindowType) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE\0") };
         let window_type_atom = window_type.as_atom(&self.xconn);
         self.xconn.change_property(
@@ -474,7 +474,7 @@ impl UnownedWindow {
         )
     }
 
-    fn set_gtk_theme_variant(&self, variant: String) -> util::Flusher {
+    fn set_gtk_theme_variant(&self, variant: String) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_GTK_THEME_VARIANT\0") };
         let utf8_atom = unsafe { self.xconn.get_atom_unchecked(b"UTF8_STRING\0") };
         let variant = CString::new(variant).expect("`_GTK_THEME_VARIANT` contained null byte");
@@ -502,7 +502,7 @@ impl UnownedWindow {
         &self,
         operation: util::StateOperation,
         properties: (c_long, c_long, c_long, c_long),
-    ) -> util::Flusher {
+    ) -> util::Flusher<'_> {
         let state_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };
         self.xconn.send_client_msg(
             self.xwindow,
@@ -519,12 +519,12 @@ impl UnownedWindow {
         )
     }
 
-    fn set_fullscreen_hint(&self, fullscreen: bool) -> util::Flusher {
+    fn set_fullscreen_hint(&self, fullscreen: bool) -> util::Flusher<'_> {
         let fullscreen_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_FULLSCREEN\0") };
         self.set_netwm(fullscreen.into(), (fullscreen_atom as c_long, 0, 0, 0))
     }
 
-    fn set_fullscreen_inner(&self, monitor: Option<RootMonitorHandle>) -> util::Flusher {
+    fn set_fullscreen_inner(&self, monitor: Option<RootMonitorHandle>) -> util::Flusher<'_> {
         match monitor {
             None => {
                 let flusher = self.set_fullscreen_hint(false);
@@ -588,7 +588,7 @@ impl UnownedWindow {
         self.xconn.primary_monitor()
     }
 
-    fn set_maximized_inner(&self, maximized: bool) -> util::Flusher {
+    fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
         let horz_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0") };
         let vert_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0") };
         self.set_netwm(maximized.into(), (horz_atom as c_long, vert_atom as c_long, 0, 0))
@@ -602,7 +602,7 @@ impl UnownedWindow {
         self.invalidate_cached_frame_extents();
     }
 
-    fn set_title_inner(&self, title: &str) -> util::Flusher {
+    fn set_title_inner(&self, title: &str) -> util::Flusher<'_> {
         let wm_name_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_NAME\0") };
         let utf8_atom = unsafe { self.xconn.get_atom_unchecked(b"UTF8_STRING\0") };
         let title = CString::new(title).expect("Window title contained null byte");
@@ -629,7 +629,7 @@ impl UnownedWindow {
             .expect("Failed to set window title");
     }
 
-    fn set_decorations_inner(&self, decorations: bool) -> util::Flusher {
+    fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
         let wm_hints = unsafe { self.xconn.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
         self.xconn.change_property(
             self.xwindow,
@@ -654,7 +654,7 @@ impl UnownedWindow {
         self.invalidate_cached_frame_extents();
     }
 
-    fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher {
+    fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher<'_> {
         let above_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_ABOVE\0") };
         self.set_netwm(always_on_top.into(), (above_atom as c_long, 0, 0, 0))
     }
@@ -666,7 +666,7 @@ impl UnownedWindow {
             .expect("Failed to set always-on-top state");
     }
 
-    fn set_icon_inner(&self, icon: Icon) -> util::Flusher {
+    fn set_icon_inner(&self, icon: Icon) -> util::Flusher<'_> {
         let icon_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_ICON\0") };
         let data = icon.to_cardinals();
         self.xconn.change_property(
@@ -678,7 +678,7 @@ impl UnownedWindow {
         )
     }
 
-    fn unset_icon_inner(&self) -> util::Flusher {
+    fn unset_icon_inner(&self) -> util::Flusher<'_> {
         let icon_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_ICON\0") };
         let empty_data: [util::Cardinal; 0] = [];
         self.xconn.change_property(
@@ -759,7 +759,7 @@ impl UnownedWindow {
         Ok(self.logicalize_coords(self.inner_position_physical()))
     }
 
-    pub(crate) fn set_position_inner(&self, mut x: i32, mut y: i32) -> util::Flusher {
+    pub(crate) fn set_position_inner(&self, mut x: i32, mut y: i32) -> util::Flusher<'_> {
         // There are a few WMs that set client area position rather than window position, so
         // we'll translate for consistency.
         if util::wm_name_is_one_of(&["Enlightenment", "FVWM"]) {
@@ -851,7 +851,7 @@ impl UnownedWindow {
     }
 
     fn update_normal_hints<F>(&self, callback: F) -> Result<(), XError>
-        where F: FnOnce(&mut util::NormalHints) -> ()
+        where F: FnOnce(&mut util::NormalHints<'_>) -> ()
     {
         let mut normal_hints = self.xconn.get_normal_hints(self.xwindow)?;
         callback(&mut normal_hints);
@@ -892,7 +892,7 @@ impl UnownedWindow {
         new_dpi_factor: f64,
         width: f64,
         height: f64,
-    ) -> (f64, f64, util::Flusher) {
+    ) -> (f64, f64, util::Flusher<'_>) {
         let scale_factor = new_dpi_factor / old_dpi_factor;
         let new_width = width * scale_factor;
         let new_height = height * scale_factor;

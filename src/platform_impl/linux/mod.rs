@@ -7,15 +7,15 @@ use std::os::raw::*;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use sctk::reexports::client::ConnectError;
+use smithay_client_toolkit::reexports::client::ConnectError;
 
-use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use icon::Icon;
-use error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use event::Event;
-use event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
-use monitor::{MonitorHandle as RootMonitorHandle, VideoMode};
-use window::{WindowAttributes, CursorIcon};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use crate::icon::Icon;
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::event::Event;
+use crate::event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode};
+use crate::window::{WindowAttributes, CursorIcon};
 use self::x11::{XConnection, XError};
 use self::x11::ffi::XVisualInfo;
 pub use self::x11::XNotSupported;
@@ -59,7 +59,7 @@ pub enum OsError {
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             OsError::XError(e) => formatter.pad(&e.description),
             OsError::XMisc(e) => formatter.pad(e),
@@ -529,7 +529,7 @@ impl<T:'static> EventLoop<T> {
     }
 
     pub fn run_return<F>(&mut self, callback: F)
-        where F: FnMut(::event::Event<T>, &RootELW<T>, &mut ControlFlow)
+        where F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         match *self {
             EventLoop::Wayland(ref mut evlp) => evlp.run_return(callback),
@@ -538,7 +538,7 @@ impl<T:'static> EventLoop<T> {
     }
 
     pub fn run<F>(self, callback: F) -> !
-        where F: 'static + FnMut(::event::Event<T>, &RootELW<T>, &mut ControlFlow)
+        where F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         match self {
             EventLoop::Wayland(evlp) => evlp.run(callback),
@@ -554,7 +554,7 @@ impl<T:'static> EventLoop<T> {
         }
     }
 
-    pub fn window_target(&self) -> &::event_loop::EventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
         match *self {
             EventLoop::Wayland(ref evl) => evl.window_target(),
             EventLoop::X(ref evl) => evl.window_target()

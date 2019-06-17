@@ -7,8 +7,8 @@ use cocoa::{
 };
 use dispatch::ffi::{dispatch_async_f, dispatch_get_main_queue, dispatch_sync_f};
 
-use dpi::LogicalSize;
-use platform_impl::platform::{ffi, window::SharedState};
+use crate::dpi::LogicalSize;
+use crate::platform_impl::platform::{ffi, window::SharedState};
 
 unsafe fn set_style_mask(ns_window: id, ns_view: id, mask: NSWindowStyleMask) {
     ns_window.setStyleMask_(mask);

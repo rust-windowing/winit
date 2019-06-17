@@ -7,7 +7,7 @@ use winapi::shared::minwindef::{BYTE, LPARAM, WPARAM};
 use winapi::shared::windef::{HICON, HWND};
 use winapi::um::winuser;
 
-use icon::{Pixel, PIXEL_SIZE, Icon};
+use crate::icon::{Pixel, PIXEL_SIZE, Icon};
 
 impl Pixel {
     fn to_bgra(&mut self) {

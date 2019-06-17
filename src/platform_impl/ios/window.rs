@@ -5,16 +5,16 @@ use std::{
 
 use objc::runtime::{Class, NO, Object, YES};
 
-use dpi::{self, LogicalPosition, LogicalSize};
-use error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use icon::Icon;
-use monitor::MonitorHandle as RootMonitorHandle;
-use platform::ios::{MonitorHandleExtIOS, ValidOrientations};
-use window::{
+use crate::dpi::{self, LogicalPosition, LogicalSize};
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::icon::Icon;
+use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::platform::ios::{MonitorHandleExtIOS, ValidOrientations};
+use crate::window::{
     CursorIcon,
     WindowAttributes,
 };
-use platform_impl::{
+use crate::platform_impl::{
     platform::{
         app_state::AppState,
         event_loop,

@@ -15,7 +15,7 @@ use cocoa::{
 use core_graphics::display::CGDisplay;
 use objc::{runtime::{Class, Object, Sel, BOOL, YES, NO}, declare::ClassDecl};
 
-use {
+use crate::{
     dpi::{LogicalPosition, LogicalSize}, icon::Icon,
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
@@ -23,8 +23,8 @@ use {
         CursorIcon, WindowAttributes, WindowId as RootWindowId,
     },
 };
-use platform::macos::{ActivationPolicy, WindowExtMacOS};
-use platform_impl::platform::{
+use crate::platform::macos::{ActivationPolicy, WindowExtMacOS};
+use crate::platform_impl::platform::{
     OsError,
     app_state::AppState, ffi, monitor::{self, MonitorHandle},
     util::{self, IdRef}, view::{self, new_view},
