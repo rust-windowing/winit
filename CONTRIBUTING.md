@@ -48,7 +48,12 @@ This table summarizes who can be contacted in which case, with the following leg
 
 | Platform            | Windows | macOS | X11   | Wayland | Android | iOS   | Emscripten |
 | :---                | :---:   | :---: | :---: | :---:   | :---:   | :---: | :---:      |
-| @mitchmindtree      | T       |       | T     | T       |         |       |            |
-| @Osspial            | M       |       | T     | T       | T       |       | T          |
-| @vberger            |         |       | T     | M       |         |       |            |
-| @mtak-              |         | T     |       |         | T       | M     |            |
+| [@mitchmindtree]    | T       |       | T     | T       |         |       |            |
+| [@Osspial]          | M       |       | T     | T       | T       |       | T          |
+| [@vberger]          |         |       | T     | M       |         |       |            |
+| [@mtak-]            |         | T     |       |         | T       | M     |            |
+
+[@mitchmindtree]: https://github.com/mitchmindtree
+[@Osspial]: https://github.com/Osspial
+[@vberger]: https://github.com/vberger
+[@mtak-]: https://github.com/mtak-
