@@ -655,20 +655,27 @@ impl UnownedWindow {
             return;
         }
 
-        // TODO: Right now set_fullscreen does not work on switching monitors in
-        // fullscreen mode! Our best bet is probably to move to the origin of
-        // the target monitor.
-        if fullscreen.is_some() {
-            let current_monitor = &self.current_monitor().inner;
-            let new_monitor = match fullscreen {
-                Some(Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor })) => monitor,
-                Some(Fullscreen::Exclusive(RootVideoMode {
+        // If the fullscreen is on a different monitor, we must move the window
+        // to that monitor before we toggle fullscreen
+        if let Some(ref fullscreen) = fullscreen {
+            let new_screen = match fullscreen {
+                Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor }) => monitor,
+                Fullscreen::Exclusive(RootVideoMode {
                     video_mode: VideoMode { ref monitor, .. },
-                })) => monitor,
-                None => current_monitor,
-            };
-            if new_monitor != current_monitor {
-                unimplemented!("fullscreen on non-current monitor")
+                }) => monitor,
+            }
+            .ns_screen()
+            .unwrap();
+
+            unsafe {
+                let old_screen = NSWindow::screen(*self.ns_window);
+                if old_screen != new_screen {
+                    let mut screen_frame: NSRect = msg_send![new_screen, frame];
+                    // The coordinate system here has its origin at bottom-left and
+                    // Y goes up
+                    screen_frame.origin.y += screen_frame.size.height;
+                    util::set_frame_top_left_point_async(*self.ns_window, screen_frame.origin);
+                }
             }
         }
 

@@ -24,7 +24,6 @@ fn main() {
         _ => unreachable!("Please enter a valid number"),
     });
 
-    let mut is_fullscreen = true;
     let mut is_maximized = false;
     let mut decorations = true;
 
@@ -58,8 +57,7 @@ fn main() {
                 } => match (virtual_code, state) {
                     (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
                     (VirtualKeyCode::F, ElementState::Pressed) => {
-                        is_fullscreen = !is_fullscreen;
-                        if !is_fullscreen {
+                        if window.fullscreen().is_some() {
                             window.set_fullscreen(None);
                         } else {
                             window.set_fullscreen(fullscreen.clone());
