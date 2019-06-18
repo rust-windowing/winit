@@ -593,8 +593,27 @@ impl UnownedWindow {
         }
     }
 
+    /// This is called when the window is exiting fullscreen, whether by the
+    /// user clicking on the green fullscreen button or programmatically by
+    /// `toggleFullScreen:`
     pub(crate) fn restore_state_from_fullscreen(&self) {
+        self.restore_display_mode();
+
         trace!("Locked shared state in `restore_state_from_fullscreen`");
+        let mut shared_state_lock = self.shared_state.lock().unwrap();
+
+        let maximized = shared_state_lock.maximized;
+        let mask = self.saved_style(&mut *shared_state_lock);
+
+        drop(shared_state_lock);
+        trace!("Unocked shared state in `restore_state_from_fullscreen`");
+
+        self.set_style_mask_async(mask);
+        self.set_maximized(maximized);
+    }
+
+    fn restore_display_mode(&self) {
+        trace!("Locked shared state in `restore_display_mode`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
 
         if let Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })) =
@@ -609,14 +628,7 @@ impl UnownedWindow {
             }
         }
 
-        let maximized = shared_state_lock.maximized;
-        let mask = self.saved_style(&mut *shared_state_lock);
-
-        drop(shared_state_lock);
-        trace!("Unocked shared state in `restore_state_from_fullscreen`");
-
-        self.set_style_mask_async(mask);
-        self.set_maximized(maximized);
+        trace!("Unlocked shared state in `restore_display_mode`");
     }
 
     #[inline]
@@ -644,7 +656,7 @@ impl UnownedWindow {
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         trace!("Locked shared state in `set_fullscreen`");
-        let mut shared_state_lock = self.shared_state.lock().unwrap();
+        let shared_state_lock = self.shared_state.lock().unwrap();
         if shared_state_lock.is_simple_fullscreen {
             trace!("Unlocked shared state in `set_fullscreen`");
             return;
@@ -653,6 +665,29 @@ impl UnownedWindow {
         if fullscreen == old_fullscreen {
             trace!("Unlocked shared state in `set_fullscreen`");
             return;
+        }
+        trace!("Unlocked shared state in `set_fullscreen`");
+        drop(shared_state_lock);
+
+        // If we're switching from exclusive to borderless mode, we need to
+        // restore the previous display mode (for switching to windowed mode
+        // this is handled in the `restore_state_from_fullscreen` callback)
+        match (&old_fullscreen, &fullscreen) {
+            (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+                self.restore_display_mode();
+
+                trace!("Locked shared state in `set_fullscreen`");
+                let mut shared_state_lock = self.shared_state.lock().unwrap();
+
+                // This is usually set in `window_did_enter_fullscreen` for
+                // borderless fullscreen, but since we're already in fullscreen,
+                // that isn't triggered and we must set it here
+                shared_state_lock.fullscreen = fullscreen.clone();
+
+                drop(shared_state_lock);
+                trace!("Unlocked shared state in `set_fullscreen`");
+            }
+            _ => (),
         }
 
         // If the fullscreen is on a different monitor, we must move the window
@@ -758,11 +793,17 @@ impl UnownedWindow {
                 }
             }
 
+            trace!("Locked shared state in `set_fullscreen`");
+            let mut shared_state_lock = self.shared_state.lock().unwrap();
+
             // This is set in `window_did_enter_fullscreen` for borderless
             // fullscreen, but for exclusive mode we set it here, as we can only
             // enter exclusive mode from this function (and not also by user
             // action like borderless)
             shared_state_lock.fullscreen = fullscreen.clone();
+
+            drop(shared_state_lock);
+            trace!("Unlocked shared state in `set_fullscreen`");
         }
 
         if old_fullscreen.is_some() != fullscreen.is_some() {
@@ -775,8 +816,6 @@ impl UnownedWindow {
                 )
             };
         }
-
-        trace!("Unlocked shared state in `set_fullscreen`");
     }
 
     #[inline]

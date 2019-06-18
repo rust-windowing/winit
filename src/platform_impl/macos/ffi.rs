@@ -6,6 +6,11 @@ use cocoa::{
     base::id,
     foundation::{NSInteger, NSUInteger},
 };
+use core_foundation::uuid::CFUUIDRef;
+use core_graphics::{
+    base::CGError,
+    display::{CGDirectDisplayID, CGDisplayConfigRef},
+};
 use objc;
 
 pub const NSNotFound: NSInteger = NSInteger::max_value();
@@ -109,11 +114,6 @@ pub enum NSWindowLevel {
     NSScreenSaverWindowLevel = kCGScreenSaverWindowLevelKey as _,
 }
 
-use core_graphics::{
-    base::CGError,
-    display::{CGDirectDisplayID, CGDisplayConfigRef},
-};
-
 pub type CGDisplayFadeInterval = f32;
 pub type CGDisplayReservationInterval = f32;
 pub type CGDisplayBlendFraction = f32;
@@ -168,4 +168,5 @@ extern "C" {
         synchronous: Boolean,
     ) -> CGError;
     pub fn CGReleaseDisplayFadeReservation(token: CGDisplayFadeReservationToken) -> CGError;
+    pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
 }

@@ -11,6 +11,7 @@ use core_video_sys::{
     CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
 };
 
+use super::ffi;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
@@ -48,8 +49,20 @@ impl VideoMode {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct MonitorHandle(CGDirectDisplayID);
+
+// `CGDirectDisplayID` changes on video mode change, so we cannot rely on that
+// for comparisons, but we can use `CGDisplayCreateUUIDFromDisplayID` to get an
+// unique identifier that persists even across system reboots
+impl PartialEq for MonitorHandle {
+    fn eq(&self, other: &Self) -> bool {
+        unsafe {
+            ffi::CGDisplayCreateUUIDFromDisplayID(self.0)
+                == ffi::CGDisplayCreateUUIDFromDisplayID(other.0)
+        }
+    }
+}
 
 pub fn available_monitors() -> VecDeque<MonitorHandle> {
     if let Ok(displays) = CGDisplay::active_displays() {
