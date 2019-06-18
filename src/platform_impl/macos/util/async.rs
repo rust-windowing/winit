@@ -1,14 +1,17 @@
-use std::{os::raw::c_void, sync::{Mutex, Weak}};
+use std::{
+    os::raw::c_void,
+    sync::{Mutex, Weak},
+};
 
 use cocoa::{
-    appkit::{CGFloat, NSWindow, NSWindowStyleMask},
+    appkit::{CGFloat, NSScreen, NSWindow, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSPoint, NSSize},
+    foundation::{NSAutoreleasePool, NSPoint, NSSize, NSString},
 };
 use dispatch::ffi::{dispatch_async_f, dispatch_get_main_queue, dispatch_sync_f};
 
 use crate::dpi::LogicalSize;
-use crate::platform_impl::platform::{ffi, window::SharedState};
+use crate::platform_impl::platform::{ffi, util::IdRef, window::SharedState};
 
 unsafe fn set_style_mask(ns_window: id, ns_view: id, mask: NSWindowStyleMask) {
     ns_window.setStyleMask_(mask);
@@ -237,6 +240,83 @@ pub unsafe fn toggle_full_screen_async(
     );
 }
 
+struct SetMaximizedData {
+    ns_window: id,
+    is_zoomed: bool,
+    maximized: bool,
+    shared_state: Weak<Mutex<SharedState>>,
+}
+impl SetMaximizedData {
+    fn new_ptr(
+        ns_window: id,
+        is_zoomed: bool,
+        maximized: bool,
+        shared_state: Weak<Mutex<SharedState>>,
+    ) -> *mut Self {
+        Box::into_raw(Box::new(SetMaximizedData {
+            ns_window,
+            is_zoomed,
+            maximized,
+            shared_state,
+        }))
+    }
+}
+extern "C" fn set_maximized_callback(context: *mut c_void) {
+    unsafe {
+        let context_ptr = context as *mut SetMaximizedData;
+        {
+            let context = &*context_ptr;
+
+            if let Some(shared_state) = context.shared_state.upgrade() {
+                trace!("Locked shared state in `set_maximized`");
+                let mut shared_state_lock = shared_state.lock().unwrap();
+
+                // Save the standard frame sized if it is not zoomed
+                if !context.is_zoomed {
+                    shared_state_lock.standard_frame = Some(NSWindow::frame(context.ns_window));
+                }
+
+                shared_state_lock.maximized = context.maximized;
+
+                let curr_mask = context.ns_window.styleMask();
+                if shared_state_lock.fullscreen.is_some() {
+                    // Handle it in window_did_exit_fullscreen
+                    return;
+                } else if curr_mask.contains(NSWindowStyleMask::NSResizableWindowMask) {
+                    // Just use the native zoom if resizable
+                    context.ns_window.zoom_(nil);
+                } else {
+                    // if it's not resizable, we set the frame directly
+                    let new_rect = if context.maximized {
+                        let screen = NSScreen::mainScreen(nil);
+                        NSScreen::visibleFrame(screen)
+                    } else {
+                        shared_state_lock.saved_standard_frame()
+                    };
+                    context.ns_window.setFrame_display_(new_rect, 0);
+                }
+
+                trace!("Unlocked shared state in `set_maximized`");
+            }
+        }
+        Box::from_raw(context_ptr);
+    }
+}
+// `setMaximized` is not thread-safe
+pub unsafe fn set_maximized_async(
+    ns_window: id,
+    is_zoomed: bool,
+    maximized: bool,
+    shared_state: Weak<Mutex<SharedState>>,
+) {
+    let context = SetMaximizedData::new_ptr(ns_window, is_zoomed, maximized, shared_state);
+    dispatch_async_f(
+        dispatch_get_main_queue(),
+        context as *mut _,
+        set_maximized_callback,
+    );
+}
+
 struct OrderOutData {
     ns_window: id,
 }
@@ -292,6 +372,38 @@ pub unsafe fn make_key_and_order_front_async(ns_window: id) {
         dispatch_get_main_queue(),
         context as *mut _,
         make_key_and_order_front_callback,
+    );
+}
+
+struct SetTitleData {
+    ns_window: id,
+    title: String,
+}
+impl SetTitleData {
+    fn new_ptr(ns_window: id, title: String) -> *mut Self {
+        Box::into_raw(Box::new(SetTitleData { ns_window, title }))
+    }
+}
+extern "C" fn set_title_callback(context: *mut c_void) {
+    unsafe {
+        let context_ptr = context as *mut SetTitleData;
+        {
+            let context = &*context_ptr;
+            let title = IdRef::new(NSString::alloc(nil).init_str(&context.title));
+            context.ns_window.setTitle_(*title);
+        }
+        Box::from_raw(context_ptr);
+    }
+}
+// `setTitle:` isn't thread-safe. Calling it from another thread invalidates the
+// window drag regions, which throws an exception when not done in the main
+// thread
+pub unsafe fn set_title_async(ns_window: id, title: String) {
+    let context = SetTitleData::new_ptr(ns_window, title);
+    dispatch_async_f(
+        dispatch_get_main_queue(),
+        context as *mut _,
+        set_title_callback,
     );
 }
 
