@@ -36,4 +36,4 @@ at least a maintainer of the platform (a maintainer making a PR themselves count
 
 ## Maintainers & Testers
 
-Please refer to [this table in the Wiki](TODO LINK) for the list of active contributors and testers.
+Please refer to [this table in the Wiki](https://github.com/rust-windowing/winit/wiki/Testers-and-Contributors) for the list of active contributors and testers.
