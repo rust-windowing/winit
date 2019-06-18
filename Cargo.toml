@@ -102,10 +102,6 @@ features = [
 version = "0.2.45"
 optional = true
 
-[target.'cfg(target_arch = "wasm32")'.dependencies.stdweb]
-version = "0.4.17"
-optional = true
-
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = { path = "../stdweb", optional = true }
 instant = { version = "0.1", features = ["stdweb"] }
