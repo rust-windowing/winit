@@ -3,6 +3,7 @@ name = "winit"
 version = "0.19.1"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
+edition = "2018"
 keywords = ["windowing"]
 license = "Apache-2.0"
 readme = "README.md"
@@ -18,6 +19,7 @@ lazy_static = "1"
 libc = "0.2"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
+derivative = "1.0.2"
 
 [dev-dependencies]
 image = "0.21"
@@ -33,11 +35,11 @@ objc = "0.2.3"
 cocoa = "0.18.4"
 core-foundation = "0.6"
 core-graphics = "0.17.3"
+core-video-sys = "0.1.2"
 dispatch = "0.1.4"
 objc = "0.2.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-backtrace = "0.3"
 bitflags = "1"
 rusty-xinput = "1.0"
 
@@ -70,7 +72,7 @@ features = [
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
 wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] }
 calloop = "0.4.2"
-smithay-client-toolkit = "0.6"
+smithay-client-toolkit = "0.6.1"
 x11-dl = "2.18.3"
 percent-encoding = "1.0"
 

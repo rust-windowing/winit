@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
 use winit::{
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop}, window::{MouseCursor, WindowBuilder},
+    event_loop::{ControlFlow, EventLoop}, window::{CursorIcon, WindowBuilder},
 };
 
 const WINDOW_COUNT: usize = 3;
@@ -17,7 +17,7 @@ fn main() {
     let mut window_senders = HashMap::with_capacity(WINDOW_COUNT);
     for _ in 0..WINDOW_COUNT {
         let window = WindowBuilder::new()
-            .with_dimensions(WINDOW_SIZE.into())
+            .with_inner_size(WINDOW_SIZE.into())
             .build(&event_loop)
             .unwrap();
         let (tx, rx) = mpsc::channel();
@@ -25,42 +25,42 @@ fn main() {
         thread::spawn(move || {
             while let Ok(event) = rx.recv() {
                 match event {
-                    WindowEvent::KeyboardInput { input: KeyboardInput {
+                    WindowEvent::KeyboardInput (KeyboardInput {
                         state: ElementState::Released,
                         virtual_keycode: Some(key),
                         modifiers,
                         ..
-                    }, .. } => {
+                    }) => {
                         window.set_title(&format!("{:?}", key));
                         let state = !modifiers.shift;
                         use self::VirtualKeyCode::*;
                         match key {
                             A => window.set_always_on_top(state),
-                            C => window.set_cursor(match state {
-                                true => MouseCursor::Progress,
-                                false => MouseCursor::Default,
+                            C => window.set_cursor_icon(match state {
+                                true => CursorIcon::Progress,
+                                false => CursorIcon::Default,
                             }),
                             D => window.set_decorations(!state),
                             F => window.set_fullscreen(match state {
-                                true => Some(window.get_current_monitor()),
+                                true => Some(window.current_monitor()),
                                 false => None,
                             }),
-                            G => window.grab_cursor(state).unwrap(),
-                            H => window.hide_cursor(state),
+                            G => window.set_cursor_grab(state).unwrap(),
+                            H => window.set_cursor_visible(!state),
                             I => {
                                 println!("Info:");
-                                println!("-> position       : {:?}", window.get_position());
-                                println!("-> inner_position : {:?}", window.get_inner_position());
-                                println!("-> outer_size     : {:?}", window.get_outer_size());
-                                println!("-> inner_size     : {:?}", window.get_inner_size());
+                                println!("-> outer_position : {:?}", window.outer_position());
+                                println!("-> inner_position : {:?}", window.inner_position());
+                                println!("-> outer_size     : {:?}", window.outer_size());
+                                println!("-> inner_size     : {:?}", window.inner_size());
                             },
-                            L => window.set_min_dimensions(match state {
+                            L => window.set_min_inner_size(match state {
                                 true => Some(WINDOW_SIZE.into()),
                                 false => None,
                             }),
                             M => window.set_maximized(state),
-                            P => window.set_position({
-                                let mut position = window.get_position().unwrap();
+                            P => window.set_outer_position({
+                                let mut position = window.outer_position().unwrap();
                                 let sign = if state { 1.0 } else { -1.0 };
                                 position.x += 10.0 * sign;
                                 position.y += 10.0 * sign;
@@ -77,9 +77,9 @@ fn main() {
                                 WINDOW_SIZE.1 as i32 / 2,
                             ).into()).unwrap(),
                             Z => {
-                                window.hide();
+                                window.set_visible(false);
                                 thread::sleep(Duration::from_secs(1));
-                                window.show();
+                                window.set_visible(true);
                             },
                             _ => (),
                         }
@@ -99,9 +99,9 @@ fn main() {
                 match event {
                     WindowEvent::CloseRequested
                     | WindowEvent::Destroyed
-                    | WindowEvent::KeyboardInput { input: KeyboardInput {
+                    | WindowEvent::KeyboardInput(KeyboardInput {
                         virtual_keycode: Some(VirtualKeyCode::Escape),
-                    .. }, .. } => {
+                    .. }) => {
                         window_senders.remove(&window_id);
                     },
                     _ => if let Some(tx) = window_senders.get(&window_id) {

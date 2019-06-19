@@ -9,14 +9,14 @@ use cocoa::{
 };
 use objc::{declare::ClassDecl, runtime::{BOOL, Class, NO, Object, Protocol, Sel, YES}};
 
-use {
+use crate::{
     event::{
         DeviceEvent, ElementState, Event, KeyboardInput, MouseButton,
         MouseScrollDelta, TouchPhase, VirtualKeyCode, WindowEvent,
     },
     window::WindowId,
 };
-use platform_impl::platform::{
+use crate::platform_impl::platform::{
     app_state::AppState, DEVICE_ID,
     event::{check_function_keys, event_mods, modifier_event, char_to_keycode, get_scancode, scancode_to_keycode},
     util::{self, IdRef}, ffi::*, window::get_window_id,
@@ -31,7 +31,7 @@ struct Modifiers {
 }
 
 struct ViewState {
-    nswindow: id,
+    ns_window: id,
     pub cursor: Arc<Mutex<util::Cursor>>,
     ime_spot: Option<(f64, f64)>,
     raw_characters: Option<String>,
@@ -39,11 +39,11 @@ struct ViewState {
     modifiers: Modifiers,
 }
 
-pub fn new_view(nswindow: id) -> (IdRef, Weak<Mutex<util::Cursor>>) {
+pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<util::Cursor>>) {
     let cursor = Default::default();
     let cursor_access = Arc::downgrade(&cursor);
     let state = ViewState {
-        nswindow,
+        ns_window,
         cursor,
         ime_spot: None,
         raw_characters: None,
@@ -53,17 +53,17 @@ pub fn new_view(nswindow: id) -> (IdRef, Weak<Mutex<util::Cursor>>) {
     unsafe {
         // This is free'd in `dealloc`
         let state_ptr = Box::into_raw(Box::new(state)) as *mut c_void;
-        let nsview: id = msg_send![VIEW_CLASS.0, alloc];
-        (IdRef::new(msg_send![nsview, initWithWinit:state_ptr]), cursor_access)
+        let ns_view: id = msg_send![VIEW_CLASS.0, alloc];
+        (IdRef::new(msg_send![ns_view, initWithWinit:state_ptr]), cursor_access)
     }
 }
 
-pub unsafe fn set_ime_spot(nsview: id, input_context: id, x: f64, y: f64) {
-    let state_ptr: *mut c_void = *(*nsview).get_mut_ivar("winitState");
+pub unsafe fn set_ime_position(ns_view: id, input_context: id, x: f64, y: f64) {
+    let state_ptr: *mut c_void = *(*ns_view).get_mut_ivar("winitState");
     let state = &mut *(state_ptr as *mut ViewState);
     let content_rect = NSWindow::contentRectForFrameRect_(
-        state.nswindow,
-        NSWindow::frame(state.nswindow),
+        state.ns_window,
+        NSWindow::frame(state.ns_window),
     );
     let base_x = content_rect.origin.x as f64;
     let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
@@ -285,7 +285,7 @@ extern fn draw_rect(this: &Object, _sel: Sel, rect: id) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        AppState::queue_redraw(WindowId(get_window_id(state.nswindow)));
+        AppState::queue_redraw(WindowId(get_window_id(state.ns_window)));
 
         let superclass = util::superclass(this);
         let () = msg_send![super(this, superclass), drawRect:rect];
@@ -417,8 +417,8 @@ extern fn first_rect_for_character_range(
         let state = &mut *(state_ptr as *mut ViewState);
         let (x, y) = state.ime_spot.unwrap_or_else(|| {
             let content_rect = NSWindow::contentRectForFrameRect_(
-                state.nswindow,
-                NSWindow::frame(state.nswindow),
+                state.ns_window,
+                NSWindow::frame(state.ns_window),
             );
             let x = content_rect.origin.x;
             let y = util::bottom_left_to_top_left(content_rect);
@@ -460,7 +460,7 @@ extern fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: 
         let mut events = VecDeque::with_capacity(characters.len());
         for character in string.chars() {
             events.push_back(Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.nswindow)),
+                window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::ReceivedCharacter(character),
             });
         }
@@ -484,7 +484,7 @@ extern fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
             // 1) as a reminder for how `doCommandBySelector` works
             // 2) to make our use of carriage return explicit
             events.push_back(Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.nswindow)),
+                window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::ReceivedCharacter('\r'),
             });
         } else {
@@ -492,7 +492,7 @@ extern fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
             if let Some(raw_characters) = raw_characters {
                 for character in raw_characters.chars() {
                     events.push_back(Event::WindowEvent {
-                        window_id: WindowId(get_window_id(state.nswindow)),
+                        window_id: WindowId(get_window_id(state.ns_window)),
                         event: WindowEvent::ReceivedCharacter(character),
                     });
                 }
@@ -558,7 +558,7 @@ extern fn key_down(this: &Object, _sel: Sel, event: id) {
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
-        let window_id = WindowId(get_window_id(state.nswindow));
+        let window_id = WindowId(get_window_id(state.ns_window));
         let characters = get_characters(event, false);
 
         state.raw_characters = Some(characters.clone());
@@ -620,7 +620,7 @@ extern fn key_up(this: &Object, _sel: Sel, event: id) {
         let virtual_keycode = retrieve_keycode(event);
 
         let window_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.nswindow)),
+            window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
                 input: KeyboardInput {
@@ -683,7 +683,7 @@ extern fn flags_changed(this: &Object, _sel: Sel, event: id) {
 
         for event in events {
             AppState::queue_event(Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.nswindow)),
+                window_id: WindowId(get_window_id(state.ns_window)),
                 event,
             });
         }
@@ -728,7 +728,7 @@ extern fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
         let event: id = msg_send![NSApp(), currentEvent];
 
         let window_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.nswindow)),
+            window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
                 input: KeyboardInput {
@@ -751,7 +751,7 @@ fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: Elem
         let state = &mut *(state_ptr as *mut ViewState);
 
         let window_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.nswindow)),
+            window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::MouseInput {
                 device_id: DEVICE_ID,
                 state: button_state,
@@ -812,7 +812,7 @@ fn mouse_motion(this: &Object, event: id) {
         let y = view_rect.size.height as f64 - view_point.y as f64;
 
         let window_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.nswindow)),
+            window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::CursorMoved {
                 device_id: DEVICE_ID,
                 position: (x, y).into(),
@@ -847,7 +847,7 @@ extern fn mouse_entered(this: &Object, _sel: Sel, event: id) {
         let state = &mut *(state_ptr as *mut ViewState);
 
         let enter_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.nswindow)),
+            window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::CursorEntered { device_id: DEVICE_ID },
         };
 
@@ -861,7 +861,7 @@ extern fn mouse_entered(this: &Object, _sel: Sel, event: id) {
             let x = view_point.x as f64;
             let y = (view_rect.size.height - view_point.y) as f64;
             Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.nswindow)),
+                window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::CursorMoved {
                     device_id: DEVICE_ID,
                     position: (x, y).into(),
@@ -883,7 +883,7 @@ extern fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
         let state = &mut *(state_ptr as *mut ViewState);
 
         let window_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.nswindow)),
+            window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::CursorLeft { device_id: DEVICE_ID },
         };
 
@@ -918,7 +918,7 @@ extern fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
         let state = &mut *(state_ptr as *mut ViewState);
 
         let window_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.nswindow)),
+            window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::MouseWheel {
                 device_id: DEVICE_ID,
                 delta,
@@ -943,7 +943,7 @@ extern fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
         let stage = event.stage();
 
         let window_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.nswindow)),
+            window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::TouchpadPressure {
                 device_id: DEVICE_ID,
                 pressure,

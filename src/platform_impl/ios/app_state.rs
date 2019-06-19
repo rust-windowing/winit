@@ -4,11 +4,11 @@ use std::mem::ManuallyDrop;
 use std::os::raw::c_void;
 use std::time::Instant;
 
-use event::{Event, StartCause};
-use event_loop::ControlFlow;
+use crate::event::{Event, StartCause};
+use crate::event_loop::ControlFlow;
 
-use platform_impl::platform::event_loop::{EventHandler, Never};
-use platform_impl::platform::ffi::{
+use crate::platform_impl::platform::event_loop::{EventHandler, Never};
+use crate::platform_impl::platform::ffi::{
     id,
     CFAbsoluteTimeGetCurrent,
     CFRelease,
@@ -39,10 +39,10 @@ enum AppStateImpl {
     Launching {
         queued_windows: Vec<id>,
         queued_events: Vec<Event<Never>>,
-        queued_event_handler: Box<EventHandler>,
+        queued_event_handler: Box<dyn EventHandler>,
     },
     ProcessingEvents {
-        event_handler: Box<EventHandler>,
+        event_handler: Box<dyn EventHandler>,
         active_control_flow: ControlFlow,
     },
     // special state to deal with reentrancy and prevent mutable aliasing.
@@ -50,11 +50,11 @@ enum AppStateImpl {
         queued_events: Vec<Event<Never>>,
     },
     Waiting {
-        waiting_event_handler: Box<EventHandler>,
+        waiting_event_handler: Box<dyn EventHandler>,
         start: Instant,
     },
     PollFinished {
-        waiting_event_handler: Box<EventHandler>,
+        waiting_event_handler: Box<dyn EventHandler>,
     },
     Terminated,
 }
@@ -134,7 +134,7 @@ impl AppState {
     }
 
     // requires main thread
-    pub unsafe fn will_launch(queued_event_handler: Box<EventHandler>) {
+    pub unsafe fn will_launch(queued_event_handler: Box<dyn EventHandler>) {
         let mut this = AppState::get_mut();
         let (queued_windows, queued_events) = match &mut this.app_state {
             &mut AppStateImpl::NotLaunched {

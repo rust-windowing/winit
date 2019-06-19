@@ -4,11 +4,11 @@ use std::{
 
 use cocoa::{appkit::NSApp, base::{id, nil}, foundation::NSAutoreleasePool};
 
-use {
+use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
 };
-use platform_impl::platform::{
+use crate::platform_impl::platform::{
     app::APP_CLASS, app_delegate::APP_DELEGATE_CLASS,
     app_state::AppState, monitor::{self, MonitorHandle},
     observer::*, util::IdRef,
@@ -61,13 +61,13 @@ impl<T> EventLoop<T> {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
-        monitor::get_available_monitors()
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        monitor::available_monitors()
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        monitor::get_primary_monitor()
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        monitor::primary_monitor()
     }
 
     pub fn window_target(&self) -> &RootWindowTarget<T> {

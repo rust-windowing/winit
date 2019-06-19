@@ -7,7 +7,7 @@ use std::os::raw::*;
 use objc::{Encode, Encoding};
 use objc::runtime::Object;
 
-use platform::ios::{Idiom, ValidOrientations};
+use crate::platform::ios::{Idiom, ValidOrientations};
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;

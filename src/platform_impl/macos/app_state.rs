@@ -1,17 +1,17 @@
 use std::{
-    collections::VecDeque, fmt::{self, Debug, Formatter},
+    collections::VecDeque, fmt::{self, Debug},
     hint::unreachable_unchecked, mem,
     sync::{atomic::{AtomicBool, Ordering}, Mutex, MutexGuard}, time::Instant,
 };
 
 use cocoa::{appkit::NSApp, base::nil};
 
-use {
+use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     window::WindowId,
 };
-use platform_impl::platform::{observer::EventLoopWaker, util::Never};
+use crate::platform_impl::platform::{observer::EventLoopWaker, util::Never};
 
 lazy_static! {
     static ref HANDLER: Handler = Default::default();
@@ -38,7 +38,7 @@ struct EventLoopHandler<F, T: 'static> {
 }
 
 impl<F, T> Debug for EventLoopHandler<F, T> {
-    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.debug_struct("EventLoopHandler")
             .field("window_target", &self.window_target)
             .finish()

@@ -1,9 +1,6 @@
 #![cfg(feature = "serde")]
 
-extern crate serde;
-extern crate winit;
-
-use winit::window::{MouseCursor};
+use winit::window::{CursorIcon};
 use winit::event::{
     KeyboardInput, TouchPhase, ElementState, MouseButton, MouseScrollDelta, VirtualKeyCode,
     ModifiersState
@@ -11,11 +8,12 @@ use winit::event::{
 use winit::dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
 use serde::{Serialize, Deserialize};
 
+#[allow(dead_code)]
 fn needs_serde<S: Serialize + Deserialize<'static>>() {}
 
 #[test]
 fn window_serde() {
-    needs_serde::<MouseCursor>();
+    needs_serde::<CursorIcon>();
 }
 
 #[test]

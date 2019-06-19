@@ -2,11 +2,11 @@ use std::os::raw::c_ushort;
 
 use cocoa::{appkit::{NSEvent, NSEventModifierFlags}, base::id};
 
-use event::{
+use crate::event::{
     ElementState, KeyboardInput,
     ModifiersState, VirtualKeyCode, WindowEvent,
 };
-use platform_impl::platform::DEVICE_ID;
+use crate::platform_impl::platform::DEVICE_ID;
 
 pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
     // We only translate keys that are affected by keyboard layout.

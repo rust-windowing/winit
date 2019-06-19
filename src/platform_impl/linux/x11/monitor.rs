@@ -2,7 +2,8 @@ use std::os::raw::*;
 
 use parking_lot::Mutex;
 
-use dpi::{PhysicalPosition, PhysicalSize};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoMode;
 use super::{util, XConnection, XError};
 use super::ffi::{
     RRCrtcChangeNotifyMask,
@@ -56,6 +57,8 @@ pub struct MonitorHandle {
     pub(crate) hidpi_factor: f64,
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
+    /// Supported video modes on this monitor
+    video_modes: Vec<VideoMode>,
 }
 
 impl MonitorHandle {
@@ -66,8 +69,8 @@ impl MonitorHandle {
         repr: util::MonitorRepr,
         primary: bool,
     ) -> Option<Self> {
-        let (name, hidpi_factor) = unsafe { xconn.get_output_info(resources, &repr)? };
-        let (dimensions, position) = unsafe { (repr.get_dimensions(), repr.get_position()) };
+        let (name, hidpi_factor, video_modes) = unsafe { xconn.get_output_info(resources, &repr)? };
+        let (dimensions, position) = unsafe { (repr.size(), repr.position()) };
         let rect = util::AaRect::new(position, dimensions);
         Some(MonitorHandle {
             id,
@@ -77,35 +80,41 @@ impl MonitorHandle {
             position,
             primary,
             rect,
+            video_modes,
         })
     }
 
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         Some(self.name.clone())
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> u32 {
+    pub fn native_identifier(&self) -> u32 {
         self.id as u32
     }
 
-    pub fn get_dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         self.dimensions.into()
     }
 
-    pub fn get_position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition {
         self.position.into()
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         self.hidpi_factor
+    }
+
+    #[inline]
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        self.video_modes.clone().into_iter()
     }
 }
 
 impl XConnection {
     pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>) -> MonitorHandle {
-        let monitors = self.get_available_monitors();
+        let monitors = self.available_monitors();
         let default = monitors
             .get(0)
             .expect("[winit] Failed to find any monitors using XRandR.");
@@ -206,7 +215,7 @@ impl XConnection {
         }
     }
 
-    pub fn get_available_monitors(&self) -> Vec<MonitorHandle> {
+    pub fn available_monitors(&self) -> Vec<MonitorHandle> {
         let mut monitors_lock = MONITORS.lock();
         (*monitors_lock)
             .as_ref()
@@ -222,8 +231,8 @@ impl XConnection {
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        self.get_available_monitors()
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        self.available_monitors()
             .into_iter()
             .find(|monitor| monitor.primary)
             .expect("[winit] Failed to find any monitors using XRandR.")

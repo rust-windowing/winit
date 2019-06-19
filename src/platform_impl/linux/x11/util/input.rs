@@ -1,7 +1,7 @@
 use std::str;
 
 use super::*;
-use event::ModifiersState;
+use crate::event::ModifiersState;
 
 pub const VIRTUAL_CORE_POINTER: c_int = 2;
 pub const VIRTUAL_CORE_KEYBOARD: c_int = 3;
@@ -55,7 +55,7 @@ impl<'a> Drop for PointerState<'a> {
 }
 
 impl XConnection {
-    pub fn select_xinput_events(&self, window: c_ulong, device_id: c_int, mask: i32) -> Flusher {
+    pub fn select_xinput_events(&self, window: c_ulong, device_id: c_int, mask: i32) -> Flusher<'_> {
         let mut event_mask = ffi::XIEventMask {
             deviceid: device_id,
             mask: &mask as *const _ as *mut c_uchar,
@@ -73,7 +73,7 @@ impl XConnection {
     }
 
     #[allow(dead_code)]
-    pub fn select_xkb_events(&self, device_id: c_uint, mask: c_ulong) -> Option<Flusher> {
+    pub fn select_xkb_events(&self, device_id: c_uint, mask: c_ulong) -> Option<Flusher<'_>> {
         let status = unsafe {
             (self.xlib.XkbSelectEvents)(
                 self.display,
@@ -89,9 +89,9 @@ impl XConnection {
         }
     }
 
-    pub fn query_pointer(&self, window: ffi::Window, device_id: c_int) -> Result<PointerState, XError> {
+    pub fn query_pointer(&self, window: ffi::Window, device_id: c_int) -> Result<PointerState<'_>, XError> {
         unsafe {
-            let mut pointer_state: PointerState = mem::uninitialized();
+            let mut pointer_state: PointerState<'_> = mem::uninitialized();
             pointer_state.xconn = self;
             pointer_state.relative_to_window = (self.xinput2.XIQueryPointer)(
                 self.display,

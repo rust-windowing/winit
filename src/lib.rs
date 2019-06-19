@@ -75,48 +75,29 @@
 //! [`LoopDestroyed`]: ./event/enum.Event.html#variant.LoopDestroyed
 //! [`platform`]: ./platform/index.html
 
+#![deny(rust_2018_idioms)]
+
 #[allow(unused_imports)]
 #[macro_use]
 extern crate lazy_static;
-extern crate libc;
 #[macro_use]
 extern crate log;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
-
+#[macro_use]
 #[cfg(target_os = "windows")]
-extern crate rusty_xinput;
-#[cfg(target_os = "windows")]
-extern crate winapi;
-#[cfg(target_os = "windows")]
-extern crate backtrace;
+extern crate derivative;
 #[macro_use]
 #[cfg(target_os = "windows")]
 extern crate bitflags;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;
-#[cfg(target_os = "macos")]
-extern crate cocoa;
-#[cfg(target_os = "macos")]
-extern crate dispatch;
-#[cfg(target_os = "macos")]
-extern crate core_foundation;
-#[cfg(target_os = "macos")]
-extern crate core_graphics;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
-extern crate x11_dl;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "windows"))]
-extern crate parking_lot;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
-extern crate percent_encoding;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
-extern crate smithay_client_toolkit as sctk;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
-extern crate calloop;
 
 pub mod dpi;
+#[macro_use]
+pub mod error;
 pub mod event;
 pub mod event_loop;
 mod icon;

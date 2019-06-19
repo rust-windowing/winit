@@ -32,18 +32,21 @@ another library.
 
 ```rust
 extern crate winit;
+use winit::window::WindowBuilder;
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
-    let mut event_loop = winit::EventLoop::new();
-    let window = winit::Window::new(&event_loop).unwrap();
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    event_loop.run(|event| {
+    event_loop.run(move |event, _, control_flow| {
         match event {
-            winit::Event::WindowEvent {
-              event: winit::WindowEvent::CloseRequested,
-              ..
-            } => winit::ControlFlow::Break,
-            _ => winit::ControlFlow::Continue,
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                window_id,
+            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            _ => *control_flow = ControlFlow::Wait,
         }
     });
 }

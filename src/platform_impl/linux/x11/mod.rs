@@ -25,11 +25,12 @@ use std::sync::{Arc, mpsc, Weak, Mutex};
 
 use libc::{self, setlocale, LC_CTYPE};
 
-use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
-use event::{WindowEvent, Event};
-use platform_impl::PlatformSpecificWindowBuilderAttributes;
-use platform_impl::platform::sticky_exit_callback;
-use window::{CreationError, WindowAttributes};
+use crate::error::OsError as RootOsError;
+use crate::event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
+use crate::event::{WindowEvent, Event};
+use crate::platform_impl::PlatformSpecificWindowBuilderAttributes;
+use crate::platform_impl::platform::sticky_exit_callback;
+use crate::window::{WindowAttributes};
 use self::dnd::{Dnd, DndState};
 use self::ime::{ImeReceiver, ImeSender, ImeCreationError, Ime};
 use self::event_processor::EventProcessor;
@@ -242,7 +243,7 @@ impl<T: 'static> EventLoop<T> {
                 let mut guard = self.pending_user_events.borrow_mut();
                 for evt in guard.drain(..) {
                     sticky_exit_callback(
-                        ::event::Event::UserEvent(evt),
+                        crate::event::Event::UserEvent(evt),
                         &self.target,
                         &mut control_flow,
                         &mut callback
@@ -255,7 +256,7 @@ impl<T: 'static> EventLoop<T> {
                 for wid in guard.drain() {
                     sticky_exit_callback(
                         Event::WindowEvent {
-                            window_id: ::window::WindowId(super::WindowId::X(wid)),
+                            window_id: crate::window::WindowId(super::WindowId::X(wid)),
                             event: WindowEvent::RedrawRequested
                         },
                         &self.target,
@@ -267,7 +268,7 @@ impl<T: 'static> EventLoop<T> {
             // send Events cleared
             {
                 sticky_exit_callback(
-                    ::event::Event::EventsCleared,
+                    crate::event::Event::EventsCleared,
                     &self.target,
                     &mut control_flow,
                     &mut callback
@@ -282,14 +283,12 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::Poll => {
                     // non-blocking dispatch
                     self.inner_loop.dispatch(Some(::std::time::Duration::from_millis(0)), &mut ()).unwrap();
-                    control_flow = ControlFlow::default();
-                    callback(::event::Event::NewEvents(::event::StartCause::Poll), &self.target, &mut control_flow);
+                    callback(crate::event::Event::NewEvents(crate::event::StartCause::Poll), &self.target, &mut control_flow);
                 },
                 ControlFlow::Wait => {
                     self.inner_loop.dispatch(None, &mut ()).unwrap();
-                    control_flow = ControlFlow::default();
                     callback(
-                        ::event::Event::NewEvents(::event::StartCause::WaitCancelled {
+                        crate::event::Event::NewEvents(crate::event::StartCause::WaitCancelled {
                             start: ::std::time::Instant::now(),
                             requested_resume: None
                         }),
@@ -300,13 +299,16 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::WaitUntil(deadline) => {
                     let start = ::std::time::Instant::now();
                     // compute the blocking duration
-                    let duration = deadline.duration_since(::std::cmp::max(deadline, start));
+                    let duration = if deadline > start {
+                        deadline - start
+                    } else {
+                        ::std::time::Duration::from_millis(0)
+                    };
                     self.inner_loop.dispatch(Some(duration), &mut ()).unwrap();
-                    control_flow = ControlFlow::default();
                     let now = std::time::Instant::now();
                     if now < deadline {
                         callback(
-                            ::event::Event::NewEvents(::event::StartCause::WaitCancelled {
+                            crate::event::Event::NewEvents(crate::event::StartCause::WaitCancelled {
                                 start,
                                 requested_resume: Some(deadline)
                             }),
@@ -315,7 +317,7 @@ impl<T: 'static> EventLoop<T> {
                         );
                     } else {
                         callback(
-                            ::event::Event::NewEvents(::event::StartCause::ResumeTimeReached {
+                            crate::event::Event::NewEvents(crate::event::StartCause::ResumeTimeReached {
                                 start,
                                 requested_resume: deadline
                             }),
@@ -327,7 +329,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        callback(::event::Event::LoopDestroyed, &self.target, &mut control_flow);
+        callback(crate::event::Event::LoopDestroyed, &self.target, &mut control_flow);
     }
 
     pub fn run<F>(mut self, callback: F) -> !
@@ -427,7 +429,7 @@ impl Window {
         event_loop: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes
-    ) -> Result<Self, CreationError> {
+    ) -> Result<Self, RootOsError> {
         let window = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
         event_loop.windows
             .borrow_mut()
@@ -483,8 +485,8 @@ struct XExtension {
     first_error_id: c_int,
 }
 
-fn mkwid(w: ffi::Window) -> ::window::WindowId { ::window::WindowId(::platform_impl::WindowId::X(WindowId(w))) }
-fn mkdid(w: c_int) -> ::event::DeviceId { ::event::DeviceId(::platform_impl::DeviceId::X(DeviceId(w))) }
+fn mkwid(w: ffi::Window) -> crate::window::WindowId { crate::window::WindowId(crate::platform_impl::WindowId::X(WindowId(w))) }
+fn mkdid(w: c_int) -> crate::event::DeviceId { crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w))) }
 
 #[derive(Debug)]
 struct Device {

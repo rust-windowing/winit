@@ -43,16 +43,16 @@ use winapi::shared::{windowsx, winerror};
 use winapi::um::{winuser, winbase, ole2, processthreadsapi, commctrl, libloaderapi};
 use winapi::um::winnt::{HANDLE, LONG, LPCSTR, SHORT};
 
-use window::WindowId as RootWindowId;
-use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
-use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use event::{
+use crate::window::WindowId as RootWindowId;
+use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use crate::event::{
     MouseButton, Touch, TouchPhase, StartCause, KeyboardInput, Event, WindowEvent,
     device::{GamepadEvent, KeyboardEvent, HidEvent, MouseEvent}
 };
-use platform_impl::platform::{
+use crate::platform_impl::platform::{
     MouseId, KeyboardId, HidId, GamepadHandle, WindowId,
-    dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, get_hwnd_scale_factor},
+    dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_scale_factor},
     drop_handler::FileDropHandler,
     event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
     gamepad::Gamepad,
@@ -256,32 +256,32 @@ impl<T: 'static> EventLoop<T> {
             .into_iter()
     }
 
-    pub fn mouses(&self) -> impl '_ + Iterator<Item=::event::device::MouseId> {
+    pub fn mouses(&self) -> impl '_ + Iterator<Item=crate::event::device::MouseId> {
         self.devices(|d| match d {
-                DeviceId::Mouse(id) => Some(id.clone().into()),
-                _ => None
-            })
+            DeviceId::Mouse(id) => Some(id.clone().into()),
+            _ => None
+        })
     }
 
-    pub fn keyboards(&self) -> impl '_ + Iterator<Item=::event::device::KeyboardId> {
+    pub fn keyboards(&self) -> impl '_ + Iterator<Item=crate::event::device::KeyboardId> {
         self.devices(|d| match d {
-                DeviceId::Keyboard(id) => Some(id.clone().into()),
-                _ => None
-            })
+            DeviceId::Keyboard(id) => Some(id.clone().into()),
+            _ => None
+        })
     }
 
-    pub fn hids(&self) -> impl '_ + Iterator<Item=::event::device::HidId> {
+    pub fn hids(&self) -> impl '_ + Iterator<Item=crate::event::device::HidId> {
         self.devices(|d| match d {
-                DeviceId::Hid(id) => Some(id.clone().into()),
-                _ => None
-            })
+            DeviceId::Hid(id) => Some(id.clone().into()),
+            _ => None
+        })
     }
 
-    pub fn gamepads(&self) -> impl '_ + Iterator<Item=::event::device::GamepadHandle> {
+    pub fn gamepads(&self) -> impl '_ + Iterator<Item=crate::event::device::GamepadHandle> {
         self.devices(|d| match d {
-                DeviceId::Gamepad(handle, _) => Some(handle.clone().into()),
-                _ => None
-            })
+            DeviceId::Gamepad(handle, _) => Some(handle.clone().into()),
+            _ => None
+        })
     }
 }
 
@@ -311,10 +311,10 @@ pub(crate) struct EventLoopRunner<T> {
     runner_state: RunnerState,
     modal_redraw_window: HWND,
     in_modal_loop: bool,
-    event_handler: Box<FnMut(Event<T>, &mut ControlFlow)>,
+    event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
     panic_error: Option<PanicError>,
 }
-type PanicError = Box<Any + Send + 'static>;
+type PanicError = Box<dyn Any + Send + 'static>;
 
 impl<T> ELRShared<T> {
     pub(crate) unsafe fn send_event(&self, event: Event<T>) {
@@ -371,8 +371,8 @@ impl<T> EventLoopRunner<T> {
             in_modal_loop: false,
             modal_redraw_window: event_loop.window_target.p.thread_msg_target,
             event_handler: mem::transmute::<
-                Box<FnMut(Event<T>, &mut ControlFlow)>,
-                Box<FnMut(Event<T>, &mut ControlFlow)>
+                Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<T>, &mut ControlFlow)>
             >(Box::new(f)),
             panic_error: None,
         }
@@ -454,6 +454,7 @@ impl<T> EventLoopRunner<T> {
         // deferred.
         if let RunnerState::DeferredNewEvents(wait_start) = self.runner_state {
             match self.control_flow {
+                ControlFlow::Exit  |
                 ControlFlow::Wait => {
                     self.call_event_handler(
                         Event::NewEvents(StartCause::WaitCancelled {
@@ -483,7 +484,6 @@ impl<T> EventLoopRunner<T> {
                 ControlFlow::Poll => {
                     self.call_event_handler(Event::NewEvents(StartCause::Poll))
                 },
-                ControlFlow::Exit => unreachable!()
             }
         }
 
@@ -657,7 +657,7 @@ impl EventLoopThreadExecutor {
                 function();
             } else {
                 // We double-box because the first box is a fat pointer.
-                let boxed = Box::new(function) as Box<FnMut()>;
+                let boxed = Box::new(function) as Box<dyn FnMut()>;
                 let boxed2: ThreadExecFn = Box::new(boxed);
 
                 let raw = Box::into_raw(boxed2);
@@ -672,7 +672,7 @@ impl EventLoopThreadExecutor {
     }
 }
 
-type ThreadExecFn = Box<Box<FnMut()>>;
+type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
 #[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
@@ -703,7 +703,7 @@ lazy_static! {
         }
     };
     // Message sent when we want to execute a closure in the thread.
-    // WPARAM contains a Box<Box<FnMut()>> that must be retrieved with `Box::from_raw`,
+    // WPARAM contains a Box<Box<dyn FnMut()>> that must be retrieved with `Box::from_raw`,
     // and LPARAM is unused.
     static ref EXEC_MSG_ID: u32 = {
         unsafe {
@@ -891,7 +891,7 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_CLOSE => {
-            use event::WindowEvent::CloseRequested;
+            use crate::event::WindowEvent::CloseRequested;
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: CloseRequested,
@@ -900,7 +900,7 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_DESTROY => {
-            use event::WindowEvent::Destroyed;
+            use crate::event::WindowEvent::Destroyed;
             ole2::RevokeDragDrop(window);
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -913,26 +913,42 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         _ if msg == *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID => {
-            use event::WindowEvent::RedrawRequested;
+            use crate::event::WindowEvent::RedrawRequested;
             let mut runner = subclass_input.shared_data.runner_shared.runner.borrow_mut();
             if let Some(ref mut runner) = *runner {
                 // This check makes sure that calls to `request_redraw()` during `EventsCleared`
                 // handling dispatch `RedrawRequested` immediately after `EventsCleared`, without
                 // spinning up a new event loop iteration. We do this because that's what the API
                 // says to do.
-                match runner.runner_state {
-                    RunnerState::Idle(..) |
-                    RunnerState::DeferredNewEvents(..) => runner.call_event_handler(Event::WindowEvent {
+                let control_flow = runner.control_flow;
+                let runner_state = runner.runner_state;
+                let mut request_redraw = || {
+                    runner.call_event_handler(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: RedrawRequested,
-                    }),
+                    });
+                };
+                match runner_state {
+                    RunnerState::Idle(..) |
+                    RunnerState::DeferredNewEvents(..) => request_redraw(),
+                    RunnerState::HandlingEvents => {
+                        match control_flow {
+                            ControlFlow::Poll => request_redraw(),
+                            ControlFlow::WaitUntil(resume_time) => {
+                                if resume_time <= Instant::now() {
+                                    request_redraw()
+                                }
+                            },
+                            _ => ()
+                        }
+                    }
                     _ => ()
                 }
             }
             0
         },
         winuser::WM_PAINT => {
-            use event::WindowEvent::RedrawRequested;
+            use crate::event::WindowEvent::RedrawRequested;
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: RedrawRequested,
@@ -942,11 +958,11 @@ unsafe extern "system" fn public_window_callback<T>(
 
         // WM_MOVE supplies client area positions, so we send Moved here instead.
         winuser::WM_WINDOWPOSCHANGED => {
-            use event::WindowEvent::Moved;
+            use crate::event::WindowEvent::Moved;
 
             let windowpos = lparam as *const winuser::WINDOWPOS;
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
-                let dpi_factor = get_hwnd_scale_factor(window);
+                let dpi_factor = hwnd_scale_factor(window);
                 let logical_position = LogicalPosition::from_physical(
                     ((*windowpos).x, (*windowpos).y),
                     dpi_factor,
@@ -962,11 +978,11 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_SIZE => {
-            use event::WindowEvent::Resized;
+            use crate::event::WindowEvent::Resized;
             let w = LOWORD(lparam as DWORD) as u32;
             let h = HIWORD(lparam as DWORD) as u32;
 
-            let dpi_factor = get_hwnd_scale_factor(window);
+            let dpi_factor = hwnd_scale_factor(window);
             let logical_size = LogicalSize::from_physical((w, h), dpi_factor);
             let event = Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -987,7 +1003,7 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_CHAR => {
-            use event::WindowEvent::ReceivedCharacter;
+            use crate::event::WindowEvent::ReceivedCharacter;
             let chr: char = mem::transmute(wparam as u32);
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1005,7 +1021,7 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_MOUSEMOVE => {
-            use event::WindowEvent::{CursorEntered, CursorMoved};
+            use crate::event::WindowEvent::{CursorEntered, CursorMoved};
             let mouse_was_outside_window = {
                 let mut w = subclass_input.window_state.lock();
 
@@ -1031,7 +1047,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
-            let dpi_factor = get_hwnd_scale_factor(window);
+            let dpi_factor = hwnd_scale_factor(window);
             let position = LogicalPosition::from_physical((x, y), dpi_factor);
 
             subclass_input.send_event(Event::WindowEvent {
@@ -1043,7 +1059,7 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_MOUSELEAVE => {
-            use event::WindowEvent::CursorLeft;
+            use crate::event::WindowEvent::CursorLeft;
             {
                 let mut w = subclass_input.window_state.lock();
                 w.mouse.set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false)).ok();
@@ -1058,7 +1074,7 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_MOUSEWHEEL => {
-            use event::MouseScrollDelta::LineDelta;
+            use crate::event::MouseScrollDelta::LineDelta;
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
@@ -1073,7 +1089,7 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_MOUSEHWHEEL => {
-            use event::MouseScrollDelta::LineDelta;
+            use crate::event::MouseScrollDelta::LineDelta;
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
@@ -1088,8 +1104,8 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
-            use event::ElementState::Pressed;
-            use event::VirtualKeyCode;
+            use crate::event::ElementState::Pressed;
+            use crate::event::VirtualKeyCode;
             if msg == winuser::WM_SYSKEYDOWN && wparam as i32 == winuser::VK_F4 {
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             } else {
@@ -1117,7 +1133,7 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
-            use event::ElementState::Released;
+            use crate::event::ElementState::Released;
             if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
@@ -1133,8 +1149,8 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_LBUTTONDOWN => {
-            use event::WindowEvent::MouseInput;
-            use event::ElementState::Pressed;
+            use crate::event::WindowEvent::MouseInput;
+            use crate::event::ElementState::Pressed;
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
@@ -1146,8 +1162,8 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_LBUTTONUP => {
-            use event::WindowEvent::MouseInput;
-            use event::ElementState::Released;
+            use crate::event::WindowEvent::MouseInput;
+            use crate::event::ElementState::Released;
 
             release_mouse(&mut *subclass_input.window_state.lock());
 
@@ -1159,8 +1175,8 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_RBUTTONDOWN => {
-            use event::WindowEvent::MouseInput;
-            use event::ElementState::Pressed;
+            use crate::event::WindowEvent::MouseInput;
+            use crate::event::ElementState::Pressed;
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
@@ -1172,8 +1188,8 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_RBUTTONUP => {
-            use event::WindowEvent::MouseInput;
-            use event::ElementState::Released;
+            use crate::event::WindowEvent::MouseInput;
+            use crate::event::ElementState::Released;
 
             release_mouse(&mut *subclass_input.window_state.lock());
 
@@ -1185,8 +1201,8 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_MBUTTONDOWN => {
-            use event::WindowEvent::MouseInput;
-            use event::ElementState::Pressed;
+            use crate::event::WindowEvent::MouseInput;
+            use crate::event::ElementState::Pressed;
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
@@ -1198,8 +1214,8 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_MBUTTONUP => {
-            use event::WindowEvent::MouseInput;
-            use event::ElementState::Released;
+            use crate::event::WindowEvent::MouseInput;
+            use crate::event::ElementState::Released;
 
             release_mouse(&mut *subclass_input.window_state.lock());
 
@@ -1211,8 +1227,8 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_XBUTTONDOWN => {
-            use event::WindowEvent::MouseInput;
-            use event::ElementState::Pressed;
+            use crate::event::WindowEvent::MouseInput;
+            use crate::event::ElementState::Pressed;
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
@@ -1225,8 +1241,8 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_XBUTTONUP => {
-            use event::WindowEvent::MouseInput;
-            use event::ElementState::Released;
+            use crate::event::WindowEvent::MouseInput;
+            use crate::event::ElementState::Released;
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
 
             release_mouse(&mut *subclass_input.window_state.lock());
@@ -1249,7 +1265,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 inputs.as_mut_ptr(),
                 mem::size_of::<winuser::TOUCHINPUT>() as INT,
             ) > 0 {
-                let dpi_factor = get_hwnd_scale_factor(window);
+                let dpi_factor = hwnd_scale_factor(window);
                 for input in &inputs {
                     let x = (input.x as f64) / 100f64;
                     let y = (input.y as f64) / 100f64;
@@ -1278,7 +1294,7 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_SETFOCUS => {
-            use event::WindowEvent::Focused;
+            use crate::event::WindowEvent::Focused;
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: Focused(true),
@@ -1288,7 +1304,7 @@ unsafe extern "system" fn public_window_callback<T>(
         },
 
         winuser::WM_KILLFOCUS => {
-            use event::WindowEvent::Focused;
+            use crate::event::WindowEvent::Focused;
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: Focused(false),
@@ -1350,7 +1366,7 @@ unsafe extern "system" fn public_window_callback<T>(
         // Only sent on Windows 8.1 or newer. On Windows 7 and older user has to log out to change
         // DPI, therefore all applications are closed while DPI is changing.
         winuser::WM_DPICHANGED => {
-            use event::WindowEvent::HiDpiFactorChanged;
+            use crate::event::WindowEvent::HiDpiFactorChanged;
 
             // This message actually provides two DPI values - x and y. However MSDN says that
             // "you only need to use either the X-axis or the Y-axis value when scaling your
@@ -1400,7 +1416,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 window_state.set_window_flags_in_place(|f| f.set(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE, wparam != 0));
                 0
             } else if msg == *INITIAL_DPI_MSG_ID {
-                use event::WindowEvent::HiDpiFactorChanged;
+                use crate::event::WindowEvent::HiDpiFactorChanged;
                 let scale_factor = dpi_to_scale_factor(wparam as u32);
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
@@ -1621,7 +1637,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
         },
 
         winuser::WM_INPUT => {
-            use event::ElementState::{Pressed, Released};
+            use crate::event::ElementState::{Pressed, Released};
 
             match get_raw_input_data(lparam as _) {
                 Some(RawInputData::Mouse{device_handle, raw_mouse}) => {
@@ -1733,7 +1749,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                     }
                 },
                 Some(RawInputData::Hid{device_handle, mut raw_hid}) => {
-                    let mut gamepad_handle_opt: Option<::event::device::GamepadHandle> = None;
+                    let mut gamepad_handle_opt: Option<crate::event::device::GamepadHandle> = None;
                     let mut gamepad_events = vec![];
 
                     {

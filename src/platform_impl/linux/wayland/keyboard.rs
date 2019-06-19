@@ -1,16 +1,16 @@
 use std::sync::{Arc, Mutex};
 
 use super::{make_wid, DeviceId};
-use sctk::keyboard::{
+use smithay_client_toolkit::keyboard::{
     self, map_keyboard_auto_with_repeat, Event as KbEvent, KeyRepeatEvent, KeyRepeatKind,
 };
-use sctk::reexports::client::protocol::{wl_keyboard, wl_seat};
+use smithay_client_toolkit::reexports::client::protocol::{wl_keyboard, wl_seat};
 
-use event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
+use crate::event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
 
 pub fn init_keyboard(
     seat: &wl_seat::WlSeat,
-    sink: ::calloop::channel::Sender<(::event::WindowEvent, super::WindowId)>,
+    sink: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
 ) -> wl_keyboard::WlKeyboard {
     // { variables to be captured by the closures
@@ -23,7 +23,7 @@ pub fn init_keyboard(
     let ret = map_keyboard_auto_with_repeat(
         seat,
         KeyRepeatKind::System,
-        move |evt: KbEvent, _| match evt {
+        move |evt: KbEvent<'_>, _| match evt {
             KbEvent::Enter { surface, .. } => {
                 let wid = make_wid(&surface);
                 my_sink.send((WindowEvent::Focused(true), wid)).unwrap();
@@ -50,7 +50,7 @@ pub fn init_keyboard(
                     let vkcode = key_to_vkey(rawkey, keysym);
                     my_sink.send(
                         (WindowEvent::KeyboardInput {
-                            device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                            device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                             input: KeyboardInput {
                                 state: state,
                                 scancode: rawkey,
@@ -82,7 +82,7 @@ pub fn init_keyboard(
                 let vkcode = key_to_vkey(repeat_event.rawkey, repeat_event.keysym);
                 repeat_sink.send((
                     WindowEvent::KeyboardInput {
-                        device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                        device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                         input: KeyboardInput {
                             state: state,
                             scancode: repeat_event.rawkey,
@@ -136,7 +136,7 @@ pub fn init_keyboard(
                             };
                             my_sink.send((
                                 WindowEvent::KeyboardInput {
-                                    device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                                    device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                                     input: KeyboardInput {
                                         state: state,
                                         scancode: key,
@@ -173,7 +173,7 @@ fn key_to_vkey(rawkey: u32, keysym: u32) -> Option<VirtualKeyCode> {
 }
 
 fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
-    use sctk::keyboard::keysyms;
+    use smithay_client_toolkit::keyboard::keysyms;
     match keysym {
         // letters
         keysyms::XKB_KEY_A | keysyms::XKB_KEY_a => Some(VirtualKeyCode::A),

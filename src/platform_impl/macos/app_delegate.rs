@@ -1,7 +1,7 @@
 use cocoa::base::id;
 use objc::{runtime::{Class, Object, Sel, BOOL, YES}, declare::ClassDecl};
 
-use platform_impl::platform::app_state::AppState;
+use crate::platform_impl::platform::app_state::AppState;
 
 pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}

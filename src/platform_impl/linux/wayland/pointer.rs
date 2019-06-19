@@ -1,13 +1,13 @@
 use std::sync::{Arc, Mutex};
 
-use event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent, ModifiersState};
+use crate::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent, ModifiersState};
 
 use super::DeviceId;
 use super::event_loop::WindowEventsSink;
 use super::window::WindowStore;
 
-use sctk::reexports::client::protocol::wl_pointer::{self, Event as PtrEvent, WlPointer};
-use sctk::reexports::client::protocol::wl_seat;
+use smithay_client_toolkit::reexports::client::protocol::wl_pointer::{self, Event as PtrEvent, WlPointer};
+use smithay_client_toolkit::reexports::client::protocol::wl_seat;
 
 pub fn implement_pointer(
     seat: &wl_seat::WlSeat,
@@ -36,13 +36,13 @@ pub fn implement_pointer(
                         mouse_focus = Some(wid);
                         sink.send_event(
                             WindowEvent::CursorEntered {
-                                device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                             },
                             wid,
                         );
                         sink.send_event(
                             WindowEvent::CursorMoved {
-                                device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                                 position: (surface_x, surface_y).into(),
                                 modifiers: modifiers_tracker.lock().unwrap().clone(),
                             },
@@ -56,7 +56,7 @@ pub fn implement_pointer(
                     if let Some(wid) = wid {
                         sink.send_event(
                             WindowEvent::CursorLeft {
-                                device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                             },
                             wid,
                         );
@@ -70,7 +70,7 @@ pub fn implement_pointer(
                     if let Some(wid) = mouse_focus {
                         sink.send_event(
                             WindowEvent::CursorMoved {
-                                device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                                 position: (surface_x, surface_y).into(),
                                 modifiers: modifiers_tracker.lock().unwrap().clone(),
                             },
@@ -94,7 +94,7 @@ pub fn implement_pointer(
                         };
                         sink.send_event(
                             WindowEvent::MouseInput {
-                                device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                                 state: state,
                                 button: button,
                                 modifiers: modifiers_tracker.lock().unwrap().clone(),
@@ -116,7 +116,7 @@ pub fn implement_pointer(
                             }
                             sink.send_event(
                                 WindowEvent::MouseWheel {
-                                    device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                                    device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                                     delta: MouseScrollDelta::PixelDelta((x as f64, y as f64).into()),
                                     phase: TouchPhase::Moved,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
@@ -146,7 +146,7 @@ pub fn implement_pointer(
                         if let Some((x, y)) = axis_discrete_buffer {
                             sink.send_event(
                                 WindowEvent::MouseWheel {
-                                    device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                                    device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                                     delta: MouseScrollDelta::LineDelta(x as f32, y as f32),
                                     phase: axis_state,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
@@ -156,7 +156,7 @@ pub fn implement_pointer(
                         } else if let Some((x, y)) = axis_buffer {
                             sink.send_event(
                                 WindowEvent::MouseWheel {
-                                    device_id: ::event::DeviceId(::platform_impl::DeviceId::Wayland(DeviceId)),
+                                    device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                                     delta: MouseScrollDelta::PixelDelta((x as f64, y as f64).into()),
                                     phase: axis_state,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),

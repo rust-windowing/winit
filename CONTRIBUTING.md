@@ -36,19 +36,7 @@ at least a maintainer of the platform (a maintainer making a PR themselves count
 
 ## Maintainers & Testers
 
-Winit is managed by several people, each with their specialities, and each maintaining a subset of the
-backends of winit. As such, depending on your platform of interest, your contacts will be different.
+The current [list of testers and contributors](https://github.com/rust-windowing/winit/wiki/Testers-and-Contributors)
+can be found on the Wiki.
 
-This table summarizes who can be contacted in which case, with the following legend:
-
-- `M` - Maintainer: is a main maintainer for this platform
-- `C` - Collaborator: can review code and address issues on this platform
-- `T` - Tester: has the ability of testing the platform
-- ` `: knows nothing of this platform
-
-| Platform            | Windows | macOS | X11   | Wayland | Android | iOS   | Emscripten |
-| :---                | :---:   | :---: | :---: | :---:   | :---:   | :---: | :---:      |
-| @mitchmindtree      | T       |       | T     | T       |         |       |            |
-| @Osspial            | M       |       | T     | T       | T       |       | T          |
-| @vberger            |         |       | T     | M       |         |       |            |
-| @mtak-              |         | T     |       |         | T       | M     |            |
+If you are interested in contributing or testing on a platform, please add yourself to that table!

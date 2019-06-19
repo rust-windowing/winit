@@ -7,8 +7,8 @@
 use std::time::Instant;
 use std::path::PathBuf;
 
-use dpi::{LogicalPosition, LogicalSize};
-use window::WindowId;
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::window::WindowId;
 
 pub mod device;
 

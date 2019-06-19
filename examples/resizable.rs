@@ -10,7 +10,7 @@ fn main() {
 
     let window = WindowBuilder::new()
         .with_title("Hit space to toggle resizability.")
-        .with_dimensions((400, 200).into())
+        .with_inner_size((400, 200).into())
         .with_resizable(resizable)
         .build(&event_loop)
         .unwrap();

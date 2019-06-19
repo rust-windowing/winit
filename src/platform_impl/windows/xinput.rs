@@ -5,11 +5,13 @@ use rusty_xinput::*;
 use winapi::shared::minwindef::{DWORD, WORD};
 use winapi::um::xinput::*;
 
-use event::{
-    ElementState,
-    device::{GamepadAxis, GamepadButton, GamepadEvent, RumbleError, Side},
+use crate::{
+    platform_impl::platform::util,
+    event::{
+        ElementState,
+        device::{GamepadAxis, GamepadButton, GamepadEvent, RumbleError, Side},
+    },
 };
-use platform_impl::platform::util;
 
 lazy_static! {
     static ref XINPUT_GUARD: Option<()> = dynamic_load_xinput().ok();

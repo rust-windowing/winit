@@ -13,9 +13,9 @@ use std::{fmt, error};
 use std::time::Instant;
 use std::ops::Deref;
 
-use platform_impl;
-use event::Event;
-use monitor::{AvailableMonitorsIter, MonitorHandle};
+use crate::platform_impl;
+use crate::event::Event;
+use crate::monitor::{AvailableMonitorsIter, MonitorHandle};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -46,13 +46,13 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T> fmt::Debug for EventLoop<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.pad("EventLoop { .. }")
     }
 }
 
 impl<T> fmt::Debug for EventLoopWindowTarget<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.pad("EventLoopWindowTarget { .. }")
     }
 }
@@ -94,9 +94,9 @@ impl Default for ControlFlow {
 
 impl EventLoop<()> {
     /// Builds a new event loop with a `()` as the user event type.
-    /// 
+    ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **iOS:** Can only be called on the main thread.
     pub fn new() -> EventLoop<()> {
         EventLoop::<()>::new_user_event()
@@ -110,30 +110,15 @@ impl<T> EventLoop<T> {
     /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
     /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
     /// fallback on x11. If this variable is set with any other value, winit will panic.
-    /// 
+    ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **iOS:** Can only be called on the main thread.
     pub fn new_user_event() -> EventLoop<T> {
         EventLoop {
             event_loop: platform_impl::EventLoop::new(),
             _marker: ::std::marker::PhantomData,
         }
-    }
-
-    /// Returns the list of all the monitors available on the system.
-    ///
-    // Note: should be replaced with `-> impl Iterator` once stable.
-    #[inline]
-    pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
-        let data = self.event_loop.get_available_monitors();
-        AvailableMonitorsIter{ data: data.into_iter() }
-    }
-
-    /// Returns the primary monitor of the system.
-    #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle { inner: self.event_loop.get_primary_monitor() }
     }
 
     /// Hijacks the calling thread and initializes the `winit` event loop with the provided
@@ -153,12 +138,24 @@ impl<T> EventLoop<T> {
         self.event_loop.run(event_handler)
     }
 
-    /// Creates an `EventLoopProxy` that can be used to wake up the `EventLoop` from another
-    /// thread.
+    /// Creates an `EventLoopProxy` that can be used to dispatch user events to the main event loop.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             event_loop_proxy: self.event_loop.create_proxy(),
         }
+    }
+
+    /// Returns the list of all the monitors available on the system.
+    #[inline]
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        let data = self.event_loop.available_monitors();
+        AvailableMonitorsIter{ data: data.into_iter() }
+    }
+
+    /// Returns the primary monitor of the system.
+    #[inline]
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle { inner: self.event_loop.primary_monitor() }
     }
 }
 
@@ -187,7 +184,7 @@ impl<T: 'static> EventLoopProxy<T> {
 }
 
 impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.pad("EventLoopProxy { .. }")
     }
 }
@@ -198,7 +195,7 @@ impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
 pub struct EventLoopClosed;
 
 impl fmt::Display for EventLoopClosed {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", error::Error::description(self))
     }
 }

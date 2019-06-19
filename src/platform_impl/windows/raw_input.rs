@@ -52,8 +52,8 @@ use winapi::um::winuser::{
     RIM_TYPEHID,
 };
 
-use platform_impl::platform::util;
-use event::{
+use crate::platform_impl::platform::util;
+use crate::event::{
     ElementState,
     device::{GamepadAxis, GamepadEvent},
 };
@@ -444,7 +444,7 @@ pub struct Axis {
 }
 
 impl fmt::Debug for Axis {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct Axis {
             value: f64,

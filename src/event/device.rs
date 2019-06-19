@@ -9,10 +9,12 @@
 //!
 //! Note that device events are always delivered regardless of window focus.
 
-use platform_impl;
-use dpi::PhysicalPosition;
-use event::{AxisId, ButtonId, ElementState, KeyboardInput, MouseButton};
-use event_loop::EventLoop;
+use crate::{
+    platform_impl,
+    dpi::PhysicalPosition,
+    event::{AxisId, ButtonId, ElementState, KeyboardInput, MouseButton},
+    event_loop::EventLoop,
+};
 use std::{fmt, io};
 
 /// A hint suggesting the type of button that was pressed.
@@ -328,25 +330,25 @@ impl GamepadHandle {
 }
 
 impl fmt::Debug for MouseId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         self.0.fmt(f)
     }
 }
 
 impl fmt::Debug for KeyboardId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         self.0.fmt(f)
     }
 }
 
 impl fmt::Debug for HidId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         self.0.fmt(f)
     }
 }
 
 impl fmt::Debug for GamepadHandle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         self.0.fmt(f)
     }
 }

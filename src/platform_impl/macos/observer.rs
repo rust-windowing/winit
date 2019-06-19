@@ -1,6 +1,6 @@
 use std::{self, ptr, os::raw::*, time::Instant};
 
-use platform_impl::platform::app_state::AppState;
+use crate::platform_impl::platform::app_state::AppState;
 
 #[link(name = "CoreFoundation", kind = "framework")]
 extern {
@@ -54,6 +54,7 @@ extern {
         source: CFRunLoopSourceRef,
         mode: CFRunLoopMode,
     );
+    #[allow(dead_code)]
     pub fn CFRunLoopSourceInvalidate(source: CFRunLoopSourceRef);
     pub fn CFRunLoopSourceSignal(source: CFRunLoopSourceRef);
 
@@ -62,6 +63,7 @@ extern {
 }
 
 pub type Boolean = u8;
+#[allow(dead_code)]
 const FALSE: Boolean = 0;
 const TRUE: Boolean = 1;
 
@@ -87,9 +89,13 @@ pub type CFRunLoopActivity = CFOptionFlags;
 pub type CFAbsoluteTime = CFTimeInterval;
 pub type CFTimeInterval = f64;
 
+#[allow(non_upper_case_globals)]
 pub const kCFRunLoopEntry: CFRunLoopActivity = 0;
+#[allow(non_upper_case_globals)]
 pub const kCFRunLoopBeforeWaiting: CFRunLoopActivity = 1 << 5;
+#[allow(non_upper_case_globals)]
 pub const kCFRunLoopAfterWaiting: CFRunLoopActivity = 1 << 6;
+#[allow(non_upper_case_globals)]
 pub const kCFRunLoopExit: CFRunLoopActivity = 1 << 7;
 
 pub type CFRunLoopObserverCallBack = extern "C" fn(
@@ -105,6 +111,7 @@ pub type CFRunLoopTimerCallBack = extern "C" fn(
 pub enum CFRunLoopObserverContext {}
 pub enum CFRunLoopTimerContext {}
 
+#[allow(non_snake_case)]
 #[repr(C)]
 pub struct CFRunLoopSourceContext {
     pub version: CFIndex,

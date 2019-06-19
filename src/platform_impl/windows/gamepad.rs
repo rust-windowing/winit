@@ -2,9 +2,11 @@ use std::sync::Weak;
 
 use winapi::um::winnt::HANDLE;
 
-use event::device::{GamepadEvent, RumbleError};
-use platform_impl::platform::raw_input::{get_raw_input_device_name, RawGamepad};
-use platform_impl::platform::xinput::{self, XInputGamepad, XInputGamepadShared};
+use crate::{
+    event::device::{GamepadEvent, RumbleError},
+    platform_impl::platform::raw_input::{get_raw_input_device_name, RawGamepad},
+    platform_impl::platform::xinput::{self, XInputGamepad, XInputGamepadShared},
+};
 
 #[derive(Debug)]
 pub enum GamepadType {

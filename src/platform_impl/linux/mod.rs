@@ -1,20 +1,21 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
 use std::collections::VecDeque;
-use std::{env, mem};
+use std::{env, mem, fmt};
 use std::ffi::CStr;
 use std::os::raw::*;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use sctk::reexports::client::ConnectError;
+use smithay_client_toolkit::reexports::client::ConnectError;
 
-use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use icon::Icon;
-use event::Event;
-use event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
-use monitor::MonitorHandle as RootMonitorHandle;
-use window::{WindowAttributes, CreationError, MouseCursor};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use crate::icon::Icon;
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::event::Event;
+use crate::event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode};
+use crate::window::{WindowAttributes, CursorIcon};
 use self::x11::{XConnection, XError};
 use self::x11::ffi::XVisualInfo;
 pub use self::x11::XNotSupported;
@@ -50,6 +51,21 @@ lazy_static!(
         Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new))
     };
 );
+
+#[derive(Debug, Clone)]
+pub enum OsError {
+    XError(XError),
+    XMisc(&'static str),
+}
+
+impl fmt::Display for OsError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            OsError::XError(e) => formatter.pad(&e.description),
+            OsError::XMisc(e) => formatter.pad(e),
+        }
+    }
+}
 
 pub enum Window {
     X(x11::Window),
@@ -88,42 +104,50 @@ pub enum MonitorHandle {
 
 impl MonitorHandle {
     #[inline]
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         match self {
-            &MonitorHandle::X(ref m) => m.get_name(),
-            &MonitorHandle::Wayland(ref m) => m.get_name(),
+            &MonitorHandle::X(ref m) => m.name(),
+            &MonitorHandle::Wayland(ref m) => m.name(),
         }
     }
 
     #[inline]
-    pub fn get_native_identifier(&self) -> u32 {
+    pub fn native_identifier(&self) -> u32 {
         match self {
-            &MonitorHandle::X(ref m) => m.get_native_identifier(),
-            &MonitorHandle::Wayland(ref m) => m.get_native_identifier(),
+            &MonitorHandle::X(ref m) => m.native_identifier(),
+            &MonitorHandle::Wayland(ref m) => m.native_identifier(),
         }
     }
 
     #[inline]
-    pub fn get_dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         match self {
-            &MonitorHandle::X(ref m) => m.get_dimensions(),
-            &MonitorHandle::Wayland(ref m) => m.get_dimensions(),
+            &MonitorHandle::X(ref m) => m.size(),
+            &MonitorHandle::Wayland(ref m) => m.size(),
         }
     }
 
     #[inline]
-    pub fn get_position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition {
         match self {
-            &MonitorHandle::X(ref m) => m.get_position(),
-            &MonitorHandle::Wayland(ref m) => m.get_position(),
+            &MonitorHandle::X(ref m) => m.position(),
+            &MonitorHandle::Wayland(ref m) => m.position(),
         }
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
         match self {
-            &MonitorHandle::X(ref m) => m.get_hidpi_factor(),
-            &MonitorHandle::Wayland(ref m) => m.get_hidpi_factor() as f64,
+            &MonitorHandle::X(ref m) => m.hidpi_factor(),
+            &MonitorHandle::Wayland(ref m) => m.hidpi_factor() as f64,
+        }
+    }
+
+    #[inline]
+    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+        match self {
+            MonitorHandle::X(m) => Box::new(m.video_modes()),
+            MonitorHandle::Wayland(m) => Box::new(m.video_modes()),
         }
     }
 }
@@ -134,7 +158,7 @@ impl Window {
         window_target: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Self, CreationError> {
+    ) -> Result<Self, RootOsError> {
         match *window_target {
             EventLoopWindowTarget::Wayland(ref window_target) => {
                 wayland::Window::new(window_target, attribs, pl_attribs).map(Window::Wayland)
@@ -162,58 +186,50 @@ impl Window {
     }
 
     #[inline]
-    pub fn show(&self) {
+    pub fn set_visible(&self, visible: bool) {
         match self {
-            &Window::X(ref w) => w.show(),
-            &Window::Wayland(ref w) => w.show(),
+            &Window::X(ref w) => w.set_visible(visible),
+            &Window::Wayland(ref w) => w.set_visible(visible),
         }
     }
 
     #[inline]
-    pub fn hide(&self) {
+    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         match self {
-            &Window::X(ref w) => w.hide(),
-            &Window::Wayland(ref w) => w.hide(),
+            &Window::X(ref w) => w.outer_position(),
+            &Window::Wayland(ref w) => w.outer_position(),
         }
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
         match self {
-            &Window::X(ref w) => w.get_position(),
-            &Window::Wayland(ref w) => w.get_position(),
+            &Window::X(ref m) => m.inner_position(),
+            &Window::Wayland(ref m) => m.inner_position(),
         }
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+    pub fn set_outer_position(&self, position: LogicalPosition) {
         match self {
-            &Window::X(ref m) => m.get_inner_position(),
-            &Window::Wayland(ref m) => m.get_inner_position(),
+            &Window::X(ref w) => w.set_outer_position(position),
+            &Window::Wayland(ref w) => w.set_outer_position(position),
         }
     }
 
     #[inline]
-    pub fn set_position(&self, position: LogicalPosition) {
+    pub fn inner_size(&self) -> LogicalSize {
         match self {
-            &Window::X(ref w) => w.set_position(position),
-            &Window::Wayland(ref w) => w.set_position(position),
+            &Window::X(ref w) => w.inner_size(),
+            &Window::Wayland(ref w) => w.inner_size(),
         }
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> LogicalSize {
         match self {
-            &Window::X(ref w) => w.get_inner_size(),
-            &Window::Wayland(ref w) => w.get_inner_size(),
-        }
-    }
-
-    #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
-        match self {
-            &Window::X(ref w) => w.get_outer_size(),
-            &Window::Wayland(ref w) => w.get_outer_size(),
+            &Window::X(ref w) => w.outer_size(),
+            &Window::Wayland(ref w) => w.outer_size(),
         }
     }
 
@@ -226,18 +242,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
         match self {
-            &Window::X(ref w) => w.set_min_dimensions(dimensions),
-            &Window::Wayland(ref w) => w.set_min_dimensions(dimensions),
+            &Window::X(ref w) => w.set_min_inner_size(dimensions),
+            &Window::Wayland(ref w) => w.set_min_inner_size(dimensions),
         }
     }
 
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
         match self {
-            &Window::X(ref w) => w.set_max_dimensions(dimensions),
-            &Window::Wayland(ref w) => w.set_max_dimensions(dimensions),
+            &Window::X(ref w) => w.set_max_inner_size(dimensions),
+            &Window::Wayland(ref w) => w.set_max_inner_size(dimensions),
         }
     }
 
@@ -250,39 +266,39 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor(&self, cursor: MouseCursor) {
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         match self {
-            &Window::X(ref w) => w.set_cursor(cursor),
-            &Window::Wayland(ref w) => w.set_cursor(cursor)
+            &Window::X(ref w) => w.set_cursor_icon(cursor),
+            &Window::Wayland(ref w) => w.set_cursor_icon(cursor)
         }
     }
 
     #[inline]
-    pub fn grab_cursor(&self, grab: bool) -> Result<(), String> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         match self {
-            &Window::X(ref window) => window.grab_cursor(grab),
-            &Window::Wayland(ref window) => window.grab_cursor(grab),
+            &Window::X(ref window) => window.set_cursor_grab(grab),
+            &Window::Wayland(ref window) => window.set_cursor_grab(grab),
         }
     }
 
     #[inline]
-    pub fn hide_cursor(&self, hide: bool) {
+    pub fn set_cursor_visible(&self, visible: bool) {
         match self {
-            &Window::X(ref window) => window.hide_cursor(hide),
-            &Window::Wayland(ref window) => window.hide_cursor(hide),
+            &Window::X(ref window) => window.set_cursor_visible(visible),
+            &Window::Wayland(ref window) => window.set_cursor_visible(visible),
         }
     }
 
     #[inline]
-    pub fn get_hidpi_factor(&self) -> f64 {
+    pub fn hidpi_factor(&self) -> f64 {
        match self {
-            &Window::X(ref w) => w.get_hidpi_factor(),
+            &Window::X(ref w) => w.hidpi_factor(),
             &Window::Wayland(ref w) => w.hidpi_factor() as f64,
         }
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
         match self {
             &Window::X(ref w) => w.set_cursor_position(position),
             &Window::Wayland(ref w) => w.set_cursor_position(position),
@@ -298,10 +314,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
         match self {
-            &Window::X(ref w) => w.get_fullscreen(),
-            &Window::Wayland(ref w) => w.get_fullscreen()
+            &Window::X(ref w) => w.fullscreen(),
+            &Window::Wayland(ref w) => w.fullscreen()
                 .map(|monitor_id| RootMonitorHandle { inner: MonitorHandle::Wayland(monitor_id) })
         }
     }
@@ -339,9 +355,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, position: LogicalPosition) {
+    pub fn set_ime_position(&self, position: LogicalPosition) {
         match self {
-            &Window::X(ref w) => w.set_ime_spot(position),
+            &Window::X(ref w) => w.set_ime_position(position),
             &Window::Wayland(_) => (),
         }
     }
@@ -355,21 +371,21 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_current_monitor(&self) -> RootMonitorHandle {
+    pub fn current_monitor(&self) -> RootMonitorHandle {
         match self {
-            &Window::X(ref window) => RootMonitorHandle { inner: MonitorHandle::X(window.get_current_monitor()) },
-            &Window::Wayland(ref window) => RootMonitorHandle { inner: MonitorHandle::Wayland(window.get_current_monitor()) },
+            &Window::X(ref window) => RootMonitorHandle { inner: MonitorHandle::X(window.current_monitor()) },
+            &Window::Wayland(ref window) => RootMonitorHandle { inner: MonitorHandle::Wayland(window.current_monitor()) },
         }
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match self {
-            &Window::X(ref window) => window.get_available_monitors()
+            &Window::X(ref window) => window.available_monitors()
                 .into_iter()
                 .map(MonitorHandle::X)
                 .collect(),
-            &Window::Wayland(ref window) => window.get_available_monitors()
+            &Window::Wayland(ref window) => window.available_monitors()
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
@@ -377,10 +393,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         match self {
-            &Window::X(ref window) => MonitorHandle::X(window.get_primary_monitor()),
-            &Window::Wayland(ref window) => MonitorHandle::Wayland(window.get_primary_monitor()),
+            &Window::X(ref window) => MonitorHandle::X(window.primary_monitor()),
+            &Window::Wayland(ref window) => MonitorHandle::Wayland(window.primary_monitor()),
         }
     }
 }
@@ -481,16 +497,16 @@ impl<T:'static> EventLoop<T> {
     }
 
     #[inline]
-    pub fn get_available_monitors(&self) -> VecDeque<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match *self {
             EventLoop::Wayland(ref evlp) => evlp
-                .get_available_monitors()
+                .available_monitors()
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
             EventLoop::X(ref evlp) => evlp
                 .x_connection()
-                .get_available_monitors()
+                .available_monitors()
                 .into_iter()
                 .map(MonitorHandle::X)
                 .collect(),
@@ -498,10 +514,10 @@ impl<T:'static> EventLoop<T> {
     }
 
     #[inline]
-    pub fn get_primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> MonitorHandle {
         match *self {
-            EventLoop::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.get_primary_monitor()),
-            EventLoop::X(ref evlp) => MonitorHandle::X(evlp.x_connection().get_primary_monitor()),
+            EventLoop::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.primary_monitor()),
+            EventLoop::X(ref evlp) => MonitorHandle::X(evlp.x_connection().primary_monitor()),
         }
     }
 
@@ -513,7 +529,7 @@ impl<T:'static> EventLoop<T> {
     }
 
     pub fn run_return<F>(&mut self, callback: F)
-        where F: FnMut(::event::Event<T>, &RootELW<T>, &mut ControlFlow)
+        where F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         match *self {
             EventLoop::Wayland(ref mut evlp) => evlp.run_return(callback),
@@ -522,7 +538,7 @@ impl<T:'static> EventLoop<T> {
     }
 
     pub fn run<F>(self, callback: F) -> !
-        where F: 'static + FnMut(::event::Event<T>, &RootELW<T>, &mut ControlFlow)
+        where F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow)
     {
         match self {
             EventLoop::Wayland(evlp) => evlp.run(callback),
@@ -538,7 +554,7 @@ impl<T:'static> EventLoop<T> {
         }
     }
 
-    pub fn window_target(&self) -> &::event_loop::EventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
         match *self {
             EventLoop::Wayland(ref evl) => evl.window_target(),
             EventLoop::X(ref evl) => evl.window_target()

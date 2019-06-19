@@ -57,6 +57,12 @@
 - On Windows, fix duplicate device events getting sent if Winit managed multiple windows.
 - On Windows, raw mouse events now report Mouse4 and Mouse5 presses and releases.
 - Added gamepad support on Windows via raw input and XInput.
+- Rename several functions to improve both internal consistency and compliance with Rust API guidelines.
+- Remove `WindowBuilder::multitouch` field, since it was only implemented on a few platforms. Multitouch is always enabled now.
+- **Breaking:** On macOS, change `ns` identifiers to use snake_case for consistency with iOS's `ui` identifiers.
+- Add `MonitorHandle::video_modes` method for retrieving supported video modes for the given monitor.
+- On Wayland, the window now exists even if nothing has been drawn.
+- On Windows, fix initial dimensions of a fullscreen window.
 
 # Version 0.19.1 (2019-04-08)
 

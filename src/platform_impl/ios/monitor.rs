@@ -1,18 +1,13 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     fmt,
     ops::{Deref, DerefMut},
 };
 
-use dpi::{PhysicalPosition, PhysicalSize};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoMode;
 
-use platform_impl::platform::ffi::{
-    id,
-    nil,
-    CGFloat,
-    CGRect,
-    NSUInteger,
-};
+use crate::platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger};
 
 pub struct Inner {
     uiscreen: id,
@@ -68,20 +63,20 @@ impl Drop for MonitorHandle {
 }
 
 impl fmt::Debug for MonitorHandle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,
-            dimensions: PhysicalSize,
+            size: PhysicalSize,
             position: PhysicalPosition,
             hidpi_factor: f64,
         }
 
         let monitor_id_proxy = MonitorHandle {
-            name: self.get_name(),
-            dimensions: self.get_dimensions(),
-            position: self.get_position(),
-            hidpi_factor: self.get_hidpi_factor(),
+            name: self.name(),
+            size: self.size(),
+            position: self.position(),
+            hidpi_factor: self.hidpi_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -99,7 +94,7 @@ impl MonitorHandle {
 }
 
 impl Inner {
-    pub fn get_name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         unsafe {
             if self.uiscreen == main_uiscreen().uiscreen {
                 Some("Primary".to_string())
@@ -113,32 +108,53 @@ impl Inner {
             }
         }
     }
-    
-    pub fn get_dimensions(&self) -> PhysicalSize {
+
+    pub fn size(&self) -> PhysicalSize {
         unsafe {
-            let bounds: CGRect = msg_send![self.get_uiscreen(), nativeBounds];
+            let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
             (bounds.size.width as f64, bounds.size.height as f64).into()
         }
     }
-    
-    pub fn get_position(&self) -> PhysicalPosition {
+
+    pub fn position(&self) -> PhysicalPosition {
         unsafe {
-            let bounds: CGRect = msg_send![self.get_uiscreen(), nativeBounds];
+            let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
             (bounds.origin.x as f64, bounds.origin.y as f64).into()
         }
     }
-    
-    pub fn get_hidpi_factor(&self) -> f64 {
+
+    pub fn hidpi_factor(&self) -> f64 {
         unsafe {
-            let scale: CGFloat = msg_send![self.get_uiscreen(), nativeScale];
+            let scale: CGFloat = msg_send![self.ui_screen(), nativeScale];
             scale as f64
         }
+    }
+
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        let refresh_rate: NSInteger = unsafe { msg_send![self.uiscreen, maximumFramesPerSecond] };
+
+        let available_modes: id = unsafe { msg_send![self.uiscreen, availableModes] };
+        let available_mode_count: NSUInteger = unsafe { msg_send![available_modes, count] };
+
+        let mut modes = HashSet::with_capacity(available_mode_count);
+
+        for i in 0..available_mode_count {
+            let mode: id = unsafe { msg_send![available_modes, objectAtIndex: i] };
+            let size: CGSize = unsafe { msg_send![mode, size] };
+            modes.insert(VideoMode {
+                size: (size.width as u32, size.height as u32),
+                bit_depth: 32,
+                refresh_rate: refresh_rate as u16,
+            });
+        }
+
+        modes.into_iter()
     }
 }
 
 // MonitorHandleExtIOS
 impl Inner {
-    pub fn get_uiscreen(&self) -> id {
+    pub fn ui_screen(&self) -> id {
         self.uiscreen
     }
 }

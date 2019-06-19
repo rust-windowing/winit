@@ -20,12 +20,13 @@ use std::ptr;
 use winapi;
 use winapi::shared::windef::HWND;
 use winapi::um::winnt::HANDLE;
-use window::Icon;
 
 pub use self::event_loop::{EventLoop, EventLoopWindowTarget, EventLoopProxy};
 pub use self::gamepad::GamepadShared;
 pub use self::monitor::MonitorHandle;
 pub use self::window::Window;
+
+use crate::window::Icon;
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
@@ -67,7 +68,7 @@ macro_rules! device_id {
                 Self(ptr::null_mut())
             }
 
-            pub fn get_persistent_identifier(&self) -> Option<String> {
+            pub fn persistent_identifier(&self) -> Option<String> {
                 raw_input::get_raw_input_device_name(self.0)
             }
 
@@ -80,7 +81,7 @@ macro_rules! device_id {
                 self.0
             }
 
-            pub fn enumerate<'a, T>(event_loop: &'a EventLoop<T>) -> impl 'a + Iterator<Item=::event::device::$name> {
+            pub fn enumerate<'a, T>(event_loop: &'a EventLoop<T>) -> impl 'a + Iterator<Item=crate::event::device::$name> {
                 event_loop.$enumerate()
             }
         }
@@ -103,6 +104,8 @@ pub(crate) struct GamepadHandle {
     shared_data: GamepadShared,
 }
 
+pub type OsError = std::io::Error;
+
 unsafe impl Send for GamepadHandle where GamepadShared: Send {}
 unsafe impl Sync for GamepadHandle where GamepadShared: Sync {}
 
@@ -114,7 +117,7 @@ impl GamepadHandle {
         }
     }
 
-    pub fn get_persistent_identifier(&self) -> Option<String> {
+    pub fn persistent_identifier(&self) -> Option<String> {
         raw_input::get_raw_input_device_name(self.handle)
     }
 
@@ -127,7 +130,7 @@ impl GamepadHandle {
         self.handle
     }
 
-    pub fn rumble(&self, left_speed: f64, right_speed: f64) -> Result<(), ::event::device::RumbleError> {
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) -> Result<(), crate::event::device::RumbleError> {
         self.shared_data.rumble(left_speed, right_speed)
     }
 
@@ -135,7 +138,7 @@ impl GamepadHandle {
         self.shared_data.port()
     }
 
-    pub fn enumerate<'a, T>(event_loop: &'a EventLoop<T>) -> impl 'a + Iterator<Item=::event::device::GamepadHandle> {
+    pub fn enumerate<'a, T>(event_loop: &'a EventLoop<T>) -> impl 'a + Iterator<Item=crate::event::device::GamepadHandle> {
         event_loop.gamepads()
     }
 }
@@ -147,7 +150,7 @@ impl From<GamepadHandle> for crate::event::device::GamepadHandle {
 }
 
 impl fmt::Debug for GamepadHandle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_tuple("GamepadHandle")
             .field(&self.handle)
             .finish()

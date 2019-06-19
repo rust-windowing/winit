@@ -92,6 +92,7 @@ If your PR makes notable changes to Winit's features, please update this section
 
 ### System Information
 - **Monitor list**: Retrieve the list of monitors and their metadata, including which one is primary.
+- **Video mode query**: Monitors can be queried for their supported fullscreen video modes (consisting of resolution, refresh rate, and bit depth).
 
 ### Input Handling
 - **Mouse events**: Generating mouse events associated with pointer motion, click, and scrolling events.
@@ -160,9 +161,10 @@ Legend:
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |❌        |
 
 ### System information
-|Feature      |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
-|------------ | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|Monitor list |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
+|Feature          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
+|---------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
+|Monitor list     |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
+|Video mode query |✔️    |✔️    |✔️       |✔️          |❌      |✔️     |❌         |
 
 ### Input handling
 |Feature                 |Windows   |MacOS   |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
