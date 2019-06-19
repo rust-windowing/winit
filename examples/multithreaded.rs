@@ -2,13 +2,14 @@ extern crate env_logger;
 use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
 use winit::{
+    dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{CursorIcon, WindowBuilder},
 };
 
 const WINDOW_COUNT: usize = 3;
-const WINDOW_SIZE: (u32, u32) = (600, 400);
+const WINDOW_SIZE: PhysicalSize = PhysicalSize::new(600, 400);
 
 fn main() {
     env_logger::init();
@@ -16,7 +17,7 @@ fn main() {
     let mut window_senders = HashMap::with_capacity(WINDOW_COUNT);
     for _ in 0..WINDOW_COUNT {
         let window = WindowBuilder::new()
-            .with_inner_size(WINDOW_SIZE.into())
+            .with_inner_size(WINDOW_SIZE)
             .build(&event_loop)
             .unwrap();
         let (tx, rx) = mpsc::channel();
@@ -63,7 +64,7 @@ fn main() {
                             },
                             L => {
                                 window.set_min_inner_size(match state {
-                                    true => Some(WINDOW_SIZE.into()),
+                                    true => Some(WINDOW_SIZE),
                                     false => None,
                                 })
                             },
@@ -80,19 +81,22 @@ fn main() {
                             Q => window.request_redraw(),
                             R => window.set_resizable(state),
                             S => {
-                                window.set_inner_size(
-                                    match state {
-                                        true => (WINDOW_SIZE.0 + 100, WINDOW_SIZE.1 + 100),
-                                        false => WINDOW_SIZE,
-                                    }
-                                    .into(),
-                                )
+                                window.set_inner_size(match state {
+                                    true => {
+                                        PhysicalSize::new(
+                                            WINDOW_SIZE.width + 100,
+                                            WINDOW_SIZE.height + 100,
+                                        )
+                                    },
+                                    false => WINDOW_SIZE,
+                                })
                             },
                             W => {
                                 window
-                                    .set_cursor_position(
-                                        (WINDOW_SIZE.0 as i32 / 2, WINDOW_SIZE.1 as i32 / 2).into(),
-                                    )
+                                    .set_cursor_position(PhysicalPosition::new(
+                                        WINDOW_SIZE.width as f64 / 2.0,
+                                        WINDOW_SIZE.height as f64 / 2.0,
+                                    ))
                                     .unwrap()
                             },
                             Z => {
@@ -130,7 +134,9 @@ fn main() {
                     },
                     _ => {
                         if let Some(tx) = window_senders.get(&window_id) {
-                            tx.send(event).unwrap();
+                            if let Some(event) = event.to_static() {
+                                tx.send(event).unwrap();
+                            }
                         }
                     },
                 }

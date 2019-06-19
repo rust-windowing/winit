@@ -3,7 +3,7 @@ use winapi::{
         minwindef::{BOOL, DWORD, LPARAM, TRUE, WORD},
         windef::{HDC, HMONITOR, HWND, LPRECT, POINT},
     },
-    um::{wingdi, winnt::LONG, winuser},
+    um::{wingdi, winuser},
 };
 
 use std::{
@@ -141,14 +141,6 @@ impl MonitorHandle {
             hidpi_factor: dpi_to_scale_factor(get_monitor_dpi(hmonitor).unwrap_or(96)),
             monitor_info,
         }
-    }
-
-    pub(crate) fn contains_point(&self, point: &POINT) -> bool {
-        let left = self.position.0 as LONG;
-        let right = left + self.dimensions.0 as LONG;
-        let top = self.position.1 as LONG;
-        let bottom = top + self.dimensions.1 as LONG;
-        point.x >= left && point.x <= right && point.y >= top && point.y <= bottom
     }
 
     #[inline]
