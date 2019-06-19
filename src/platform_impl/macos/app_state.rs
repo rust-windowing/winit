@@ -1,5 +1,5 @@
 use std::{
-    collections::VecDeque, fmt::{self, Debug, Formatter},
+    collections::VecDeque, fmt::{self, Debug},
     hint::unreachable_unchecked, mem,
     sync::{atomic::{AtomicBool, Ordering}, Mutex, MutexGuard}, time::Instant,
 };

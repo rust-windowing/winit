@@ -86,6 +86,7 @@ extern crate log;
 #[macro_use]
 extern crate serde;
 #[macro_use]
+#[cfg(target_os = "windows")]
 extern crate derivative;
 #[macro_use]
 #[cfg(target_os = "windows")]
