@@ -244,9 +244,6 @@ pub struct SharedState {
     /// restored upon exiting it
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
     pub saved_desktop_display_mode: Option<(CGDisplay, CGDisplayMode)>,
-    /// Requested fullscreen presentation options via
-    /// `WindowExtMacOS::set_fullscreen_presentation_options`
-    pub fullscreen_presentation_options: Option<NSApplicationPresentationOptions>,
 }
 
 impl SharedState {
@@ -597,10 +594,10 @@ impl UnownedWindow {
     /// user clicking on the green fullscreen button or programmatically by
     /// `toggleFullScreen:`
     pub(crate) fn restore_state_from_fullscreen(&self) {
-        self.restore_display_mode();
-
         trace!("Locked shared state in `restore_state_from_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
+
+        shared_state_lock.fullscreen = None;
 
         let maximized = shared_state_lock.maximized;
         let mask = self.saved_style(&mut *shared_state_lock);
@@ -614,10 +611,10 @@ impl UnownedWindow {
 
     fn restore_display_mode(&self) {
         trace!("Locked shared state in `restore_display_mode`");
-        let mut shared_state_lock = self.shared_state.lock().unwrap();
+        let shared_state_lock = self.shared_state.lock().unwrap();
 
         if let Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })) =
-            shared_state_lock.fullscreen.take()
+            shared_state_lock.fullscreen
         {
             unsafe {
                 ffi::CGRestorePermanentDisplayConfiguration();
@@ -669,29 +666,9 @@ impl UnownedWindow {
         trace!("Unlocked shared state in `set_fullscreen`");
         drop(shared_state_lock);
 
-        // If we're switching from exclusive to borderless mode, we need to
-        // restore the previous display mode (for switching to windowed mode
-        // this is handled in the `restore_state_from_fullscreen` callback)
-        match (&old_fullscreen, &fullscreen) {
-            (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
-                self.restore_display_mode();
-
-                trace!("Locked shared state in `set_fullscreen`");
-                let mut shared_state_lock = self.shared_state.lock().unwrap();
-
-                // This is usually set in `window_did_enter_fullscreen` for
-                // borderless fullscreen, but since we're already in fullscreen,
-                // that isn't triggered and we must set it here
-                shared_state_lock.fullscreen = fullscreen.clone();
-
-                drop(shared_state_lock);
-                trace!("Unlocked shared state in `set_fullscreen`");
-            }
-            _ => (),
-        }
-
         // If the fullscreen is on a different monitor, we must move the window
-        // to that monitor before we toggle fullscreen
+        // to that monitor before we toggle fullscreen (as `toggleFullScreen`
+        // does not take a screen parameter, but uses the current screen)
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
                 Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor }) => monitor,
@@ -706,8 +683,8 @@ impl UnownedWindow {
                 let old_screen = NSWindow::screen(*self.ns_window);
                 if old_screen != new_screen {
                     let mut screen_frame: NSRect = msg_send![new_screen, frame];
-                    // The coordinate system here has its origin at bottom-left and
-                    // Y goes up
+                    // The coordinate system here has its origin at bottom-left
+                    // and Y goes up
                     screen_frame.origin.y += screen_frame.size.height;
                     util::set_frame_top_left_point_async(*self.ns_window, screen_frame.origin);
                 }
@@ -792,30 +769,51 @@ impl UnownedWindow {
                     ffi::CGReleaseDisplayFadeReservation(fade_token);
                 }
             }
-
-            trace!("Locked shared state in `set_fullscreen`");
-            let mut shared_state_lock = self.shared_state.lock().unwrap();
-
-            // This is set in `window_did_enter_fullscreen` for borderless
-            // fullscreen, but for exclusive mode we set it here, as we can only
-            // enter exclusive mode from this function (and not also by user
-            // action like borderless)
-            shared_state_lock.fullscreen = fullscreen.clone();
-
-            drop(shared_state_lock);
-            trace!("Unlocked shared state in `set_fullscreen`");
         }
 
-        if old_fullscreen.is_some() != fullscreen.is_some() {
-            unsafe {
+        match (&old_fullscreen, &fullscreen) {
+            (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(_))) => unsafe {
+                // If we're already in fullscreen mode, calling
+                // `CGDisplayCapture` will place the shielding window on top of
+                // our window, which results in a black display and is not what
+                // we want. So, we must place our window on top of the shielding
+                // window. Unfortunately, this also makes our window be on top
+                // of the menu bar, and this looks broken, so we must make sure
+                // that the menu bar is disabled. This is done in the window
+                // delegate in `window:willUseFullScreenPresentationOptions:`.
+                msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
+            },
+            (&Some(Fullscreen::Exclusive(_)), &None) => unsafe {
+                self.restore_display_mode();
+
                 util::toggle_full_screen_async(
                     *self.ns_window,
                     *self.ns_view,
                     old_fullscreen.is_none(),
                     Arc::downgrade(&self.shared_state),
-                )
-            };
+                );
+            },
+            (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+                self.restore_display_mode();
+            }
+            (&None, &Some(Fullscreen::Exclusive(_)))
+            | (&None, &Some(Fullscreen::Borderless(_)))
+            | (&Some(Fullscreen::Borderless(_)), &None) => unsafe {
+                // Wish it were this simple for all cases
+                util::toggle_full_screen_async(
+                    *self.ns_window,
+                    *self.ns_view,
+                    old_fullscreen.is_none(),
+                    Arc::downgrade(&self.shared_state),
+                );
+            },
+            _ => (),
         }
+
+        trace!("Locked shared state in `set_fullscreen`");
+        let mut shared_state_lock = self.shared_state.lock().unwrap();
+        shared_state_lock.fullscreen = fullscreen.clone();
+        trace!("Unlocked shared state in `set_fullscreen`");
     }
 
     #[inline]
@@ -942,15 +940,6 @@ impl WindowExtMacOS for UnownedWindow {
     fn simple_fullscreen(&self) -> bool {
         let shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.is_simple_fullscreen
-    }
-
-    #[inline]
-    fn set_fullscreen_presentation_options(
-        &self,
-        proposed_options: NSApplicationPresentationOptions,
-    ) {
-        let mut shared_state_lock = self.shared_state.lock().unwrap();
-        shared_state_lock.fullscreen_presentation_options = Some(proposed_options);
     }
 
     #[inline]

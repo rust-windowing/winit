@@ -543,16 +543,11 @@ impl Window {
     ///   on macOS. See [`WindowExtMacOs::set_simple_fullscreen`][simple] if
     ///   separate spaces are not preferred.
     ///
-    ///   *Note!* For games and kiosk applications, you will generally want to
-    ///   hide and disable the dock and the menu bar while in fullscreen mode.
-    ///   This applies to both exclusive and borderless mode. See
-    ///   [`WindowExtMacOs::set_fullscreen_presentation_options`][presentation].
+    ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
     ///
     /// [simple]:
     /// ../platform/macos/trait.WindowExtMacOS.html#tymethod.set_simple_fullscreen
-    /// [presentation]:
-    /// ../platform/macos/trait.WindowExtMacOS.html#tymethod.set_fullscreen_presentation_options
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.window.set_fullscreen(fullscreen)

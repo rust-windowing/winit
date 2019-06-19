@@ -414,26 +414,23 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
 }
 
 extern "C" fn window_will_use_fullscreen_presentation_options(
-    this: &Object,
+    _this: &Object,
     _: Sel,
     _: id,
-    proposed_options: NSUInteger,
+    _proposed_options: NSUInteger,
 ) -> NSUInteger {
-    let state = unsafe {
-        let state_ptr: *mut c_void = *this.get_ivar("winitState");
-        &mut *(state_ptr as *mut WindowDelegateState)
-    };
-    let window = state.window.upgrade().unwrap();
-    trace!("Locked shared state in `window_will_use_fullscreen_presentation_options`");
-    let opts = window
-        .shared_state
-        .lock()
-        .unwrap()
-        .fullscreen_presentation_options
-        .map(|x| x.bits())
-        .unwrap_or(proposed_options);
-    trace!("Unlocked shared state in `window_will_use_fullscreen_presentation_options`");
-    opts
+    // Generally, games will want to disable the menu bar and the dock. Ideally,
+    // this would be configurable by the user. Unfortunately because of our
+    // `CGShieldingWindowLevel() + 1` hack (see `set_fullscreen`), our window is
+    // placed on top of the menu bar in exclusive fullscreen mode. This looks
+    // broken so we always disable the menu bar in exclusive fullscreen. We may
+    // still want to make this configurable for borderless fullscreen. Right now
+    // we don't, for consistency. If we do, it should be documented that the
+    // user-provided options are ignored in exclusive fullscreen.
+    (NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar)
+        .bits()
 }
 
 /// Invoked when entered fullscreen
@@ -449,12 +446,12 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
                 // can't enter exclusive mode by other means (like the
                 // fullscreen button on the window decorations)
                 Some(Fullscreen::Exclusive(_)) => (),
-                // `window_did_enter_fullscreen` shouldn't be triggered if we're
-                // already in fullscreen
-                Some(Fullscreen::Borderless(_)) => unreachable!(),
-                // Otherwise, update the fullscreen state (we reached fullscreen
-                // either via `set_fullscreen` or by the user fullscreening the
-                // window from the fullscreen button)
+                // `window_did_enter_fullscreen` was triggered and we're already
+                // in fullscreen, so we must've reached here by `set_fullscreen`
+                // as it updates the state
+                Some(Fullscreen::Borderless(_)) => (),
+                // Otherwise, we must've reached fullscreen by the user clicking
+                // on the green fullscreen button. Update state!
                 None => shared_state.fullscreen = Some(Fullscreen::Borderless(monitor)),
             }
             trace!("Unlocked shared state in `window_did_enter_fullscreen`");

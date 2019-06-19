@@ -206,7 +206,10 @@ extern "C" fn toggle_full_screen_callback(context: *mut c_void) {
                     }
                 }
             }
-
+            // Window level must be restored from `CGShieldingWindowLevel()
+            // + 1` back to normal in order for `toggleFullScreen` to do
+            // anything
+            context.ns_window.setLevel_(0);
             context.ns_window.toggleFullScreen_(nil);
         }
         Box::from_raw(context_ptr);

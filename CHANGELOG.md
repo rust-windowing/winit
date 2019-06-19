@@ -51,6 +51,7 @@
 - On Windows, fix initial dimensions of a fullscreen window.
 - On Windows, Fix transparent borderless windows rendering wrong.
 - On macOS, add `WindowExtMacOS::set_fullscreen_presentation_options` for hiding the dock and the menu bar in fullscreen mode.
+- On macOS, the dock and the menu bar are now hidden in fullscreen mode.
 - `Window::set_fullscreen` now takes `Option<Fullscreen>` where `Fullscreen`
   consists of `Fullscreen::Exclusive(VideoMode)` and
   `Fullscreen::Borderless(MonitorHandle)` variants.

@@ -140,6 +140,8 @@ pub const kCGErrorTypeCheck: i32 = 1008;
 pub const kCGErrorInvalidOperation: i32 = 1010;
 pub const kCGErrorNoneAvailable: i32 = 1011;
 
+pub type CGWindowLevel = i32;
+
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
     pub fn CGRestorePermanentDisplayConfiguration();
@@ -169,4 +171,5 @@ extern "C" {
     ) -> CGError;
     pub fn CGReleaseDisplayFadeReservation(token: CGDisplayFadeReservationToken) -> CGError;
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
+    pub fn CGShieldingWindowLevel() -> CGWindowLevel;
 }

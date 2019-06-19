@@ -1,7 +1,5 @@
 #![cfg(target_os = "macos")]
 
-use cocoa::appkit::NSApplicationPresentationOptions;
-
 use std::os::raw::c_void;
 
 use crate::{
@@ -33,18 +31,6 @@ pub trait WindowExtMacOS {
     /// Returns whether or not the window is in simple fullscreen mode.
     fn simple_fullscreen(&self) -> bool;
 
-    /// The presentation options the window should use when transitioning to
-    /// fullscreen mode. This allows the application to, for example, hide the
-    /// menu bar and the dock while in fullscreen mode. See
-    /// [`NSApplicationPresentationOptions`][options] for the possible values.
-    /// `NSApplicationPresentationFullScreen` must be included in the options.
-    ///
-    /// [options]: https://developer.apple.com/documentation/appkit/nsapplicationpresentationoptions?language=objc
-    fn set_fullscreen_presentation_options(
-        &self,
-        proposed_options: NSApplicationPresentationOptions,
-    );
-
     /// Toggles a fullscreen mode that doesn't require a new macOS space.
     /// Returns a boolean indicating whether the transition was successful (this
     /// won't work if the window was already in the native fullscreen).
@@ -74,15 +60,6 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn simple_fullscreen(&self) -> bool {
         self.window.simple_fullscreen()
-    }
-
-    #[inline]
-    fn set_fullscreen_presentation_options(
-        &self,
-        proposed_options: NSApplicationPresentationOptions,
-    ) {
-        self.window
-            .set_fullscreen_presentation_options(proposed_options);
     }
 
     #[inline]
