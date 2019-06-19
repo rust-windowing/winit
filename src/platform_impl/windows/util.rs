@@ -10,7 +10,7 @@ use winapi::{
     ctypes::wchar_t,
     shared::{
         minwindef::{BOOL, DWORD},
-        windef::{HWND, POINT, RECT},
+        windef::{HWND, RECT},
     },
     um::{winbase::lstrlenW, winuser},
 };
@@ -47,10 +47,6 @@ fn win_to_err<F: FnOnce() -> BOOL>(f: F) -> Result<(), io::Error> {
     } else {
         Err(io::Error::last_os_error())
     }
-}
-
-pub fn get_cursor_pos() -> Option<POINT> {
-    unsafe { status_map(|cursor_pos| winuser::GetCursorPos(cursor_pos)) }
 }
 
 pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {
