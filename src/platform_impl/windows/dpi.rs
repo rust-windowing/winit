@@ -144,7 +144,3 @@ pub unsafe fn hwnd_dpi(hwnd: HWND) -> u32 {
         }
     }
 }
-
-pub fn hwnd_scale_factor(hwnd: HWND) -> f64 {
-    dpi_to_scale_factor(unsafe { hwnd_dpi(hwnd) })
-}

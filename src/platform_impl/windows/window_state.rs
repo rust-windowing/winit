@@ -1,5 +1,5 @@
 use crate::{
-    dpi::LogicalSize,
+    dpi::Size,
     platform_impl::platform::{event_loop, icon::WinIcon, util},
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
@@ -19,8 +19,8 @@ pub struct WindowState {
     pub mouse: MouseProperties,
 
     /// Used by `WM_GETMINMAXINFO`.
-    pub min_size: Option<LogicalSize>,
-    pub max_size: Option<LogicalSize>,
+    pub min_size: Option<Size>,
+    pub max_size: Option<Size>,
 
     pub window_icon: Option<WinIcon>,
     pub taskbar_icon: Option<WinIcon>,

@@ -31,7 +31,6 @@ use std::{
 use winapi::shared::basetsd::{DWORD_PTR, UINT_PTR};
 
 use winapi::{
-    ctypes::c_int,
     shared::{
         minwindef::{BOOL, DWORD, HIWORD, INT, LOWORD, LPARAM, LRESULT, UINT, WPARAM},
         windef::{HWND, POINT, RECT},
@@ -39,19 +38,17 @@ use winapi::{
     },
     um::{
         commctrl, libloaderapi, ole2, processthreadsapi, winbase,
-        winnt::{HANDLE, LONG, LPCSTR, SHORT},
+                winnt::{HANDLE, LPCSTR, SHORT},
         winuser,
     },
 };
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, KeyboardInput, StartCause, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
-        dpi::{
-            become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_scale_factor,
-        },
+        dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
         monitor,
@@ -97,25 +94,29 @@ lazy_static! {
         get_function!("user32.dll", GetPointerPenInfo);
 }
 
-pub(crate) struct SubclassInput<T> {
+pub(crate) struct SubclassInput<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
     pub file_drop_handler: FileDropHandler,
 }
 
 impl<T> SubclassInput<T> {
-    unsafe fn send_event(&self, event: Event<T>) {
+    unsafe fn send_event(&self, event: Event<'static, T>) {
         self.event_loop_runner.send_event(event);
+    }
+
+    unsafe fn send_event_unbuffered<'e>(&self, event: Event<'e, T>) -> Result<(), Event<'e, T>> {
+        self.event_loop_runner.send_event_unbuffered(event)
     }
 }
 
-struct ThreadMsgTargetSubclassInput<T> {
+struct ThreadMsgTargetSubclassInput<T: 'static> {
     event_loop_runner: EventLoopRunnerShared<T>,
     user_event_receiver: Receiver<T>,
 }
 
 impl<T> ThreadMsgTargetSubclassInput<T> {
-    unsafe fn send_event(&self, event: Event<T>) {
+    unsafe fn send_event(&self, event: Event<'static, T>) {
         self.event_loop_runner.send_event(event);
     }
 }
@@ -125,7 +126,7 @@ pub struct EventLoop<T: 'static> {
     window_target: RootELW<T>,
 }
 
-pub struct EventLoopWindowTarget<T> {
+pub struct EventLoopWindowTarget<T: 'static> {
     thread_id: DWORD,
     trigger_newevents_on_redraw: Arc<AtomicBool>,
     thread_msg_target: HWND,
@@ -168,7 +169,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(event_handler);
         ::std::process::exit(0);
@@ -176,7 +177,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, mut event_handler: F)
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         unsafe {
             winuser::IsGUIThread(1);
@@ -281,24 +282,35 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
-pub(crate) struct ELRShared<T> {
+pub(crate) struct ELRShared<T: 'static> {
     runner: RefCell<Option<EventLoopRunner<T>>>,
-    buffer: RefCell<VecDeque<Event<T>>>,
+    buffer: RefCell<VecDeque<Event<'static, T>>>,
 }
-pub(crate) struct EventLoopRunner<T> {
+pub(crate) struct EventLoopRunner<T: 'static> {
     trigger_newevents_on_redraw: Arc<AtomicBool>,
     control_flow: ControlFlow,
     runner_state: RunnerState,
     modal_redraw_window: HWND,
     in_modal_loop: bool,
     in_repaint: bool,
-    event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
+    event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>,
     panic_error: Option<PanicError>,
 }
 type PanicError = Box<dyn Any + Send + 'static>;
 
 impl<T> ELRShared<T> {
-    pub(crate) unsafe fn send_event(&self, event: Event<T>) {
+    pub(crate) unsafe fn send_event(&self, event: Event<'static, T>) {
+        if let Err(event) = self.send_event_unbuffered(event) {
+            // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
+            // the event to a buffer to be processed later.
+            self.buffer.borrow_mut().push_back(event)
+        }
+    }
+
+    pub(crate) unsafe fn send_event_unbuffered<'e>(
+        &self,
+        event: Event<'e, T>,
+    ) -> Result<(), Event<'e, T>> {
         if let Ok(mut runner_ref) = self.runner.try_borrow_mut() {
             if let Some(ref mut runner) = *runner_ref {
                 runner.process_event(event);
@@ -316,13 +328,11 @@ impl<T> ELRShared<T> {
                     }
                 }
 
-                return;
+                return Ok(());
             }
         }
 
-        // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
-        // the event to a buffer to be processed later.
-        self.buffer.borrow_mut().push_back(event)
+        Err(event)
     }
 }
 
@@ -344,7 +354,7 @@ enum RunnerState {
 impl<T> EventLoopRunner<T> {
     unsafe fn new<F>(event_loop: &EventLoop<T>, f: F) -> EventLoopRunner<T>
     where
-        F: FnMut(Event<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &mut ControlFlow),
     {
         EventLoopRunner {
             trigger_newevents_on_redraw: event_loop
@@ -358,8 +368,8 @@ impl<T> EventLoopRunner<T> {
             in_repaint: false,
             modal_redraw_window: event_loop.window_target.p.thread_msg_target,
             event_handler: mem::transmute::<
-                Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
-                Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>,
             >(Box::new(f)),
             panic_error: None,
         }
@@ -415,7 +425,7 @@ impl<T> EventLoopRunner<T> {
         };
     }
 
-    fn process_event(&mut self, event: Event<T>) {
+    fn process_event(&mut self, event: Event<'_, T>) {
         // If we're in the modal loop, we need to have some mechanism for finding when the event
         // queue has been cleared so we can call `events_cleared`. Windows doesn't give any utilities
         // for doing this, but it DOES guarantee that WM_PAINT will only occur after input events have
@@ -531,7 +541,7 @@ impl<T> EventLoopRunner<T> {
         }
     }
 
-    fn call_event_handler(&mut self, event: Event<T>) {
+    fn call_event_handler(&mut self, event: Event<'_, T>) {
         match event {
             Event::NewEvents(_) => self
                 .trigger_newevents_on_redraw
@@ -740,13 +750,6 @@ lazy_static! {
             winuser::RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr() as LPCSTR)
         }
     };
-    // Message sent by a `Window` after creation if it has a DPI != 96.
-    // WPARAM is the the DPI (u32). LOWORD of LPARAM is width, and HIWORD is height.
-    pub static ref INITIAL_DPI_MSG_ID: u32 = {
-        unsafe {
-            winuser::RegisterWindowMessageA("Winit::InitialDpiMsg\0".as_ptr() as LPCSTR)
-        }
-    };
     // Message sent by a `Window` if it's requesting a redraw without sending a NewEvents.
     pub static ref REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID: u32 = {
         unsafe {
@@ -877,7 +880,7 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
 //
 // Returning 0 tells the Win32 API that the message has been processed.
 // FIXME: detect WM_DWMCOMPOSITIONCHANGED and call DwmEnableBlurBehindWindow if necessary
-unsafe extern "system" fn public_window_callback<T>(
+unsafe extern "system" fn public_window_callback<T: 'static>(
     window: HWND,
     msg: UINT,
     wparam: WPARAM,
@@ -1034,12 +1037,11 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let windowpos = lparam as *const winuser::WINDOWPOS;
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
-                let dpi_factor = hwnd_scale_factor(window);
-                let logical_position =
-                    LogicalPosition::from_physical(((*windowpos).x, (*windowpos).y), dpi_factor);
+                let physical_position =
+                    PhysicalPosition::new((*windowpos).x as f64, (*windowpos).y as f64);
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
-                    event: Moved(logical_position),
+                    event: Moved(physical_position),
                 });
             }
 
@@ -1052,11 +1054,10 @@ unsafe extern "system" fn public_window_callback<T>(
             let w = LOWORD(lparam as DWORD) as u32;
             let h = HIWORD(lparam as DWORD) as u32;
 
-            let dpi_factor = hwnd_scale_factor(window);
-            let logical_size = LogicalSize::from_physical((w, h), dpi_factor);
+            let physical_size = PhysicalSize::new(w, h);
             let event = Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: Resized(logical_size),
+                event: Resized(physical_size),
             };
 
             {
@@ -1156,8 +1157,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
-            let dpi_factor = hwnd_scale_factor(window);
-            let position = LogicalPosition::from_physical((x, y), dpi_factor);
+            let position = PhysicalPosition::new(x, y);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1558,7 +1558,6 @@ unsafe extern "system" fn public_window_callback<T>(
                 mem::size_of::<winuser::TOUCHINPUT>() as INT,
             ) > 0
             {
-                let dpi_factor = hwnd_scale_factor(window);
                 for input in &inputs {
                     let mut location = POINT {
                         x: input.x / 100,
@@ -1571,7 +1570,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
                     let x = location.x as f64 + (input.x % 100) as f64 / 100f64;
                     let y = location.y as f64 + (input.y % 100) as f64 / 100f64;
-                    let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                    let location = PhysicalPosition::new(x, y);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {
@@ -1632,7 +1631,6 @@ unsafe extern "system" fn public_window_callback<T>(
                     return 0;
                 }
 
-                let dpi_factor = hwnd_scale_factor(window);
                 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getpointerframeinfohistory
                 // The information retrieved appears in reverse chronological order, with the most recent entry in the first
                 // row of the returned array
@@ -1710,7 +1708,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
                     let x = location.x as f64 + x.fract();
                     let y = location.y as f64 + y.fract();
-                    let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                    let location = PhysicalPosition::new(x, y);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {
@@ -1834,26 +1832,65 @@ unsafe extern "system" fn public_window_callback<T>(
                 new_dpi_factor != old_dpi_factor && window_state.fullscreen.is_none()
             };
 
-            // This prevents us from re-applying DPI adjustment to the restored size after exiting
-            // fullscreen (the restored size is already DPI adjusted).
-            if allow_resize {
-                // Resize window to the size suggested by Windows.
-                let rect = &*(lparam as *const RECT);
+            let style = winuser::GetWindowLongW(window, winuser::GWL_STYLE) as _;
+            let style_ex = winuser::GetWindowLongW(window, winuser::GWL_EXSTYLE) as _;
+            let b_menu = !winuser::GetMenu(window).is_null() as BOOL;
+
+            // New size as suggested by Windows.
+            let rect = *(lparam as *const RECT);
+
+            // The window rect provided is the window's outer size, not it's inner size. However,
+            // win32 doesn't provide an `UnadjustWindowRectEx` function to get the client rect from
+            // the outer rect, so we instead adjust the window rect to get the decoration margins
+            // and remove them from the outer size.
+            let margins_horizontal: u32;
+            let margins_vertical: u32;
+            {
+                let mut adjusted_rect = rect;
+                winuser::AdjustWindowRectExForDpi(
+                    &mut adjusted_rect,
+                    style,
+                    b_menu,
+                    style_ex,
+                    new_dpi_x,
+                );
+                let margin_left = rect.left - adjusted_rect.left;
+                let margin_right = adjusted_rect.right - rect.right;
+                let margin_top = rect.top - adjusted_rect.top;
+                let margin_bottom = adjusted_rect.bottom - rect.bottom;
+
+                margins_horizontal = (margin_left + margin_right) as u32;
+                margins_vertical = (margin_bottom + margin_top) as u32;
+            }
+
+            let physical_inner_rect = PhysicalSize::new(
+                (rect.right - rect.left) as u32 - margins_horizontal,
+                (rect.bottom - rect.top) as u32 - margins_vertical,
+            );
+
+            // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
+            // exiting fullscreen (the restored size is already DPI adjusted).
+            let mut new_inner_rect_opt = Some(physical_inner_rect).filter(|_| allow_resize);
+
+            let _ = subclass_input.send_event_unbuffered(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: HiDpiFactorChanged {
+                    hidpi_factor: new_dpi_factor,
+                    new_inner_size: &mut new_inner_rect_opt,
+                },
+            });
+
+            if let Some(new_inner_rect) = new_inner_rect_opt {
                 winuser::SetWindowPos(
                     window,
                     ptr::null_mut(),
                     rect.left,
                     rect.top,
-                    rect.right - rect.left,
-                    rect.bottom - rect.top,
+                    (new_inner_rect.width + margins_horizontal) as _,
+                    (new_inner_rect.height + margins_vertical) as _,
                     winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE,
                 );
             }
-
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: HiDpiFactorChanged(new_dpi_factor),
-            });
 
             0
         }
@@ -1868,44 +1905,6 @@ unsafe extern "system" fn public_window_callback<T>(
                     f.set(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE, wparam != 0)
                 });
                 0
-            } else if msg == *INITIAL_DPI_MSG_ID {
-                use crate::event::WindowEvent::HiDpiFactorChanged;
-                let scale_factor = dpi_to_scale_factor(wparam as u32);
-                subclass_input.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: HiDpiFactorChanged(scale_factor),
-                });
-                // Automatically resize for actual DPI
-                let width = LOWORD(lparam as DWORD) as u32;
-                let height = HIWORD(lparam as DWORD) as u32;
-                let (adjusted_width, adjusted_height): (u32, u32) =
-                    PhysicalSize::from_logical((width, height), scale_factor).into();
-                // We're not done yet! `SetWindowPos` needs the window size, not the client area size.
-                let mut rect = RECT {
-                    top: 0,
-                    left: 0,
-                    bottom: adjusted_height as LONG,
-                    right: adjusted_width as LONG,
-                };
-                let dw_style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
-                let b_menu = !winuser::GetMenu(window).is_null() as BOOL;
-                let dw_style_ex = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
-                winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
-                let outer_x = (rect.right - rect.left).abs() as c_int;
-                let outer_y = (rect.top - rect.bottom).abs() as c_int;
-                winuser::SetWindowPos(
-                    window,
-                    ptr::null_mut(),
-                    0,
-                    0,
-                    outer_x,
-                    outer_y,
-                    winuser::SWP_NOMOVE
-                        | winuser::SWP_NOREPOSITION
-                        | winuser::SWP_NOZORDER
-                        | winuser::SWP_NOACTIVATE,
-                );
-                0
             } else {
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             }
@@ -1913,7 +1912,7 @@ unsafe extern "system" fn public_window_callback<T>(
     }
 }
 
-unsafe extern "system" fn thread_event_target_callback<T>(
+unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     window: HWND,
     msg: UINT,
     wparam: WPARAM,

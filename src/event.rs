@@ -7,18 +7,18 @@
 use std::{path::PathBuf, time::Instant};
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{LogicalPosition, PhysicalPosition, PhysicalSize},
     platform_impl,
     window::WindowId,
 };
 
 /// Describes a generic event.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Event<T> {
+#[derive(Debug, PartialEq)]
+pub enum Event<'a, T: 'static> {
     /// Emitted when the OS sends an event to a winit window.
     WindowEvent {
         window_id: WindowId,
-        event: WindowEvent,
+        event: WindowEvent<'a>,
     },
     /// Emitted when the OS sends an event to a device.
     DeviceEvent {
@@ -44,8 +44,8 @@ pub enum Event<T> {
     Resumed,
 }
 
-impl<T> Event<T> {
-    pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
+impl<'a, T> Event<'a, T> {
+    pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
         use self::Event::*;
         match self {
             UserEvent(_) => Err(self),
@@ -56,6 +56,24 @@ impl<T> Event<T> {
             LoopDestroyed => Ok(LoopDestroyed),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
+        }
+    }
+
+    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
+    /// Otherwise, return `None`.
+    pub fn to_static(self) -> Option<Event<'static, T>> {
+        use self::Event::*;
+        match self {
+            WindowEvent { window_id, event } => event
+                .to_static()
+                .map(|event| WindowEvent { window_id, event }),
+            UserEvent(e) => Some(UserEvent(e)),
+            DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
+            NewEvents(cause) => Some(NewEvents(cause)),
+            EventsCleared => Some(EventsCleared),
+            LoopDestroyed => Some(LoopDestroyed),
+            Suspended => Some(Suspended),
+            Resumed => Some(Resumed),
         }
     }
 }
@@ -87,13 +105,13 @@ pub enum StartCause {
 }
 
 /// Describes an event from a `Window`.
-#[derive(Clone, Debug, PartialEq)]
-pub enum WindowEvent {
+#[derive(Debug, PartialEq)]
+pub enum WindowEvent<'a> {
     /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(LogicalSize),
+    Resized(PhysicalSize),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(LogicalPosition),
+    Moved(PhysicalPosition),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -144,7 +162,7 @@ pub enum WindowEvent {
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: LogicalPosition,
+        position: PhysicalPosition,
         modifiers: ModifiersState,
     },
 
@@ -202,8 +220,89 @@ pub enum WindowEvent {
     /// * Changing the display's DPI factor (e.g. in Control Panel on Windows).
     /// * Moving the window to a display with a different DPI factor.
     ///
-    /// For more information about DPI in general, see the [`dpi`](../dpi/index.html) module.
-    HiDpiFactorChanged(f64),
+    /// After this event callback has been processed, the window will be resized to whatever value
+    /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
+    /// by the OS, but it can be changed to any value. If `new_inner_size` is set to `None`, no resizing
+    /// will occur.
+    ///
+    /// For more information about DPI in general, see the [`dpi`](dpi/index.html) module.
+    HiDpiFactorChanged {
+        hidpi_factor: f64,
+        new_inner_size: &'a mut Option<PhysicalSize>,
+    },
+}
+
+impl<'a> WindowEvent<'a> {
+    pub fn to_static(self) -> Option<WindowEvent<'static>> {
+        use self::WindowEvent::*;
+        match self {
+            Resized(size) => Some(Resized(size)),
+            Moved(position) => Some(Moved(position)),
+            CloseRequested => Some(CloseRequested),
+            Destroyed => Some(Destroyed),
+            DroppedFile(file) => Some(DroppedFile(file)),
+            HoveredFile(file) => Some(HoveredFile(file)),
+            HoveredFileCancelled => Some(HoveredFileCancelled),
+            ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
+            Focused(focused) => Some(Focused(focused)),
+            KeyboardInput { device_id, input } => Some(KeyboardInput { device_id, input }),
+            ModifiersChanged { modifiers } => Some(ModifiersChanged{ modifiers }),
+            CursorMoved {
+                device_id,
+                position,
+                modifiers,
+            } => Some(CursorMoved {
+                device_id,
+                position,
+                modifiers,
+            }),
+            CursorEntered { device_id } => Some(CursorEntered { device_id }),
+            CursorLeft { device_id } => Some(CursorLeft { device_id }),
+            MouseWheel {
+                device_id,
+                delta,
+                phase,
+                modifiers,
+            } => Some(MouseWheel {
+                device_id,
+                delta,
+                phase,
+                modifiers,
+            }),
+            MouseInput {
+                device_id,
+                state,
+                button,
+                modifiers,
+            } => Some(MouseInput {
+                device_id,
+                state,
+                button,
+                modifiers,
+            }),
+            TouchpadPressure {
+                device_id,
+                pressure,
+                stage,
+            } => Some(TouchpadPressure {
+                device_id,
+                pressure,
+                stage,
+            }),
+            AxisMotion {
+                device_id,
+                axis,
+                value,
+            } => Some(AxisMotion {
+                device_id,
+                axis,
+                value,
+            }),
+            RedrawRequested => Some(RedrawRequested),
+            Touch(touch) => Some(Touch(touch)),
+            HiDpiFactorChanged { .. } => None,
+        }
+    }
 }
 
 /// Identifier of an input device.
@@ -327,7 +426,7 @@ pub enum TouchPhase {
 pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
-    pub location: LogicalPosition,
+    pub location: PhysicalPosition,
     /// Describes how hard the screen was pressed. May be `None` if the platform
     /// does not support pressure sensitivity.
     ///
