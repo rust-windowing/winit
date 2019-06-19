@@ -1,10 +1,16 @@
 extern crate winit;
 use std::time::{Duration, Instant};
+use winit::window::WindowBuilder;
 use winit::event::{Event, WindowEvent, StartCause};
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
     let event_loop = EventLoop::new();
+
+    let _window = WindowBuilder::new()
+        .with_title("A fantastic window!")
+        .build(&event_loop)
+        .unwrap();
 
     let timer_length = Duration::new(1, 0);
 
