@@ -10,17 +10,17 @@ use crate::{
 };
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
-pub(crate) struct ELRShared<T> {
+pub(crate) struct ELRShared<T: 'static> {
     runner: RefCell<Option<EventLoopRunner<T>>>,
-    buffer: RefCell<VecDeque<Event<T>>>,
+    buffer: RefCell<VecDeque<Event<'static, T>>>,
     redraw_buffer: Rc<RefCell<VecDeque<WindowId>>>,
 }
-struct EventLoopRunner<T> {
+struct EventLoopRunner<T: 'static> {
     control_flow: ControlFlow,
     runner_state: RunnerState,
     modal_redraw_window: HWND,
     in_modal_loop: bool,
-    event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
+    event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>,
     panic_error: Option<PanicError>,
     redraw_buffer: Rc<RefCell<VecDeque<WindowId>>>,
 }
@@ -37,7 +37,7 @@ impl<T> ELRShared<T> {
 
     pub(crate) unsafe fn set_runner<F>(&self, event_loop: &EventLoop<T>, f: F)
     where
-        F: FnMut(Event<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &mut ControlFlow),
     {
         let mut runner = EventLoopRunner::new(event_loop, self.redraw_buffer.clone(), f);
         {
@@ -66,7 +66,18 @@ impl<T> ELRShared<T> {
         }
     }
 
-    pub(crate) unsafe fn send_event(&self, event: Event<T>) {
+    pub(crate) unsafe fn send_event(&self, event: Event<'static, T>) {
+        if let Err(event) = self.send_event_unbuffered(event) {
+            // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
+            // the event to a buffer to be processed later.
+            self.buffer_event(event);
+        }
+    }
+
+    pub(crate) unsafe fn send_event_unbuffered<'e>(
+        &self,
+        event: Event<'e, T>,
+    ) -> Result<(), Event<'e, T>> {
         if let Ok(mut runner_ref) = self.runner.try_borrow_mut() {
             if let Some(ref mut runner) = *runner_ref {
                 runner.process_event(event);
@@ -84,16 +95,14 @@ impl<T> ELRShared<T> {
                     }
                 }
 
-                return;
+                return Ok(());
             }
         }
 
-        // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
-        // the event to a buffer to be processed later.
-        self.buffer_event(event);
+        Err(event)
     }
 
-    pub(crate) unsafe fn call_event_handler(&self, event: Event<T>) {
+    pub(crate) unsafe fn call_event_handler(&self, event: Event<'static, T>) {
         if let Ok(mut runner_ref) = self.runner.try_borrow_mut() {
             if let Some(ref mut runner) = *runner_ref {
                 runner.call_event_handler(event);
@@ -143,7 +152,7 @@ impl<T> ELRShared<T> {
         }
     }
 
-    fn buffer_event(&self, event: Event<T>) {
+    fn buffer_event(&self, event: Event<'static, T>) {
         match event {
             Event::RedrawRequested(window_id) => {
                 self.redraw_buffer.borrow_mut().push_back(window_id)
@@ -176,7 +185,7 @@ impl<T> EventLoopRunner<T> {
         f: F,
     ) -> EventLoopRunner<T>
     where
-        F: FnMut(Event<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &mut ControlFlow),
     {
         EventLoopRunner {
             control_flow: ControlFlow::default(),
@@ -184,8 +193,8 @@ impl<T> EventLoopRunner<T> {
             in_modal_loop: false,
             modal_redraw_window: event_loop.window_target.p.thread_msg_target,
             event_handler: mem::transmute::<
-                Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
-                Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>,
             >(Box::new(f)),
             panic_error: None,
             redraw_buffer,
@@ -251,7 +260,7 @@ impl<T> EventLoopRunner<T> {
         };
     }
 
-    fn process_event(&mut self, event: Event<T>) {
+    fn process_event(&mut self, event: Event<'_, T>) {
         // If we're in the modal loop, we need to have some mechanism for finding when the event
         // queue has been cleared so we can call `events_cleared`. Windows doesn't give any utilities
         // for doing this, but it DOES guarantee that WM_PAINT will only occur after input events have
@@ -390,7 +399,7 @@ impl<T> EventLoopRunner<T> {
         }
     }
 
-    fn call_event_handler(&mut self, event: Event<T>) {
+    fn call_event_handler(&mut self, event: Event<'_, T>) {
         if self.panic_error.is_none() {
             let EventLoopRunner {
                 ref mut panic_error,
