@@ -100,7 +100,7 @@ pub struct LogicalPosition {
 
 impl LogicalPosition {
     #[inline]
-    pub fn new(x: f64, y: f64) -> Self {
+    pub const fn new(x: f64, y: f64) -> Self {
         LogicalPosition { x, y }
     }
 
@@ -161,7 +161,7 @@ pub struct PhysicalPosition {
 
 impl PhysicalPosition {
     #[inline]
-    pub fn new(x: f64, y: f64) -> Self {
+    pub const fn new(x: f64, y: f64) -> Self {
         PhysicalPosition { x, y }
     }
 
@@ -222,7 +222,7 @@ pub struct LogicalSize {
 
 impl LogicalSize {
     #[inline]
-    pub fn new(width: f64, height: f64) -> Self {
+    pub const fn new(width: f64, height: f64) -> Self {
         LogicalSize { width, height }
     }
 
@@ -236,7 +236,7 @@ impl LogicalSize {
         assert!(validate_hidpi_factor(dpi_factor));
         let width = self.width * dpi_factor;
         let height = self.height * dpi_factor;
-        PhysicalSize::new(width, height)
+        PhysicalSize::new(width.round() as _, height.round() as _)
     }
 }
 
@@ -270,20 +270,16 @@ impl Into<(u32, u32)> for LogicalSize {
 }
 
 /// A size represented in physical pixels.
-///
-/// The size is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
-/// which can cause noticable issues. To help with that, an `Into<(u32, u32)>` implementation is provided which
-/// does the rounding for you.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalSize {
-    pub width: f64,
-    pub height: f64,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl PhysicalSize {
     #[inline]
-    pub fn new(width: f64, height: f64) -> Self {
+    pub const fn new(width: u32, height: u32) -> Self {
         PhysicalSize { width, height }
     }
 
@@ -295,30 +291,16 @@ impl PhysicalSize {
     #[inline]
     pub fn to_logical(&self, dpi_factor: f64) -> LogicalSize {
         assert!(validate_hidpi_factor(dpi_factor));
-        let width = self.width / dpi_factor;
-        let height = self.height / dpi_factor;
+        let width = self.width as f64 / dpi_factor;
+        let height = self.height as f64 / dpi_factor;
         LogicalSize::new(width, height)
-    }
-}
-
-impl From<(f64, f64)> for PhysicalSize {
-    #[inline]
-    fn from((width, height): (f64, f64)) -> Self {
-        Self::new(width, height)
     }
 }
 
 impl From<(u32, u32)> for PhysicalSize {
     #[inline]
     fn from((width, height): (u32, u32)) -> Self {
-        Self::new(width as f64, height as f64)
-    }
-}
-
-impl Into<(f64, f64)> for PhysicalSize {
-    #[inline]
-    fn into(self) -> (f64, f64) {
-        (self.width, self.height)
+        Self::new(width, height)
     }
 }
 
@@ -326,6 +308,88 @@ impl Into<(u32, u32)> for PhysicalSize {
     /// Note that this rounds instead of truncating.
     #[inline]
     fn into(self) -> (u32, u32) {
-        (self.width.round() as _, self.height.round() as _)
+        (self.width, self.height)
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Size {
+    Physical(PhysicalSize),
+    Logical(LogicalSize),
+}
+
+impl Size {
+    pub fn new<S: Into<Size>>(size: S) -> Size {
+        size.into()
+    }
+
+    pub fn to_logical(&self, dpi_factor: f64) -> LogicalSize {
+        match *self {
+            Size::Physical(size) => size.to_logical(dpi_factor),
+            Size::Logical(size) => size,
+        }
+    }
+
+    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalSize {
+        match *self {
+            Size::Physical(size) => size,
+            Size::Logical(size) => size.to_physical(dpi_factor),
+        }
+    }
+}
+
+impl From<PhysicalSize> for Size {
+    #[inline]
+    fn from(size: PhysicalSize) -> Size {
+        Size::Physical(size)
+    }
+}
+
+impl From<LogicalSize> for Size {
+    #[inline]
+    fn from(size: LogicalSize) -> Size {
+        Size::Logical(size)
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Position {
+    Physical(PhysicalPosition),
+    Logical(LogicalPosition),
+}
+
+impl Position {
+    pub fn new<S: Into<Position>>(position: S) -> Position {
+        position.into()
+    }
+
+    pub fn to_logical(&self, dpi_factor: f64) -> LogicalPosition {
+        match *self {
+            Position::Physical(position) => position.to_logical(dpi_factor),
+            Position::Logical(position) => position,
+        }
+    }
+
+    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalPosition {
+        match *self {
+            Position::Physical(position) => position,
+            Position::Logical(position) => position.to_physical(dpi_factor),
+        }
+    }
+}
+
+impl From<PhysicalPosition> for Position {
+    #[inline]
+    fn from(position: PhysicalPosition) -> Position {
+        Position::Physical(position)
+    }
+}
+
+impl From<LogicalPosition> for Position {
+    #[inline]
+    fn from(position: LogicalPosition) -> Position {
+        Position::Logical(position)
     }
 }

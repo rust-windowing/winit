@@ -168,14 +168,6 @@ impl MonitorHandle {
         MonitorHandle(hmonitor)
     }
 
-    pub(crate) fn contains_point(&self, point: &POINT) -> bool {
-        let monitor_info = get_monitor_info(self.0).unwrap();
-        point.x >= monitor_info.rcMonitor.left
-            && point.x <= monitor_info.rcMonitor.right
-            && point.y >= monitor_info.rcMonitor.top
-            && point.y <= monitor_info.rcMonitor.bottom
-    }
-
     #[inline]
     pub fn name(&self) -> Option<String> {
         let monitor_info = get_monitor_info(self.0).unwrap();
@@ -196,8 +188,8 @@ impl MonitorHandle {
     pub fn size(&self) -> PhysicalSize {
         let monitor_info = get_monitor_info(self.0).unwrap();
         PhysicalSize {
-            width: (monitor_info.rcMonitor.right - monitor_info.rcMonitor.left) as f64,
-            height: (monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top) as f64,
+            width: (monitor_info.rcMonitor.right - monitor_info.rcMonitor.left) as u32,
+            height: (monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top) as u32,
         }
     }
 
