@@ -14,7 +14,7 @@ use crate::{
 };
 
 lazy_static! {
-    static ref XINPUT_GUARD: Option<()> = dynamic_load_xinput().ok();
+    static ref XINPUT_HANDLE: Option<XInputHandle> = XInputHandle::load_default().ok();
 }
 
 static BUTTONS: &[(WORD , u32, GamepadButton)] = &[
@@ -63,7 +63,7 @@ pub struct XInputGamepadShared {
 
 impl XInputGamepad {
     pub fn new(port: DWORD) -> Option<Self> {
-        XINPUT_GUARD.map(|_| XInputGamepad {
+        XINPUT_HANDLE.as_ref().map(|_| XInputGamepad {
             shared: Arc::new(XInputGamepadShared {
                 port,
             }),
@@ -73,7 +73,7 @@ impl XInputGamepad {
     }
 
     pub fn update_state(&mut self) -> Option<()> {
-        let state = xinput_get_state(self.shared.port).ok();
+        let state = XINPUT_HANDLE.as_ref().and_then(|h| h.get_state(self.shared.port).ok());
         if state.is_some() {
             self.prev_state = mem::replace(&mut self.state, state);
             Some(())
@@ -254,7 +254,7 @@ impl Drop for XInputGamepad {
         // after the gamepad was disconnected, all future attempts to read from a given port (even
         // if a controller was plugged back into said port) will fail! I don't know why that happens,
         // but this fixes it, so 🤷.
-        xinput_get_state(self.shared.port).ok();
+        XINPUT_HANDLE.as_ref().and_then(|h| h.get_state(self.shared.port).ok());
     }
 }
 
@@ -263,7 +263,7 @@ impl XInputGamepadShared {
         let left_speed = (left_speed.max(0.0).min(1.0) * u16::max_value() as f64) as u16;
         let right_speed = (right_speed.max(0.0).min(1.0) * u16::max_value() as f64) as u16;
 
-        let result = xinput_set_state(self.port, left_speed, right_speed);
+        let result = XINPUT_HANDLE.as_ref().unwrap().set_state(self.port, left_speed, right_speed);
         result.map_err(|e| match e {
             XInputUsageError::XInputNotLoaded |
             XInputUsageError::InvalidControllerID => panic!("unexpected xinput error {:?}; this is a bug and should be reported", e),
