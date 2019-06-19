@@ -1,16 +1,10 @@
 extern crate winit;
 use std::time::{Duration, Instant};
-use winit::window::WindowBuilder;
 use winit::event::{Event, WindowEvent, StartCause};
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
     let event_loop = EventLoop::new();
-
-    let _window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .build(&event_loop)
-        .unwrap();
 
     event_loop.run(move |event, _, control_flow| {
         println!("{:?}", event);
@@ -21,7 +15,6 @@ fn main() {
             Event::NewEvents(StartCause::ResumeTimeReached{..}) => {
                 *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0));
                 println!("\nTimer\n");
-                _window.set_inner_size(winit::dpi::LogicalSize::new(300.0, 300.0));
             },
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
