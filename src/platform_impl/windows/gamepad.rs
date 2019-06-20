@@ -3,7 +3,7 @@ use std::sync::Weak;
 use winapi::um::winnt::HANDLE;
 
 use crate::{
-    event::device::{GamepadEvent, RumbleError},
+    event::device::{BatteryLevel, GamepadEvent, RumbleError},
     platform_impl::platform::raw_input::{get_raw_input_device_name, RawGamepad},
     platform_impl::platform::xinput::{self, XInputGamepad, XInputGamepadShared},
 };
@@ -80,6 +80,14 @@ impl GamepadShared {
             GamepadShared::Raw(_) |
             GamepadShared::Dummy => None,
             GamepadShared::XInput(ref data) => data.upgrade().map(|r| r.port()),
+        }
+    }
+
+    pub fn battery_level(&self) -> Option<BatteryLevel> {
+        match self {
+            GamepadShared::Raw(_) |
+            GamepadShared::Dummy => None,
+            GamepadShared::XInput(ref data) => data.upgrade().and_then(|r| r.battery_level()),
         }
     }
 }

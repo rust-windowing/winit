@@ -9,7 +9,7 @@ use crate::{
     platform_impl::platform::util,
     event::{
         ElementState,
-        device::{GamepadAxis, GamepadButton, GamepadEvent, RumbleError, Side},
+        device::{BatteryLevel, GamepadAxis, GamepadButton, GamepadEvent, RumbleError, Side},
     },
 };
 
@@ -274,5 +274,22 @@ impl XInputGamepadShared {
 
     pub fn port(&self) -> u8 {
         self.port as _
+    }
+
+    pub fn battery_level(&self) -> Option<BatteryLevel> {
+        use rusty_xinput::BatteryLevel as XBatteryLevel;
+
+        let battery_info = XINPUT_HANDLE.as_ref().unwrap().get_gamepad_battery_information(self.port).ok()?;
+        match battery_info.battery_type {
+            BatteryType::ALKALINE |
+            BatteryType::NIMH => match battery_info.battery_level {
+                XBatteryLevel::EMPTY => Some(BatteryLevel::Empty),
+                XBatteryLevel::LOW => Some(BatteryLevel::Low),
+                XBatteryLevel::MEDIUM => Some(BatteryLevel::Medium),
+                XBatteryLevel::FULL => Some(BatteryLevel::Full),
+                _ => None
+            },
+            _ => None
+        }
     }
 }

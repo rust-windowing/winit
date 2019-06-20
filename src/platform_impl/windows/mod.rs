@@ -27,6 +27,7 @@ pub use self::monitor::MonitorHandle;
 pub use self::window::Window;
 
 use crate::window::Icon;
+use crate::event::device;
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
@@ -81,12 +82,12 @@ macro_rules! device_id {
                 self.0
             }
 
-            pub fn enumerate<'a, T>(event_loop: &'a EventLoop<T>) -> impl 'a + Iterator<Item=crate::event::device::$name> {
+            pub fn enumerate<'a, T>(event_loop: &'a EventLoop<T>) -> impl 'a + Iterator<Item=device::$name> {
                 event_loop.$enumerate()
             }
         }
 
-        impl From<$name> for crate::event::device::$name {
+        impl From<$name> for device::$name {
             fn from(platform_id: $name) -> Self {
                 Self(platform_id)
             }
@@ -130,7 +131,7 @@ impl GamepadHandle {
         self.handle
     }
 
-    pub fn rumble(&self, left_speed: f64, right_speed: f64) -> Result<(), crate::event::device::RumbleError> {
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) -> Result<(), device::RumbleError> {
         self.shared_data.rumble(left_speed, right_speed)
     }
 
@@ -138,12 +139,16 @@ impl GamepadHandle {
         self.shared_data.port()
     }
 
-    pub fn enumerate<'a, T>(event_loop: &'a EventLoop<T>) -> impl 'a + Iterator<Item=crate::event::device::GamepadHandle> {
+    pub fn battery_level(&self) -> Option<device::BatteryLevel> {
+        self.shared_data.battery_level()
+    }
+
+    pub fn enumerate<'a, T>(event_loop: &'a EventLoop<T>) -> impl 'a + Iterator<Item=device::GamepadHandle> {
         event_loop.gamepads()
     }
 }
 
-impl From<GamepadHandle> for crate::event::device::GamepadHandle {
+impl From<GamepadHandle> for device::GamepadHandle {
     fn from(platform_id: GamepadHandle) -> Self {
         Self(platform_id)
     }

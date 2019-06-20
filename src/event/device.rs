@@ -327,6 +327,25 @@ impl GamepadHandle {
     pub fn port(&self) -> Option<u8> {
         self.0.port()
     }
+
+    /// Gets the controller's battery level.
+    ///
+    /// If the controller doesn't report a battery level, this returns `None`.
+    pub fn battery_level(&self) -> Option<BatteryLevel> {
+        self.0.battery_level()
+    }
+}
+
+/// TODO: IS THIS THE RIGHT ABSTRACTION FOR ALL PLATFORMS?
+/// This is exposed in its current form because it's what Microsoft does for XInput, and that's my
+/// (@Osspial's) main point of reference. If you're implementing this on a different platform and
+/// that platform exposes battery level differently, please bring it up in the tracking issue!
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum BatteryLevel {
+    Empty,
+    Low,
+    Medium,
+    Full
 }
 
 impl fmt::Debug for MouseId {
