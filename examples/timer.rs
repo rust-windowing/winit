@@ -12,16 +12,17 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
+    let timer_length = Duration::new(1, 0);
+
     event_loop.run(move |event, _, control_flow| {
         println!("{:?}", event);
 
         match event {
             Event::NewEvents(StartCause::Init) =>
-                *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0)),
+                *control_flow = ControlFlow::WaitUntil(Instant::now() + timer_length),
             Event::NewEvents(StartCause::ResumeTimeReached{..}) => {
-                *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0));
+                *control_flow = ControlFlow::WaitUntil(Instant::now() + timer_length);
                 println!("\nTimer\n");
-                _window.set_inner_size(winit::dpi::LogicalSize::new(300.0, 300.0));
             },
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
