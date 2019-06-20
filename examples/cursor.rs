@@ -15,14 +15,10 @@ fn main() {
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
             event:
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            state: ElementState::Pressed,
-                            ..
-                        },
+                WindowEvent::KeyboardInput(KeyboardInput {
+                    state: ElementState::Pressed,
                     ..
-                },
+                }),
             ..
         } => {
             println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);

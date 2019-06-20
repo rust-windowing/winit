@@ -29,14 +29,10 @@ fn main() {
                             *control_flow = ControlFlow::Exit;
                         }
                     }
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                ..
-                            },
+                    WindowEvent::KeyboardInput(KeyboardInput {
+                        state: ElementState::Pressed,
                         ..
-                    } => {
+                    }) => {
                         let window = Window::new(&event_loop).unwrap();
                         windows.insert(window.id(), window);
                     }

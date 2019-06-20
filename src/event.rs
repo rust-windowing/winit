@@ -9,11 +9,12 @@ use std::path::PathBuf;
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
-    platform_impl,
     window::WindowId,
 };
 
-/// Describes a generic event.
+pub mod device;
+
+/// A generic event.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event<T> {
     /// Emitted when the OS sends an event to a winit window.
@@ -21,12 +22,16 @@ pub enum Event<T> {
         window_id: WindowId,
         event: WindowEvent,
     },
-    /// Emitted when the OS sends an event to a device.
-    DeviceEvent {
-        device_id: DeviceId,
-        event: DeviceEvent,
-    },
-    /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
+
+    /// Emitted when a mouse device has generated input.
+    MouseEvent(device::MouseId, device::MouseEvent),
+    /// Emitted when a keyboard device has generated input.
+    KeyboardEvent(device::KeyboardId, device::KeyboardEvent),
+    HidEvent(device::HidId, device::HidEvent),
+    /// Emitted when a gamepad/joystick device has generated input.
+    GamepadEvent(device::GamepadHandle, device::GamepadEvent),
+
+    /// Emitted when an event is sent from [`EventLoopProxy::send_event`](../event_loop/struct.EventLoopProxy.html#method.send_event)
     UserEvent(T),
     /// Emitted when new events arrive from the OS to be processed.
     NewEvents(StartCause),
@@ -51,7 +56,10 @@ impl<T> Event<T> {
         match self {
             UserEvent(_) => Err(self),
             WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
-            DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
+            MouseEvent(id, event) => Ok(MouseEvent(id, event)),
+            KeyboardEvent(id, event) => Ok(KeyboardEvent(id, event)),
+            HidEvent(id, event) => Ok(HidEvent(id, event)),
+            GamepadEvent(id, event) => Ok(GamepadEvent(id, event)),
             NewEvents(cause) => Ok(NewEvents(cause)),
             EventsCleared => Ok(EventsCleared),
             LoopDestroyed => Ok(LoopDestroyed),
@@ -61,8 +69,8 @@ impl<T> Event<T> {
     }
 }
 
-/// Describes the reason the event loop is resuming.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The reason the event loop is resuming.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StartCause {
     /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
@@ -87,7 +95,7 @@ pub enum StartCause {
     Init,
 }
 
-/// Describes an event from a `Window`.
+/// An event from a `Window`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
@@ -129,15 +137,10 @@ pub enum WindowEvent {
     Focused(bool),
 
     /// An event from the keyboard has been received.
-    KeyboardInput {
-        device_id: DeviceId,
-        input: KeyboardInput,
-    },
+    KeyboardInput(KeyboardInput),
 
     /// The cursor has moved on the window.
     CursorMoved {
-        device_id: DeviceId,
-
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
@@ -146,14 +149,13 @@ pub enum WindowEvent {
     },
 
     /// The cursor has entered the window.
-    CursorEntered { device_id: DeviceId },
+    CursorEntered,
 
     /// The cursor has left the window.
-    CursorLeft { device_id: DeviceId },
+    CursorLeft,
 
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel {
-        device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
         modifiers: ModifiersState,
@@ -161,7 +163,6 @@ pub enum WindowEvent {
 
     /// An mouse button press has been received.
     MouseInput {
-        device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
         modifiers: ModifiersState,
@@ -172,18 +173,7 @@ pub enum WindowEvent {
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
     /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
     /// is being pressed) and stage (integer representing the click level).
-    TouchpadPressure {
-        device_id: DeviceId,
-        pressure: f32,
-        stage: i64,
-    },
-
-    /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion {
-        device_id: DeviceId,
-        axis: AxisId,
-        value: f64,
-    },
+    TouchpadPressure { pressure: f32, stage: i64 },
 
     /// The OS or application has requested that the window be redrawn.
     RedrawRequested,
@@ -203,80 +193,7 @@ pub enum WindowEvent {
     HiDpiFactorChanged(f64),
 }
 
-/// Identifier of an input device.
-///
-/// Whenever you receive an event arising from a particular input device, this event contains a `DeviceId` which
-/// identifies its origin. Note that devices may be virtual (representing an on-screen cursor and keyboard focus) or
-/// physical. Virtual devices typically aggregate inputs from multiple physical devices.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(pub(crate) platform_impl::DeviceId);
-
-impl DeviceId {
-    /// Returns a dummy `DeviceId`, useful for unit testing. The only guarantee made about the return
-    /// value of this function is that it will always be equal to itself and to future values returned
-    /// by this function.  No other guarantees are made. This may be equal to a real `DeviceId`.
-    ///
-    /// **Passing this into a winit function will result in undefined behavior.**
-    pub unsafe fn dummy() -> Self {
-        DeviceId(platform_impl::DeviceId::dummy())
-    }
-}
-
-/// Represents raw hardware events that are not associated with any particular window.
-///
-/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
-/// game controls. Many physical actions, such as mouse movement, can produce both device and window events. Because
-/// window events typically arise from virtual devices (corresponding to GUI cursors and keyboard focus) the device IDs
-/// may not match.
-///
-/// Note that these events are delivered regardless of input focus.
-#[derive(Clone, Debug, PartialEq)]
-pub enum DeviceEvent {
-    Added,
-    Removed,
-
-    /// Change in physical position of a pointing device.
-    ///
-    /// This represents raw, unfiltered physical motion. Not to be confused with `WindowEvent::CursorMoved`.
-    MouseMotion {
-        /// (x, y) change in position in unspecified units.
-        ///
-        /// Different devices may use different units.
-        delta: (f64, f64),
-    },
-
-    /// Physical scroll event
-    MouseWheel {
-        delta: MouseScrollDelta,
-    },
-
-    /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
-    /// that winit supports on this platform, including mouse devices.  If the device is a mouse
-    /// device then this will be reported alongside the MouseMotion event.
-    Motion {
-        axis: AxisId,
-        value: f64,
-    },
-
-    Button {
-        button: ButtonId,
-        state: ElementState,
-    },
-
-    Key(KeyboardInput),
-
-    /// Keyboard modifiers have changed
-    #[doc(hidden)]
-    ModifiersChanged {
-        modifiers: ModifiersState,
-    },
-
-    Text {
-        codepoint: char,
-    },
-}
-
-/// Describes a keyboard input event.
+/// A keyboard input event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyboardInput {
@@ -302,13 +219,16 @@ pub struct KeyboardInput {
     pub modifiers: ModifiersState,
 }
 
-/// Describes touch-screen input state.
+/// Touch input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TouchPhase {
     Started,
     Moved,
     Ended,
+    /// The touch has been cancelled by the OS.
+    ///
+    /// This can occur in a variety of situations, such as the window losing focus.
     Cancelled,
 }
 
@@ -330,7 +250,6 @@ pub enum TouchPhase {
 /// device against their face.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
-    pub device_id: DeviceId,
     pub phase: TouchPhase,
     pub location: LogicalPosition,
     /// Describes how hard the screen was pressed. May be `None` if the platform
@@ -341,6 +260,8 @@ pub struct Touch {
     /// - Only available on **iOS** 9.0+ and **Windows** 8+.
     pub force: Option<Force>,
     /// Unique identifier of a finger.
+    ///
+    /// This may get reused by the system after the touch ends.
     pub id: u64,
 }
 
@@ -409,16 +330,16 @@ pub type AxisId = u32;
 /// Identifier for a specific button on some device.
 pub type ButtonId = u32;
 
-/// Describes the input state of a key.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+/// The input state of a key or button.
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ElementState {
     Pressed,
     Released,
 }
 
-/// Describes a button of a mouse controller.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+/// A button on a mouse.
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseButton {
     Left,
@@ -427,7 +348,7 @@ pub enum MouseButton {
     Other(u8),
 }
 
-/// Describes a difference in the mouse scroll wheel state.
+/// A difference in the mouse scroll wheel state.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseScrollDelta {
@@ -446,7 +367,7 @@ pub enum MouseScrollDelta {
     PixelDelta(LogicalPosition),
 }
 
-/// Symbolic name for a keyboard key.
+/// Symbolic name of a keyboard key.
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -645,7 +566,7 @@ pub enum VirtualKeyCode {
     Cut,
 }
 
-/// Represents the current state of the keyboard modifiers
+/// The current state of the keyboard modifiers
 ///
 /// Each field of this struct represents a modifier and is `true` if this modifier is active.
 #[derive(Default, Debug, Hash, PartialEq, Eq, Clone, Copy)]

@@ -6,7 +6,7 @@ use libc;
 use winapi::shared::windef::HWND;
 
 use crate::{
-    event::DeviceId,
+    event::device::{GamepadHandle, KeyboardId, MouseId},
     event_loop::EventLoop,
     monitor::MonitorHandle,
     platform_impl::EventLoop as WindowsEventLoop,
@@ -149,17 +149,49 @@ impl MonitorHandleExtWindows for MonitorHandle {
     }
 }
 
-/// Additional methods on `DeviceId` that are specific to Windows.
-pub trait DeviceIdExtWindows {
+/// Additional methods on device types that are specific to Windows.
+pub trait DeviceExtWindows {
     /// Returns an identifier that persistently refers to this specific device.
     ///
     /// Will return `None` if the device is no longer available.
     fn persistent_identifier(&self) -> Option<String>;
+
+    /// Returns the handle of the device - `HANDLE`.
+    fn handle(&self) -> *mut c_void;
 }
 
-impl DeviceIdExtWindows for DeviceId {
+impl DeviceExtWindows for MouseId {
     #[inline]
     fn persistent_identifier(&self) -> Option<String> {
         self.0.persistent_identifier()
+    }
+
+    #[inline]
+    fn handle(&self) -> *mut c_void {
+        self.0.handle() as _
+    }
+}
+
+impl DeviceExtWindows for KeyboardId {
+    #[inline]
+    fn persistent_identifier(&self) -> Option<String> {
+        self.0.persistent_identifier()
+    }
+
+    #[inline]
+    fn handle(&self) -> *mut c_void {
+        self.0.handle() as _
+    }
+}
+
+impl DeviceExtWindows for GamepadHandle {
+    #[inline]
+    fn persistent_identifier(&self) -> Option<String> {
+        self.0.persistent_identifier()
+    }
+
+    #[inline]
+    fn handle(&self) -> *mut c_void {
+        self.0.handle() as _
     }
 }

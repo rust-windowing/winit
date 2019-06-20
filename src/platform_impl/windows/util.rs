@@ -1,6 +1,5 @@
 use std::{
     io, mem,
-    ops::BitAnd,
     os::raw::c_void,
     ptr, slice,
     sync::atomic::{AtomicBool, Ordering},
@@ -20,6 +19,8 @@ use winapi::{
         winuser,
     },
 };
+
+pub use crate::util::*;
 
 // Helper function to dynamically load function pointer.
 // `library` and `function` must be zero-terminated.
@@ -49,13 +50,6 @@ macro_rules! get_function {
         )
         .map(|f| unsafe { std::mem::transmute::<*const _, $func>(f) })
     };
-}
-
-pub fn has_flag<T>(bitset: T, flag: T) -> bool
-where
-    T: Copy + PartialEq + BitAnd<T, Output = T>,
-{
-    bitset & flag == flag
 }
 
 pub fn wchar_to_string(wchar: &[wchar_t]) -> String {

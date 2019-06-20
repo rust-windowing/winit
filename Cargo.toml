@@ -50,6 +50,7 @@ features = ["display_link"]
 
 [target.'cfg(any(target_os = "ios", target_os = "windows"))'.dependencies]
 bitflags = "1"
+rusty-xinput = "1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
 version = "0.3.6"
@@ -58,6 +59,7 @@ features = [
     "commctrl",
     "dwmapi",
     "errhandlingapi",
+    "hidpi",
     "hidusage",
     "libloaderapi",
     "objbase",
@@ -73,6 +75,7 @@ features = [
     "wingdi",
     "winnt",
     "winuser",
+    "xinput",
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
