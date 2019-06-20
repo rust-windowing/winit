@@ -1,7 +1,7 @@
 extern crate winit;
 use winit::window::WindowBuilder;
 use winit::event::{Event, WindowEvent};
-use winit::event::device::GamepadEvent;
+use winit::event::device::{GamepadEvent, GamepadHandle};
 use winit::event_loop::{EventLoop, ControlFlow};
 
 fn main() {
@@ -13,7 +13,7 @@ fn main() {
         .unwrap();
 
     println!("enumerating gamepads:");
-    for gamepad in winit::event::device::GamepadHandle::enumerate(&event_loop) {
+    for gamepad in GamepadHandle::enumerate(&event_loop) {
         println!("    gamepad={:?}\tport={:?}\tbattery level={:?}", gamepad, gamepad.port(), gamepad.battery_level());
     }
 
