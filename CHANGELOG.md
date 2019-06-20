@@ -37,13 +37,13 @@
     - `LoopDestroyed` is emitted when the `run` or `run_return` method is about to exit.
 - Rename `MonitorId` to `MonitorHandle`.
 - Removed `serde` implementations from `ControlFlow`.
-- On Wayland, add `set_wayland_theme()` to control client decoration color theme
-- Added serde serialization to `os::unix::XWindowType`.
-- **Breaking:** Remove the `icon_loading` feature and the associated `image` dependency.
-- On Windows, fix malformed function pointer typecast that could invoke undefined behavior.
-- Refactored Windows state/flag-setting code.
-- On Windows, hiding the cursor no longer hides the cursor for all Winit windows - just the one `hide_cursor` was called on.
-- On Windows, cursor grabs used to get perpetually canceled when the grabbing window lost focus. Now, cursor grabs automatically get re-initialized when the window regains focus and the mouse moves over the client area.
+- Rename several functions to improve both internal consistency and compliance with Rust API guidelines.
+- Remove `WindowBuilder::multitouch` field, since it was only implemented on a few platforms. Multitouch is always enabled now.
+- **Breaking:** On macOS, change `ns` identifiers to use snake_case for consistency with iOS's `ui` identifiers.
+- Add `MonitorHandle::video_modes` method for retrieving supported video modes for the given monitor.
+- On Wayland, the window now exists even if nothing has been drawn.
+- On Windows, fix initial dimensions of a fullscreen window.
+
 - Improve event API documentation.
 - Overhaul device event API:
   - **Breaking**: `Event::DeviceEvent` split into `MouseEvent`, `KeyboardEvent`, and `GamepadEvent`.
@@ -57,12 +57,6 @@
 - On Windows, fix duplicate device events getting sent if Winit managed multiple windows.
 - On Windows, raw mouse events now report Mouse4 and Mouse5 presses and releases.
 - Added gamepad support on Windows via raw input and XInput.
-- Rename several functions to improve both internal consistency and compliance with Rust API guidelines.
-- Remove `WindowBuilder::multitouch` field, since it was only implemented on a few platforms. Multitouch is always enabled now.
-- **Breaking:** On macOS, change `ns` identifiers to use snake_case for consistency with iOS's `ui` identifiers.
-- Add `MonitorHandle::video_modes` method for retrieving supported video modes for the given monitor.
-- On Wayland, the window now exists even if nothing has been drawn.
-- On Windows, fix initial dimensions of a fullscreen window.
 
 # Version 0.19.1 (2019-04-08)
 
