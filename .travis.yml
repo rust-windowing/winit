@@ -46,7 +46,7 @@ install:
   - rustup self update
   - rustup target add $TARGET; true
   - rustup install nightly
-  - rustup component add rustfmt
+  - rustup component add rustfmt --toolchain nightly
 
 script:
   - cargo +nightly fmt --all -- --check
