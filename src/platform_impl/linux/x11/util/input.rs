@@ -55,7 +55,12 @@ impl<'a> Drop for PointerState<'a> {
 }
 
 impl XConnection {
-    pub fn select_xinput_events(&self, window: c_ulong, device_id: c_int, mask: i32) -> Flusher<'_> {
+    pub fn select_xinput_events(
+        &self,
+        window: c_ulong,
+        device_id: c_int,
+        mask: i32,
+    ) -> Flusher<'_> {
         let mut event_mask = ffi::XIEventMask {
             deviceid: device_id,
             mask: &mask as *const _ as *mut c_uchar,
@@ -74,14 +79,7 @@ impl XConnection {
 
     #[allow(dead_code)]
     pub fn select_xkb_events(&self, device_id: c_uint, mask: c_ulong) -> Option<Flusher<'_>> {
-        let status = unsafe {
-            (self.xlib.XkbSelectEvents)(
-                self.display,
-                device_id,
-                mask,
-                mask,
-            )
-        };
+        let status = unsafe { (self.xlib.XkbSelectEvents)(self.display, device_id, mask, mask) };
         if status == ffi::True {
             Some(Flusher::new(self))
         } else {
@@ -89,7 +87,11 @@ impl XConnection {
         }
     }
 
-    pub fn query_pointer(&self, window: ffi::Window, device_id: c_int) -> Result<PointerState<'_>, XError> {
+    pub fn query_pointer(
+        &self,
+        window: ffi::Window,
+        device_id: c_int,
+    ) -> Result<PointerState<'_>, XError> {
         unsafe {
             let mut pointer_state: PointerState<'_> = mem::uninitialized();
             pointer_state.xconn = self;

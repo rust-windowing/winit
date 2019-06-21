@@ -4,12 +4,13 @@
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
 //! [event_loop_run]: ../event_loop/struct.EventLoop.html#method.run
-use std::time::Instant;
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Instant};
 
-use crate::dpi::{LogicalPosition, LogicalSize};
-use crate::window::WindowId;
-use crate::platform_impl;
+use crate::{
+    dpi::{LogicalPosition, LogicalSize},
+    platform_impl,
+    window::WindowId,
+};
 
 /// Describes a generic event.
 #[derive(Clone, Debug, PartialEq)]
@@ -47,8 +48,8 @@ impl<T> Event<T> {
         use self::Event::*;
         match self {
             UserEvent(_) => Err(self),
-            WindowEvent{window_id, event} => Ok(WindowEvent{window_id, event}),
-            DeviceEvent{device_id, event} => Ok(DeviceEvent{device_id, event}),
+            WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
+            DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
             NewEvents(cause) => Ok(NewEvents(cause)),
             EventsCleared => Ok(EventsCleared),
             LoopDestroyed => Ok(LoopDestroyed),
@@ -65,14 +66,14 @@ pub enum StartCause {
     /// guaranteed to be equal to or after the requested resume time.
     ResumeTimeReached {
         start: Instant,
-        requested_resume: Instant
+        requested_resume: Instant,
     },
 
     /// Sent if the OS has new events to send to the window, after a wait was requested. Contains
     /// the moment the wait was requested and the resume time, if requested.
     WaitCancelled {
         start: Instant,
-        requested_resume: Option<Instant>
+        requested_resume: Option<Instant>,
     },
 
     /// Sent if the event loop is being resumed after the loop's control flow was set to
@@ -80,7 +81,7 @@ pub enum StartCause {
     Poll,
 
     /// Sent once, immediately after `run` is called. Indicates that the loop was just initialized.
-    Init
+    Init,
 }
 
 /// Describes an event from a `Window`.
@@ -125,7 +126,10 @@ pub enum WindowEvent {
     Focused(bool),
 
     /// An event from the keyboard has been received.
-    KeyboardInput { device_id: DeviceId, input: KeyboardInput },
+    KeyboardInput {
+        device_id: DeviceId,
+        input: KeyboardInput,
+    },
 
     /// The cursor has moved on the window.
     CursorMoved {
@@ -135,7 +139,7 @@ pub enum WindowEvent {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: LogicalPosition,
-        modifiers: ModifiersState
+        modifiers: ModifiersState,
     },
 
     /// The cursor has entered the window.
@@ -145,21 +149,38 @@ pub enum WindowEvent {
     CursorLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase, modifiers: ModifiersState },
+    MouseWheel {
+        device_id: DeviceId,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+        modifiers: ModifiersState,
+    },
 
     /// An mouse button press has been received.
-    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton, modifiers: ModifiersState },
-
+    MouseInput {
+        device_id: DeviceId,
+        state: ElementState,
+        button: MouseButton,
+        modifiers: ModifiersState,
+    },
 
     /// Touchpad pressure event.
     ///
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
     /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
     /// is being pressed) and stage (integer representing the click level).
-    TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
+    TouchpadPressure {
+        device_id: DeviceId,
+        pressure: f32,
+        stage: i64,
+    },
 
     /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
+    AxisMotion {
+        device_id: DeviceId,
+        axis: AxisId,
+        value: f64,
+    },
 
     /// The OS or application has requested that the window be redrawn.
     RedrawRequested,
@@ -229,11 +250,19 @@ pub enum DeviceEvent {
     /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
     /// that winit supports on this platform, including mouse devices.  If the device is a mouse
     /// device then this will be reported alongside the MouseMotion event.
-    Motion { axis: AxisId, value: f64 },
+    Motion {
+        axis: AxisId,
+        value: f64,
+    },
 
-    Button { button: ButtonId, state: ElementState },
+    Button {
+        button: ButtonId,
+        state: ElementState,
+    },
     Key(KeyboardInput),
-    Text { codepoint: char },
+    Text {
+        codepoint: char,
+    },
 }
 
 /// Describes a keyboard input event.
@@ -259,7 +288,7 @@ pub struct KeyboardInput {
     ///
     /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    pub modifiers: ModifiersState
+    pub modifiers: ModifiersState,
 }
 
 /// Describes touch-screen input state.
@@ -269,7 +298,7 @@ pub enum TouchPhase {
     Started,
     Moved,
     Ended,
-    Cancelled
+    Cancelled,
 }
 
 /// Represents touch event
@@ -293,7 +322,7 @@ pub struct Touch {
     pub phase: TouchPhase,
     pub location: LogicalPosition,
     /// unique identifier of a finger.
-    pub id: u64
+    pub id: u64,
 }
 
 /// Hardware-dependent keyboard scan code.
@@ -327,19 +356,19 @@ pub enum MouseButton {
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseScrollDelta {
-	/// Amount in lines or rows to scroll in the horizontal
-	/// and vertical directions.
-	///
-	/// Positive values indicate movement forward
-	/// (away from the user) or rightwards.
-	LineDelta(f32, f32),
-	/// Amount in pixels to scroll in the horizontal and
-	/// vertical direction.
-	///
-	/// Scroll events are expressed as a PixelDelta if
-	/// supported by the device (eg. a touchpad) and
-	/// platform.
-	PixelDelta(LogicalPosition),
+    /// Amount in lines or rows to scroll in the horizontal
+    /// and vertical directions.
+    ///
+    /// Positive values indicate movement forward
+    /// (away from the user) or rightwards.
+    LineDelta(f32, f32),
+    /// Amount in pixels to scroll in the horizontal and
+    /// vertical direction.
+    ///
+    /// Scroll events are expressed as a PixelDelta if
+    /// supported by the device (eg. a touchpad) and
+    /// platform.
+    PixelDelta(LogicalPosition),
 }
 
 /// Symbolic name for a keyboard key.
@@ -499,7 +528,7 @@ pub enum VirtualKeyCode {
     Multiply,
     Mute,
     MyComputer,
-    NavigateForward, // also called "Prior"
+    NavigateForward,  // also called "Prior"
     NavigateBackward, // also called "Next"
     NextTrack,
     NoConvert,
@@ -557,5 +586,5 @@ pub struct ModifiersState {
     /// The "logo" key
     ///
     /// This is the "windows" key on PC and "command" key on Mac.
-    pub logo: bool
+    pub logo: bool,
 }

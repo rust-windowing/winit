@@ -12,8 +12,10 @@
 //! [window_get]: ../window/struct.Window.html#method.available_monitors
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
-use crate::platform_impl;
-use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    platform_impl,
+};
 
 /// An iterator over all available monitors.
 ///
@@ -90,7 +92,7 @@ impl VideoMode {
 /// [`Window`]: ../window/struct.Window.html
 #[derive(Debug, Clone)]
 pub struct MonitorHandle {
-    pub(crate) inner: platform_impl::MonitorHandle
+    pub(crate) inner: platform_impl::MonitorHandle,
 }
 
 impl MonitorHandle {

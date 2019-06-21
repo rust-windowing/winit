@@ -11,9 +11,11 @@ use core_video_sys::{
     CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
 };
 
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::VideoMode;
-use crate::platform_impl::platform::util::IdRef;
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    monitor::VideoMode,
+    platform_impl::platform::util::IdRef,
+};
 
 #[derive(Clone, PartialEq)]
 pub struct MonitorHandle(CGDirectDisplayID);
@@ -79,10 +81,7 @@ impl MonitorHandle {
         let display = CGDisplay::new(display_id);
         let height = display.pixels_high();
         let width = display.pixels_wide();
-        PhysicalSize::from_logical(
-            (width as f64, height as f64),
-            self.hidpi_factor(),
-        )
+        PhysicalSize::from_logical((width as f64, height as f64), self.hidpi_factor())
     }
 
     #[inline]

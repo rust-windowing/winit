@@ -1,8 +1,10 @@
 extern crate winit;
 
-use winit::window::WindowBuilder;
-use winit::event::{Event, WindowEvent, KeyboardInput};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::{
+    event::{Event, KeyboardInput, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -15,8 +17,10 @@ fn main() {
     let mut close_requested = false;
 
     event_loop.run(move |event, _, control_flow| {
-        use winit::event::ElementState::Released;
-        use winit::event::VirtualKeyCode::{N, Y};
+        use winit::event::{
+            ElementState::Released,
+            VirtualKeyCode::{N, Y},
+        };
         *control_flow = ControlFlow::Wait;
 
         match event {
@@ -37,7 +41,7 @@ fn main() {
                     // action from the user, this is generally where you'd handle cleanup before
                     // closing the window. How to close the window is detailed in the handler for
                     // the Y key.
-                }
+                },
                 WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
@@ -59,13 +63,13 @@ fn main() {
                             // sent.
                             *control_flow = ControlFlow::Exit;
                         }
-                    }
+                    },
                     N => {
                         if close_requested {
                             println!("Your window will continue to stay by your side.");
                             close_requested = false;
                         }
-                    }
+                    },
                     _ => (),
                 },
                 _ => (),

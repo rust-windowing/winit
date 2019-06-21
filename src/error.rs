@@ -1,5 +1,4 @@
-use std::fmt;
-use std::error;
+use std::{error, fmt};
 
 use crate::platform_impl;
 
@@ -30,20 +29,14 @@ impl NotSupportedError {
     #[inline]
     #[allow(dead_code)]
     pub(crate) fn new() -> NotSupportedError {
-        NotSupportedError {
-            _marker: ()
-        }
+        NotSupportedError { _marker: () }
     }
 }
 
 impl OsError {
     #[allow(dead_code)]
     pub(crate) fn new(line: u32, file: &'static str, error: platform_impl::OsError) -> OsError {
-        OsError {
-            line,
-            file,
-            error,
-        }
+        OsError { line, file, error }
     }
 }
 
@@ -51,12 +44,15 @@ impl OsError {
 macro_rules! os_error {
     ($error:expr) => {{
         crate::error::OsError::new(line!(), file!(), $error)
-    }}
+    }};
 }
 
 impl fmt::Display for OsError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        formatter.pad(&format!("os error at {}:{}: {}", self.file, self.line, self.error))
+        formatter.pad(&format!(
+            "os error at {}:{}: {}",
+            self.file, self.line, self.error
+        ))
     }
 }
 

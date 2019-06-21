@@ -1,14 +1,14 @@
 #![cfg(target_os = "windows")]
 
-use winapi;
-use winapi::shared::windef::HWND;
+use winapi::{self, shared::windef::HWND};
 
-pub use self::event_loop::{EventLoop, EventLoopWindowTarget, EventLoopProxy};
-pub use self::monitor::MonitorHandle;
-pub use self::window::Window;
+pub use self::{
+    event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
+    monitor::MonitorHandle,
+    window::Window,
+};
 
-use crate::window::Icon;
-use crate::event::DeviceId as RootDeviceId;
+use crate::{event::DeviceId as RootDeviceId, window::Icon};
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {

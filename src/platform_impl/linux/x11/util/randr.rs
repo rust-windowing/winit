@@ -1,9 +1,7 @@
-use std::{env, slice};
-use std::str::FromStr;
+use std::{env, slice, str::FromStr};
 
-use crate::monitor::VideoMode;
-use crate::dpi::validate_hidpi_factor;
 use super::*;
+use crate::{dpi::validate_hidpi_factor, monitor::VideoMode};
 
 pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
@@ -29,9 +27,7 @@ pub fn calc_dpi_factor(
         return 1.0;
     }
 
-    let ppmm = (
-        (width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)
-    ).sqrt();
+    let ppmm = ((width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)).sqrt();
     // Quantize 1/12 step size
     let dpi_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
     assert!(validate_hidpi_factor(dpi_factor));
@@ -88,7 +84,7 @@ impl XConnection {
             return None;
         }
         if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
-            let name : &str = "Xft.dpi:\t";
+            let name: &str = "Xft.dpi:\t";
             for pair in res.split("\n") {
                 if pair.starts_with(&name) {
                     let res = &pair[name.len()..];
@@ -103,11 +99,8 @@ impl XConnection {
         resources: *mut ffi::XRRScreenResources,
         repr: &MonitorRepr,
     ) -> Option<(String, f64, Vec<VideoMode>)> {
-        let output_info = (self.xrandr.XRRGetOutputInfo)(
-            self.display,
-            resources,
-            repr.get_output(),
-        );
+        let output_info =
+            (self.xrandr.XRRGetOutputInfo)(self.display, resources, repr.get_output());
         if output_info.is_null() {
             // When calling `XRRGetOutputInfo` on a virtual monitor (versus a physical display)
             // it's possible for it to return null.
@@ -152,7 +145,10 @@ impl XConnection {
         } else {
             calc_dpi_factor(
                 repr.size(),
-                ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
+                (
+                    (*output_info).mm_width as u64,
+                    (*output_info).mm_height as u64,
+                ),
             )
         };
 

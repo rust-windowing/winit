@@ -13,22 +13,12 @@ mod randr;
 mod window_property;
 mod wm;
 
-pub use self::atom::*;
-pub use self::client_msg::*;
-pub use self::format::*;
-pub use self::geometry::*;
-pub use self::hint::*;
-pub use self::icon::*;
-pub use self::input::*;
-pub use self::memory::*;
-pub use self::randr::*;
-pub use self::window_property::*;
-pub use self::wm::*;
+pub use self::{
+    atom::*, client_msg::*, format::*, geometry::*, hint::*, icon::*, input::*, memory::*,
+    randr::*, window_property::*, wm::*,
+};
 
-use std::mem;
-use std::ptr;
-use std::ops::BitAnd;
-use std::os::raw::*;
+use std::{mem, ops::BitAnd, os::raw::*, ptr};
 
 use super::{ffi, XConnection, XError};
 
@@ -48,8 +38,8 @@ pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
 }
 
 pub fn has_flag<T>(bitset: T, flag: T) -> bool
-where T:
-    Copy + PartialEq + BitAnd<T, Output = T>
+where
+    T: Copy + PartialEq + BitAnd<T, Output = T>,
 {
     bitset & flag == flag
 }

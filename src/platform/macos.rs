@@ -2,9 +2,11 @@
 
 use std::os::raw::c_void;
 
-use crate::dpi::LogicalSize;
-use crate::monitor::MonitorHandle;
-use crate::window::{Window, WindowBuilder};
+use crate::{
+    dpi::LogicalSize,
+    monitor::MonitorHandle,
+    window::{Window, WindowBuilder},
+};
 
 /// Additional methods on `Window` that are specific to MacOS.
 pub trait WindowExtMacOS {
@@ -97,7 +99,8 @@ pub trait WindowBuilderExtMacOS {
     /// Sets the activation policy for the window being built.
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
-    fn with_movable_by_window_background(self, movable_by_window_background: bool) -> WindowBuilder;
+    fn with_movable_by_window_background(self, movable_by_window_background: bool)
+        -> WindowBuilder;
     /// Makes the titlebar transparent and allows the content to appear behind it.
     fn with_titlebar_transparent(self, titlebar_transparent: bool) -> WindowBuilder;
     /// Hides the window title.
@@ -120,7 +123,10 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 
     #[inline]
-    fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> WindowBuilder {
+    fn with_movable_by_window_background(
+        mut self,
+        movable_by_window_background: bool,
+    ) -> WindowBuilder {
         self.platform_specific.movable_by_window_background = movable_by_window_background;
         self
     }

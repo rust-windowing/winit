@@ -1,49 +1,35 @@
-use std::mem::{self, size_of};
-use std::ptr;
-
-use winapi::ctypes::wchar_t;
-use winapi::shared::minwindef::{UINT, USHORT, TRUE};
-use winapi::shared::hidusage::{
-    HID_USAGE_PAGE_GENERIC,
-    HID_USAGE_GENERIC_MOUSE,
-    HID_USAGE_GENERIC_KEYBOARD,
-};
-use winapi::shared::windef::HWND;
-use winapi::um::winnt::HANDLE;
-use winapi::um::winuser::{
-    self,
-    RAWINPUTDEVICELIST,
-    RID_DEVICE_INFO,
-    RID_DEVICE_INFO_MOUSE,
-    RID_DEVICE_INFO_KEYBOARD,
-    RID_DEVICE_INFO_HID,
-    RIM_TYPEMOUSE,
-    RIM_TYPEKEYBOARD,
-    RIM_TYPEHID,
-    RIDI_DEVICEINFO,
-    RIDI_DEVICENAME,
-    RAWINPUTDEVICE,
-    RIDEV_DEVNOTIFY,
-    RIDEV_INPUTSINK,
-    HRAWINPUT,
-    RAWINPUT,
-    RAWINPUTHEADER,
-    RID_INPUT,
+use std::{
+    mem::{self, size_of},
+    ptr,
 };
 
-use crate::platform_impl::platform::util;
-use crate::event::ElementState;
+use winapi::{
+    ctypes::wchar_t,
+    shared::{
+        hidusage::{HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE, HID_USAGE_PAGE_GENERIC},
+        minwindef::{TRUE, UINT, USHORT},
+        windef::HWND,
+    },
+    um::{
+        winnt::HANDLE,
+        winuser::{
+            self, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTDEVICELIST, RAWINPUTHEADER,
+            RIDEV_DEVNOTIFY, RIDEV_INPUTSINK, RIDI_DEVICEINFO, RIDI_DEVICENAME, RID_DEVICE_INFO,
+            RID_DEVICE_INFO_HID, RID_DEVICE_INFO_KEYBOARD, RID_DEVICE_INFO_MOUSE, RID_INPUT,
+            RIM_TYPEHID, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
+        },
+    },
+};
+
+use crate::{event::ElementState, platform_impl::platform::util};
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
     let list_size = size_of::<RAWINPUTDEVICELIST>() as UINT;
 
     let mut num_devices = 0;
-    let status = unsafe { winuser::GetRawInputDeviceList(
-        ptr::null_mut(),
-        &mut num_devices,
-        list_size,
-    ) };
+    let status =
+        unsafe { winuser::GetRawInputDeviceList(ptr::null_mut(), &mut num_devices, list_size) };
 
     if status == UINT::max_value() {
         return None;
@@ -51,11 +37,9 @@ pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
 
     let mut buffer = Vec::with_capacity(num_devices as _);
 
-    let num_stored = unsafe { winuser::GetRawInputDeviceList(
-        buffer.as_ptr() as _,
-        &mut num_devices,
-        list_size,
-    ) };
+    let num_stored = unsafe {
+        winuser::GetRawInputDeviceList(buffer.as_ptr() as _, &mut num_devices, list_size)
+    };
 
     if num_stored == UINT::max_value() {
         return None;
@@ -96,12 +80,14 @@ pub fn get_raw_input_device_info(handle: HANDLE) -> Option<RawDeviceInfo> {
     info.cbSize = info_size;
 
     let mut minimum_size = 0;
-    let status = unsafe { winuser::GetRawInputDeviceInfoW(
-        handle,
-        RIDI_DEVICEINFO,
-        &mut info as *mut _ as _,
-        &mut minimum_size,
-    ) };
+    let status = unsafe {
+        winuser::GetRawInputDeviceInfoW(
+            handle,
+            RIDI_DEVICEINFO,
+            &mut info as *mut _ as _,
+            &mut minimum_size,
+        )
+    };
 
     if status == UINT::max_value() || status == 0 {
         return None;
@@ -114,12 +100,9 @@ pub fn get_raw_input_device_info(handle: HANDLE) -> Option<RawDeviceInfo> {
 
 pub fn get_raw_input_device_name(handle: HANDLE) -> Option<String> {
     let mut minimum_size = 0;
-    let status = unsafe { winuser::GetRawInputDeviceInfoW(
-        handle,
-        RIDI_DEVICENAME,
-        ptr::null_mut(),
-        &mut minimum_size,
-    ) };
+    let status = unsafe {
+        winuser::GetRawInputDeviceInfoW(handle, RIDI_DEVICENAME, ptr::null_mut(), &mut minimum_size)
+    };
 
     if status != 0 {
         return None;
@@ -127,12 +110,14 @@ pub fn get_raw_input_device_name(handle: HANDLE) -> Option<String> {
 
     let mut name: Vec<wchar_t> = Vec::with_capacity(minimum_size as _);
 
-    let status = unsafe { winuser::GetRawInputDeviceInfoW(
-        handle,
-        RIDI_DEVICENAME,
-        name.as_ptr() as _,
-        &mut minimum_size,
-    ) };
+    let status = unsafe {
+        winuser::GetRawInputDeviceInfoW(
+            handle,
+            RIDI_DEVICENAME,
+            name.as_ptr() as _,
+            &mut minimum_size,
+        )
+    };
 
     if status == UINT::max_value() || status == 0 {
         return None;
@@ -148,11 +133,9 @@ pub fn get_raw_input_device_name(handle: HANDLE) -> Option<String> {
 pub fn register_raw_input_devices(devices: &[RAWINPUTDEVICE]) -> bool {
     let device_size = size_of::<RAWINPUTDEVICE>() as UINT;
 
-    let success = unsafe { winuser::RegisterRawInputDevices(
-        devices.as_ptr() as _,
-        devices.len() as _,
-        device_size,
-    ) };
+    let success = unsafe {
+        winuser::RegisterRawInputDevices(devices.as_ptr() as _, devices.len() as _, device_size)
+    };
 
     success == TRUE
 }
@@ -185,13 +168,15 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
     let mut data_size = size_of::<RAWINPUT>() as UINT;
     let header_size = size_of::<RAWINPUTHEADER>() as UINT;
 
-    let status = unsafe { winuser::GetRawInputData(
-        handle,
-        RID_INPUT,
-        &mut data as *mut _  as _,
-        &mut data_size,
-        header_size,
-    ) };
+    let status = unsafe {
+        winuser::GetRawInputData(
+            handle,
+            RID_INPUT,
+            &mut data as *mut _ as _,
+            &mut data_size,
+            header_size,
+        )
+    };
 
     if status == UINT::max_value() || status == 0 {
         return None;
@@ -200,10 +185,11 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
     Some(data)
 }
 
-
-fn button_flags_to_element_state(button_flags: USHORT, down_flag: USHORT, up_flag: USHORT)
-    -> Option<ElementState>
-{
+fn button_flags_to_element_state(
+    button_flags: USHORT,
+    down_flag: USHORT,
+    up_flag: USHORT,
+) -> Option<ElementState> {
     // We assume the same button won't be simultaneously pressed and released.
     if util::has_flag(button_flags, down_flag) {
         Some(ElementState::Pressed)

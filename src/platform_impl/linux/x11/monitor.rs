@@ -2,16 +2,16 @@ use std::os::raw::*;
 
 use parking_lot::Mutex;
 
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::VideoMode;
-use super::{util, XConnection, XError};
-use super::ffi::{
-    RRCrtcChangeNotifyMask,
-    RROutputPropertyNotifyMask,
-    RRScreenChangeNotifyMask,
-    True,
-    Window,
-    XRRScreenResources,
+use super::{
+    ffi::{
+        RRCrtcChangeNotifyMask, RROutputPropertyNotifyMask, RRScreenChangeNotifyMask, True, Window,
+        XRRScreenResources,
+    },
+    util, XConnection, XError,
+};
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    monitor::VideoMode,
 };
 
 // Used to test XRandR < 1.5 code path. This should always be committed as false.
@@ -160,7 +160,8 @@ impl XConnection {
                 // videowalls.
                 let xrandr_1_5 = self.xrandr_1_5.as_ref().unwrap();
                 let mut monitor_count = 0;
-                let monitors = (xrandr_1_5.XRRGetMonitors)(self.display, root, 1, &mut monitor_count);
+                let monitors =
+                    (xrandr_1_5.XRRGetMonitors)(self.display, root, 1, &mut monitor_count);
                 assert!(monitor_count >= 0);
                 available = Vec::with_capacity(monitor_count as usize);
                 for monitor_index in 0..monitor_count {
@@ -173,7 +174,8 @@ impl XConnection {
                         monitor_index as u32,
                         monitor.into(),
                         is_primary,
-                    ).map(|monitor_id| available.push(monitor_id));
+                    )
+                    .map(|monitor_id| available.push(monitor_id));
                 }
                 (xrandr_1_5.XRRFreeMonitors)(monitors);
             } else {
@@ -190,13 +192,8 @@ impl XConnection {
                         let crtc = util::MonitorRepr::from(crtc);
                         let is_primary = crtc.get_output() == primary;
                         has_primary |= is_primary;
-                        MonitorHandle::from_repr(
-                            self,
-                            resources,
-                            crtc_id as u32,
-                            crtc,
-                            is_primary,
-                        ).map(|monitor_id| available.push(monitor_id));
+                        MonitorHandle::from_repr(self, resources, crtc_id as u32, crtc, is_primary)
+                            .map(|monitor_id| available.push(monitor_id));
                     }
                     (self.xrandr.XRRFreeCrtcInfo)(crtc);
                 }
@@ -244,13 +241,8 @@ impl XConnection {
             if version_lock.is_none() {
                 let mut major = 0;
                 let mut minor = 0;
-                let has_extension = unsafe {
-                    (self.xrandr.XRRQueryVersion)(
-                        self.display,
-                        &mut major,
-                        &mut minor,
-                    )
-                };
+                let has_extension =
+                    unsafe { (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor) };
                 if has_extension != True {
                     panic!("[winit] XRandR extension not available.");
                 }
@@ -261,11 +253,7 @@ impl XConnection {
         let mut event_offset = 0;
         let mut error_offset = 0;
         let status = unsafe {
-            (self.xrandr.XRRQueryExtension)(
-                self.display,
-                &mut event_offset,
-                &mut error_offset,
-            )
+            (self.xrandr.XRRQueryExtension)(self.display, &mut event_offset, &mut error_offset)
         };
 
         if status != True {
@@ -273,9 +261,7 @@ impl XConnection {
             unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
         }
 
-        let mask = RRCrtcChangeNotifyMask
-            | RROutputPropertyNotifyMask
-            | RRScreenChangeNotifyMask;
+        let mask = RRCrtcChangeNotifyMask | RROutputPropertyNotifyMask | RRScreenChangeNotifyMask;
         unsafe { (self.xrandr.XRRSelectInput)(self.display, root, mask) };
 
         Ok(event_offset)

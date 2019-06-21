@@ -1,0 +1,6 @@
+merge_imports=true
+match_block_trailing_comma=true
+force_explicit_abi=true
+format_macro_matchers=true
+use_field_init_shorthand=true
+format_code_in_doc_comments=true

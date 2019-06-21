@@ -2,8 +2,10 @@
 
 #![allow(dead_code, non_snake_case, non_upper_case_globals)]
 
-use cocoa::base::id;
-use cocoa::foundation::{NSInteger, NSUInteger};
+use cocoa::{
+    base::id,
+    foundation::{NSInteger, NSUInteger},
+};
 use objc;
 
 pub const NSNotFound: NSInteger = NSInteger::max_value();
@@ -53,11 +55,11 @@ impl NSMutableAttributedString for id {
     }
 
     unsafe fn initWithString(self, string: id) -> id {
-        msg_send![self, initWithString:string]
+        msg_send![self, initWithString: string]
     }
 
     unsafe fn initWithAttributedString(self, string: id) -> id {
-        msg_send![self, initWithAttributedString:string]
+        msg_send![self, initWithAttributedString: string]
     }
 
     unsafe fn string(self) -> id {

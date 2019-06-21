@@ -1,13 +1,14 @@
-extern crate winit;
 extern crate image;
+extern crate winit;
 
 use std::path::Path;
-use winit::window::{WindowBuilder, Icon};
-use winit::event::Event;
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::{
+    event::Event,
+    event_loop::{ControlFlow, EventLoop},
+    window::{Icon, WindowBuilder},
+};
 
 fn main() {
-
     // You'll have to choose an icon size at your own discretion. On X11, the desired size varies
     // by WM, and on Windows, you still have to account for screen scaling. Here we use 32px,
     // since it seems to work well enough in most cases. Be careful about going too high, or
@@ -43,8 +44,6 @@ fn main() {
             match event {
                 CloseRequested => *control_flow = ControlFlow::Exit,
                 DroppedFile(path) => {
-                    
-
                     window.set_window_icon(Some(load_icon(&path)));
                 },
                 _ => (),

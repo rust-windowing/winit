@@ -1,11 +1,8 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::ffi::CString;
-use std::ops::BitOr;
-use std::os::raw::*;
+use std::{ffi::CString, ops::BitOr, os::raw::*};
 
-use objc::{Encode, Encoding};
-use objc::runtime::Object;
+use objc::{runtime::Object, Encode, Encoding};
 
 use crate::platform::ios::{Idiom, ValidOrientations};
 
@@ -87,7 +84,9 @@ pub struct UIEdgeInsets {
 pub struct UIUserInterfaceIdiom(NSInteger);
 
 unsafe impl Encode for UIUserInterfaceIdiom {
-    fn encode() -> Encoding { NSInteger::encode() }
+    fn encode() -> Encoding {
+        NSInteger::encode()
+    }
 }
 
 impl UIUserInterfaceIdiom {
@@ -128,7 +127,9 @@ impl Into<Idiom> for UIUserInterfaceIdiom {
 pub struct UIInterfaceOrientationMask(NSUInteger);
 
 unsafe impl Encode for UIInterfaceOrientationMask {
-    fn encode() -> Encoding { NSUInteger::encode() }
+    fn encode() -> Encoding {
+        NSUInteger::encode()
+    }
 }
 
 impl UIInterfaceOrientationMask {
@@ -136,9 +137,12 @@ impl UIInterfaceOrientationMask {
     pub const PortraitUpsideDown: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 2);
     pub const LandscapeLeft: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 4);
     pub const LandscapeRight: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 3);
-    pub const Landscape: UIInterfaceOrientationMask = UIInterfaceOrientationMask(Self::LandscapeLeft.0 | Self::LandscapeRight.0);
-    pub const AllButUpsideDown: UIInterfaceOrientationMask = UIInterfaceOrientationMask(Self::Landscape.0 | Self::Portrait.0);
-    pub const All: UIInterfaceOrientationMask = UIInterfaceOrientationMask(Self::AllButUpsideDown.0 | Self::PortraitUpsideDown.0);
+    pub const Landscape: UIInterfaceOrientationMask =
+        UIInterfaceOrientationMask(Self::LandscapeLeft.0 | Self::LandscapeRight.0);
+    pub const AllButUpsideDown: UIInterfaceOrientationMask =
+        UIInterfaceOrientationMask(Self::Landscape.0 | Self::Portrait.0);
+    pub const All: UIInterfaceOrientationMask =
+        UIInterfaceOrientationMask(Self::AllButUpsideDown.0 | Self::PortraitUpsideDown.0);
 }
 
 impl BitOr for UIInterfaceOrientationMask {
@@ -155,18 +159,23 @@ impl UIInterfaceOrientationMask {
         idiom: Idiom,
     ) -> UIInterfaceOrientationMask {
         match (valid_orientations, idiom) {
-            (ValidOrientations::LandscapeAndPortrait, Idiom::Phone) => UIInterfaceOrientationMask::AllButUpsideDown,
+            (ValidOrientations::LandscapeAndPortrait, Idiom::Phone) => {
+                UIInterfaceOrientationMask::AllButUpsideDown
+            },
             (ValidOrientations::LandscapeAndPortrait, _) => UIInterfaceOrientationMask::All,
             (ValidOrientations::Landscape, _) => UIInterfaceOrientationMask::Landscape,
             (ValidOrientations::Portrait, Idiom::Phone) => UIInterfaceOrientationMask::Portrait,
-            (ValidOrientations::Portrait, _) => UIInterfaceOrientationMask::Portrait | UIInterfaceOrientationMask::PortraitUpsideDown,
+            (ValidOrientations::Portrait, _) => {
+                UIInterfaceOrientationMask::Portrait
+                    | UIInterfaceOrientationMask::PortraitUpsideDown
+            },
         }
     }
 }
 
 #[link(name = "UIKit", kind = "framework")]
 #[link(name = "CoreFoundation", kind = "framework")]
-extern {
+extern "C" {
     pub static kCFRunLoopDefaultMode: CFRunLoopMode;
     pub static kCFRunLoopCommonModes: CFRunLoopMode;
 
@@ -203,15 +212,8 @@ extern {
         callout: CFRunLoopTimerCallBack,
         context: *mut CFRunLoopTimerContext,
     ) -> CFRunLoopTimerRef;
-    pub fn CFRunLoopAddTimer(
-        rl: CFRunLoopRef,
-        timer: CFRunLoopTimerRef,
-        mode: CFRunLoopMode,
-    );
-    pub fn CFRunLoopTimerSetNextFireDate(
-        timer: CFRunLoopTimerRef,
-        fireDate: CFAbsoluteTime,
-    );
+    pub fn CFRunLoopAddTimer(rl: CFRunLoopRef, timer: CFRunLoopTimerRef, mode: CFRunLoopMode);
+    pub fn CFRunLoopTimerSetNextFireDate(timer: CFRunLoopTimerRef, fireDate: CFAbsoluteTime);
     pub fn CFRunLoopTimerInvalidate(time: CFRunLoopTimerRef);
 
     pub fn CFRunLoopSourceCreate(
@@ -219,11 +221,7 @@ extern {
         order: CFIndex,
         context: *mut CFRunLoopSourceContext,
     ) -> CFRunLoopSourceRef;
-    pub fn CFRunLoopAddSource(
-        rl: CFRunLoopRef,
-        source: CFRunLoopSourceRef,
-        mode: CFRunLoopMode,
-    );
+    pub fn CFRunLoopAddSource(rl: CFRunLoopRef, source: CFRunLoopSourceRef, mode: CFRunLoopMode);
     pub fn CFRunLoopSourceInvalidate(source: CFRunLoopSourceRef);
     pub fn CFRunLoopSourceSignal(source: CFRunLoopSourceRef);
 
@@ -259,15 +257,9 @@ pub const kCFRunLoopBeforeWaiting: CFRunLoopActivity = 1 << 5;
 pub const kCFRunLoopAfterWaiting: CFRunLoopActivity = 1 << 6;
 pub const kCFRunLoopExit: CFRunLoopActivity = 1 << 7;
 
-pub type CFRunLoopObserverCallBack = extern "C" fn(
-    observer: CFRunLoopObserverRef,
-    activity: CFRunLoopActivity,
-    info: *mut c_void,
-);
-pub type CFRunLoopTimerCallBack = extern "C" fn(
-    timer: CFRunLoopTimerRef,
-    info: *mut c_void,
-);
+pub type CFRunLoopObserverCallBack =
+    extern "C" fn(observer: CFRunLoopObserverRef, activity: CFRunLoopActivity, info: *mut c_void);
+pub type CFRunLoopTimerCallBack = extern "C" fn(timer: CFRunLoopTimerRef, info: *mut c_void);
 
 pub enum CFRunLoopObserverContext {}
 pub enum CFRunLoopTimerContext {}
@@ -299,11 +291,11 @@ pub trait NSString: Sized {
 
 impl NSString for id {
     unsafe fn initWithUTF8String_(self, c_string: *const c_char) -> id {
-        msg_send![self, initWithUTF8String:c_string as id]
+        msg_send![self, initWithUTF8String: c_string as id]
     }
 
     unsafe fn stringByAppendingString_(self, other: id) -> id {
-        msg_send![self, stringByAppendingString:other]
+        msg_send![self, stringByAppendingString: other]
     }
 
     unsafe fn init_str(self, string: &str) -> id {

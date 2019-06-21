@@ -1,5 +1,8 @@
 use cocoa::base::id;
-use objc::{runtime::{Class, Object, Sel, BOOL, YES}, declare::ClassDecl};
+use objc::{
+    declare::ClassDecl,
+    runtime::{Class, Object, Sel, BOOL, YES},
+};
 
 use crate::platform_impl::platform::app_state::AppState;
 
@@ -14,41 +17,41 @@ lazy_static! {
 
         decl.add_method(
             sel!(applicationDidFinishLaunching:),
-            did_finish_launching as extern fn(&Object, Sel, id) -> BOOL,
+            did_finish_launching as extern "C" fn(&Object, Sel, id) -> BOOL,
         );
         decl.add_method(
             sel!(applicationDidBecomeActive:),
-            did_become_active as extern fn(&Object, Sel, id),
+            did_become_active as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
             sel!(applicationWillResignActive:),
-            will_resign_active as extern fn(&Object, Sel, id),
+            will_resign_active as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
             sel!(applicationWillEnterForeground:),
-            will_enter_foreground as extern fn(&Object, Sel, id),
+            will_enter_foreground as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
             sel!(applicationDidEnterBackground:),
-            did_enter_background as extern fn(&Object, Sel, id),
+            did_enter_background as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
             sel!(applicationWillTerminate:),
-            will_terminate as extern fn(&Object, Sel, id),
+            will_terminate as extern "C" fn(&Object, Sel, id),
         );
 
         AppDelegateClass(decl.register())
     };
 }
 
-extern fn did_finish_launching(_: &Object, _: Sel, _: id) -> BOOL {
+extern "C" fn did_finish_launching(_: &Object, _: Sel, _: id) -> BOOL {
     trace!("Triggered `didFinishLaunching`");
     AppState::launched();
     trace!("Completed `didFinishLaunching`");
     YES
 }
 
-extern fn did_become_active(_: &Object, _: Sel, _: id) {
+extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
     trace!("Triggered `didBecomeActive`");
     /*unsafe {
         HANDLER.lock().unwrap().handle_nonuser_event(Event::Suspended(false))
@@ -56,7 +59,7 @@ extern fn did_become_active(_: &Object, _: Sel, _: id) {
     trace!("Completed `didBecomeActive`");
 }
 
-extern fn will_resign_active(_: &Object, _: Sel, _: id) {
+extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
     trace!("Triggered `willResignActive`");
     /*unsafe {
         HANDLER.lock().unwrap().handle_nonuser_event(Event::Suspended(true))
@@ -64,17 +67,17 @@ extern fn will_resign_active(_: &Object, _: Sel, _: id) {
     trace!("Completed `willResignActive`");
 }
 
-extern fn will_enter_foreground(_: &Object, _: Sel, _: id) {
+extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {
     trace!("Triggered `willEnterForeground`");
     trace!("Completed `willEnterForeground`");
 }
 
-extern fn did_enter_background(_: &Object, _: Sel, _: id) {
+extern "C" fn did_enter_background(_: &Object, _: Sel, _: id) {
     trace!("Triggered `didEnterBackground`");
     trace!("Completed `didEnterBackground`");
 }
 
-extern fn will_terminate(_: &Object, _: Sel, _: id) {
+extern "C" fn will_terminate(_: &Object, _: Sel, _: id) {
     trace!("Triggered `willTerminate`");
     /*unsafe {
         let app: id = msg_send![class!(UIApplication), sharedApplication];

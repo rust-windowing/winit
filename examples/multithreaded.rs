@@ -5,7 +5,8 @@ use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
 use winit::{
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop}, window::{CursorIcon, WindowBuilder},
+    event_loop::{ControlFlow, EventLoop},
+    window::{CursorIcon, WindowBuilder},
 };
 
 const WINDOW_COUNT: usize = 3;
@@ -25,12 +26,16 @@ fn main() {
         thread::spawn(move || {
             while let Ok(event) = rx.recv() {
                 match event {
-                    WindowEvent::KeyboardInput { input: KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(key),
-                        modifiers,
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Released,
+                                virtual_keycode: Some(key),
+                                modifiers,
+                                ..
+                            },
                         ..
-                    }, .. } => {
+                    } => {
                         window.set_title(&format!("{:?}", key));
                         let state = !modifiers.shift;
                         use self::VirtualKeyCode::*;
@@ -68,14 +73,18 @@ fn main() {
                             }),
                             Q => window.request_redraw(),
                             R => window.set_resizable(state),
-                            S => window.set_inner_size(match state {
-                                true => (WINDOW_SIZE.0 + 100, WINDOW_SIZE.1 + 100),
-                                false => WINDOW_SIZE,
-                            }.into()),
-                            W => window.set_cursor_position((
-                                WINDOW_SIZE.0 as i32 / 2,
-                                WINDOW_SIZE.1 as i32 / 2,
-                            ).into()).unwrap(),
+                            S => window.set_inner_size(
+                                match state {
+                                    true => (WINDOW_SIZE.0 + 100, WINDOW_SIZE.1 + 100),
+                                    false => WINDOW_SIZE,
+                                }
+                                .into(),
+                            ),
+                            W => window
+                                .set_cursor_position(
+                                    (WINDOW_SIZE.0 as i32 / 2, WINDOW_SIZE.1 as i32 / 2).into(),
+                                )
+                                .unwrap(),
                             Z => {
                                 window.set_visible(false);
                                 thread::sleep(Duration::from_secs(1));
@@ -95,20 +104,25 @@ fn main() {
             false => ControlFlow::Exit,
         };
         match event {
-            Event::WindowEvent { event, window_id } => {
-                match event {
-                    WindowEvent::CloseRequested
-                    | WindowEvent::Destroyed
-                    | WindowEvent::KeyboardInput { input: KeyboardInput {
-                        virtual_keycode: Some(VirtualKeyCode::Escape),
-                    .. }, .. } => {
-                        window_senders.remove(&window_id);
-                    },
-                    _ => if let Some(tx) = window_senders.get(&window_id) {
+            Event::WindowEvent { event, window_id } => match event {
+                WindowEvent::CloseRequested
+                | WindowEvent::Destroyed
+                | WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            virtual_keycode: Some(VirtualKeyCode::Escape),
+                            ..
+                        },
+                    ..
+                } => {
+                    window_senders.remove(&window_id);
+                },
+                _ => {
+                    if let Some(tx) = window_senders.get(&window_id) {
                         tx.send(event).unwrap();
-                    },
-                }
-            }
+                    }
+                },
+            },
             _ => (),
         }
     })

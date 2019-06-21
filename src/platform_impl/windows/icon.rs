@@ -1,13 +1,15 @@
-use std::{mem, ptr, io};
-use std::os::windows::ffi::OsStrExt;
-use std::path::Path;
+use std::{io, mem, os::windows::ffi::OsStrExt, path::Path, ptr};
 
-use winapi::ctypes::{c_int, wchar_t};
-use winapi::shared::minwindef::{BYTE, LPARAM, WPARAM};
-use winapi::shared::windef::{HICON, HWND};
-use winapi::um::winuser;
+use winapi::{
+    ctypes::{c_int, wchar_t},
+    shared::{
+        minwindef::{BYTE, LPARAM, WPARAM},
+        windef::{HICON, HWND},
+    },
+    um::winuser,
+};
 
-use crate::icon::{Pixel, PIXEL_SIZE, Icon};
+use crate::icon::{Icon, Pixel, PIXEL_SIZE};
 
 impl Pixel {
     fn to_bgra(&mut self) {
@@ -103,11 +105,6 @@ impl Drop for WinIcon {
 
 pub fn unset_for_window(hwnd: HWND, icon_type: IconType) {
     unsafe {
-        winuser::SendMessageW(
-            hwnd,
-            winuser::WM_SETICON,
-            icon_type as WPARAM,
-            0 as LPARAM,
-        );
+        winuser::SendMessageW(hwnd, winuser::WM_SETICON, icon_type as WPARAM, 0 as LPARAM);
     }
 }

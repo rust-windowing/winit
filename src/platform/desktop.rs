@@ -4,8 +4,10 @@
     target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"
 ))]
 
-use crate::event::Event;
-use crate::event_loop::{EventLoop, EventLoopWindowTarget, ControlFlow};
+use crate::{
+    event::Event,
+    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+};
 
 /// Additional methods on `EventLoop` that are specific to desktop platforms.
 pub trait EventLoopExtDesktop {
@@ -27,14 +29,16 @@ pub trait EventLoopExtDesktop {
     ///
     /// You are strongly encouraged to use `run`, unless the use of this is absolutely necessary.
     fn run_return<F>(&mut self, event_handler: F)
-        where F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
+    where
+        F: FnMut(Event<Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
 }
 
 impl<T> EventLoopExtDesktop for EventLoop<T> {
     type UserEvent = T;
 
     fn run_return<F>(&mut self, event_handler: F)
-        where F: FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow)
+    where
+        F: FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.event_loop.run_return(event_handler)
     }
