@@ -137,7 +137,7 @@ impl AppState {
                      after the app has terminated"
                 )
             },
-            app_state => unreachable!("unexpected state: {:#?}", app_state), // all other cases should be impossible
+            app_state => unreachable!("unexpected state: {:#?}", app_state), /* all other cases should be impossible */
         }
         drop(this);
         msg_send![window, makeKeyAndVisible]

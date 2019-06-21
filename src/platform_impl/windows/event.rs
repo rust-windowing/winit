@@ -252,7 +252,7 @@ pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
         winuser::VK_OEM_5 => map_text_keys(vkey),
         winuser::VK_OEM_6 => map_text_keys(vkey),
         winuser::VK_OEM_7 => map_text_keys(vkey),
-        /*winuser::VK_OEM_8 => Some(VirtualKeyCode::Oem_8), */
+        /* winuser::VK_OEM_8 => Some(VirtualKeyCode::Oem_8), */
         winuser::VK_OEM_102 => Some(VirtualKeyCode::OEM102),
         /*winuser::VK_PROCESSKEY => Some(VirtualKeyCode::Processkey),
         winuser::VK_PACKET => Some(VirtualKeyCode::Packet),

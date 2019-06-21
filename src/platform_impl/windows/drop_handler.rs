@@ -34,7 +34,7 @@ pub struct FileDropHandlerData {
     window: HWND,
     send_event: Box<dyn Fn(Event<()>)>,
     cursor_effect: DWORD,
-    hovered_is_valid: bool, // If the currently hovered item is not valid there must not be any `HoveredFileCancelled` emitted
+    hovered_is_valid: bool, /* If the currently hovered item is not valid there must not be any `HoveredFileCancelled` emitted */
 }
 
 pub struct FileDropHandler {

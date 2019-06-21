@@ -12,13 +12,13 @@ use std::os::raw;
 extern "C" {}
 
 /**
- * asset_manager.h
- */
+ ** asset_manager.h
+ **/
 pub type AAssetManager = raw::c_void;
 
 /**
- * native_window.h
- */
+ ** native_window.h
+ **/
 pub type ANativeWindow = raw::c_void;
 
 extern "C" {
@@ -27,8 +27,8 @@ extern "C" {
 }
 
 /**
- * native_activity.h
- */
+ ** native_activity.h
+ **/
 pub type JavaVM = ();
 pub type JNIEnv = ();
 pub type jobject = *const libc::c_void;
@@ -71,8 +71,8 @@ pub struct ANativeActivityCallbacks {
 }
 
 /**
- * looper.h
- */
+ ** looper.h
+ **/
 pub type ALooper = ();
 
 #[link(name = "android")]

@@ -26,7 +26,6 @@
 //! fn start_inner() {
 //!    ...
 //! }
-//!
 //! ```
 //!
 //! Compile project and then drag resulting .a into Xcode project. Add winit.h to xcode.
