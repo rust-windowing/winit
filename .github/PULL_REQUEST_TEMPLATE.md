@@ -1,5 +1,5 @@
 - [ ] Tested on all platforms changed
-- [ ] `cargo fmt` has been run on this branch.
+- [ ] `cargo fmt` has been run on this branch
 - [ ] Added an entry to `CHANGELOG.md` if knowledge of this change could be valuable to users
 - [ ] Updated documentation to reflect any user-facing changes, including notes of platform-specific behavior
 - [ ] Created an example program if it would help users understand this functionality
