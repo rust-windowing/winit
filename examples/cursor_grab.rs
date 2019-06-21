@@ -1,5 +1,3 @@
-extern crate winit;
-
 use winit::{
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},

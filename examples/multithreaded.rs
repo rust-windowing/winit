@@ -1,6 +1,4 @@
 extern crate env_logger;
-extern crate winit;
-
 use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
 use winit::{
@@ -41,15 +39,19 @@ fn main() {
                         use self::VirtualKeyCode::*;
                         match key {
                             A => window.set_always_on_top(state),
-                            C => window.set_cursor_icon(match state {
-                                true => CursorIcon::Progress,
-                                false => CursorIcon::Default,
-                            }),
+                            C => {
+                                window.set_cursor_icon(match state {
+                                    true => CursorIcon::Progress,
+                                    false => CursorIcon::Default,
+                                })
+                            },
                             D => window.set_decorations(!state),
-                            F => window.set_fullscreen(match state {
-                                true => Some(window.current_monitor()),
-                                false => None,
-                            }),
+                            F => {
+                                window.set_fullscreen(match state {
+                                    true => Some(window.current_monitor()),
+                                    false => None,
+                                })
+                            },
                             G => window.set_cursor_grab(state).unwrap(),
                             H => window.set_cursor_visible(!state),
                             I => {
@@ -59,32 +61,40 @@ fn main() {
                                 println!("-> outer_size     : {:?}", window.outer_size());
                                 println!("-> inner_size     : {:?}", window.inner_size());
                             },
-                            L => window.set_min_inner_size(match state {
-                                true => Some(WINDOW_SIZE.into()),
-                                false => None,
-                            }),
+                            L => {
+                                window.set_min_inner_size(match state {
+                                    true => Some(WINDOW_SIZE.into()),
+                                    false => None,
+                                })
+                            },
                             M => window.set_maximized(state),
-                            P => window.set_outer_position({
-                                let mut position = window.outer_position().unwrap();
-                                let sign = if state { 1.0 } else { -1.0 };
-                                position.x += 10.0 * sign;
-                                position.y += 10.0 * sign;
-                                position
-                            }),
+                            P => {
+                                window.set_outer_position({
+                                    let mut position = window.outer_position().unwrap();
+                                    let sign = if state { 1.0 } else { -1.0 };
+                                    position.x += 10.0 * sign;
+                                    position.y += 10.0 * sign;
+                                    position
+                                })
+                            },
                             Q => window.request_redraw(),
                             R => window.set_resizable(state),
-                            S => window.set_inner_size(
-                                match state {
-                                    true => (WINDOW_SIZE.0 + 100, WINDOW_SIZE.1 + 100),
-                                    false => WINDOW_SIZE,
-                                }
-                                .into(),
-                            ),
-                            W => window
-                                .set_cursor_position(
-                                    (WINDOW_SIZE.0 as i32 / 2, WINDOW_SIZE.1 as i32 / 2).into(),
+                            S => {
+                                window.set_inner_size(
+                                    match state {
+                                        true => (WINDOW_SIZE.0 + 100, WINDOW_SIZE.1 + 100),
+                                        false => WINDOW_SIZE,
+                                    }
+                                    .into(),
                                 )
-                                .unwrap(),
+                            },
+                            W => {
+                                window
+                                    .set_cursor_position(
+                                        (WINDOW_SIZE.0 as i32 / 2, WINDOW_SIZE.1 as i32 / 2).into(),
+                                    )
+                                    .unwrap()
+                            },
                             Z => {
                                 window.set_visible(false);
                                 thread::sleep(Duration::from_secs(1));
@@ -104,24 +114,26 @@ fn main() {
             false => ControlFlow::Exit,
         };
         match event {
-            Event::WindowEvent { event, window_id } => match event {
-                WindowEvent::CloseRequested
-                | WindowEvent::Destroyed
-                | WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            ..
-                        },
-                    ..
-                } => {
-                    window_senders.remove(&window_id);
-                },
-                _ => {
-                    if let Some(tx) = window_senders.get(&window_id) {
-                        tx.send(event).unwrap();
-                    }
-                },
+            Event::WindowEvent { event, window_id } => {
+                match event {
+                    WindowEvent::CloseRequested
+                    | WindowEvent::Destroyed
+                    | WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                virtual_keycode: Some(VirtualKeyCode::Escape),
+                                ..
+                            },
+                        ..
+                    } => {
+                        window_senders.remove(&window_id);
+                    },
+                    _ => {
+                        if let Some(tx) = window_senders.get(&window_id) {
+                            tx.send(event).unwrap();
+                        }
+                    },
+                }
             },
             _ => (),
         }

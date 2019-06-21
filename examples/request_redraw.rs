@@ -1,4 +1,3 @@
-extern crate winit;
 use std::time::{Duration, Instant};
 
 use winit::{

@@ -122,9 +122,11 @@ pub trait EventLoopExtUnix {
 impl<T> EventLoopExtUnix for EventLoop<T> {
     #[inline]
     fn new_x11() -> Result<Self, XNotSupported> {
-        LinuxEventLoop::new_x11().map(|ev| EventLoop {
-            event_loop: ev,
-            _marker: ::std::marker::PhantomData,
+        LinuxEventLoop::new_x11().map(|ev| {
+            EventLoop {
+                event_loop: ev,
+                _marker: ::std::marker::PhantomData,
+            }
         })
     }
 

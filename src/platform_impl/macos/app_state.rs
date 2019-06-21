@@ -213,9 +213,11 @@ impl AppState {
         let start = HANDLER.get_start_time().unwrap();
         let cause = match HANDLER.get_control_flow_and_update_prev() {
             ControlFlow::Poll => StartCause::Poll,
-            ControlFlow::Wait => StartCause::WaitCancelled {
-                start,
-                requested_resume: None,
+            ControlFlow::Wait => {
+                StartCause::WaitCancelled {
+                    start,
+                    requested_resume: None,
+                }
             },
             ControlFlow::WaitUntil(requested_resume) => {
                 if Instant::now() >= requested_resume {

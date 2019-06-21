@@ -410,14 +410,18 @@ impl<T> EventLoopRunner<T> {
                     let start_cause = match Instant::now() >= resume_time {
                         // If the current time is later than the requested resume time, the resume time
                         // has been reached.
-                        true => StartCause::ResumeTimeReached {
-                            start: wait_start,
-                            requested_resume: resume_time,
+                        true => {
+                            StartCause::ResumeTimeReached {
+                                start: wait_start,
+                                requested_resume: resume_time,
+                            }
                         },
                         // Otherwise, the requested resume time HASN'T been reached and we send a WaitCancelled.
-                        false => StartCause::WaitCancelled {
-                            start: wait_start,
-                            requested_resume: Some(resume_time),
+                        false => {
+                            StartCause::WaitCancelled {
+                                start: wait_start,
+                                requested_resume: Some(resume_time),
+                            }
                         },
                     };
                     self.call_event_handler(Event::NewEvents(start_cause));
@@ -477,12 +481,14 @@ impl<T> EventLoopRunner<T> {
 
     fn call_event_handler(&mut self, event: Event<T>) {
         match event {
-            Event::NewEvents(_) => self
-                .trigger_newevents_on_redraw
-                .store(true, Ordering::Relaxed),
-            Event::EventsCleared => self
-                .trigger_newevents_on_redraw
-                .store(false, Ordering::Relaxed),
+            Event::NewEvents(_) => {
+                self.trigger_newevents_on_redraw
+                    .store(true, Ordering::Relaxed)
+            },
+            Event::EventsCleared => {
+                self.trigger_newevents_on_redraw
+                    .store(false, Ordering::Relaxed)
+            },
             _ => (),
         }
 
@@ -886,14 +892,16 @@ unsafe extern "system" fn public_window_callback<T>(
                 };
                 match runner_state {
                     RunnerState::Idle(..) | RunnerState::DeferredNewEvents(..) => request_redraw(),
-                    RunnerState::HandlingEvents => match control_flow {
-                        ControlFlow::Poll => request_redraw(),
-                        ControlFlow::WaitUntil(resume_time) => {
-                            if resume_time <= Instant::now() {
-                                request_redraw()
-                            }
-                        },
-                        _ => (),
+                    RunnerState::HandlingEvents => {
+                        match control_flow {
+                            ControlFlow::Poll => request_redraw(),
+                            ControlFlow::WaitUntil(resume_time) => {
+                                if resume_time <= Instant::now() {
+                                    request_redraw()
+                                }
+                            },
+                            _ => (),
+                        }
                     },
                     _ => (),
                 }

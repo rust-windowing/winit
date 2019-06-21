@@ -1,4 +1,3 @@
-extern crate winit;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},

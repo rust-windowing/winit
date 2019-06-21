@@ -293,22 +293,24 @@ pub fn handle_extended_keys(
                 winuser::VK_LMENU
             }
         },
-        _ => match scancode {
-            // This is only triggered when using raw input. Without this check, we get two events whenever VK_PAUSE is
-            // pressed, the first one having scancode 0x1D but vkey VK_PAUSE...
-            0x1D if vkey == winuser::VK_PAUSE => return None,
-            // ...and the second having scancode 0x45 but an unmatched vkey!
-            0x45 => winuser::VK_PAUSE,
-            // VK_PAUSE and VK_SCROLL have the same scancode when using modifiers, alongside incorrect vkey values.
-            0x46 => {
-                if extended {
-                    scancode = 0x45;
-                    winuser::VK_PAUSE
-                } else {
-                    winuser::VK_SCROLL
-                }
-            },
-            _ => vkey,
+        _ => {
+            match scancode {
+                // This is only triggered when using raw input. Without this check, we get two events whenever VK_PAUSE is
+                // pressed, the first one having scancode 0x1D but vkey VK_PAUSE...
+                0x1D if vkey == winuser::VK_PAUSE => return None,
+                // ...and the second having scancode 0x45 but an unmatched vkey!
+                0x45 => winuser::VK_PAUSE,
+                // VK_PAUSE and VK_SCROLL have the same scancode when using modifiers, alongside incorrect vkey values.
+                0x46 => {
+                    if extended {
+                        scancode = 0x45;
+                        winuser::VK_PAUSE
+                    } else {
+                        winuser::VK_SCROLL
+                    }
+                },
+                _ => vkey,
+            }
         },
     };
     Some((vkey, scancode))

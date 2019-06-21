@@ -86,45 +86,47 @@ impl Window {
             &evlp.env,
             bg_surface.clone(),
             (width, height),
-            move |event| match event {
-                WEvent::Configure { new_size, states } => {
-                    let mut store = window_store.lock().unwrap();
-                    let is_fullscreen = states.contains(&WState::Fullscreen);
+            move |event| {
+                match event {
+                    WEvent::Configure { new_size, states } => {
+                        let mut store = window_store.lock().unwrap();
+                        let is_fullscreen = states.contains(&WState::Fullscreen);
 
-                    for window in &mut store.windows {
-                        if window.surface.as_ref().equals(&my_surface.as_ref()) {
-                            window.newsize = new_size;
-                            *(window.need_refresh.lock().unwrap()) = true;
-                            *(window.fullscreen.lock().unwrap()) = is_fullscreen;
-                            *(window.need_frame_refresh.lock().unwrap()) = true;
-                            if !window.configured {
-                                // this is our first configure event, display ourselves !
-                                window.configured = true;
-                                my_bg_surface.attach(Some(&buffer), 0, 0);
-                                my_bg_surface.commit();
+                        for window in &mut store.windows {
+                            if window.surface.as_ref().equals(&my_surface.as_ref()) {
+                                window.newsize = new_size;
+                                *(window.need_refresh.lock().unwrap()) = true;
+                                *(window.fullscreen.lock().unwrap()) = is_fullscreen;
+                                *(window.need_frame_refresh.lock().unwrap()) = true;
+                                if !window.configured {
+                                    // this is our first configure event, display ourselves !
+                                    window.configured = true;
+                                    my_bg_surface.attach(Some(&buffer), 0, 0);
+                                    my_bg_surface.commit();
+                                }
+                                return;
                             }
-                            return;
                         }
-                    }
-                },
-                WEvent::Refresh => {
-                    let store = window_store.lock().unwrap();
-                    for window in &store.windows {
-                        if window.surface.as_ref().equals(&my_surface.as_ref()) {
-                            *(window.need_frame_refresh.lock().unwrap()) = true;
-                            return;
+                    },
+                    WEvent::Refresh => {
+                        let store = window_store.lock().unwrap();
+                        for window in &store.windows {
+                            if window.surface.as_ref().equals(&my_surface.as_ref()) {
+                                *(window.need_frame_refresh.lock().unwrap()) = true;
+                                return;
+                            }
                         }
-                    }
-                },
-                WEvent::Close => {
-                    let mut store = window_store.lock().unwrap();
-                    for window in &mut store.windows {
-                        if window.surface.as_ref().equals(&my_surface.as_ref()) {
-                            window.closed = true;
-                            return;
+                    },
+                    WEvent::Close => {
+                        let mut store = window_store.lock().unwrap();
+                        for window in &mut store.windows {
+                            if window.surface.as_ref().equals(&my_surface.as_ref()) {
+                                window.closed = true;
+                                return;
+                            }
                         }
-                    }
-                },
+                    },
+                }
             },
         )
         .unwrap();

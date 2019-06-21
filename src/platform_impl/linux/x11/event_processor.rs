@@ -596,33 +596,39 @@ impl<T: 'static> EventProcessor<T> {
                             Released
                         };
                         match xev.detail as u32 {
-                            ffi::Button1 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Left,
-                                    modifiers,
-                                },
-                            }),
-                            ffi::Button2 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Middle,
-                                    modifiers,
-                                },
-                            }),
-                            ffi::Button3 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Right,
-                                    modifiers,
-                                },
-                            }),
+                            ffi::Button1 => {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: MouseInput {
+                                        device_id,
+                                        state,
+                                        button: Left,
+                                        modifiers,
+                                    },
+                                })
+                            },
+                            ffi::Button2 => {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: MouseInput {
+                                        device_id,
+                                        state,
+                                        button: Middle,
+                                        modifiers,
+                                    },
+                                })
+                            },
+                            ffi::Button3 => {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: MouseInput {
+                                        device_id,
+                                        state,
+                                        button: Right,
+                                        modifiers,
+                                    },
+                                })
+                            },
 
                             // Suppress emulated scroll wheel clicks, since we handle the real motion events for those.
                             // In practice, even clicky scroll wheels appear to be reported by evdev (and XInput2 in
@@ -647,15 +653,17 @@ impl<T: 'static> EventProcessor<T> {
                                 }
                             },
 
-                            x => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Other(x as u8),
-                                    modifiers,
-                                },
-                            }),
+                            x => {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: MouseInput {
+                                        device_id,
+                                        state,
+                                        button: Other(x as u8),
+                                        modifiers,
+                                    },
+                                })
+                            },
                         }
                     },
                     ffi::XI_Motion => {

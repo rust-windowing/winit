@@ -137,21 +137,23 @@ impl<T: 'static> EventLoop<T> {
         let env = Environment::from_display_with_cb(
             &display,
             &mut event_queue,
-            move |event, registry| match event {
-                GlobalEvent::New {
-                    id,
-                    ref interface,
-                    version,
-                } => {
-                    if interface == "wl_seat" {
-                        seat_manager.add_seat(id, version, registry)
-                    }
-                },
-                GlobalEvent::Removed { id, ref interface } => {
-                    if interface == "wl_seat" {
-                        seat_manager.remove_seat(id)
-                    }
-                },
+            move |event, registry| {
+                match event {
+                    GlobalEvent::New {
+                        id,
+                        ref interface,
+                        version,
+                    } => {
+                        if interface == "wl_seat" {
+                            seat_manager.add_seat(id, version, registry)
+                        }
+                    },
+                    GlobalEvent::Removed { id, ref interface } => {
+                        if interface == "wl_seat" {
+                            seat_manager.remove_seat(id)
+                        }
+                    },
+                }
             },
         )
         .unwrap();
@@ -646,10 +648,12 @@ impl MonitorHandle {
             .with_info(&self.proxy, |_, info| info.modes.clone())
             .unwrap_or(vec![])
             .into_iter()
-            .map(|x| VideoMode {
-                size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
-                refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
-                bit_depth: 32,
+            .map(|x| {
+                VideoMode {
+                    size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
+                    refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
+                    bit_depth: 32,
+                }
             })
     }
 }
@@ -670,9 +674,11 @@ pub fn primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
 pub fn available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorHandle> {
     outputs.with_all(|list| {
         list.iter()
-            .map(|&(_, ref proxy, _)| MonitorHandle {
-                proxy: proxy.clone(),
-                mgr: outputs.clone(),
+            .map(|&(_, ref proxy, _)| {
+                MonitorHandle {
+                    proxy: proxy.clone(),
+                    mgr: outputs.clone(),
+                }
             })
             .collect()
     })

@@ -1,5 +1,3 @@
-extern crate winit;
-
 use std::collections::HashMap;
 use winit::{
     event::{ElementState, Event, KeyboardInput, WindowEvent},

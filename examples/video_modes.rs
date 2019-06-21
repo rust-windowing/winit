@@ -1,5 +1,3 @@
-extern crate winit;
-
 use winit::event_loop::EventLoop;
 
 fn main() {

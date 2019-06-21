@@ -1,6 +1,4 @@
 extern crate image;
-extern crate winit;
-
 use std::path::Path;
 use winit::{
     event::Event,

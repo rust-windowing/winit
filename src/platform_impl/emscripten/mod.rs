@@ -801,17 +801,21 @@ fn key_translate_virt(
     };
     use VirtualKeyCode::*;
     match key {
-        "Alt" => match location {
-            ffi::DOM_KEY_LOCATION_LEFT => Some(LAlt),
-            ffi::DOM_KEY_LOCATION_RIGHT => Some(RAlt),
-            _ => None,
+        "Alt" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_LEFT => Some(LAlt),
+                ffi::DOM_KEY_LOCATION_RIGHT => Some(RAlt),
+                _ => None,
+            }
         },
         "AltGraph" => None,
         "CapsLock" => None,
-        "Control" => match location {
-            ffi::DOM_KEY_LOCATION_LEFT => Some(LControl),
-            ffi::DOM_KEY_LOCATION_RIGHT => Some(RControl),
-            _ => None,
+        "Control" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_LEFT => Some(LControl),
+                ffi::DOM_KEY_LOCATION_RIGHT => Some(RControl),
+                _ => None,
+            }
         },
         "Fn" => None,
         "FnLock" => None,
@@ -819,18 +823,22 @@ fn key_translate_virt(
         "Meta" => None,
         "NumLock" => Some(Numlock),
         "ScrollLock" => Some(Scroll),
-        "Shift" => match location {
-            ffi::DOM_KEY_LOCATION_LEFT => Some(LShift),
-            ffi::DOM_KEY_LOCATION_RIGHT => Some(RShift),
-            _ => None,
+        "Shift" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_LEFT => Some(LShift),
+                ffi::DOM_KEY_LOCATION_RIGHT => Some(RShift),
+                _ => None,
+            }
         },
         "Super" => None,
         "Symbol" => None,
         "SymbolLock" => None,
 
-        "Enter" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadEnter),
-            _ => Some(Return),
+        "Enter" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadEnter),
+                _ => Some(Return),
+            }
         },
         "Tab" => Some(Tab),
         " " => Some(Space),
@@ -1155,45 +1163,65 @@ fn key_translate_virt(
         "Divide" => Some(Divide),
         "Subtract" | "-" => Some(Subtract),
         "Separator" => None,
-        "0" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad0),
-            _ => Some(Key0),
+        "0" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad0),
+                _ => Some(Key0),
+            }
         },
-        "1" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad1),
-            _ => Some(Key1),
+        "1" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad1),
+                _ => Some(Key1),
+            }
         },
-        "2" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad2),
-            _ => Some(Key2),
+        "2" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad2),
+                _ => Some(Key2),
+            }
         },
-        "3" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad3),
-            _ => Some(Key3),
+        "3" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad3),
+                _ => Some(Key3),
+            }
         },
-        "4" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad4),
-            _ => Some(Key4),
+        "4" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad4),
+                _ => Some(Key4),
+            }
         },
-        "5" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad5),
-            _ => Some(Key5),
+        "5" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad5),
+                _ => Some(Key5),
+            }
         },
-        "6" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad6),
-            _ => Some(Key6),
+        "6" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad6),
+                _ => Some(Key6),
+            }
         },
-        "7" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad7),
-            _ => Some(Key7),
+        "7" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad7),
+                _ => Some(Key7),
+            }
         },
-        "8" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad8),
-            _ => Some(Key8),
+        "8" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad8),
+                _ => Some(Key8),
+            }
         },
-        "9" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad9),
-            _ => Some(Key9),
+        "9" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad9),
+                _ => Some(Key9),
+            }
         },
 
         "A" | "a" => Some(A),
@@ -1226,13 +1254,17 @@ fn key_translate_virt(
         "'" => Some(Apostrophe),
         "\\" => Some(Backslash),
         ":" => Some(Colon),
-        "," => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadComma),
-            _ => Some(Comma),
+        "," => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadComma),
+                _ => Some(Comma),
+            }
         },
-        "=" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadEquals),
-            _ => Some(Equals),
+        "=" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadEquals),
+                _ => Some(Equals),
+            }
         },
         "{" => Some(LBracket),
         "." => Some(Period),

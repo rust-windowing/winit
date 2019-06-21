@@ -1,4 +1,3 @@
-extern crate winit;
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 fn main() {
