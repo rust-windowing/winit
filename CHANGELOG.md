@@ -1,5 +1,7 @@
 # Unreleased
 
+- Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
+
 # 0.20.0 Alpha 1
 
 - Changes below are considered **breaking**.

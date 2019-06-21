@@ -37,10 +37,11 @@ pub enum Event<T> {
     /// emitted, it is guaranteed to be the last event emitted.
     LoopDestroyed,
 
-    /// Emitted when the application has been suspended or resumed.
-    ///
-    /// The parameter is true if app was suspended, and false if it has been resumed.
-    Suspended(bool),
+    /// Emitted when the application has been suspended.
+    Suspended,
+
+    /// Emitted when the application has been resumed.
+    Resumed,
 }
 
 impl<T> Event<T> {
@@ -53,7 +54,8 @@ impl<T> Event<T> {
             NewEvents(cause) => Ok(NewEvents(cause)),
             EventsCleared => Ok(EventsCleared),
             LoopDestroyed => Ok(LoopDestroyed),
-            Suspended(suspended) => Ok(Suspended(suspended)),
+            Suspended => Ok(Suspended),
+            Resumed => Ok(Resumed),
         }
     }
 }
