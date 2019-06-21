@@ -1,11 +1,13 @@
 //! The `Window` struct and associated types.
 use std::fmt;
 
-use crate::platform_impl;
-use crate::error::{ExternalError, NotSupportedError, OsError};
-use crate::event_loop::EventLoopWindowTarget;
-use crate::monitor::{AvailableMonitorsIter, MonitorHandle};
-use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::{
+    dpi::{LogicalPosition, LogicalSize},
+    error::{ExternalError, NotSupportedError, OsError},
+    event_loop::EventLoopWindowTarget,
+    monitor::{AvailableMonitorsIter, MonitorHandle},
+    platform_impl,
+};
 
 pub use crate::icon::*;
 
@@ -14,18 +16,21 @@ pub use crate::icon::*;
 /// # Example
 ///
 /// ```no_run
-/// use winit::window::Window;
-/// use winit::event::{Event, WindowEvent};
-/// use winit::event_loop::{EventLoop, ControlFlow};
+/// use winit::{
+///     event::{Event, WindowEvent},
+///     event_loop::{ControlFlow, EventLoop},
+///     window::Window,
+/// };
 ///
 /// let mut event_loop = EventLoop::new();
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
 ///     match event {
-///         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-///             *control_flow = ControlFlow::Exit
-///         },
+///         Event::WindowEvent {
+///             event: WindowEvent::CloseRequested,
+///             ..
+///         } => *control_flow = ControlFlow::Exit,
 ///         _ => *control_flow = ControlFlow::Wait,
 ///     }
 /// });
@@ -283,7 +288,10 @@ impl WindowBuilder {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     /// out of memory, etc.
     #[inline]
-    pub fn build<T: 'static>(mut self, window_target: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
+    pub fn build<T: 'static>(
+        mut self,
+        window_target: &EventLoopWindowTarget<T>,
+    ) -> Result<Window, OsError> {
         self.window.inner_size = Some(self.window.inner_size.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
@@ -295,11 +303,8 @@ impl WindowBuilder {
         }));
 
         // building
-        platform_impl::Window::new(
-            &window_target.p,
-            self.window,
-            self.platform_specific,
-        ).map(|window| Window { window })
+        platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)
+            .map(|window| Window { window })
     }
 }
 
@@ -678,7 +683,9 @@ impl Window {
     #[inline]
     pub fn available_monitors(&self) -> AvailableMonitorsIter {
         let data = self.window.available_monitors();
-        AvailableMonitorsIter { data: data.into_iter() }
+        AvailableMonitorsIter {
+            data: data.into_iter(),
+        }
     }
 
     /// Returns the primary monitor of the system.
@@ -690,7 +697,9 @@ impl Window {
     /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle { inner: self.window.primary_monitor() }
+        MonitorHandle {
+            inner: self.window.primary_monitor(),
+        }
     }
 }
 

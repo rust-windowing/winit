@@ -1,16 +1,25 @@
-use winapi::shared::minwindef::{BOOL, DWORD, LPARAM, TRUE, WORD};
-use winapi::shared::windef::{HDC, HMONITOR, HWND, LPRECT, POINT};
-use winapi::um::winnt::LONG;
-use winapi::um::{wingdi, winuser};
+use winapi::{
+    shared::{
+        minwindef::{BOOL, DWORD, LPARAM, TRUE, WORD},
+        windef::{HDC, HMONITOR, HWND, LPRECT, POINT},
+    },
+    um::{wingdi, winnt::LONG, winuser},
+};
 
-use std::collections::{HashSet, VecDeque};
-use std::{io, mem, ptr};
+use std::{
+    collections::{HashSet, VecDeque},
+    io, mem, ptr,
+};
 
 use super::{util, EventLoop};
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::VideoMode;
-use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
-use crate::platform_impl::platform::window::Window;
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    monitor::VideoMode,
+    platform_impl::platform::{
+        dpi::{dpi_to_scale_factor, get_monitor_dpi},
+        window::Window,
+    },
+};
 
 /// Win32 implementation of the main `MonitorHandle` object.
 #[derive(Derivative)]
@@ -69,16 +78,12 @@ pub fn available_monitors() -> VecDeque<MonitorHandle> {
 
 pub fn primary_monitor() -> MonitorHandle {
     const ORIGIN: POINT = POINT { x: 0, y: 0 };
-    let hmonitor = unsafe {
-        winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY)
-    };
+    let hmonitor = unsafe { winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY) };
     MonitorHandle::from_hmonitor(hmonitor)
 }
 
 pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
-    let hmonitor = unsafe {
-        winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST)
-    };
+    let hmonitor = unsafe { winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST) };
     MonitorHandle::from_hmonitor(hmonitor)
 }
 

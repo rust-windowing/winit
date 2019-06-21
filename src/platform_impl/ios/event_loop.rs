@@ -1,50 +1,33 @@
-use std::{mem, ptr};
-use std::collections::VecDeque;
-use std::ffi::c_void;
-use std::fmt::{self, Debug, Formatter};
-use std::marker::PhantomData;
-use std::sync::mpsc::{self, Sender, Receiver};
-
-use crate::event::Event;
-use crate::event_loop::{
-    ControlFlow,
-    EventLoopWindowTarget as RootEventLoopWindowTarget,
-    EventLoopClosed,
+use std::{
+    collections::VecDeque,
+    ffi::c_void,
+    fmt::{self, Debug, Formatter},
+    marker::PhantomData,
+    mem, ptr,
+    sync::mpsc::{self, Receiver, Sender},
 };
-use crate::platform::ios::Idiom;
 
-use crate::platform_impl::platform::app_state::AppState;
-use crate::platform_impl::platform::ffi::{
-    id,
-    nil,
-    CFIndex,
-    CFRelease,
-    CFRunLoopActivity,
-    CFRunLoopAddObserver,
-    CFRunLoopAddSource,
-    CFRunLoopGetMain,
-    CFRunLoopObserverCreate,
-    CFRunLoopObserverRef,
-    CFRunLoopSourceContext,
-    CFRunLoopSourceCreate,
-    CFRunLoopSourceInvalidate,
-    CFRunLoopSourceRef,
-    CFRunLoopSourceSignal,
-    CFRunLoopWakeUp,
-    kCFRunLoopCommonModes,
-    kCFRunLoopDefaultMode,
-    kCFRunLoopEntry,
-    kCFRunLoopBeforeWaiting,
-    kCFRunLoopAfterWaiting,
-    kCFRunLoopExit,
-    NSOperatingSystemVersion,
-    NSString,
-    UIApplicationMain,
-    UIUserInterfaceIdiom,
+use crate::{
+    event::Event,
+    event_loop::{
+        ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
+    },
+    platform::ios::Idiom,
 };
-use crate::platform_impl::platform::monitor;
-use crate::platform_impl::platform::MonitorHandle;
-use crate::platform_impl::platform::view;
+
+use crate::platform_impl::platform::{
+    app_state::AppState,
+    ffi::{
+        id, kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes,
+        kCFRunLoopDefaultMode, kCFRunLoopEntry, kCFRunLoopExit, nil, CFIndex, CFRelease,
+        CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain,
+        CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext,
+        CFRunLoopSourceCreate, CFRunLoopSourceInvalidate, CFRunLoopSourceRef,
+        CFRunLoopSourceSignal, CFRunLoopWakeUp, NSOperatingSystemVersion, NSString,
+        UIApplicationMain, UIUserInterfaceIdiom,
+    },
+    monitor, view, MonitorHandle,
+};
 
 pub struct EventLoopWindowTarget<T: 'static> {
     receiver: Receiver<T>,
@@ -67,8 +50,11 @@ impl<T: 'static> EventLoop<T> {
         static mut SINGLETON_INIT: bool = false;
         unsafe {
             assert_main_thread!("`EventLoop` can only be created on the main thread on iOS");
-            assert!(!SINGLETON_INIT, "Only one `EventLoop` is supported on iOS. \
-                `EventLoopProxy` might be helpful");
+            assert!(
+                !SINGLETON_INIT,
+                "Only one `EventLoop` is supported on iOS. \
+                 `EventLoopProxy` might be helpful"
+            );
             SINGLETON_INIT = true;
             view::create_delegate_class();
         }
@@ -92,25 +78,34 @@ impl<T: 'static> EventLoop<T> {
                     capabilities,
                 },
                 _marker: PhantomData,
-            }
+            },
         }
     }
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow)
+        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
             let application: *mut c_void = msg_send![class!(UIApplication), sharedApplication];
-            assert_eq!(application, ptr::null_mut(), "\
-                `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
-                Note: `EventLoop::run` calls `UIApplicationMain` on iOS");
+            assert_eq!(
+                application,
+                ptr::null_mut(),
+                "\
+                 `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
+                 Note: `EventLoop::run` calls `UIApplicationMain` on iOS"
+            );
             AppState::will_launch(Box::new(EventLoopHandler {
                 f: event_handler,
                 event_loop: self.window_target,
             }));
 
-            UIApplicationMain(0, ptr::null(), nil, NSString::alloc(nil).init_str("AppDelegate"));
+            UIApplicationMain(
+                0,
+                ptr::null(),
+                nil,
+                NSString::alloc(nil).init_str("AppDelegate"),
+            );
             unreachable!()
         }
     }
@@ -121,16 +116,12 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         // guaranteed to be on main thread
-        unsafe {
-            monitor::uiscreens()
-        }
+        unsafe { monitor::uiscreens() }
     }
 
     pub fn primary_monitor(&self) -> MonitorHandle {
         // guaranteed to be on main thread
-        unsafe {
-            monitor::main_uiscreen()
-        }
+        unsafe { monitor::main_uiscreen() }
     }
 
     pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
@@ -142,9 +133,7 @@ impl<T: 'static> EventLoop<T> {
 impl<T: 'static> EventLoop<T> {
     pub fn idiom(&self) -> Idiom {
         // guaranteed to be on main thread
-        unsafe {
-            self::get_idiom()
-        }
+        unsafe { self::get_idiom() }
     }
 }
 
@@ -183,18 +172,12 @@ impl<T> EventLoopProxy<T> {
             // we want all the members of context to be zero/null, except one
             let mut context: CFRunLoopSourceContext = mem::zeroed();
             context.perform = event_loop_proxy_handler;
-            let source = CFRunLoopSourceCreate(
-                ptr::null_mut(),
-                CFIndex::max_value() - 1,
-                &mut context,
-            );
+            let source =
+                CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            EventLoopProxy {
-                sender,
-                source,
-            }
+            EventLoopProxy { sender, source }
         }
     }
 
@@ -213,7 +196,7 @@ impl<T> EventLoopProxy<T> {
 fn setup_control_flow_observers() {
     unsafe {
         // begin is queued with the highest priority to ensure it is processed before other observers
-        extern fn control_flow_begin_handler(
+        extern "C" fn control_flow_begin_handler(
             _: CFRunLoopObserverRef,
             activity: CFRunLoopActivity,
             _: *mut c_void,
@@ -230,7 +213,7 @@ fn setup_control_flow_observers() {
 
         // end is queued with the lowest priority to ensure it is processed after other observers
         // without that, LoopDestroyed will get sent after EventsCleared
-        extern fn control_flow_end_handler(
+        extern "C" fn control_flow_end_handler(
             _: CFRunLoopObserverRef,
             activity: CFRunLoopActivity,
             _: *mut c_void,
@@ -282,7 +265,8 @@ struct EventLoopHandler<F, T: 'static> {
 
 impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.debug_struct("EventLoopHandler")
+        formatter
+            .debug_struct("EventLoopHandler")
             .field("event_loop", &self.event_loop)
             .finish()
     }
@@ -303,11 +287,7 @@ where
 
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
         for event in self.event_loop.p.receiver.try_iter() {
-            (self.f)(
-                Event::UserEvent(event),
-                &self.event_loop,
-                control_flow,
-            );
+            (self.f)(Event::UserEvent(event), &self.event_loop, control_flow);
         }
     }
 }
@@ -325,7 +305,10 @@ pub struct Capabilities {
 
 impl From<NSOperatingSystemVersion> for Capabilities {
     fn from(os_version: NSOperatingSystemVersion) -> Capabilities {
-        assert!(os_version.major >= 8, "`winit` current requires iOS version 8 or greater");
+        assert!(
+            os_version.major >= 8,
+            "`winit` current requires iOS version 8 or greater"
+        );
 
         let supports_safe_area = os_version.major >= 11;
 

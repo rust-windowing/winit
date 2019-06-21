@@ -24,7 +24,7 @@ impl XConnection {
 
     pub fn send_client_msg(
         &self,
-        window: c_ulong,        // The window this is "about"; not necessarily this window
+        window: c_ulong, // The window this is "about"; not necessarily this window
         target_window: c_ulong, // The window we're sending to
         message_type: ffi::Atom,
         event_mask: Option<c_long>,
@@ -45,7 +45,7 @@ impl XConnection {
     // to send more than one message worth of data.
     pub fn send_client_msg_multi<T: Formattable>(
         &self,
-        window: c_ulong,        // The window this is "about"; not necessarily this window
+        window: c_ulong, // The window this is "about"; not necessarily this window
         target_window: c_ulong, // The window we're sending to
         message_type: ffi::Atom,
         event_mask: Option<c_long>,

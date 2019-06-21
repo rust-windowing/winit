@@ -10,8 +10,10 @@ use cocoa::{
 };
 use dispatch::ffi::{dispatch_async_f, dispatch_get_main_queue, dispatch_sync_f};
 
-use crate::dpi::LogicalSize;
-use crate::platform_impl::platform::{ffi, util::IdRef, window::SharedState};
+use crate::{
+    dpi::LogicalSize,
+    platform_impl::platform::{ffi, util::IdRef, window::SharedState},
+};
 
 unsafe fn set_style_mask(ns_window: id, ns_view: id, mask: NSWindowStyleMask) {
     ns_window.setStyleMask_(mask);
@@ -26,15 +28,15 @@ struct SetStyleMaskData {
     mask: NSWindowStyleMask,
 }
 impl SetStyleMaskData {
-    fn new_ptr(
-        ns_window: id,
-        ns_view: id,
-        mask: NSWindowStyleMask,
-    ) -> *mut Self {
-        Box::into_raw(Box::new(SetStyleMaskData { ns_window, ns_view, mask }))
+    fn new_ptr(ns_window: id, ns_view: id, mask: NSWindowStyleMask) -> *mut Self {
+        Box::into_raw(Box::new(SetStyleMaskData {
+            ns_window,
+            ns_view,
+            mask,
+        }))
     }
 }
-extern fn set_style_mask_callback(context: *mut c_void) {
+extern "C" fn set_style_mask_callback(context: *mut c_void) {
     unsafe {
         let context_ptr = context as *mut SetStyleMaskData;
         {
@@ -70,14 +72,11 @@ struct SetContentSizeData {
     size: LogicalSize,
 }
 impl SetContentSizeData {
-    fn new_ptr(
-        ns_window: id,
-        size: LogicalSize,
-    ) -> *mut Self {
+    fn new_ptr(ns_window: id, size: LogicalSize) -> *mut Self {
         Box::into_raw(Box::new(SetContentSizeData { ns_window, size }))
     }
 }
-extern fn set_content_size_callback(context: *mut c_void) {
+extern "C" fn set_content_size_callback(context: *mut c_void) {
     unsafe {
         let context_ptr = context as *mut SetContentSizeData;
         {
@@ -109,14 +108,11 @@ struct SetFrameTopLeftPointData {
     point: NSPoint,
 }
 impl SetFrameTopLeftPointData {
-    fn new_ptr(
-        ns_window: id,
-        point: NSPoint,
-    ) -> *mut Self {
+    fn new_ptr(ns_window: id, point: NSPoint) -> *mut Self {
         Box::into_raw(Box::new(SetFrameTopLeftPointData { ns_window, point }))
     }
 }
-extern fn set_frame_top_left_point_callback(context: *mut c_void) {
+extern "C" fn set_frame_top_left_point_callback(context: *mut c_void) {
     unsafe {
         let context_ptr = context as *mut SetFrameTopLeftPointData;
         {
@@ -142,14 +138,11 @@ struct SetLevelData {
     level: ffi::NSWindowLevel,
 }
 impl SetLevelData {
-    fn new_ptr(
-        ns_window: id,
-        level: ffi::NSWindowLevel,
-    ) -> *mut Self {
+    fn new_ptr(ns_window: id, level: ffi::NSWindowLevel) -> *mut Self {
         Box::into_raw(Box::new(SetLevelData { ns_window, level }))
     }
 }
-extern fn set_level_callback(context: *mut c_void) {
+extern "C" fn set_level_callback(context: *mut c_void) {
     unsafe {
         let context_ptr = context as *mut SetLevelData;
         {
@@ -190,7 +183,7 @@ impl ToggleFullScreenData {
         }))
     }
 }
-extern fn toggle_full_screen_callback(context: *mut c_void) {
+extern "C" fn toggle_full_screen_callback(context: *mut c_void) {
     unsafe {
         let context_ptr = context as *mut ToggleFullScreenData;
         {
@@ -227,12 +220,7 @@ pub unsafe fn toggle_full_screen_async(
     not_fullscreen: bool,
     shared_state: Weak<Mutex<SharedState>>,
 ) {
-    let context = ToggleFullScreenData::new_ptr(
-        ns_window,
-        ns_view,
-        not_fullscreen,
-        shared_state,
-    );
+    let context = ToggleFullScreenData::new_ptr(ns_window, ns_view, not_fullscreen, shared_state);
     dispatch_async_f(
         dispatch_get_main_queue(),
         context as *mut _,
@@ -325,7 +313,7 @@ impl OrderOutData {
         Box::into_raw(Box::new(OrderOutData { ns_window }))
     }
 }
-extern fn order_out_callback(context: *mut c_void) {
+extern "C" fn order_out_callback(context: *mut c_void) {
     unsafe {
         let context_ptr = context as *mut OrderOutData;
         {
@@ -354,7 +342,7 @@ impl MakeKeyAndOrderFrontData {
         Box::into_raw(Box::new(MakeKeyAndOrderFrontData { ns_window }))
     }
 }
-extern fn make_key_and_order_front_callback(context: *mut c_void) {
+extern "C" fn make_key_and_order_front_callback(context: *mut c_void) {
     unsafe {
         let context_ptr = context as *mut MakeKeyAndOrderFrontData;
         {
@@ -415,7 +403,7 @@ impl CloseData {
         Box::into_raw(Box::new(CloseData { ns_window }))
     }
 }
-extern fn close_callback(context: *mut c_void) {
+extern "C" fn close_callback(context: *mut c_void) {
     unsafe {
         let context_ptr = context as *mut CloseData;
         {
@@ -431,9 +419,5 @@ extern fn close_callback(context: *mut c_void) {
 // thread. Though, it's a good idea to look into that more...
 pub unsafe fn close_async(ns_window: id) {
     let context = CloseData::new_ptr(ns_window);
-    dispatch_async_f(
-        dispatch_get_main_queue(),
-        context as *mut _,
-        close_callback,
-    );
+    dispatch_async_f(dispatch_get_main_queue(), context as *mut _, close_callback);
 }

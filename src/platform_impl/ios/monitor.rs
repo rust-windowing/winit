@@ -4,10 +4,14 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::VideoMode;
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    monitor::VideoMode,
+};
 
-use crate::platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger};
+use crate::platform_impl::platform::ffi::{
+    id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger,
+};
 
 pub struct Inner {
     uiscreen: id,
@@ -30,7 +34,9 @@ impl Deref for MonitorHandle {
 
     fn deref(&self) -> &Inner {
         unsafe {
-            assert_main_thread!("`MonitorHandle` methods can only be run on the main thread on iOS");
+            assert_main_thread!(
+                "`MonitorHandle` methods can only be run on the main thread on iOS"
+            );
         }
         &self.inner
     }
@@ -39,7 +45,9 @@ impl Deref for MonitorHandle {
 impl DerefMut for MonitorHandle {
     fn deref_mut(&mut self) -> &mut Inner {
         unsafe {
-            assert_main_thread!("`MonitorHandle` methods can only be run on the main thread on iOS");
+            assert_main_thread!(
+                "`MonitorHandle` methods can only be run on the main thread on iOS"
+            );
         }
         &mut self.inner
     }
@@ -89,7 +97,9 @@ impl MonitorHandle {
             assert_main_thread!("`MonitorHandle` can only be cloned on the main thread on iOS");
             let () = msg_send![uiscreen, retain];
         }
-        MonitorHandle { inner: Inner { uiscreen } }
+        MonitorHandle {
+            inner: Inner { uiscreen },
+        }
     }
 }
 
@@ -180,7 +190,7 @@ pub unsafe fn uiscreens() -> VecDeque<MonitorHandle> {
     loop {
         let screen: id = msg_send![screens_enum, nextObject];
         if screen == nil {
-            break result
+            break result;
         }
         result.push_back(MonitorHandle::retained_new(screen));
     }

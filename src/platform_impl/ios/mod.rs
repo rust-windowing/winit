@@ -26,7 +26,6 @@
 //! fn start_inner() {
 //!    ...
 //! }
-//!
 //! ```
 //!
 //! Compile project and then drag resulting .a into Xcode project. Add winit.h to xcode.
@@ -78,12 +77,10 @@ mod window;
 
 use std::fmt;
 
-pub use self::event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
-pub use self::monitor::MonitorHandle;
-pub use self::window::{
-    PlatformSpecificWindowBuilderAttributes,
-    Window,
-    WindowId,
+pub use self::{
+    event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
+    monitor::MonitorHandle,
+    window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -108,7 +105,7 @@ pub enum OsError {}
 impl fmt::Display for OsError {
     fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

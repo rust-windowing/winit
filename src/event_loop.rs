@@ -9,13 +9,13 @@
 //! [create_proxy]: ./struct.EventLoop.html#method.create_proxy
 //! [event_loop_proxy]: ./struct.EventLoopProxy.html
 //! [send_event]: ./struct.EventLoopProxy.html#method.send_event
-use std::{fmt, error};
-use std::time::Instant;
-use std::ops::Deref;
+use std::{error, fmt, ops::Deref, time::Instant};
 
-use crate::platform_impl;
-use crate::event::Event;
-use crate::monitor::{AvailableMonitorsIter, MonitorHandle};
+use crate::{
+    event::Event,
+    monitor::{AvailableMonitorsIter, MonitorHandle},
+    platform_impl,
+};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -32,7 +32,7 @@ use crate::monitor::{AvailableMonitorsIter, MonitorHandle};
 /// `EventLoopProxy` allows you to wake up an `EventLoop` from an other thread.
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
-    pub(crate) _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
+    pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
 }
 
 /// Target that associates windows with an `EventLoop`.
@@ -42,7 +42,7 @@ pub struct EventLoop<T: 'static> {
 /// take `&EventLoop`.
 pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) p: platform_impl::EventLoopWindowTarget<T>,
-    pub(crate) _marker: ::std::marker::PhantomData<*mut ()> // Not Send nor Sync
+    pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
 }
 
 impl<T> fmt::Debug for EventLoop<T> {
@@ -82,7 +82,7 @@ pub enum ControlFlow {
     /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `Exit`, and any future attempts to do so will result
     /// in the `control_flow` parameter being reset to `Exit`.
-    Exit
+    Exit,
 }
 
 impl Default for ControlFlow {
@@ -133,7 +133,8 @@ impl<T> EventLoop<T> {
     /// [`ControlFlow`]: ./enum.ControlFlow.html
     #[inline]
     pub fn run<F>(self, event_handler: F) -> !
-        where F: 'static + FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow)
+    where
+        F: 'static + FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.event_loop.run(event_handler)
     }
@@ -149,13 +150,17 @@ impl<T> EventLoop<T> {
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         let data = self.event_loop.available_monitors();
-        AvailableMonitorsIter{ data: data.into_iter() }
+        AvailableMonitorsIter {
+            data: data.into_iter(),
+        }
     }
 
     /// Returns the primary monitor of the system.
     #[inline]
     pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle { inner: self.event_loop.primary_monitor() }
+        MonitorHandle {
+            inner: self.event_loop.primary_monitor(),
+        }
     }
 }
 
@@ -205,4 +210,3 @@ impl error::Error for EventLoopClosed {
         "Tried to wake up a closed `EventLoop`"
     }
 }
-

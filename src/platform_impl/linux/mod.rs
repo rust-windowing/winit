@@ -1,24 +1,21 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::collections::VecDeque;
-use std::{env, mem, fmt};
-use std::ffi::CStr;
-use std::os::raw::*;
-use std::sync::Arc;
+use std::{collections::VecDeque, env, ffi::CStr, fmt, mem, os::raw::*, sync::Arc};
 
 use parking_lot::Mutex;
 use smithay_client_toolkit::reexports::client::ConnectError;
 
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use crate::icon::Icon;
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::event::Event;
-use crate::event_loop::{EventLoopClosed, ControlFlow, EventLoopWindowTarget as RootELW};
-use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode};
-use crate::window::{WindowAttributes, CursorIcon};
-use self::x11::{XConnection, XError};
-use self::x11::ffi::XVisualInfo;
 pub use self::x11::XNotSupported;
+use self::x11::{ffi::XVisualInfo, XConnection, XError};
+use crate::{
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    event::Event,
+    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    icon::Icon,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode},
+    window::{CursorIcon, WindowAttributes},
+};
 
 mod dlopen;
 pub mod wayland;
@@ -43,14 +40,13 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub override_redirect: bool,
     pub x11_window_type: x11::util::WindowType,
     pub gtk_theme_variant: Option<String>,
-    pub app_id: Option<String>
+    pub app_id: Option<String>,
 }
 
-lazy_static!(
-    pub static ref X11_BACKEND: Mutex<Result<Arc<XConnection>, XNotSupported>> = {
-        Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new))
-    };
-);
+lazy_static! {
+    pub static ref X11_BACKEND: Mutex<Result<Arc<XConnection>, XNotSupported>> =
+        { Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)) };
+}
 
 #[derive(Debug, Clone)]
 pub enum OsError {
@@ -269,7 +265,7 @@ impl Window {
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         match self {
             &Window::X(ref w) => w.set_cursor_icon(cursor),
-            &Window::Wayland(ref w) => w.set_cursor_icon(cursor)
+            &Window::Wayland(ref w) => w.set_cursor_icon(cursor),
         }
     }
 
@@ -291,7 +287,7 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
-       match self {
+        match self {
             &Window::X(ref w) => w.hidpi_factor(),
             &Window::Wayland(ref w) => w.hidpi_factor() as f64,
         }
@@ -317,8 +313,13 @@ impl Window {
     pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
         match self {
             &Window::X(ref w) => w.fullscreen(),
-            &Window::Wayland(ref w) => w.fullscreen()
-                .map(|monitor_id| RootMonitorHandle { inner: MonitorHandle::Wayland(monitor_id) })
+            &Window::Wayland(ref w) => {
+                w.fullscreen().map(|monitor_id| {
+                    RootMonitorHandle {
+                        inner: MonitorHandle::Wayland(monitor_id),
+                    }
+                })
+            },
         }
     }
 
@@ -326,7 +327,7 @@ impl Window {
     pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
         match self {
             &Window::X(ref w) => w.set_fullscreen(monitor),
-            &Window::Wayland(ref w) => w.set_fullscreen(monitor)
+            &Window::Wayland(ref w) => w.set_fullscreen(monitor),
         }
     }
 
@@ -334,7 +335,7 @@ impl Window {
     pub fn set_decorations(&self, decorations: bool) {
         match self {
             &Window::X(ref w) => w.set_decorations(decorations),
-            &Window::Wayland(ref w) => w.set_decorations(decorations)
+            &Window::Wayland(ref w) => w.set_decorations(decorations),
         }
     }
 
@@ -373,22 +374,36 @@ impl Window {
     #[inline]
     pub fn current_monitor(&self) -> RootMonitorHandle {
         match self {
-            &Window::X(ref window) => RootMonitorHandle { inner: MonitorHandle::X(window.current_monitor()) },
-            &Window::Wayland(ref window) => RootMonitorHandle { inner: MonitorHandle::Wayland(window.current_monitor()) },
+            &Window::X(ref window) => {
+                RootMonitorHandle {
+                    inner: MonitorHandle::X(window.current_monitor()),
+                }
+            },
+            &Window::Wayland(ref window) => {
+                RootMonitorHandle {
+                    inner: MonitorHandle::Wayland(window.current_monitor()),
+                }
+            },
         }
     }
 
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match self {
-            &Window::X(ref window) => window.available_monitors()
-                .into_iter()
-                .map(MonitorHandle::X)
-                .collect(),
-            &Window::Wayland(ref window) => window.available_monitors()
-                .into_iter()
-                .map(MonitorHandle::Wayland)
-                .collect(),
+            &Window::X(ref window) => {
+                window
+                    .available_monitors()
+                    .into_iter()
+                    .map(MonitorHandle::X)
+                    .collect()
+            },
+            &Window::Wayland(ref window) => {
+                window
+                    .available_monitors()
+                    .into_iter()
+                    .map(MonitorHandle::Wayland)
+                    .collect()
+            },
         }
     }
 
@@ -400,7 +415,6 @@ impl Window {
         }
     }
 }
-
 
 unsafe extern "C" fn x_error_callback(
     display: *mut x11::ffi::Display,
@@ -432,10 +446,9 @@ unsafe extern "C" fn x_error_callback(
     0
 }
 
-
 pub enum EventLoop<T: 'static> {
     Wayland(wayland::EventLoop<T>),
-    X(x11::EventLoop<T>)
+    X(x11::EventLoop<T>),
 }
 
 #[derive(Clone)]
@@ -444,7 +457,7 @@ pub enum EventLoopProxy<T: 'static> {
     Wayland(wayland::EventLoopProxy<T>),
 }
 
-impl<T:'static> EventLoop<T> {
+impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
         if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
             match env_var.as_str() {
@@ -453,13 +466,14 @@ impl<T:'static> EventLoop<T> {
                     return EventLoop::new_x11().expect("Failed to initialize X11 backend");
                 },
                 "wayland" => {
-                    return EventLoop::new_wayland()
-                        .expect("Failed to initialize Wayland backend");
+                    return EventLoop::new_wayland().expect("Failed to initialize Wayland backend");
                 },
-                _ => panic!(
-                    "Unknown environment variable value for {}, try one of `x11`,`wayland`",
-                    BACKEND_PREFERENCE_ENV_VAR,
-                ),
+                _ => {
+                    panic!(
+                        "Unknown environment variable value for {}, try one of `x11`,`wayland`",
+                        BACKEND_PREFERENCE_ENV_VAR,
+                    )
+                },
             }
         }
 
@@ -475,15 +489,13 @@ impl<T:'static> EventLoop<T> {
 
         let err_string = format!(
             "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
-            wayland_err,
-            x11_err,
+            wayland_err, x11_err,
         );
         panic!(err_string);
     }
 
     pub fn new_wayland() -> Result<EventLoop<T>, ConnectError> {
-        wayland::EventLoop::new()
-            .map(EventLoop::Wayland)
+        wayland::EventLoop::new().map(EventLoop::Wayland)
     }
 
     pub fn new_x11() -> Result<EventLoop<T>, XNotSupported> {
@@ -499,17 +511,19 @@ impl<T:'static> EventLoop<T> {
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match *self {
-            EventLoop::Wayland(ref evlp) => evlp
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::Wayland)
-                .collect(),
-            EventLoop::X(ref evlp) => evlp
-                .x_connection()
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::X)
-                .collect(),
+            EventLoop::Wayland(ref evlp) => {
+                evlp.available_monitors()
+                    .into_iter()
+                    .map(MonitorHandle::Wayland)
+                    .collect()
+            },
+            EventLoop::X(ref evlp) => {
+                evlp.x_connection()
+                    .available_monitors()
+                    .into_iter()
+                    .map(MonitorHandle::X)
+                    .collect()
+            },
         }
     }
 
@@ -529,20 +543,22 @@ impl<T:'static> EventLoop<T> {
     }
 
     pub fn run_return<F>(&mut self, callback: F)
-        where F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow)
+    where
+        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         match *self {
             EventLoop::Wayland(ref mut evlp) => evlp.run_return(callback),
-            EventLoop::X(ref mut evlp) => evlp.run_return(callback)
+            EventLoop::X(ref mut evlp) => evlp.run_return(callback),
         }
     }
 
     pub fn run<F>(self, callback: F) -> !
-        where F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow)
+    where
+        F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         match self {
             EventLoop::Wayland(evlp) => evlp.run(callback),
-            EventLoop::X(evlp) => evlp.run(callback)
+            EventLoop::X(evlp) => evlp.run(callback),
         }
     }
 
@@ -557,7 +573,7 @@ impl<T:'static> EventLoop<T> {
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
         match *self {
             EventLoop::Wayland(ref evl) => evl.window_target(),
-            EventLoop::X(ref evl) => evl.window_target()
+            EventLoop::X(ref evl) => evl.window_target(),
         }
     }
 }
@@ -573,12 +589,16 @@ impl<T: 'static> EventLoopProxy<T> {
 
 pub enum EventLoopWindowTarget<T> {
     Wayland(wayland::EventLoopWindowTarget<T>),
-    X(x11::EventLoopWindowTarget<T>)
+    X(x11::EventLoopWindowTarget<T>),
 }
 
 fn sticky_exit_callback<T, F>(
-    evt: Event<T>, target: &RootELW<T>, control_flow: &mut ControlFlow, callback: &mut F
-) where F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
+    evt: Event<T>,
+    target: &RootELW<T>,
+    control_flow: &mut ControlFlow,
+    callback: &mut F,
+) where
+    F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
 {
     // make ControlFlow::Exit sticky by providing a dummy
     // control flow reference if it is already Exit.

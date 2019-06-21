@@ -1,10 +1,9 @@
 mod r#async;
 mod cursor;
 
-pub use self::{r#async::*, cursor::*};
+pub use self::{cursor::*, r#async::*};
 
-use std::ops::Deref;
-use std::ops::BitAnd;
+use std::ops::{BitAnd, Deref};
 
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
@@ -12,7 +11,7 @@ use cocoa::{
     foundation::{NSAutoreleasePool, NSRect, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
-use objc::runtime::{BOOL, Class, Object, Sel, YES};
+use objc::runtime::{Class, Object, Sel, BOOL, YES};
 
 use crate::platform_impl::platform::ffi;
 
@@ -21,8 +20,8 @@ use crate::platform_impl::platform::ffi;
 pub enum Never {}
 
 pub fn has_flag<T>(bitset: T, flag: T) -> bool
-where T:
-    Copy + PartialEq + BitAnd<T, Output = T>
+where
+    T: Copy + PartialEq + BitAnd<T, Output = T>,
 {
     bitset & flag == flag
 }
@@ -48,7 +47,11 @@ impl IdRef {
     }
 
     pub fn non_nil(self) -> Option<IdRef> {
-        if self.0 == nil { None } else { Some(self) }
+        if self.0 == nil {
+            None
+        } else {
+            Some(self)
+        }
     }
 }
 
@@ -94,16 +97,16 @@ pub unsafe fn superclass<'a>(this: &'a Object) -> &'a Class {
 
 pub unsafe fn create_input_context(view: id) -> IdRef {
     let input_context: id = msg_send![class!(NSTextInputContext), alloc];
-    let input_context: id = msg_send![input_context, initWithClient:view];
+    let input_context: id = msg_send![input_context, initWithClient: view];
     IdRef::new(input_context)
 }
 
 #[allow(dead_code)]
 pub unsafe fn open_emoji_picker() {
-    let () = msg_send![NSApp(), orderFrontCharacterPalette:nil];
+    let () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
 }
 
-pub extern fn yes(_: &Object, _: Sel) -> BOOL {
+pub extern "C" fn yes(_: &Object, _: Sel) -> BOOL {
     YES
 }
 
@@ -120,4 +123,3 @@ pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, o
     // If we don't do this, key handling will break. Therefore, never call `setStyleMask` directly!
     window.makeFirstResponder_(view);
 }
-

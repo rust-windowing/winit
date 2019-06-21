@@ -1,23 +1,31 @@
-use std::ffi::OsString;
-use std::os::windows::ffi::OsStringExt;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{mem, ptr};
+use std::{
+    ffi::OsString,
+    mem,
+    os::windows::ffi::OsStringExt,
+    path::PathBuf,
+    ptr,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
-use winapi::ctypes::c_void;
-use winapi::shared::guiddef::REFIID;
-use winapi::shared::minwindef::{DWORD, MAX_PATH, UINT, ULONG};
-use winapi::shared::windef::{HWND, POINTL};
-use winapi::shared::winerror::S_OK;
-use winapi::um::objidl::IDataObject;
-use winapi::um::oleidl::{DROPEFFECT_COPY, DROPEFFECT_NONE, IDropTarget, IDropTargetVtbl};
-use winapi::um::winnt::HRESULT;
-use winapi::um::{shellapi, unknwnbase};
+use winapi::{
+    ctypes::c_void,
+    shared::{
+        guiddef::REFIID,
+        minwindef::{DWORD, MAX_PATH, UINT, ULONG},
+        windef::{HWND, POINTL},
+        winerror::S_OK,
+    },
+    um::{
+        objidl::IDataObject,
+        oleidl::{IDropTarget, IDropTargetVtbl, DROPEFFECT_COPY, DROPEFFECT_NONE},
+        shellapi, unknwnbase,
+        winnt::HRESULT,
+    },
+};
 
 use crate::platform_impl::platform::WindowId;
 
-use crate::event::Event;
-use crate::window::WindowId as SuperWindowId;
+use crate::{event::Event, window::WindowId as SuperWindowId};
 
 #[repr(C)]
 pub struct FileDropHandlerData {
@@ -26,7 +34,7 @@ pub struct FileDropHandlerData {
     window: HWND,
     send_event: Box<dyn Fn(Event<()>)>,
     cursor_effect: DWORD,
-    hovered_is_valid: bool, // If the currently hovered item is not valid there must not be any `HoveredFileCancelled` emitted
+    hovered_is_valid: bool, /* If the currently hovered item is not valid there must not be any `HoveredFileCancelled` emitted */
 }
 
 pub struct FileDropHandler {
@@ -155,16 +163,25 @@ impl FileDropHandler {
         &mut *(this as *mut _)
     }
 
-    unsafe fn iterate_filenames<F>(data_obj: *const IDataObject, callback: F) -> Option<shellapi::HDROP>
+    unsafe fn iterate_filenames<F>(
+        data_obj: *const IDataObject,
+        callback: F,
+    ) -> Option<shellapi::HDROP>
     where
         F: Fn(PathBuf),
     {
-        use winapi::ctypes::wchar_t;
-        use winapi::shared::winerror::{SUCCEEDED, DV_E_FORMATETC};
-        use winapi::shared::wtypes::{CLIPFORMAT, DVASPECT_CONTENT};
-        use winapi::um::objidl::{FORMATETC, TYMED_HGLOBAL};
-        use winapi::um::shellapi::DragQueryFileW;
-        use winapi::um::winuser::CF_HDROP;
+        use winapi::{
+            ctypes::wchar_t,
+            shared::{
+                winerror::{DV_E_FORMATETC, SUCCEEDED},
+                wtypes::{CLIPFORMAT, DVASPECT_CONTENT},
+            },
+            um::{
+                objidl::{FORMATETC, TYMED_HGLOBAL},
+                shellapi::DragQueryFileW,
+                winuser::CF_HDROP,
+            },
+        };
 
         let mut drop_format = FORMATETC {
             cfFormat: CF_HDROP as CLIPFORMAT,

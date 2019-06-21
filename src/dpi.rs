@@ -1,4 +1,3 @@
-
 //! DPI is important, so read the docs for this module if you don't want to be confused.
 //!
 //! Originally, `winit` dealt entirely in physical pixels (excluding unintentional inconsistencies), but now all

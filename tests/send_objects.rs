@@ -1,6 +1,5 @@
-
 #[allow(dead_code)]
-fn needs_send<T:Send>() {}
+fn needs_send<T: Send>() {}
 
 #[test]
 fn event_loop_proxy_send() {

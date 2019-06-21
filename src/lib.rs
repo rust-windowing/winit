@@ -33,14 +33,19 @@
 //! is emitted and the entire program terminates.
 //!
 //! ```no_run
-//! use winit::event_loop::ControlFlow;
-//! use winit::event::{Event, WindowEvent};
+//! use winit::{
+//!     event::{Event, WindowEvent},
+//!     event_loop::ControlFlow,
+//! };
 //! # use winit::event_loop::EventLoop;
 //! # let event_loop = EventLoop::new();
 //!
 //! event_loop.run(move |event, _, control_flow| {
 //!     match event {
-//!         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+//!         Event::WindowEvent {
+//!             event: WindowEvent::CloseRequested,
+//!             ..
+//!         } => {
 //!             println!("The close button was pressed; stopping");
 //!             *control_flow = ControlFlow::Exit
 //!         },
@@ -101,8 +106,8 @@ pub mod error;
 pub mod event;
 pub mod event_loop;
 mod icon;
+pub mod monitor;
 mod platform_impl;
 pub mod window;
-pub mod monitor;
 
 pub mod platform;

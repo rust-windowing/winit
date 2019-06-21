@@ -31,10 +31,11 @@ show something on the window you need to use the platform-specific getters provi
 another library.
 
 ```rust
-extern crate winit;
-use winit::window::WindowBuilder;
-use winit::event::{Event, WindowEvent};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
 
 fn main() {
     let event_loop = EventLoop::new();

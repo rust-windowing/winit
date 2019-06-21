@@ -4,28 +4,22 @@ extern crate android_glue;
 
 mod ffi;
 
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::fmt;
-use std::os::raw::c_void;
-use std::sync::mpsc::{Receiver, channel};
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    fmt,
+    os::raw::c_void,
+    sync::mpsc::{channel, Receiver},
+};
 
-use {
-    crate::CreationError,
-    crate::Event,
-    crate::LogicalPosition,
-    crate::LogicalSize,
-    crate::CursorIcon,
-    crate::PhysicalPosition,
-    crate::PhysicalSize,
-    crate::WindowAttributes,
-    crate::WindowEvent,
-    crate::WindowId as RootWindowId,
+use crate::{
+    error::{ExternalError, NotSupportedError},
+    events::{Touch, TouchPhase},
+    window::MonitorHandle as RootMonitorHandle,
+    CreationError, CursorIcon, Event, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize,
+    WindowAttributes, WindowEvent, WindowId as RootWindowId,
 };
 use CreationError::OsError;
-use crate::error::{ExternalError, NotSupportedError};
-use crate::events::{Touch, TouchPhase};
-use crate::window::MonitorHandle as RootMonitorHandle;
 
 pub type OsError = std::io::Error;
 
@@ -60,10 +54,11 @@ impl EventLoop {
     }
 
     pub fn poll_events<F>(&mut self, mut callback: F)
-        where F: FnMut(::Event)
+    where
+        F: FnMut(::Event),
     {
         while let Ok(event) = self.event_rx.try_recv() {
-            let e = match event{
+            let e = match event {
                 android_glue::Event::EventMotion(motion) => {
                     let dpi_factor = MonitorHandle.hidpi_factor();
                     let location = LogicalPosition::from_physical(
@@ -99,8 +94,7 @@ impl EventLoop {
                     }
                     Some(Event::Suspended(true))
                 },
-                android_glue::Event::WindowResized |
-                android_glue::Event::ConfigChanged => {
+                android_glue::Event::WindowResized | android_glue::Event::ConfigChanged => {
                     // Activity Orientation changed or resized.
                     let native_window = unsafe { android_glue::native_window() };
                     if native_window.is_null() {
@@ -121,19 +115,15 @@ impl EventLoop {
                         window_id: RootWindowId(WindowId),
                         event: WindowEvent::Redraw,
                     })
-                }
-                android_glue::Event::Wake => {
-                    Some(Event::Awakened)
-                }
-                _ => {
-                    None
-                }
+                },
+                android_glue::Event::Wake => Some(Event::Awakened),
+                _ => None,
             };
 
             if let Some(event) = e {
                 callback(event);
             }
-        };
+        }
     }
 
     pub fn set_suspend_callback(&self, cb: Option<Box<dyn Fn(bool) -> ()>>) {
@@ -141,7 +131,8 @@ impl EventLoop {
     }
 
     pub fn run_forever<F>(&mut self, mut callback: F)
-        where F: FnMut(::Event) -> ::ControlFlow,
+    where
+        F: FnMut(::Event) -> ::ControlFlow,
     {
         // Yeah that's a very bad implementation.
         loop {
@@ -229,7 +220,8 @@ impl MonitorHandle {
             (
                 ffi::ANativeWindow_getWidth(window) as f64,
                 ffi::ANativeWindow_getHeight(window) as f64,
-            ).into()
+            )
+                .into()
         }
     }
 
@@ -251,10 +243,11 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 pub struct PlatformSpecificHeadlessBuilderAttributes;
 
 impl Window {
-    pub fn new(_: &EventLoop, win_attribs: WindowAttributes,
-               _: PlatformSpecificWindowBuilderAttributes)
-               -> Result<Window, CreationError>
-    {
+    pub fn new(
+        _: &EventLoop,
+        win_attribs: WindowAttributes,
+        _: PlatformSpecificWindowBuilderAttributes,
+    ) -> Result<Window, CreationError> {
         let native_window = unsafe { android_glue::native_window() };
         if native_window.is_null() {
             return Err(OsError(format!("Android's native window is null")));
@@ -406,7 +399,9 @@ impl Window {
 
     #[inline]
     pub fn current_monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle { inner: MonitorHandle }
+        RootMonitorHandle {
+            inner: MonitorHandle,
+        }
     }
 
     #[inline]

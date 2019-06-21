@@ -1,10 +1,10 @@
-extern crate winit;
-
 use std::io::{self, Write};
-use winit::monitor::MonitorHandle;
-use winit::window::WindowBuilder;
-use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState, KeyboardInput};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::{
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    monitor::MonitorHandle,
+    window::WindowBuilder,
+};
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -24,7 +24,7 @@ fn main() {
             let num = num.trim().parse().ok().expect("Please enter a number");
             match num {
                 2 => macos_use_simple_fullscreen = true,
-                _ => {}
+                _ => {},
             }
 
             // Prompt for monitor when using native fullscreen
@@ -54,59 +54,69 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
-                            state,
-                            ..
-                        },
-                    ..
-                } => match (virtual_code, state) {
-                    (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
-                    (VirtualKeyCode::F, ElementState::Pressed) => {
-                        #[cfg(target_os = "macos")]
-                        {
-                            if macos_use_simple_fullscreen {
-                                use winit::platform::macos::WindowExtMacOS;
-                                if WindowExtMacOS::set_simple_fullscreen(&window, !is_fullscreen) {
-                                    is_fullscreen = !is_fullscreen;
+            Event::WindowEvent { event, .. } => {
+                match event {
+                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                virtual_keycode: Some(virtual_code),
+                                state,
+                                ..
+                            },
+                        ..
+                    } => {
+                        match (virtual_code, state) {
+                            (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
+                            (VirtualKeyCode::F, ElementState::Pressed) => {
+                                #[cfg(target_os = "macos")]
+                                {
+                                    if macos_use_simple_fullscreen {
+                                        use winit::platform::macos::WindowExtMacOS;
+                                        if WindowExtMacOS::set_simple_fullscreen(
+                                            &window,
+                                            !is_fullscreen,
+                                        ) {
+                                            is_fullscreen = !is_fullscreen;
+                                        }
+                                        return;
+                                    }
                                 }
-                                return;
-                            }
-                        }
 
-                        is_fullscreen = !is_fullscreen;
-                        if !is_fullscreen {
-                            window.set_fullscreen(None);
-                        } else {
-                            window.set_fullscreen(Some(window.current_monitor()));
-                        }
-                    }
-                    (VirtualKeyCode::S, ElementState::Pressed) => {
-                        println!("window.fullscreen {:?}", window.fullscreen());
+                                is_fullscreen = !is_fullscreen;
+                                if !is_fullscreen {
+                                    window.set_fullscreen(None);
+                                } else {
+                                    window.set_fullscreen(Some(window.current_monitor()));
+                                }
+                            },
+                            (VirtualKeyCode::S, ElementState::Pressed) => {
+                                println!("window.fullscreen {:?}", window.fullscreen());
 
-                        #[cfg(target_os = "macos")]
-                        {
-                            use winit::platform::macos::WindowExtMacOS;
-                            println!("window.simple_fullscreen {:?}", WindowExtMacOS::simple_fullscreen(&window));
+                                #[cfg(target_os = "macos")]
+                                {
+                                    use winit::platform::macos::WindowExtMacOS;
+                                    println!(
+                                        "window.simple_fullscreen {:?}",
+                                        WindowExtMacOS::simple_fullscreen(&window)
+                                    );
+                                }
+                            },
+                            (VirtualKeyCode::M, ElementState::Pressed) => {
+                                is_maximized = !is_maximized;
+                                window.set_maximized(is_maximized);
+                            },
+                            (VirtualKeyCode::D, ElementState::Pressed) => {
+                                decorations = !decorations;
+                                window.set_decorations(decorations);
+                            },
+                            _ => (),
                         }
-                    }
-                    (VirtualKeyCode::M, ElementState::Pressed) => {
-                        is_maximized = !is_maximized;
-                        window.set_maximized(is_maximized);
-                    }
-                    (VirtualKeyCode::D, ElementState::Pressed) => {
-                        decorations = !decorations;
-                        window.set_decorations(decorations);
-                    }
+                    },
                     _ => (),
-                },
-                _ => (),
+                }
             },
-            _ => {}
+            _ => {},
         }
     });
 }
@@ -123,7 +133,10 @@ fn prompt_for_monitor(event_loop: &EventLoop<()>) -> MonitorHandle {
     let mut num = String::new();
     io::stdin().read_line(&mut num).unwrap();
     let num = num.trim().parse().ok().expect("Please enter a number");
-    let monitor = event_loop.available_monitors().nth(num).expect("Please enter a valid ID");
+    let monitor = event_loop
+        .available_monitors()
+        .nth(num)
+        .expect("Please enter a valid ID");
 
     println!("Using {:?}", monitor.name());
 

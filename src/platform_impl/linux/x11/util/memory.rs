@@ -12,10 +12,7 @@ impl<'a, T> XSmartPointer<'a, T> {
     // Returns None if ptr is null.
     pub fn new(xconn: &'a XConnection, ptr: *mut T) -> Option<Self> {
         if !ptr.is_null() {
-            Some(XSmartPointer {
-                xconn,
-                ptr,
-            })
+            Some(XSmartPointer { xconn, ptr })
         } else {
             None
         }

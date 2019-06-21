@@ -1,18 +1,29 @@
-use std::collections::VecDeque;
-use std::io::{Seek, SeekFrom, Write};
-use std::sync::{Arc, Mutex, Weak};
+use std::{
+    collections::VecDeque,
+    io::{Seek, SeekFrom, Write},
+    sync::{Arc, Mutex, Weak},
+};
 
-use crate::dpi::{LogicalPosition, LogicalSize};
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::platform_impl::{MonitorHandle as PlatformMonitorHandle, PlatformSpecificWindowBuilderAttributes as PlAttributes};
-use crate::monitor::MonitorHandle as RootMonitorHandle;
-use crate::window::{WindowAttributes, CursorIcon};
+use crate::{
+    dpi::{LogicalPosition, LogicalSize},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    monitor::MonitorHandle as RootMonitorHandle,
+    platform_impl::{
+        MonitorHandle as PlatformMonitorHandle,
+        PlatformSpecificWindowBuilderAttributes as PlAttributes,
+    },
+    window::{CursorIcon, WindowAttributes},
+};
 
-use smithay_client_toolkit::surface::{get_dpi_factor, get_outputs};
-use smithay_client_toolkit::window::{ConceptFrame, Event as WEvent, State as WState, Window as SWindow, Theme};
-use smithay_client_toolkit::reexports::client::{Display, NewProxy};
-use smithay_client_toolkit::reexports::client::protocol::{wl_seat, wl_surface, wl_subsurface, wl_shm};
-use smithay_client_toolkit::output::OutputMgr;
+use smithay_client_toolkit::{
+    output::OutputMgr,
+    reexports::client::{
+        protocol::{wl_seat, wl_shm, wl_subsurface, wl_surface},
+        Display, NewProxy,
+    },
+    surface::{get_dpi_factor, get_outputs},
+    window::{ConceptFrame, Event as WEvent, State as WState, Theme, Window as SWindow},
+};
 
 use super::{make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
 use crate::platform_impl::platform::wayland::event_loop::{available_monitors, primary_monitor};
@@ -32,7 +43,11 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new<T>(evlp: &EventLoopWindowTarget<T>, attributes: WindowAttributes, pl_attribs: PlAttributes) -> Result<Window, RootOsError> {
+    pub fn new<T>(
+        evlp: &EventLoopWindowTarget<T>,
+        attributes: WindowAttributes,
+        pl_attribs: PlAttributes,
+    ) -> Result<Window, RootOsError> {
         let (width, height) = attributes.inner_size.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
@@ -71,47 +86,50 @@ impl Window {
             &evlp.env,
             bg_surface.clone(),
             (width, height),
-            move |event| match event {
-                WEvent::Configure { new_size, states } => {
-                    let mut store = window_store.lock().unwrap();
-                    let is_fullscreen = states.contains(&WState::Fullscreen);
+            move |event| {
+                match event {
+                    WEvent::Configure { new_size, states } => {
+                        let mut store = window_store.lock().unwrap();
+                        let is_fullscreen = states.contains(&WState::Fullscreen);
 
-                    for window in &mut store.windows {
-                        if window.surface.as_ref().equals(&my_surface.as_ref()) {
-                            window.newsize = new_size;
-                            *(window.need_refresh.lock().unwrap()) = true;
-                            *(window.fullscreen.lock().unwrap()) = is_fullscreen;
-                            *(window.need_frame_refresh.lock().unwrap()) = true;
-                            if !window.configured {
-                                // this is our first configure event, display ourselves !
-                                window.configured = true;
-                                my_bg_surface.attach(Some(&buffer), 0, 0);
-                                my_bg_surface.commit();
+                        for window in &mut store.windows {
+                            if window.surface.as_ref().equals(&my_surface.as_ref()) {
+                                window.newsize = new_size;
+                                *(window.need_refresh.lock().unwrap()) = true;
+                                *(window.fullscreen.lock().unwrap()) = is_fullscreen;
+                                *(window.need_frame_refresh.lock().unwrap()) = true;
+                                if !window.configured {
+                                    // this is our first configure event, display ourselves !
+                                    window.configured = true;
+                                    my_bg_surface.attach(Some(&buffer), 0, 0);
+                                    my_bg_surface.commit();
+                                }
+                                return;
                             }
-                            return;
                         }
-                    }
-                }
-                WEvent::Refresh => {
-                    let store = window_store.lock().unwrap();
-                    for window in &store.windows {
-                        if window.surface.as_ref().equals(&my_surface.as_ref()) {
-                            *(window.need_frame_refresh.lock().unwrap()) = true;
-                            return;
+                    },
+                    WEvent::Refresh => {
+                        let store = window_store.lock().unwrap();
+                        for window in &store.windows {
+                            if window.surface.as_ref().equals(&my_surface.as_ref()) {
+                                *(window.need_frame_refresh.lock().unwrap()) = true;
+                                return;
+                            }
                         }
-                    }
-                }
-                WEvent::Close => {
-                    let mut store = window_store.lock().unwrap();
-                    for window in &mut store.windows {
-                        if window.surface.as_ref().equals(&my_surface.as_ref()) {
-                            window.closed = true;
-                            return;
+                    },
+                    WEvent::Close => {
+                        let mut store = window_store.lock().unwrap();
+                        for window in &mut store.windows {
+                            if window.surface.as_ref().equals(&my_surface.as_ref()) {
+                                window.closed = true;
+                                return;
+                            }
                         }
-                    }
+                    },
                 }
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         if let Some(app_id) = pl_attribs.app_id {
             frame.set_app_id(app_id);
@@ -166,11 +184,11 @@ impl Window {
         Ok(Window {
             display: evlp.display.clone(),
             _bg_surface: bg_surface,
-            user_surface: user_surface,
+            user_surface,
             _user_subsurface: user_subsurface,
-            frame: frame,
+            frame,
             outputs: evlp.env.outputs.clone(),
-            size: size,
+            size,
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
             need_frame_refresh,
             need_refresh,
@@ -231,12 +249,18 @@ impl Window {
 
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.frame.lock().unwrap().set_min_size(dimensions.map(Into::into));
+        self.frame
+            .lock()
+            .unwrap()
+            .set_min_size(dimensions.map(Into::into));
     }
 
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.frame.lock().unwrap().set_max_size(dimensions.map(Into::into));
+        self.frame
+            .lock()
+            .unwrap()
+            .set_max_size(dimensions.map(Into::into));
     }
 
     #[inline]
@@ -412,7 +436,16 @@ impl WindowStore {
 
     pub fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(Option<(u32, u32)>, &mut (u32, u32), Option<i32>, bool, bool, bool, WindowId, Option<&mut SWindow<ConceptFrame>>),
+        F: FnMut(
+            Option<(u32, u32)>,
+            &mut (u32, u32),
+            Option<i32>,
+            bool,
+            bool,
+            bool,
+            WindowId,
+            Option<&mut SWindow<ConceptFrame>>,
+        ),
     {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();
@@ -435,4 +468,3 @@ impl WindowStore {
         }
     }
 }
-

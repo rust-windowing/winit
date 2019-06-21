@@ -1,17 +1,24 @@
 use std::{
-    collections::VecDeque, mem, os::raw::c_void, process, ptr, sync::mpsc, marker::PhantomData
+    collections::VecDeque, marker::PhantomData, mem, os::raw::c_void, process, ptr, sync::mpsc,
 };
 
-use cocoa::{appkit::NSApp, base::{id, nil}, foundation::NSAutoreleasePool};
+use cocoa::{
+    appkit::NSApp,
+    base::{id, nil},
+    foundation::NSAutoreleasePool,
+};
 
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
-};
-use crate::platform_impl::platform::{
-    app::APP_CLASS, app_delegate::APP_DELEGATE_CLASS,
-    app_state::AppState, monitor::{self, MonitorHandle},
-    observer::*, util::IdRef,
+    platform_impl::platform::{
+        app::APP_CLASS,
+        app_delegate::APP_DELEGATE_CLASS,
+        app_state::AppState,
+        monitor::{self, MonitorHandle},
+        observer::*,
+        util::IdRef,
+    },
 };
 
 pub struct EventLoopWindowTarget<T: 'static> {
@@ -75,7 +82,8 @@ impl<T> EventLoop<T> {
     }
 
     pub fn run<F>(self, callback: F) -> !
-        where F: 'static + FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+    where
+        F: 'static + FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
             let _pool = NSAutoreleasePool::new(nil);
@@ -89,7 +97,8 @@ impl<T> EventLoop<T> {
     }
 
     pub fn run_return<F>(&mut self, _callback: F)
-        where F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+    where
+        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         unimplemented!();
     }
@@ -119,11 +128,8 @@ impl<T> Proxy<T> {
             let rl = CFRunLoopGetMain();
             let mut context: CFRunLoopSourceContext = mem::zeroed();
             context.perform = event_loop_proxy_handler;
-            let source = CFRunLoopSourceCreate(
-                ptr::null_mut(),
-                CFIndex::max_value() - 1,
-                &mut context,
-            );
+            let source =
+                CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
