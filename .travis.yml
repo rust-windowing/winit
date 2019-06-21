@@ -45,10 +45,11 @@ matrix:
 install:
   - rustup self update
   - rustup target add $TARGET; true
+  - rustup install nightly
   - rustup component add rustfmt
 
 script:
-  - cargo fmt --all -- --check
+  - cargo +nightly fmt --all -- --check
   - cargo build --target $TARGET --verbose
   - cargo build --target $TARGET --features serde --verbose
   # Running iOS apps on OSX requires the simulator so we skip that for now
