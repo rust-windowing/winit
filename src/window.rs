@@ -285,8 +285,7 @@ impl WindowBuilder {
 
     /// Builds the window.
     ///
-    /// Error should be very rare and only occur in case of permission denied, incompatible system,
-    /// out of memory, etc.
+    /// Possible causes of error include denied permission, incompatible system, and lack of memory.
     #[inline]
     pub fn build<T: 'static>(
         mut self,
