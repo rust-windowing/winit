@@ -4,7 +4,7 @@ use crate::{
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 use parking_lot::MutexGuard;
-use std::{ffi::OsStr, io, os::windows::ffi::OsStrExt, ptr};
+use std::{io, ptr};
 use winapi::{
     shared::{
         minwindef::DWORD,
@@ -80,6 +80,7 @@ bitflags! {
             WindowFlags::RESIZABLE.bits |
             WindowFlags::MAXIMIZED.bits
         );
+        const FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
         const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
         const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
     }
@@ -117,79 +118,16 @@ impl WindowState {
         self.window_flags
     }
 
-    pub fn set_window_flags<F>(
-        mut this: MutexGuard<'_, Self>,
-        window: HWND,
-        set_client_rect: Option<RECT>,
-        f: F,
-    ) where
+    pub fn set_window_flags<F>(mut this: MutexGuard<'_, Self>, window: HWND, f: F)
+    where
         F: FnOnce(&mut WindowFlags),
     {
         let old_flags = this.window_flags;
         f(&mut this.window_flags);
-
-        let is_fullscreen = this.fullscreen.is_some();
-        this.window_flags
-            .set(WindowFlags::MARKER_FULLSCREEN, is_fullscreen);
         let new_flags = this.window_flags;
 
-        // Change video mode if necessary
-        if old_flags & WindowFlags::MARKER_FULLSCREEN != new_flags & WindowFlags::MARKER_FULLSCREEN
-        {
-            let res = if let Some(Fullscreen::Exclusive(ref video_mode)) = this.fullscreen {
-                let monitor = video_mode.monitor();
-
-                // The display name on Windows is the same we get from
-                // EnumDisplayDevices, so it's good for ChangeDisplaySettingsExW
-                let mut display_name = OsStr::new(monitor.name().as_ref().unwrap())
-                    .encode_wide()
-                    .collect::<Vec<_>>();
-                // encode_wide does not add a null-terminator but
-                // ChangeDisplaySettingsExW requires a null-terminated string
-                display_name.push(0);
-
-                let mut native_video_mode = video_mode.video_mode.native_video_mode.clone();
-
-                unsafe {
-                    winuser::ChangeDisplaySettingsExW(
-                        display_name.as_ptr(),
-                        &mut native_video_mode,
-                        std::ptr::null_mut(),
-                        winuser::CDS_FULLSCREEN,
-                        std::ptr::null_mut(),
-                    )
-                }
-            } else {
-                unsafe {
-                    winuser::ChangeDisplaySettingsExW(
-                        std::ptr::null_mut(),
-                        std::ptr::null_mut(),
-                        std::ptr::null_mut(),
-                        winuser::CDS_FULLSCREEN,
-                        std::ptr::null_mut(),
-                    )
-                }
-            };
-
-            // These are separate asserts so we can easily see which error we
-            // hit here
-            debug_assert!(res != winuser::DISP_CHANGE_BADFLAGS);
-            debug_assert!(res != winuser::DISP_CHANGE_BADMODE);
-            debug_assert!(res != winuser::DISP_CHANGE_BADPARAM);
-            debug_assert!(res != winuser::DISP_CHANGE_FAILED);
-            assert_eq!(res, winuser::DISP_CHANGE_SUCCESSFUL);
-        }
-
         drop(this);
-        old_flags.apply_diff(window, new_flags, set_client_rect);
-    }
-
-    pub fn refresh_window_state(
-        this: MutexGuard<'_, Self>,
-        window: HWND,
-        set_client_rect: Option<RECT>,
-    ) {
-        Self::set_window_flags(this, window, set_client_rect, |_| ());
+        old_flags.apply_diff(window, new_flags);
     }
 
     pub fn set_window_flags_in_place<F>(&mut self, f: F)
@@ -227,6 +165,7 @@ impl WindowFlags {
     fn mask(mut self) -> WindowFlags {
         if self.contains(WindowFlags::MARKER_FULLSCREEN) {
             self &= WindowFlags::FULLSCREEN_AND_MASK;
+            self |= WindowFlags::FULLSCREEN_OR_MASK;
         }
         if !self.contains(WindowFlags::VISIBLE) {
             self &= WindowFlags::INVISIBLE_AND_MASK;
@@ -277,7 +216,7 @@ impl WindowFlags {
     }
 
     /// Adjust the window client rectangle to the return value, if present.
-    fn apply_diff(mut self, window: HWND, mut new: WindowFlags, set_client_rect: Option<RECT>) {
+    fn apply_diff(mut self, window: HWND, mut new: WindowFlags) {
         self = self.mask();
         new = new.mask();
 
@@ -336,45 +275,20 @@ impl WindowFlags {
                 winuser::SetWindowLongW(window, winuser::GWL_STYLE, style as _);
                 winuser::SetWindowLongW(window, winuser::GWL_EXSTYLE, style_ex as _);
 
-                match set_client_rect
-                    .and_then(|r| util::adjust_window_rect_with_styles(window, style, style_ex, r))
-                {
-                    Some(client_rect) => {
-                        let (x, y, w, h) = (
-                            client_rect.left,
-                            client_rect.top,
-                            client_rect.right - client_rect.left,
-                            client_rect.bottom - client_rect.top,
-                        );
-                        winuser::SetWindowPos(
-                            window,
-                            ptr::null_mut(),
-                            x,
-                            y,
-                            w,
-                            h,
-                            winuser::SWP_NOZORDER
-                                | winuser::SWP_FRAMECHANGED
-                                | winuser::SWP_NOACTIVATE,
-                        );
-                    }
-                    None => {
-                        // Refresh the window frame.
-                        winuser::SetWindowPos(
-                            window,
-                            ptr::null_mut(),
-                            0,
-                            0,
-                            0,
-                            0,
-                            winuser::SWP_NOZORDER
-                                | winuser::SWP_NOMOVE
-                                | winuser::SWP_NOSIZE
-                                | winuser::SWP_FRAMECHANGED
-                                | winuser::SWP_NOACTIVATE,
-                        );
-                    }
-                }
+                // Refresh the window frame.
+                winuser::SetWindowPos(
+                    window,
+                    ptr::null_mut(),
+                    0,
+                    0,
+                    0,
+                    0,
+                    winuser::SWP_NOZORDER
+                        | winuser::SWP_NOMOVE
+                        | winuser::SWP_NOSIZE
+                        | winuser::SWP_FRAMECHANGED
+                        | winuser::SWP_NOACTIVATE,
+                );
                 winuser::SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 0, 0);
             }
         }

@@ -323,7 +323,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
-            WindowState::set_window_flags(window_state.lock(), window.0, None, |f| {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::RESIZABLE, resizable)
             });
         });
@@ -417,7 +417,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
-            WindowState::set_window_flags(window_state.lock(), window.0, None, |f| {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::MAXIMIZED, maximized)
             });
         });
@@ -431,73 +431,148 @@ impl Window {
 
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        unsafe {
-            let window = self.window.clone();
-            let window_state = Arc::clone(&self.window_state);
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
 
-            match fullscreen {
-                None => {
-                    self.thread_executor.execute_in_thread(move || {
-                        let mut window_state_lock = window_state.lock();
-                        window_state_lock.fullscreen = None;
+        let mut window_state_lock = window_state.lock();
+        let old_fullscreen = window_state_lock.fullscreen.clone();
+        if window_state_lock.fullscreen == fullscreen {
+            return;
+        }
+        window_state_lock.fullscreen = fullscreen.clone();
+        drop(window_state_lock);
 
-                        if let Some(SavedWindow {
-                            client_rect,
-                            dpi_factor,
-                        }) = window_state_lock.saved_window
-                        {
-                            window_state_lock.dpi_factor = dpi_factor;
-                            window_state_lock.saved_window = None;
+        self.thread_executor.execute_in_thread(move || {
+            let mut window_state_lock = window_state.lock();
 
-                            WindowState::refresh_window_state(
-                                window_state_lock,
-                                window.0,
-                                Some(client_rect),
-                            );
-                        }
-
-                        mark_fullscreen(window.0, false);
-                        return;
+            // Save window bounds before entering fullscreen
+            match (&old_fullscreen, &fullscreen) {
+                (&None, &Some(_)) => {
+                    let client_rect = util::get_client_rect(window.0).unwrap();
+                    window_state_lock.saved_window = Some(SavedWindow {
+                        client_rect,
+                        dpi_factor: window_state_lock.dpi_factor,
                     });
                 }
-                Some(fullscreen) => {
-                    let (position, size): ((i32, i32), (u32, u32)) = match fullscreen {
-                        Fullscreen::Exclusive(ref video_mode) => (
-                            video_mode.monitor().position().into(),
-                            video_mode.size().into(),
-                        ),
-                        Fullscreen::Borderless(ref monitor) => {
-                            (monitor.position().into(), monitor.size().into())
-                        }
+                _ => (),
+            }
+
+            // Change video mode if we're transitioning to or from exclusive
+            // fullscreen
+            match (&old_fullscreen, &fullscreen) {
+                (&None, &Some(Fullscreen::Exclusive(ref video_mode)))
+                | (
+                    &Some(Fullscreen::Borderless(_)),
+                    &Some(Fullscreen::Exclusive(ref video_mode)),
+                ) => {
+                    let monitor = video_mode.monitor();
+
+                    let mut display_name = OsStr::new(&monitor.inner.native_identifier())
+                        .encode_wide()
+                        .collect::<Vec<_>>();
+                    // `encode_wide` does not add a null-terminator but
+                    // `ChangeDisplaySettingsExW` requires a null-terminated
+                    // string, so add it
+                    display_name.push(0);
+
+                    let mut native_video_mode = video_mode.video_mode.native_video_mode.clone();
+
+                    let res = unsafe {
+                        winuser::ChangeDisplaySettingsExW(
+                            display_name.as_ptr(),
+                            &mut native_video_mode,
+                            std::ptr::null_mut(),
+                            winuser::CDS_FULLSCREEN,
+                            std::ptr::null_mut(),
+                        )
                     };
 
-                    self.thread_executor.execute_in_thread(move || {
-                        let mut window_state_lock = window_state.lock();
+                    debug_assert!(res != winuser::DISP_CHANGE_BADFLAGS);
+                    debug_assert!(res != winuser::DISP_CHANGE_BADMODE);
+                    debug_assert!(res != winuser::DISP_CHANGE_BADPARAM);
+                    debug_assert!(res != winuser::DISP_CHANGE_FAILED);
+                    assert_eq!(res, winuser::DISP_CHANGE_SUCCESSFUL);
+                }
+                (&Some(Fullscreen::Exclusive(_)), &None)
+                | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+                    let res = unsafe {
+                        winuser::ChangeDisplaySettingsExW(
+                            std::ptr::null_mut(),
+                            std::ptr::null_mut(),
+                            std::ptr::null_mut(),
+                            winuser::CDS_FULLSCREEN,
+                            std::ptr::null_mut(),
+                        )
+                    };
 
-                        let client_rect =
-                            util::get_client_rect(window.0).expect("get client rect failed!");
-                        window_state_lock.saved_window = Some(SavedWindow {
-                            client_rect,
-                            dpi_factor: window_state_lock.dpi_factor,
-                        });
+                    debug_assert!(res != winuser::DISP_CHANGE_BADFLAGS);
+                    debug_assert!(res != winuser::DISP_CHANGE_BADMODE);
+                    debug_assert!(res != winuser::DISP_CHANGE_BADPARAM);
+                    debug_assert!(res != winuser::DISP_CHANGE_FAILED);
+                    assert_eq!(res, winuser::DISP_CHANGE_SUCCESSFUL);
+                }
+                _ => (),
+            }
 
-                        window_state_lock.fullscreen = Some(fullscreen.clone());
-                        WindowState::refresh_window_state(
-                            window_state_lock,
+            // Update window style
+            WindowState::set_window_flags(window_state_lock, window.0, |f| {
+                f.set(WindowFlags::MARKER_FULLSCREEN, fullscreen.is_some())
+            });
+
+            // Update window bounds
+            match &fullscreen {
+                Some(fullscreen) => {
+                    let monitor = match fullscreen {
+                        Fullscreen::Exclusive(ref video_mode) => video_mode.monitor(),
+                        Fullscreen::Borderless(ref monitor) => monitor.clone(),
+                    };
+
+                    let position: (i32, i32) = monitor.position().into();
+                    let size: (u32, u32) = monitor.size().into();
+
+                    unsafe {
+                        winuser::SetWindowPos(
                             window.0,
-                            Some(RECT {
-                                left: position.0,
-                                top: position.1,
-                                right: position.0 + size.0 as c_int,
-                                bottom: position.1 + size.1 as c_int,
-                            }),
+                            ptr::null_mut(),
+                            position.0,
+                            position.1,
+                            size.0 as i32,
+                            size.1 as i32,
+                            winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER,
                         );
+                        winuser::UpdateWindow(window.0);
+                    }
+                }
+                None => {
+                    let mut window_state_lock = window_state.lock();
+                    if let Some(SavedWindow {
+                        client_rect,
+                        dpi_factor,
+                    }) = window_state_lock.saved_window.take()
+                    {
+                        window_state_lock.dpi_factor = dpi_factor;
+                        drop(window_state_lock);
 
-                        mark_fullscreen(window.0, true);
-                    });
+                        unsafe {
+                            winuser::SetWindowPos(
+                                window.0,
+                                ptr::null_mut(),
+                                client_rect.left,
+                                client_rect.top,
+                                client_rect.right - client_rect.left,
+                                client_rect.bottom - client_rect.top,
+                                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER,
+                            );
+                            winuser::UpdateWindow(window.0);
+                        }
+                    }
                 }
             }
-        }
+
+            unsafe {
+                taskbar_mark_fullscreen(window.0, fullscreen.is_some());
+            }
+        });
     }
 
     #[inline]
@@ -506,8 +581,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
-            let client_rect = util::get_client_rect(window.0).expect("get client rect failed!");
-            WindowState::set_window_flags(window_state.lock(), window.0, Some(client_rect), |f| {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::DECORATIONS, decorations)
             });
         });
@@ -519,7 +593,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
-            WindowState::set_window_flags(window_state.lock(), window.0, None, |f| {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::ALWAYS_ON_TOP, always_on_top)
             });
         });
@@ -772,9 +846,7 @@ unsafe fn init<T: 'static>(
     let window_state = {
         let window_state = WindowState::new(&attributes, window_icon, taskbar_icon, dpi_factor);
         let window_state = Arc::new(Mutex::new(window_state));
-        WindowState::set_window_flags(window_state.lock(), real_window.0, None, |f| {
-            *f = window_flags
-        });
+        WindowState::set_window_flags(window_state.lock(), real_window.0, |f| *f = window_flags);
         window_state
     };
 
@@ -868,7 +940,7 @@ pub fn com_initialized() {
 // is activated. If the window is not fullscreen, the Shell falls back to
 // heuristics to determine how the window should be treated, which means
 // that it could still consider the window as fullscreen. :(
-unsafe fn mark_fullscreen(handle: HWND, fullscreen: bool) {
+unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
     com_initialized();
 
     TASKBAR_LIST.with(|task_bar_list_ptr| {
