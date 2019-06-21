@@ -7,7 +7,7 @@ use winapi::{
 };
 
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{BTreeSet, VecDeque},
     io, mem, ptr,
 };
 
@@ -30,6 +30,27 @@ pub struct VideoMode {
     pub(crate) monitor: MonitorHandle,
     #[derivative(Debug = "ignore", PartialEq = "ignore", Hash = "ignore")]
     pub(crate) native_video_mode: wingdi::DEVMODEW,
+}
+
+impl PartialOrd for VideoMode {
+    fn partial_cmp(&self, other: &VideoMode) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for VideoMode {
+    fn cmp(&self, other: &VideoMode) -> std::cmp::Ordering {
+        self.monitor.cmp(&other.monitor).then(
+            self.size
+                .cmp(&other.size)
+                .then(
+                    self.refresh_rate
+                        .cmp(&other.refresh_rate)
+                        .then(self.bit_depth.cmp(&other.bit_depth)),
+                )
+                .reverse(),
+        )
+    }
 }
 
 impl VideoMode {
@@ -79,11 +100,23 @@ pub struct MonitorHandle {
     hidpi_factor: f64,
 }
 
+impl PartialOrd for MonitorHandle {
+    fn partial_cmp(&self, other: &MonitorHandle) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for MonitorHandle {
+    fn cmp(&self, other: &MonitorHandle) -> std::cmp::Ordering {
+        self.hmonitor.cmp(&other.hmonitor)
+    }
+}
+
 // Send is not implemented for HMONITOR, we have to wrap it and implement it manually.
 // For more info see:
 // https://github.com/retep998/winapi-rs/issues/360
 // https://github.com/retep998/winapi-rs/issues/396
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 struct HMonitor(HMONITOR);
 
 unsafe impl Send for HMonitor {}
@@ -221,8 +254,8 @@ impl MonitorHandle {
     pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
-        // anyway), so we're using a HashSet deduplicate
-        let mut modes = HashSet::new();
+        // anyway), so we're using a BTreeSet deduplicate
+        let mut modes = BTreeSet::new();
         let mut i = 0;
 
         loop {
