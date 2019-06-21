@@ -333,9 +333,9 @@ impl<T: 'static> EventLoopRunnerShared<T> {
         }
 
         // Determine if event handling is in process, and then release the borrow on the runner
-        match *self.0.runner.borrow() {
+        let (start_cause, event_is_start) = match *self.0.runner.borrow() {
             Some(ref runner) if !runner.is_busy => {
-                let (start_cause, event_is_start) = if let Event::NewEvents(cause) = event {
+                if let Event::NewEvents(cause) = event {
                     (cause, true)
                 } else {
                     (match runner.control {
@@ -359,29 +359,30 @@ impl<T: 'static> EventLoopRunnerShared<T> {
                         },
                         ControlFlowStatus::Exit => { return; }
                     }, false)
-                };
-                let mut control = runner.control.to_control_flow();
-                // Handle starting a new batch of events
-                //
-                // The user is informed via Event::NewEvents that there is a batch of events to process
-                // However, there is only one of these per batch of events
-                self.handle_event(Event::NewEvents(start_cause), &mut control);
-                if !event_is_start {
-                    self.handle_event(event, &mut control);
-                }
-                self.handle_event(Event::EventsCleared, &mut control);
-
-                self.apply_control_flow(control);
-
-                // If the event loop is closed, it has been closed this iteration and now the closing
-                // event should be emitted
-                if self.closed() {
-                    self.handle_event(Event::LoopDestroyed, &mut control);
                 }
             }
             _ => {
+                // Events are currently being handled, so queue this one and don't try to
+                // double-process the event queue
                 self.0.events.borrow_mut().push_back(event);
+                return;
             }
+        };
+        let mut control = self.current_control_flow();
+        // Handle starting a new batch of events
+        //
+        // The user is informed via Event::NewEvents that there is a batch of events to process
+        // However, there is only one of these per batch of events
+        self.handle_event(Event::NewEvents(start_cause), &mut control);
+        if !event_is_start {
+            self.handle_event(event, &mut control);
+        }
+        self.handle_event(Event::EventsCleared, &mut control);
+        self.apply_control_flow(control);
+        // If the event loop is closed, it has been closed this iteration and now the closing
+        // event should be emitted
+        if self.closed() {
+            self.handle_event(Event::LoopDestroyed, &mut control);
         }
     }
 
@@ -462,6 +463,14 @@ impl<T: 'static> EventLoopRunnerShared<T> {
         match *self.0.runner.borrow() {
             Some(ref runner) => runner.control.is_exit(),
             None => false, // If the event loop is None, it has not been intialised yet, so it cannot be closed
+        }
+    }
+
+    // Get the current control flow state
+    fn current_control_flow(&self) -> ControlFlow {
+        match *self.0.runner.borrow() {
+            Some(ref runner) => runner.control.to_control_flow(),
+            None => ControlFlow::Poll,
         }
     }
 }

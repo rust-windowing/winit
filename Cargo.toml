@@ -77,3 +77,6 @@ version = "0.8"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = { path = "../stdweb", optional = true }
 instant = { version = "0.1", features = ["stdweb"] }
+
+[patch.crates-io]
+stdweb = { path = "../stdweb" }
