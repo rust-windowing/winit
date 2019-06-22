@@ -19,13 +19,13 @@ use crate::{
 };
 
 #[derive(Derivative)]
-#[derivative(Debug, Clone, PartialEq)]
+#[derivative(Debug, Clone, PartialEq, Hash)]
 pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
     pub(crate) monitor: MonitorHandle,
-    #[derivative(Debug = "ignore", PartialEq = "ignore")]
+    #[derivative(Debug = "ignore", PartialEq = "ignore", Hash = "ignore")]
     pub(crate) native_mode: CGDisplayMode,
 }
 
@@ -60,6 +60,31 @@ impl PartialEq for MonitorHandle {
         unsafe {
             ffi::CGDisplayCreateUUIDFromDisplayID(self.0)
                 == ffi::CGDisplayCreateUUIDFromDisplayID(other.0)
+        }
+    }
+}
+
+impl Eq for MonitorHandle {}
+
+impl PartialOrd for MonitorHandle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for MonitorHandle {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        unsafe {
+            ffi::CGDisplayCreateUUIDFromDisplayID(self.0)
+                .cmp(&ffi::CGDisplayCreateUUIDFromDisplayID(other.0))
+        }
+    }
+}
+
+impl std::hash::Hash for MonitorHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        unsafe {
+            ffi::CGDisplayCreateUUIDFromDisplayID(self.0).hash(state);
         }
     }
 }

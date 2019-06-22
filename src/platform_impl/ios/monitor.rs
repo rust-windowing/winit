@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{BTreeSet, VecDeque},
     fmt,
     ops::{Deref, DerefMut},
 };
@@ -38,7 +38,7 @@ impl VideoMode {
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Inner {
     uiscreen: id,
 }
@@ -51,7 +51,7 @@ impl Drop for Inner {
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MonitorHandle {
     inner: Inner,
 }
@@ -173,22 +173,22 @@ impl Inner {
         let available_modes: id = unsafe { msg_send![self.uiscreen, availableModes] };
         let available_mode_count: NSUInteger = unsafe { msg_send![available_modes, count] };
 
-        let mut modes = HashSet::with_capacity(available_mode_count);
+        let mut modes = BTreeSet::new();
 
         for i in 0..available_mode_count {
             let mode: id = unsafe { msg_send![available_modes, objectAtIndex: i] };
             let size: CGSize = unsafe { msg_send![mode, size] };
-            modes.insert(VideoMode {
-                size: (size.width as u32, size.height as u32),
-                bit_depth: 32,
-                refresh_rate: refresh_rate as u16,
-                monitor: MonitorHandle::retained_new(self.uiscreen),
+            modes.insert(RootVideoMode {
+                video_mode: VideoMode {
+                    size: (size.width as u32, size.height as u32),
+                    bit_depth: 32,
+                    refresh_rate: refresh_rate as u16,
+                    monitor: MonitorHandle::retained_new(self.uiscreen),
+                },
             });
         }
 
-        modes
-            .into_iter()
-            .map(|video_mode| RootVideoMode { video_mode })
+        modes.into_iter()
     }
 }
 

@@ -95,11 +95,7 @@ fn prompt_for_monitor(event_loop: &EventLoop<()>) -> MonitorHandle {
 }
 
 fn prompt_for_video_mode(monitor: &MonitorHandle) -> VideoMode {
-    // Video modes are returned in a random order, so we must store them in
-    // order to be able to later pick the nth video mode reliably
-    let mut video_modes: Vec<_> = monitor.video_modes().collect();
-
-    for (i, video_mode) in video_modes.iter().enumerate() {
+    for (i, video_mode) in monitor.video_modes().enumerate() {
         println!("Video mode #{}: {}", i, video_mode);
     }
 
@@ -109,7 +105,10 @@ fn prompt_for_video_mode(monitor: &MonitorHandle) -> VideoMode {
     let mut num = String::new();
     stdin().read_line(&mut num).unwrap();
     let num = num.trim().parse().ok().expect("Please enter a number");
-    let video_mode = video_modes.remove(num);
+    let video_mode = monitor
+        .video_modes()
+        .nth(num)
+        .expect("Please enter a valid ID");
 
     println!("Using {}", video_mode);
 

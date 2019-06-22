@@ -32,27 +32,6 @@ pub struct VideoMode {
     pub(crate) native_video_mode: wingdi::DEVMODEW,
 }
 
-impl PartialOrd for VideoMode {
-    fn partial_cmp(&self, other: &VideoMode) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for VideoMode {
-    fn cmp(&self, other: &VideoMode) -> std::cmp::Ordering {
-        self.monitor.cmp(&other.monitor).then(
-            self.size
-                .cmp(&other.size)
-                .then(
-                    self.refresh_rate
-                        .cmp(&other.refresh_rate)
-                        .then(self.bit_depth.cmp(&other.bit_depth)),
-                )
-                .reverse(),
-        )
-    }
-}
-
 impl VideoMode {
     pub fn size(&self) -> PhysicalSize {
         self.size.into()
@@ -232,18 +211,18 @@ impl MonitorHandle {
                     | wingdi::DM_DISPLAYFREQUENCY;
                 assert!(mode.dmFields & REQUIRED_FIELDS == REQUIRED_FIELDS);
 
-                modes.insert(VideoMode {
-                    size: (mode.dmPelsWidth, mode.dmPelsHeight),
-                    bit_depth: mode.dmBitsPerPel as u16,
-                    refresh_rate: mode.dmDisplayFrequency as u16,
-                    monitor: self.clone(),
-                    native_video_mode: mode,
+                modes.insert(RootVideoMode {
+                    video_mode: VideoMode {
+                        size: (mode.dmPelsWidth, mode.dmPelsHeight),
+                        bit_depth: mode.dmBitsPerPel as u16,
+                        refresh_rate: mode.dmDisplayFrequency as u16,
+                        monitor: self.clone(),
+                        native_video_mode: mode,
+                    },
                 });
             }
         }
 
-        modes
-            .into_iter()
-            .map(|video_mode| RootVideoMode { video_mode })
+        modes.into_iter()
     }
 }

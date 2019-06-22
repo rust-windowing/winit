@@ -53,9 +53,33 @@ impl Iterator for AvailableMonitorsIter {
 ///
 /// [monitor_get]: ../monitor/struct.MonitorHandle.html#method.video_modes
 #[derive(Derivative)]
-#[derivative(Clone, Debug = "transparent", PartialEq)]
+#[derivative(Clone, Debug = "transparent", PartialEq, Eq, Hash)]
 pub struct VideoMode {
     pub(crate) video_mode: platform_impl::VideoMode,
+}
+
+impl PartialOrd for VideoMode {
+    fn partial_cmp(&self, other: &VideoMode) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for VideoMode {
+    fn cmp(&self, other: &VideoMode) -> std::cmp::Ordering {
+        // TODO: we can impl `Ord` for `PhysicalSize` once we switch from `f32`
+        // to `u32` there
+        let size: (u32, u32) = self.size().into();
+        let other_size: (u32, u32) = other.size().into();
+        self.monitor().cmp(&other.monitor()).then(
+            size.cmp(&other_size)
+                .then(
+                    self.refresh_rate()
+                        .cmp(&other.refresh_rate())
+                        .then(self.bit_depth().cmp(&other.bit_depth())),
+                )
+                .reverse(),
+        )
+    }
 }
 
 impl VideoMode {
@@ -108,7 +132,7 @@ impl std::fmt::Display for VideoMode {
 /// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
 ///
 /// [`Window`]: ../window/struct.Window.html
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MonitorHandle {
     pub(crate) inner: platform_impl::MonitorHandle,
 }
