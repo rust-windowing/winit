@@ -464,7 +464,9 @@ impl Window {
                 | (
                     &Some(Fullscreen::Borderless(_)),
                     &Some(Fullscreen::Exclusive(ref video_mode)),
-                ) => {
+                )
+                | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Exclusive(ref video_mode))) =>
+                {
                     let monitor = video_mode.monitor();
 
                     let mut display_name = OsStr::new(&monitor.inner.native_identifier())

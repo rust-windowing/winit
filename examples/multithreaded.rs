@@ -19,6 +19,8 @@ fn main() {
             .with_inner_size(WINDOW_SIZE.into())
             .build(&event_loop)
             .unwrap();
+        let video_modes: Vec<_> = window.current_monitor().video_modes().collect();
+        let mut video_mode = 0usize;
         let (tx, rx) = mpsc::channel();
         window_senders.insert(window.id(), tx);
         thread::spawn(move || {
@@ -44,12 +46,24 @@ fn main() {
                                 false => CursorIcon::Default,
                             }),
                             D => window.set_decorations(!state),
+                            // Cycle through video modes
+                            Right | Left => {
+                                video_mode = match key {
+                                    Left => video_mode.saturating_sub(1),
+                                    Right => (video_modes.len() - 1).min(video_mode + 1),
+                                    _ => unreachable!(),
+                                };
+                                println!(
+                                    "Picking video mode: {}",
+                                    video_modes.iter().nth(video_mode).unwrap()
+                                );
+                            }
                             F => window.set_fullscreen(match (state, modifiers.alt) {
                                 (true, false) => {
                                     Some(Fullscreen::Borderless(window.current_monitor()))
                                 }
                                 (true, true) => Some(Fullscreen::Exclusive(
-                                    window.current_monitor().video_modes().next().unwrap(),
+                                    video_modes.iter().nth(video_mode).unwrap().clone(),
                                 )),
                                 (false, _) => None,
                             }),
@@ -61,6 +75,7 @@ fn main() {
                                 println!("-> inner_position : {:?}", window.inner_position());
                                 println!("-> outer_size     : {:?}", window.outer_size());
                                 println!("-> inner_size     : {:?}", window.inner_size());
+                                println!("-> fullscreen     : {:?}", window.fullscreen());
                             }
                             L => window.set_min_inner_size(match state {
                                 true => Some(WINDOW_SIZE.into()),
