@@ -22,14 +22,14 @@ use crate::{
 ///
 /// An `EventLoop` can be seen more or less as a "context". Calling `EventLoop::new()`
 /// initializes everything that will be required to create windows. For example on Linux creating
-/// an events loop opens a connection to the X or Wayland server.
+/// an event loop opens a connection to the X or Wayland server.
 ///
 /// To wake up an `EventLoop` from a another thread, see the `EventLoopProxy` docs.
 ///
 /// Note that the `EventLoop` cannot be shared across threads (due to platform-dependant logic
 /// forbidding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
-/// `EventLoopProxy` allows you to wake up an `EventLoop` from an other thread.
+/// `EventLoopProxy` allows you to wake up an `EventLoop` from another thread.
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
@@ -121,7 +121,7 @@ impl<T> EventLoop<T> {
         }
     }
 
-    /// Hijacks the calling thread and initializes the `winit` event loop with the provided
+    /// Hijacks the calling thread and initializes the winit event loop with the provided
     /// closure. Since the closure is `'static`, it must be a `move` closure if it needs to
     /// access any data from the calling context.
     ///
