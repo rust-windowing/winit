@@ -45,6 +45,18 @@ impl fmt::Debug for Window {
     }
 }
 
+impl Drop for Window {
+    fn drop(&mut self) {
+        // If the window is in exclusive fullscreen, we must restore the desktop
+        // video mode (generally this would be done on application exit, but
+        // closing the window doesn't necessarily always mean application exit,
+        // such as when there are multiple windows)
+        if let Some(Fullscreen::Exclusive(_)) = self.fullscreen() {
+            self.set_fullscreen(None);
+        }
+    }
+}
+
 /// Identifier of a window. Unique for each window.
 ///
 /// Can be obtained with `window.id()`.
