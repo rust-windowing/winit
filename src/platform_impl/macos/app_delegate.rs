@@ -54,7 +54,7 @@ extern "C" fn did_finish_launching(_: &Object, _: Sel, _: id) -> BOOL {
 extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
     trace!("Triggered `didBecomeActive`");
     /*unsafe {
-        HANDLER.lock().unwrap().handle_nonuser_event(Event::Suspended(false))
+        HANDLER.lock().unwrap().handle_nonuser_event(Event::Resumed)
     }*/
     trace!("Completed `didBecomeActive`");
 }
@@ -62,7 +62,7 @@ extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
 extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
     trace!("Triggered `willResignActive`");
     /*unsafe {
-        HANDLER.lock().unwrap().handle_nonuser_event(Event::Suspended(true))
+        HANDLER.lock().unwrap().handle_nonuser_event(Event::Suspended)
     }*/
     trace!("Completed `willResignActive`");
 }

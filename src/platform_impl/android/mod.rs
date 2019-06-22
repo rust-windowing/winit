@@ -85,14 +85,14 @@ impl EventLoop {
                     if let Some(cb) = self.suspend_callback.borrow().as_ref() {
                         (*cb)(false);
                     }
-                    Some(Event::Suspended(false))
+                    Some(Event::Resumed)
                 },
                 android_glue::Event::TermWindow => {
                     // The activity went to background.
                     if let Some(cb) = self.suspend_callback.borrow().as_ref() {
                         (*cb)(true);
                     }
-                    Some(Event::Suspended(true))
+                    Some(Event::Suspended)
                 },
                 android_glue::Event::WindowResized | android_glue::Event::ConfigChanged => {
                     // Activity Orientation changed or resized.
