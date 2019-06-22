@@ -216,24 +216,24 @@ impl MonitorHandle {
 
     pub(crate) fn ns_screen(&self) -> Option<id> {
         unsafe {
-            let native_id = self.native_identifier();
+            let uuid = ffi::CGDisplayCreateUUIDFromDisplayID(self.0);
             let screens = NSScreen::screens(nil);
             let count: NSUInteger = msg_send![screens, count];
             let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
-            let mut matching_screen: Option<id> = None;
             for i in 0..count {
                 let screen = msg_send![screens, objectAtIndex: i as NSUInteger];
                 let device_description = NSScreen::deviceDescription(screen);
                 let value: id = msg_send![device_description, objectForKey:*key];
                 if value != nil {
-                    let screen_number: NSUInteger = msg_send![value, unsignedIntegerValue];
-                    if screen_number as u32 == native_id {
-                        matching_screen = Some(screen);
-                        break;
+                    let other_native_id: NSUInteger = msg_send![value, unsignedIntegerValue];
+                    let other_uuid =
+                        ffi::CGDisplayCreateUUIDFromDisplayID(other_native_id as CGDirectDisplayID);
+                    if uuid == other_uuid {
+                        return Some(screen);
                     }
                 }
             }
-            matching_screen
+            None
         }
     }
 }
