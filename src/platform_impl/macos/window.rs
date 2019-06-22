@@ -746,7 +746,7 @@ impl UnownedWindow {
                 .begin_configuration()
                 .expect("failed to begin display configuration");
             display
-                .configure_display_with_display_mode(&config, &video_mode.video_mode.native_mode)
+                .configure_display_with_display_mode(&config, &video_mode.video_mode.native_mode.0)
                 .expect("failed to set display mode");
             display
                 .complete_configuration(&config, CGConfigureOption::ConfigureForAppOnly)

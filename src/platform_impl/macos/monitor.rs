@@ -26,8 +26,12 @@ pub struct VideoMode {
     pub(crate) refresh_rate: u16,
     pub(crate) monitor: MonitorHandle,
     #[derivative(Debug = "ignore", PartialEq = "ignore", Hash = "ignore")]
-    pub(crate) native_mode: CGDisplayMode,
+    pub(crate) native_mode: NativeDisplayMode,
 }
+
+#[derive(Clone)]
+pub struct NativeDisplayMode(pub CGDisplayMode);
+unsafe impl Send for NativeDisplayMode {}
 
 impl VideoMode {
     pub fn size(&self) -> PhysicalSize {
@@ -207,7 +211,7 @@ impl MonitorHandle {
                     refresh_rate: refresh_rate as u16,
                     bit_depth: mode.bit_depth() as u16,
                     monitor: monitor.clone(),
-                    native_mode: mode,
+                    native_mode: NativeDisplayMode(mode),
                 };
 
                 RootVideoMode { video_mode }
