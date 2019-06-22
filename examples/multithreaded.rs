@@ -128,6 +128,7 @@ fn main() {
                 | WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
+                            state: ElementState::Released,
                             virtual_keycode: Some(VirtualKeyCode::Escape),
                             ..
                         },
