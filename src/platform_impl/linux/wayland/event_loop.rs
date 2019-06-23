@@ -7,6 +7,11 @@ use std::{
     time::Instant,
 };
 
+use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1::client::{
+    zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
+    zwp_relative_pointer_v1::ZwpRelativePointerV1,
+};
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::ModifiersState,
@@ -15,7 +20,7 @@ use crate::{
     platform_impl::platform::sticky_exit_callback,
 };
 
-use super::{window::WindowStore, WindowId};
+use super::{window::WindowStore, WindowId, DeviceId};
 
 use smithay_client_toolkit::{
     output::OutputMgr,
@@ -57,6 +62,38 @@ impl WindowEventsSink {
     }
 }
 
+
+pub struct DeviceEventsSink {
+    buffer: VecDeque<(crate::event::DeviceEvent, crate::event::DeviceId)>,
+}
+
+impl DeviceEventsSink {
+    pub fn new() -> DeviceEventsSink {
+        DeviceEventsSink {
+            buffer: VecDeque::new(),
+        }
+    }
+
+    pub fn send_event(&mut self, evt: crate::event::DeviceEvent, dev_id: DeviceId) {
+        self.buffer.push_back((
+            evt,
+            crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(dev_id)),
+        ));
+    }
+
+    fn empty_with<F, T>(&mut self, mut callback: F)
+    where
+        F: FnMut(crate::event::Event<T>),
+    {
+        for (evt, dev_id) in self.buffer.drain(..) {
+            callback(crate::event::Event::DeviceEvent {
+                event: evt,
+                device_id: dev_id,
+            })
+        }
+    }
+}
+
 pub struct EventLoop<T: 'static> {
     // The loop
     inner_loop: ::calloop::EventLoop<()>,
@@ -66,6 +103,7 @@ pub struct EventLoop<T: 'static> {
     pub outputs: OutputMgr,
     // our sink, shared with some handlers, buffering the events
     sink: Arc<Mutex<WindowEventsSink>>,
+    dev_sink: Arc<Mutex<DeviceEventsSink>>,
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     user_sender: ::calloop::channel::Sender<T>,
@@ -111,6 +149,7 @@ impl<T: 'static> EventLoop<T> {
 
         let display = Arc::new(display);
         let sink = Arc::new(Mutex::new(WindowEventsSink::new()));
+        let device_sink = Arc::new(Mutex::new(DeviceEventsSink::new()));
         let store = Arc::new(Mutex::new(WindowStore::new()));
         let seats = Arc::new(Mutex::new(Vec::new()));
 
@@ -129,6 +168,8 @@ impl<T: 'static> EventLoop<T> {
 
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
+            device_sink: device_sink.clone(),
+            relative_pointer_manager_proxy: None,
             store: store.clone(),
             seats: seats.clone(),
             kbd_sender,
@@ -144,6 +185,9 @@ impl<T: 'static> EventLoop<T> {
                         ref interface,
                         version,
                     } => {
+                        if interface == "zwp_relative_pointer_manager_v1" {
+                            seat_manager.relative_pointer_manager_proxy = Some(registry.bind(version, id, move |pointer_manager| pointer_manager.implement_closure(|_,_| (),())).unwrap())
+                        }
                         if interface == "wl_seat" {
                             seat_manager.add_seat(id, version, registry)
                         }
@@ -157,7 +201,7 @@ impl<T: 'static> EventLoop<T> {
             },
         )
         .unwrap();
-
+        
         let source = inner_loop
             .handle()
             .insert_source(event_queue, |(), &mut ()| {})
@@ -180,6 +224,7 @@ impl<T: 'static> EventLoop<T> {
         Ok(EventLoop {
             inner_loop,
             sink,
+            dev_sink: device_sink,
             pending_user_events,
             display: display.clone(),
             outputs: env.outputs.clone(),
@@ -225,6 +270,7 @@ impl<T: 'static> EventLoop<T> {
         let mut control_flow = ControlFlow::default();
 
         let sink = self.sink.clone();
+        let dev_sink = self.dev_sink.clone();
         let user_events = self.pending_user_events.clone();
 
         callback(
@@ -236,6 +282,17 @@ impl<T: 'static> EventLoop<T> {
         loop {
             self.post_dispatch_triggers();
 
+            {
+                let mut guard = dev_sink.lock().unwrap();
+                guard.empty_with(|evt| {
+                    sticky_exit_callback(
+                        evt,
+                        &self.window_target,
+                        &mut control_flow,
+                        &mut callback,
+                    );
+                });
+            }
             // empty buffer of events
             {
                 let mut guard = sink.lock().unwrap();
@@ -434,9 +491,11 @@ impl<T> EventLoop<T> {
 
 struct SeatManager {
     sink: Arc<Mutex<WindowEventsSink>>,
+    device_sink: Arc<Mutex<DeviceEventsSink>>,
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
+    relative_pointer_manager_proxy: Option<ZwpRelativePointerManagerV1>
 }
 
 impl SeatManager {
@@ -445,8 +504,11 @@ impl SeatManager {
 
         let mut seat_data = SeatData {
             sink: self.sink.clone(),
+            device_sink: self.device_sink.clone(),
             store: self.store.clone(),
             pointer: None,
+            relative_pointer: None,
+            relative_pointer_manager_proxy: self.relative_pointer_manager_proxy.as_ref().cloned(),
             keyboard: None,
             touch: None,
             kbd_sender: self.kbd_sender.clone(),
@@ -474,9 +536,12 @@ impl SeatManager {
 
 struct SeatData {
     sink: Arc<Mutex<WindowEventsSink>>,
+    device_sink: Arc<Mutex<DeviceEventsSink>>,
     store: Arc<Mutex<WindowStore>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     pointer: Option<wl_pointer::WlPointer>,
+    relative_pointer: Option<ZwpRelativePointerV1>,
+    relative_pointer_manager_proxy: Option<ZwpRelativePointerManagerV1>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
@@ -494,7 +559,10 @@ impl SeatData {
                         self.sink.clone(),
                         self.store.clone(),
                         self.modifiers_tracker.clone(),
-                    ))
+                    ));
+                    
+                    self.relative_pointer =
+                        self.relative_pointer_manager_proxy.as_ref().map_or_else(|| None, |manager| super::pointer::implement_relative_pointer(self.device_sink.clone(),self.pointer.as_ref().unwrap(),manager).ok())
                 }
                 // destroy pointer if applicable
                 if !capabilities.contains(wl_seat::Capability::Pointer) {
@@ -683,3 +751,4 @@ pub fn available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorHandle> {
             .collect()
     })
 }
+

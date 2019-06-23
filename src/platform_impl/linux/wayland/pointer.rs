@@ -1,14 +1,20 @@
 use std::sync::{Arc, Mutex};
 
 use crate::event::{
-    ElementState, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
+    ElementState, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent, DeviceEvent
 };
 
-use super::{event_loop::WindowEventsSink, window::WindowStore, DeviceId};
+use super::{event_loop::{WindowEventsSink,DeviceEventsSink}, window::WindowStore, DeviceId};
 
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_pointer::{self, Event as PtrEvent, WlPointer},
     wl_seat,
+};
+
+use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1::client::{
+    zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
+    zwp_relative_pointer_v1::ZwpRelativePointerV1,
+    zwp_relative_pointer_v1::Event,
 };
 
 pub fn implement_pointer(
@@ -214,4 +220,27 @@ pub fn implement_pointer(
         )
     })
     .unwrap()
+}
+
+pub fn implement_relative_pointer(
+    sink: Arc<Mutex<DeviceEventsSink>>,
+    pointer: &WlPointer,
+    manager: &ZwpRelativePointerManagerV1,
+) -> Result<ZwpRelativePointerV1, ()> {
+    manager.get_relative_pointer(pointer, |rel_pointer| {
+        rel_pointer.implement_closure(move |evt, _rel_pointer| {
+            let mut sink = sink.lock().unwrap();
+            match evt {
+                Event::RelativeMotion {
+                    dx,
+                    dy,
+                    ..
+                } => {
+                    sink.send_event(DeviceEvent::MouseMotion{delta: (dx,dy)},
+                                   DeviceId)
+                },
+                _ => unreachable!(),
+            }
+        }, ())
+    })
 }
