@@ -1,7 +1,7 @@
 use std::{env, slice, str::FromStr};
 
 use super::*;
-use crate::{dpi::validate_hidpi_factor, monitor::VideoMode};
+use crate::{dpi::validate_hidpi_factor, platform_impl::platform::x11::VideoMode};
 
 pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
@@ -132,6 +132,9 @@ impl XConnection {
                     size: (x.width, x.height),
                     refresh_rate: (refresh_rate as f32 / 1000.0).round() as u16,
                     bit_depth: bit_depth as u16,
+                    // This is populated in `MonitorHandle::video_modes` as the
+                    // video mode is returned to the user
+                    monitor: None,
                 }
             });
 

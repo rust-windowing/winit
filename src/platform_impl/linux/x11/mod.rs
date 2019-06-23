@@ -11,7 +11,7 @@ mod window;
 mod xdisplay;
 
 pub use self::{
-    monitor::MonitorHandle,
+    monitor::{MonitorHandle, VideoMode},
     window::UnownedWindow,
     xdisplay::{XConnection, XError, XNotSupported},
 };

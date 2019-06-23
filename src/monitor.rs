@@ -84,6 +84,7 @@ impl Ord for VideoMode {
 
 impl VideoMode {
     /// Returns the resolution of this video mode.
+    #[inline]
     pub fn size(&self) -> PhysicalSize {
         self.video_mode.size()
     }
@@ -96,6 +97,7 @@ impl VideoMode {
     ///
     /// - **Wayland:** Always returns 32.
     /// - **iOS:** Always returns 32.
+    #[inline]
     pub fn bit_depth(&self) -> u16 {
         self.video_mode.bit_depth()
     }
@@ -103,12 +105,14 @@ impl VideoMode {
     /// Returns the refresh rate of this video mode. **Note**: the returned
     /// refresh rate is an integer approximation, and you shouldn't rely on this
     /// value to be exact.
+    #[inline]
     pub fn refresh_rate(&self) -> u16 {
         self.video_mode.refresh_rate()
     }
 
     /// Returns the monitor that this video mode is valid for. Each monitor has
     /// a separate set of valid video modes.
+    #[inline]
     pub fn monitor(&self) -> MonitorHandle {
         self.video_mode.monitor()
     }

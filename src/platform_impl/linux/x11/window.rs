@@ -11,7 +11,7 @@ use crate::{
         x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
     },
-    window::{CursorIcon, Icon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Icon, WindowAttributes},
 };
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
@@ -36,7 +36,7 @@ pub struct SharedState {
     pub guessed_dpi: Option<f64>,
     pub last_monitor: Option<X11MonitorHandle>,
     pub dpi_adjusted: Option<(f64, f64)>,
-    pub fullscreen: Option<RootMonitorHandle>,
+    pub fullscreen: Option<Fullscreen>,
     // Used to restore position after exiting fullscreen.
     pub restore_position: Option<(i32, i32)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
@@ -550,8 +550,8 @@ impl UnownedWindow {
         self.set_netwm(fullscreen.into(), (fullscreen_atom as c_long, 0, 0, 0))
     }
 
-    fn set_fullscreen_inner(&self, monitor: Option<RootMonitorHandle>) -> util::Flusher<'_> {
-        match monitor {
+    fn set_fullscreen_inner(&self, fullscreen: Option<Fullscreen>) -> util::Flusher<'_> {
+        match fullscreen {
             None => {
                 let flusher = self.set_fullscreen_hint(false);
                 if let Some(position) = self.shared_state.lock().restore_position.take() {
@@ -559,9 +559,10 @@ impl UnownedWindow {
                 }
                 flusher
             }
-            Some(RootMonitorHandle {
+            Some(Fullscreen::Exclusive(_)) => unimplemented!("fullscreen on X11"), // TODO
+            Some(Fullscreen::Borderless(RootMonitorHandle {
                 inner: PlatformMonitorHandle::X(monitor),
-            }) => {
+            })) => {
                 let window_position = self.outer_position_physical();
                 self.shared_state.lock().restore_position = Some(window_position);
                 let monitor_origin: (i32, i32) = monitor.position().into();
@@ -569,17 +570,17 @@ impl UnownedWindow {
                     .queue();
                 self.set_fullscreen_hint(true)
             }
-            _ => unreachable!(),
+            Some(Fullscreen::Borderless(_)) => unreachable!(),
         }
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.shared_state.lock().fullscreen.clone()
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         self.shared_state.lock().fullscreen = monitor.clone();
         self.set_fullscreen_inner(monitor)
             .flush()

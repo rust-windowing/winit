@@ -11,7 +11,8 @@ use super::{
 };
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::VideoMode,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
 
 // Used to test XRandR < 1.5 code path. This should always be committed as false.
@@ -41,6 +42,38 @@ pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorHandle>> {
     (*MONITORS.lock()).take()
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VideoMode {
+    pub(crate) size: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+    pub(crate) monitor: Option<MonitorHandle>,
+}
+
+impl VideoMode {
+    #[inline]
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
+    }
+
+    #[inline]
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    #[inline]
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+
+    #[inline]
+    pub fn monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle {
+            inner: PlatformMonitorHandle::X(self.monitor.clone().unwrap()),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct MonitorHandle {
     /// The actual id
@@ -59,6 +92,32 @@ pub struct MonitorHandle {
     pub(crate) rect: util::AaRect,
     /// Supported video modes on this monitor
     video_modes: Vec<VideoMode>,
+}
+
+impl PartialEq for MonitorHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for MonitorHandle {}
+
+impl PartialOrd for MonitorHandle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for MonitorHandle {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl std::hash::Hash for MonitorHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
 }
 
 impl MonitorHandle {
@@ -107,8 +166,14 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        self.video_modes.clone().into_iter()
+    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+        let monitor = self.clone();
+        self.video_modes.clone().into_iter().map(move |mut x| {
+            x.monitor = Some(monitor.clone());
+            RootVideoMode {
+                video_mode: PlatformVideoMode::X(x),
+            }
+        })
     }
 }
 
