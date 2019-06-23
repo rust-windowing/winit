@@ -84,6 +84,9 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Fullscreen**: The windows created by winit can be put into fullscreen mode.
 - **Fullscreen toggle**: The windows created by winit can be switched to and from fullscreen after
   creation.
+- **Exclusive fullscreen**: Winit allows changing the video mode of the monitor
+  for fullscreen windows, and if applicable, captures the monitor for exclusive
+  use by this application.
 - **HiDPI support**: Winit assists developers in appropriately scaling HiDPI content.
 - **Popup / modal windows**: Windows can be created relative to the client area of other windows, and parent
   windows can be disabled in favor of popup windows. This feature also guarantees that popup windows
@@ -157,6 +160,7 @@ Legend:
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
 |Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
+|Exclusive fullscreen             |✔️     |✔️     |❌         |**N/A**         |❌    |❌     |❌        |
 |HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️         |
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |❌        |
 
