@@ -340,18 +340,14 @@ impl<T: 'static> EventLoopRunnerShared<T> {
                 } else {
                     (match runner.control {
                         ControlFlowStatus::Init => StartCause::Init,
-                        ControlFlowStatus::Poll { ref timeout } =>  {
-                            timeout.clear();
-
+                        ControlFlowStatus::Poll { .. } =>  {
                             StartCause::Poll
                         }
                         ControlFlowStatus::Wait { start } => StartCause::WaitCancelled {
                             start,
                             requested_resume: None,
                         },
-                        ControlFlowStatus::WaitUntil { start, end, ref timeout } => {
-                            timeout.clear();
-
+                        ControlFlowStatus::WaitUntil { start, end, .. } => {
                             StartCause::WaitCancelled {
                                 start,
                                 requested_resume: Some(end)
@@ -398,7 +394,7 @@ impl<T: 'static> EventLoopRunnerShared<T> {
                 runner.is_busy = true;
 
                 (runner.event_handler)(event, control);
-                
+
                 // Maintain closed state, even if the callback changes it
                 if closed {
                     *control = ControlFlow::Exit;
@@ -425,11 +421,11 @@ impl<T: 'static> EventLoopRunnerShared<T> {
     // Apply the new ControlFlow that has been selected by the user
     // Start any necessary timeouts etc
     fn apply_control_flow(&self, control_flow: ControlFlow) {
-        let control_flow_status = match control_flow {
+        let mut control_flow_status = match control_flow {
            ControlFlow::Poll => {
                 let cloned = self.clone();
                 ControlFlowStatus::Poll {
-                    timeout: window().set_clearable_timeout(move || cloned.send_event(Event::NewEvents(StartCause::Poll)), 0)
+                    timeout: window().set_clearable_timeout(move || cloned.send_event(Event::NewEvents(StartCause::Poll)), 1)
                 }
             }
             ControlFlow::Wait => ControlFlowStatus::Wait { start: Instant::now() },
@@ -452,7 +448,15 @@ impl<T: 'static> EventLoopRunnerShared<T> {
         
         match *self.0.runner.borrow_mut() {
             Some(ref mut runner) => {
-                runner.control = control_flow_status;
+                // Put the new control flow status in the runner, and take out the old one
+                // This way we can safely take ownership of the TimeoutHandle and clear it,
+                // so that we don't get 'ghost' invocations of Poll or WaitUntil from earlier
+                // set_timeout invocations
+                std::mem::swap(&mut runner.control, &mut control_flow_status);
+                match control_flow_status {
+                    ControlFlowStatus::Poll { timeout } | ControlFlowStatus::WaitUntil { timeout, .. } => timeout.clear(),
+                    _ => (),
+                }
             }
             None => ()
         }
