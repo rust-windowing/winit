@@ -10,7 +10,7 @@ use objc::{
 };
 
 use crate::{
-    event::{DeviceEvent, Event},
+    event::{DeviceEvent, ElementState, Event},
     platform_impl::platform::{app_state::AppState, util, DEVICE_ID},
 };
 
@@ -98,6 +98,32 @@ unsafe fn maybe_dispatch_device_event(event: id) {
                     },
                 });
             }
+
+            AppState::queue_events(events);
+        }
+        appkit::NSLeftMouseDown | appkit::NSRightMouseDown | appkit::NSOtherMouseDown => {
+            let mut events = VecDeque::with_capacity(1);
+
+            events.push_back(Event::DeviceEvent {
+                device_id: DEVICE_ID,
+                event: DeviceEvent::Button {
+                    button: event.buttonNumber() as u32,
+                    state: ElementState::Pressed,
+                },
+            });
+
+            AppState::queue_events(events);
+        }
+        appkit::NSLeftMouseUp | appkit::NSRightMouseUp | appkit::NSOtherMouseUp => {
+            let mut events = VecDeque::with_capacity(1);
+
+            events.push_back(Event::DeviceEvent {
+                device_id: DEVICE_ID,
+                event: DeviceEvent::Button {
+                    button: event.buttonNumber() as u32,
+                    state: ElementState::Released,
+                },
+            });
 
             AppState::queue_events(events);
         }
