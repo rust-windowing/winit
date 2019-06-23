@@ -23,7 +23,7 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
-            _ => *control_flow = ControlFlow::Wait,
+            _ => ()
         }
     });
 }
