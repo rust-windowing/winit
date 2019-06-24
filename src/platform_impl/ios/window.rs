@@ -170,7 +170,7 @@ impl Inner {
                         let () = msg_send![self.window, setScreen: uiscreen];
                     }
                     let () = msg_send![self.window, setFrame: bounds];
-                },
+                }
                 None => warn!("`Window::set_fullscreen(None)` ignored on iOS"),
             }
         }
@@ -301,14 +301,12 @@ impl Window {
             let screen_bounds: CGRect = msg_send![screen, bounds];
 
             let frame = match window_attributes.inner_size {
-                Some(dim) => {
-                    CGRect {
-                        origin: screen_bounds.origin,
-                        size: CGSize {
-                            width: dim.width,
-                            height: dim.height,
-                        },
-                    }
+                Some(dim) => CGRect {
+                    origin: screen_bounds.origin,
+                    size: CGSize {
+                        width: dim.width,
+                        height: dim.height,
+                    },
                 },
                 None => screen_bounds,
             };

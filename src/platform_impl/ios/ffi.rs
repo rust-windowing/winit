@@ -161,14 +161,14 @@ impl UIInterfaceOrientationMask {
         match (valid_orientations, idiom) {
             (ValidOrientations::LandscapeAndPortrait, Idiom::Phone) => {
                 UIInterfaceOrientationMask::AllButUpsideDown
-            },
+            }
             (ValidOrientations::LandscapeAndPortrait, _) => UIInterfaceOrientationMask::All,
             (ValidOrientations::Landscape, _) => UIInterfaceOrientationMask::Landscape,
             (ValidOrientations::Portrait, Idiom::Phone) => UIInterfaceOrientationMask::Portrait,
             (ValidOrientations::Portrait, _) => {
                 UIInterfaceOrientationMask::Portrait
                     | UIInterfaceOrientationMask::PortraitUpsideDown
-            },
+            }
         }
     }
 }

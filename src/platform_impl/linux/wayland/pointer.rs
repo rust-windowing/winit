@@ -56,7 +56,7 @@ pub fn implement_pointer(
                                 wid,
                             );
                         }
-                    },
+                    }
                     PtrEvent::Leave { surface, .. } => {
                         mouse_focus = None;
                         let wid = store.find_wid(&surface);
@@ -70,7 +70,7 @@ pub fn implement_pointer(
                                 wid,
                             );
                         }
-                    },
+                    }
                     PtrEvent::Motion {
                         surface_x,
                         surface_y,
@@ -88,7 +88,7 @@ pub fn implement_pointer(
                                 wid,
                             );
                         }
-                    },
+                    }
                     PtrEvent::Button { button, state, .. } => {
                         if let Some(wid) = mouse_focus {
                             let state = match state {
@@ -115,7 +115,7 @@ pub fn implement_pointer(
                                 wid,
                             );
                         }
-                    },
+                    }
                     PtrEvent::Axis { axis, value, .. } => {
                         if let Some(wid) = mouse_focus {
                             if pointer.as_ref().version() < 5 {
@@ -155,7 +155,7 @@ pub fn implement_pointer(
                                 }
                             }
                         }
-                    },
+                    }
                     PtrEvent::Frame => {
                         let axis_buffer = axis_buffer.take();
                         let axis_discrete_buffer = axis_discrete_buffer.take();
@@ -188,11 +188,11 @@ pub fn implement_pointer(
                                 );
                             }
                         }
-                    },
+                    }
                     PtrEvent::AxisSource { .. } => (),
                     PtrEvent::AxisStop { .. } => {
                         axis_state = TouchPhase::Ended;
-                    },
+                    }
                     PtrEvent::AxisDiscrete { axis, discrete } => {
                         let (mut x, mut y) = axis_discrete_buffer.unwrap_or((0, 0));
                         match axis {
@@ -206,7 +206,7 @@ pub fn implement_pointer(
                             TouchPhase::Started | TouchPhase::Moved => TouchPhase::Moved,
                             _ => TouchPhase::Started,
                         }
-                    },
+                    }
                     _ => unreachable!(),
                 }
             },

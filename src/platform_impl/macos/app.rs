@@ -100,7 +100,7 @@ unsafe fn maybe_dispatch_device_event(event: id) {
             }
 
             AppState::queue_events(events);
-        },
+        }
         _ => (),
     }
 }

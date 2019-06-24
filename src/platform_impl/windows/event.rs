@@ -285,14 +285,14 @@ pub fn handle_extended_keys(
             } else {
                 winuser::VK_LCONTROL
             }
-        },
+        }
         winuser::VK_MENU => {
             if extended {
                 winuser::VK_RMENU
             } else {
                 winuser::VK_LMENU
             }
-        },
+        }
         _ => {
             match scancode {
                 // This is only triggered when using raw input. Without this check, we get two events whenever VK_PAUSE is
@@ -308,10 +308,10 @@ pub fn handle_extended_keys(
                     } else {
                         winuser::VK_SCROLL
                     }
-                },
+                }
                 _ => vkey,
             }
-        },
+        }
     };
     Some((vkey, scancode))
 }

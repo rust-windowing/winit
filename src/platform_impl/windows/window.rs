@@ -464,7 +464,7 @@ impl Window {
 
                         mark_fullscreen(window.0, true);
                     });
-                },
+                }
                 &None => {
                     self.thread_executor.execute_in_thread(move || {
                         let mut window_state_lock = window_state.lock();
@@ -487,7 +487,7 @@ impl Window {
 
                         mark_fullscreen(window.0, false);
                     });
-                },
+                }
             }
         }
     }

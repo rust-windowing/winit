@@ -162,7 +162,7 @@ impl<T: 'static> EventLoop<T> {
                 match event {
                     Some(e) => {
                         runner.process_event(e);
-                    },
+                    }
                     None => break,
                 }
             }
@@ -210,10 +210,10 @@ impl<T: 'static> EventLoop<T> {
                             break 'main;
                         }
                         msg_unprocessed = true;
-                    },
+                    }
                     ControlFlow::WaitUntil(resume_time) => {
                         wait_until_time_or_msg(resume_time);
-                    },
+                    }
                     ControlFlow::Poll => (),
                 }
             }
@@ -335,7 +335,7 @@ impl<T> EventLoopRunner<T> {
             RunnerState::New => {
                 self.call_event_handler(Event::NewEvents(StartCause::Init));
                 RunnerState::HandlingEvents
-            },
+            }
 
             // When `NewEvents` gets sent after an idle depends on the control flow...
             RunnerState::Idle(wait_start) => {
@@ -371,7 +371,7 @@ impl<T> EventLoopRunner<T> {
                     // `Exit` shouldn't really ever get sent here, but if it does do something somewhat sane.
                     ControlFlow::Exit => RunnerState::DeferredNewEvents(wait_start),
                 }
-            },
+            }
         };
     }
 
@@ -405,27 +405,23 @@ impl<T> EventLoopRunner<T> {
                         start: wait_start,
                         requested_resume: None,
                     }))
-                },
+                }
                 ControlFlow::WaitUntil(resume_time) => {
                     let start_cause = match Instant::now() >= resume_time {
                         // If the current time is later than the requested resume time, the resume time
                         // has been reached.
-                        true => {
-                            StartCause::ResumeTimeReached {
-                                start: wait_start,
-                                requested_resume: resume_time,
-                            }
+                        true => StartCause::ResumeTimeReached {
+                            start: wait_start,
+                            requested_resume: resume_time,
                         },
                         // Otherwise, the requested resume time HASN'T been reached and we send a WaitCancelled.
-                        false => {
-                            StartCause::WaitCancelled {
-                                start: wait_start,
-                                requested_resume: Some(resume_time),
-                            }
+                        false => StartCause::WaitCancelled {
+                            start: wait_start,
+                            requested_resume: Some(resume_time),
                         },
                     };
                     self.call_event_handler(Event::NewEvents(start_cause));
-                },
+                }
                 // This can be reached if the control flow is changed to poll during a `RedrawRequested`
                 // that was sent after `EventsCleared`.
                 ControlFlow::Poll => self.call_event_handler(Event::NewEvents(StartCause::Poll)),
@@ -442,7 +438,7 @@ impl<T> EventLoopRunner<T> {
             RunnerState::HandlingEvents => {
                 self.call_event_handler(Event::EventsCleared);
                 self.runner_state = RunnerState::Idle(Instant::now());
-            },
+            }
 
             // If we *weren't* handling events, we don't have to do anything.
             RunnerState::New | RunnerState::Idle(..) => (),
@@ -455,7 +451,7 @@ impl<T> EventLoopRunner<T> {
                     ControlFlow::Poll => {
                         self.call_event_handler(Event::NewEvents(StartCause::Poll));
                         self.call_event_handler(Event::EventsCleared);
-                    },
+                    }
                     // If we had deferred a WaitUntil and the resume time has since been reached,
                     // send the resume notification and EventsCleared event.
                     ControlFlow::WaitUntil(resume_time) => {
@@ -468,27 +464,25 @@ impl<T> EventLoopRunner<T> {
                             ));
                             self.call_event_handler(Event::EventsCleared);
                         }
-                    },
+                    }
                     // If we deferred a wait and no events were received, the user doesn't have to
                     // get an event.
                     ControlFlow::Wait | ControlFlow::Exit => (),
                 }
                 // Mark that we've entered an idle state.
                 self.runner_state = RunnerState::Idle(wait_start)
-            },
+            }
         }
     }
 
     fn call_event_handler(&mut self, event: Event<T>) {
         match event {
-            Event::NewEvents(_) => {
-                self.trigger_newevents_on_redraw
-                    .store(true, Ordering::Relaxed)
-            },
-            Event::EventsCleared => {
-                self.trigger_newevents_on_redraw
-                    .store(false, Ordering::Relaxed)
-            },
+            Event::NewEvents(_) => self
+                .trigger_newevents_on_redraw
+                .store(true, Ordering::Relaxed),
+            Event::EventsCleared => self
+                .trigger_newevents_on_redraw
+                .store(false, Ordering::Relaxed),
             _ => (),
         }
 
@@ -825,18 +819,18 @@ unsafe extern "system" fn public_window_callback<T>(
                 runner.in_modal_loop = true;
             }
             0
-        },
+        }
         winuser::WM_EXITSIZEMOVE => {
             let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
             if let Some(ref mut runner) = *runner {
                 runner.in_modal_loop = false;
             }
             0
-        },
+        }
         winuser::WM_NCCREATE => {
             enable_non_client_dpi_scaling(window);
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
-        },
+        }
 
         winuser::WM_NCLBUTTONDOWN => {
             // jumpstart the modal loop
@@ -850,7 +844,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
             }
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
-        },
+        }
 
         winuser::WM_CLOSE => {
             use crate::event::WindowEvent::CloseRequested;
@@ -859,7 +853,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 event: CloseRequested,
             });
             0
-        },
+        }
 
         winuser::WM_DESTROY => {
             use crate::event::WindowEvent::Destroyed;
@@ -872,7 +866,7 @@ unsafe extern "system" fn public_window_callback<T>(
             Box::from_raw(subclass_input);
             drop(subclass_input);
             0
-        },
+        }
 
         _ if msg == *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID => {
             use crate::event::WindowEvent::RedrawRequested;
@@ -892,22 +886,20 @@ unsafe extern "system" fn public_window_callback<T>(
                 };
                 match runner_state {
                     RunnerState::Idle(..) | RunnerState::DeferredNewEvents(..) => request_redraw(),
-                    RunnerState::HandlingEvents => {
-                        match control_flow {
-                            ControlFlow::Poll => request_redraw(),
-                            ControlFlow::WaitUntil(resume_time) => {
-                                if resume_time <= Instant::now() {
-                                    request_redraw()
-                                }
-                            },
-                            _ => (),
+                    RunnerState::HandlingEvents => match control_flow {
+                        ControlFlow::Poll => request_redraw(),
+                        ControlFlow::WaitUntil(resume_time) => {
+                            if resume_time <= Instant::now() {
+                                request_redraw()
+                            }
                         }
+                        _ => (),
                     },
                     _ => (),
                 }
             }
             0
-        },
+        }
         winuser::WM_PAINT => {
             use crate::event::WindowEvent::RedrawRequested;
             subclass_input.send_event(Event::WindowEvent {
@@ -915,7 +907,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 event: RedrawRequested,
             });
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
-        },
+        }
 
         // WM_MOVE supplies client area positions, so we send Moved here instead.
         winuser::WM_WINDOWPOSCHANGED => {
@@ -934,7 +926,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             // This is necessary for us to still get sent WM_SIZE.
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
-        },
+        }
 
         winuser::WM_SIZE => {
             use crate::event::WindowEvent::Resized;
@@ -962,7 +954,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             subclass_input.send_event(event);
             0
-        },
+        }
 
         winuser::WM_CHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
@@ -972,7 +964,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 event: ReceivedCharacter(chr),
             });
             0
-        },
+        }
 
         // Prevents default windows menu hotkeys playing unwanted
         // "ding" sounds. Alternatively could check for WM_SYSCOMMAND
@@ -1024,7 +1016,7 @@ unsafe extern "system" fn public_window_callback<T>(
             });
 
             0
-        },
+        }
 
         winuser::WM_MOUSELEAVE => {
             use crate::event::WindowEvent::CursorLeft;
@@ -1043,7 +1035,7 @@ unsafe extern "system" fn public_window_callback<T>(
             });
 
             0
-        },
+        }
 
         winuser::WM_MOUSEWHEEL => {
             use crate::event::MouseScrollDelta::LineDelta;
@@ -1063,7 +1055,7 @@ unsafe extern "system" fn public_window_callback<T>(
             });
 
             0
-        },
+        }
 
         winuser::WM_MOUSEHWHEEL => {
             use crate::event::MouseScrollDelta::LineDelta;
@@ -1083,7 +1075,7 @@ unsafe extern "system" fn public_window_callback<T>(
             });
 
             0
-        },
+        }
 
         winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
             use crate::event::{ElementState::Pressed, VirtualKeyCode};
@@ -1114,7 +1106,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 }
                 0
             }
-        },
+        }
 
         winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
             use crate::event::ElementState::Released;
@@ -1133,7 +1125,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 });
             }
             0
-        },
+        }
 
         winuser::WM_LBUTTONDOWN => {
             use crate::event::{ElementState::Pressed, MouseButton::Left, WindowEvent::MouseInput};
@@ -1150,7 +1142,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 },
             });
             0
-        },
+        }
 
         winuser::WM_LBUTTONUP => {
             use crate::event::{
@@ -1169,7 +1161,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 },
             });
             0
-        },
+        }
 
         winuser::WM_RBUTTONDOWN => {
             use crate::event::{
@@ -1188,7 +1180,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 },
             });
             0
-        },
+        }
 
         winuser::WM_RBUTTONUP => {
             use crate::event::{
@@ -1207,7 +1199,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 },
             });
             0
-        },
+        }
 
         winuser::WM_MBUTTONDOWN => {
             use crate::event::{
@@ -1226,7 +1218,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 },
             });
             0
-        },
+        }
 
         winuser::WM_MBUTTONUP => {
             use crate::event::{
@@ -1245,7 +1237,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 },
             });
             0
-        },
+        }
 
         winuser::WM_XBUTTONDOWN => {
             use crate::event::{
@@ -1265,7 +1257,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 },
             });
             0
-        },
+        }
 
         winuser::WM_XBUTTONUP => {
             use crate::event::{
@@ -1285,7 +1277,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 },
             });
             0
-        },
+        }
 
         winuser::WM_INPUT_DEVICE_CHANGE => {
             let event = match wparam as _ {
@@ -1300,7 +1292,7 @@ unsafe extern "system" fn public_window_callback<T>(
             });
 
             0
-        },
+        }
 
         winuser::WM_INPUT => {
             use crate::event::{
@@ -1399,7 +1391,7 @@ unsafe extern "system" fn public_window_callback<T>(
             }
 
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
-        },
+        }
 
         winuser::WM_TOUCH => {
             let pcount = LOWORD(wparam as DWORD) as usize;
@@ -1439,7 +1431,7 @@ unsafe extern "system" fn public_window_callback<T>(
             }
             winuser::CloseTouchInputHandle(htouch);
             0
-        },
+        }
 
         winuser::WM_SETFOCUS => {
             use crate::event::WindowEvent::Focused;
@@ -1449,7 +1441,7 @@ unsafe extern "system" fn public_window_callback<T>(
             });
 
             0
-        },
+        }
 
         winuser::WM_KILLFOCUS => {
             use crate::event::WindowEvent::Focused;
@@ -1458,7 +1450,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 event: Focused(false),
             });
             0
-        },
+        }
 
         winuser::WM_SETCURSOR => {
             let set_cursor_to = {
@@ -1479,15 +1471,15 @@ unsafe extern "system" fn public_window_callback<T>(
                     let cursor = winuser::LoadCursorW(ptr::null_mut(), cursor.to_windows_cursor());
                     winuser::SetCursor(cursor);
                     0
-                },
+                }
                 None => winuser::DefWindowProcW(window, msg, wparam, lparam),
             }
-        },
+        }
 
         winuser::WM_DROPFILES => {
             // See `FileDropHandler` for implementation.
             0
-        },
+        }
 
         winuser::WM_GETMINMAXINFO => {
             let mmi = lparam as *mut winuser::MINMAXINFO;
@@ -1516,7 +1508,7 @@ unsafe extern "system" fn public_window_callback<T>(
             }
 
             0
-        },
+        }
 
         // Only sent on Windows 8.1 or newer. On Windows 7 and older user has to log out to change
         // DPI, therefore all applications are closed while DPI is changing.
@@ -1560,7 +1552,7 @@ unsafe extern "system" fn public_window_callback<T>(
             });
 
             0
-        },
+        }
 
         _ => {
             if msg == *DESTROY_MSG_ID {
@@ -1613,7 +1605,7 @@ unsafe extern "system" fn public_window_callback<T>(
             } else {
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             }
-        },
+        }
     }
 }
 
@@ -1631,7 +1623,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
             Box::from_raw(subclass_input);
             drop(subclass_input);
             0
-        },
+        }
         // Because WM_PAINT comes after all other messages, we use it during modal loops to detect
         // when the event queue has been emptied. See `process_event` for more details.
         winuser::WM_PAINT => {
@@ -1669,13 +1661,13 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                 winuser::TranslateMessage(&mut msg);
                                 winuser::DispatchMessageW(&mut msg);
                             }
-                        },
+                        }
                         // If the message isn't one of those three, it may be handled by the modal
                         // loop so we should return control flow to it.
                         _ => {
                             queue_call_again();
                             return 0;
-                        },
+                        }
                     }
                 }
 
@@ -1689,27 +1681,27 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             wait_until_time_or_msg(resume_time);
                             runner.new_events();
                             queue_call_again();
-                        },
+                        }
                         ControlFlow::Poll => {
                             runner.new_events();
                             queue_call_again();
-                        },
+                        }
                     }
                 }
             }
             0
-        },
+        }
         _ if msg == *USER_EVENT_MSG_ID => {
             if let Ok(event) = subclass_input.user_event_receiver.recv() {
                 subclass_input.send_event(Event::UserEvent(event));
             }
             0
-        },
+        }
         _ if msg == *EXEC_MSG_ID => {
             let mut function: ThreadExecFn = Box::from_raw(wparam as usize as *mut _);
             function();
             0
-        },
+        }
         _ => commctrl::DefSubclassProc(window, msg, wparam, lparam),
     }
 }

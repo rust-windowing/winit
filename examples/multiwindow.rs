@@ -28,7 +28,7 @@ fn main() {
                         if windows.is_empty() {
                             *control_flow = ControlFlow::Exit;
                         }
-                    },
+                    }
                     WindowEvent::KeyboardInput {
                         input:
                             KeyboardInput {
@@ -39,10 +39,10 @@ fn main() {
                     } => {
                         let window = Window::new(&event_loop).unwrap();
                         windows.insert(window.id(), window);
-                    },
+                    }
                     _ => (),
                 }
-            },
+            }
             _ => (),
         }
     })
