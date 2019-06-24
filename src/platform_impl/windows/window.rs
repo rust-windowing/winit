@@ -211,7 +211,7 @@ impl Window {
     }
 
     pub(crate) fn inner_size_physical(&self) -> (u32, u32) {
-        let mut rect: RECT = unsafe { mem::uninitialized() };
+        let mut rect: RECT = unsafe { mem::zeroed() };
         if unsafe { winuser::GetClientRect(self.window.0, &mut rect) } == 0 {
             panic!("Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit")
         }
