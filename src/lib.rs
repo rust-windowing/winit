@@ -115,6 +115,10 @@ extern crate smithay_client_toolkit as sctk;
 extern crate stdweb;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 extern crate calloop;
+#[cfg(feature = "web-sys")]
+extern crate wasm_bindgen;
+#[cfg(feature = "web-sys")]
+extern crate web_sys;
 
 pub mod dpi;
 #[macro_use]
