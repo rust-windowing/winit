@@ -1,10 +1,15 @@
 use std::sync::{Arc, Mutex};
 
 use crate::event::{
-    ElementState, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent, DeviceEvent
+    DeviceEvent, ElementState, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
+    WindowEvent,
 };
 
-use super::{event_loop::{WindowEventsSink,DeviceEventsSink}, window::WindowStore, DeviceId};
+use super::{
+    event_loop::{DeviceEventsSink, WindowEventsSink},
+    window::WindowStore,
+    DeviceId,
+};
 
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_pointer::{self, Event as PtrEvent, WlPointer},
@@ -12,9 +17,8 @@ use smithay_client_toolkit::reexports::client::protocol::{
 };
 
 use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1::client::{
-    zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
+    zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1, zwp_relative_pointer_v1::Event,
     zwp_relative_pointer_v1::ZwpRelativePointerV1,
-    zwp_relative_pointer_v1::Event,
 };
 
 pub fn implement_pointer(
@@ -62,7 +66,7 @@ pub fn implement_pointer(
                                 wid,
                             );
                         }
-                    },
+                    }
                     PtrEvent::Leave { surface, .. } => {
                         mouse_focus = None;
                         let wid = store.find_wid(&surface);
@@ -76,7 +80,7 @@ pub fn implement_pointer(
                                 wid,
                             );
                         }
-                    },
+                    }
                     PtrEvent::Motion {
                         surface_x,
                         surface_y,
@@ -94,7 +98,7 @@ pub fn implement_pointer(
                                 wid,
                             );
                         }
-                    },
+                    }
                     PtrEvent::Button { button, state, .. } => {
                         if let Some(wid) = mouse_focus {
                             let state = match state {
@@ -121,7 +125,7 @@ pub fn implement_pointer(
                                 wid,
                             );
                         }
-                    },
+                    }
                     PtrEvent::Axis { axis, value, .. } => {
                         if let Some(wid) = mouse_focus {
                             if pointer.as_ref().version() < 5 {
@@ -161,7 +165,7 @@ pub fn implement_pointer(
                                 }
                             }
                         }
-                    },
+                    }
                     PtrEvent::Frame => {
                         let axis_buffer = axis_buffer.take();
                         let axis_discrete_buffer = axis_discrete_buffer.take();
@@ -194,11 +198,11 @@ pub fn implement_pointer(
                                 );
                             }
                         }
-                    },
+                    }
                     PtrEvent::AxisSource { .. } => (),
                     PtrEvent::AxisStop { .. } => {
                         axis_state = TouchPhase::Ended;
-                    },
+                    }
                     PtrEvent::AxisDiscrete { axis, discrete } => {
                         let (mut x, mut y) = axis_discrete_buffer.unwrap_or((0, 0));
                         match axis {
@@ -212,7 +216,7 @@ pub fn implement_pointer(
                             TouchPhase::Started | TouchPhase::Moved => TouchPhase::Moved,
                             _ => TouchPhase::Started,
                         }
-                    },
+                    }
                     _ => unreachable!(),
                 }
             },
@@ -228,19 +232,17 @@ pub fn implement_relative_pointer(
     manager: &ZwpRelativePointerManagerV1,
 ) -> Result<ZwpRelativePointerV1, ()> {
     manager.get_relative_pointer(pointer, |rel_pointer| {
-        rel_pointer.implement_closure(move |evt, _rel_pointer| {
-            let mut sink = sink.lock().unwrap();
-            match evt {
-                Event::RelativeMotion {
-                    dx,
-                    dy,
-                    ..
-                } => {
-                    sink.send_event(DeviceEvent::MouseMotion{delta: (dx,dy)},
-                                   DeviceId)
-                },
-                _ => unreachable!(),
-            }
-        }, ())
+        rel_pointer.implement_closure(
+            move |evt, _rel_pointer| {
+                let mut sink = sink.lock().unwrap();
+                match evt {
+                    Event::RelativeMotion { dx, dy, .. } => {
+                        sink.send_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId)
+                    }
+                    _ => unreachable!(),
+                }
+            },
+            (),
+        )
     })
 }
