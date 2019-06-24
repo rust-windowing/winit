@@ -43,7 +43,7 @@ fn main() {
                 CloseRequested => *control_flow = ControlFlow::Exit,
                 DroppedFile(path) => {
                     window.set_window_icon(Some(load_icon(&path)));
-                },
+                }
                 _ => (),
             }
         }

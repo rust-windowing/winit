@@ -49,7 +49,7 @@ pub(crate) fn implement_touch(
                                 id,
                             });
                         }
-                    },
+                    }
                     TouchEvent::Up { id, .. } => {
                         let idx = pending_ids.iter().position(|p| p.id == id);
                         if let Some(idx) = idx {
@@ -66,7 +66,7 @@ pub(crate) fn implement_touch(
                                 pt.wid,
                             );
                         }
-                    },
+                    }
                     TouchEvent::Motion { id, x, y, .. } => {
                         let pt = pending_ids.iter_mut().find(|p| p.id == id);
                         if let Some(pt) = pt {
@@ -83,7 +83,7 @@ pub(crate) fn implement_touch(
                                 pt.wid,
                             );
                         }
-                    },
+                    }
                     TouchEvent::Frame => (),
                     TouchEvent::Cancel => {
                         for pt in pending_ids.drain(..) {
@@ -99,7 +99,7 @@ pub(crate) fn implement_touch(
                                 pt.wid,
                             );
                         }
-                    },
+                    }
                     _ => unreachable!(),
                 }
             },

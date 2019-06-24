@@ -308,7 +308,7 @@ impl<T: 'static> EventLoop<T> {
                         &self.target,
                         &mut control_flow,
                     );
-                },
+                }
                 ControlFlow::Wait => {
                     self.inner_loop.dispatch(None, &mut ()).unwrap();
                     callback(
@@ -319,7 +319,7 @@ impl<T: 'static> EventLoop<T> {
                         &self.target,
                         &mut control_flow,
                     );
-                },
+                }
                 ControlFlow::WaitUntil(deadline) => {
                     let start = ::std::time::Instant::now();
                     // compute the blocking duration
@@ -353,7 +353,7 @@ impl<T: 'static> EventLoop<T> {
                             &mut control_flow,
                         );
                     }
-                },
+                }
             }
         }
 
@@ -588,8 +588,8 @@ impl Device {
                                 position: 0.0,
                             },
                         ));
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
             }
         }
@@ -619,8 +619,8 @@ impl Device {
                         {
                             axis.position = info.value;
                         }
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
             }
         }

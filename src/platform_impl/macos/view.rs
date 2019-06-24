@@ -900,7 +900,7 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
         let phase = match event.phase() {
             NSEventPhase::NSEventPhaseMayBegin | NSEventPhase::NSEventPhaseBegan => {
                 TouchPhase::Started
-            },
+            }
             NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
             _ => TouchPhase::Moved,
         };

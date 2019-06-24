@@ -170,7 +170,7 @@ impl MouseProperties {
             Err(e) => {
                 self.cursor_flags = old_flags;
                 return Err(e);
-            },
+            }
         }
 
         Ok(())
@@ -309,7 +309,7 @@ impl WindowFlags {
                             h,
                             winuser::SWP_NOZORDER | winuser::SWP_FRAMECHANGED,
                         );
-                    },
+                    }
                     None => {
                         // Refresh the window frame.
                         winuser::SetWindowPos(
@@ -324,7 +324,7 @@ impl WindowFlags {
                                 | winuser::SWP_NOSIZE
                                 | winuser::SWP_FRAMECHANGED,
                         );
-                    },
+                    }
                 }
                 winuser::SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 0, 0);
             }

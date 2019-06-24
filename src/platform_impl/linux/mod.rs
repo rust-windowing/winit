@@ -158,10 +158,10 @@ impl Window {
         match *window_target {
             EventLoopWindowTarget::Wayland(ref window_target) => {
                 wayland::Window::new(window_target, attribs, pl_attribs).map(Window::Wayland)
-            },
+            }
             EventLoopWindowTarget::X(ref window_target) => {
                 x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
-            },
+            }
         }
     }
 
@@ -313,13 +313,9 @@ impl Window {
     pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
         match self {
             &Window::X(ref w) => w.fullscreen(),
-            &Window::Wayland(ref w) => {
-                w.fullscreen().map(|monitor_id| {
-                    RootMonitorHandle {
-                        inner: MonitorHandle::Wayland(monitor_id),
-                    }
-                })
-            },
+            &Window::Wayland(ref w) => w.fullscreen().map(|monitor_id| RootMonitorHandle {
+                inner: MonitorHandle::Wayland(monitor_id),
+            }),
         }
     }
 
@@ -374,15 +370,11 @@ impl Window {
     #[inline]
     pub fn current_monitor(&self) -> RootMonitorHandle {
         match self {
-            &Window::X(ref window) => {
-                RootMonitorHandle {
-                    inner: MonitorHandle::X(window.current_monitor()),
-                }
+            &Window::X(ref window) => RootMonitorHandle {
+                inner: MonitorHandle::X(window.current_monitor()),
             },
-            &Window::Wayland(ref window) => {
-                RootMonitorHandle {
-                    inner: MonitorHandle::Wayland(window.current_monitor()),
-                }
+            &Window::Wayland(ref window) => RootMonitorHandle {
+                inner: MonitorHandle::Wayland(window.current_monitor()),
             },
         }
     }
@@ -390,20 +382,16 @@ impl Window {
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match self {
-            &Window::X(ref window) => {
-                window
-                    .available_monitors()
-                    .into_iter()
-                    .map(MonitorHandle::X)
-                    .collect()
-            },
-            &Window::Wayland(ref window) => {
-                window
-                    .available_monitors()
-                    .into_iter()
-                    .map(MonitorHandle::Wayland)
-                    .collect()
-            },
+            &Window::X(ref window) => window
+                .available_monitors()
+                .into_iter()
+                .map(MonitorHandle::X)
+                .collect(),
+            &Window::Wayland(ref window) => window
+                .available_monitors()
+                .into_iter()
+                .map(MonitorHandle::Wayland)
+                .collect(),
         }
     }
 
@@ -464,16 +452,14 @@ impl<T: 'static> EventLoop<T> {
                 "x11" => {
                     // TODO: propagate
                     return EventLoop::new_x11().expect("Failed to initialize X11 backend");
-                },
+                }
                 "wayland" => {
                     return EventLoop::new_wayland().expect("Failed to initialize Wayland backend");
-                },
-                _ => {
-                    panic!(
-                        "Unknown environment variable value for {}, try one of `x11`,`wayland`",
-                        BACKEND_PREFERENCE_ENV_VAR,
-                    )
-                },
+                }
+                _ => panic!(
+                    "Unknown environment variable value for {}, try one of `x11`,`wayland`",
+                    BACKEND_PREFERENCE_ENV_VAR,
+                ),
             }
         }
 
@@ -511,19 +497,17 @@ impl<T: 'static> EventLoop<T> {
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match *self {
-            EventLoop::Wayland(ref evlp) => {
-                evlp.available_monitors()
-                    .into_iter()
-                    .map(MonitorHandle::Wayland)
-                    .collect()
-            },
-            EventLoop::X(ref evlp) => {
-                evlp.x_connection()
-                    .available_monitors()
-                    .into_iter()
-                    .map(MonitorHandle::X)
-                    .collect()
-            },
+            EventLoop::Wayland(ref evlp) => evlp
+                .available_monitors()
+                .into_iter()
+                .map(MonitorHandle::Wayland)
+                .collect(),
+            EventLoop::X(ref evlp) => evlp
+                .x_connection()
+                .available_monitors()
+                .into_iter()
+                .map(MonitorHandle::X)
+                .collect(),
         }
     }
 
