@@ -107,7 +107,7 @@ impl Window {
                                 return;
                             }
                         }
-                    },
+                    }
                     WEvent::Refresh => {
                         let store = window_store.lock().unwrap();
                         for window in &store.windows {
@@ -116,7 +116,7 @@ impl Window {
                                 return;
                             }
                         }
-                    },
+                    }
                     WEvent::Close => {
                         let mut store = window_store.lock().unwrap();
                         for window in &mut store.windows {
@@ -125,7 +125,7 @@ impl Window {
                                 return;
                             }
                         }
-                    },
+                    }
                 }
             },
         )

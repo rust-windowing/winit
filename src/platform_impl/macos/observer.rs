@@ -121,7 +121,7 @@ extern "C" fn control_flow_begin_handler(
             //trace!("Triggered `CFRunLoopAfterWaiting`");
             AppState::wakeup();
             //trace!("Completed `CFRunLoopAfterWaiting`");
-        },
+        }
         kCFRunLoopEntry => unimplemented!(), // not expected to ever happen
         _ => unreachable!(),
     }
@@ -140,7 +140,7 @@ extern "C" fn control_flow_end_handler(
             //trace!("Triggered `CFRunLoopBeforeWaiting`");
             AppState::cleared();
             //trace!("Completed `CFRunLoopBeforeWaiting`");
-        },
+        }
         kCFRunLoopExit => (), //unimplemented!(), // not expected to ever happen
         _ => unreachable!(),
     }

@@ -14,14 +14,12 @@ fn main() {
         .unwrap();
 
     println!("Close the window to continue.");
-    event_loop.run_return(|event, _, control_flow| {
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
-            _ => *control_flow = ControlFlow::Wait,
-        }
+    event_loop.run_return(|event, _, control_flow| match event {
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } => *control_flow = ControlFlow::Exit,
+        _ => *control_flow = ControlFlow::Wait,
     });
     drop(window);
 
@@ -31,14 +29,12 @@ fn main() {
         .unwrap();
 
     println!("Wa ha ha! You thought that closing the window would finish this?!");
-    event_loop.run_return(|event, _, control_flow| {
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
-            _ => *control_flow = ControlFlow::Wait,
-        }
+    event_loop.run_return(|event, _, control_flow| match event {
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } => *control_flow = ControlFlow::Exit,
+        _ => *control_flow = ControlFlow::Wait,
     });
 
     println!("Okay we're done now for real.");

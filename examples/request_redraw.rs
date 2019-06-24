@@ -25,7 +25,7 @@ fn main() {
             Event::EventsCleared => {
                 window.request_redraw();
                 *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0))
-            },
+            }
             _ => (),
         }
     });

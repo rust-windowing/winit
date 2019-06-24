@@ -34,7 +34,7 @@ fn main() {
                         H => window.set_cursor_visible(modifiers.shift),
                         _ => (),
                     }
-                },
+                }
                 _ => (),
             }
         }
