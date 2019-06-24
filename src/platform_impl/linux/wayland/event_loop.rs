@@ -31,64 +31,37 @@ use smithay_client_toolkit::{
     Environment,
 };
 
-pub struct WindowEventsSink {
-    buffer: VecDeque<(crate::event::WindowEvent, crate::window::WindowId)>,
+pub struct WindowEventsSink<T> {
+    buffer: VecDeque<crate::event::Event<T>>,
 }
 
-impl WindowEventsSink {
-    pub fn new() -> WindowEventsSink {
+impl<T> WindowEventsSink<T> {
+    pub fn new() -> WindowEventsSink<T> {
         WindowEventsSink {
             buffer: VecDeque::new(),
         }
     }
 
-    pub fn send_event(&mut self, evt: crate::event::WindowEvent, wid: WindowId) {
-        self.buffer.push_back((
-            evt,
-            crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
-        ));
+    pub fn send_window_event(&mut self, evt: crate::event::WindowEvent, wid: WindowId) {
+        self.buffer.push_back(crate::event::Event::WindowEvent {
+            event: evt,
+            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
+        });
     }
 
-    fn empty_with<F, T>(&mut self, mut callback: F)
+    pub fn send_device_event(&mut self, evt: crate::event::DeviceEvent, dev_id: DeviceId) {
+        self.buffer.push_back(crate::event::Event::DeviceEvent {
+            event: evt,
+            device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(dev_id)),
+        });
+    }
+
+    fn empty_with<F>(&mut self, mut callback: F)
     where
         F: FnMut(crate::event::Event<T>),
     {
-        for (evt, wid) in self.buffer.drain(..) {
-            callback(crate::event::Event::WindowEvent {
-                event: evt,
-                window_id: wid,
-            })
-        }
-    }
-}
-
-pub struct DeviceEventsSink {
-    buffer: VecDeque<(crate::event::DeviceEvent, crate::event::DeviceId)>,
-}
-
-impl DeviceEventsSink {
-    pub fn new() -> DeviceEventsSink {
-        DeviceEventsSink {
-            buffer: VecDeque::new(),
-        }
-    }
-
-    pub fn send_event(&mut self, evt: crate::event::DeviceEvent, dev_id: DeviceId) {
-        self.buffer.push_back((
-            evt,
-            crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(dev_id)),
-        ));
-    }
-
-    fn empty_with<F, T>(&mut self, mut callback: F)
-    where
-        F: FnMut(crate::event::Event<T>),
-    {
-        for (evt, dev_id) in self.buffer.drain(..) {
-            callback(crate::event::Event::DeviceEvent {
-                event: evt,
-                device_id: dev_id,
-            })
+        for evt in self.buffer.drain(..) {
+            callback(evt)
         }
     }
 }
@@ -101,8 +74,7 @@ pub struct EventLoop<T: 'static> {
     // the output manager
     pub outputs: OutputMgr,
     // our sink, shared with some handlers, buffering the events
-    sink: Arc<Mutex<WindowEventsSink>>,
-    dev_sink: Arc<Mutex<DeviceEventsSink>>,
+    sink: Arc<Mutex<WindowEventsSink<T>>>,
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     user_sender: ::calloop::channel::Sender<T>,
@@ -148,7 +120,6 @@ impl<T: 'static> EventLoop<T> {
 
         let display = Arc::new(display);
         let sink = Arc::new(Mutex::new(WindowEventsSink::new()));
-        let device_sink = Arc::new(Mutex::new(DeviceEventsSink::new()));
         let store = Arc::new(Mutex::new(WindowStore::new()));
         let seats = Arc::new(Mutex::new(Vec::new()));
 
@@ -160,14 +131,13 @@ impl<T: 'static> EventLoop<T> {
             .handle()
             .insert_source(kbd_channel, move |evt, &mut ()| {
                 if let ::calloop::channel::Event::Msg((evt, wid)) = evt {
-                    kbd_sink.lock().unwrap().send_event(evt, wid);
+                    kbd_sink.lock().unwrap().send_window_event(evt, wid);
                 }
             })
             .unwrap();
 
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
-            device_sink: device_sink.clone(),
             relative_pointer_manager_proxy: None,
             store: store.clone(),
             seats: seats.clone(),
@@ -227,7 +197,6 @@ impl<T: 'static> EventLoop<T> {
         Ok(EventLoop {
             inner_loop,
             sink,
-            dev_sink: device_sink,
             pending_user_events,
             display: display.clone(),
             outputs: env.outputs.clone(),
@@ -273,7 +242,6 @@ impl<T: 'static> EventLoop<T> {
         let mut control_flow = ControlFlow::default();
 
         let sink = self.sink.clone();
-        let dev_sink = self.dev_sink.clone();
         let user_events = self.pending_user_events.clone();
 
         callback(
@@ -285,17 +253,6 @@ impl<T: 'static> EventLoop<T> {
         loop {
             self.post_dispatch_triggers();
 
-            {
-                let mut guard = dev_sink.lock().unwrap();
-                guard.empty_with(|evt| {
-                    sticky_exit_callback(
-                        evt,
-                        &self.window_target,
-                        &mut control_flow,
-                        &mut callback,
-                    );
-                });
-            }
             // empty buffer of events
             {
                 let mut guard = sink.lock().unwrap();
@@ -450,7 +407,7 @@ impl<T> EventLoop<T> {
                 let pruned = window_target.store.lock().unwrap().cleanup();
                 *cleanup_needed = false;
                 for wid in pruned {
-                    sink.send_event(crate::event::WindowEvent::Destroyed, wid);
+                    sink.send_window_event(crate::event::WindowEvent::Destroyed, wid);
                 }
             }
         }
@@ -462,7 +419,10 @@ impl<T> EventLoop<T> {
                         frame.resize(w, h);
                         frame.refresh();
                         let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
-                        sink.send_event(crate::event::WindowEvent::Resized(logical_size), wid);
+                        sink.send_window_event(
+                            crate::event::WindowEvent::Resized(logical_size),
+                            wid,
+                        );
                         *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
@@ -472,16 +432,16 @@ impl<T> EventLoop<T> {
                     }
                 }
                 if let Some(dpi) = new_dpi {
-                    sink.send_event(
+                    sink.send_window_event(
                         crate::event::WindowEvent::HiDpiFactorChanged(dpi as f64),
                         wid,
                     );
                 }
                 if refresh {
-                    sink.send_event(crate::event::WindowEvent::RedrawRequested, wid);
+                    sink.send_window_event(crate::event::WindowEvent::RedrawRequested, wid);
                 }
                 if closed {
-                    sink.send_event(crate::event::WindowEvent::CloseRequested, wid);
+                    sink.send_window_event(crate::event::WindowEvent::CloseRequested, wid);
                 }
             },
         )
@@ -492,22 +452,20 @@ impl<T> EventLoop<T> {
  * Wayland protocol implementations
  */
 
-struct SeatManager {
-    sink: Arc<Mutex<WindowEventsSink>>,
-    device_sink: Arc<Mutex<DeviceEventsSink>>,
+struct SeatManager<T: 'static> {
+    sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     relative_pointer_manager_proxy: Option<ZwpRelativePointerManagerV1>,
 }
 
-impl SeatManager {
+impl<T: 'static> SeatManager<T> {
     fn add_seat(&mut self, id: u32, version: u32, registry: wl_registry::WlRegistry) {
         use std::cmp::min;
 
         let mut seat_data = SeatData {
             sink: self.sink.clone(),
-            device_sink: self.device_sink.clone(),
             store: self.store.clone(),
             pointer: None,
             relative_pointer: None,
@@ -537,9 +495,8 @@ impl SeatManager {
     }
 }
 
-struct SeatData {
-    sink: Arc<Mutex<WindowEventsSink>>,
-    device_sink: Arc<Mutex<DeviceEventsSink>>,
+struct SeatData<T> {
+    sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     pointer: Option<wl_pointer::WlPointer>,
@@ -550,7 +507,7 @@ struct SeatData {
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
 }
 
-impl SeatData {
+impl<T: 'static> SeatData<T> {
     fn receive(&mut self, evt: wl_seat::Event, seat: wl_seat::WlSeat) {
         match evt {
             wl_seat::Event::Name { .. } => (),
@@ -569,7 +526,7 @@ impl SeatData {
                             || None,
                             |manager| {
                                 super::pointer::implement_relative_pointer(
-                                    self.device_sink.clone(),
+                                    self.sink.clone(),
                                     self.pointer.as_ref().unwrap(),
                                     manager,
                                 )
@@ -623,7 +580,7 @@ impl SeatData {
     }
 }
 
-impl Drop for SeatData {
+impl<T> Drop for SeatData<T> {
     fn drop(&mut self) {
         if let Some(pointer) = self.pointer.take() {
             if pointer.as_ref().version() >= 3 {
