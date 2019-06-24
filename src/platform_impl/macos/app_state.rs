@@ -23,8 +23,8 @@ lazy_static! {
     static ref HANDLER: Handler = Default::default();
 }
 
-impl Event<Never> {
-    fn userify<T: 'static>(self) -> Event<T> {
+impl<'a, Never> Event<'a, Never> {
+    fn userify<T: 'static>(self) -> Event<'a, T> {
         self.map_nonuser_event()
             // `Never` can't be constructed, so the `UserEvent` variant can't
             // be present here.
@@ -33,7 +33,8 @@ impl Event<Never> {
 }
 
 pub trait EventHandler: Debug {
-    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow);
+    // Not sure probably it should accept Event<'static, Never>
+    fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow);
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
 }
 
@@ -54,10 +55,10 @@ impl<F, T> Debug for EventLoopHandler<F, T> {
 
 impl<F, T> EventHandler for EventLoopHandler<F, T>
 where
-    F: 'static + FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+    F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     T: 'static,
 {
-    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
+    fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
         (self.callback)(event.userify(), &self.window_target, control_flow);
         self.will_exit |= *control_flow == ControlFlow::Exit;
         if self.will_exit {
@@ -86,8 +87,8 @@ struct Handler {
     control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
-    pending_events: Mutex<VecDeque<Event<Never>>>,
-    deferred_events: Mutex<VecDeque<Event<Never>>>,
+    pending_events: Mutex<VecDeque<Event<'static, Never>>>,
+    deferred_events: Mutex<VecDeque<Event<'static, Never>>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
 }
@@ -96,11 +97,11 @@ unsafe impl Send for Handler {}
 unsafe impl Sync for Handler {}
 
 impl Handler {
-    fn events<'a>(&'a self) -> MutexGuard<'a, VecDeque<Event<Never>>> {
+    fn events<'a>(&'a self) -> MutexGuard<'a, VecDeque<Event<'static, Never>>> {
         self.pending_events.lock().unwrap()
     }
 
-    fn deferred<'a>(&'a self) -> MutexGuard<'a, VecDeque<Event<Never>>> {
+    fn deferred<'a>(&'a self) -> MutexGuard<'a, VecDeque<Event<'static, Never>>> {
         self.deferred_events.lock().unwrap()
     }
 
@@ -144,11 +145,11 @@ impl Handler {
         *self.start_time.lock().unwrap() = Some(Instant::now());
     }
 
-    fn take_events(&self) -> VecDeque<Event<Never>> {
+    fn take_events(&self) -> VecDeque<Event<'_, Never>> {
         mem::replace(&mut *self.events(), Default::default())
     }
 
-    fn take_deferred(&self) -> VecDeque<Event<Never>> {
+    fn take_deferred(&self) -> VecDeque<Event<'_, Never>> {
         mem::replace(&mut *self.deferred(), Default::default())
     }
 
@@ -164,7 +165,7 @@ impl Handler {
         self.in_callback.store(in_callback, Ordering::Release);
     }
 
-    fn handle_nonuser_event(&self, event: Event<Never>) {
+    fn handle_nonuser_event(&self, event: Event<'_, Never>) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
             callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
         }
@@ -182,7 +183,7 @@ pub enum AppState {}
 impl AppState {
     pub fn set_callback<F, T>(callback: F, window_target: RootWindowTarget<T>)
     where
-        F: 'static + FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
         T: 'static,
     {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
@@ -247,21 +248,21 @@ impl AppState {
         }
     }
 
-    pub fn queue_event(event: Event<Never>) {
+    pub fn queue_event(event: Event<'static, Never>) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
             panic!("Event queued from different thread: {:#?}", event);
         }
         HANDLER.events().push_back(event);
     }
 
-    pub fn queue_events(mut events: VecDeque<Event<Never>>) {
+    pub fn queue_events(mut events: VecDeque<Event<'static, Never>>) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
             panic!("Events queued from different thread: {:#?}", events);
         }
         HANDLER.events().append(&mut events);
     }
 
-    pub fn send_event_immediately(event: Event<Never>) {
+    pub fn send_event_immediately(event: Event<'static, Never>) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
             panic!("Event sent from different thread: {:#?}", event);
         }
