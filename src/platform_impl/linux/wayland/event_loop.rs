@@ -522,17 +522,16 @@ impl<T: 'static> SeatData<T> {
                     ));
 
                     self.relative_pointer =
-                        self.relative_pointer_manager_proxy.as_ref().map_or_else(
-                            || None,
-                            |manager| {
+                        self.relative_pointer_manager_proxy
+                            .as_ref()
+                            .and_then(|manager| {
                                 super::pointer::implement_relative_pointer(
                                     self.sink.clone(),
                                     self.pointer.as_ref().unwrap(),
                                     manager,
                                 )
                                 .ok()
-                            },
-                        )
+                            })
                 }
                 // destroy pointer if applicable
                 if !capabilities.contains(wl_seat::Capability::Pointer) {
