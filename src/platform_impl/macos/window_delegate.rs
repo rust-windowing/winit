@@ -15,7 +15,7 @@ use objc::{
 };
 
 use crate::{
-    dpi::LogicalSize,
+    dpi::{ LogicalSize, PhysicalSize },
     event::{Event, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
@@ -47,7 +47,7 @@ pub struct WindowDelegateState {
 
 impl WindowDelegateState {
     pub fn new(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> Self {
-        let dpi_factor = window.hidpi_factor();
+        let hidpi_factor = window.hidpi_factor();
 
         let mut delegate_state = WindowDelegateState {
             ns_window: window.ns_window.clone(),
@@ -55,11 +55,14 @@ impl WindowDelegateState {
             window: Arc::downgrade(&window),
             initial_fullscreen,
             previous_position: None,
-            previous_dpi_factor: dpi_factor,
+            previous_dpi_factor: hidpi_factor,
         };
 
-        if dpi_factor != 1.0 {
-            delegate_state.emit_event(WindowEvent::HiDpiFactorChanged(dpi_factor));
+        if hidpi_factor != 1.0 {
+            let new_inner_size = &mut Some(window.inner_size().to_physical(hidpi_factor));
+            delegate_state.emit_event(
+                WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size }
+            );
             delegate_state.emit_resize_event();
         }
 
@@ -73,7 +76,7 @@ impl WindowDelegateState {
         self.window.upgrade().map(|ref window| callback(window))
     }
 
-    pub fn emit_event(&mut self, event: WindowEvent) {
+    pub fn emit_event(&mut self, event: WindowEvent<'static>) {
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*self.ns_window)),
             event,
@@ -84,9 +87,11 @@ impl WindowDelegateState {
     pub fn emit_resize_event(&mut self) {
         let rect = unsafe { NSView::frame(*self.ns_view) };
         let size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
+        let hidpi_factor = self.previous_dpi_factor;
+        let physical_size = size.to_physical(hidpi_factor);
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*self.ns_window)),
-            event: WindowEvent::Resized(size),
+            event: WindowEvent::Resized(physical_size),
         };
         AppState::send_event_immediately(event);
     }
@@ -275,10 +280,13 @@ extern "C" fn window_did_move(this: &Object, _: Sel, _: id) {
 extern "C" fn window_did_change_screen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidChangeScreen:`");
     with_state(this, |state| {
-        let dpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
-        if state.previous_dpi_factor != dpi_factor {
-            state.previous_dpi_factor = dpi_factor;
-            state.emit_event(WindowEvent::HiDpiFactorChanged(dpi_factor));
+        let hidpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
+        let ns_size = unsafe { NSWindow::contentSize(*state.ns_window) };
+        let new_inner_size =
+            &mut Some(PhysicalSize::new(ns_size.width as u32, ns_size.height as u32));
+        if state.previous_dpi_factor != hidpi_factor {
+            state.previous_dpi_factor = hidpi_factor;
+            state.emit_event(WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size });
             state.emit_resize_event();
         }
     });
@@ -289,10 +297,13 @@ extern "C" fn window_did_change_screen(this: &Object, _: Sel, _: id) {
 extern "C" fn window_did_change_backing_properties(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidChangeBackingProperties:`");
     with_state(this, |state| {
-        let dpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
-        if state.previous_dpi_factor != dpi_factor {
-            state.previous_dpi_factor = dpi_factor;
-            state.emit_event(WindowEvent::HiDpiFactorChanged(dpi_factor));
+        let hidpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
+        let ns_size = unsafe { NSWindow::contentSize(*state.ns_window) };
+        let new_inner_size =
+            &mut Some(PhysicalSize::new(ns_size.width as u32, ns_size.height as u32));
+        if state.previous_dpi_factor != hidpi_factor {
+            state.previous_dpi_factor = hidpi_factor;
+            state.emit_event(WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size });
             state.emit_resize_event();
         }
     });

@@ -244,7 +244,7 @@ pub unsafe fn modifier_event(
     ns_event: id,
     keymask: NSEventModifierFlags,
     was_key_pressed: bool,
-) -> Option<WindowEvent> {
+) -> Option<WindowEvent<'static>> {
     if !was_key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
         || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask)
     {

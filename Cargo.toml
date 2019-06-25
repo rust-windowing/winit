@@ -37,7 +37,7 @@ core-foundation = "0.6"
 core-graphics = "0.17.3"
 core-video-sys = "0.1.2"
 dispatch = "0.1.4"
-objc = "0.2.3"
+objc = "0.2.6"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 bitflags = "1"
