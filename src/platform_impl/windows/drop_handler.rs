@@ -200,15 +200,14 @@ impl FileDropHandler {
 
             for i in 0..item_count {
                 // Get the length of the string NOT including the terminating null character
-                let character_count =
-                    DragQueryFileW(hdrop, i, ptr::null_mut(), 0) as usize;
+                let character_count = DragQueryFileW(hdrop, i, ptr::null_mut(), 0) as usize;
                 let str_len = character_count + 1;
 
                 // Fill path_buf with the null-terminated file name
                 let mut path_buf = Vec::with_capacity(str_len);
                 DragQueryFileW(hdrop, i, path_buf.as_mut_ptr(), str_len as UINT);
                 path_buf.set_len(str_len);
-                
+
                 callback(OsString::from_wide(&path_buf[0..character_count]).into());
             }
 
