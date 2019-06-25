@@ -160,7 +160,7 @@ Legend:
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
 |Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
-|Exclusive fullscreen             |✔️     |✔️     |❌         |**N/A**         |❌    |❌     |❌        |
+|Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |❌     |❌        |
 |HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️         |
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |❌        |
 
