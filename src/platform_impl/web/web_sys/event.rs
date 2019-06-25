@@ -220,5 +220,8 @@ pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
 }
 
 pub fn codepoint(event: &KeyboardEvent) -> char {
+    // `event.key()` always returns a non-empty `String`. Therefore, this should
+    // never panic.
+    // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
     event.key().chars().next().unwrap()
 }

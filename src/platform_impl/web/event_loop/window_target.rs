@@ -49,7 +49,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_key_down(move |scancode, virtual_keycode, modifiers| {
+        canvas.on_keyboard_press(move |scancode, virtual_keycode, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::KeyboardInput {
@@ -65,7 +65,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_key_up(move |scancode, virtual_keycode, modifiers| {
+        canvas.on_keyboard_release(move |scancode, virtual_keycode, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::KeyboardInput {
@@ -81,7 +81,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_key_press(move |char_code| {
+        canvas.on_received_character(move |char_code| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::ReceivedCharacter(char_code),
@@ -89,7 +89,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_out(move |pointer_id| {
+        canvas.on_cursor_leave(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::CursorLeft {
@@ -99,7 +99,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_over(move |pointer_id| {
+        canvas.on_cursor_enter(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::CursorEntered {
@@ -109,7 +109,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_move(move |pointer_id, position, modifiers| {
+        canvas.on_cursor_move(move |pointer_id, position, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::CursorMoved {
@@ -121,7 +121,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_up(move |pointer_id, button, modifiers| {
+        canvas.on_mouse_press(move |pointer_id, button, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::MouseInput {
@@ -134,7 +134,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_down(move |pointer_id, button, modifiers| {
+        canvas.on_mouse_release(move |pointer_id, button, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::MouseInput {
@@ -147,7 +147,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_scroll(move |pointer_id, delta, modifiers| {
+        canvas.on_mouse_wheel(move |pointer_id, delta, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::MouseWheel {

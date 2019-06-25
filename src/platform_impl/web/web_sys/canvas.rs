@@ -12,15 +12,15 @@ pub struct Canvas {
     on_redraw: Closure<dyn Fn()>,
     on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
-    on_key_up: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_key_down: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_key_press: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_mouse_out: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_over: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_up: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_down: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_move: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_scroll: Option<Closure<dyn FnMut(WheelEvent)>>,
+    on_keyboard_release: Option<Closure<dyn FnMut(KeyboardEvent)>>,
+    on_keyboard_press: Option<Closure<dyn FnMut(KeyboardEvent)>>,
+    on_received_character: Option<Closure<dyn FnMut(KeyboardEvent)>>,
+    on_cursor_leave: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_cursor_enter: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_cursor_move: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_mouse_press: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_mouse_release: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
 }
 
 impl Drop for Canvas {
@@ -58,15 +58,15 @@ impl Canvas {
             on_redraw: Closure::wrap(Box::new(on_redraw) as Box<dyn Fn()>),
             on_blur: None,
             on_focus: None,
-            on_key_up: None,
-            on_key_down: None,
-            on_key_press: None,
-            on_mouse_out: None,
-            on_mouse_over: None,
-            on_mouse_up: None,
-            on_mouse_down: None,
-            on_mouse_move: None,
-            on_mouse_scroll: None,
+            on_keyboard_release: None,
+            on_keyboard_press: None,
+            on_received_character: None,
+            on_cursor_leave: None,
+            on_cursor_enter: None,
+            on_cursor_move: None,
+            on_mouse_release: None,
+            on_mouse_press: None,
+            on_mouse_wheel: None,
         })
     }
 
@@ -124,11 +124,11 @@ impl Canvas {
         }));
     }
 
-    pub fn on_key_up<F>(&mut self, mut handler: F)
+    pub fn on_keyboard_release<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
-        self.on_key_up = Some(self.add_event("keyup", move |event: KeyboardEvent| {
+        self.on_keyboard_release = Some(self.add_event("keyup", move |event: KeyboardEvent| {
             handler(
                 event::scan_code(&event),
                 event::virtual_key_code(&event),
@@ -137,11 +137,11 @@ impl Canvas {
         }));
     }
 
-    pub fn on_key_down<F>(&mut self, mut handler: F)
+    pub fn on_keyboard_press<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
-        self.on_key_down = Some(self.add_event("keydown", move |event: KeyboardEvent| {
+        self.on_keyboard_press = Some(self.add_event("keydown", move |event: KeyboardEvent| {
             handler(
                 event::scan_code(&event),
                 event::virtual_key_code(&event),
@@ -150,38 +150,44 @@ impl Canvas {
         }));
     }
 
-    pub fn on_key_press<F>(&mut self, mut handler: F)
+    pub fn on_received_character<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(char),
     {
-        self.on_key_press = Some(self.add_event("keypress", move |event: KeyboardEvent| {
-            handler(event::codepoint(&event));
-        }));
+        // TODO: Use `beforeinput`.
+        //
+        // The `keypress` event is deprecated, but there does not seem to be a
+        // viable/compatible alternative as of now. `beforeinput` is still widely
+        // unsupported.
+        self.on_received_character =
+            Some(self.add_event("keypress", move |event: KeyboardEvent| {
+                handler(event::codepoint(&event));
+            }));
     }
 
-    pub fn on_mouse_out<F>(&mut self, mut handler: F)
+    pub fn on_cursor_leave<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32),
     {
-        self.on_mouse_out = Some(self.add_event("pointerout", move |event: PointerEvent| {
+        self.on_cursor_leave = Some(self.add_event("pointerout", move |event: PointerEvent| {
             handler(event.pointer_id());
         }));
     }
 
-    pub fn on_mouse_over<F>(&mut self, mut handler: F)
+    pub fn on_cursor_enter<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32),
     {
-        self.on_mouse_over = Some(self.add_event("pointerover", move |event: PointerEvent| {
+        self.on_cursor_enter = Some(self.add_event("pointerover", move |event: PointerEvent| {
             handler(event.pointer_id());
         }));
     }
 
-    pub fn on_mouse_up<F>(&mut self, mut handler: F)
+    pub fn on_mouse_release<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32, MouseButton, ModifiersState),
     {
-        self.on_mouse_up = Some(self.add_event("pointerup", move |event: PointerEvent| {
+        self.on_mouse_release = Some(self.add_event("pointerup", move |event: PointerEvent| {
             handler(
                 event.pointer_id(),
                 event::mouse_button(&event),
@@ -190,11 +196,11 @@ impl Canvas {
         }));
     }
 
-    pub fn on_mouse_down<F>(&mut self, mut handler: F)
+    pub fn on_mouse_press<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32, MouseButton, ModifiersState),
     {
-        self.on_mouse_down = Some(self.add_event("pointerdown", move |event: PointerEvent| {
+        self.on_mouse_press = Some(self.add_event("pointerdown", move |event: PointerEvent| {
             handler(
                 event.pointer_id(),
                 event::mouse_button(&event),
@@ -203,11 +209,11 @@ impl Canvas {
         }));
     }
 
-    pub fn on_mouse_move<F>(&mut self, mut handler: F)
+    pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32, LogicalPosition, ModifiersState),
     {
-        self.on_mouse_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
+        self.on_cursor_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
             handler(
                 event.pointer_id(),
                 event::mouse_position(&event),
@@ -216,11 +222,11 @@ impl Canvas {
         }));
     }
 
-    pub fn on_mouse_scroll<F>(&mut self, mut handler: F)
+    pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
-        self.on_mouse_scroll = Some(self.add_event("wheel", move |event: WheelEvent| {
+        self.on_mouse_wheel = Some(self.add_event("wheel", move |event: WheelEvent| {
             if let Some(delta) = event::mouse_scroll_delta(&event) {
                 handler(0, delta, event::mouse_modifiers(&event));
             }
