@@ -57,7 +57,7 @@ impl Window {
     }
 
     pub fn set_title(&self, title: &str) {
-        backend::Document::set_title(title);
+        self.canvas.set_attribute("alt", title);
     }
 
     pub fn set_visible(&self, _visible: bool) {

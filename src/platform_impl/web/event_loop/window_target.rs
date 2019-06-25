@@ -1,5 +1,5 @@
 use super::{backend, device, proxy::Proxy, runner, window};
-use crate::event::{DeviceId, ElementState, Event, TouchPhase, WindowEvent};
+use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
 use std::clone::Clone;
@@ -27,15 +27,59 @@ impl<T> WindowTarget<T> {
         Proxy::new(self.runner.clone())
     }
 
-    pub fn run(
-        &self,
-        event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
-    ) -> &runner::Shared<T> {
+    pub fn run(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
         self.runner.set_listener(event_handler);
-        &self.runner
     }
 
     pub fn register(&self, canvas: &mut backend::Canvas) {
+        let runner = self.runner.clone();
+        canvas.on_blur(move || {
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(window::Id),
+                event: WindowEvent::Focused(false),
+            });
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_focus(move || {
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(window::Id),
+                event: WindowEvent::Focused(true),
+            });
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_key_down(move |scancode, virtual_keycode, modifiers| {
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(window::Id),
+                event: WindowEvent::KeyboardInput {
+                    device_id: DeviceId(unsafe { device::Id::dummy() }),
+                    input: KeyboardInput {
+                        scancode,
+                        state: ElementState::Pressed,
+                        virtual_keycode,
+                        modifiers,
+                    },
+                },
+            });
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_key_up(move |scancode, virtual_keycode, modifiers| {
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(window::Id),
+                event: WindowEvent::KeyboardInput {
+                    device_id: DeviceId(unsafe { device::Id::dummy() }),
+                    input: KeyboardInput {
+                        scancode,
+                        state: ElementState::Released,
+                        virtual_keycode,
+                        modifiers,
+                    },
+                },
+            });
+        });
+
         let runner = self.runner.clone();
         canvas.on_mouse_out(move |pointer_id| {
             runner.send_event(Event::WindowEvent {

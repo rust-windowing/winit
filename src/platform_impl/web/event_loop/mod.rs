@@ -7,9 +7,8 @@ pub use self::proxy::Proxy;
 pub use self::window_target::WindowTarget;
 
 use super::{backend, device, monitor, window};
-use crate::event::{DeviceId, ElementState, Event, KeyboardInput, WindowEvent};
+use crate::event::Event;
 use crate::event_loop as root;
-use crate::window::WindowId;
 
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::marker::PhantomData;
@@ -45,53 +44,9 @@ impl<T> EventLoop<T> {
             _marker: PhantomData,
         };
 
-        let runner = self.elw.p.run(Box::new(move |event, flow| {
+        self.elw.p.run(Box::new(move |event, flow| {
             event_handler(event, &target, flow)
         }));
-
-        backend::Document::on_blur(|| {
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(window::Id),
-                event: WindowEvent::Focused(false),
-            });
-        });
-
-        backend::Document::on_focus(|| {
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(window::Id),
-                event: WindowEvent::Focused(true),
-            });
-        });
-
-        backend::Document::on_key_down(|scancode, virtual_keycode, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(window::Id),
-                event: WindowEvent::KeyboardInput {
-                    device_id: DeviceId(unsafe { device::Id::dummy() }),
-                    input: KeyboardInput {
-                        scancode,
-                        state: ElementState::Pressed,
-                        virtual_keycode,
-                        modifiers,
-                    },
-                },
-            });
-        });
-
-        backend::Document::on_key_up(|scancode, virtual_keycode, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(window::Id),
-                event: WindowEvent::KeyboardInput {
-                    device_id: DeviceId(unsafe { device::Id::dummy() }),
-                    input: KeyboardInput {
-                        scancode,
-                        state: ElementState::Released,
-                        virtual_keycode,
-                        modifiers,
-                    },
-                },
-            });
-        });
 
         // Throw an exception to break out of Rust exceution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'

@@ -1,10 +1,8 @@
 mod canvas;
-mod document;
 mod event;
 mod timeout;
 
 pub use self::canvas::Canvas;
-pub use self::document::Document;
 pub use self::timeout::Timeout;
 
 use crate::platform::web::WindowExtWebSys;
