@@ -218,3 +218,7 @@ pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
         logo: event.meta_key(),
     }
 }
+
+pub fn codepoint(event: &KeyboardEvent) -> char {
+    event.key().chars().next().unwrap()
+}

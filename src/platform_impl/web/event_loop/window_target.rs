@@ -81,6 +81,14 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
+        canvas.on_key_press(move |char_code| {
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(window::Id),
+                event: WindowEvent::ReceivedCharacter(char_code),
+            });
+        });
+
+        let runner = self.runner.clone();
         canvas.on_mouse_out(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),

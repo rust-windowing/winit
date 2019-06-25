@@ -14,6 +14,7 @@ pub struct Canvas {
     on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_key_up: Option<Closure<dyn FnMut(KeyboardEvent)>>,
     on_key_down: Option<Closure<dyn FnMut(KeyboardEvent)>>,
+    on_key_press: Option<Closure<dyn FnMut(KeyboardEvent)>>,
     on_mouse_out: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_over: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_up: Option<Closure<dyn FnMut(PointerEvent)>>,
@@ -59,6 +60,7 @@ impl Canvas {
             on_focus: None,
             on_key_up: None,
             on_key_down: None,
+            on_key_press: None,
             on_mouse_out: None,
             on_mouse_over: None,
             on_mouse_up: None,
@@ -148,6 +150,15 @@ impl Canvas {
         }));
     }
 
+    pub fn on_key_press<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(char),
+    {
+        self.on_key_press = Some(self.add_event("keypress", move |event: KeyboardEvent| {
+            handler(event::codepoint(&event));
+        }));
+    }
+
     pub fn on_mouse_out<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32),
@@ -183,14 +194,7 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, MouseButton, ModifiersState),
     {
-        let canvas = self.raw.clone();
-
         self.on_mouse_down = Some(self.add_event("pointerdown", move |event: PointerEvent| {
-            // We focus the canvas manually when the user clicks on it.
-            // This is necessary because we are preventing the default event behavior
-            // in `add_event`
-            canvas.focus().expect("Failed to focus canvas");
-
             handler(
                 event.pointer_id(),
                 event::mouse_button(&event),
@@ -231,7 +235,6 @@ impl Canvas {
         let closure = Closure::wrap(Box::new(move |event: E| {
             {
                 let event_ref = event.as_ref();
-                event_ref.prevent_default();
                 event_ref.stop_propagation();
                 event_ref.cancel_bubble();
             }
