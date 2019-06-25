@@ -557,6 +557,7 @@ impl Window {
     ///
     ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Wayland:** Does not support exclusive fullscreen mode.
     ///
     /// [simple]:
     /// ../platform/macos/trait.WindowExtMacOS.html#tymethod.set_simple_fullscreen
