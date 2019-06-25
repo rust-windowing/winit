@@ -1,6 +1,9 @@
 use std::{env, slice, str::FromStr};
 
-use super::*;
+use super::{
+    ffi::{XRRCrtcInfo, XRRScreenResources},
+    *,
+};
 use crate::{dpi::validate_hidpi_factor, platform_impl::platform::x11::VideoMode};
 
 pub fn calc_dpi_factor(
@@ -34,47 +37,6 @@ pub fn calc_dpi_factor(
     dpi_factor
 }
 
-pub enum MonitorRepr {
-    Monitor(*mut ffi::XRRMonitorInfo),
-    Crtc(*mut ffi::XRRCrtcInfo),
-}
-
-impl MonitorRepr {
-    pub unsafe fn get_output(&self) -> ffi::RROutput {
-        match *self {
-            // Same member names, but different locations within the struct...
-            MonitorRepr::Monitor(monitor) => *((*monitor).outputs.offset(0)),
-            MonitorRepr::Crtc(crtc) => *((*crtc).outputs.offset(0)),
-        }
-    }
-
-    pub unsafe fn size(&self) -> (u32, u32) {
-        match *self {
-            MonitorRepr::Monitor(monitor) => ((*monitor).width as u32, (*monitor).height as u32),
-            MonitorRepr::Crtc(crtc) => ((*crtc).width as u32, (*crtc).height as u32),
-        }
-    }
-
-    pub unsafe fn position(&self) -> (i32, i32) {
-        match *self {
-            MonitorRepr::Monitor(monitor) => ((*monitor).x as i32, (*monitor).y as i32),
-            MonitorRepr::Crtc(crtc) => ((*crtc).x as i32, (*crtc).y as i32),
-        }
-    }
-}
-
-impl From<*mut ffi::XRRMonitorInfo> for MonitorRepr {
-    fn from(monitor: *mut ffi::XRRMonitorInfo) -> Self {
-        MonitorRepr::Monitor(monitor)
-    }
-}
-
-impl From<*mut ffi::XRRCrtcInfo> for MonitorRepr {
-    fn from(crtc: *mut ffi::XRRCrtcInfo) -> Self {
-        MonitorRepr::Crtc(crtc)
-    }
-}
-
 impl XConnection {
     // Retrieve DPI from Xft.dpi property
     pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
@@ -96,11 +58,11 @@ impl XConnection {
     }
     pub unsafe fn get_output_info(
         &self,
-        resources: *mut ffi::XRRScreenResources,
-        repr: &MonitorRepr,
+        resources: *mut XRRScreenResources,
+        crtc: *mut XRRCrtcInfo,
     ) -> Option<(String, f64, Vec<VideoMode>)> {
         let output_info =
-            (self.xrandr.XRRGetOutputInfo)(self.display, resources, repr.get_output());
+            (self.xrandr.XRRGetOutputInfo)(self.display, resources, *(*crtc).outputs.offset(0));
         if output_info.is_null() {
             // When calling `XRRGetOutputInfo` on a virtual monitor (versus a physical display)
             // it's possible for it to return null.
@@ -147,7 +109,7 @@ impl XConnection {
             dpi / 96.
         } else {
             calc_dpi_factor(
-                repr.size(),
+                ((*crtc).width as u32, (*crtc).height as u32),
                 (
                     (*output_info).mm_width as u64,
                     (*output_info).mm_height as u64,

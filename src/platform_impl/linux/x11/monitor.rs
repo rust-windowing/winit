@@ -4,8 +4,8 @@ use parking_lot::Mutex;
 
 use super::{
     ffi::{
-        RRCrtcChangeNotifyMask, RROutputPropertyNotifyMask, RRScreenChangeNotifyMask, True, Window,
-        XRRScreenResources,
+        RRCrtc, RRCrtcChangeNotifyMask, RROutputPropertyNotifyMask, RRScreenChangeNotifyMask, True,
+        Window, XRRCrtcInfo, XRRScreenResources,
     },
     util, XConnection, XError,
 };
@@ -15,9 +15,7 @@ use crate::{
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
 
-// Used to test XRandR < 1.5 code path. This should always be committed as false.
-const FORCE_RANDR_COMPAT: bool = false;
-// Also used for testing. This should always be committed as false.
+// Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
 
 lazy_static! {
@@ -77,7 +75,7 @@ impl VideoMode {
 #[derive(Debug, Clone)]
 pub struct MonitorHandle {
     /// The actual id
-    id: u32,
+    id: RRCrtc,
     /// The name of the monitor
     pub(crate) name: String,
     /// The size of the monitor
@@ -121,15 +119,16 @@ impl std::hash::Hash for MonitorHandle {
 }
 
 impl MonitorHandle {
-    fn from_repr(
+    fn new(
         xconn: &XConnection,
         resources: *mut XRRScreenResources,
-        id: u32,
-        repr: util::MonitorRepr,
+        id: RRCrtc,
+        crtc: *mut XRRCrtcInfo,
         primary: bool,
     ) -> Option<Self> {
-        let (name, hidpi_factor, video_modes) = unsafe { xconn.get_output_info(resources, &repr)? };
-        let (dimensions, position) = unsafe { (repr.size(), repr.position()) };
+        let (name, hidpi_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
+        let dimensions = unsafe { ((*crtc).width as u32, (*crtc).height as u32) };
+        let position = unsafe { ((*crtc).x as i32, (*crtc).y as i32) };
         let rect = util::AaRect::new(position, dimensions);
         Some(MonitorHandle {
             id,
@@ -220,48 +219,19 @@ impl XConnection {
             let mut available;
             let mut has_primary = false;
 
-            if self.xrandr_1_5.is_some() && version_is_at_least(1, 5) && !FORCE_RANDR_COMPAT {
-                // We're in XRandR >= 1.5, enumerate monitors. This supports things like MST and
-                // videowalls.
-                let xrandr_1_5 = self.xrandr_1_5.as_ref().unwrap();
-                let mut monitor_count = 0;
-                let monitors =
-                    (xrandr_1_5.XRRGetMonitors)(self.display, root, 1, &mut monitor_count);
-                assert!(monitor_count >= 0);
-                available = Vec::with_capacity(monitor_count as usize);
-                for monitor_index in 0..monitor_count {
-                    let monitor = monitors.offset(monitor_index as isize);
-                    let is_primary = (*monitor).primary != 0;
+            let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root);
+            available = Vec::with_capacity((*resources).ncrtc as usize);
+            for crtc_index in 0..(*resources).ncrtc {
+                let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
+                let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
+                let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
+                if is_active {
+                    let is_primary = *(*crtc).outputs.offset(0) == primary;
                     has_primary |= is_primary;
-                    MonitorHandle::from_repr(
-                        self,
-                        resources,
-                        monitor_index as u32,
-                        monitor.into(),
-                        is_primary,
-                    )
-                    .map(|monitor_id| available.push(monitor_id));
+                    MonitorHandle::new(self, resources, crtc_id, crtc, is_primary)
+                        .map(|monitor_id| available.push(monitor_id));
                 }
-                (xrandr_1_5.XRRFreeMonitors)(monitors);
-            } else {
-                // We're in XRandR < 1.5, enumerate CRTCs. Everything will work except MST and
-                // videowall setups will also show monitors that aren't in the logical groups the user
-                // cares about.
-                let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root);
-                available = Vec::with_capacity((*resources).ncrtc as usize);
-                for crtc_index in 0..(*resources).ncrtc {
-                    let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
-                    let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
-                    let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
-                    if is_active {
-                        let crtc = util::MonitorRepr::from(crtc);
-                        let is_primary = crtc.get_output() == primary;
-                        has_primary |= is_primary;
-                        MonitorHandle::from_repr(self, resources, crtc_id as u32, crtc, is_primary)
-                            .map(|monitor_id| available.push(monitor_id));
-                    }
-                    (self.xrandr.XRRFreeCrtcInfo)(crtc);
-                }
+                (self.xrandr.XRRFreeCrtcInfo)(crtc);
             }
 
             // If no monitors were detected as being primary, we just pick one ourselves!
