@@ -76,25 +76,6 @@ impl<'a, T> Event<'a, T> {
             Resumed => Some(Resumed),
         }
     }
-
-    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
-    /// Otherwise, return `None`.
-    pub fn to_static(self) -> Option<Event<'static, T>> {
-        use self::Event::*;
-        match self {
-            WindowEvent { window_id, event } => {
-                event
-                    .to_static()
-                    .map(|event| WindowEvent { window_id, event })
-            },
-            UserEvent(e) => Some(UserEvent(e)),
-            DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
-            NewEvents(cause) => Some(NewEvents(cause)),
-            EventsCleared => Some(EventsCleared),
-            LoopDestroyed => Some(LoopDestroyed),
-            Suspended(suspended) => Some(Suspended(suspended)),
-        }
-    }
 }
 
 /// Describes the reason the event loop is resuming.
