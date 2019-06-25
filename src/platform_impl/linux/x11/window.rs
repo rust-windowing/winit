@@ -562,13 +562,19 @@ impl UnownedWindow {
         }
         shared_state_lock.fullscreen = fullscreen.clone();
 
-        // Store the desktop video mode before entering exclusive fullscreen, so
-        // we can restore it upon exit, as XRandR does not provide a mechanism
-        // to set this per app-session or restore this to the desktop video mode
-        // as macOS and Windows do
         match (&old_fullscreen, &fullscreen) {
+            // Store the desktop video mode before entering exclusive
+            // fullscreen, so we can restore it upon exit, as XRandR does not
+            // provide a mechanism to set this per app-session or restore this
+            // to the desktop video mode as macOS and Windows do
             (
                 &None,
+                &Some(Fullscreen::Exclusive(RootVideoMode {
+                    video_mode: PlatformVideoMode::X(ref video_mode),
+                })),
+            )
+            | (
+                &Some(Fullscreen::Borderless(_)),
                 &Some(Fullscreen::Exclusive(RootVideoMode {
                     video_mode: PlatformVideoMode::X(ref video_mode),
                 })),
@@ -576,6 +582,14 @@ impl UnownedWindow {
                 let monitor = video_mode.monitor.as_ref().unwrap();
                 shared_state_lock.desktop_video_mode =
                     Some((monitor.id, self.xconn.get_crtc_mode(monitor.id)));
+            }
+            // Restore desktop video mode upon exiting exclusive fullscreen
+            (&Some(Fullscreen::Exclusive(_)), &None)
+            | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+                let (monitor_id, mode_id) = shared_state_lock.desktop_video_mode.take().unwrap();
+                self.xconn
+                    .set_crtc_config(monitor_id, mode_id)
+                    .expect("failed to restore desktop video mode");
             }
             _ => (),
         }
@@ -585,13 +599,7 @@ impl UnownedWindow {
         match fullscreen {
             None => {
                 let flusher = self.set_fullscreen_hint(false);
-                // Restore desktop video mode and previous window position
                 let mut shared_state_lock = self.shared_state.lock();
-                if let Some((monitor_id, mode_id)) = shared_state_lock.desktop_video_mode.take() {
-                    self.xconn
-                        .set_crtc_config(monitor_id, mode_id)
-                        .expect("failed to restore desktop video mode");
-                }
                 if let Some(position) = shared_state_lock.restore_position.take() {
                     self.set_position_inner(position.0, position.1).queue();
                 }
