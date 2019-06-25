@@ -382,11 +382,11 @@ pub fn create_delegate_class() {
     }
 
     extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
-        unsafe { AppState::handle_nonuser_event(Event::Suspended(false)) }
+        unsafe { AppState::handle_nonuser_event(Event::Resumed) }
     }
 
     extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
-        unsafe { AppState::handle_nonuser_event(Event::Suspended(true)) }
+        unsafe { AppState::handle_nonuser_event(Event::Suspended) }
     }
 
     extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {}

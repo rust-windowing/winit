@@ -37,10 +37,11 @@ pub enum Event<'a, T: 'static> {
     /// emitted, it is guaranteed to be the last event emitted.
     LoopDestroyed,
 
-    /// Emitted when the application has been suspended or resumed.
-    ///
-    /// The parameter is true if app was suspended, and false if it has been resumed.
-    Suspended(bool),
+    /// Emitted when the application has been suspended.
+    Suspended,
+
+    /// Emitted when the application has been resumed.
+    Resumed,
 }
 
 impl<'a, T> Event<'a, T> {
@@ -53,7 +54,26 @@ impl<'a, T> Event<'a, T> {
             NewEvents(cause) => Ok(NewEvents(cause)),
             EventsCleared => Ok(EventsCleared),
             LoopDestroyed => Ok(LoopDestroyed),
-            Suspended(suspended) => Ok(Suspended(suspended)),
+            Suspended => Ok(Suspended),
+            Resumed => Ok(Resumed),
+        }
+    }
+
+    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
+    /// Otherwise, return `None`.
+    pub fn to_static(self) -> Option<Event<'static, T>> {
+        use self::Event::*;
+        match self {
+            WindowEvent { window_id, event } => event
+                .to_static()
+                .map(|event| WindowEvent { window_id, event }),
+            UserEvent(e) => Some(UserEvent(e)),
+            DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
+            NewEvents(cause) => Some(NewEvents(cause)),
+            EventsCleared => Some(EventsCleared),
+            LoopDestroyed => Some(LoopDestroyed),
+            Suspended => Some(Suspended),
+            Resumed => Some(Resumed),
         }
     }
 
@@ -245,13 +265,11 @@ impl<'a> WindowEvent<'a> {
                 device_id,
                 position,
                 modifiers,
-            } => {
-                Some(CursorMoved {
-                    device_id,
-                    position,
-                    modifiers,
-                })
-            },
+            } => Some(CursorMoved {
+                device_id,
+                position,
+                modifiers,
+            }),
             CursorEntered { device_id } => Some(CursorEntered { device_id }),
             CursorLeft { device_id } => Some(CursorLeft { device_id }),
             MouseWheel {
@@ -259,49 +277,41 @@ impl<'a> WindowEvent<'a> {
                 delta,
                 phase,
                 modifiers,
-            } => {
-                Some(MouseWheel {
-                    device_id,
-                    delta,
-                    phase,
-                    modifiers,
-                })
-            },
+            } => Some(MouseWheel {
+                device_id,
+                delta,
+                phase,
+                modifiers,
+            }),
             MouseInput {
                 device_id,
                 state,
                 button,
                 modifiers,
-            } => {
-                Some(MouseInput {
-                    device_id,
-                    state,
-                    button,
-                    modifiers,
-                })
-            },
+            } => Some(MouseInput {
+                device_id,
+                state,
+                button,
+                modifiers,
+            }),
             TouchpadPressure {
                 device_id,
                 pressure,
                 stage,
-            } => {
-                Some(TouchpadPressure {
-                    device_id,
-                    pressure,
-                    stage,
-                })
-            },
+            } => Some(TouchpadPressure {
+                device_id,
+                pressure,
+                stage,
+            }),
             AxisMotion {
                 device_id,
                 axis,
                 value,
-            } => {
-                Some(AxisMotion {
-                    device_id,
-                    axis,
-                    value,
-                })
-            },
+            } => Some(AxisMotion {
+                device_id,
+                axis,
+                value,
+            }),
             RedrawRequested => Some(RedrawRequested),
             Touch(touch) => Some(Touch(touch)),
             HiDpiFactorChanged { .. } => None,

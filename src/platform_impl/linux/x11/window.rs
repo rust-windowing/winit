@@ -384,7 +384,7 @@ impl UnownedWindow {
                         ImeContextCreationError::XError(err) => OsError::XError(err),
                         ImeContextCreationError::Null => {
                             OsError::XMisc("IME Context creation failed")
-                        },
+                        }
                     };
                     return Err(os_error!(e));
                 }
@@ -558,7 +558,7 @@ impl UnownedWindow {
                     self.set_position_inner(position.0, position.1).queue();
                 }
                 flusher
-            },
+            }
             Some(RootMonitorHandle {
                 inner: PlatformMonitorHandle::X(monitor),
             }) => {
@@ -568,7 +568,7 @@ impl UnownedWindow {
                 self.set_position_inner(monitor_origin.0, monitor_origin.1)
                     .queue();
                 self.set_fullscreen_hint(true)
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -1190,11 +1190,11 @@ impl UnownedWindow {
                 ffi::GrabSuccess => Ok(()),
                 ffi::AlreadyGrabbed => {
                     Err("Cursor could not be grabbed: already grabbed by another client")
-                },
+                }
                 ffi::GrabInvalidTime => Err("Cursor could not be grabbed: invalid time"),
                 ffi::GrabNotViewable => {
                     Err("Cursor could not be grabbed: grab location not viewable")
-                },
+                }
                 ffi::GrabFrozen => Err("Cursor could not be grabbed: frozen by another client"),
                 _ => unreachable!(),
             }

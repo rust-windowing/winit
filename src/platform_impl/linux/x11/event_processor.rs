@@ -118,7 +118,7 @@ impl<T: 'static> EventProcessor<T> {
                 wt.xconn
                     .check_errors()
                     .expect("Failed to call XRefreshKeyboardMapping");
-            },
+            }
 
             ffi::ClientMessage => {
                 let client_msg: &ffi::XClientMessageEvent = xev.as_ref();
@@ -236,7 +236,7 @@ impl<T: 'static> EventProcessor<T> {
                         event: WindowEvent::HoveredFileCancelled,
                     });
                 }
-            },
+            }
 
             ffi::SelectionNotify => {
                 let xsel: &ffi::XSelectionEvent = xev.as_ref();
@@ -263,7 +263,7 @@ impl<T: 'static> EventProcessor<T> {
 
                     self.dnd.result = result;
                 }
-            },
+            }
 
             ffi::ConfigureNotify => {
                 #[derive(Debug, Default)]
@@ -429,7 +429,7 @@ impl<T: 'static> EventProcessor<T> {
                         callback(Event::WindowEvent { window_id, event });
                     }
                 }
-            },
+            }
 
             ffi::ReparentNotify => {
                 let xev: &ffi::XReparentEvent = xev.as_ref();
@@ -444,7 +444,7 @@ impl<T: 'static> EventProcessor<T> {
                 self.with_window(xev.window, |window| {
                     window.invalidate_cached_frame_extents();
                 });
-            },
+            }
 
             ffi::DestroyNotify => {
                 let xev: &ffi::XDestroyWindowEvent = xev.as_ref();
@@ -467,7 +467,7 @@ impl<T: 'static> EventProcessor<T> {
                     window_id,
                     event: WindowEvent::Destroyed,
                 });
-            },
+            }
 
             ffi::Expose => {
                 let xev: &ffi::XExposeEvent = xev.as_ref();
@@ -479,7 +479,7 @@ impl<T: 'static> EventProcessor<T> {
                     window_id,
                     event: WindowEvent::RedrawRequested,
                 });
-            },
+            }
 
             ffi::KeyPress | ffi::KeyRelease => {
                 use crate::event::ElementState::{Pressed, Released};
@@ -554,7 +554,7 @@ impl<T: 'static> EventProcessor<T> {
                         callback(event);
                     }
                 }
-            },
+            }
 
             ffi::GenericEvent => {
                 let guard = if let Some(e) = GenericEventCookie::from_event(&wt.xconn, *xev) {
@@ -596,39 +596,33 @@ impl<T: 'static> EventProcessor<T> {
                             Released
                         };
                         match xev.detail as u32 {
-                            ffi::Button1 => {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: MouseInput {
-                                        device_id,
-                                        state,
-                                        button: Left,
-                                        modifiers,
-                                    },
-                                })
-                            },
-                            ffi::Button2 => {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: MouseInput {
-                                        device_id,
-                                        state,
-                                        button: Middle,
-                                        modifiers,
-                                    },
-                                })
-                            },
-                            ffi::Button3 => {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: MouseInput {
-                                        device_id,
-                                        state,
-                                        button: Right,
-                                        modifiers,
-                                    },
-                                })
-                            },
+                            ffi::Button1 => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Left,
+                                    modifiers,
+                                },
+                            }),
+                            ffi::Button2 => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Middle,
+                                    modifiers,
+                                },
+                            }),
+                            ffi::Button3 => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Right,
+                                    modifiers,
+                                },
+                            }),
 
                             // Suppress emulated scroll wheel clicks, since we handle the real motion events for those.
                             // In practice, even clicky scroll wheels appear to be reported by evdev (and XInput2 in
@@ -651,21 +645,19 @@ impl<T: 'static> EventProcessor<T> {
                                         },
                                     });
                                 }
-                            },
+                            }
 
-                            x => {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: MouseInput {
-                                        device_id,
-                                        state,
-                                        button: Other(x as u8),
-                                        modifiers,
-                                    },
-                                })
-                            },
+                            x => callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseInput {
+                                    device_id,
+                                    state,
+                                    button: Other(x as u8),
+                                    modifiers,
+                                },
+                            }),
                         }
-                    },
+                    }
                     ffi::XI_Motion => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
                         let device_id = mkdid(xev.deviceid);
@@ -734,11 +726,11 @@ impl<T: 'static> EventProcessor<T> {
                                                 delta: match info.orientation {
                                                     ScrollOrientation::Horizontal => {
                                                         LineDelta(delta as f32, 0.0)
-                                                    },
+                                                    }
                                                     // X11 vertical scroll coordinates are opposite to winit's
                                                     ScrollOrientation::Vertical => {
                                                         LineDelta(0.0, -delta as f32)
-                                                    },
+                                                    }
                                                 },
                                                 phase: TouchPhase::Moved,
                                                 modifiers,
@@ -761,7 +753,7 @@ impl<T: 'static> EventProcessor<T> {
                         for event in events {
                             callback(event);
                         }
-                    },
+                    }
 
                     ffi::XI_Enter => {
                         let xev: &ffi::XIEnterEvent = unsafe { &*(xev.data as *const _) };
@@ -821,7 +813,7 @@ impl<T: 'static> EventProcessor<T> {
                                 },
                             });
                         }
-                    },
+                    }
                     ffi::XI_Leave => {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
 
@@ -836,7 +828,7 @@ impl<T: 'static> EventProcessor<T> {
                                 },
                             });
                         }
-                    },
+                    }
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
@@ -878,7 +870,7 @@ impl<T: 'static> EventProcessor<T> {
                                 modifiers: ModifiersState::from(xev.mods),
                             },
                         });
-                    },
+                    }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
                         if !self.window_exists(xev.event) {
@@ -892,7 +884,7 @@ impl<T: 'static> EventProcessor<T> {
                             window_id: mkwid(xev.event),
                             event: Focused(false),
                         })
-                    },
+                    }
 
                     ffi::XI_TouchBegin | ffi::XI_TouchUpdate | ffi::XI_TouchEnd => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
@@ -920,7 +912,7 @@ impl<T: 'static> EventProcessor<T> {
                                 }),
                             })
                         }
-                    },
+                    }
 
                     ffi::XI_RawButtonPress | ffi::XI_RawButtonRelease => {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
@@ -937,7 +929,7 @@ impl<T: 'static> EventProcessor<T> {
                                 },
                             });
                         }
-                    },
+                    }
 
                     ffi::XI_RawMotion => {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
@@ -962,7 +954,7 @@ impl<T: 'static> EventProcessor<T> {
                                     1 => mouse_delta.1 = x,
                                     2 => scroll_delta.0 = x as f32,
                                     3 => scroll_delta.1 = x as f32,
-                                    _ => {},
+                                    _ => {}
                                 }
                                 callback(Event::DeviceEvent {
                                     device_id: did,
@@ -988,7 +980,7 @@ impl<T: 'static> EventProcessor<T> {
                                 },
                             });
                         }
-                    },
+                    }
 
                     ffi::XI_RawKeyPress | ffi::XI_RawKeyRelease => {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
@@ -1033,7 +1025,7 @@ impl<T: 'static> EventProcessor<T> {
                                 modifiers: ModifiersState::default(),
                             }),
                         });
-                    },
+                    }
 
                     ffi::XI_HierarchyChanged => {
                         let xev: &ffi::XIHierarchyEvent = unsafe { &*(xev.data as *const _) };
@@ -1056,11 +1048,11 @@ impl<T: 'static> EventProcessor<T> {
                                 devices.remove(&DeviceId(info.deviceid));
                             }
                         }
-                    },
+                    }
 
-                    _ => {},
+                    _ => {}
                 }
-            },
+            }
             _ => {
                 if event_type == self.randr_event_offset {
                     // In the future, it would be quite easy to emit monitor hotplug events.
@@ -1101,13 +1093,13 @@ impl<T: 'static> EventProcessor<T> {
                         }
                     }
                 }
-            },
+            }
         }
 
         match self.ime_receiver.try_recv() {
             Ok((window_id, x, y)) => {
                 wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
-            },
+            }
             Err(_) => (),
         }
     }

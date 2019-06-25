@@ -125,7 +125,7 @@ impl CursorIcon {
             CursorIcon::NotAllowed | CursorIcon::NoDrop => winuser::IDC_NO,
             CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
                 winuser::IDC_SIZEALL
-            },
+            }
             CursorIcon::EResize
             | CursorIcon::WResize
             | CursorIcon::EwResize
@@ -136,10 +136,10 @@ impl CursorIcon {
             | CursorIcon::RowResize => winuser::IDC_SIZENS,
             CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => {
                 winuser::IDC_SIZENESW
-            },
+            }
             CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => {
                 winuser::IDC_SIZENWSE
-            },
+            }
             CursorIcon::Wait => winuser::IDC_WAIT,
             CursorIcon::Progress => winuser::IDC_APPSTARTING,
             CursorIcon::Help => winuser::IDC_HELP,

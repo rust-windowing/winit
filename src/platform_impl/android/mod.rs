@@ -79,21 +79,21 @@ impl EventLoop {
                             device_id: DEVICE_ID,
                         }),
                     })
-                },
+                }
                 android_glue::Event::InitWindow => {
                     // The activity went to foreground.
                     if let Some(cb) = self.suspend_callback.borrow().as_ref() {
                         (*cb)(false);
                     }
-                    Some(Event::Suspended(false))
-                },
+                    Some(Event::Resumed)
+                }
                 android_glue::Event::TermWindow => {
                     // The activity went to background.
                     if let Some(cb) = self.suspend_callback.borrow().as_ref() {
                         (*cb)(true);
                     }
-                    Some(Event::Suspended(true))
-                },
+                    Some(Event::Suspended)
+                }
                 android_glue::Event::WindowResized | android_glue::Event::ConfigChanged => {
                     // Activity Orientation changed or resized.
                     let native_window = unsafe { android_glue::native_window() };
@@ -108,14 +108,14 @@ impl EventLoop {
                             event: WindowEvent::Resized(size),
                         })
                     }
-                },
+                }
                 android_glue::Event::WindowRedrawNeeded => {
                     // The activity needs to be redrawn.
                     Some(Event::WindowEvent {
                         window_id: RootWindowId(WindowId),
                         event: WindowEvent::Redraw,
                     })
-                },
+                }
                 android_glue::Event::Wake => Some(Event::Awakened),
                 _ => None,
             };

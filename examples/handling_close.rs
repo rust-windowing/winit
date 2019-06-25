@@ -40,7 +40,7 @@ fn main() {
                         // action from the user, this is generally where you'd handle cleanup before
                         // closing the window. How to close the window is detailed in the handler for
                         // the Y key.
-                    },
+                    }
                     WindowEvent::KeyboardInput {
                         input:
                             KeyboardInput {
@@ -63,19 +63,19 @@ fn main() {
                                     // sent.
                                     *control_flow = ControlFlow::Exit;
                                 }
-                            },
+                            }
                             N => {
                                 if close_requested {
                                     println!("Your window will continue to stay by your side.");
                                     close_requested = false;
                                 }
-                            },
+                            }
                             _ => (),
                         }
-                    },
+                    }
                     _ => (),
                 }
-            },
+            }
             _ => (),
         }
     });

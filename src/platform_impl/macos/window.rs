@@ -116,7 +116,7 @@ fn create_window(
             Some(ref monitor_id) => {
                 let monitor_screen = monitor_id.inner.ns_screen();
                 Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
-            },
+            }
             _ => None,
         };
         let frame = match screen {
@@ -127,7 +127,7 @@ fn create_window(
                     .map(|logical| (logical.width, logical.height))
                     .unwrap_or_else(|| (800.0, 600.0));
                 NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height))
-            },
+            }
         };
 
         let mut masks = if !attrs.decorations && !screen.is_some() {
@@ -649,7 +649,7 @@ impl UnownedWindow {
                     // Our best bet is probably to move to the origin of the
                     // target monitor.
                     unimplemented!()
-                },
+                }
                 (&None, None) | (&Some(_), Some(_)) => return,
                 _ => (),
             }

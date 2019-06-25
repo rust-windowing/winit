@@ -24,7 +24,7 @@ fn main() {
             let num = num.trim().parse().ok().expect("Please enter a number");
             match num {
                 2 => macos_use_simple_fullscreen = true,
-                _ => {},
+                _ => {}
             }
 
             // Prompt for monitor when using native fullscreen
@@ -54,69 +54,62 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent { event, .. } => {
-                match event {
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                virtual_keycode: Some(virtual_code),
-                                state,
-                                ..
-                            },
-                        ..
-                    } => {
-                        match (virtual_code, state) {
-                            (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
-                            (VirtualKeyCode::F, ElementState::Pressed) => {
-                                #[cfg(target_os = "macos")]
-                                {
-                                    if macos_use_simple_fullscreen {
-                                        use winit::platform::macos::WindowExtMacOS;
-                                        if WindowExtMacOS::set_simple_fullscreen(
-                                            &window,
-                                            !is_fullscreen,
-                                        ) {
-                                            is_fullscreen = !is_fullscreen;
-                                        }
-                                        return;
-                                    }
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            virtual_keycode: Some(virtual_code),
+                            state,
+                            ..
+                        },
+                    ..
+                } => match (virtual_code, state) {
+                    (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
+                    (VirtualKeyCode::F, ElementState::Pressed) => {
+                        #[cfg(target_os = "macos")]
+                        {
+                            if macos_use_simple_fullscreen {
+                                use winit::platform::macos::WindowExtMacOS;
+                                if WindowExtMacOS::set_simple_fullscreen(&window, !is_fullscreen) {
+                                    is_fullscreen = !is_fullscreen;
                                 }
-
-                                is_fullscreen = !is_fullscreen;
-                                if !is_fullscreen {
-                                    window.set_fullscreen(None);
-                                } else {
-                                    window.set_fullscreen(Some(window.current_monitor()));
-                                }
-                            },
-                            (VirtualKeyCode::S, ElementState::Pressed) => {
-                                println!("window.fullscreen {:?}", window.fullscreen());
-
-                                #[cfg(target_os = "macos")]
-                                {
-                                    use winit::platform::macos::WindowExtMacOS;
-                                    println!(
-                                        "window.simple_fullscreen {:?}",
-                                        WindowExtMacOS::simple_fullscreen(&window)
-                                    );
-                                }
-                            },
-                            (VirtualKeyCode::M, ElementState::Pressed) => {
-                                is_maximized = !is_maximized;
-                                window.set_maximized(is_maximized);
-                            },
-                            (VirtualKeyCode::D, ElementState::Pressed) => {
-                                decorations = !decorations;
-                                window.set_decorations(decorations);
-                            },
-                            _ => (),
+                                return;
+                            }
                         }
-                    },
+
+                        is_fullscreen = !is_fullscreen;
+                        if !is_fullscreen {
+                            window.set_fullscreen(None);
+                        } else {
+                            window.set_fullscreen(Some(window.current_monitor()));
+                        }
+                    }
+                    (VirtualKeyCode::S, ElementState::Pressed) => {
+                        println!("window.fullscreen {:?}", window.fullscreen());
+
+                        #[cfg(target_os = "macos")]
+                        {
+                            use winit::platform::macos::WindowExtMacOS;
+                            println!(
+                                "window.simple_fullscreen {:?}",
+                                WindowExtMacOS::simple_fullscreen(&window)
+                            );
+                        }
+                    }
+                    (VirtualKeyCode::M, ElementState::Pressed) => {
+                        is_maximized = !is_maximized;
+                        window.set_maximized(is_maximized);
+                    }
+                    (VirtualKeyCode::D, ElementState::Pressed) => {
+                        decorations = !decorations;
+                        window.set_decorations(decorations);
+                    }
                     _ => (),
-                }
+                },
+                _ => (),
             },
-            _ => {},
+            _ => {}
         }
     });
 }

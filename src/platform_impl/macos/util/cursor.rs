@@ -25,7 +25,7 @@ impl From<CursorIcon> for Cursor {
             CursorIcon::Alias => Cursor::Native("dragLinkCursor"),
             CursorIcon::NotAllowed | CursorIcon::NoDrop => {
                 Cursor::Native("operationNotAllowedCursor")
-            },
+            }
             CursorIcon::ContextMenu => Cursor::Native("contextualMenuCursor"),
             CursorIcon::Crosshair => Cursor::Native("crosshairCursor"),
             CursorIcon::EResize => Cursor::Native("resizeRightCursor"),
@@ -57,7 +57,7 @@ impl From<CursorIcon> for Cursor {
             // what's used in Safari and Chrome.
             CursorIcon::Wait | CursorIcon::Progress => {
                 Cursor::Undocumented("busyButClickableCursor")
-            },
+            }
 
             // For the rest, we can just snatch the cursors from WebKit...
             // They fit the style of the native cursors, and will seem
@@ -81,7 +81,7 @@ impl Cursor {
             Cursor::Native(cursor_name) => {
                 let sel = Sel::register(cursor_name);
                 msg_send![class!(NSCursor), performSelector: sel]
-            },
+            }
             Cursor::Undocumented(cursor_name) => {
                 let class = class!(NSCursor);
                 let sel = Sel::register(cursor_name);
@@ -92,7 +92,7 @@ impl Cursor {
                     sel!(arrowCursor)
                 };
                 msg_send![class, performSelector: sel]
-            },
+            }
             Cursor::WebKit(cursor_name) => load_webkit_cursor(cursor_name),
         }
     }
