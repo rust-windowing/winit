@@ -24,11 +24,8 @@ mod platform;
 #[cfg(target_os = "emscripten")]
 #[path = "emscripten/mod.rs"]
 mod platform;
-#[cfg(feature = "stdweb")]
-#[path = "stdweb/mod.rs"]
-mod platform;
-#[cfg(feature = "web_sys")]
-#[path = "web_sys/mod.rs"]
+#[cfg(target_arch = "wasm32")]
+#[path = "web/mod.rs"]
 mod platform;
 
 #[cfg(all(
@@ -42,7 +39,6 @@ mod platform;
     not(target_os = "netbsd"),
     not(target_os = "openbsd"),
     not(target_os = "emscripten"),
-    not(feature = "stdweb"),
-    not(feature = "web_sys")
+    not(target_arch = "wasm32"),
 ))]
 compile_error!("The platform you're compiling for is not supported by winit");

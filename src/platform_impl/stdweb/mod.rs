@@ -4,9 +4,13 @@ mod event_loop;
 mod events;
 mod window;
 
-pub use self::event_loop::{DeviceId, EventLoop, EventLoopRunnerShared, EventLoopWindowTarget, EventLoopProxy, register};
-pub use self::window::{MonitorHandle, Window, WindowId, PlatformSpecificWindowBuilderAttributes};
-pub use self::events::{button_mapping, mouse_modifiers_state, mouse_button, keyboard_modifiers_state, scancode};
+pub use self::event_loop::{
+    register, DeviceId, EventLoop, EventLoopProxy, EventLoopRunnerShared, EventLoopWindowTarget,
+};
+pub use self::events::{
+    button_mapping, keyboard_modifiers_state, mouse_button, mouse_modifiers_state, scancode,
+};
+pub use self::window::{MonitorHandle, PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
 #[derive(Debug)]
 pub struct OsError(String);

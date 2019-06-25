@@ -1,27 +1,24 @@
 use super::*;
 
 use dpi::LogicalPosition;
-use event::{DeviceId as RootDI, ElementState, Event, KeyboardInput, MouseScrollDelta, StartCause, TouchPhase, WindowEvent};
-use event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoopClosed};
-use instant::{Duration, Instant};
-use window::{WindowId as RootWI};
-use stdweb::{
-    traits::*,
-    web::{
-        document,
-        event::*,
-        html_element::CanvasElement,
-        window,
-        TimeoutHandle,
-    },
+use event::{
+    DeviceId as RootDI, ElementState, Event, KeyboardInput, MouseScrollDelta, StartCause,
+    TouchPhase, WindowEvent,
 };
+use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
+use instant::{Duration, Instant};
 use std::{
     cell::RefCell,
-    collections::{VecDeque, vec_deque::IntoIter as VecDequeIter},
     clone::Clone,
+    collections::{vec_deque::IntoIter as VecDequeIter, VecDeque},
     marker::PhantomData,
     rc::Rc,
 };
+use stdweb::{
+    traits::*,
+    web::{document, event::*, html_element::CanvasElement, window, TimeoutHandle},
+};
+use window::WindowId as RootWI;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(i32);
@@ -45,15 +42,15 @@ impl<T> EventLoopWindowTarget<T> {
         EventLoopWindowTarget {
             runner: EventLoopRunnerShared(Rc::new(ELRShared {
                 runner: RefCell::new(None),
-                events: RefCell::new(VecDeque::new())
-            }))
+                events: RefCell::new(VecDeque::new()),
+            })),
         }
     }
 }
 
 #[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
-    runner: EventLoopRunnerShared<T>
+    runner: EventLoopRunnerShared<T>,
 }
 
 impl<T: 'static> EventLoopProxy<T> {
@@ -87,15 +84,15 @@ enum ControlFlowStatus {
     WaitUntil {
         timeout: TimeoutHandle,
         start: Instant,
-        end: Instant
+        end: Instant,
     },
     Wait {
         start: Instant,
     },
     Poll {
-        timeout: TimeoutHandle
+        timeout: TimeoutHandle,
     },
-    Exit
+    Exit,
 }
 
 impl ControlFlowStatus {
@@ -122,7 +119,7 @@ impl<T> EventLoop<T> {
         EventLoop {
             elw: RootELW {
                 p: EventLoopWindowTarget::new(),
-                _marker: PhantomData
+                _marker: PhantomData,
             },
         }
     }
@@ -136,12 +133,14 @@ impl<T> EventLoop<T> {
     }
 
     pub fn run<F>(self, mut event_handler: F) -> !
-        where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow) {
+    where
+        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+    {
         let runner = self.elw.p.runner;
 
         let relw = RootELW {
             p: EventLoopWindowTarget::new(),
-            _marker: PhantomData
+            _marker: PhantomData,
         };
         runner.set_listener(Box::new(move |evt, ctrl| event_handler(evt, &relw, ctrl)));
 
@@ -149,15 +148,14 @@ impl<T> EventLoop<T> {
         add_event(&runner, document, |elrs, _: BlurEvent| {
             elrs.send_event(Event::WindowEvent {
                 window_id: RootWI(WindowId),
-                event: WindowEvent::Focused(false)
+                event: WindowEvent::Focused(false),
             });
         });
         add_event(&runner, document, |elrs, _: FocusEvent| {
             elrs.send_event(Event::WindowEvent {
                 window_id: RootWI(WindowId),
-                event: WindowEvent::Focused(true)
+                event: WindowEvent::Focused(true),
             });
-
         });
         add_event(&runner, document, |elrs, event: KeyDownEvent| {
             let key = event.key();
@@ -167,7 +165,7 @@ impl<T> EventLoop<T> {
             if let (Some(key), None) = (first, second) {
                 elrs.send_event(Event::WindowEvent {
                     window_id: RootWI(WindowId),
-                    event: WindowEvent::ReceivedCharacter(key)
+                    event: WindowEvent::ReceivedCharacter(key),
                 });
             }
             elrs.send_event(Event::WindowEvent {
@@ -179,8 +177,8 @@ impl<T> EventLoop<T> {
                         state: ElementState::Pressed,
                         virtual_keycode: button_mapping(&event),
                         modifiers: keyboard_modifiers_state(&event),
-                    }
-                }
+                    },
+                },
             });
         });
         add_event(&runner, document, |elrs, event: KeyUpEvent| {
@@ -193,8 +191,8 @@ impl<T> EventLoop<T> {
                         state: ElementState::Released,
                         virtual_keycode: button_mapping(&event),
                         modifiers: keyboard_modifiers_state(&event),
-                    }
-                }
+                    },
+                },
             });
         });
 
@@ -210,7 +208,7 @@ impl<T> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            runner: self.elw.p.runner.clone()
+            runner: self.elw.p.runner.clone(),
         }
     }
 
@@ -219,21 +217,21 @@ impl<T> EventLoop<T> {
     }
 }
 
-pub fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElement) { 
+pub fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElement) {
     add_event(elrs, canvas, |elrs, event: PointerOutEvent| {
         elrs.send_event(Event::WindowEvent {
             window_id: RootWI(WindowId),
             event: WindowEvent::CursorLeft {
-                device_id: RootDI(DeviceId(event.pointer_id()))
-            }
+                device_id: RootDI(DeviceId(event.pointer_id())),
+            },
         });
     });
     add_event(elrs, canvas, |elrs, event: PointerOverEvent| {
         elrs.send_event(Event::WindowEvent {
             window_id: RootWI(WindowId),
             event: WindowEvent::CursorEntered {
-                device_id: RootDI(DeviceId(event.pointer_id()))
-            }
+                device_id: RootDI(DeviceId(event.pointer_id())),
+            },
         });
     });
     add_event(elrs, canvas, |elrs, event: PointerMoveEvent| {
@@ -243,10 +241,10 @@ pub fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElem
                 device_id: RootDI(DeviceId(event.pointer_id())),
                 position: LogicalPosition {
                     x: event.offset_x(),
-                    y: event.offset_y()
+                    y: event.offset_y(),
                 },
-                modifiers: mouse_modifiers_state(&event)
-            }
+                modifiers: mouse_modifiers_state(&event),
+            },
         });
     });
     add_event(elrs, canvas, |elrs, event: PointerUpEvent| {
@@ -256,8 +254,8 @@ pub fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElem
                 device_id: RootDI(DeviceId(event.pointer_id())),
                 state: ElementState::Pressed,
                 button: mouse_button(&event),
-                modifiers: mouse_modifiers_state(&event)
-            }
+                modifiers: mouse_modifiers_state(&event),
+            },
         });
     });
     add_event(elrs, canvas, |elrs, event: PointerDownEvent| {
@@ -267,8 +265,8 @@ pub fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElem
                 device_id: RootDI(DeviceId(event.pointer_id())),
                 state: ElementState::Released,
                 button: mouse_button(&event),
-                modifiers: mouse_modifiers_state(&event)
-            }
+                modifiers: mouse_modifiers_state(&event),
+            },
         });
     });
     add_event(elrs, canvas, |elrs, event: MouseWheelEvent| {
@@ -285,21 +283,27 @@ pub fn register<T: 'static>(elrs: &EventLoopRunnerShared<T>, canvas: &CanvasElem
                 device_id: RootDI(DeviceId(0)),
                 delta,
                 phase: TouchPhase::Moved,
-                modifiers: mouse_modifiers_state(&event)
-            }
+                modifiers: mouse_modifiers_state(&event),
+            },
         });
     });
 }
 
-fn add_event<T: 'static, E, F>(elrs: &EventLoopRunnerShared<T>, target: &impl IEventTarget, mut handler: F)
-        where E: ConcreteEvent, F: FnMut(&EventLoopRunnerShared<T>, E) + 'static {
+fn add_event<T: 'static, E, F>(
+    elrs: &EventLoopRunnerShared<T>,
+    target: &impl IEventTarget,
+    mut handler: F,
+) where
+    E: ConcreteEvent,
+    F: FnMut(&EventLoopRunnerShared<T>, E) + 'static,
+{
     let elrs = elrs.clone();
-    
+
     target.add_event_listener(move |event: E| {
         // Don't capture the event if the events loop has been destroyed
         match &*elrs.0.runner.borrow() {
             Some(ref runner) if runner.control.is_exit() => return,
-            _ => ()
+            _ => (),
         }
 
         event.prevent_default();
@@ -338,23 +342,26 @@ impl<T: 'static> EventLoopRunnerShared<T> {
                 if let Event::NewEvents(cause) = event {
                     (cause, true)
                 } else {
-                    (match runner.control {
-                        ControlFlowStatus::Init => StartCause::Init,
-                        ControlFlowStatus::Poll { .. } =>  {
-                            StartCause::Poll
-                        }
-                        ControlFlowStatus::Wait { start } => StartCause::WaitCancelled {
-                            start,
-                            requested_resume: None,
-                        },
-                        ControlFlowStatus::WaitUntil { start, end, .. } => {
-                            StartCause::WaitCancelled {
+                    (
+                        match runner.control {
+                            ControlFlowStatus::Init => StartCause::Init,
+                            ControlFlowStatus::Poll { .. } => StartCause::Poll,
+                            ControlFlowStatus::Wait { start } => StartCause::WaitCancelled {
                                 start,
-                                requested_resume: Some(end)
+                                requested_resume: None,
+                            },
+                            ControlFlowStatus::WaitUntil { start, end, .. } => {
+                                StartCause::WaitCancelled {
+                                    start,
+                                    requested_resume: Some(end),
+                                }
+                            }
+                            ControlFlowStatus::Exit => {
+                                return;
                             }
                         },
-                        ControlFlowStatus::Exit => { return; }
-                    }, false)
+                        false,
+                    )
                 }
             }
             _ => {
@@ -405,7 +412,7 @@ impl<T: 'static> EventLoopRunnerShared<T> {
             }
             // If an event is being handled without a runner somehow, add it to the event queue so
             // it will eventually be processed
-            _ => self.0.events.borrow_mut().push_back(event)
+            _ => self.0.events.borrow_mut().push_back(event),
         }
 
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
@@ -422,13 +429,18 @@ impl<T: 'static> EventLoopRunnerShared<T> {
     // Start any necessary timeouts etc
     fn apply_control_flow(&self, control_flow: ControlFlow) {
         let mut control_flow_status = match control_flow {
-           ControlFlow::Poll => {
+            ControlFlow::Poll => {
                 let cloned = self.clone();
                 ControlFlowStatus::Poll {
-                    timeout: window().set_clearable_timeout(move || cloned.send_event(Event::NewEvents(StartCause::Poll)), 1)
+                    timeout: window().set_clearable_timeout(
+                        move || cloned.send_event(Event::NewEvents(StartCause::Poll)),
+                        1,
+                    ),
                 }
             }
-            ControlFlow::Wait => ControlFlowStatus::Wait { start: Instant::now() },
+            ControlFlow::Wait => ControlFlowStatus::Wait {
+                start: Instant::now(),
+            },
             ControlFlow::WaitUntil(end) => {
                 let cloned = self.clone();
                 let start = Instant::now();
@@ -440,12 +452,15 @@ impl<T: 'static> EventLoopRunnerShared<T> {
                 ControlFlowStatus::WaitUntil {
                     start,
                     end,
-                    timeout: window().set_clearable_timeout(move || cloned.send_event(Event::NewEvents(StartCause::Poll)), delay.as_millis() as u32)
+                    timeout: window().set_clearable_timeout(
+                        move || cloned.send_event(Event::NewEvents(StartCause::Poll)),
+                        delay.as_millis() as u32,
+                    ),
                 }
             }
             ControlFlow::Exit => ControlFlowStatus::Exit,
         };
-        
+
         match *self.0.runner.borrow_mut() {
             Some(ref mut runner) => {
                 // Put the new control flow status in the runner, and take out the old one
@@ -454,11 +469,12 @@ impl<T: 'static> EventLoopRunnerShared<T> {
                 // set_timeout invocations
                 std::mem::swap(&mut runner.control, &mut control_flow_status);
                 match control_flow_status {
-                    ControlFlowStatus::Poll { timeout } | ControlFlowStatus::WaitUntil { timeout, .. } => timeout.clear(),
+                    ControlFlowStatus::Poll { timeout }
+                    | ControlFlowStatus::WaitUntil { timeout, .. } => timeout.clear(),
                     _ => (),
                 }
             }
-            None => ()
+            None => (),
         }
     }
 
@@ -478,4 +494,3 @@ impl<T: 'static> EventLoopRunnerShared<T> {
         }
     }
 }
-

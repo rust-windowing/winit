@@ -1,53 +1,19 @@
-use super::{register, EventLoopWindowTarget, OsError};
-use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use error::{ExternalError, NotSupportedError, OsError as RootOE};
-use event::{Event, WindowEvent};
-use icon::Icon;
-use monitor::MonitorHandle as RootMH;
-use platform::stdweb::WindowExtStdweb;
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
+use crate::event::{Event, WindowEvent};
+use crate::icon::Icon;
+use crate::monitor::MonitorHandle as RootMH;
+use crate::window::{CursorIcon, WindowAttributes, WindowId as RootWI};
+
+use super::{backend, monitor, EventLoopWindowTarget};
+
 use std::cell::RefCell;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::collections::VecDeque;
-use stdweb::web::{document, html_element::CanvasElement, window};
-use stdweb::{traits::*, unstable::TryInto};
-use window::{CursorIcon, Window as RootWindow, WindowAttributes, WindowId as RootWI};
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MonitorHandle;
-
-impl MonitorHandle {
-    pub fn hidpi_factor(&self) -> f64 {
-        1.0
-    }
-
-    pub fn position(&self) -> PhysicalPosition {
-        unimplemented!();
-    }
-
-    pub fn dimensions(&self) -> PhysicalSize {
-        unimplemented!();
-    }
-
-    pub fn name(&self) -> Option<String> {
-        unimplemented!();
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId;
-
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PlatformSpecificWindowBuilderAttributes;
-
-impl WindowId {
-    pub unsafe fn dummy() -> WindowId {
-        WindowId
-    }
-}
 
 pub struct Window {
-    pub(crate) canvas: CanvasElement,
-    pub(crate) redraw: Box<dyn Fn()>,
+    canvas: backend::Canvas,
+    redraw: Box<dyn Fn()>,
     previous_pointer: RefCell<&'static str>,
     position: RefCell<LogicalPosition>,
 }
@@ -56,27 +22,18 @@ impl Window {
     pub fn new<T>(
         target: &EventLoopWindowTarget<T>,
         attr: WindowAttributes,
-        _: PlatformSpecificWindowBuilderAttributes,
+        _: PlatformSpecificBuilderAttributes,
     ) -> Result<Self, RootOE> {
-        let element = document()
-            .create_element("canvas")
-            .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?;
-        let canvas: CanvasElement = element
-            .try_into()
-            .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?;
-        document()
-            .body()
-            .ok_or_else(|| os_error!(OsError("Failed to find body node".to_owned())))?
-            .append_child(&canvas);
+        let canvas = backend::Canvas::create()?;
 
-        register(&target.runner, &canvas);
+        target.register(&canvas);
 
         let runner = target.runner.clone();
         let redraw = Box::new(move || {
             let runner = runner.clone();
-            window().request_animation_frame(move |_| {
+            backend::request_animation_frame(move || {
                 runner.send_event(Event::WindowEvent {
-                    window_id: RootWI(WindowId),
+                    window_id: RootWI(Id),
                     event: WindowEvent::RedrawRequested,
                 })
             });
@@ -89,30 +46,20 @@ impl Window {
             position: RefCell::new(LogicalPosition { x: 0.0, y: 0.0 }),
         };
 
-        if let Some(inner_size) = attr.inner_size {
-            window.set_inner_size(inner_size);
-        } else {
-            window.set_inner_size(LogicalSize {
-                width: 1024.0,
-                height: 768.0,
-            })
-        }
-        window.set_min_inner_size(attr.min_inner_size);
-        window.set_max_inner_size(attr.max_inner_size);
-        window.set_resizable(attr.resizable);
+        window.set_inner_size(attr.inner_size.unwrap_or(LogicalSize {
+            width: 1024.0,
+            height: 768.0,
+        }));
         window.set_title(&attr.title);
         window.set_maximized(attr.maximized);
         window.set_visible(attr.visible);
-        //window.set_transparent(attr.transparent);
-        window.set_decorations(attr.decorations);
-        window.set_always_on_top(attr.always_on_top);
         window.set_window_icon(attr.window_icon);
 
         Ok(window)
     }
 
     pub fn set_title(&self, title: &str) {
-        document().set_title(title);
+        backend::Document::set_title(title);
     }
 
     pub fn set_visible(&self, _visible: bool) {
@@ -124,11 +71,9 @@ impl Window {
     }
 
     pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
-        let bounds = self.canvas.get_bounding_client_rect();
-        Ok(LogicalPosition {
-            x: bounds.get_x(),
-            y: bounds.get_y(),
-        })
+        let (x, y) = self.canvas.position();
+
+        Ok(LogicalPosition { x, y })
     }
 
     pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
@@ -137,15 +82,10 @@ impl Window {
 
     pub fn set_outer_position(&self, position: LogicalPosition) {
         *self.position.borrow_mut() = position;
-        self.canvas
-            .set_attribute("position", "fixed")
-            .expect("Setting the position for the canvas");
-        self.canvas
-            .set_attribute("left", &position.x.to_string())
-            .expect("Setting the position for the canvas");
-        self.canvas
-            .set_attribute("top", &position.y.to_string())
-            .expect("Setting the position for the canvas");
+
+        self.canvas.set_attribute("position", "fixed");
+        self.canvas.set_attribute("left", &position.x.to_string());
+        self.canvas.set_attribute("top", &position.y.to_string());
     }
 
     #[inline]
@@ -166,8 +106,7 @@ impl Window {
 
     #[inline]
     pub fn set_inner_size(&self, size: LogicalSize) {
-        self.canvas.set_width(size.width as u32);
-        self.canvas.set_height(size.height as u32);
+        self.canvas.set_size(size);
     }
 
     #[inline]
@@ -232,9 +171,7 @@ impl Window {
             CursorIcon::RowResize => "row-resize",
         };
         *self.previous_pointer.borrow_mut() = text;
-        self.canvas
-            .set_attribute("cursor", text)
-            .expect("Setting the cursor on the canvas");
+        self.canvas.set_attribute("cursor", text);
     }
 
     #[inline]
@@ -252,13 +189,10 @@ impl Window {
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         if !visible {
-            self.canvas
-                .set_attribute("cursor", "none")
-                .expect("Setting the cursor on the canvas");
+            self.canvas.set_attribute("cursor", "none");
         } else {
             self.canvas
-                .set_attribute("cursor", *self.previous_pointer.borrow())
-                .expect("Setting the cursor on the canvas");
+                .set_attribute("cursor", *self.previous_pointer.borrow());
         }
     }
 
@@ -301,29 +235,42 @@ impl Window {
     #[inline]
     pub fn current_monitor(&self) -> RootMH {
         RootMH {
-            inner: MonitorHandle,
+            inner: monitor::Handle,
         }
     }
 
     #[inline]
-    pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
+    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
         VecDeque::new().into_iter()
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle
+    pub fn primary_monitor(&self) -> monitor::Handle {
+        monitor::Handle
     }
 
     #[inline]
-    pub fn id(&self) -> WindowId {
+    pub fn id(&self) -> Id {
         // TODO ?
-        unsafe { WindowId::dummy() }
+        unsafe { Id::dummy() }
     }
 }
 
+#[cfg(feature = "stdweb")]
 impl WindowExtStdweb for RootWindow {
     fn canvas(&self) -> CanvasElement {
         self.window.canvas.clone()
     }
 }
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Id;
+
+impl Id {
+    pub unsafe fn dummy() -> Id {
+        Id
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PlatformSpecificBuilderAttributes;

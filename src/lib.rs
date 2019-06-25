@@ -97,23 +97,54 @@ extern crate objc;
 #[cfg(target_os = "macos")]
 extern crate cocoa;
 #[cfg(target_os = "macos")]
-extern crate dispatch;
-#[cfg(target_os = "macos")]
 extern crate core_foundation;
 #[cfg(target_os = "macos")]
 extern crate core_graphics;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
-extern crate x11_dl;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "windows"))]
+#[cfg(target_os = "macos")]
+extern crate dispatch;
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "windows"
+))]
 extern crate parking_lot;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 extern crate percent_encoding;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 extern crate smithay_client_toolkit as sctk;
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+extern crate x11_dl;
 #[cfg(feature = "stdweb")]
 #[macro_use]
 extern crate stdweb;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 extern crate calloop;
 #[cfg(feature = "web-sys")]
 extern crate wasm_bindgen;
@@ -126,8 +157,8 @@ pub mod error;
 pub mod event;
 pub mod event_loop;
 mod icon;
+pub mod monitor;
 mod platform_impl;
 pub mod window;
-pub mod monitor;
 
 pub mod platform;
