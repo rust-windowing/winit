@@ -1,12 +1,20 @@
-use crate::dpi::LogicalSize;
+use super::event;
+use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::OsError as RootOE;
+use crate::event::{ModifiersState, MouseButton, MouseScrollDelta};
 use crate::platform_impl::OsError;
 
-use wasm_bindgen::JsCast;
-use web_sys::HtmlCanvasElement;
+use wasm_bindgen::{closure::Closure, JsCast};
+use web_sys::{HtmlCanvasElement, PointerEvent, WheelEvent};
 
 pub struct Canvas {
     raw: HtmlCanvasElement,
+    on_mouse_out: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_mouse_over: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_mouse_up: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_mouse_down: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_mouse_move: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_mouse_scroll: Option<Closure<dyn FnMut(WheelEvent)>>,
 }
 
 impl Canvas {
@@ -25,7 +33,15 @@ impl Canvas {
             .append_child(&canvas)
             .map_err(|_| os_error!(OsError("Failed to append canvas".to_owned())))?;
 
-        Ok(Canvas { raw: canvas })
+        Ok(Canvas {
+            raw: canvas,
+            on_mouse_out: None,
+            on_mouse_over: None,
+            on_mouse_up: None,
+            on_mouse_down: None,
+            on_mouse_move: None,
+            on_mouse_scroll: None,
+        })
     }
 
     pub fn set_attribute(&self, attribute: &str, value: &str) {
@@ -53,14 +69,98 @@ impl Canvas {
         self.raw.set_height(size.height as u32);
     }
 
-    pub fn raw(&self) -> HtmlCanvasElement {
-        self.raw.clone()
+    pub fn raw(&self) -> &HtmlCanvasElement {
+        &self.raw
     }
 
-    pub fn on_mouse_out<F>(&self, f: F) {}
-    pub fn on_mouse_over<F>(&self, f: F) {}
-    pub fn on_mouse_up<F>(&self, f: F) {}
-    pub fn on_mouse_down<F>(&self, f: F) {}
-    pub fn on_mouse_move<F>(&self, f: F) {}
-    pub fn on_mouse_scroll<F>(&self, f: F) {}
+    pub fn on_mouse_out<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(i32),
+    {
+        self.on_mouse_out = Some(self.add_event("pointerout", move |event: PointerEvent| {
+            handler(event.pointer_id());
+        }));
+    }
+
+    pub fn on_mouse_over<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(i32),
+    {
+        self.on_mouse_over = Some(self.add_event("pointerover", move |event: PointerEvent| {
+            handler(event.pointer_id());
+        }));
+    }
+
+    pub fn on_mouse_up<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+    {
+        self.on_mouse_up = Some(self.add_event("pointerup", move |event: PointerEvent| {
+            handler(
+                event.pointer_id(),
+                event::mouse_button(&event),
+                event::mouse_modifiers(&event),
+            );
+        }));
+    }
+
+    pub fn on_mouse_down<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+    {
+        self.on_mouse_down = Some(self.add_event("pointerdown", move |event: PointerEvent| {
+            handler(
+                event.pointer_id(),
+                event::mouse_button(&event),
+                event::mouse_modifiers(&event),
+            );
+        }));
+    }
+
+    pub fn on_mouse_move<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(i32, LogicalPosition, ModifiersState),
+    {
+        self.on_mouse_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
+            handler(
+                event.pointer_id(),
+                event::mouse_position(&event),
+                event::mouse_modifiers(&event),
+            );
+        }));
+    }
+
+    pub fn on_mouse_scroll<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
+    {
+        self.on_mouse_scroll = Some(self.add_event("wheel", move |event: WheelEvent| {
+            if let Some(delta) = event::mouse_scroll_delta(&event) {
+                handler(0, delta, event::mouse_modifiers(&event));
+            }
+        }));
+    }
+
+    fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<FnMut(E)>
+    where
+        E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
+        F: 'static + FnMut(E),
+    {
+        let closure = Closure::wrap(Box::new(move |event: E| {
+            {
+                let event_ref = event.as_ref();
+                event_ref.prevent_default();
+                event_ref.stop_propagation();
+                event_ref.cancel_bubble();
+            }
+
+            handler(event);
+        }) as Box<dyn FnMut(E)>);
+
+        self.raw
+            .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
+            .expect("Failed to add event listener with callback");
+
+        closure
+    }
 }

@@ -24,9 +24,9 @@ impl Window {
         attr: WindowAttributes,
         _: PlatformSpecificBuilderAttributes,
     ) -> Result<Self, RootOE> {
-        let canvas = backend::Canvas::create()?;
+        let mut canvas = backend::Canvas::create()?;
 
-        target.register(&canvas);
+        target.register(&mut canvas);
 
         let runner = target.runner.clone();
         let redraw = Box::new(move || {
@@ -56,6 +56,10 @@ impl Window {
         window.set_window_icon(attr.window_icon);
 
         Ok(window)
+    }
+
+    pub fn canvas(&self) -> &backend::Canvas {
+        &self.canvas
     }
 
     pub fn set_title(&self, title: &str) {
@@ -253,13 +257,6 @@ impl Window {
     pub fn id(&self) -> Id {
         // TODO ?
         unsafe { Id::dummy() }
-    }
-}
-
-#[cfg(feature = "stdweb")]
-impl WindowExtStdweb for RootWindow {
-    fn canvas(&self) -> CanvasElement {
-        self.window.canvas.clone()
     }
 }
 

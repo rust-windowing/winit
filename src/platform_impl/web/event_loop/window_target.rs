@@ -35,10 +35,9 @@ impl<T> WindowTarget<T> {
         &self.runner
     }
 
-    pub fn register(&self, canvas: &backend::Canvas) {
-        let runner = &self.runner;
-
-        canvas.on_mouse_out(|pointer_id| {
+    pub fn register(&self, canvas: &mut backend::Canvas) {
+        let runner = self.runner.clone();
+        canvas.on_mouse_out(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::CursorLeft {
@@ -47,7 +46,8 @@ impl<T> WindowTarget<T> {
             });
         });
 
-        canvas.on_mouse_over(|pointer_id| {
+        let runner = self.runner.clone();
+        canvas.on_mouse_over(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::CursorEntered {
@@ -56,7 +56,8 @@ impl<T> WindowTarget<T> {
             });
         });
 
-        canvas.on_mouse_move(|pointer_id, position, modifiers| {
+        let runner = self.runner.clone();
+        canvas.on_mouse_move(move |pointer_id, position, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::CursorMoved {
@@ -67,7 +68,8 @@ impl<T> WindowTarget<T> {
             });
         });
 
-        canvas.on_mouse_up(|pointer_id, button, modifiers| {
+        let runner = self.runner.clone();
+        canvas.on_mouse_up(move |pointer_id, button, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::MouseInput {
@@ -79,7 +81,8 @@ impl<T> WindowTarget<T> {
             });
         });
 
-        canvas.on_mouse_down(|pointer_id, button, modifiers| {
+        let runner = self.runner.clone();
+        canvas.on_mouse_down(move |pointer_id, button, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::MouseInput {
@@ -91,7 +94,8 @@ impl<T> WindowTarget<T> {
             });
         });
 
-        canvas.on_mouse_scroll(|pointer_id, delta, modifiers| {
+        let runner = self.runner.clone();
+        canvas.on_mouse_scroll(move |pointer_id, delta, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::MouseWheel {

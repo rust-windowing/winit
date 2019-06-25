@@ -3,7 +3,7 @@ use crate::event_loop::ControlFlow;
 
 use instant::Instant;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum State {
     Init,
     WaitUntil {
@@ -27,13 +27,11 @@ impl State {
             _ => false,
         }
     }
-}
 
-impl From<State> for ControlFlow {
-    fn from(state: State) -> ControlFlow {
-        match state {
+    pub fn control_flow(&self) -> ControlFlow {
+        match self {
             State::Init => ControlFlow::Poll,
-            State::WaitUntil { end, .. } => ControlFlow::WaitUntil(end),
+            State::WaitUntil { end, .. } => ControlFlow::WaitUntil(*end),
             State::Wait { .. } => ControlFlow::Wait,
             State::Poll { .. } => ControlFlow::Poll,
             State::Exit => ControlFlow::Exit,

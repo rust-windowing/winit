@@ -55,7 +55,7 @@ impl<T: 'static> Shared<T> {
     // It will determine if the event should be immediately sent to the user or buffered for later
     pub fn send_event(&self, event: Event<T>) {
         // If the event loop is closed, it should discard any new events
-        if self.closed() {
+        if self.is_closed() {
             return;
         }
 
@@ -105,7 +105,7 @@ impl<T: 'static> Shared<T> {
         self.apply_control_flow(control);
         // If the event loop is closed, it has been closed this iteration and now the closing
         // event should be emitted
-        if self.closed() {
+        if self.is_closed() {
             self.handle_event(Event::LoopDestroyed, &mut control);
         }
     }
@@ -114,7 +114,7 @@ impl<T: 'static> Shared<T> {
     //
     // It should only ever be called from send_event
     fn handle_event(&self, event: Event<T>, control: &mut root::ControlFlow) {
-        let closed = self.closed();
+        let is_closed = self.is_closed();
 
         match *self.0.runner.borrow_mut() {
             Some(ref mut runner) => {
@@ -124,7 +124,7 @@ impl<T: 'static> Shared<T> {
                 (runner.event_handler)(event, control);
 
                 // Maintain closed state, even if the callback changes it
-                if closed {
+                if is_closed {
                     *control = root::ControlFlow::Exit;
                 }
 
@@ -138,7 +138,7 @@ impl<T: 'static> Shared<T> {
 
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
-        if !closed && self.0.runner.borrow().is_some() {
+        if !is_closed && self.0.runner.borrow().is_some() {
             // Take an event out of the queue and handle it
             if let Some(event) = self.0.events.borrow_mut().pop_front() {
                 self.handle_event(event, control);
@@ -149,13 +149,13 @@ impl<T: 'static> Shared<T> {
     // Apply the new ControlFlow that has been selected by the user
     // Start any necessary timeouts etc
     fn apply_control_flow(&self, control_flow: root::ControlFlow) {
-        let mut control_flow_status = match control_flow {
+        let new_state = match control_flow {
             root::ControlFlow::Poll => {
                 let cloned = self.clone();
                 State::Poll {
                     timeout: backend::Timeout::new(
                         move || cloned.send_event(Event::NewEvents(StartCause::Poll)),
-                        Duration::from_millis(1),
+                        Duration::from_millis(0),
                     ),
                 }
             }
@@ -163,13 +163,16 @@ impl<T: 'static> Shared<T> {
                 start: Instant::now(),
             },
             root::ControlFlow::WaitUntil(end) => {
-                let cloned = self.clone();
                 let start = Instant::now();
+
                 let delay = if end <= start {
                     Duration::from_millis(0)
                 } else {
                     end - start
                 };
+
+                let cloned = self.clone();
+
                 State::WaitUntil {
                     start,
                     end,
@@ -184,22 +187,14 @@ impl<T: 'static> Shared<T> {
 
         match *self.0.runner.borrow_mut() {
             Some(ref mut runner) => {
-                // Put the new control flow status in the runner, and take out the old one
-                // This way we can safely take ownership of the TimeoutHandle and clear it,
-                // so that we don't get 'ghost' invocations of Poll or WaitUntil from earlier
-                // set_timeout invocations
-                std::mem::swap(&mut runner.state, &mut control_flow_status);
-                match control_flow_status {
-                    State::Poll { timeout } | State::WaitUntil { timeout, .. } => timeout.clear(),
-                    _ => (),
-                }
+                runner.state = new_state;
             }
             None => (),
         }
     }
 
-    // Check if the event loop is currntly closed
-    fn closed(&self) -> bool {
+    // Check if the event loop is currently closed
+    fn is_closed(&self) -> bool {
         match *self.0.runner.borrow() {
             Some(ref runner) => runner.state.is_exit(),
             None => false, // If the event loop is None, it has not been intialised yet, so it cannot be closed
@@ -209,7 +204,7 @@ impl<T: 'static> Shared<T> {
     // Get the current control flow state
     fn current_control_flow(&self) -> root::ControlFlow {
         match *self.0.runner.borrow() {
-            Some(ref runner) => runner.state.into(),
+            Some(ref runner) => runner.state.control_flow(),
             None => root::ControlFlow::Poll,
         }
     }
