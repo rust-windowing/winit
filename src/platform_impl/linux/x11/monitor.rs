@@ -4,8 +4,8 @@ use parking_lot::Mutex;
 
 use super::{
     ffi::{
-        RRCrtc, RRCrtcChangeNotifyMask, RROutputPropertyNotifyMask, RRScreenChangeNotifyMask, True,
-        Window, XRRCrtcInfo, XRRScreenResources,
+        RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
+        RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRScreenResources,
     },
     util, XConnection, XError,
 };
@@ -19,20 +19,7 @@ use crate::{
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
 
 lazy_static! {
-    static ref XRANDR_VERSION: Mutex<Option<(c_int, c_int)>> = Mutex::default();
     static ref MONITORS: Mutex<Option<Vec<MonitorHandle>>> = Mutex::default();
-}
-
-fn version_is_at_least(major: c_int, minor: c_int) -> bool {
-    if let Some((avail_major, avail_minor)) = *XRANDR_VERSION.lock() {
-        if avail_major == major {
-            avail_minor >= minor
-        } else {
-            avail_major > major
-        }
-    } else {
-        unreachable!();
-    }
 }
 
 pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorHandle>> {
@@ -45,6 +32,7 @@ pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
+    pub(crate) native_mode: RRMode,
     pub(crate) monitor: Option<MonitorHandle>,
 }
 
@@ -75,7 +63,7 @@ impl VideoMode {
 #[derive(Debug, Clone)]
 pub struct MonitorHandle {
     /// The actual id
-    id: RRCrtc,
+    pub(crate) id: RRCrtc,
     /// The name of the monitor
     pub(crate) name: String,
     /// The size of the monitor
@@ -203,8 +191,12 @@ impl XConnection {
 
     fn query_monitor_list(&self) -> Vec<MonitorHandle> {
         unsafe {
+            let mut major = 0;
+            let mut minor = 0;
+            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+
             let root = (self.xlib.XDefaultRootWindow)(self.display);
-            let resources = if version_is_at_least(1, 3) {
+            let resources = if (major == 1 && minor >= 3) || major > 1 {
                 (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
             } else {
                 // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
@@ -271,19 +263,15 @@ impl XConnection {
     }
 
     pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, XError> {
-        {
-            let mut version_lock = XRANDR_VERSION.lock();
-            if version_lock.is_none() {
-                let mut major = 0;
-                let mut minor = 0;
-                let has_extension =
-                    unsafe { (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor) };
-                if has_extension != True {
-                    panic!("[winit] XRandR extension not available.");
-                }
-                *version_lock = Some((major, minor));
-            }
-        }
+        let has_xrandr = unsafe {
+            let mut major = 0;
+            let mut minor = 0;
+            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor)
+        };
+        assert!(
+            has_xrandr == True,
+            "[winit] XRandR extension not available."
+        );
 
         let mut event_offset = 0;
         let mut error_offset = 0;

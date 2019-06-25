@@ -1,7 +1,7 @@
 use std::{env, slice, str::FromStr};
 
 use super::{
-    ffi::{XRRCrtcInfo, XRRScreenResources},
+    ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
     *,
 };
 use crate::{dpi::validate_hidpi_factor, platform_impl::platform::x11::VideoMode};
@@ -94,6 +94,7 @@ impl XConnection {
                     size: (x.width, x.height),
                     refresh_rate: (refresh_rate as f32 / 1000.0).round() as u16,
                     bit_depth: bit_depth as u16,
+                    native_mode: x.id,
                     // This is populated in `MonitorHandle::video_modes` as the
                     // video mode is returned to the user
                     monitor: None,
@@ -119,5 +120,62 @@ impl XConnection {
 
         (self.xrandr.XRRFreeOutputInfo)(output_info);
         Some((name, hidpi_factor, modes.collect()))
+    }
+    pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Result<(), ()> {
+        unsafe {
+            let mut major = 0;
+            let mut minor = 0;
+            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+
+            let root = (self.xlib.XDefaultRootWindow)(self.display);
+            let resources = if (major == 1 && minor >= 3) || major > 1 {
+                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+            } else {
+                (self.xrandr.XRRGetScreenResources)(self.display, root)
+            };
+
+            let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
+            let status = (self.xrandr.XRRSetCrtcConfig)(
+                self.display,
+                resources,
+                crtc_id,
+                CurrentTime,
+                (*crtc).x,
+                (*crtc).y,
+                mode_id,
+                (*crtc).rotation,
+                (*crtc).outputs.offset(0),
+                1,
+            );
+
+            (self.xrandr.XRRFreeCrtcInfo)(crtc);
+            (self.xrandr.XRRFreeScreenResources)(resources);
+
+            if status == Success as i32 {
+                Ok(())
+            } else {
+                Err(())
+            }
+        }
+    }
+    pub fn get_crtc_mode(&self, crtc_id: RRCrtc) -> RRMode {
+        unsafe {
+            let mut major = 0;
+            let mut minor = 0;
+            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+
+            let root = (self.xlib.XDefaultRootWindow)(self.display);
+            let resources = if (major == 1 && minor >= 3) || major > 1 {
+                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+            } else {
+                (self.xrandr.XRRGetScreenResources)(self.display, root)
+            };
+
+            let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
+            let mode = (*crtc).mode;
+            (self.xrandr.XRRFreeCrtcInfo)(crtc);
+            (self.xrandr.XRRFreeScreenResources)(resources);
+            mode
+        }
     }
 }
