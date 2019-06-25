@@ -11,12 +11,6 @@ use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use web_sys::HtmlCanvasElement;
 
-pub fn request_animation_frame<F>(f: F)
-where
-    F: Fn(),
-{
-}
-
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
 }

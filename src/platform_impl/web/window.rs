@@ -13,7 +13,6 @@ use std::collections::VecDeque;
 
 pub struct Window {
     canvas: backend::Canvas,
-    redraw: Box<dyn Fn()>,
     previous_pointer: RefCell<&'static str>,
     position: RefCell<LogicalPosition>,
 }
@@ -24,24 +23,19 @@ impl Window {
         attr: WindowAttributes,
         _: PlatformSpecificBuilderAttributes,
     ) -> Result<Self, RootOE> {
-        let mut canvas = backend::Canvas::create()?;
+        let runner = target.runner.clone();
+
+        let mut canvas = backend::Canvas::create(move || {
+            runner.send_event(Event::WindowEvent {
+                window_id: RootWI(Id),
+                event: WindowEvent::RedrawRequested,
+            })
+        })?;
 
         target.register(&mut canvas);
 
-        let runner = target.runner.clone();
-        let redraw = Box::new(move || {
-            let runner = runner.clone();
-            backend::request_animation_frame(move || {
-                runner.send_event(Event::WindowEvent {
-                    window_id: RootWI(Id),
-                    event: WindowEvent::RedrawRequested,
-                })
-            });
-        });
-
         let window = Window {
             canvas,
-            redraw,
             previous_pointer: RefCell::new("auto"),
             position: RefCell::new(LogicalPosition { x: 0.0, y: 0.0 }),
         };
@@ -71,7 +65,7 @@ impl Window {
     }
 
     pub fn request_redraw(&self) {
-        (self.redraw)();
+        self.canvas.request_redraw();
     }
 
     pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {

@@ -9,6 +9,7 @@ use web_sys::{HtmlCanvasElement, PointerEvent, WheelEvent};
 
 pub struct Canvas {
     raw: HtmlCanvasElement,
+    on_redraw: Closure<dyn Fn()>,
     on_mouse_out: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_over: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_up: Option<Closure<dyn FnMut(PointerEvent)>>,
@@ -24,7 +25,10 @@ impl Drop for Canvas {
 }
 
 impl Canvas {
-    pub fn create() -> Result<Self, RootOE> {
+    pub fn create<F>(on_redraw: F) -> Result<Self, RootOE>
+    where
+        F: 'static + Fn(),
+    {
         let window = web_sys::window().expect("Failed to obtain window");
         let document = window.document().expect("Failed to obtain document");
 
@@ -41,6 +45,7 @@ impl Canvas {
 
         Ok(Canvas {
             raw: canvas,
+            on_redraw: Closure::wrap(Box::new(on_redraw) as Box<dyn Fn()>),
             on_mouse_out: None,
             on_mouse_over: None,
             on_mouse_up: None,
@@ -77,6 +82,11 @@ impl Canvas {
 
     pub fn raw(&self) -> &HtmlCanvasElement {
         &self.raw
+    }
+
+    pub fn request_redraw(&self) {
+        let window = web_sys::window().expect("Failed to obtain window");
+        window.request_animation_frame(&self.on_redraw.as_ref().unchecked_ref());
     }
 
     pub fn on_mouse_out<F>(&mut self, mut handler: F)
