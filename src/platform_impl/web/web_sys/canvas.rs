@@ -17,6 +17,12 @@ pub struct Canvas {
     on_mouse_scroll: Option<Closure<dyn FnMut(WheelEvent)>>,
 }
 
+impl Drop for Canvas {
+    fn drop(&mut self) {
+        self.raw.remove();
+    }
+}
+
 impl Canvas {
     pub fn create() -> Result<Self, RootOE> {
         let window = web_sys::window().expect("Failed to obtain window");
