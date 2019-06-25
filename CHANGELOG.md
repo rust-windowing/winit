@@ -2,6 +2,7 @@
 
 - Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
 - On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
+- Revert the use of invisible surfaces in Wayland, which introduced graphical glitches with OpenGL (#835)
 
 # 0.20.0 Alpha 1
 
