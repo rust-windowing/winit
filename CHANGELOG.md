@@ -3,6 +3,11 @@
 - Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
 - On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
 - On Windows, when a window is initially invisible, it won't take focus from the existing visible windows.
+- On macOS, the dock and the menu bar are now hidden in fullscreen mode.
+- `Window::set_fullscreen` now takes `Option<Fullscreen>` where `Fullscreen`
+  consists of `Fullscreen::Exclusive(VideoMode)` and
+  `Fullscreen::Borderless(MonitorHandle)` variants.
+    - Adds support for exclusive fullscreen mode.
 
 # 0.20.0 Alpha 1
 
@@ -50,12 +55,6 @@
 - On Wayland, the window now exists even if nothing has been drawn.
 - On Windows, fix initial dimensions of a fullscreen window.
 - On Windows, Fix transparent borderless windows rendering wrong.
-- On macOS, add `WindowExtMacOS::set_fullscreen_presentation_options` for hiding the dock and the menu bar in fullscreen mode.
-- On macOS, the dock and the menu bar are now hidden in fullscreen mode.
-- `Window::set_fullscreen` now takes `Option<Fullscreen>` where `Fullscreen`
-  consists of `Fullscreen::Exclusive(VideoMode)` and
-  `Fullscreen::Borderless(MonitorHandle)` variants.
-    - Adds support for exclusive fullscreen mode.
 
 # Version 0.19.1 (2019-04-08)
 
