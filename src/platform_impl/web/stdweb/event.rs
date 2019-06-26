@@ -1,11 +1,55 @@
-use stdweb::{
-    JsSerialize,
-    web::event::{IKeyboardEvent, IMouseEvent},
-    unstable::TryInto
-};
-use event::{MouseButton, ModifiersState, ScanCode, VirtualKeyCode};
+use crate::dpi::LogicalPosition;
+use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 
-pub fn button_mapping(event: &impl IKeyboardEvent) -> Option<VirtualKeyCode> {
+use stdweb::web::event::{IKeyboardEvent, IMouseEvent, MouseWheelDeltaMode, MouseWheelEvent};
+use stdweb::{unstable::TryInto, JsSerialize};
+
+pub fn mouse_button(event: &impl IMouseEvent) -> MouseButton {
+    match event.button() {
+        stdweb::web::event::MouseButton::Left => MouseButton::Left,
+        stdweb::web::event::MouseButton::Right => MouseButton::Right,
+        stdweb::web::event::MouseButton::Wheel => MouseButton::Middle,
+        stdweb::web::event::MouseButton::Button4 => MouseButton::Other(0),
+        stdweb::web::event::MouseButton::Button5 => MouseButton::Other(1),
+    }
+}
+
+pub fn mouse_modifiers(event: &impl IMouseEvent) -> ModifiersState {
+    ModifiersState {
+        shift: event.shift_key(),
+        ctrl: event.ctrl_key(),
+        alt: event.alt_key(),
+        logo: event.meta_key(),
+    }
+}
+
+pub fn mouse_position(event: &impl IMouseEvent) -> LogicalPosition {
+    LogicalPosition {
+        x: event.offset_x() as f64,
+        y: event.offset_y() as f64,
+    }
+}
+
+pub fn mouse_scroll_delta(event: &MouseWheelEvent) -> Option<MouseScrollDelta> {
+    let x = event.delta_x();
+    let y = event.delta_y();
+
+    match event.delta_mode() {
+        MouseWheelDeltaMode::Line => Some(MouseScrollDelta::LineDelta(x as f32, y as f32)),
+        MouseWheelDeltaMode::Pixel => Some(MouseScrollDelta::PixelDelta(LogicalPosition { x, y })),
+        MouseWheelDeltaMode::Page => None,
+    }
+}
+
+pub fn scan_code<T: JsSerialize>(event: &T) -> ScanCode {
+    let key_code = js! ( return @{event}.key_code; );
+
+    key_code
+        .try_into()
+        .expect("The which value should be a number")
+}
+
+pub fn virtual_key_code(event: &impl IKeyboardEvent) -> Option<VirtualKeyCode> {
     Some(match &event.code()[..] {
         "Digit1" => VirtualKeyCode::Key1,
         "Digit2" => VirtualKeyCode::Key2,
@@ -164,11 +208,11 @@ pub fn button_mapping(event: &impl IKeyboardEvent) -> Option<VirtualKeyCode> {
         "WebSearch" => VirtualKeyCode::WebSearch,
         "WebStop" => VirtualKeyCode::WebStop,
         "Yen" => VirtualKeyCode::Yen,
-        _ => return None
+        _ => return None,
     })
 }
 
-pub fn mouse_modifiers_state(event: &impl IMouseEvent) -> ModifiersState {
+pub fn keyboard_modifiers(event: &impl IKeyboardEvent) -> ModifiersState {
     ModifiersState {
         shift: event.shift_key(),
         ctrl: event.ctrl_key(),
@@ -177,26 +221,9 @@ pub fn mouse_modifiers_state(event: &impl IMouseEvent) -> ModifiersState {
     }
 }
 
-pub fn mouse_button(event: &impl IMouseEvent) -> MouseButton {
-    match event.button() {
-        stdweb::web::event::MouseButton::Left => MouseButton::Left,
-        stdweb::web::event::MouseButton::Right => MouseButton::Right,
-        stdweb::web::event::MouseButton::Wheel => MouseButton::Middle,
-        stdweb::web::event::MouseButton::Button4 => MouseButton::Other(0),
-        stdweb::web::event::MouseButton::Button5 => MouseButton::Other(1),
-    }
-}
-
-pub fn keyboard_modifiers_state(event: &impl IKeyboardEvent) -> ModifiersState {
-    ModifiersState {
-        shift: event.shift_key(),
-        ctrl: event.ctrl_key(),
-        alt: event.alt_key(),
-        logo: event.meta_key(),
-    }
-}
-
-pub fn scancode<T: JsSerialize>(event: &T) -> ScanCode {
-    let which = js! ( return @{event}.which; );
-    which.try_into().expect("The which value should be a number")
+pub fn codepoint(event: &impl IKeyboardEvent) -> char {
+    // `event.key()` always returns a non-empty `String`. Therefore, this should
+    // never panic.
+    // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
+    event.key().chars().next().unwrap()
 }

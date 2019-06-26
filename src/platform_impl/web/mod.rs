@@ -11,8 +11,12 @@ mod event_loop;
 mod monitor;
 mod window;
 
-#[cfg(feature = "web_sys")]
+#[cfg(feature = "use_web-sys")]
 #[path = "web_sys/mod.rs"]
+mod backend;
+
+#[cfg(feature = "use_stdweb")]
+#[path = "stdweb/mod.rs"]
 mod backend;
 
 pub use self::device::Id as DeviceId;

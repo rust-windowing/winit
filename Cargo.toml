@@ -13,15 +13,16 @@ categories = ["gui"]
 [package.metadata.docs.rs]
 features = ["serde"]
 
+[features]
+use_web-sys = ["web-sys", "wasm-bindgen", "instant/wasm-bindgen"]
+use_stdweb = ["stdweb", "instant/stdweb"]
+
 [dependencies]
 instant = "0.1"
 lazy_static = "1"
 libc = "0.2"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
-
-[features]
-web_sys = ["web-sys", "wasm-bindgen"]
 
 [dev-dependencies]
 image = "0.21"
@@ -102,9 +103,9 @@ features = [
 version = "0.2.45"
 optional = true
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-stdweb = { path = "../stdweb", optional = true }
-instant = { version = "0.1", features = ["wasm-bindgen"] }
+[target.'cfg(target_arch = "wasm32")'.dependencies.stdweb]
+version = "0.4.17"
+optional = true
 
 [patch.crates-io]
 stdweb = { path = "../stdweb" }
