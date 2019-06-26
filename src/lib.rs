@@ -146,7 +146,7 @@ extern crate stdweb;
     target_os = "openbsd"
 ))]
 extern crate calloop;
-#[cfg(feature = "web-sys")]
+#[cfg(feature = "wasm-bindgen")]
 extern crate wasm_bindgen;
 #[cfg(feature = "web-sys")]
 extern crate web_sys;
