@@ -122,10 +122,17 @@ fn create_window(
         let frame = match screen {
             Some(screen) => appkit::NSScreen::frame(screen),
             None => {
-                let (width, height) = attrs
-                    .inner_size
-                    .map(|logical| (logical.width, logical.height))
-                    .unwrap_or_else(|| (800.0, 600.0));
+                // Not sure what dpi_factor we need here.
+                // If i understand correctly, here we fail to create NSScreen frame, so we've got
+                // no dpi_factor
+                let hidpi_factor =  1.0;
+                let (width, height) = match attrs.inner_size {
+                    Some(size) => {
+                        let logical = size.to_logical(hidpi_factor);
+                        (logical.width, logical.height)
+                    },
+                    None => (800.0, 600.0),
+                };
                 NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height))
             }
         };
@@ -315,13 +322,19 @@ impl UnownedWindow {
             }
 
             ns_app.activateIgnoringOtherApps_(YES);
-
+            let dpi_factor = NSWindow::backingScaleFactor(*ns_window) as f64;
             win_attribs
                 .min_inner_size
-                .map(|dim| set_min_inner_size(*ns_window, dim));
+                .map(|dim| {
+                    let logical_dim = dim.to_logical(dpi_factor);
+                    set_min_inner_size(*ns_window, logical_dim)
+                });
             win_attribs
                 .max_inner_size
-                .map(|dim| set_max_inner_size(*ns_window, dim));
+                .map(|dim| {
+                    let logical_dim = dim.to_logical(dpi_factor);
+                    set_max_inner_size(*ns_window, logical_dim)
+                });
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.

@@ -7,7 +7,7 @@ use std::{
 use cocoa::{
     appkit::{self, NSView, NSWindow},
     base::{id, nil},
-    foundation::NSAutoreleasePool,
+    foundation::{NSAutoreleasePool, NSSize},
 };
 use objc::{
     declare::ClassDecl,
@@ -225,6 +225,10 @@ extern "C" fn dealloc(this: &Object, _sel: Sel) {
     });
 }
 
+fn inner_size(size: NSSize, dpi_factor: f64) -> PhysicalSize {
+    LogicalSize::new(size.width, size.height).to_physical(dpi_factor)
+}
+
 extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> id {
     unsafe {
         let this: id = msg_send![this, init];
@@ -282,8 +286,7 @@ extern "C" fn window_did_change_screen(this: &Object, _: Sel, _: id) {
     with_state(this, |state| {
         let hidpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
         let ns_size = unsafe { NSWindow::contentSize(*state.ns_window) };
-        let new_inner_size =
-            &mut Some(PhysicalSize::new(ns_size.width as u32, ns_size.height as u32));
+        let new_inner_size = &mut Some(inner_size(ns_size, hidpi_factor));
         if state.previous_dpi_factor != hidpi_factor {
             state.previous_dpi_factor = hidpi_factor;
             state.emit_event(WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size });
@@ -299,8 +302,7 @@ extern "C" fn window_did_change_backing_properties(this: &Object, _: Sel, _: id)
     with_state(this, |state| {
         let hidpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
         let ns_size = unsafe { NSWindow::contentSize(*state.ns_window) };
-        let new_inner_size =
-            &mut Some(PhysicalSize::new(ns_size.width as u32, ns_size.height as u32));
+        let new_inner_size = &mut Some(inner_size(ns_size, hidpi_factor));
         if state.previous_dpi_factor != hidpi_factor {
             state.previous_dpi_factor = hidpi_factor;
             state.emit_event(WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size });
