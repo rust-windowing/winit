@@ -108,4 +108,4 @@ version = "0.4.17"
 optional = true
 
 [patch.crates-io]
-stdweb = { path = "../stdweb" }
+stdweb = { git = "https://github.com/koute/stdweb", rev = "b3a29bb9dd9b9405540d711ed02a21cd7058d5c0"}
