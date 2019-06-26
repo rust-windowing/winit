@@ -6,7 +6,9 @@ use cocoa::{
     base::id,
     foundation::{NSInteger, NSUInteger},
 };
-use core_foundation::uuid::CFUUIDRef;
+use core_foundation::{
+    array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef,
+};
 use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
@@ -140,7 +142,24 @@ pub const kCGErrorTypeCheck: i32 = 1008;
 pub const kCGErrorInvalidOperation: i32 = 1010;
 pub const kCGErrorNoneAvailable: i32 = 1011;
 
+pub const IO1BitIndexedPixels: &str = "P";
+pub const IO2BitIndexedPixels: &str = "PP";
+pub const IO4BitIndexedPixels: &str = "PPPP";
+pub const IO8BitIndexedPixels: &str = "PPPPPPPP";
+pub const IO16BitDirectPixels: &str = "-RRRRRGGGGGBBBBB";
+pub const IO32BitDirectPixels: &str = "--------RRRRRRRRGGGGGGGGBBBBBBBB";
+
+pub const kIO30BitDirectPixels: &str = "--RRRRRRRRRRGGGGGGGGGGBBBBBBBBBB";
+pub const kIO64BitDirectPixels: &str = "-16R16G16B16";
+
+pub const kIO16BitFloatPixels: &str = "-16FR16FG16FB16";
+pub const kIO32BitFloatPixels: &str = "-32FR32FG32FB32";
+
+pub const IOYUV422Pixels: &str = "Y4U2V2";
+pub const IO8BitOverlayPixels: &str = "O8";
+
 pub type CGWindowLevel = i32;
+pub type CGDisplayModeRef = *mut libc::c_void;
 
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
@@ -172,4 +191,19 @@ extern "C" {
     pub fn CGReleaseDisplayFadeReservation(token: CGDisplayFadeReservationToken) -> CGError;
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
     pub fn CGShieldingWindowLevel() -> CGWindowLevel;
+    pub fn CGDisplaySetDisplayMode(
+        display: CGDirectDisplayID,
+        mode: CGDisplayModeRef,
+        options: CFDictionaryRef,
+    ) -> CGError;
+    pub fn CGDisplayCopyAllDisplayModes(
+        display: CGDirectDisplayID,
+        options: CFDictionaryRef,
+    ) -> CFArrayRef;
+    pub fn CGDisplayModeGetPixelWidth(mode: CGDisplayModeRef) -> usize;
+    pub fn CGDisplayModeGetPixelHeight(mode: CGDisplayModeRef) -> usize;
+    pub fn CGDisplayModeGetRefreshRate(mode: CGDisplayModeRef) -> f64;
+    pub fn CGDisplayModeCopyPixelEncoding(mode: CGDisplayModeRef) -> CFStringRef;
+    pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
+    pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
 }

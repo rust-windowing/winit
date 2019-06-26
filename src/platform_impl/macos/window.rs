@@ -34,7 +34,7 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize, NSString},
 };
-use core_graphics::display::{CGConfigureOption, CGDisplay, CGDisplayMode};
+use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
@@ -692,9 +692,6 @@ impl UnownedWindow {
         }
 
         if let Some(Fullscreen::Exclusive(ref video_mode)) = fullscreen {
-            let display_id = video_mode.monitor().inner.native_identifier();
-            let display = CGDisplay::new(display_id);
-
             // Note: `enterFullScreenMode:withOptions:` seems to do the exact
             // same thing as we're doing here (captures the display, sets the
             // video mode, and hides the menu bar and dock), with the exception
@@ -706,6 +703,8 @@ impl UnownedWindow {
             // this function seem to just pass in "YES" for the display mode
             // parameter, which is not consistent with the docs saying that it
             // takes a `NSDictionary`..
+
+            let display_id = video_mode.monitor().inner.native_identifier();
 
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
 
@@ -730,31 +729,16 @@ impl UnownedWindow {
                 assert_eq!(ffi::CGDisplayCapture(display_id), ffi::kCGErrorSuccess);
             }
 
-            // Capturing (and subsequently releasing) the display invalidates
-            // all display modes, so the stored display mode may no longer be
-            // valid. Calling functions on it still yields correct results, but
-            // configuring the display to use that display mode will no longer
-            // succeed, so query display modes anew and look for a mode that
-            // matches the description of our stored mode.
-            let video_mode = video_mode
-                .monitor()
-                .video_modes()
-                .find(|x| x == video_mode)
-                .expect("failed to find a video mode matching the stored video mode");
-
-            let config = display
-                .begin_configuration()
-                .expect("failed to begin display configuration");
-            display
-                .configure_display_with_display_mode(&config, &video_mode.video_mode.native_mode.0)
-                .expect("failed to set display mode");
-            display
-                .complete_configuration(&config, CGConfigureOption::ConfigureForAppOnly)
-                .expect("failed to apply new display configuration");
-
-            // After the display has been configured, fade back in
-            // asynchronously
             unsafe {
+                let result = ffi::CGDisplaySetDisplayMode(
+                    display_id,
+                    video_mode.video_mode.native_mode.0,
+                    std::ptr::null(),
+                );
+                assert!(result == ffi::kCGErrorSuccess, "failed to set video mode");
+
+                // After the display has been configured, fade back in
+                // asynchronously
                 if fade_token != ffi::kCGDisplayFadeReservationInvalidToken {
                     ffi::CGDisplayFade(
                         fade_token,

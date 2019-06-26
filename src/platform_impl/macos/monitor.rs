@@ -1,21 +1,25 @@
 use std::{collections::VecDeque, fmt};
 
-use cocoa::{
-    appkit::NSScreen,
-    base::{id, nil},
-    foundation::{NSString, NSUInteger},
-};
-use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayMode};
-use core_video_sys::{
-    kCVReturnSuccess, kCVTimeIsIndefinite, CVDisplayLinkCreateWithCGDisplay,
-    CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
-};
-
 use super::ffi;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::util::IdRef,
+};
+use cocoa::{
+    appkit::NSScreen,
+    base::{id, nil},
+    foundation::{NSString, NSUInteger},
+};
+use core_foundation::{
+    array::{CFArrayGetCount, CFArrayGetValueAtIndex},
+    base::{CFRelease, TCFType},
+    string::CFString,
+};
+use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
+use core_video_sys::{
+    kCVReturnSuccess, kCVTimeIsIndefinite, CVDisplayLinkCreateWithCGDisplay,
+    CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
 };
 
 #[derive(Derivative)]
@@ -29,9 +33,26 @@ pub struct VideoMode {
     pub(crate) native_mode: NativeDisplayMode,
 }
 
-#[derive(Clone)]
-pub struct NativeDisplayMode(pub CGDisplayMode);
+pub struct NativeDisplayMode(pub ffi::CGDisplayModeRef);
+
 unsafe impl Send for NativeDisplayMode {}
+
+impl Drop for NativeDisplayMode {
+    fn drop(&mut self) {
+        unsafe {
+            ffi::CGDisplayModeRelease(self.0);
+        }
+    }
+}
+
+impl Clone for NativeDisplayMode {
+    fn clone(&self) -> Self {
+        unsafe {
+            ffi::CGDisplayModeRetain(self.0);
+        }
+        NativeDisplayMode(self.0)
+    }
+}
 
 impl VideoMode {
     pub fn size(&self) -> PhysicalSize {
@@ -192,11 +213,25 @@ impl MonitorHandle {
 
         let monitor = self.clone();
 
-        CGDisplayMode::all_display_modes(self.0, std::ptr::null())
-            .expect("failed to obtain list of display modes")
-            .into_iter()
-            .map(move |mode| {
-                let cg_refresh_rate = mode.refresh_rate().round() as i64;
+        unsafe {
+            let modes = {
+                let array = ffi::CGDisplayCopyAllDisplayModes(self.0, std::ptr::null());
+                assert!(!array.is_null(), "failed to get list of display modes");
+                let array_count = CFArrayGetCount(array);
+                let modes: Vec<_> = (0..array_count)
+                    .into_iter()
+                    .map(move |i| {
+                        let mode = CFArrayGetValueAtIndex(array, i) as *mut _;
+                        ffi::CGDisplayModeRetain(mode);
+                        mode
+                    })
+                    .collect();
+                CFRelease(array as *const _);
+                modes
+            };
+
+            modes.into_iter().map(move |mode| {
+                let cg_refresh_rate = ffi::CGDisplayModeGetRefreshRate(mode).round() as i64;
 
                 // CGDisplayModeGetRefreshRate returns 0.0 for any display that
                 // isn't a CRT
@@ -206,16 +241,33 @@ impl MonitorHandle {
                     cv_refresh_rate
                 };
 
+                let pixel_encoding =
+                    CFString::wrap_under_create_rule(ffi::CGDisplayModeCopyPixelEncoding(mode))
+                        .to_string();
+                let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
+                    32
+                } else if pixel_encoding.eq_ignore_ascii_case(ffi::IO16BitDirectPixels) {
+                    16
+                } else if pixel_encoding.eq_ignore_ascii_case(ffi::kIO30BitDirectPixels) {
+                    30
+                } else {
+                    unimplemented!()
+                };
+
                 let video_mode = VideoMode {
-                    size: (mode.width() as u32, mode.height() as u32),
+                    size: (
+                        ffi::CGDisplayModeGetPixelWidth(mode) as u32,
+                        ffi::CGDisplayModeGetPixelHeight(mode) as u32,
+                    ),
                     refresh_rate: refresh_rate as u16,
-                    bit_depth: mode.bit_depth() as u16,
+                    bit_depth,
                     monitor: monitor.clone(),
                     native_mode: NativeDisplayMode(mode),
                 };
 
                 RootVideoMode { video_mode }
             })
+        }
     }
 
     pub(crate) fn ns_screen(&self) -> Option<id> {
