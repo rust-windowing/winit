@@ -830,7 +830,12 @@ impl UnownedWindow {
     #[inline]
     pub fn set_outer_position(&self, logical_position: LogicalPosition) {
         let (x, y) = logical_position.to_physical(self.hidpi_factor()).into();
-        self.set_position_physical(x, y);
+
+        if self.fullscreen().is_some() {
+            self.shared_state.lock().restore_position = Some((x, y));
+        } else {
+            self.set_position_physical(x, y);
+        }
     }
 
     pub(crate) fn inner_size_physical(&self) -> (u32, u32) {
