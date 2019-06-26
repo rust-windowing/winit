@@ -2,6 +2,7 @@
 
 - Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
 - On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
+- On Windows, when a window is initially invisible, it won't take focus from the existing visible windows.
 
 # 0.20.0 Alpha 1
 
