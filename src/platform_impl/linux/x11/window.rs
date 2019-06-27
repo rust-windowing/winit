@@ -212,7 +212,7 @@ impl UnownedWindow {
             )
         };
 
-        let window = UnownedWindow {
+        let mut window = UnownedWindow {
             xconn: Arc::clone(xconn),
             xwindow,
             root,
@@ -404,6 +404,17 @@ impl UnownedWindow {
                 window
                     .set_fullscreen_inner(window_attrs.fullscreen.clone())
                     .queue();
+
+                let shared_state = window.shared_state.get_mut();
+
+                shared_state.fullscreen = window_attrs.fullscreen.clone();
+
+                if let Some(pos) = window_attrs.outer_position {
+                    let pos = pos.to_physical(dpi_factor).into();
+                    shared_state.restore_position = Some(pos);
+                }
+
+                window.invalidate_cached_frame_extents();
             }
             if window_attrs.always_on_top {
                 window
