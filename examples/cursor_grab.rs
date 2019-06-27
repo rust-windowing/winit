@@ -1,5 +1,5 @@
 use winit::{
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -14,8 +14,8 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
-        if let Event::WindowEvent { event, .. } = event {
-            match event {
+        match event {
+            Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::KeyboardInput {
                     input:
@@ -36,7 +36,16 @@ fn main() {
                     }
                 }
                 _ => (),
-            }
+            },
+            Event::DeviceEvent { event, .. } => match event {
+                DeviceEvent::MouseMotion { delta } => println!("mouse moved: {:?}", delta),
+                DeviceEvent::Button { button, state } => match state {
+                    ElementState::Pressed => println!("mouse button {} pressed", button),
+                    ElementState::Released => println!("mouse button {} released", button),
+                },
+                _ => (),
+            },
+            _ => (),
         }
     });
 }
