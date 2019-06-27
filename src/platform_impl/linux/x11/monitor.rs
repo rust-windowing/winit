@@ -10,7 +10,7 @@ use super::{
     util, XConnection, XError,
 };
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::{LogicalPosition, PhysicalPosition, PhysicalSize},
     monitor::VideoMode,
 };
 
@@ -104,6 +104,17 @@ impl MonitorHandle {
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
         self.hidpi_factor
+    }
+
+    #[inline]
+    pub fn relative_position(&self, position: LogicalPosition) -> PhysicalPosition {
+        let phys = self.position();
+        let dpi = self.hidpi_factor();
+
+        PhysicalPosition{
+            x: position.x + phys.x * dpi,
+            y: position.y + phys.y * dpi,
+        }
     }
 
     #[inline]

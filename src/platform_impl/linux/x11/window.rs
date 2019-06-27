@@ -115,8 +115,9 @@ impl UnownedWindow {
             .min_inner_size
             .map(|size| size.to_physical(dpi_factor).into());
 
-        let position = window_attrs.outer_position.map(|pos| {
-            let phys = pos.to_physical(dpi_factor);
+        let position = window_attrs.outer_position.as_ref().map(|(monitor, pos)| {
+            let phys = monitor.relative_position(*pos);
+
             (phys.x as u32, phys.y as u32)
         });
 
@@ -409,9 +410,9 @@ impl UnownedWindow {
 
                 shared_state.fullscreen = window_attrs.fullscreen.clone();
 
-                if let Some(pos) = window_attrs.outer_position {
-                    let pos = pos.to_physical(dpi_factor).into();
-                    shared_state.restore_position = Some(pos);
+                if let Some((monitor, position)) = &window_attrs.outer_position {
+                    let phys = monitor.relative_position(*position);
+                    shared_state.restore_position = Some((phys.x as i32, phys.y as i32));
                 }
 
                 window.invalidate_cached_frame_extents();
@@ -846,7 +847,10 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_outer_position(&self, logical_position: LogicalPosition) {
-        let (x, y) = logical_position.to_physical(self.hidpi_factor()).into();
+        let monitor = self.current_monitor();
+
+        let phys = monitor.relative_position(logical_position);
+        let (x, y) = (phys.x as i32, phys.y as i32);
 
         if self.fullscreen().is_some() {
             self.shared_state.lock().restore_position = Some((x, y));

@@ -13,7 +13,7 @@
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::{LogicalPosition, PhysicalPosition, PhysicalSize},
     platform_impl,
 };
 
@@ -115,6 +115,17 @@ impl MonitorHandle {
     #[inline]
     pub fn position(&self) -> PhysicalPosition {
         self.inner.position()
+    }
+
+    #[inline]
+    pub(crate) fn relative_position(&self, position: LogicalPosition) -> PhysicalPosition {
+        let phys = self.position();
+        let dpi = self.hidpi_factor();
+
+        PhysicalPosition{
+            x: position.x + phys.x * dpi,
+            y: position.y + phys.y * dpi,
+        }
     }
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
