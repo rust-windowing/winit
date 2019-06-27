@@ -115,6 +115,11 @@ impl UnownedWindow {
             .min_inner_size
             .map(|size| size.to_physical(dpi_factor).into());
 
+        let position = window_attrs.outer_position.map(|pos| {
+            let phys = pos.to_physical(dpi_factor);
+            (phys.x as u32, phys.y as u32)
+        });
+
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
             // by the user, so we have to manually apply the initial constraints
@@ -180,8 +185,8 @@ impl UnownedWindow {
             (xconn.xlib.XCreateWindow)(
                 xconn.display,
                 root,
-                0,
-                0,
+                position.map_or(0, |p| p.0 as c_int),
+                position.map_or(0, |p| p.1 as c_int),
                 dimensions.0 as c_uint,
                 dimensions.1 as c_uint,
                 0,
@@ -312,6 +317,7 @@ impl UnownedWindow {
                 }
 
                 let mut normal_hints = util::NormalHints::new(xconn);
+                normal_hints.set_position(position);
                 normal_hints.set_size(Some(dimensions));
                 normal_hints.set_min_size(min_inner_size.map(Into::into));
                 normal_hints.set_max_size(max_inner_size.map(Into::into));

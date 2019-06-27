@@ -116,6 +116,21 @@ impl<'a> NormalHints<'a> {
         }
     }
 
+    pub fn get_position(&self) -> Option<(u32, u32)> {
+        self.getter(ffi::PPosition, &self.size_hints.x, &self.size_hints.y)
+    }
+
+    // WARNING: This hint is obsolete
+    pub fn set_position(&mut self, position: Option<(u32, u32)>) {
+        if let Some((x, y)) = position {
+            self.size_hints.flags |= ffi::PPosition;
+            self.size_hints.x = x as c_int;
+            self.size_hints.y = y as c_int;
+        } else {
+            self.size_hints.flags &= !ffi::PPosition;
+        }
+    }
+
     pub fn get_size(&self) -> Option<(u32, u32)> {
         self.getter(ffi::PSize, &self.size_hints.width, &self.size_hints.height)
     }
