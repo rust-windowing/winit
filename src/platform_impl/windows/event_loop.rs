@@ -1457,6 +1457,64 @@ unsafe extern "system" fn public_window_callback<T>(
             0
         }
 
+        winuser::WM_POINTERDOWN | winuser::WM_POINTERUPDATE | winuser::WM_POINTERUP => {
+            let pointer_id = LOWORD(wparam as DWORD) as UINT;
+            let mut entries_count = 0 as UINT;
+            let mut pointers_count = 0 as UINT;
+            if winuser::GetPointerFrameInfoHistory(
+                pointer_id,
+                &mut entries_count as *mut _,
+                &mut pointers_count as *mut _,
+                std::ptr::null_mut(),
+            ) == 0
+            {
+                return 0;
+            }
+
+            let pointer_info_count = (entries_count * pointers_count) as usize;
+            let mut pointer_infos = Vec::with_capacity(pointer_info_count);
+            pointer_infos.set_len(pointer_info_count);
+            if winuser::GetPointerFrameInfoHistory(
+                pointer_id,
+                &mut entries_count as *mut _,
+                &mut pointers_count as *mut _,
+                pointer_infos.as_mut_ptr(),
+            ) == 0
+            {
+                return 0;
+            }
+
+            let dpi_factor = hwnd_scale_factor(window);
+            // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getpointerframeinfohistory
+            // The information retrieved appears in reverse chronological order, with the most recent entry in the first
+            // row of the returned array
+            for pointer_info in pointer_infos.iter().rev() {
+                let x = pointer_info.ptPixelLocation.x as f64;
+                let y = pointer_info.ptPixelLocation.y as f64;
+                let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::Touch(Touch {
+                        phase: if pointer_info.pointerFlags & winuser::POINTER_FLAG_DOWN != 0 {
+                            TouchPhase::Started
+                        } else if pointer_info.pointerFlags & winuser::POINTER_FLAG_UP != 0 {
+                            TouchPhase::Ended
+                        } else if pointer_info.pointerFlags & winuser::POINTER_FLAG_UPDATE != 0 {
+                            TouchPhase::Moved
+                        } else {
+                            continue;
+                        },
+                        location,
+                        id: pointer_info.pointerId as u64,
+                        device_id: DEVICE_ID,
+                    }),
+                });
+            }
+
+            winuser::SkipPointerFrameMessages(pointer_id);
+            0
+        }
+
         winuser::WM_SETFOCUS => {
             use crate::event::WindowEvent::Focused;
             subclass_input.send_event(Event::WindowEvent {
