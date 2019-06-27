@@ -122,7 +122,7 @@ impl MonitorHandle {
         let phys = self.position();
         let dpi = self.hidpi_factor();
 
-        PhysicalPosition{
+        PhysicalPosition {
             x: position.x + phys.x * dpi,
             y: position.y + phys.y * dpi,
         }

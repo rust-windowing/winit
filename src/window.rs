@@ -214,7 +214,11 @@ impl WindowBuilder {
     ///
     /// **Wayland**: This hint has no effect.
     #[inline]
-    pub fn with_outer_position(mut self, monitor: MonitorHandle, position: LogicalPosition) -> WindowBuilder {
+    pub fn with_outer_position(
+        mut self,
+        monitor: MonitorHandle,
+        position: LogicalPosition,
+    ) -> WindowBuilder {
         self.window.outer_position = Some((monitor, position));
         self
     }
