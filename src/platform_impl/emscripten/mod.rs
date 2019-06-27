@@ -658,6 +658,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_minimized(&self, _minimized: bool) {
+        unimplemented!()
+    }
+
+    #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
         // iOS has single screen maximized apps so nothing to do
     }

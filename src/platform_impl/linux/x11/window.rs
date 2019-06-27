@@ -615,6 +615,11 @@ impl UnownedWindow {
         self.xconn.primary_monitor()
     }
 
+    #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        unimplemented!();
+    }
+
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
         let horz_atom = unsafe {
             self.xconn

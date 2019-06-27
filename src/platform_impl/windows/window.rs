@@ -411,6 +411,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        unimplemented!();
+    }
+
+    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
