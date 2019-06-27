@@ -2,16 +2,23 @@
 
 mod ffi;
 
-use std::{mem, ptr, str};
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::os::raw::{c_char, c_void, c_double, c_ulong, c_int};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, Arc};
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    mem,
+    os::raw::{c_char, c_double, c_int, c_ulong, c_void},
+    ptr, str,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+};
 
-use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use error::{ExternalError, NotSupportedError};
-use window::MonitorHandle as RootMonitorHandle;
+use crate::{
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
+    error::{ExternalError, NotSupportedError},
+    window::MonitorHandle as RootMonitorHandle,
+};
 
 const DOCUMENT_NAME: &'static str = "#document\0";
 
@@ -54,7 +61,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         (0, 0).into()
     }
 
@@ -68,14 +75,22 @@ impl MonitorHandle {
 thread_local!(static MAIN_LOOP_CALLBACK: RefCell<*mut c_void> = RefCell::new(ptr::null_mut()));
 
 // Used to assign a callback to emscripten main loop
-pub fn set_main_loop_callback<F>(callback : F) where F : FnMut() {
+pub fn set_main_loop_callback<F>(callback: F)
+where
+    F: FnMut(),
+{
     MAIN_LOOP_CALLBACK.with(|log| {
         *log.borrow_mut() = &callback as *const _ as *mut c_void;
     });
 
-    unsafe { ffi::emscripten_set_main_loop(Some(wrapper::<F>), 0, 1); }
+    unsafe {
+        ffi::emscripten_set_main_loop(Some(wrapper::<F>), 0, 1);
+    }
 
-    unsafe extern "C" fn wrapper<F>() where F : FnMut() {
+    unsafe extern "C" fn wrapper<F>()
+    where
+        F: FnMut(),
+    {
         MAIN_LOOP_CALLBACK.with(|z| {
             let closure = *z.borrow_mut() as *mut F;
             (*closure)();
@@ -128,7 +143,8 @@ impl EventLoop {
     }
 
     pub fn poll_events<F>(&self, mut callback: F)
-        where F: FnMut(::Event)
+    where
+        F: FnMut(::Event),
     {
         let ref mut window = *self.window.lock().unwrap();
         if let &mut Some(ref mut window) = window {
@@ -139,17 +155,22 @@ impl EventLoop {
     }
 
     pub fn run_forever<F>(&self, mut callback: F)
-        where F: FnMut(::Event) -> ::ControlFlow
+    where
+        F: FnMut(::Event) -> ::ControlFlow,
     {
         self.interrupted.store(false, Ordering::Relaxed);
 
         // TODO: handle control flow
 
         set_main_loop_callback(|| {
-            self.poll_events(|e| { callback(e); });
+            self.poll_events(|e| {
+                callback(e);
+            });
             ::std::thread::sleep(::std::time::Duration::from_millis(5));
             if self.interrupted.load(Ordering::Relaxed) {
-                unsafe { ffi::emscripten_cancel_main_loop(); }
+                unsafe {
+                    ffi::emscripten_cancel_main_loop();
+                }
             }
         });
     }
@@ -190,15 +211,15 @@ fn show_mouse() {
     // }
     // styleSheet.insertRule('canvas.emscripten { border: none; cursor: auto; }', 0);
     unsafe {
-            ffi::emscripten_asm_const(b"var styleSheet = document.styleSheets[0]; var rules = styleSheet.cssRules; for (var i = 0; i < rules.length; i++) { if (rules[i].cssText.substr(0, 6) == 'canvas') { styleSheet.deleteRule(i); i--; } } styleSheet.insertRule('canvas.emscripten { border: none; cursor: auto; }', 0);\0".as_ptr() as *const c_char);
+        ffi::emscripten_asm_const(b"var styleSheet = document.styleSheets[0]; var rules = styleSheet.cssRules; for (var i = 0; i < rules.length; i++) { if (rules[i].cssText.substr(0, 6) == 'canvas') { styleSheet.deleteRule(i); i--; } } styleSheet.insertRule('canvas.emscripten { border: none; cursor: auto; }', 0);\0".as_ptr() as *const c_char);
     }
 }
 
 extern "C" fn mouse_callback(
     event_type: c_int,
     event: *const ffi::EmscriptenMouseEvent,
-    event_queue: *mut c_void) -> ffi::EM_BOOL
-{
+    event_queue: *mut c_void,
+) -> ffi::EM_BOOL {
     unsafe {
         let queue: &Mutex<VecDeque<::Event>> = mem::transmute(event_queue);
 
@@ -221,18 +242,18 @@ extern "C" fn mouse_callback(
                     event: ::WindowEvent::CursorMoved {
                         device_id: ::DeviceId(DeviceId),
                         position,
-                        modifiers: modifiers,
-                    }
+                        modifiers,
+                    },
                 });
                 queue.lock().unwrap().push_back(::Event::DeviceEvent {
                     device_id: ::DeviceId(DeviceId),
                     event: ::DeviceEvent::MouseMotion {
                         delta: ((*event).movementX as f64, (*event).movementY as f64),
-                    }
+                    },
                 });
             },
-            mouse_input @ ffi::EMSCRIPTEN_EVENT_MOUSEDOWN |
-            mouse_input @ ffi::EMSCRIPTEN_EVENT_MOUSEUP => {
+            mouse_input @ ffi::EMSCRIPTEN_EVENT_MOUSEDOWN
+            | mouse_input @ ffi::EMSCRIPTEN_EVENT_MOUSEUP => {
                 let button = match (*event).button {
                     0 => ::MouseButton::Left,
                     1 => ::MouseButton::Middle,
@@ -248,14 +269,13 @@ extern "C" fn mouse_callback(
                     window_id: ::WindowId(WindowId(0)),
                     event: ::WindowEvent::MouseInput {
                         device_id: ::DeviceId(DeviceId),
-                        state: state,
-                        button: button,
-                        modifiers: modifiers,
-                    }
+                        state,
+                        button,
+                        modifiers,
+                    },
                 })
             },
-            _ => {
-            }
+            _ => {},
         }
     }
     ffi::EM_FALSE
@@ -264,8 +284,8 @@ extern "C" fn mouse_callback(
 extern "C" fn keyboard_callback(
     event_type: c_int,
     event: *const ffi::EmscriptenKeyboardEvent,
-    event_queue: *mut c_void) -> ffi::EM_BOOL
-{
+    event_queue: *mut c_void,
+) -> ffi::EM_BOOL {
     unsafe {
         let queue: &Mutex<VecDeque<::Event>> = mem::transmute(event_queue);
 
@@ -305,18 +325,17 @@ extern "C" fn keyboard_callback(
                     },
                 });
             },
-            _ => {
-            }
+            _ => {},
         }
     }
     ffi::EM_FALSE
 }
 
-extern fn touch_callback(
+extern "C" fn touch_callback(
     event_type: c_int,
     event: *const ffi::EmscriptenTouchEvent,
-    event_queue: *mut c_void) -> ffi::EM_BOOL
-{
+    event_queue: *mut c_void,
+) -> ffi::EM_BOOL {
     unsafe {
         let queue: &Mutex<VecDeque<::Event>> = mem::transmute(event_queue);
 
@@ -356,8 +375,8 @@ extern fn touch_callback(
 unsafe extern "C" fn fullscreen_callback(
     _eventType: c_int,
     _fullscreenChangeEvent: *const ffi::EmscriptenFullscreenChangeEvent,
-    _userData: *mut c_void) -> ffi::EM_BOOL
-{
+    _userData: *mut c_void,
+) -> ffi::EM_BOOL {
     ffi::emscripten_request_fullscreen(ptr::null(), ffi::EM_TRUE);
     ffi::EM_FALSE
 }
@@ -367,8 +386,8 @@ unsafe extern "C" fn fullscreen_callback(
 unsafe extern "C" fn pointerlockchange_callback(
     _eventType: c_int,
     _pointerlockChangeEvent: *const ffi::EmscriptenPointerlockChangeEvent,
-    _userData: *mut c_void) -> ffi::EM_BOOL
-{
+    _userData: *mut c_void,
+) -> ffi::EM_BOOL {
     ffi::emscripten_request_pointerlock(ptr::null(), ffi::EM_TRUE);
     ffi::EM_FALSE
 }
@@ -381,12 +400,15 @@ fn em_try(res: ffi::EMSCRIPTEN_RESULT) -> Result<(), String> {
 }
 
 impl Window {
-    pub fn new(event_loop: &EventLoop, attribs: ::WindowAttributes,
-               _pl_attribs: PlatformSpecificWindowBuilderAttributes)
-        -> Result<Window, ::CreationError>
-    {
+    pub fn new(
+        event_loop: &EventLoop,
+        attribs: ::WindowAttributes,
+        _pl_attribs: PlatformSpecificWindowBuilderAttributes,
+    ) -> Result<Window, ::CreationError> {
         if event_loop.window.lock().unwrap().is_some() {
-            return Err(::CreationError::OsError("Cannot create another window".to_owned()));
+            return Err(::CreationError::OsError(
+                "Cannot create another window".to_owned(),
+            ));
         }
 
         let w = Window2 {
@@ -400,35 +422,87 @@ impl Window {
             window: Arc::new(w),
         };
 
-
         // TODO: set up more event callbacks
         unsafe {
-            em_try(ffi::emscripten_set_mousemove_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(mouse_callback)))
-                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
-            em_try(ffi::emscripten_set_mousedown_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(mouse_callback)))
-                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
-            em_try(ffi::emscripten_set_mouseup_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(mouse_callback)))
-                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
-            em_try(ffi::emscripten_set_keydown_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(keyboard_callback)))
-                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
-            em_try(ffi::emscripten_set_keyup_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(keyboard_callback)))
-                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
-            em_try(ffi::emscripten_set_touchstart_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(touch_callback)))
-                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
-            em_try(ffi::emscripten_set_touchend_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(touch_callback)))
-                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
-            em_try(ffi::emscripten_set_touchmove_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(touch_callback)))
-                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
-            em_try(ffi::emscripten_set_touchcancel_callback(DOCUMENT_NAME.as_ptr() as *const c_char, mem::transmute(&*window.window.events), ffi::EM_FALSE, Some(touch_callback)))
-                .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_mousemove_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                mem::transmute(&*window.window.events),
+                ffi::EM_FALSE,
+                Some(mouse_callback),
+            ))
+            .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_mousedown_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                mem::transmute(&*window.window.events),
+                ffi::EM_FALSE,
+                Some(mouse_callback),
+            ))
+            .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_mouseup_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                mem::transmute(&*window.window.events),
+                ffi::EM_FALSE,
+                Some(mouse_callback),
+            ))
+            .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_keydown_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                mem::transmute(&*window.window.events),
+                ffi::EM_FALSE,
+                Some(keyboard_callback),
+            ))
+            .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_keyup_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                mem::transmute(&*window.window.events),
+                ffi::EM_FALSE,
+                Some(keyboard_callback),
+            ))
+            .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_touchstart_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                mem::transmute(&*window.window.events),
+                ffi::EM_FALSE,
+                Some(touch_callback),
+            ))
+            .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_touchend_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                mem::transmute(&*window.window.events),
+                ffi::EM_FALSE,
+                Some(touch_callback),
+            ))
+            .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_touchmove_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                mem::transmute(&*window.window.events),
+                ffi::EM_FALSE,
+                Some(touch_callback),
+            ))
+            .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
+            em_try(ffi::emscripten_set_touchcancel_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                mem::transmute(&*window.window.events),
+                ffi::EM_FALSE,
+                Some(touch_callback),
+            ))
+            .map_err(|e| ::CreationError::OsError(format!("emscripten error: {}", e)))?;
         }
 
         if attribs.fullscreen.is_some() {
             unsafe {
-                em_try(ffi::emscripten_request_fullscreen(ptr::null(), ffi::EM_TRUE))
-                    .map_err(|e| ::CreationError::OsError(e))?;
-                em_try(ffi::emscripten_set_fullscreenchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, Some(fullscreen_callback)))
-                    .map_err(|e| ::CreationError::OsError(e))?;
+                em_try(ffi::emscripten_request_fullscreen(
+                    ptr::null(),
+                    ffi::EM_TRUE,
+                ))
+                .map_err(|e| ::CreationError::OsError(e))?;
+                em_try(ffi::emscripten_set_fullscreenchange_callback(
+                    ptr::null(),
+                    0 as *mut c_void,
+                    ffi::EM_FALSE,
+                    Some(fullscreen_callback),
+                ))
+                .map_err(|e| ::CreationError::OsError(e))?;
             }
         } else if let Some(size) = attribs.inner_size {
             window.set_inner_size(size);
@@ -444,8 +518,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_title(&self, _title: &str) {
-    }
+    pub fn set_title(&self, _title: &str) {}
 
     #[inline]
     pub fn outer_position(&self) -> Option<LogicalPosition> {
@@ -458,8 +531,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_outer_position(&self, _: LogicalPosition) {
-    }
+    pub fn set_outer_position(&self, _: LogicalPosition) {}
 
     #[inline]
     pub fn inner_size(&self) -> Option<LogicalSize> {
@@ -532,7 +604,9 @@ impl Window {
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         let mut grabbed_lock = self.window.cursor_grabbed.lock().unwrap();
-        if grab == *grabbed_lock { return Ok(()); }
+        if grab == *grabbed_lock {
+            return Ok(());
+        }
         unsafe {
             if grab {
                 em_try(ffi::emscripten_set_pointerlockchange_callback(
@@ -541,7 +615,10 @@ impl Window {
                     ffi::EM_FALSE,
                     Some(pointerlockchange_callback),
                 ))?;
-                em_try(ffi::emscripten_request_pointerlock(ptr::null(), ffi::EM_TRUE))?;
+                em_try(ffi::emscripten_request_pointerlock(
+                    ptr::null(),
+                    ffi::EM_TRUE,
+                ))?;
             } else {
                 em_try(ffi::emscripten_set_pointerlockchange_callback(
                     ptr::null(),
@@ -559,7 +636,9 @@ impl Window {
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         let mut visible_lock = self.window.cursor_visible.lock().unwrap();
-        if visible == *visible_lock { return; }
+        if visible == *visible_lock {
+            return;
+        }
         if visible {
             show_mouse();
         } else {
@@ -615,7 +694,9 @@ impl Window {
 
     #[inline]
     pub fn current_monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle { inner: MonitorHandle }
+        RootMonitorHandle {
+            inner: MonitorHandle,
+        }
     }
 
     #[inline]
@@ -646,21 +727,37 @@ impl Drop for Window {
 
             // Exit fullscreen if on
             if self.window.is_fullscreen {
-                ffi::emscripten_set_fullscreenchange_callback(ptr::null(), 0 as *mut c_void, ffi::EM_FALSE, None);
+                ffi::emscripten_set_fullscreenchange_callback(
+                    ptr::null(),
+                    0 as *mut c_void,
+                    ffi::EM_FALSE,
+                    None,
+                );
                 ffi::emscripten_exit_fullscreen();
             }
 
             // Delete callbacks
-            ffi::emscripten_set_keydown_callback(DOCUMENT_NAME.as_ptr() as *const c_char, 0 as *mut c_void, ffi::EM_FALSE,None);
-            ffi::emscripten_set_keyup_callback(DOCUMENT_NAME.as_ptr() as *const c_char, 0 as *mut c_void, ffi::EM_FALSE,None);
+            ffi::emscripten_set_keydown_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                0 as *mut c_void,
+                ffi::EM_FALSE,
+                None,
+            );
+            ffi::emscripten_set_keyup_callback(
+                DOCUMENT_NAME.as_ptr() as *const c_char,
+                0 as *mut c_void,
+                ffi::EM_FALSE,
+                None,
+            );
         }
     }
 }
 
 fn error_to_str(code: ffi::EMSCRIPTEN_RESULT) -> &'static str {
     match code {
-        ffi::EMSCRIPTEN_RESULT_SUCCESS | ffi::EMSCRIPTEN_RESULT_DEFERRED
-            => "Internal error in the library (success detected as failure)",
+        ffi::EMSCRIPTEN_RESULT_SUCCESS | ffi::EMSCRIPTEN_RESULT_DEFERRED => {
+            "Internal error in the library (success detected as failure)"
+        },
 
         ffi::EMSCRIPTEN_RESULT_NOT_SUPPORTED => "Not supported",
         ffi::EMSCRIPTEN_RESULT_FAILED_NOT_DEFERRED => "Failed not deferred",
@@ -670,7 +767,7 @@ fn error_to_str(code: ffi::EMSCRIPTEN_RESULT) -> &'static str {
         ffi::EMSCRIPTEN_RESULT_FAILED => "Failed",
         ffi::EMSCRIPTEN_RESULT_NO_DATA => "No data",
 
-        _ => "Undocumented error"
+        _ => "Undocumented error",
     }
 }
 
@@ -679,7 +776,9 @@ fn key_translate(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES]) ->
     let maybe_key = unsafe { str::from_utf8(mem::transmute::<_, &[u8]>(slice)) };
     let key = match maybe_key {
         Ok(key) => key,
-        Err(_) => { return 0; },
+        Err(_) => {
+            return 0;
+        },
     };
     if key.chars().count() == 1 {
         key.as_bytes()[0]
@@ -688,28 +787,35 @@ fn key_translate(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES]) ->
     }
 }
 
-fn key_translate_virt(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES],
-                      location: c_ulong) -> Option<::VirtualKeyCode>
-{
+fn key_translate_virt(
+    input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES],
+    location: c_ulong,
+) -> Option<::VirtualKeyCode> {
     let slice = &input[0..input.iter().take_while(|x| **x != 0).count()];
     let maybe_key = unsafe { str::from_utf8(mem::transmute::<_, &[u8]>(slice)) };
     let key = match maybe_key {
         Ok(key) => key,
-        Err(_) => { return None; },
+        Err(_) => {
+            return None;
+        },
     };
     use VirtualKeyCode::*;
     match key {
-        "Alt" => match location {
-            ffi::DOM_KEY_LOCATION_LEFT => Some(LAlt),
-            ffi::DOM_KEY_LOCATION_RIGHT => Some(RAlt),
-            _ => None,
+        "Alt" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_LEFT => Some(LAlt),
+                ffi::DOM_KEY_LOCATION_RIGHT => Some(RAlt),
+                _ => None,
+            }
         },
         "AltGraph" => None,
         "CapsLock" => None,
-        "Control" => match location {
-            ffi::DOM_KEY_LOCATION_LEFT => Some(LControl),
-            ffi::DOM_KEY_LOCATION_RIGHT => Some(RControl),
-            _ => None,
+        "Control" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_LEFT => Some(LControl),
+                ffi::DOM_KEY_LOCATION_RIGHT => Some(RControl),
+                _ => None,
+            }
         },
         "Fn" => None,
         "FnLock" => None,
@@ -717,18 +823,22 @@ fn key_translate_virt(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES
         "Meta" => None,
         "NumLock" => Some(Numlock),
         "ScrollLock" => Some(Scroll),
-        "Shift" => match location {
-            ffi::DOM_KEY_LOCATION_LEFT => Some(LShift),
-            ffi::DOM_KEY_LOCATION_RIGHT => Some(RShift),
-            _ => None,
+        "Shift" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_LEFT => Some(LShift),
+                ffi::DOM_KEY_LOCATION_RIGHT => Some(RShift),
+                _ => None,
+            }
         },
         "Super" => None,
         "Symbol" => None,
         "SymbolLock" => None,
 
-        "Enter" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadEnter),
-            _ => Some(Return),
+        "Enter" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadEnter),
+                _ => Some(Return),
+            }
         },
         "Tab" => Some(Tab),
         " " => Some(Space),
@@ -1053,45 +1163,65 @@ fn key_translate_virt(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES
         "Divide" => Some(Divide),
         "Subtract" | "-" => Some(Subtract),
         "Separator" => None,
-        "0" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad0),
-            _ => Some(Key0),
+        "0" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad0),
+                _ => Some(Key0),
+            }
         },
-        "1" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad1),
-            _ => Some(Key1),
+        "1" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad1),
+                _ => Some(Key1),
+            }
         },
-        "2" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad2),
-            _ => Some(Key2),
+        "2" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad2),
+                _ => Some(Key2),
+            }
         },
-        "3" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad3),
-            _ => Some(Key3),
+        "3" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad3),
+                _ => Some(Key3),
+            }
         },
-        "4" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad4),
-            _ => Some(Key4),
+        "4" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad4),
+                _ => Some(Key4),
+            }
         },
-        "5" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad5),
-            _ => Some(Key5),
+        "5" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad5),
+                _ => Some(Key5),
+            }
         },
-        "6" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad6),
-            _ => Some(Key6),
+        "6" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad6),
+                _ => Some(Key6),
+            }
         },
-        "7" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad7),
-            _ => Some(Key7),
+        "7" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad7),
+                _ => Some(Key7),
+            }
         },
-        "8" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad8),
-            _ => Some(Key8),
+        "8" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad8),
+                _ => Some(Key8),
+            }
         },
-        "9" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad9),
-            _ => Some(Key9),
+        "9" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(Numpad9),
+                _ => Some(Key9),
+            }
         },
 
         "A" | "a" => Some(A),
@@ -1124,13 +1254,17 @@ fn key_translate_virt(input: [ffi::EM_UTF8; ffi::EM_HTML5_SHORT_STRING_LEN_BYTES
         "'" => Some(Apostrophe),
         "\\" => Some(Backslash),
         ":" => Some(Colon),
-        "," => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadComma),
-            _ => Some(Comma),
+        "," => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadComma),
+                _ => Some(Comma),
+            }
         },
-        "=" => match location {
-            ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadEquals),
-            _ => Some(Equals),
+        "=" => {
+            match location {
+                ffi::DOM_KEY_LOCATION_NUMPAD => Some(NumpadEquals),
+                _ => Some(Equals),
+            }
         },
         "{" => Some(LBracket),
         "." => Some(Period),

@@ -1,16 +1,20 @@
 # winit - Cross-platform window creation and management in Rust
 
-[![](http://meritbadge.herokuapp.com/winit)](https://crates.io/crates/winit)
+[![Crates.io](https://img.shields.io/crates/v/winit.svg)](https://crates.io/crates/winit)
 [![Docs.rs](https://docs.rs/winit/badge.svg)](https://docs.rs/winit)
 [![Build Status](https://travis-ci.org/rust-windowing/winit.svg?branch=master)](https://travis-ci.org/rust-windowing/winit)
 [![Build status](https://ci.appveyor.com/api/projects/status/hr89but4x1n3dphq/branch/master?svg=true)](https://ci.appveyor.com/project/Osspial/winit/branch/master)
 
 ```toml
 [dependencies]
-winit = "0.19.1"
+winit = "0.20.0-alpha1"
 ```
 
 ## [Documentation](https://docs.rs/winit)
+
+For features _within_ the scope of winit, see [FEATURES.md](FEATURES.md).
+
+For features _outside_ the scope of winit, see [Missing features provided by other crates](https://github.com/rust-windowing/winit/wiki/Missing-features-provided-by-other-crates) in the wiki.
 
 ## Contact Us
 
@@ -31,19 +35,23 @@ show something on the window you need to use the platform-specific getters provi
 another library.
 
 ```rust
-extern crate winit;
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
 
 fn main() {
-    let mut event_loop = winit::EventLoop::new();
-    let window = winit::Window::new(&event_loop).unwrap();
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    event_loop.run(|event| {
+    event_loop.run(move |event, _, control_flow| {
         match event {
-            winit::Event::WindowEvent {
-              event: winit::WindowEvent::CloseRequested,
-              ..
-            } => winit::ControlFlow::Break,
-            _ => winit::ControlFlow::Continue,
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                window_id,
+            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            _ => *control_flow = ControlFlow::Wait,
         }
     });
 }

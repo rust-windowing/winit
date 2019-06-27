@@ -3,35 +3,21 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc::runtime::{Class, NO, Object, YES};
+use objc::runtime::{Class, Object, NO, YES};
 
-use dpi::{self, LogicalPosition, LogicalSize};
-use error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use icon::Icon;
-use monitor::MonitorHandle as RootMonitorHandle;
-use platform::ios::{MonitorHandleExtIOS, ValidOrientations};
-use window::{
-    CursorIcon,
-    WindowAttributes,
-};
-use platform_impl::{
-    platform::{
+use crate::{
+    dpi::{self, LogicalPosition, LogicalSize},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    icon::Icon,
+    monitor::MonitorHandle as RootMonitorHandle,
+    platform::ios::{MonitorHandleExtIOS, ValidOrientations},
+    platform_impl::platform::{
         app_state::AppState,
         event_loop,
-        ffi::{
-            id,
-            CGFloat,
-            CGPoint,
-            CGRect,
-            CGSize,
-            UIEdgeInsets,
-            UIInterfaceOrientationMask,
-        },
-        monitor,
-        view,
-        EventLoopWindowTarget,
-        MonitorHandle
+        ffi::{id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask},
+        monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
+    window::{CursorIcon, WindowAttributes},
 };
 
 pub struct Inner {
@@ -59,10 +45,10 @@ impl Inner {
     pub fn set_visible(&self, visible: bool) {
         match visible {
             true => unsafe {
-                let () = msg_send![self.window, setHidden:NO];
+                let () = msg_send![self.window, setHidden: NO];
             },
             false => unsafe {
-                let () = msg_send![self.window, setHidden:YES];
+                let () = msg_send![self.window, setHidden: YES];
             },
         }
     }
@@ -104,7 +90,7 @@ impl Inner {
                 size: screen_frame.size,
             };
             let bounds = self.from_screen_space(new_screen_frame);
-            let () = msg_send![self.window, setBounds:bounds];
+            let () = msg_send![self.window, setBounds: bounds];
         }
     }
 
@@ -181,10 +167,10 @@ impl Inner {
 
                     // this is pretty slow on iOS, so avoid doing it if we can
                     if uiscreen != current {
-                        let () = msg_send![self.window, setScreen:uiscreen];
+                        let () = msg_send![self.window, setScreen: uiscreen];
                     }
-                    let () = msg_send![self.window, setFrame:bounds];
-                }
+                    let () = msg_send![self.window, setFrame: bounds];
+                },
                 None => warn!("`Window::set_fullscreen(None)` ignored on iOS"),
             }
         }
@@ -213,7 +199,10 @@ impl Inner {
     pub fn set_decorations(&self, decorations: bool) {
         unsafe {
             let status_bar_hidden = if decorations { NO } else { YES };
-            let () = msg_send![self.view_controller, setPrefersStatusBarHidden:status_bar_hidden];
+            let () = msg_send![
+                self.view_controller,
+                setPrefersStatusBarHidden: status_bar_hidden
+            ];
         }
     }
 
@@ -232,20 +221,18 @@ impl Inner {
     pub fn current_monitor(&self) -> RootMonitorHandle {
         unsafe {
             let uiscreen: id = msg_send![self.window, screen];
-            RootMonitorHandle { inner: MonitorHandle::retained_new(uiscreen) }
+            RootMonitorHandle {
+                inner: MonitorHandle::retained_new(uiscreen),
+            }
         }
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        unsafe {
-            monitor::uiscreens()
-        }
+        unsafe { monitor::uiscreens() }
     }
 
     pub fn primary_monitor(&self) -> MonitorHandle {
-        unsafe {
-            monitor::main_uiscreen()
-        }
+        unsafe { monitor::main_uiscreen() }
     }
 
     pub fn id(&self) -> WindowId {
@@ -306,23 +293,35 @@ impl Window {
         // TODO: transparency, visible
 
         unsafe {
-            let screen = window_attributes.fullscreen
+            let screen = window_attributes
+                .fullscreen
                 .as_ref()
                 .map(|screen| screen.ui_screen() as _)
                 .unwrap_or_else(|| monitor::main_uiscreen().ui_screen());
             let screen_bounds: CGRect = msg_send![screen, bounds];
 
             let frame = match window_attributes.inner_size {
-                Some(dim) => CGRect {
-                    origin: screen_bounds.origin,
-                    size: CGSize { width: dim.width, height: dim.height },
+                Some(dim) => {
+                    CGRect {
+                        origin: screen_bounds.origin,
+                        size: CGSize {
+                            width: dim.width,
+                            height: dim.height,
+                        },
+                    }
                 },
                 None => screen_bounds,
             };
 
             let view = view::create_view(&window_attributes, &platform_attributes, frame.clone());
-            let view_controller = view::create_view_controller(&window_attributes, &platform_attributes, view);
-            let window = view::create_window(&window_attributes, &platform_attributes, frame, view_controller);
+            let view_controller =
+                view::create_view_controller(&window_attributes, &platform_attributes, view);
+            let window = view::create_window(
+                &window_attributes,
+                &platform_attributes,
+                frame,
+                view_controller,
+            );
 
             let supports_safe_area = event_loop.capabilities().supports_safe_area;
 
@@ -342,23 +341,38 @@ impl Window {
 
 // WindowExtIOS
 impl Inner {
-    pub fn ui_window(&self) -> id { self.window }
-    pub fn ui_view_controller(&self) -> id { self.view_controller }
-    pub fn ui_view(&self) -> id { self.view }
+    pub fn ui_window(&self) -> id {
+        self.window
+    }
+    pub fn ui_view_controller(&self) -> id {
+        self.view_controller
+    }
+    pub fn ui_view(&self) -> id {
+        self.view
+    }
 
     pub fn set_hidpi_factor(&self, hidpi_factor: f64) {
         unsafe {
-            assert!(dpi::validate_hidpi_factor(hidpi_factor), "`WindowExtIOS::set_hidpi_factor` received an invalid hidpi factor");
+            assert!(
+                dpi::validate_hidpi_factor(hidpi_factor),
+                "`WindowExtIOS::set_hidpi_factor` received an invalid hidpi factor"
+            );
             let hidpi_factor = hidpi_factor as CGFloat;
-            let () = msg_send![self.view, setContentScaleFactor:hidpi_factor];
+            let () = msg_send![self.view, setContentScaleFactor: hidpi_factor];
         }
     }
 
     pub fn set_valid_orientations(&self, valid_orientations: ValidOrientations) {
         unsafe {
             let idiom = event_loop::get_idiom();
-            let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(valid_orientations, idiom);
-            msg_send![self.view_controller, setSupportedInterfaceOrientations:supported_orientations];
+            let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(
+                valid_orientations,
+                idiom,
+            );
+            msg_send![
+                self.view_controller,
+                setSupportedInterfaceOrientations: supported_orientations
+            ];
         }
     }
 }
@@ -411,14 +425,18 @@ impl Inner {
             let screen_frame = self.to_screen_space(bounds);
             let status_bar_frame: CGRect = {
                 let app: id = msg_send![class!(UIApplication), sharedApplication];
-                assert!(!app.is_null(), "`Window::get_inner_position` cannot be called before `EventLoop::run` on iOS");
+                assert!(
+                    !app.is_null(),
+                    "`Window::get_inner_position` cannot be called before `EventLoop::run` on iOS"
+                );
                 msg_send![app, statusBarFrame]
             };
             let (y, height) = if screen_frame.origin.y > status_bar_frame.size.height {
                 (screen_frame.origin.y, screen_frame.size.height)
             } else {
                 let y = status_bar_frame.size.height;
-                let height = screen_frame.size.height - (status_bar_frame.size.height - screen_frame.origin.y);
+                let height = screen_frame.size.height
+                    - (status_bar_frame.size.height - screen_frame.origin.y);
                 (y, height)
             };
             CGRect {
@@ -429,7 +447,7 @@ impl Inner {
                 size: CGSize {
                     width: screen_frame.size.width,
                     height,
-                }
+                },
             }
         }
     }
@@ -453,13 +471,17 @@ unsafe impl Sync for WindowId {}
 
 impl From<&Object> for WindowId {
     fn from(window: &Object) -> WindowId {
-        WindowId { window: window as *const _ as _ }
+        WindowId {
+            window: window as *const _ as _,
+        }
     }
 }
 
 impl From<&mut Object> for WindowId {
     fn from(window: &mut Object) -> WindowId {
-        WindowId { window: window as _ }
+        WindowId {
+            window: window as _,
+        }
     }
 }
 

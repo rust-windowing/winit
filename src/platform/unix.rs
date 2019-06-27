@@ -1,29 +1,26 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::os::raw;
-use std::ptr;
-use std::sync::Arc;
+use std::{os::raw, ptr, sync::Arc};
 
-use sctk::window::{ButtonState, Theme};
+use smithay_client_toolkit::window::{ButtonState, Theme};
 
-use dpi::LogicalSize;
-use event_loop::EventLoop;
-use monitor::MonitorHandle;
-use window::{Window, WindowBuilder};
-
-use platform_impl::{
-    EventLoop as LinuxEventLoop,
-    Window as LinuxWindow,
+use crate::{
+    dpi::LogicalSize,
+    event_loop::EventLoop,
+    monitor::MonitorHandle,
+    window::{Window, WindowBuilder},
 };
-use platform_impl::x11::XConnection;
-use platform_impl::x11::ffi::XVisualInfo;
+
+use crate::platform_impl::{
+    x11::{ffi::XVisualInfo, XConnection},
+    EventLoop as LinuxEventLoop, Window as LinuxWindow,
+};
 
 // TODO: stupid hack so that glutin can do its work
 #[doc(hidden)]
-pub use platform_impl::x11;
+pub use crate::platform_impl::x11;
 
-pub use platform_impl::XNotSupported;
-pub use platform_impl::x11::util::WindowType as XWindowType;
+pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
 /// Theme for wayland client side decorations
 ///
@@ -97,11 +94,13 @@ impl Theme for WaylandThemeObject {
 pub trait EventLoopExtUnix {
     /// Builds a new `EventLoops` that is forced to use X11.
     fn new_x11() -> Result<Self, XNotSupported>
-        where Self: Sized;
+    where
+        Self: Sized;
 
     /// Builds a new `EventLoop` that is forced to use Wayland.
     fn new_wayland() -> Self
-        where Self: Sized;
+    where
+        Self: Sized;
 
     /// True if the `EventLoop` uses Wayland.
     fn is_wayland(&self) -> bool;
@@ -123,12 +122,12 @@ pub trait EventLoopExtUnix {
 impl<T> EventLoopExtUnix for EventLoop<T> {
     #[inline]
     fn new_x11() -> Result<Self, XNotSupported> {
-        LinuxEventLoop::new_x11().map(|ev|
+        LinuxEventLoop::new_x11().map(|ev| {
             EventLoop {
                 event_loop: ev,
                 _marker: ::std::marker::PhantomData,
             }
-        )
+        })
     }
 
     #[inline]
@@ -136,7 +135,7 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
         EventLoop {
             event_loop: match LinuxEventLoop::new_wayland() {
                 Ok(e) => e,
-                Err(_) => panic!()      // TODO: propagate
+                Err(_) => panic!(), // TODO: propagate
             },
             _marker: ::std::marker::PhantomData,
         }
@@ -157,7 +156,7 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.event_loop {
             LinuxEventLoop::X(ref e) => Some(e.x_connection().clone()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -165,7 +164,7 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.event_loop {
             LinuxEventLoop::Wayland(ref e) => Some(e.display().get_display_ptr() as *mut _),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -231,7 +230,7 @@ impl WindowExtUnix for Window {
     fn xlib_window(&self) -> Option<raw::c_ulong> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_window()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -239,7 +238,7 @@ impl WindowExtUnix for Window {
     fn xlib_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_display()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -247,7 +246,7 @@ impl WindowExtUnix for Window {
     fn xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -256,7 +255,7 @@ impl WindowExtUnix for Window {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -264,7 +263,7 @@ impl WindowExtUnix for Window {
     fn xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xcb_connection()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -279,7 +278,7 @@ impl WindowExtUnix for Window {
     fn wayland_surface(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.surface().as_ref().c_ptr() as *mut _),
-            _ => None
+            _ => None,
         }
     }
 
@@ -287,7 +286,7 @@ impl WindowExtUnix for Window {
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.display().as_ref().c_ptr() as *mut _),
-            _ => None
+            _ => None,
         }
     }
 
@@ -295,7 +294,7 @@ impl WindowExtUnix for Window {
     fn set_wayland_theme(&self, theme: WaylandTheme) {
         match self.window {
             LinuxWindow::Wayland(ref w) => w.set_theme(WaylandThemeObject(theme)),
-            _ => {}
+            _ => {},
         }
     }
 
@@ -334,9 +333,8 @@ pub trait WindowBuilderExtUnix {
 impl WindowBuilderExtUnix for WindowBuilder {
     #[inline]
     fn with_x11_visual<T>(mut self, visual_infos: *const T) -> WindowBuilder {
-        self.platform_specific.visual_infos = Some(
-            unsafe { ptr::read(visual_infos as *const XVisualInfo) }
-        );
+        self.platform_specific.visual_infos =
+            Some(unsafe { ptr::read(visual_infos as *const XVisualInfo) });
         self
     }
 

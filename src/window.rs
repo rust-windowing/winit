@@ -1,31 +1,36 @@
 //! The `Window` struct and associated types.
 use std::fmt;
 
-use platform_impl;
-use error::{ExternalError, NotSupportedError, OsError};
-use event_loop::EventLoopWindowTarget;
-use monitor::{AvailableMonitorsIter, MonitorHandle};
-use dpi::{LogicalPosition, LogicalSize};
+use crate::{
+    dpi::{LogicalPosition, LogicalSize},
+    error::{ExternalError, NotSupportedError, OsError},
+    event_loop::EventLoopWindowTarget,
+    monitor::{AvailableMonitorsIter, MonitorHandle},
+    platform_impl,
+};
 
-pub use icon::*;
+pub use crate::icon::*;
 
 /// Represents a window.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use winit::window::Window;
-/// use winit::event::{Event, WindowEvent};
-/// use winit::event_loop::{EventLoop, ControlFlow};
+/// use winit::{
+///     event::{Event, WindowEvent},
+///     event_loop::{ControlFlow, EventLoop},
+///     window::Window,
+/// };
 ///
 /// let mut event_loop = EventLoop::new();
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
 ///     match event {
-///         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-///             *control_flow = ControlFlow::Exit
-///         },
+///         Event::WindowEvent {
+///             event: WindowEvent::CloseRequested,
+///             ..
+///         } => *control_flow = ControlFlow::Exit,
 ///         _ => *control_flow = ControlFlow::Wait,
 ///     }
 /// });
@@ -35,7 +40,7 @@ pub struct Window {
 }
 
 impl fmt::Debug for Window {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.pad("Window { .. }")
     }
 }
@@ -71,7 +76,7 @@ pub struct WindowBuilder {
 }
 
 impl fmt::Debug for WindowBuilder {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.debug_struct("WindowBuilder")
             .field("window", &self.window)
             .finish()
@@ -234,14 +239,14 @@ impl WindowBuilder {
 
     /// Sets whether the window will be initially hidden or visible.
     #[inline]
-    pub fn with_visibility(mut self, visible: bool) -> WindowBuilder {
+    pub fn with_visible(mut self, visible: bool) -> WindowBuilder {
         self.window.visible = visible;
         self
     }
 
     /// Sets whether the background of the window should be transparent.
     #[inline]
-    pub fn with_transparency(mut self, transparent: bool) -> WindowBuilder {
+    pub fn with_transparent(mut self, transparent: bool) -> WindowBuilder {
         self.window.transparent = transparent;
         self
     }
@@ -280,14 +285,16 @@ impl WindowBuilder {
 
     /// Builds the window.
     ///
-    /// Error should be very rare and only occur in case of permission denied, incompatible system,
-    /// out of memory, etc.
+    /// Possible causes of error include denied permission, incompatible system, and lack of memory.
     #[inline]
-    pub fn build<T: 'static>(mut self, window_target: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
+    pub fn build<T: 'static>(
+        mut self,
+        window_target: &EventLoopWindowTarget<T>,
+    ) -> Result<Window, OsError> {
         self.window.inner_size = Some(self.window.inner_size.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
-                LogicalSize::from_physical(monitor.dimensions(), 1.0)
+                LogicalSize::from_physical(monitor.size(), monitor.hidpi_factor()) // DPI factor applies here since this is a borderless window and not real fullscreen
             } else {
                 // default dimensions
                 (1024, 768).into()
@@ -295,11 +302,8 @@ impl WindowBuilder {
         }));
 
         // building
-        platform_impl::Window::new(
-            &window_target.p,
-            self.window,
-            self.platform_specific,
-        ).map(|window| Window { window })
+        platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)
+            .map(|window| Window { window })
     }
 }
 
@@ -347,7 +351,7 @@ impl Window {
     /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
     /// events have been processed by the event loop.
     ///
-    /// This is the **strongly encouraged** method of redrawing windows, as it can integrates with
+    /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized).
     ///
     /// This function can cause `RedrawRequested` events to be emitted after `Event::EventsCleared`
@@ -638,7 +642,9 @@ impl Window {
         self.window.set_cursor_grab(grab)
     }
 
-    /// Hides the cursor, making it invisible but still usable.
+    /// Modifies the cursor's visibility.
+    ///
+    /// If `false`, this will hide the cursor. If `true`, this will show the cursor.
     ///
     /// ## Platform-specific
     ///
@@ -676,7 +682,9 @@ impl Window {
     #[inline]
     pub fn available_monitors(&self) -> AvailableMonitorsIter {
         let data = self.window.available_monitors();
-        AvailableMonitorsIter { data: data.into_iter() }
+        AvailableMonitorsIter {
+            data: data.into_iter(),
+        }
     }
 
     /// Returns the primary monitor of the system.
@@ -688,7 +696,9 @@ impl Window {
     /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle { inner: self.window.primary_monitor() }
+        MonitorHandle {
+            inner: self.window.primary_monitor(),
+        }
     }
 }
 

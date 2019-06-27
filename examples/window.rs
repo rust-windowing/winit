@@ -1,29 +1,24 @@
-extern crate winit;
-#[macro_use]
-extern crate stdweb;
-
-use winit::window::WindowBuilder;
-use winit::event::{Event, WindowEvent};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
 
 fn main() {
     let event_loop = EventLoop::new();
 
-    let _window = WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();
-    console!(log, "Built window!");
 
-    event_loop.run(|event, _, control_flow| {
-        console!(log, format!("{:?}", event));
-
+    event_loop.run(move |event, _, control_flow| {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
-            _ => ()
+                window_id,
+            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            _ => *control_flow = ControlFlow::Wait,
         }
     });
 }

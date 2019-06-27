@@ -1,5 +1,10 @@
 # Unreleased
 
+- Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
+- On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
+
+# 0.20.0 Alpha 1
+
 - Changes below are considered **breaking**.
 - Change all occurrences of `EventsLoop` to `EventLoop`.
 - Previously flat API is now exposed through `event`, `event_loop`, `monitor`, and `window` modules.
@@ -39,6 +44,11 @@
 - Removed `serde` implementations from `ControlFlow`.
 - Rename several functions to improve both internal consistency and compliance with Rust API guidelines.
 - Remove `WindowBuilder::multitouch` field, since it was only implemented on a few platforms. Multitouch is always enabled now.
+- **Breaking:** On macOS, change `ns` identifiers to use snake_case for consistency with iOS's `ui` identifiers.
+- Add `MonitorHandle::video_modes` method for retrieving supported video modes for the given monitor.
+- On Wayland, the window now exists even if nothing has been drawn.
+- On Windows, fix initial dimensions of a fullscreen window.
+- On Windows, Fix transparent borderless windows rendering wrong.
 
 # Version 0.19.1 (2019-04-08)
 
@@ -46,6 +56,9 @@
 - On Windows, fix `CursorMoved(0, 0)` getting dispatched on window focus.
 - On macOS, fix command key event left and right reverse.
 - On FreeBSD, NetBSD, and OpenBSD, fix build of X11 backend.
+- On Linux, the numpad's add, subtract and divide keys are now mapped to the `Add`, `Subtract` and `Divide` virtual key codes
+- On macOS, the numpad's subtract key has been added to the `Subtract` mapping
+- On Wayland, the numpad's home, end, page up and page down keys are now mapped to the `Home`, `End`, `PageUp` and `PageDown` virtual key codes
 - On Windows, fix icon not showing up in corner of window.
 - On X11, change DPI scaling factor behavior. First, winit tries to read it from "Xft.dpi" XResource, and uses DPI calculation from xrandr dimensions as fallback behavior.
 
@@ -64,9 +77,6 @@
 - On Windows, cursor grabs used to get perpetually canceled when the grabbing window lost focus. Now, cursor grabs automatically get re-initialized when the window regains focus and the mouse moves over the client area.
 - On Windows, only vertical mouse wheel events were handled. Now, horizontal mouse wheel events are also handled.
 - On Windows, ignore the AltGr key when populating the `ModifersState` type.
-- On Linux, the numpad's add, subtract and divide keys are now mapped to the `Add`, `Subtract` and `Divide` virtual key codes
-- On macOS, the numpad's subtract key has been added to the `Subtract` mapping
-- On Wayland, the numpad's home, end, page up and page down keys are now mapped to the `Home`, `End`, `PageUp` and `PageDown` virtual key codes
 
 # Version 0.18.1 (2018-12-30)
 

@@ -1,8 +1,8 @@
-extern crate winit;
-
-use winit::window::WindowBuilder;
-use winit::event::{Event, WindowEvent, ElementState, KeyboardInput};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::{
+    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -18,12 +18,13 @@ fn main() {
             match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::KeyboardInput {
-                    input: KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(key),
-                        modifiers,
-                        ..
-                    },
+                    input:
+                        KeyboardInput {
+                            state: ElementState::Released,
+                            virtual_keycode: Some(key),
+                            modifiers,
+                            ..
+                        },
                     ..
                 } => {
                     use winit::event::VirtualKeyCode::*;
@@ -33,7 +34,7 @@ fn main() {
                         H => window.set_cursor_visible(modifiers.shift),
                         _ => (),
                     }
-                }
+                },
                 _ => (),
             }
         }

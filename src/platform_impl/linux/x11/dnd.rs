@@ -1,8 +1,10 @@
-use std::io;
-use std::sync::Arc;
-use std::path::{Path, PathBuf};
-use std::str::Utf8Error;
-use std::os::raw::*;
+use std::{
+    io,
+    os::raw::*,
+    path::{Path, PathBuf},
+    str::Utf8Error,
+    sync::Arc,
+};
 
 use percent_encoding::percent_decode;
 
@@ -127,13 +129,15 @@ impl Dnd {
             DndState::Accepted => (1, self.atoms.action_private as c_long),
             DndState::Rejected => (0, self.atoms.none as c_long),
         };
-        self.xconn.send_client_msg(
-            target_window,
-            target_window,
-            self.atoms.status,
-            None,
-            [this_window as c_long, accepted, 0, 0, action],
-        ).flush()
+        self.xconn
+            .send_client_msg(
+                target_window,
+                target_window,
+                self.atoms.status,
+                None,
+                [this_window as c_long, accepted, 0, 0, action],
+            )
+            .flush()
     }
 
     pub unsafe fn send_finished(
@@ -146,24 +150,23 @@ impl Dnd {
             DndState::Accepted => (1, self.atoms.action_private as c_long),
             DndState::Rejected => (0, self.atoms.none as c_long),
         };
-        self.xconn.send_client_msg(
-            target_window,
-            target_window,
-            self.atoms.finished,
-            None,
-            [this_window as c_long, accepted, action, 0, 0],
-        ).flush()
+        self.xconn
+            .send_client_msg(
+                target_window,
+                target_window,
+                self.atoms.finished,
+                None,
+                [this_window as c_long, accepted, action, 0, 0],
+            )
+            .flush()
     }
 
     pub unsafe fn get_type_list(
         &self,
         source_window: c_ulong,
     ) -> Result<Vec<ffi::Atom>, util::GetPropertyError> {
-        self.xconn.get_property(
-            source_window,
-            self.atoms.type_list,
-            ffi::XA_ATOM,
-        )
+        self.xconn
+            .get_property(source_window, self.atoms.type_list, ffi::XA_ATOM)
     }
 
     pub unsafe fn convert_selection(&self, window: c_ulong, time: c_ulong) {
@@ -181,11 +184,8 @@ impl Dnd {
         &self,
         window: c_ulong,
     ) -> Result<Vec<c_uchar>, util::GetPropertyError> {
-        self.xconn.get_property(
-            window,
-            self.atoms.selection,
-            self.atoms.uri_list,
-        )
+        self.xconn
+            .get_property(window, self.atoms.selection, self.atoms.uri_list)
     }
 
     pub fn parse_data(&self, data: &mut Vec<c_uchar>) -> Result<Vec<PathBuf>, DndDataParseError> {

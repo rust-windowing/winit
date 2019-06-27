@@ -15,16 +15,13 @@ mod window_delegate;
 
 use std::{fmt, ops::Deref, sync::Arc};
 
-use {
-    event::DeviceId as RootDeviceId, window::WindowAttributes,
-    error::OsError as RootOsError,
-};
 pub use self::{
     event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
     monitor::MonitorHandle,
-    window::{
-        Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow,
-    },
+    window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
+};
+use crate::{
+    error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -48,7 +45,7 @@ pub struct Window {
 #[derive(Debug)]
 pub enum OsError {
     CGError(core_graphics::base::CGError),
-    CreationError(&'static str)
+    CreationError(&'static str),
 }
 
 unsafe impl Send for Window {}
@@ -74,7 +71,7 @@ impl Window {
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             OsError::CGError(e) => f.pad(&format!("CGError {}", e)),
             OsError::CreationError(e) => f.pad(e),

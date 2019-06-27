@@ -1,17 +1,23 @@
-use std::{mem, ptr, slice, io};
-use std::ops::BitAnd;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::{
+    io, mem,
+    ops::BitAnd,
+    ptr, slice,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
-use window::CursorIcon;
-use winapi::ctypes::wchar_t;
-use winapi::shared::minwindef::{BOOL, DWORD};
-use winapi::shared::windef::{HWND, POINT, RECT};
-use winapi::um::winbase::lstrlenW;
-use winapi::um::winuser;
+use crate::window::CursorIcon;
+use winapi::{
+    ctypes::wchar_t,
+    shared::{
+        minwindef::{BOOL, DWORD},
+        windef::{HWND, POINT, RECT},
+    },
+    um::{winbase::lstrlenW, winuser},
+};
 
 pub fn has_flag<T>(bitset: T, flag: T) -> bool
-where T:
-    Copy + PartialEq + BitAnd<T, Output = T>
+where
+    T: Copy + PartialEq + BitAnd<T, Output = T>,
 {
     bitset & flag == flag
 }
@@ -75,32 +81,42 @@ pub fn adjust_window_rect(hwnd: HWND, rect: RECT) -> Option<RECT> {
     }
 }
 
-pub fn adjust_window_rect_with_styles(hwnd: HWND, style: DWORD, style_ex: DWORD, rect: RECT) -> Option<RECT> {
-    unsafe { status_map(|r| {
-        *r = rect;
+pub fn adjust_window_rect_with_styles(
+    hwnd: HWND,
+    style: DWORD,
+    style_ex: DWORD,
+    rect: RECT,
+) -> Option<RECT> {
+    unsafe {
+        status_map(|r| {
+            *r = rect;
 
-        let b_menu = !winuser::GetMenu(hwnd).is_null() as BOOL;
-        winuser::AdjustWindowRectEx(r, style as _ , b_menu, style_ex as _)
-    }) }
+            let b_menu = !winuser::GetMenu(hwnd).is_null() as BOOL;
+            winuser::AdjustWindowRectEx(r, style as _, b_menu, style_ex as _)
+        })
+    }
 }
 
 pub fn set_cursor_hidden(hidden: bool) {
     static HIDDEN: AtomicBool = AtomicBool::new(false);
     let changed = HIDDEN.swap(hidden, Ordering::SeqCst) ^ hidden;
     if changed {
-        unsafe{ winuser::ShowCursor(!hidden as BOOL) };
+        unsafe { winuser::ShowCursor(!hidden as BOOL) };
     }
 }
 
 pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
     unsafe {
-        let rect_ptr = rect.as_ref().map(|r| r as *const RECT).unwrap_or(ptr::null());
+        let rect_ptr = rect
+            .as_ref()
+            .map(|r| r as *const RECT)
+            .unwrap_or(ptr::null());
         win_to_err(|| winuser::ClipCursor(rect_ptr))
     }
 }
 
 pub fn is_focused(window: HWND) -> bool {
-    window == unsafe{ winuser::GetActiveWindow() }
+    window == unsafe { winuser::GetActiveWindow() }
 }
 
 impl CursorIcon {
@@ -111,16 +127,23 @@ impl CursorIcon {
             CursorIcon::Crosshair => winuser::IDC_CROSS,
             CursorIcon::Text | CursorIcon::VerticalText => winuser::IDC_IBEAM,
             CursorIcon::NotAllowed | CursorIcon::NoDrop => winuser::IDC_NO,
-            CursorIcon::Grab | CursorIcon::Grabbing |
-            CursorIcon::Move | CursorIcon::AllScroll => winuser::IDC_SIZEALL,
-            CursorIcon::EResize | CursorIcon::WResize |
-            CursorIcon::EwResize | CursorIcon::ColResize => winuser::IDC_SIZEWE,
-            CursorIcon::NResize | CursorIcon::SResize |
-            CursorIcon::NsResize | CursorIcon::RowResize => winuser::IDC_SIZENS,
-            CursorIcon::NeResize | CursorIcon::SwResize |
-            CursorIcon::NeswResize => winuser::IDC_SIZENESW,
-            CursorIcon::NwResize | CursorIcon::SeResize |
-            CursorIcon::NwseResize => winuser::IDC_SIZENWSE,
+            CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
+                winuser::IDC_SIZEALL
+            },
+            CursorIcon::EResize
+            | CursorIcon::WResize
+            | CursorIcon::EwResize
+            | CursorIcon::ColResize => winuser::IDC_SIZEWE,
+            CursorIcon::NResize
+            | CursorIcon::SResize
+            | CursorIcon::NsResize
+            | CursorIcon::RowResize => winuser::IDC_SIZENS,
+            CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => {
+                winuser::IDC_SIZENESW
+            },
+            CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => {
+                winuser::IDC_SIZENWSE
+            },
             CursorIcon::Wait => winuser::IDC_WAIT,
             CursorIcon::Progress => winuser::IDC_APPSTARTING,
             CursorIcon::Help => winuser::IDC_HELP,

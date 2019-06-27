@@ -33,18 +33,47 @@
 //! is emitted and the entire program terminates.
 //!
 //! ```no_run
-//! use winit::event_loop::ControlFlow;
-//! use winit::event::{Event, WindowEvent};
-//! # use winit::event_loop::EventLoop;
-//! # let event_loop = EventLoop::new();
+//! use winit::{
+//!     event::{Event, WindowEvent},
+//!     event_loop::{ControlFlow, EventLoop},
+//!     window::WindowBuilder,
+//! };
+//!
+//! let event_loop = EventLoop::new();
+//! let window = WindowBuilder::new().build(&event_loop).unwrap();
 //!
 //! event_loop.run(move |event, _, control_flow| {
 //!     match event {
-//!         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+//!         Event::EventsCleared => {
+//!             // Application update code.
+//!     
+//!             // Queue a RedrawRequested event.
+//!             window.request_redraw();
+//!         },
+//!         Event::WindowEvent {
+//!             event: WindowEvent::RedrawRequested,
+//!             ..
+//!         } => {
+//!             // Redraw the application.
+//!             //
+//!             // It's preferrable to render in this event rather than in EventsCleared, since
+//!             // rendering in here allows the program to gracefully handle redraws requested
+//!             // by the OS.
+//!         },
+//!         Event::WindowEvent {
+//!             event: WindowEvent::CloseRequested,
+//!             ..
+//!         } => {
 //!             println!("The close button was pressed; stopping");
 //!             *control_flow = ControlFlow::Exit
 //!         },
-//!         _ => *control_flow = ControlFlow::Wait,
+//!         // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
+//!         // dispatched any events. This is ideal for games and similar applications.
+//!         _ => *control_flow = ControlFlow::Poll,
+//!         // ControlFlow::Wait pauses the event loop if no events are available to process.
+//!         // This is ideal for non-game applications that only update in response to user
+//!         // input, and uses significantly less power/CPU time than ControlFlow::Poll.
+//!         // _ => *control_flow = ControlFlow::Wait,
 //!     }
 //! });
 //! ```
@@ -75,55 +104,14 @@
 //! [`LoopDestroyed`]: ./event/enum.Event.html#variant.LoopDestroyed
 //! [`platform`]: ./platform/index.html
 
-extern crate instant;
-#[allow(unused_imports)]
-#[macro_use]
-extern crate lazy_static;
-extern crate libc;
-#[macro_use]
-extern crate log;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde;
-
-#[cfg(target_os = "windows")]
-extern crate winapi;
-#[macro_use]
-#[cfg(target_os = "windows")]
-extern crate bitflags;
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-#[macro_use]
-extern crate objc;
-#[cfg(target_os = "macos")]
-extern crate cocoa;
-#[cfg(target_os = "macos")]
-extern crate dispatch;
-#[cfg(target_os = "macos")]
-extern crate core_foundation;
-#[cfg(target_os = "macos")]
-extern crate core_graphics;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
-extern crate x11_dl;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "windows"))]
-extern crate parking_lot;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
-extern crate percent_encoding;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
-extern crate smithay_client_toolkit as sctk;
-#[cfg(feature = "stdweb")]
-#[macro_use]
-extern crate stdweb;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
-extern crate calloop;
-
 pub mod dpi;
 #[macro_use]
 pub mod error;
 pub mod event;
 pub mod event_loop;
 mod icon;
+pub mod monitor;
 mod platform_impl;
 pub mod window;
-pub mod monitor;
 
 pub mod platform;

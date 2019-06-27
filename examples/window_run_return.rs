@@ -1,9 +1,9 @@
-extern crate winit;
-
-use winit::window::WindowBuilder;
-use winit::event::{Event, WindowEvent};
-use winit::event_loop::{EventLoop, ControlFlow};
-use winit::platform::desktop::EventLoopExtDesktop;
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    platform::desktop::EventLoopExtDesktop,
+    window::WindowBuilder,
+};
 
 fn main() {
     let mut event_loop = EventLoop::new();

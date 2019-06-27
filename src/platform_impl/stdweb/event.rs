@@ -1,9 +1,10 @@
 use stdweb::{
+    js, _js_impl,
     JsSerialize,
     web::event::{IKeyboardEvent, IMouseEvent},
     unstable::TryInto
 };
-use event::{MouseButton, ModifiersState, ScanCode, VirtualKeyCode};
+use crate::event::{MouseButton, ModifiersState, ScanCode, VirtualKeyCode};
 
 pub fn button_mapping(event: &impl IKeyboardEvent) -> Option<VirtualKeyCode> {
     Some(match &event.code()[..] {

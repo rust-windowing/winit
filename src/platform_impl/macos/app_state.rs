@@ -1,17 +1,23 @@
 use std::{
-    collections::VecDeque, fmt::{self, Debug, Formatter},
-    hint::unreachable_unchecked, mem,
-    sync::{atomic::{AtomicBool, Ordering}, Mutex, MutexGuard}, time::Instant,
+    collections::VecDeque,
+    fmt::{self, Debug},
+    hint::unreachable_unchecked,
+    mem,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex, MutexGuard,
+    },
+    time::Instant,
 };
 
 use cocoa::{appkit::NSApp, base::nil};
 
-use {
+use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
+    platform_impl::platform::{observer::EventLoopWaker, util::Never},
     window::WindowId,
 };
-use platform_impl::platform::{observer::EventLoopWaker, util::Never};
 
 lazy_static! {
     static ref HANDLER: Handler = Default::default();
@@ -38,8 +44,9 @@ struct EventLoopHandler<F, T: 'static> {
 }
 
 impl<F, T> Debug for EventLoopHandler<F, T> {
-    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        formatter.debug_struct("EventLoopHandler")
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("EventLoopHandler")
             .field("window_target", &self.window_target)
             .finish()
     }
@@ -51,11 +58,7 @@ where
     T: 'static,
 {
     fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
-        (self.callback)(
-            event.userify(),
-            &self.window_target,
-            control_flow,
-        );
+        (self.callback)(event.userify(), &self.window_target, control_flow);
         self.will_exit |= *control_flow == ControlFlow::Exit;
         if self.will_exit {
             *control_flow = ControlFlow::Exit;
@@ -65,11 +68,7 @@ where
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
         let mut will_exit = self.will_exit;
         for event in self.window_target.p.receiver.try_iter() {
-            (self.callback)(
-                Event::UserEvent(event),
-                &self.window_target,
-                control_flow,
-            );
+            (self.callback)(Event::UserEvent(event), &self.window_target, control_flow);
             will_exit |= *control_flow == ControlFlow::Exit;
             if will_exit {
                 *control_flow = ControlFlow::Exit;
@@ -167,18 +166,13 @@ impl Handler {
 
     fn handle_nonuser_event(&self, event: Event<Never>) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            callback.handle_nonuser_event(
-                event,
-                &mut *self.control_flow.lock().unwrap(),
-            );
+            callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
         }
     }
 
     fn handle_user_events(&self) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            callback.handle_user_events(
-                &mut *self.control_flow.lock().unwrap(),
-            );
+            callback.handle_user_events(&mut *self.control_flow.lock().unwrap());
         }
     }
 }
@@ -213,13 +207,17 @@ impl AppState {
     }
 
     pub fn wakeup() {
-        if !HANDLER.is_ready() { return }
+        if !HANDLER.is_ready() {
+            return;
+        }
         let start = HANDLER.get_start_time().unwrap();
         let cause = match HANDLER.get_control_flow_and_update_prev() {
             ControlFlow::Poll => StartCause::Poll,
-            ControlFlow::Wait => StartCause::WaitCancelled {
-                start,
-                requested_resume: None,
+            ControlFlow::Wait => {
+                StartCause::WaitCancelled {
+                    start,
+                    requested_resume: None,
+                }
             },
             ControlFlow::WaitUntil(requested_resume) => {
                 if Instant::now() >= requested_resume {
@@ -234,7 +232,7 @@ impl AppState {
                     }
                 }
             },
-            ControlFlow::Exit => StartCause::Poll,//panic!("unexpected `ControlFlow::Exit`"),
+            ControlFlow::Exit => StartCause::Poll, //panic!("unexpected `ControlFlow::Exit`"),
         };
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(Event::NewEvents(cause));
@@ -278,7 +276,9 @@ impl AppState {
     }
 
     pub fn cleared() {
-        if !HANDLER.is_ready() { return }
+        if !HANDLER.is_ready() {
+            return;
+        }
         if !HANDLER.get_in_callback() {
             HANDLER.set_in_callback(true);
             HANDLER.handle_user_events();
@@ -295,8 +295,8 @@ impl AppState {
             HANDLER.set_in_callback(false);
         }
         if HANDLER.should_exit() {
-            let _: () = unsafe { msg_send![NSApp(), stop:nil] };
-            return
+            let _: () = unsafe { msg_send![NSApp(), stop: nil] };
+            return;
         }
         HANDLER.update_start_time();
         match HANDLER.get_old_and_new_control_flow() {

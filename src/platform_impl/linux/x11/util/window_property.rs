@@ -84,10 +84,8 @@ impl XConnection {
 
                 if !buf.is_null() {
                     offset += PROPERTY_BUFFER_SIZE;
-                    let new_data = std::slice::from_raw_parts(
-                        buf as *mut T,
-                        quantity_returned as usize,
-                    );
+                    let new_data =
+                        std::slice::from_raw_parts(buf as *mut T, quantity_returned as usize);
                     /*println!(
                         "XGetWindowProperty prop:{:?} fmt:{:02} len:{:02} off:{:02} out:{:02}, buf:{:?}",
                         property,

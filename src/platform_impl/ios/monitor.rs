@@ -1,17 +1,16 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     fmt,
     ops::{Deref, DerefMut},
 };
 
-use dpi::{PhysicalPosition, PhysicalSize};
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    monitor::VideoMode,
+};
 
-use platform_impl::platform::ffi::{
-    id,
-    nil,
-    CGFloat,
-    CGRect,
-    NSUInteger,
+use crate::platform_impl::platform::ffi::{
+    id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger,
 };
 
 pub struct Inner {
@@ -35,7 +34,9 @@ impl Deref for MonitorHandle {
 
     fn deref(&self) -> &Inner {
         unsafe {
-            assert_main_thread!("`MonitorHandle` methods can only be run on the main thread on iOS");
+            assert_main_thread!(
+                "`MonitorHandle` methods can only be run on the main thread on iOS"
+            );
         }
         &self.inner
     }
@@ -44,7 +45,9 @@ impl Deref for MonitorHandle {
 impl DerefMut for MonitorHandle {
     fn deref_mut(&mut self) -> &mut Inner {
         unsafe {
-            assert_main_thread!("`MonitorHandle` methods can only be run on the main thread on iOS");
+            assert_main_thread!(
+                "`MonitorHandle` methods can only be run on the main thread on iOS"
+            );
         }
         &mut self.inner
     }
@@ -68,18 +71,18 @@ impl Drop for MonitorHandle {
 }
 
 impl fmt::Debug for MonitorHandle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,
-            dimensions: PhysicalSize,
+            size: PhysicalSize,
             position: PhysicalPosition,
             hidpi_factor: f64,
         }
 
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
-            dimensions: self.dimensions(),
+            size: self.size(),
             position: self.position(),
             hidpi_factor: self.hidpi_factor(),
         };
@@ -94,7 +97,9 @@ impl MonitorHandle {
             assert_main_thread!("`MonitorHandle` can only be cloned on the main thread on iOS");
             let () = msg_send![uiscreen, retain];
         }
-        MonitorHandle { inner: Inner { uiscreen } }
+        MonitorHandle {
+            inner: Inner { uiscreen },
+        }
     }
 }
 
@@ -114,7 +119,7 @@ impl Inner {
         }
     }
 
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         unsafe {
             let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
             (bounds.size.width as f64, bounds.size.height as f64).into()
@@ -133,6 +138,27 @@ impl Inner {
             let scale: CGFloat = msg_send![self.ui_screen(), nativeScale];
             scale as f64
         }
+    }
+
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        let refresh_rate: NSInteger = unsafe { msg_send![self.uiscreen, maximumFramesPerSecond] };
+
+        let available_modes: id = unsafe { msg_send![self.uiscreen, availableModes] };
+        let available_mode_count: NSUInteger = unsafe { msg_send![available_modes, count] };
+
+        let mut modes = HashSet::with_capacity(available_mode_count);
+
+        for i in 0..available_mode_count {
+            let mode: id = unsafe { msg_send![available_modes, objectAtIndex: i] };
+            let size: CGSize = unsafe { msg_send![mode, size] };
+            modes.insert(VideoMode {
+                size: (size.width as u32, size.height as u32),
+                bit_depth: 32,
+                refresh_rate: refresh_rate as u16,
+            });
+        }
+
+        modes.into_iter()
     }
 }
 
@@ -164,7 +190,7 @@ pub unsafe fn uiscreens() -> VecDeque<MonitorHandle> {
     loop {
         let screen: id = msg_send![screens_enum, nextObject];
         if screen == nil {
-            break result
+            break result;
         }
         result.push_back(MonitorHandle::retained_new(screen));
     }

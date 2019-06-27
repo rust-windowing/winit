@@ -1,8 +1,8 @@
 #![allow(dead_code, non_camel_case_types, non_snake_case)]
 
-use std::os::raw::{c_int, c_char, c_void, c_ulong, c_double, c_long, c_ushort};
 #[cfg(test)]
 use std::mem;
+use std::os::raw::{c_char, c_double, c_int, c_long, c_ulong, c_ushort, c_void};
 
 pub type EM_BOOL = c_int;
 pub type EM_UTF8 = c_char;
@@ -71,30 +71,45 @@ pub const DOM_KEY_LOCATION_NUMPAD: c_ulong = 0x03;
 
 pub type em_callback_func = Option<unsafe extern "C" fn()>;
 
-pub type em_key_callback_func = Option<unsafe extern "C" fn(
-    eventType: c_int,
-    keyEvent: *const EmscriptenKeyboardEvent,
-    userData: *mut c_void) -> EM_BOOL>;
+pub type em_key_callback_func = Option<
+    unsafe extern "C" fn(
+        eventType: c_int,
+        keyEvent: *const EmscriptenKeyboardEvent,
+        userData: *mut c_void,
+    ) -> EM_BOOL,
+>;
 
-pub type em_mouse_callback_func = Option<unsafe extern "C" fn(
-    eventType: c_int,
-    mouseEvent: *const EmscriptenMouseEvent,
-    userData: *mut c_void) -> EM_BOOL>;
+pub type em_mouse_callback_func = Option<
+    unsafe extern "C" fn(
+        eventType: c_int,
+        mouseEvent: *const EmscriptenMouseEvent,
+        userData: *mut c_void,
+    ) -> EM_BOOL,
+>;
 
-pub type em_pointerlockchange_callback_func = Option<unsafe extern "C" fn(
-    eventType: c_int,
-    pointerlockChangeEvent: *const EmscriptenPointerlockChangeEvent,
-    userData: *mut c_void) -> EM_BOOL>;
+pub type em_pointerlockchange_callback_func = Option<
+    unsafe extern "C" fn(
+        eventType: c_int,
+        pointerlockChangeEvent: *const EmscriptenPointerlockChangeEvent,
+        userData: *mut c_void,
+    ) -> EM_BOOL,
+>;
 
-pub type em_fullscreenchange_callback_func = Option<unsafe extern "C" fn(
-    eventType: c_int,
-    fullscreenChangeEvent: *const EmscriptenFullscreenChangeEvent,
-    userData: *mut c_void) -> EM_BOOL>;
+pub type em_fullscreenchange_callback_func = Option<
+    unsafe extern "C" fn(
+        eventType: c_int,
+        fullscreenChangeEvent: *const EmscriptenFullscreenChangeEvent,
+        userData: *mut c_void,
+    ) -> EM_BOOL,
+>;
 
-pub type em_touch_callback_func = Option<unsafe extern "C" fn(
-    eventType: c_int,
-    touchEvent: *const EmscriptenTouchEvent,
-    userData: *mut c_void) -> EM_BOOL>;
+pub type em_touch_callback_func = Option<
+    unsafe extern "C" fn(
+        eventType: c_int,
+        touchEvent: *const EmscriptenTouchEvent,
+        userData: *mut c_void,
+    ) -> EM_BOOL,
+>;
 
 #[repr(C)]
 pub struct EmscriptenFullscreenChangeEvent {
@@ -136,7 +151,9 @@ fn bindgen_test_layout_EmscriptenKeyboardEvent() {
     assert_eq!(mem::align_of::<EmscriptenKeyboardEvent>(), 8usize);
 }
 impl Clone for EmscriptenKeyboardEvent {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 #[repr(C)]
@@ -219,96 +236,128 @@ fn bindgen_test_layout_EmscriptenPointerlockChangeEvent() {
 }
 
 extern "C" {
-    pub fn emscripten_set_canvas_size(
-        width: c_int, height: c_int)
-        -> EMSCRIPTEN_RESULT;
+    pub fn emscripten_set_canvas_size(width: c_int, height: c_int) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_get_canvas_size(
-        width: *mut c_int, height: *mut c_int,
-        is_fullscreen: *mut c_int)
-        -> EMSCRIPTEN_RESULT;
+        width: *mut c_int,
+        height: *mut c_int,
+        is_fullscreen: *mut c_int,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_element_css_size(
-        target: *const c_char, width: c_double,
-        height: c_double) -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        width: c_double,
+        height: c_double,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_get_element_css_size(
-        target: *const c_char, width: *mut c_double,
-        height: *mut c_double) -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        width: *mut c_double,
+        height: *mut c_double,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_request_pointerlock(
-        target: *const c_char, deferUntilInEventHandler: EM_BOOL)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        deferUntilInEventHandler: EM_BOOL,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_exit_pointerlock() -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_request_fullscreen(
-        target: *const c_char, deferUntilInEventHandler: EM_BOOL)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        deferUntilInEventHandler: EM_BOOL,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_exit_fullscreen() -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_keydown_callback(
-        target: *const c_char, userData: *mut c_void,
-        useCapture: EM_BOOL, callback: em_key_callback_func)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        userData: *mut c_void,
+        useCapture: EM_BOOL,
+        callback: em_key_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_keyup_callback(
-        target: *const c_char, userData: *mut c_void,
-        useCapture: EM_BOOL, callback: em_key_callback_func)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        userData: *mut c_void,
+        useCapture: EM_BOOL,
+        callback: em_key_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_mousemove_callback(
-        target: *const c_char, user_data: *mut c_void,
-        use_capture: EM_BOOL, callback: em_mouse_callback_func)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        user_data: *mut c_void,
+        use_capture: EM_BOOL,
+        callback: em_mouse_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_mousedown_callback(
-        target: *const c_char, user_data: *mut c_void,
-        use_capture: EM_BOOL, callback: em_mouse_callback_func)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        user_data: *mut c_void,
+        use_capture: EM_BOOL,
+        callback: em_mouse_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_mouseup_callback(
-        target: *const c_char, user_data: *mut c_void,
-        use_capture: EM_BOOL, callback: em_mouse_callback_func)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        user_data: *mut c_void,
+        use_capture: EM_BOOL,
+        callback: em_mouse_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_hide_mouse();
 
     pub fn emscripten_get_device_pixel_ratio() -> f64;
 
     pub fn emscripten_set_pointerlockchange_callback(
-        target: *const c_char, userData: *mut c_void, useCapture: EM_BOOL,
-        callback: em_pointerlockchange_callback_func) -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        userData: *mut c_void,
+        useCapture: EM_BOOL,
+        callback: em_pointerlockchange_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_fullscreenchange_callback(
-        target: *const c_char, userData: *mut c_void, useCapture: EM_BOOL,
-        callback: em_fullscreenchange_callback_func) -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        userData: *mut c_void,
+        useCapture: EM_BOOL,
+        callback: em_fullscreenchange_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_asm_const(code: *const c_char);
 
     pub fn emscripten_set_main_loop(
-        func: em_callback_func, fps: c_int, simulate_infinite_loop: EM_BOOL);
+        func: em_callback_func,
+        fps: c_int,
+        simulate_infinite_loop: EM_BOOL,
+    );
 
     pub fn emscripten_cancel_main_loop();
 
     pub fn emscripten_set_touchstart_callback(
-        target: *const c_char, userData: *mut c_void,
-        useCapture: c_int, callback: em_touch_callback_func)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        userData: *mut c_void,
+        useCapture: c_int,
+        callback: em_touch_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_touchend_callback(
-        target: *const c_char, userData: *mut c_void,
-        useCapture: c_int, callback: em_touch_callback_func)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        userData: *mut c_void,
+        useCapture: c_int,
+        callback: em_touch_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_touchmove_callback(
-        target: *const c_char, userData: *mut c_void,
-        useCapture: c_int, callback: em_touch_callback_func)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        userData: *mut c_void,
+        useCapture: c_int,
+        callback: em_touch_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 
     pub fn emscripten_set_touchcancel_callback(
-        target: *const c_char, userData: *mut c_void,
-        useCapture: c_int, callback: em_touch_callback_func)
-        -> EMSCRIPTEN_RESULT;
+        target: *const c_char,
+        userData: *mut c_void,
+        useCapture: c_int,
+        callback: em_touch_callback_func,
+    ) -> EMSCRIPTEN_RESULT;
 }

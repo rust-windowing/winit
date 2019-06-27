@@ -1,9 +1,10 @@
-extern crate winit;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
-use winit::window::WindowBuilder;
-use winit::event::{Event, WindowEvent};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -25,7 +26,7 @@ fn main() {
                 window.request_redraw();
                 *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0))
             },
-            _ => ()
+            _ => (),
         }
     });
 }

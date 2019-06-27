@@ -1,39 +1,47 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-pub mod ffi;
+mod dnd;
+mod event_processor;
 mod events;
+pub mod ffi;
+mod ime;
 mod monitor;
+pub mod util;
 mod window;
 mod xdisplay;
-mod dnd;
-mod ime;
-pub mod util;
-mod event_processor;
 
-pub use self::monitor::MonitorHandle;
-pub use self::window::UnownedWindow;
-pub use self::xdisplay::{XConnection, XNotSupported, XError};
+pub use self::{
+    monitor::MonitorHandle,
+    window::UnownedWindow,
+    xdisplay::{XConnection, XError, XNotSupported},
+};
 
-use std::{mem, slice};
-use std::cell::RefCell;
-use std::collections::{VecDeque, HashMap, HashSet};
-use std::ffi::CStr;
-use std::ops::Deref;
-use std::os::raw::*;
-use std::rc::Rc;
-use std::sync::{Arc, mpsc, Weak, Mutex};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet, VecDeque},
+    ffi::CStr,
+    mem,
+    ops::Deref,
+    os::raw::*,
+    rc::Rc,
+    slice,
+    sync::{mpsc, Arc, Mutex, Weak},
+};
 
 use libc::{self, setlocale, LC_CTYPE};
 
-use error::OsError as RootOsError;
-use event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW};
-use event::{WindowEvent, Event};
-use platform_impl::PlatformSpecificWindowBuilderAttributes;
-use platform_impl::platform::sticky_exit_callback;
-use window::{WindowAttributes};
-use self::dnd::{Dnd, DndState};
-use self::ime::{ImeReceiver, ImeSender, ImeCreationError, Ime};
-use self::event_processor::EventProcessor;
+use self::{
+    dnd::{Dnd, DndState},
+    event_processor::EventProcessor,
+    ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
+};
+use crate::{
+    error::OsError as RootOsError,
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    platform_impl::{platform::sticky_exit_callback, PlatformSpecificWindowBuilderAttributes},
+    window::WindowAttributes,
+};
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
@@ -43,7 +51,7 @@ pub struct EventLoopWindowTarget<T> {
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     pending_redraws: Arc<Mutex<HashSet<WindowId>>>,
-    _marker: ::std::marker::PhantomData<T>
+    _marker: ::std::marker::PhantomData<T>,
 }
 
 pub struct EventLoop<T: 'static> {
@@ -53,7 +61,7 @@ pub struct EventLoop<T: 'static> {
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
     user_sender: ::calloop::channel::Sender<T>,
     pending_events: Rc<RefCell<VecDeque<Event<T>>>>,
-    target: Rc<RootELW<T>>
+    target: Rc<RootELW<T>>,
 }
 
 #[derive(Clone)]
@@ -73,7 +81,9 @@ impl<T: 'static> EventLoop<T> {
         let (ime_sender, ime_receiver) = mpsc::channel();
         // Input methods will open successfully without setting the locale, but it won't be
         // possible to actually commit pre-edit sequences.
-        unsafe { setlocale(LC_CTYPE, b"\0".as_ptr() as *const _); }
+        unsafe {
+            setlocale(LC_CTYPE, b"\0".as_ptr() as *const _);
+        }
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn));
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
@@ -82,7 +92,8 @@ impl<T: 'static> EventLoop<T> {
             result.expect("Failed to set input method destruction callback")
         });
 
-        let randr_event_offset = xconn.select_xrandr_input(root)
+        let randr_event_offset = xconn
+            .select_xrandr_input(root)
             .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
@@ -96,7 +107,8 @@ impl<T: 'static> EventLoop<T> {
                 b"XInputExtension\0".as_ptr() as *const c_char,
                 &mut result.opcode as *mut c_int,
                 &mut result.first_event_id as *mut c_int,
-                &mut result.first_error_id as *mut c_int);
+                &mut result.first_error_id as *mut c_int,
+            );
             if res == ffi::False {
                 panic!("X server missing XInput extension");
             }
@@ -110,18 +122,18 @@ impl<T: 'static> EventLoop<T> {
                 xconn.display,
                 &mut xinput_major_ver,
                 &mut xinput_minor_ver,
-            ) != ffi::Success as libc::c_int {
+            ) != ffi::Success as libc::c_int
+            {
                 panic!(
                     "X server has XInput extension {}.{} but does not support XInput2",
-                    xinput_major_ver,
-                    xinput_minor_ver,
+                    xinput_major_ver, xinput_minor_ver,
                 );
             }
         }
 
         xconn.update_cached_wm_info(root);
 
-        let target = Rc::new(RootELW{
+        let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
                 ime,
                 root,
@@ -132,7 +144,7 @@ impl<T: 'static> EventLoop<T> {
                 wm_delete_window,
                 pending_redraws: Default::default(),
             }),
-            _marker: ::std::marker::PhantomData
+            _marker: ::std::marker::PhantomData,
         });
 
         // A calloop event loop to drive us
@@ -144,11 +156,14 @@ impl<T: 'static> EventLoop<T> {
 
         let (user_sender, user_channel) = ::calloop::channel::channel();
 
-        let _user_source = inner_loop.handle().insert_source(user_channel, move |evt, &mut()| {
-            if let ::calloop::channel::Event::Msg(msg) = evt {
-                pending_user_events2.borrow_mut().push_back(msg);
-            }
-        }).unwrap();
+        let _user_source = inner_loop
+            .handle()
+            .insert_source(user_channel, move |evt, &mut ()| {
+                if let ::calloop::channel::Event::Msg(msg) = evt {
+                    pending_user_events2.borrow_mut().push_back(msg);
+                }
+            })
+            .unwrap();
 
         // Handle X11 events
         let pending_events: Rc<RefCell<VecDeque<_>>> = Default::default();
@@ -164,20 +179,20 @@ impl<T: 'static> EventLoop<T> {
 
         // Register for device hotplug events
         // (The request buffer is flushed during `init_device`)
-        get_xtarget(&target).xconn.select_xinput_events(
-            root,
-            ffi::XIAllDevices,
-            ffi::XI_HierarchyChangedMask,
-        ).queue();
+        get_xtarget(&target)
+            .xconn
+            .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
+            .queue();
 
         processor.init_device(ffi::XIAllDevices);
 
         // Setup the X11 event source
-        let mut x11_events = ::calloop::generic::Generic::from_raw_fd(get_xtarget(&target).xconn.x11_fd);
+        let mut x11_events =
+            ::calloop::generic::Generic::from_raw_fd(get_xtarget(&target).xconn.x11_fd);
         x11_events.set_interest(::calloop::mio::Ready::readable());
-        let _x11_source = inner_loop.handle().insert_source(
-            x11_events,
-            {
+        let _x11_source = inner_loop
+            .handle()
+            .insert_source(x11_events, {
                 let pending_events = pending_events.clone();
                 let mut callback = move |event| {
                     pending_events.borrow_mut().push_back(event);
@@ -191,8 +206,8 @@ impl<T: 'static> EventLoop<T> {
                         }
                     }
                 }
-            }
-        ).unwrap();
+            })
+            .unwrap();
 
         let result = EventLoop {
             inner_loop,
@@ -201,7 +216,7 @@ impl<T: 'static> EventLoop<T> {
             _user_source,
             user_sender,
             pending_user_events,
-            target
+            target,
         };
 
         result
@@ -224,7 +239,8 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn run_return<F>(&mut self, mut callback: F)
-        where F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
+    where
+        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         let mut control_flow = ControlFlow::default();
         let wt = get_xtarget(&self.target);
@@ -243,10 +259,10 @@ impl<T: 'static> EventLoop<T> {
                 let mut guard = self.pending_user_events.borrow_mut();
                 for evt in guard.drain(..) {
                     sticky_exit_callback(
-                        ::event::Event::UserEvent(evt),
+                        crate::event::Event::UserEvent(evt),
                         &self.target,
                         &mut control_flow,
-                        &mut callback
+                        &mut callback,
                     );
                 }
             }
@@ -256,46 +272,52 @@ impl<T: 'static> EventLoop<T> {
                 for wid in guard.drain() {
                     sticky_exit_callback(
                         Event::WindowEvent {
-                            window_id: ::window::WindowId(super::WindowId::X(wid)),
-                            event: WindowEvent::RedrawRequested
+                            window_id: crate::window::WindowId(super::WindowId::X(wid)),
+                            event: WindowEvent::RedrawRequested,
                         },
                         &self.target,
                         &mut control_flow,
-                        &mut callback
+                        &mut callback,
                     );
                 }
             }
             // send Events cleared
             {
                 sticky_exit_callback(
-                    ::event::Event::EventsCleared,
+                    crate::event::Event::EventsCleared,
                     &self.target,
                     &mut control_flow,
-                    &mut callback
+                    &mut callback,
                 );
             }
 
             // flush the X11 connection
-            unsafe { (wt.xconn.xlib.XFlush)(wt.xconn.display); }
+            unsafe {
+                (wt.xconn.xlib.XFlush)(wt.xconn.display);
+            }
 
             match control_flow {
                 ControlFlow::Exit => break,
                 ControlFlow::Poll => {
                     // non-blocking dispatch
-                    self.inner_loop.dispatch(Some(::std::time::Duration::from_millis(0)), &mut ()).unwrap();
-                    control_flow = ControlFlow::default();
-                    callback(::event::Event::NewEvents(::event::StartCause::Poll), &self.target, &mut control_flow);
+                    self.inner_loop
+                        .dispatch(Some(::std::time::Duration::from_millis(0)), &mut ())
+                        .unwrap();
+                    callback(
+                        crate::event::Event::NewEvents(crate::event::StartCause::Poll),
+                        &self.target,
+                        &mut control_flow,
+                    );
                 },
                 ControlFlow::Wait => {
                     self.inner_loop.dispatch(None, &mut ()).unwrap();
-                    control_flow = ControlFlow::default();
                     callback(
-                        ::event::Event::NewEvents(::event::StartCause::WaitCancelled {
+                        crate::event::Event::NewEvents(crate::event::StartCause::WaitCancelled {
                             start: ::std::time::Instant::now(),
-                            requested_resume: None
+                            requested_resume: None,
                         }),
                         &self.target,
-                        &mut control_flow
+                        &mut control_flow,
                     );
                 },
                 ControlFlow::WaitUntil(deadline) => {
@@ -307,36 +329,44 @@ impl<T: 'static> EventLoop<T> {
                         ::std::time::Duration::from_millis(0)
                     };
                     self.inner_loop.dispatch(Some(duration), &mut ()).unwrap();
-                    control_flow = ControlFlow::default();
                     let now = std::time::Instant::now();
                     if now < deadline {
                         callback(
-                            ::event::Event::NewEvents(::event::StartCause::WaitCancelled {
-                                start,
-                                requested_resume: Some(deadline)
-                            }),
+                            crate::event::Event::NewEvents(
+                                crate::event::StartCause::WaitCancelled {
+                                    start,
+                                    requested_resume: Some(deadline),
+                                },
+                            ),
                             &self.target,
-                            &mut control_flow
+                            &mut control_flow,
                         );
                     } else {
                         callback(
-                            ::event::Event::NewEvents(::event::StartCause::ResumeTimeReached {
-                                start,
-                                requested_resume: deadline
-                            }),
+                            crate::event::Event::NewEvents(
+                                crate::event::StartCause::ResumeTimeReached {
+                                    start,
+                                    requested_resume: deadline,
+                                },
+                            ),
                             &self.target,
-                            &mut control_flow
+                            &mut control_flow,
                         );
                     }
-                }
+                },
             }
         }
 
-        callback(::event::Event::LoopDestroyed, &self.target, &mut control_flow);
+        callback(
+            crate::event::Event::LoopDestroyed,
+            &self.target,
+            &mut control_flow,
+        );
     }
 
     pub fn run<F>(mut self, callback: F) -> !
-        where F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow)
+    where
+        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(callback);
         ::std::process::exit(0);
@@ -345,10 +375,10 @@ impl<T: 'static> EventLoop<T> {
 
 fn get_xtarget<T>(rt: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     if let super::EventLoopWindowTarget::X(ref target) = rt.p {
-            target
-        } else {
-            unreachable!();
-        }
+        target
+    } else {
+        unreachable!();
+    }
 }
 
 impl<T: 'static> EventLoopProxy<T> {
@@ -368,19 +398,17 @@ impl<'a> DeviceInfo<'a> {
         unsafe {
             let mut count = mem::uninitialized();
             let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
-            xconn.check_errors()
-                .ok()
-                .and_then(|_| {
-                    if info.is_null() || count == 0 {
-                        None
-                    } else {
-                        Some(DeviceInfo {
-                            xconn,
-                            info,
-                            count: count as usize,
-                        })
-                    }
-                })
+            xconn.check_errors().ok().and_then(|_| {
+                if info.is_null() || count == 0 {
+                    None
+                } else {
+                    Some(DeviceInfo {
+                        xconn,
+                        info,
+                        count: count as usize,
+                    })
+                }
+            })
         }
     }
 }
@@ -431,10 +459,11 @@ impl Window {
     pub fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes
+        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         let window = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
-        event_loop.windows
+        event_loop
+            .windows
             .borrow_mut()
             .insert(window.id(), Arc::downgrade(&window));
         Ok(Window(window))
@@ -457,11 +486,14 @@ impl Drop for Window {
 /// extract the cookie from a GenericEvent XEvent and release the cookie data once it has been processed
 struct GenericEventCookie<'a> {
     xconn: &'a XConnection,
-    cookie: ffi::XGenericEventCookie
+    cookie: ffi::XGenericEventCookie,
 }
 
 impl<'a> GenericEventCookie<'a> {
-    fn from_event<'b>(xconn: &'b XConnection, event: ffi::XEvent) -> Option<GenericEventCookie<'b>> {
+    fn from_event<'b>(
+        xconn: &'b XConnection,
+        event: ffi::XEvent,
+    ) -> Option<GenericEventCookie<'b>> {
         unsafe {
             let mut cookie: ffi::XGenericEventCookie = From::from(event);
             if (xconn.xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {
@@ -488,8 +520,12 @@ struct XExtension {
     first_error_id: c_int,
 }
 
-fn mkwid(w: ffi::Window) -> ::window::WindowId { ::window::WindowId(::platform_impl::WindowId::X(WindowId(w))) }
-fn mkdid(w: c_int) -> ::event::DeviceId { ::event::DeviceId(::platform_impl::DeviceId::X(DeviceId(w))) }
+fn mkwid(w: ffi::Window) -> crate::window::WindowId {
+    crate::window::WindowId(crate::platform_impl::WindowId::X(WindowId(w)))
+}
+fn mkdid(w: c_int) -> crate::event::DeviceId {
+    crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
+}
 
 #[derive(Debug)]
 struct Device {
@@ -528,32 +564,39 @@ impl Device {
                 | ffi::XI_RawKeyPressMask
                 | ffi::XI_RawKeyReleaseMask;
             // The request buffer is flushed when we poll for events
-            wt.xconn.select_xinput_events(wt.root, info.deviceid, mask).queue();
+            wt.xconn
+                .select_xinput_events(wt.root, info.deviceid, mask)
+                .queue();
 
             // Identify scroll axes
             for class_ptr in Device::classes(info) {
                 let class = unsafe { &**class_ptr };
                 match class._type {
                     ffi::XIScrollClass => {
-                        let info = unsafe { mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class) };
-                        scroll_axes.push((info.number, ScrollAxis {
-                            increment: info.increment,
-                            orientation: match info.scroll_type {
-                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
-                                _ => { unreachable!() }
+                        let info = unsafe {
+                            mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class)
+                        };
+                        scroll_axes.push((
+                            info.number,
+                            ScrollAxis {
+                                increment: info.increment,
+                                orientation: match info.scroll_type {
+                                    ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
+                                    ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                                    _ => unreachable!(),
+                                },
+                                position: 0.0,
                             },
-                            position: 0.0,
-                        }));
-                    }
-                    _ => {}
+                        ));
+                    },
+                    _ => {},
                 }
             }
         }
 
         let mut device = Device {
             name: name.into_owned(),
-            scroll_axes: scroll_axes,
+            scroll_axes,
             attachment: info.attachment,
         };
         device.reset_scroll_position(info);
@@ -566,12 +609,18 @@ impl Device {
                 let class = unsafe { &**class_ptr };
                 match class._type {
                     ffi::XIValuatorClass => {
-                        let info = unsafe { mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class) };
-                        if let Some(&mut (_, ref mut axis)) = self.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == info.number) {
+                        let info = unsafe {
+                            mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
+                        };
+                        if let Some(&mut (_, ref mut axis)) = self
+                            .scroll_axes
+                            .iter_mut()
+                            .find(|&&mut (axis, _)| axis == info.number)
+                        {
                             axis.position = info.value;
                         }
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
             }
         }
@@ -579,11 +628,18 @@ impl Device {
 
     #[inline]
     fn physical_device(info: &ffi::XIDeviceInfo) -> bool {
-        info._use == ffi::XISlaveKeyboard || info._use == ffi::XISlavePointer || info._use == ffi::XIFloatingSlave
+        info._use == ffi::XISlaveKeyboard
+            || info._use == ffi::XISlavePointer
+            || info._use == ffi::XIFloatingSlave
     }
 
     #[inline]
     fn classes(info: &ffi::XIDeviceInfo) -> &[*const ffi::XIAnyClassInfo] {
-        unsafe { slice::from_raw_parts(info.classes as *const *const ffi::XIAnyClassInfo, info.num_classes as usize) }
+        unsafe {
+            slice::from_raw_parts(
+                info.classes as *const *const ffi::XIAnyClassInfo,
+                info.num_classes as usize,
+            )
+        }
     }
 }

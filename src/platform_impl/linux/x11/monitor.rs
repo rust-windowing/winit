@@ -2,15 +2,16 @@ use std::os::raw::*;
 
 use parking_lot::Mutex;
 
-use dpi::{PhysicalPosition, PhysicalSize};
-use super::{util, XConnection, XError};
-use super::ffi::{
-    RRCrtcChangeNotifyMask,
-    RROutputPropertyNotifyMask,
-    RRScreenChangeNotifyMask,
-    True,
-    Window,
-    XRRScreenResources,
+use super::{
+    ffi::{
+        RRCrtcChangeNotifyMask, RROutputPropertyNotifyMask, RRScreenChangeNotifyMask, True, Window,
+        XRRScreenResources,
+    },
+    util, XConnection, XError,
+};
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    monitor::VideoMode,
 };
 
 // Used to test XRandR < 1.5 code path. This should always be committed as false.
@@ -56,6 +57,8 @@ pub struct MonitorHandle {
     pub(crate) hidpi_factor: f64,
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
+    /// Supported video modes on this monitor
+    video_modes: Vec<VideoMode>,
 }
 
 impl MonitorHandle {
@@ -66,8 +69,8 @@ impl MonitorHandle {
         repr: util::MonitorRepr,
         primary: bool,
     ) -> Option<Self> {
-        let (name, hidpi_factor) = unsafe { xconn.get_output_info(resources, &repr)? };
-        let (dimensions, position) = unsafe { (repr.dimensions(), repr.position()) };
+        let (name, hidpi_factor, video_modes) = unsafe { xconn.get_output_info(resources, &repr)? };
+        let (dimensions, position) = unsafe { (repr.size(), repr.position()) };
         let rect = util::AaRect::new(position, dimensions);
         Some(MonitorHandle {
             id,
@@ -77,6 +80,7 @@ impl MonitorHandle {
             position,
             primary,
             rect,
+            video_modes,
         })
     }
 
@@ -89,7 +93,7 @@ impl MonitorHandle {
         self.id as u32
     }
 
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         self.dimensions.into()
     }
 
@@ -100,6 +104,11 @@ impl MonitorHandle {
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
         self.hidpi_factor
+    }
+
+    #[inline]
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        self.video_modes.clone().into_iter()
     }
 }
 
@@ -151,7 +160,8 @@ impl XConnection {
                 // videowalls.
                 let xrandr_1_5 = self.xrandr_1_5.as_ref().unwrap();
                 let mut monitor_count = 0;
-                let monitors = (xrandr_1_5.XRRGetMonitors)(self.display, root, 1, &mut monitor_count);
+                let monitors =
+                    (xrandr_1_5.XRRGetMonitors)(self.display, root, 1, &mut monitor_count);
                 assert!(monitor_count >= 0);
                 available = Vec::with_capacity(monitor_count as usize);
                 for monitor_index in 0..monitor_count {
@@ -164,7 +174,8 @@ impl XConnection {
                         monitor_index as u32,
                         monitor.into(),
                         is_primary,
-                    ).map(|monitor_id| available.push(monitor_id));
+                    )
+                    .map(|monitor_id| available.push(monitor_id));
                 }
                 (xrandr_1_5.XRRFreeMonitors)(monitors);
             } else {
@@ -181,13 +192,8 @@ impl XConnection {
                         let crtc = util::MonitorRepr::from(crtc);
                         let is_primary = crtc.get_output() == primary;
                         has_primary |= is_primary;
-                        MonitorHandle::from_repr(
-                            self,
-                            resources,
-                            crtc_id as u32,
-                            crtc,
-                            is_primary,
-                        ).map(|monitor_id| available.push(monitor_id));
+                        MonitorHandle::from_repr(self, resources, crtc_id as u32, crtc, is_primary)
+                            .map(|monitor_id| available.push(monitor_id));
                     }
                     (self.xrandr.XRRFreeCrtcInfo)(crtc);
                 }
@@ -235,13 +241,8 @@ impl XConnection {
             if version_lock.is_none() {
                 let mut major = 0;
                 let mut minor = 0;
-                let has_extension = unsafe {
-                    (self.xrandr.XRRQueryVersion)(
-                        self.display,
-                        &mut major,
-                        &mut minor,
-                    )
-                };
+                let has_extension =
+                    unsafe { (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor) };
                 if has_extension != True {
                     panic!("[winit] XRandR extension not available.");
                 }
@@ -252,11 +253,7 @@ impl XConnection {
         let mut event_offset = 0;
         let mut error_offset = 0;
         let status = unsafe {
-            (self.xrandr.XRRQueryExtension)(
-                self.display,
-                &mut event_offset,
-                &mut error_offset,
-            )
+            (self.xrandr.XRRQueryExtension)(self.display, &mut event_offset, &mut error_offset)
         };
 
         if status != True {
@@ -264,9 +261,7 @@ impl XConnection {
             unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
         }
 
-        let mask = RRCrtcChangeNotifyMask
-            | RROutputPropertyNotifyMask
-            | RRScreenChangeNotifyMask;
+        let mask = RRCrtcChangeNotifyMask | RROutputPropertyNotifyMask | RRScreenChangeNotifyMask;
         unsafe { (self.xrandr.XRRSelectInput)(self.display, root, mask) };
 
         Ok(event_offset)

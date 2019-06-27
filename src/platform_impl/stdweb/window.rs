@@ -1,10 +1,10 @@
-use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use error::{ExternalError, NotSupportedError, OsError as RootOE};
-use event::{Event, WindowEvent};
-use icon::Icon;
-use platform::stdweb::WindowExtStdweb;
-use monitor::{MonitorHandle as RootMH};
-use window::{CursorIcon, Window as RootWindow, WindowAttributes, WindowId as RootWI};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
+use crate::event::{Event, WindowEvent};
+use crate::icon::Icon;
+use crate::platform::stdweb::WindowExtStdweb;
+use crate::monitor::{MonitorHandle as RootMH, VideoMode};
+use crate::window::{CursorIcon, Window as RootWindow, WindowAttributes, WindowId as RootWI};
 use super::{EventLoopWindowTarget, OsError, register};
 use std::collections::VecDeque;
 use std::collections::vec_deque::IntoIter as VecDequeIter;
@@ -36,6 +36,15 @@ impl MonitorHandle {
 
     pub fn name(&self) -> Option<String> {
         unimplemented!();
+    }
+
+    pub fn size(&self) -> PhysicalSize {
+        unimplemented!();
+    }
+
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        // TODO: is this possible ?
+        std::iter::empty()
     }
 }
 
