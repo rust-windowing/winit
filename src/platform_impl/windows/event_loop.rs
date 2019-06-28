@@ -893,7 +893,7 @@ unsafe extern "system" fn public_window_callback<T>(
                             ptr::null_mut(),
                             winuser::RDW_INTERNALPAINT,
                         );
-                    },
+                    }
                     _ => (),
                 }
             }
