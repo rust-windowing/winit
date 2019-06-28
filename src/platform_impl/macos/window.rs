@@ -24,7 +24,7 @@ use objc::{
 };
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{Position, PhysicalPosition, LogicalSize, PhysicalSize, Size, Size::Logical},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
@@ -428,27 +428,21 @@ impl UnownedWindow {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
 
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         let frame_rect = unsafe { NSWindow::frame(*self.ns_window) };
-        Ok((
-            frame_rect.origin.x as f64,
-            util::bottom_left_to_top_left(frame_rect),
-        )
-            .into())
+        Ok((frame_rect.origin.x as f64, util::bottom_left_to_top_left(frame_rect), ).into())
     }
 
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         let content_rect = unsafe {
             NSWindow::contentRectForFrameRect_(*self.ns_window, NSWindow::frame(*self.ns_window))
         };
-        Ok((
-            content_rect.origin.x as f64,
-            util::bottom_left_to_top_left(content_rect),
-        )
-            .into())
+        Ok((content_rect.origin.x as f64, util::bottom_left_to_top_left(content_rect), ).into())
     }
 
-    pub fn set_outer_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: Position) {
+        let dpi_factor = self.hidpi_factor();
+        let position = position.to_logical(dpi_factor);
         let dummy = NSRect::new(
             NSPoint::new(
                 position.x,
@@ -464,35 +458,46 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> PhysicalSize {
         let view_frame = unsafe { NSView::frame(*self.ns_view) };
-        (view_frame.size.width as f64, view_frame.size.height as f64).into()
+        let logical: LogicalSize =
+            (view_frame.size.width as f64, view_frame.size.height as f64).into();
+        let dpi_factor = self.hidpi_factor();
+        logical.to_physical(dpi_factor)
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize {
         let view_frame = unsafe { NSWindow::frame(*self.ns_window) };
-        (view_frame.size.width as f64, view_frame.size.height as f64).into()
+        let logical: LogicalSize =
+            (view_frame.size.width as f64, view_frame.size.height as f64).into();
+        let dpi_factor = self.hidpi_factor();
+        logical.to_physical(dpi_factor)
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
+    pub fn set_inner_size(&self, size: Size) {
         unsafe {
-            util::set_content_size_async(*self.ns_window, size);
+            let dpi_factor = self.hidpi_factor();
+            util::set_content_size_async(*self.ns_window, size.to_logical(dpi_factor));
         }
     }
 
-    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
         unsafe {
-            let dimensions = dimensions.unwrap_or_else(|| (0, 0).into());
-            set_min_inner_size(*self.ns_window, dimensions);
+            let dimensions =
+                dimensions.unwrap_or(Logical(LogicalSize { width: 0.0, height: 0.0 }));
+            let dpi_factor = self.hidpi_factor();
+            set_min_inner_size(*self.ns_window, dimensions.to_logical(dpi_factor));
         }
     }
 
-    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         unsafe {
-            let dimensions = dimensions.unwrap_or_else(|| (!0, !0).into());
-            set_max_inner_size(*self.ns_window, dimensions);
+            let dimensions =
+                dimensions.unwrap_or(Logical(LogicalSize { width: 0.0, height: 0.0 }));
+            let dpi_factor = self.hidpi_factor();
+            set_max_inner_size(*self.ns_window, dimensions.to_logical(dpi_factor));
         }
     }
 
@@ -558,12 +563,14 @@ impl UnownedWindow {
     #[inline]
     pub fn set_cursor_position(
         &self,
-        cursor_position: LogicalPosition,
+        cursor_position: Position,
     ) -> Result<(), ExternalError> {
         let window_position = self.inner_position().unwrap();
+        let dpi_factor = self.hidpi_factor();
+        let logical_cursor_position = cursor_position.to_logical(dpi_factor);
         let point = appkit::CGPoint {
-            x: (cursor_position.x + window_position.x) as CGFloat,
-            y: (cursor_position.y + window_position.y) as CGFloat,
+            x: (logical_cursor_position.x + window_position.x) as CGFloat,
+            y: (logical_cursor_position.y + window_position.y) as CGFloat,
         };
         CGDisplay::warp_mouse_cursor_position(point)
             .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
@@ -743,7 +750,9 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, logical_spot: LogicalPosition) {
+    pub fn set_ime_position(&self, spot: Position) {
+        let dpi_factor = self.hidpi_factor();
+        let logical_spot = spot.to_logical(dpi_factor);
         unsafe {
             view::set_ime_position(
                 *self.ns_view,
