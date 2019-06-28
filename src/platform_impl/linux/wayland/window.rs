@@ -279,7 +279,10 @@ impl Window {
     }
 
     pub fn set_minimized(&self, minimized: bool) {
-        unimplemented!();
+        // An app cannot un-minimize itself on Wayland
+        if minimized {
+            self.frame.lock().unwrap().set_minimized();
+        }
     }
 
     pub fn set_maximized(&self, maximized: bool) {
