@@ -271,7 +271,8 @@ impl Window {
                 winuser::SWP_ASYNCWINDOWPOS
                     | winuser::SWP_NOZORDER
                     | winuser::SWP_NOREPOSITION
-                    | winuser::SWP_NOMOVE,
+                    | winuser::SWP_NOMOVE
+                    | winuser::SWP_NOACTIVATE,
             );
             winuser::UpdateWindow(self.window.0);
         }

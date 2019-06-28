@@ -307,7 +307,9 @@ impl WindowFlags {
                             y,
                             w,
                             h,
-                            winuser::SWP_NOZORDER | winuser::SWP_FRAMECHANGED,
+                            winuser::SWP_NOZORDER
+                                | winuser::SWP_FRAMECHANGED
+                                | winuser::SWP_NOACTIVATE,
                         );
                     }
                     None => {
@@ -322,7 +324,8 @@ impl WindowFlags {
                             winuser::SWP_NOZORDER
                                 | winuser::SWP_NOMOVE
                                 | winuser::SWP_NOSIZE
-                                | winuser::SWP_FRAMECHANGED,
+                                | winuser::SWP_FRAMECHANGED
+                                | winuser::SWP_NOACTIVATE,
                         );
                     }
                 }

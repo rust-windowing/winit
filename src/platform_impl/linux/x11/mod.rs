@@ -295,11 +295,6 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
-            // flush the X11 connection
-            unsafe {
-                (wt.xconn.xlib.XFlush)(wt.xconn.display);
-            }
-
             match control_flow {
                 ControlFlow::Exit => break,
                 ControlFlow::Poll => {
