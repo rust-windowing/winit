@@ -199,7 +199,9 @@ impl FileDropHandler {
             let item_count = DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0);
 
             for i in 0..item_count {
-                // Get the length of the string NOT including the terminating null character
+                // Get the length of the path string NOT including the terminating null character.
+                // Previously, this was using a fixed size array of MAX_PATH length, but the
+                // Windows API allows longer paths under certain circumstances.
                 let character_count = DragQueryFileW(hdrop, i, ptr::null_mut(), 0) as usize;
                 let str_len = character_count + 1;
 
