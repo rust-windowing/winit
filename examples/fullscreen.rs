@@ -17,7 +17,7 @@ fn main() {
     let fullscreen = Some(match num {
         1 => Fullscreen::Exclusive(prompt_for_video_mode(&prompt_for_monitor(&event_loop))),
         2 => Fullscreen::Borderless(prompt_for_monitor(&event_loop)),
-        _ => unreachable!("Please enter a valid number"),
+        _ => panic!("Please enter a valid number"),
     });
 
     let mut is_maximized = false;
