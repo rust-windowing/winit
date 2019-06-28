@@ -4,14 +4,14 @@ use libc;
 use parking_lot::Mutex;
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
         x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
     },
-    window::{CursorIcon, Icon, WindowAttributes},
+    window::{CursorIcon, Icon, PositionHint, WindowAttributes},
 };
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
@@ -115,11 +115,14 @@ impl UnownedWindow {
             .min_inner_size
             .map(|size| size.to_physical(dpi_factor).into());
 
-        let position = window_attrs.outer_position.as_ref().map(|(monitor, pos)| {
-            let phys = monitor.relative_position(*pos);
-
-            (phys.x as u32, phys.y as u32)
-        });
+        let position = match &window_attrs.outer_position {
+            Some(PositionHint::Local(monitor, position)) => {
+                let phys = monitor.relative_position(*position);
+                Some((phys.x as u32, phys.y as u32))
+            }
+            Some(PositionHint::Global(position)) => Some((position.x as u32, position.y as u32)),
+            None => None,
+        };
 
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
@@ -410,9 +413,8 @@ impl UnownedWindow {
 
                 shared_state.fullscreen = window_attrs.fullscreen.clone();
 
-                if let Some((monitor, position)) = &window_attrs.outer_position {
-                    let phys = monitor.relative_position(*position);
-                    shared_state.restore_position = Some((phys.x as i32, phys.y as i32));
+                if let Some((x, y)) = position {
+                    shared_state.restore_position = Some((x as i32, y as i32));
                 }
 
                 window.invalidate_cached_frame_extents();
@@ -840,9 +842,13 @@ impl UnownedWindow {
     }
 
     pub(crate) fn set_position_physical(&self, x: i32, y: i32) {
-        self.set_position_inner(x, y)
-            .flush()
-            .expect("Failed to call `XMoveWindow`");
+        if self.fullscreen().is_some() {
+            self.shared_state.lock().restore_position = Some((x, y));
+        } else {
+            self.set_position_inner(x, y)
+                .flush()
+                .expect("Failed to call `XMoveWindow`");
+        }
     }
 
     #[inline]
@@ -852,11 +858,13 @@ impl UnownedWindow {
         let phys = monitor.relative_position(logical_position);
         let (x, y) = (phys.x as i32, phys.y as i32);
 
-        if self.fullscreen().is_some() {
-            self.shared_state.lock().restore_position = Some((x, y));
-        } else {
-            self.set_position_physical(x, y);
-        }
+        self.set_position_physical(x, y);
+    }
+
+    #[inline]
+    pub fn set_global_outer_position(&self, physical_position: PhysicalPosition) {
+        let (x, y) = (physical_position.x as i32, physical_position.y as i32);
+        self.set_position_physical(x, y);
     }
 
     pub(crate) fn inner_size_physical(&self) -> (u32, u32) {

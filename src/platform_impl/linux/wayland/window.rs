@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
@@ -221,6 +221,11 @@ impl Window {
 
     #[inline]
     pub fn set_outer_position(&self, _pos: LogicalPosition) {
+        // Not possible with wayland
+    }
+
+    #[inline]
+    pub fn set_global_outer_position(&self, _pos: PhysicalPosition) {
         // Not possible with wayland
     }
 

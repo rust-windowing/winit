@@ -214,6 +214,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_global_outer_position(&self, position: PhysicalPosition) {
+        match self {
+            &Window::X(ref w) => w.set_global_outer_position(position),
+            &Window::Wayland(ref w) => w.set_global_outer_position(position),
+        }
+    }
+
+    #[inline]
     pub fn inner_size(&self) -> LogicalSize {
         match self {
             &Window::X(ref w) => w.inner_size(),

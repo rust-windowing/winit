@@ -2,7 +2,7 @@
 use std::fmt;
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
     monitor::{AvailableMonitorsIter, MonitorHandle},
@@ -102,11 +102,11 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub max_inner_size: Option<LogicalSize>,
 
-    /// The desired monitor and position placement of the window. If `None`,
-    /// the position will be determined by the platform's window system.
+    /// The position of the window. If `None`, the position will be determined
+    /// by the platform's window system.
     ///
     /// The default is `None`.
-    pub outer_position: Option<(MonitorHandle, LogicalPosition)>,
+    pub outer_position: Option<PositionHint>,
 
     /// Whether the window is resizable or not.
     ///
@@ -219,7 +219,20 @@ impl WindowBuilder {
         monitor: MonitorHandle,
         position: LogicalPosition,
     ) -> WindowBuilder {
-        self.window.outer_position = Some((monitor, position));
+        self.window.outer_position = Some(PositionHint::Local(monitor, position));
+        self
+    }
+
+    /// Requests the window to be placed at a position in the display.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **X11**: Some window managers may ignore this hint.
+    ///
+    /// **Wayland**: This hint has no effect.
+    #[inline]
+    pub fn with_global_outer_position(mut self, position: PhysicalPosition) -> Self {
+        self.window.outer_position = Some(PositionHint::Global(position));
         self
     }
 
@@ -329,6 +342,15 @@ impl WindowBuilder {
         platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)
             .map(|window| Window { window })
     }
+}
+
+/// Position hint when creating a window.
+#[derive(Debug, Clone)]
+pub enum PositionHint {
+    /// Physical position in global screen space
+    Global(PhysicalPosition),
+    /// Logical position on a given monitor
+    Local(MonitorHandle, LogicalPosition),
 }
 
 /// Base Window functions.
@@ -443,6 +465,21 @@ impl Window {
     #[inline]
     pub fn set_outer_position(&self, position: LogicalPosition) {
         self.window.set_outer_position(position)
+    }
+
+    /// Modifies the position of the window.
+    ///
+    /// See `outer_position` for more information about the coordinates.
+    ///
+    /// This is a no-op if the window has already been closed.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
+    ///   window in the screen space coordinate system.
+    #[inline]
+    pub fn set_global_outer_position(&self, position: PhysicalPosition) {
+        self.window.set_global_outer_position(position)
     }
 
     /// Returns the logical size of the window's client area.
