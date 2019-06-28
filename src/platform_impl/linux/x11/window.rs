@@ -330,8 +330,9 @@ impl UnownedWindow {
                 (xconn.xlib.XSetWMProtocols)(
                     xconn.display,
                     window.xwindow,
-                    &event_loop.wm_delete_window as *const ffi::Atom as *mut ffi::Atom,
-                    1,
+                    &[event_loop.wm_delete_window, event_loop.net_wm_ping] as *const ffi::Atom
+                        as *mut ffi::Atom,
+                    2,
                 );
             } //.queue();
 

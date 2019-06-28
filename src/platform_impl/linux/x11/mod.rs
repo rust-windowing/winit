@@ -46,6 +46,7 @@ use crate::{
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
+    net_wm_ping: ffi::Atom,
     ime_sender: ImeSender,
     root: ffi::Window,
     ime: RefCell<Ime>,
@@ -74,6 +75,8 @@ impl<T: 'static> EventLoop<T> {
         let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
 
         let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
+
+        let net_wm_ping = unsafe { xconn.get_atom_unchecked(b"_NET_WM_PING\0") };
 
         let dnd = Dnd::new(Arc::clone(&xconn))
             .expect("Failed to call XInternAtoms when initializing drag and drop");
@@ -142,6 +145,7 @@ impl<T: 'static> EventLoop<T> {
                 ime_sender,
                 xconn,
                 wm_delete_window,
+                net_wm_ping,
                 pending_redraws: Default::default(),
             }),
             _marker: ::std::marker::PhantomData,
