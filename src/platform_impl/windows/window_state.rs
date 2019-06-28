@@ -275,20 +275,20 @@ impl WindowFlags {
                 winuser::SetWindowLongW(window, winuser::GWL_STYLE, style as _);
                 winuser::SetWindowLongW(window, winuser::GWL_EXSTYLE, style_ex as _);
 
-                // Refresh the window frame.
-                winuser::SetWindowPos(
-                    window,
-                    ptr::null_mut(),
-                    0,
-                    0,
-                    0,
-                    0,
-                    winuser::SWP_NOZORDER
-                        | winuser::SWP_NOMOVE
-                        | winuser::SWP_NOSIZE
-                        | winuser::SWP_FRAMECHANGED
-                        | winuser::SWP_NOACTIVATE,
-                );
+                let mut flags = winuser::SWP_NOZORDER
+                    | winuser::SWP_NOMOVE
+                    | winuser::SWP_NOSIZE
+                    | winuser::SWP_FRAMECHANGED;
+
+                // We generally don't want style changes here to affect window
+                // focus, but for fullscreen windows they must be activated
+                // (i.e. focused) so that they appear on top of the taskbar
+                if !new.contains(WindowFlags::MARKER_FULLSCREEN) {
+                    flags |= winuser::SWP_NOACTIVATE;
+                }
+
+                // Refresh the window frame
+                winuser::SetWindowPos(window, ptr::null_mut(), 0, 0, 0, 0, flags);
                 winuser::SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 0, 0);
             }
         }
