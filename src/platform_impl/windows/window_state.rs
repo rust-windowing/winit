@@ -76,6 +76,8 @@ bitflags! {
         /// window's state to match our stored state. This controls whether to accept those changes.
         const MARKER_RETAIN_STATE_ON_SIZE = 1 << 10;
 
+        const MINIMIZED = 1 << 11;
+
         const FULLSCREEN_AND_MASK = !(
             WindowFlags::DECORATIONS.bits |
             WindowFlags::RESIZABLE.bits |
@@ -220,6 +222,9 @@ impl WindowFlags {
         if self.contains(WindowFlags::CHILD) {
             style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
         }
+        if self.contains(WindowFlags::MINIMIZED) {
+            style |= WS_MINIMIZE;
+        }
         if self.contains(WindowFlags::MAXIMIZED) {
             style |= WS_MAXIMIZE;
         }
@@ -266,6 +271,18 @@ impl WindowFlags {
                     winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOMOVE | winuser::SWP_NOSIZE,
                 );
                 winuser::UpdateWindow(window);
+            }
+        }
+
+        if diff.contains(WindowFlags::MINIMIZED) || new.contains(WindowFlags::MINIMIZED) {
+            unsafe {
+                winuser::ShowWindow(
+                    window,
+                    match new.contains(WindowFlags::MINIMIZED) {
+                        true => winuser::SW_MINIMIZE,
+                        false => winuser::SW_RESTORE,
+                    },
+                );
             }
         }
 

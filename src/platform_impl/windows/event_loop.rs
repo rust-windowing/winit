@@ -972,6 +972,22 @@ unsafe extern "system" fn public_window_callback<T>(
         // other unwanted default hotkeys as well.
         winuser::WM_SYSCHAR => 0,
 
+        // this is necessary for us to maintain minimize/restore state
+        winuser::WM_SYSCOMMAND => {
+            if wparam == winuser::SC_RESTORE {
+                println!("We restored");
+                let mut w = subclass_input.window_state.lock();
+                w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, false));
+            }
+            if wparam == winuser::SC_MINIMIZE {
+                println!("We minimized");
+                let mut w = subclass_input.window_state.lock();
+                w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, true));
+            }
+            // Send `WindowEvent::Minimized` here if we decide to implement one
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
+        }
+
         winuser::WM_MOUSEMOVE => {
             use crate::event::WindowEvent::{CursorEntered, CursorMoved};
             let mouse_was_outside_window = {
