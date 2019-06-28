@@ -131,6 +131,16 @@ impl<T: 'static> EventProcessor<T> {
                         window_id,
                         event: WindowEvent::CloseRequested,
                     });
+                } else if client_msg.data.get_long(0) as ffi::Atom == wt.net_wm_ping {
+                    let response_msg: &mut ffi::XClientMessageEvent = xev.as_mut();
+                    response_msg.window = wt.root;
+                    wt.xconn
+                        .send_event(
+                            wt.root,
+                            Some(ffi::SubstructureNotifyMask | ffi::SubstructureRedirectMask),
+                            *response_msg,
+                        )
+                        .queue();
                 } else if client_msg.message_type == self.dnd.atoms.enter {
                     let source_window = client_msg.data.get_long(0) as c_ulong;
                     let flags = client_msg.data.get_long(1);
