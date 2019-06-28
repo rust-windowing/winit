@@ -24,7 +24,7 @@ use objc::{
 };
 
 use crate::{
-    dpi::{Position, PhysicalPosition, LogicalSize, PhysicalSize, Size, Size::Logical},
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
@@ -125,12 +125,12 @@ fn create_window(
                 // Not sure what dpi_factor we need here.
                 // If i understand correctly, here we fail to create NSScreen frame, so we've got
                 // no dpi_factor
-                let hidpi_factor =  1.0;
+                let hidpi_factor = 1.0;
                 let (width, height) = match attrs.inner_size {
                     Some(size) => {
                         let logical = size.to_logical(hidpi_factor);
                         (logical.width, logical.height)
-                    },
+                    }
                     None => (800.0, 600.0),
                 };
                 NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height))
@@ -323,18 +323,14 @@ impl UnownedWindow {
 
             ns_app.activateIgnoringOtherApps_(YES);
             let dpi_factor = NSWindow::backingScaleFactor(*ns_window) as f64;
-            win_attribs
-                .min_inner_size
-                .map(|dim| {
-                    let logical_dim = dim.to_logical(dpi_factor);
-                    set_min_inner_size(*ns_window, logical_dim)
-                });
-            win_attribs
-                .max_inner_size
-                .map(|dim| {
-                    let logical_dim = dim.to_logical(dpi_factor);
-                    set_max_inner_size(*ns_window, logical_dim)
-                });
+            win_attribs.min_inner_size.map(|dim| {
+                let logical_dim = dim.to_logical(dpi_factor);
+                set_min_inner_size(*ns_window, logical_dim)
+            });
+            win_attribs.max_inner_size.map(|dim| {
+                let logical_dim = dim.to_logical(dpi_factor);
+                set_max_inner_size(*ns_window, logical_dim)
+            });
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
@@ -430,14 +426,22 @@ impl UnownedWindow {
 
     pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         let frame_rect = unsafe { NSWindow::frame(*self.ns_window) };
-        Ok((frame_rect.origin.x as f64, util::bottom_left_to_top_left(frame_rect), ).into())
+        Ok((
+            frame_rect.origin.x as f64,
+            util::bottom_left_to_top_left(frame_rect),
+        )
+            .into())
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         let content_rect = unsafe {
             NSWindow::contentRectForFrameRect_(*self.ns_window, NSWindow::frame(*self.ns_window))
         };
-        Ok((content_rect.origin.x as f64, util::bottom_left_to_top_left(content_rect), ).into())
+        Ok((
+            content_rect.origin.x as f64,
+            util::bottom_left_to_top_left(content_rect),
+        )
+            .into())
     }
 
     pub fn set_outer_position(&self, position: Position) {
@@ -485,8 +489,10 @@ impl UnownedWindow {
 
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
         unsafe {
-            let dimensions =
-                dimensions.unwrap_or(Logical(LogicalSize { width: 0.0, height: 0.0 }));
+            let dimensions = dimensions.unwrap_or(Logical(LogicalSize {
+                width: 0.0,
+                height: 0.0,
+            }));
             let dpi_factor = self.hidpi_factor();
             set_min_inner_size(*self.ns_window, dimensions.to_logical(dpi_factor));
         }
@@ -494,8 +500,10 @@ impl UnownedWindow {
 
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         unsafe {
-            let dimensions =
-                dimensions.unwrap_or(Logical(LogicalSize { width: 0.0, height: 0.0 }));
+            let dimensions = dimensions.unwrap_or(Logical(LogicalSize {
+                width: 0.0,
+                height: 0.0,
+            }));
             let dpi_factor = self.hidpi_factor();
             set_max_inner_size(*self.ns_window, dimensions.to_logical(dpi_factor));
         }
@@ -561,10 +569,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_position(
-        &self,
-        cursor_position: Position,
-    ) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), ExternalError> {
         let window_position = self.inner_position().unwrap();
         let dpi_factor = self.hidpi_factor();
         let logical_cursor_position = cursor_position.to_logical(dpi_factor);

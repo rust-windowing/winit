@@ -15,7 +15,7 @@ use objc::{
 };
 
 use crate::{
-    dpi::{ LogicalSize, PhysicalSize },
+    dpi::{LogicalSize, PhysicalSize},
     event::{Event, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
@@ -59,9 +59,14 @@ impl<'a> WindowDelegateState {
         };
 
         if hidpi_factor != 1.0 {
-            delegate_state.emit_event(WindowEvent::HiDpiFactorChanged {
-                hidpi_factor, new_inner_size: &mut Some(window.inner_size())
-            }.to_static().unwrap());
+            delegate_state.emit_event(
+                WindowEvent::HiDpiFactorChanged {
+                    hidpi_factor,
+                    new_inner_size: &mut Some(window.inner_size()),
+                }
+                .to_static()
+                .unwrap(),
+            );
             delegate_state.emit_resize_event();
         }
 
@@ -287,9 +292,14 @@ extern "C" fn window_did_change_screen(this: &Object, _: Sel, _: id) {
         let ns_size = unsafe { NSWindow::contentSize(*state.ns_window) };
         if state.previous_dpi_factor != hidpi_factor {
             state.previous_dpi_factor = hidpi_factor;
-            state.emit_event(WindowEvent::HiDpiFactorChanged {
-                hidpi_factor, new_inner_size: &mut Some(inner_size(ns_size, hidpi_factor))
-            }.to_static().unwrap());
+            state.emit_event(
+                WindowEvent::HiDpiFactorChanged {
+                    hidpi_factor,
+                    new_inner_size: &mut Some(inner_size(ns_size, hidpi_factor)),
+                }
+                .to_static()
+                .unwrap(),
+            );
             state.emit_resize_event();
         }
     });
@@ -304,9 +314,14 @@ extern "C" fn window_did_change_backing_properties(this: &Object, _: Sel, _: id)
         let ns_size = unsafe { NSWindow::contentSize(*state.ns_window) };
         if state.previous_dpi_factor != hidpi_factor {
             state.previous_dpi_factor = hidpi_factor;
-            state.emit_event(WindowEvent::HiDpiFactorChanged {
-                hidpi_factor, new_inner_size:  &mut Some(inner_size(ns_size, hidpi_factor))
-            }.to_static().unwrap());
+            state.emit_event(
+                WindowEvent::HiDpiFactorChanged {
+                    hidpi_factor,
+                    new_inner_size: &mut Some(inner_size(ns_size, hidpi_factor)),
+                }
+                .to_static()
+                .unwrap(),
+            );
             state.emit_resize_event();
         }
     });
