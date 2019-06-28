@@ -30,6 +30,9 @@ pub struct WindowState {
     pub dpi_factor: f64,
 
     pub fullscreen: Option<MonitorHandle>,
+    /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
+    /// times in `EventsCleared`.
+    pub queued_out_of_band_redraw: bool,
     window_flags: WindowFlags,
 }
 
@@ -110,6 +113,7 @@ impl WindowState {
             dpi_factor,
 
             fullscreen: None,
+            queued_out_of_band_redraw: false,
             window_flags: WindowFlags::empty(),
         }
     }

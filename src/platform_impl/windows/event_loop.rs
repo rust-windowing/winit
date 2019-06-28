@@ -871,12 +871,12 @@ unsafe extern "system" fn public_window_callback<T>(
         _ if msg == *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID => {
             use crate::event::WindowEvent::RedrawRequested;
             let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
+            subclass_input.window_state.lock().queued_out_of_band_redraw = false;
             if let Some(ref mut runner) = *runner {
                 // This check makes sure that calls to `request_redraw()` during `EventsCleared`
                 // handling dispatch `RedrawRequested` immediately after `EventsCleared`, without
                 // spinning up a new event loop iteration. We do this because that's what the API
                 // says to do.
-                let control_flow = runner.control_flow;
                 let runner_state = runner.runner_state;
                 let mut request_redraw = || {
                     runner.call_event_handler(Event::WindowEvent {
@@ -886,14 +886,13 @@ unsafe extern "system" fn public_window_callback<T>(
                 };
                 match runner_state {
                     RunnerState::Idle(..) | RunnerState::DeferredNewEvents(..) => request_redraw(),
-                    RunnerState::HandlingEvents => match control_flow {
-                        ControlFlow::Poll => request_redraw(),
-                        ControlFlow::WaitUntil(resume_time) => {
-                            if resume_time <= Instant::now() {
-                                request_redraw()
-                            }
-                        }
-                        _ => (),
+                    RunnerState::HandlingEvents => {
+                        winuser::RedrawWindow(
+                            window,
+                            ptr::null(),
+                            ptr::null_mut(),
+                            winuser::RDW_INTERNALPAINT,
+                        );
                     },
                     _ => (),
                 }
