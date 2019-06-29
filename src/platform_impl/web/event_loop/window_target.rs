@@ -126,7 +126,7 @@ impl<T> WindowTarget<T> {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::MouseInput {
                     device_id: DeviceId(device::Id(pointer_id)),
-                    state: ElementState::Released,
+                    state: ElementState::Pressed,
                     button,
                     modifiers,
                 },
@@ -139,7 +139,7 @@ impl<T> WindowTarget<T> {
                 window_id: WindowId(window::Id),
                 event: WindowEvent::MouseInput {
                     device_id: DeviceId(device::Id(pointer_id)),
-                    state: ElementState::Pressed,
+                    state: ElementState::Released,
                     button,
                     modifiers,
                 },
