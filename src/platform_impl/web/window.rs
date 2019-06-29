@@ -169,7 +169,8 @@ impl Window {
             CursorIcon::RowResize => "row-resize",
         };
         *self.previous_pointer.borrow_mut() = text;
-        self.canvas.set_attribute("cursor", text);
+        self.canvas
+            .set_attribute("style", &format!("cursor: {}", text));
     }
 
     #[inline]
