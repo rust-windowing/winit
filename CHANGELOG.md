@@ -1,5 +1,6 @@
 # Unreleased
 
+- On X11, non-resizable windows now have maximize explicitly disabled.
 - On Windows, support paths longer than MAX_PATH (260 characters) in `WindowEvent::DroppedFile`
 and `WindowEvent::HoveredFile`.
 - On Mac, implement `DeviceEvent::Button`.

@@ -667,20 +667,11 @@ impl UnownedWindow {
     }
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
-        let wm_hints = unsafe { self.xconn.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
-        self.xconn.change_property(
-            self.xwindow,
-            wm_hints,
-            wm_hints,
-            util::PropMode::Replace,
-            &[
-                util::MWM_HINTS_DECORATIONS, // flags
-                0,                           // functions
-                decorations as c_ulong,      // decorations
-                0,                           // input mode
-                0,                           // status
-            ],
-        )
+        let mut hints = self.xconn.get_motif_hints(self.xwindow);
+
+        hints.set_decorations(decorations);
+
+        self.xconn.set_motif_hints(self.xwindow, &hints)
     }
 
     #[inline]
@@ -689,6 +680,14 @@ impl UnownedWindow {
             .flush()
             .expect("Failed to set decoration state");
         self.invalidate_cached_frame_extents();
+    }
+
+    fn set_maximizable_inner(&self, maximizable: bool) -> util::Flusher<'_> {
+        let mut hints = self.xconn.get_motif_hints(self.xwindow);
+
+        hints.set_maximizable(maximizable);
+
+        self.xconn.set_motif_hints(self.xwindow, &hints)
     }
 
     fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher<'_> {
@@ -984,6 +983,8 @@ impl UnownedWindow {
             let window_size = Some(self.inner_size());
             (window_size.clone(), window_size)
         };
+
+        self.set_maximizable_inner(resizable).queue();
 
         let dpi_factor = self.hidpi_factor();
         let min_inner_size = logical_min
