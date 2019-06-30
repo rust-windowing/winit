@@ -24,7 +24,9 @@ use objc::{
 };
 
 use crate::{
-    dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical},
+    dpi::{
+        LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
+    },
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
@@ -426,22 +428,24 @@ impl UnownedWindow {
 
     pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         let frame_rect = unsafe { NSWindow::frame(*self.ns_window) };
-        Ok((
+        let position = LogicalPosition::new(
             frame_rect.origin.x as f64,
             util::bottom_left_to_top_left(frame_rect),
-        )
-            .into())
+        );
+        let dpi_factor = self.hidpi_factor();
+        Ok(position.to_physical(dpi_factor))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         let content_rect = unsafe {
             NSWindow::contentRectForFrameRect_(*self.ns_window, NSWindow::frame(*self.ns_window))
         };
-        Ok((
+        let position = LogicalPosition::new(
             content_rect.origin.x as f64,
             util::bottom_left_to_top_left(content_rect),
-        )
-            .into())
+        );
+        let dpi_factor = self.hidpi_factor();
+        Ok(position.to_physical(dpi_factor))
     }
 
     pub fn set_outer_position(&self, position: Position) {
@@ -570,8 +574,9 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), ExternalError> {
-        let window_position = self.inner_position().unwrap();
+        let physical_window_position = self.inner_position().unwrap();
         let dpi_factor = self.hidpi_factor();
+        let window_position = physical_window_position.to_logical(dpi_factor);
         let logical_cursor_position = cursor_position.to_logical(dpi_factor);
         let point = appkit::CGPoint {
             x: (logical_cursor_position.x + window_position.x) as CGFloat,
