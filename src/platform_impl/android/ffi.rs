@@ -22,19 +22,25 @@ pub type AAssetManager = raw::c_void;
 pub type ANativeWindow = raw::c_void;
 
 extern "C" {
-    pub fn ANativeWindow_getHeight(window: *const ANativeWindow) -> libc::int32_t;
-    pub fn ANativeWindow_getWidth(window: *const ANativeWindow) -> libc::int32_t;
+    pub fn ANativeWindow_getHeight(window: *const ANativeWindow) -> i32;
+    pub fn ANativeWindow_getWidth(window: *const ANativeWindow) -> i32;
 }
 
 /**
  ** native_activity.h
  **/
-pub type JavaVM = ();
-pub type JNIEnv = ();
+pub type JavaVM = raw::c_void;
+pub type JNIEnv = raw::c_void;
 pub type jobject = *const libc::c_void;
 
-pub type AInputQueue = (); // FIXME: wrong
-pub type ARect = (); // FIXME: wrong
+#[repr(C)]
+pub struct AInputQueue {
+    _opaque: (),
+}
+#[repr(C)]
+pub struct ARect {
+    _opaque: (),
+}
 
 #[repr(C)]
 pub struct ANativeActivity {
@@ -44,7 +50,7 @@ pub struct ANativeActivity {
     pub clazz: jobject,
     pub internalDataPath: *const libc::c_char,
     pub externalDataPath: *const libc::c_char,
-    pub sdkVersion: libc::int32_t,
+    pub sdkVersion: i32,
     pub instance: *mut libc::c_void,
     pub assetManager: *mut AAssetManager,
     pub obbPath: *const libc::c_char,
@@ -73,7 +79,7 @@ pub struct ANativeActivityCallbacks {
 /**
  ** looper.h
  **/
-pub type ALooper = ();
+pub type ALooper = raw::c_void;
 
 #[link(name = "android")]
 extern "C" {
@@ -120,3 +126,7 @@ pub const ALOOPER_EVENT_INVALID: libc::c_int = 1 << 4;
 
 pub type ALooper_callbackFunc =
     extern "C" fn(libc::c_int, libc::c_int, *mut libc::c_void) -> libc::c_int;
+
+extern "C" {
+    pub fn pthread_exit() -> !;
+}

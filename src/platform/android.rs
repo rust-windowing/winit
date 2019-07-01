@@ -1,8 +1,5 @@
 #![cfg(any(target_os = "android"))]
-
-use crate::{EventLoop, Window, WindowBuilder};
-use std::os::raw::c_void;
-
+/*
 /// Additional methods on `EventLoop` that are specific to Android.
 pub trait EventLoopExtAndroid {
     /// Makes it possible for glutin to register a callback when a suspend event happens on Android
@@ -31,3 +28,4 @@ impl WindowExtAndroid for Window {
 pub trait WindowBuilderExtAndroid {}
 
 impl WindowBuilderExtAndroid for WindowBuilder {}
+*/

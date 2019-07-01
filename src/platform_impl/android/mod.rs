@@ -1,171 +1,240 @@
 #![cfg(target_os = "android")]
 
-extern crate android_glue;
-
 mod ffi;
 
-use std::{
-    cell::RefCell,
-    collections::VecDeque,
-    fmt,
-    os::raw::c_void,
-    sync::mpsc::{channel, Receiver},
-};
+use std::collections::VecDeque;
+use std::fmt::{Display, Formatter};
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::Instant;
 
-use crate::{
-    error::{ExternalError, NotSupportedError},
-    events::{Touch, TouchPhase},
-    window::MonitorHandle as RootMonitorHandle,
-    CreationError, CursorIcon, Event, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize,
-    WindowAttributes, WindowEvent, WindowId as RootWindowId,
-};
-use CreationError::OsError;
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use crate::error;
+use crate::event;
+use crate::event_loop::{self, ControlFlow};
+use crate::monitor;
+use crate::window;
 
-pub type OsError = std::io::Error;
+// TODO: move native event parsing to Winit
+// Avoid android_glue::Event entirely, go AInputEvent* directly to winit::event::Event<T>
+pub struct EventLoop<T: 'static> {
+    window_target: event_loop::EventLoopWindowTarget<T>,
+    rx: mpsc::Receiver<android_glue::Event>,
+    user_queue: Arc<Mutex<VecDeque<T>>>,
+}
 
-pub struct EventLoop {
-    event_rx: Receiver<android_glue::Event>,
-    suspend_callback: RefCell<Option<Box<dyn Fn(bool) -> ()>>>,
+impl<T: 'static> EventLoop<T> {
+    pub fn new() -> Self {
+        let (tx, rx) = mpsc::channel();
+        android_glue::add_sender(tx.clone());
+        Self {
+            window_target: event_loop::EventLoopWindowTarget {
+                p: EventLoopWindowTarget {
+                    tx,
+                    _marker: std::marker::PhantomData,
+                },
+                _marker: std::marker::PhantomData,
+            },
+            rx,
+            user_queue: Arc::new(Mutex::new(VecDeque::new())),
+        }
+    }
+
+    // Returns true if it received a `Destroy` event
+    fn do_event<F>(
+        &self,
+        glue_event: android_glue::Event,
+        mut event_handler: F,
+        cf: &mut ControlFlow,
+    ) where
+        F: FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+        if let Some(event) = self.glue_event_to_event(glue_event) {
+            event_handler(event, self.window_target(), cf);
+
+            // Ugly because android_glue::Event doesn't impl Eq
+            match glue_event {
+                android_glue::Event::Destroy => self.gracefully_exit(),
+                _ => (),
+            }
+        }
+    }
+
+    /// Used when the event loop is destroyed
+    fn gracefully_exit(&self) -> ! {
+        unsafe { ffi::pthread_exit() }
+    }
+
+    pub fn run<F>(self, mut event_handler: F) -> !
+    where
+        F: 'static
+            + FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+        let mut cf = ControlFlow::default();
+
+        let mut start_cause = event::StartCause::Init;
+        let mut first_event = None;
+
+        loop {
+            event_handler(
+                event::Event::NewEvents(start_cause),
+                self.window_target(),
+                &mut cf,
+            );
+            if let Some(glue_event) = first_event.take() {
+                self.do_event(glue_event, &mut event_handler, &mut cf);
+            }
+            for glue_event in self.rx.try_iter() {
+                self.do_event(glue_event, &mut event_handler, &mut cf);
+            }
+            event_handler(event::Event::EventsCleared, self.window_target(), &mut cf);
+
+            if cf == ControlFlow::Exit {
+                // This should not happen...
+                cf = ControlFlow::default();
+            }
+
+            match cf {
+                ControlFlow::Exit => unreachable!(),
+                ControlFlow::Poll => {
+                    start_cause = event::StartCause::Poll;
+                }
+                ControlFlow::Wait => {
+                    start_cause = event::StartCause::WaitCancelled {
+                        start: Instant::now(),
+                        requested_resume: None,
+                    };
+                    first_event = Some(loop {
+                        let e = self.rx.recv().unwrap();
+                        if self.glue_event_to_event(e).is_some() {
+                            break e;
+                        }
+                    });
+                }
+                ControlFlow::WaitUntil(instant) => {
+                    let start = Instant::now();
+                    loop {
+                        let now = Instant::now();
+                        match self.rx.recv_timeout(instant - now) {
+                            Ok(e) => {
+                                first_event = Some(e);
+                                start_cause = event::StartCause::WaitCancelled {
+                                    start,
+                                    requested_resume: Some(instant),
+                                };
+                                if self.glue_event_to_event(e).is_some() {
+                                    break;
+                                }
+                            }
+                            Err(_) => {
+                                start_cause = event::StartCause::ResumeTimeReached {
+                                    start,
+                                    requested_resume: instant,
+                                };
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {
+        &self.window_target
+    }
+
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        unsafe { MonitorHandle(android_glue::get_native_window() as *const _) }
+    }
+
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        let mut v = VecDeque::with_capacity(1);
+        v.push_back(self.primary_monitor());
+        v
+    }
+
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+        EventLoopProxy {
+            tx: self.window_target().p.tx.clone(),
+            queue: self.user_queue.clone(),
+        }
+    }
+
+    fn glue_event_to_event(&self, glue_event: android_glue::Event) -> Option<event::Event<T>> {
+        let window_id = crate::window::WindowId(WindowId);
+        let device_id = event::DeviceId(DeviceId);
+
+        match glue_event {
+            android_glue::Event::EventMotion(motion_event) => Some(event::Event::WindowEvent {
+                window_id,
+                event: event::WindowEvent::Touch(event::Touch {
+                    device_id,
+                    phase: match motion_event.action {
+                        android_glue::MotionAction::Down => event::TouchPhase::Started,
+                        android_glue::MotionAction::Up => event::TouchPhase::Ended,
+                        android_glue::MotionAction::Move => event::TouchPhase::Moved,
+                        android_glue::MotionAction::Cancel => event::TouchPhase::Cancelled,
+                    },
+                    location: crate::dpi::LogicalPosition::from_physical(
+                        (motion_event.x as f64, motion_event.y as f64),
+                        self.get_dpi_factor(),
+                    ),
+                    id: motion_event.pointer_id as u64,
+                }),
+            }),
+            android_glue::Event::User => Some(event::Event::UserEvent(
+                self.user_queue.lock().unwrap().pop_front().unwrap(),
+            )),
+            android_glue::Event::Start => None,
+            android_glue::Event::Pause => None,
+            android_glue::Event::Resume => None,
+            android_glue::Event::Stop => None,
+            android_glue::Event::Destroy => Some(event::Event::LoopDestroyed),
+            android_glue::Event::SaveState => None, // TODO save the state now
+            android_glue::Event::LostFocus => Some(event::Event::WindowEvent {
+                window_id: window::WindowId(WindowId),
+                event: event::WindowEvent::Focused(false),
+            }),
+            android_glue::Event::GainedFocus => Some(event::Event::WindowEvent {
+                window_id: window::WindowId(WindowId),
+                event: event::WindowEvent::Focused(true),
+            }),
+            android_glue::Event::ConfigChanged => None, // TODO maybe notify HiDPI changed and/or resized
+            _ => None,
+        }
+    }
+
+    // FIXME this is not true
+    fn get_dpi_factor(&self) -> f64 {
+        1.
+    }
 }
 
 #[derive(Clone)]
-pub struct EventLoopProxy;
+pub struct EventLoopProxy<T: 'static> {
+    tx: mpsc::Sender<android_glue::Event>,
+    queue: Arc<Mutex<VecDeque<T>>>,
+}
 
-impl EventLoop {
-    pub fn new() -> EventLoop {
-        let (tx, rx) = channel();
-        android_glue::add_sender(tx);
-        EventLoop {
-            event_rx: rx,
-            suspend_callback: Default::default(),
-        }
-    }
-
-    #[inline]
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        let mut rb = VecDeque::with_capacity(1);
-        rb.push_back(MonitorHandle);
-        rb
-    }
-
-    #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle
-    }
-
-    pub fn poll_events<F>(&mut self, mut callback: F)
-    where
-        F: FnMut(::Event),
-    {
-        while let Ok(event) = self.event_rx.try_recv() {
-            let e = match event {
-                android_glue::Event::EventMotion(motion) => {
-                    let dpi_factor = MonitorHandle.hidpi_factor();
-                    let location = LogicalPosition::from_physical(
-                        (motion.x as f64, motion.y as f64),
-                        dpi_factor,
-                    );
-                    Some(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId),
-                        event: WindowEvent::Touch(Touch {
-                            phase: match motion.action {
-                                android_glue::MotionAction::Down => TouchPhase::Started,
-                                android_glue::MotionAction::Move => TouchPhase::Moved,
-                                android_glue::MotionAction::Up => TouchPhase::Ended,
-                                android_glue::MotionAction::Cancel => TouchPhase::Cancelled,
-                            },
-                            location,
-                            id: motion.pointer_id as u64,
-                            device_id: DEVICE_ID,
-                        }),
-                    })
-                }
-                android_glue::Event::InitWindow => {
-                    // The activity went to foreground.
-                    if let Some(cb) = self.suspend_callback.borrow().as_ref() {
-                        (*cb)(false);
-                    }
-                    Some(Event::Resumed)
-                }
-                android_glue::Event::TermWindow => {
-                    // The activity went to background.
-                    if let Some(cb) = self.suspend_callback.borrow().as_ref() {
-                        (*cb)(true);
-                    }
-                    Some(Event::Suspended)
-                }
-                android_glue::Event::WindowResized | android_glue::Event::ConfigChanged => {
-                    // Activity Orientation changed or resized.
-                    let native_window = unsafe { android_glue::native_window() };
-                    if native_window.is_null() {
-                        None
-                    } else {
-                        let dpi_factor = MonitorHandle.hidpi_factor();
-                        let physical_size = MonitorHandle.size();
-                        let size = LogicalSize::from_physical(physical_size, dpi_factor);
-                        Some(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId),
-                            event: WindowEvent::Resized(size),
-                        })
-                    }
-                }
-                android_glue::Event::WindowRedrawNeeded => {
-                    // The activity needs to be redrawn.
-                    Some(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId),
-                        event: WindowEvent::Redraw,
-                    })
-                }
-                android_glue::Event::Wake => Some(Event::Awakened),
-                _ => None,
-            };
-
-            if let Some(event) = e {
-                callback(event);
-            }
-        }
-    }
-
-    pub fn set_suspend_callback(&self, cb: Option<Box<dyn Fn(bool) -> ()>>) {
-        *self.suspend_callback.borrow_mut() = cb;
-    }
-
-    pub fn run_forever<F>(&mut self, mut callback: F)
-    where
-        F: FnMut(::Event) -> ::ControlFlow,
-    {
-        // Yeah that's a very bad implementation.
-        loop {
-            let mut control_flow = ::ControlFlow::Continue;
-            self.poll_events(|e| {
-                if let ::ControlFlow::Break = callback(e) {
-                    control_flow = ::ControlFlow::Break;
-                }
-            });
-            if let ::ControlFlow::Break = control_flow {
-                break;
-            }
-            ::std::thread::sleep(::std::time::Duration::from_millis(5));
-        }
-    }
-
-    pub fn create_proxy(&self) -> EventLoopProxy {
-        EventLoopProxy
+impl<T> EventLoopProxy<T> {
+    pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed> {
+        self.queue.lock().unwrap().push_back(event);
+        self.tx
+            .send(android_glue::Event::User)
+            .map_err(|_| event_loop::EventLoopClosed)
     }
 }
 
-impl EventLoopProxy {
-    pub fn wakeup(&self) -> Result<(), ::EventLoopClosed> {
-        android_glue::wake_event_loop();
-        Ok(())
-    }
+pub struct EventLoopWindowTarget<T: 'static> {
+    tx: mpsc::Sender<android_glue::Event>,
+    _marker: std::marker::PhantomData<T>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId;
 
 impl WindowId {
-    pub unsafe fn dummy() -> Self {
+    pub fn dummy() -> Self {
         WindowId
     }
 }
@@ -174,256 +243,217 @@ impl WindowId {
 pub struct DeviceId;
 
 impl DeviceId {
-    pub unsafe fn dummy() -> Self {
+    pub fn dummy() -> Self {
         DeviceId
     }
 }
 
-pub struct Window {
-    native_window: *const c_void,
-}
-
-#[derive(Clone)]
-pub struct MonitorHandle;
-
-impl fmt::Debug for MonitorHandle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        #[derive(Debug)]
-        struct MonitorHandle {
-            name: Option<String>,
-            dimensions: PhysicalSize,
-            position: PhysicalPosition,
-            hidpi_factor: f64,
-        }
-
-        let monitor_id_proxy = MonitorHandle {
-            name: self.name(),
-            dimensions: self.size(),
-            position: self.outer_position(),
-            hidpi_factor: self.hidpi_factor(),
-        };
-
-        monitor_id_proxy.fmt(f)
-    }
-}
+#[derive(Debug, Clone)]
+pub struct MonitorHandle(*const ffi::ANativeWindow);
 
 impl MonitorHandle {
-    #[inline]
     pub fn name(&self) -> Option<String> {
-        Some("Primary".to_string())
+        Some("Android Device".to_owned())
     }
 
-    #[inline]
     pub fn size(&self) -> PhysicalSize {
+        // FIXME this is the window size, not the monitor size
         unsafe {
-            let window = android_glue::native_window();
-            (
-                ffi::ANativeWindow_getWidth(window) as f64,
-                ffi::ANativeWindow_getHeight(window) as f64,
-            )
-                .into()
+            let width = ffi::ANativeWindow_getWidth(self.0) as f64;
+            let height = ffi::ANativeWindow_getHeight(self.0) as f64;
+            PhysicalSize::new(width, height)
         }
     }
 
-    #[inline]
-    pub fn outer_position(&self) -> PhysicalPosition {
-        // Android assumes single screen
+    pub fn position(&self) -> PhysicalPosition {
         (0, 0).into()
     }
 
-    #[inline]
     pub fn hidpi_factor(&self) -> f64 {
+        // TODO legit hidpi factors
         1.0
+    }
+
+    pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
+        let size = self.size().into();
+        let mut v = Vec::new();
+        // FIXME this is not the real refresh rate
+        // (it is guarunteed to support 32 bit color though)
+        v.push(monitor::VideoMode {
+            size,
+            bit_depth: 32,
+            refresh_rate: 60,
+        });
+        v.into_iter()
     }
 }
 
-#[derive(Clone, Default)]
-pub struct PlatformSpecificWindowBuilderAttributes;
-#[derive(Clone, Default)]
-pub struct PlatformSpecificHeadlessBuilderAttributes;
+pub struct Window {
+    native_window: *mut ffi::ANativeWindow,
+    tx: mpsc::Sender<android_glue::Event>,
+}
 
 impl Window {
-    pub fn new(
-        _: &EventLoop,
-        win_attribs: WindowAttributes,
+    pub fn new<T: 'static>(
+        el: &EventLoopWindowTarget<T>,
+        _window_attrs: window::WindowAttributes,
         _: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Window, CreationError> {
-        let native_window = unsafe { android_glue::native_window() };
-        if native_window.is_null() {
-            return Err(OsError(format!("Android's native window is null")));
-        }
-
-        android_glue::set_multitouch(true);
-
-        Ok(Window {
-            native_window: native_window as *const _,
+    ) -> Result<Self, error::OsError> {
+        // FIXME this ignores requested window attributes
+        Ok(Self {
+            native_window: unsafe { android_glue::get_native_window() as *mut _ },
+            tx: el.tx.clone(),
         })
     }
 
-    #[inline]
-    pub fn native_window(&self) -> *const c_void {
-        self.native_window
-    }
-
-    #[inline]
-    pub fn set_title(&self, _: &str) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn show(&self) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn hide(&self) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
-        // N/A
-        None
-    }
-
-    #[inline]
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
-        // N/A
-        None
-    }
-
-    #[inline]
-    pub fn set_outer_position(&self, _position: LogicalPosition) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn set_resizable(&self, _resizable: bool) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn inner_size(&self) -> Option<LogicalSize> {
-        if self.native_window.is_null() {
-            None
-        } else {
-            let dpi_factor = self.hidpi_factor();
-            let physical_size = self.current_monitor().size();
-            Some(LogicalSize::from_physical(physical_size, dpi_factor))
-        }
-    }
-
-    #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
-        self.inner_size()
-    }
-
-    #[inline]
-    pub fn set_inner_size(&self, _size: LogicalSize) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.current_monitor().hidpi_factor()
-    }
-
-    #[inline]
-    pub fn set_cursor_icon(&self, _: CursorIcon) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
-    }
-
-    #[inline]
-    pub fn hide_cursor(&self, _hide: bool) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
-    }
-
-    #[inline]
-    pub fn set_maximized(&self, _maximized: bool) {
-        // N/A
-        // Android has single screen maximized apps so nothing to do
-    }
-
-    #[inline]
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
-        // N/A
-        // Android has single screen maximized apps so nothing to do
-        None
-    }
-
-    #[inline]
-    pub fn set_fullscreen(&self, _monitor: Option<RootMonitorHandle>) {
-        // N/A
-        // Android has single screen maximized apps so nothing to do
-    }
-
-    #[inline]
-    pub fn set_decorations(&self, _decorations: bool) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn set_always_on_top(&self, _always_on_top: bool) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn set_window_icon(&self, _icon: Option<::Icon>) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn set_ime_position(&self, _spot: LogicalPosition) {
-        // N/A
-    }
-
-    #[inline]
-    pub fn current_monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: MonitorHandle,
-        }
-    }
-
-    #[inline]
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        let mut rb = VecDeque::with_capacity(1);
-        rb.push_back(MonitorHandle);
-        rb
-    }
-
-    #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle
-    }
-
-    #[inline]
     pub fn id(&self) -> WindowId {
         WindowId
     }
+
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle(self.native_window)
+    }
+
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        let mut v = VecDeque::with_capacity(1);
+        v.push_back(MonitorHandle(self.native_window));
+        v
+    }
+
+    pub fn current_monitor(&self) -> monitor::MonitorHandle {
+        monitor::MonitorHandle {
+            inner: MonitorHandle(self.native_window),
+        }
+    }
+
+    pub fn hidpi_factor(&self) -> f64 {
+        // TODO legit hidpi factors
+        1.0
+    }
+
+    pub fn request_redraw(&self) {
+        self.tx
+            .send(android_glue::Event::WindowRedrawNeeded)
+            .unwrap();
+    }
 }
 
-unsafe impl Send for Window {}
-unsafe impl Sync for Window {}
+// FIXME: Most of these functions need to use APIs that relate to multi-window (such as split
+// screen, Samsung's floating windows, etc.). They currently don't.
+impl Window {
+    pub fn inner_position(&self) -> Result<LogicalPosition, error::NotSupportedError> {
+        Err(error::NotSupportedError::new())
+    }
 
-// Constant device ID, to be removed when this backend is updated to report real device IDs.
-const DEVICE_ID: ::DeviceId = ::DeviceId(DeviceId);
+    pub fn outer_position(&self) -> Result<LogicalPosition, error::NotSupportedError> {
+        Err(error::NotSupportedError::new())
+    }
+
+    pub fn set_outer_position(&self, _position: LogicalPosition) {
+        // no effect
+    }
+
+    pub fn inner_size(&self) -> LogicalSize {
+        unsafe {
+            let width = ffi::ANativeWindow_getWidth(self.native_window) as f64;
+            let height = ffi::ANativeWindow_getHeight(self.native_window) as f64;
+            LogicalSize::from_physical((width, height), self.hidpi_factor())
+        }
+    }
+
+    pub fn set_inner_size(&self, _size: LogicalSize) {
+        panic!("Cannot set window size on Android");
+    }
+
+    pub fn outer_size(&self) -> LogicalSize {
+        // FIXME wrong
+        self.inner_size()
+    }
+
+    pub fn set_min_inner_size(&self, _: Option<LogicalSize>) {
+        // no effect
+    }
+
+    pub fn set_max_inner_size(&self, _: Option<LogicalSize>) {
+        // no effect
+    }
+
+    pub fn set_title(&self, _title: &str) {
+        // TODO there's probably a way to do this
+        // no effect
+    }
+
+    pub fn set_visible(&self, _visibility: bool) {
+        // no effect
+    }
+
+    pub fn set_resizable(&self, _resizeable: bool) {
+        // no effect
+        // Should probably have an effect with multi-windows though
+    }
+
+    pub fn set_maximized(&self, _maximized: bool) {
+        // no effect
+    }
+
+    pub fn set_fullscreen(&self, _monitor: Option<monitor::MonitorHandle>) {
+        // no effect
+    }
+
+    pub fn fullscreen(&self) -> Option<monitor::MonitorHandle> {
+        Some(monitor::MonitorHandle {
+            inner: MonitorHandle(self.native_window),
+        })
+    }
+
+    pub fn set_decorations(&self, _decorations: bool) {
+        // TODO
+    }
+
+    pub fn set_always_on_top(&self, _always_on_top: bool) {
+        // no effect
+    }
+
+    pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {
+        // no effect
+    }
+
+    pub fn set_ime_position(&self, _position: LogicalPosition) {
+        // no effect
+        // What is an IME candidate box?
+    }
+}
+
+impl Window {
+    pub fn set_cursor_icon(&self, _: window::CursorIcon) {
+        // no effect
+    }
+
+    pub fn set_cursor_position(&self, _: LogicalPosition) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
+    pub fn set_cursor_grab(&self, _: bool) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
+    pub fn set_cursor_visible(&self, _: bool) {
+        // no effect
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct PlatformSpecificWindowBuilderAttributes;
+
+#[derive(Default, Clone, Debug)]
+pub struct OsError;
+
+impl Display for OsError {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(fmt, "Android OS Error")
+    }
+}
