@@ -5,7 +5,7 @@ use wasm_bindgen::JsCast;
 #[derive(Debug)]
 pub struct Timeout {
     handle: i32,
-    _closure: Closure<FnMut()>,
+    _closure: Closure<dyn FnMut()>,
 }
 
 impl Timeout {

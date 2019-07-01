@@ -233,7 +233,7 @@ impl Canvas {
         }));
     }
 
-    fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<FnMut(E)>
+    fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
