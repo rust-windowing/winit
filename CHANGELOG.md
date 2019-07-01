@@ -13,6 +13,7 @@
   - `EventsCleared` has been renamed to `MainEventsCleared`.
   - `RedrawRequested` is now issued only after `MainEventsCleared`.
   - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
+- On Android, minimal platform support.
 
 # 0.20.0 Alpha 5 (2019-12-09)
 
