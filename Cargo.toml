@@ -14,8 +14,8 @@ categories = ["gui"]
 features = ["serde"]
 
 [features]
-use_web-sys = ["web-sys", "wasm-bindgen", "instant/wasm-bindgen"]
-use_stdweb = ["stdweb", "instant/stdweb"]
+web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
+stdweb = ["std_web", "instant/stdweb"]
 
 [dependencies]
 instant = "0.1"
@@ -78,7 +78,8 @@ percent-encoding = "1.0"
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
 version = "0.8"
 
-[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+[target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
+package = "web-sys"
 version = "0.3.22"
 optional = true
 features = [
@@ -103,7 +104,8 @@ features = [
 version = "0.2.45"
 optional = true
 
-[target.'cfg(target_arch = "wasm32")'.dependencies.stdweb]
+[target.'cfg(target_arch = "wasm32")'.dependencies.std_web]
+package = "stdweb"
 version = "0.4.17"
 optional = true
 

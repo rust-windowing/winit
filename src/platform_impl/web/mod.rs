@@ -11,11 +11,11 @@ mod event_loop;
 mod monitor;
 mod window;
 
-#[cfg(feature = "use_web-sys")]
+#[cfg(feature = "web-sys")]
 #[path = "web_sys/mod.rs"]
 mod backend;
 
-#[cfg(feature = "use_stdweb")]
+#[cfg(feature = "stdweb")]
 #[path = "stdweb/mod.rs"]
 mod backend;
 

@@ -135,9 +135,9 @@ extern crate smithay_client_toolkit as sctk;
     target_os = "openbsd"
 ))]
 extern crate x11_dl;
-#[cfg(feature = "stdweb")]
+#[cfg(feature = "std_web")]
 #[macro_use]
-extern crate stdweb;
+extern crate std_web as stdweb;
 #[cfg(any(
     target_os = "linux",
     target_os = "dragonfly",

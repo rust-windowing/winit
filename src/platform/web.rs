@@ -1,15 +1,15 @@
-#[cfg(feature = "use_stdweb")]
+#[cfg(feature = "stdweb")]
 use stdweb::web::html_element::CanvasElement;
 
-#[cfg(feature = "use_stdweb")]
+#[cfg(feature = "stdweb")]
 pub trait WindowExtStdweb {
     fn canvas(&self) -> CanvasElement;
 }
 
-#[cfg(feature = "use_web-sys")]
+#[cfg(feature = "web-sys")]
 use web_sys::HtmlCanvasElement;
 
-#[cfg(feature = "use_web-sys")]
+#[cfg(feature = "web-sys")]
 pub trait WindowExtWebSys {
     fn canvas(&self) -> HtmlCanvasElement;
 }
