@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    io::{Seek, SeekFrom, Write},
     sync::{Arc, Mutex, Weak},
 };
 
@@ -18,8 +17,8 @@ use crate::{
 use smithay_client_toolkit::{
     output::OutputMgr,
     reexports::client::{
-        protocol::{wl_seat, wl_shm, wl_subsurface, wl_surface},
-        Display, NewProxy,
+        protocol::{wl_seat, wl_surface},
+        Display,
     },
     surface::{get_dpi_factor, get_outputs},
     window::{ConceptFrame, Event as WEvent, State as WState, Theme, Window as SWindow},
