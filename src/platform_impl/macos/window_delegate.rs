@@ -25,7 +25,7 @@ use crate::{
     window::WindowId,
 };
 
-pub struct WindowDelegateState {
+pub struct WindowDelegateState<'a> {
     ns_window: IdRef, // never changes
     ns_view: IdRef,   // never changes
 
@@ -43,11 +43,14 @@ pub struct WindowDelegateState {
 
     // Used to prevent redundant events.
     previous_dpi_factor: f64,
+
+    new_inner_rect_opt: &'a mut Option<PhysicalSize>,
 }
 
-impl<'a> WindowDelegateState {
+impl<'a> WindowDelegateState<'a> {
     pub fn new(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> Self {
         let hidpi_factor = window.hidpi_factor();
+        let new_inner_rect_opt = window.inner_size();
 
         let mut delegate_state = WindowDelegateState {
             ns_window: window.ns_window.clone(),
@@ -56,17 +59,11 @@ impl<'a> WindowDelegateState {
             initial_fullscreen,
             previous_position: None,
             previous_dpi_factor: hidpi_factor,
+            new_inner_rect_opt: &mut Some(new_inner_rect_opt),
         };
 
         if hidpi_factor != 1.0 {
-            delegate_state.emit_event(
-                WindowEvent::HiDpiFactorChanged {
-                    hidpi_factor,
-                    new_inner_size: &mut Some(window.inner_size()),
-                }
-                .to_static()
-                .unwrap(),
-            );
+            delegate_state.emit_hidpi_factor_changed_event();
             delegate_state.emit_resize_event();
         }
 
@@ -86,6 +83,17 @@ impl<'a> WindowDelegateState {
             event,
         };
         AppState::queue_event(event);
+    }
+
+    pub fn emit_hidpi_factor_changed_event(&mut self) {
+        let event = Event::WindowEvent {
+            window_id: WindowId(get_window_id(*self.ns_window)),
+            event: WindowEvent::HiDpiFactorChanged {
+                hidpi_factor: self.previous_dpi_factor,
+                new_inner_size: &mut self.new_inner_rect_opt,
+            },
+        };
+        AppState::send_event_immediately(event);
     }
 
     pub fn emit_resize_event(&mut self) {
@@ -215,17 +223,17 @@ lazy_static! {
 
 // This function is definitely unsafe, but labeling that would increase
 // boilerplate and wouldn't really clarify anything...
-fn with_state<F: FnOnce(&mut WindowDelegateState) -> T, T>(this: &Object, callback: F) {
+fn with_state<F: FnOnce(&mut WindowDelegateState<'_>) -> T, T>(this: &Object, callback: F) {
     let state_ptr = unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
-        &mut *(state_ptr as *mut WindowDelegateState)
+        &mut *(state_ptr as *mut WindowDelegateState<'_>)
     };
     callback(state_ptr);
 }
 
 extern "C" fn dealloc(this: &Object, _sel: Sel) {
     with_state(this, |state| unsafe {
-        Box::from_raw(state as *mut WindowDelegateState);
+        Box::from_raw(state as *mut WindowDelegateState<'_>);
     });
 }
 

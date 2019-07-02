@@ -20,7 +20,7 @@ use crate::{
 };
 
 lazy_static! {
-    static ref HANDLER: Handler = Default::default();
+    static ref HANDLER: Handler<'static> = Default::default();
 }
 
 impl<'a, Never> Event<'a, Never> {
@@ -80,36 +80,36 @@ where
 }
 
 #[derive(Default)]
-struct Handler {
+struct Handler<'a> {
     ready: AtomicBool,
     in_callback: AtomicBool,
     control_flow: Mutex<ControlFlow>,
     control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
-    pending_events: Mutex<VecDeque<Event<'static, Never>>>,
-    deferred_events: Mutex<VecDeque<Event<'static, Never>>>,
+    pending_events: Mutex<VecDeque<Event<'a, Never>>>,
+    deferred_events: Mutex<VecDeque<Event<'a, Never>>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
 }
 
-unsafe impl Send for Handler {}
-unsafe impl Sync for Handler {}
+unsafe impl<'a> Send for Handler<'a> {}
+unsafe impl<'a> Sync for Handler<'a> {}
 
-impl Handler {
-    fn events<'a>(&'a self) -> MutexGuard<'a, VecDeque<Event<'static, Never>>> {
+impl<'a> Handler<'a> {
+    fn events(&self) -> MutexGuard<'_, VecDeque<Event<'a, Never>>> {
         self.pending_events.lock().unwrap()
     }
 
-    fn deferred<'a>(&'a self) -> MutexGuard<'a, VecDeque<Event<'static, Never>>> {
+    fn deferred(&self) -> MutexGuard<'_, VecDeque<Event<'a, Never>>> {
         self.deferred_events.lock().unwrap()
     }
 
-    fn redraw<'a>(&'a self) -> MutexGuard<'a, Vec<WindowId>> {
+    fn redraw(&self) -> MutexGuard<'_, Vec<WindowId>> {
         self.pending_redraw.lock().unwrap()
     }
 
-    fn waker<'a>(&'a self) -> MutexGuard<'a, EventLoopWaker> {
+    fn waker(&self) -> MutexGuard<'_, EventLoopWaker> {
         self.waker.lock().unwrap()
     }
 
@@ -260,7 +260,7 @@ impl AppState {
         HANDLER.events().append(&mut events);
     }
 
-    pub fn send_event_immediately(event: Event<'static, Never>) {
+    pub fn send_event_immediately(event: Event<'_, Never>) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
             panic!("Event sent from different thread: {:#?}", event);
         }
