@@ -8,6 +8,7 @@ and `WindowEvent::HoveredFile`.
 - Revert the use of invisible surfaces in Wayland, which introduced graphical glitches with OpenGL (#835)
 - On X11, implement `_NET_WM_PING` to allow desktop environment to kill unresponsive programs.
 - On Windows, when a window is initially invisible, it won't take focus from the existing visible windows.
+- On macOS, drop unused Metal dependency.
 
 # 0.20.0 Alpha 1
 
