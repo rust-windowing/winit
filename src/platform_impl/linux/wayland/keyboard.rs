@@ -127,11 +127,12 @@ pub fn init_keyboard(
             // In this case, we don't have the keymap information (it is
             // supposed to be serialized by the compositor using libxkbcommon)
 
-            // { variables to be captured by the closure
-            let mut target = None;
-            let my_sink = sink;
-            // }
             seat.get_keyboard(|keyboard| {
+                // { variables to be captured by the closure
+                let mut target = None;
+                let my_sink = sink;
+                // }
+
                 keyboard.implement_closure(
                     move |evt, _| match evt {
                         wl_keyboard::Event::Enter { surface, .. } => {
