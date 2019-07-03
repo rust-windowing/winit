@@ -52,7 +52,6 @@ use crate::{
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
         raw_input::{get_raw_input_data, get_raw_mouse_button_state},
         util,
-        window::adjust_size,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
@@ -1486,11 +1485,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let window_state = subclass_input.window_state.lock();
 
             if window_state.min_size.is_some() || window_state.max_size.is_some() {
-                let style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
-                let ex_style = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
                 if let Some(min_size) = window_state.min_size {
                     let min_size = min_size.to_physical(window_state.dpi_factor);
-                    let (width, height) = adjust_size(min_size, style, ex_style);
+                    let (width, height): (u32, u32) = util::adjust_size(window, min_size).into();
                     (*mmi).ptMinTrackSize = POINT {
                         x: width as i32,
                         y: height as i32,
@@ -1498,7 +1495,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 }
                 if let Some(max_size) = window_state.max_size {
                     let max_size = max_size.to_physical(window_state.dpi_factor);
-                    let (width, height) = adjust_size(max_size, style, ex_style);
+                    let (width, height): (u32, u32) = util::adjust_size(window, max_size).into();
                     (*mmi).ptMaxTrackSize = POINT {
                         x: width as i32,
                         y: height as i32,

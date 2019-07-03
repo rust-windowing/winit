@@ -1,79 +1,24 @@
 #![allow(non_snake_case, unused_unsafe)]
 
 use std::{
-    mem,
-    os::raw::c_void,
     sync::{Once, ONCE_INIT},
 };
 
 use winapi::{
     shared::{
-        minwindef::{BOOL, FALSE, UINT},
+        minwindef::{FALSE},
         windef::{DPI_AWARENESS_CONTEXT, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, HMONITOR, HWND},
         winerror::S_OK,
     },
     um::{
-        libloaderapi::{GetProcAddress, LoadLibraryA},
-        shellscalingapi::{
-            MDT_EFFECTIVE_DPI, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
-            PROCESS_PER_MONITOR_DPI_AWARE,
-        },
+        shellscalingapi::{MDT_EFFECTIVE_DPI, PROCESS_PER_MONITOR_DPI_AWARE},
         wingdi::{GetDeviceCaps, LOGPIXELSX},
-        winnt::{HRESULT, LPCSTR},
         winuser::{self, MONITOR_DEFAULTTONEAREST},
     },
 };
+use crate::platform_impl::platform::util::{GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, ENABLE_NON_CLIENT_DPI_SCALING, SET_PROCESS_DPI_AWARENESS_CONTEXT, SET_PROCESS_DPI_AWARENESS, SET_PROCESS_DPI_AWARE};
 
 const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: DPI_AWARENESS_CONTEXT = -4isize as _;
-
-type SetProcessDPIAware = unsafe extern "system" fn() -> BOOL;
-type SetProcessDpiAwareness = unsafe extern "system" fn(value: PROCESS_DPI_AWARENESS) -> HRESULT;
-type SetProcessDpiAwarenessContext =
-    unsafe extern "system" fn(value: DPI_AWARENESS_CONTEXT) -> BOOL;
-type GetDpiForWindow = unsafe extern "system" fn(hwnd: HWND) -> UINT;
-type GetDpiForMonitor = unsafe extern "system" fn(
-    hmonitor: HMONITOR,
-    dpi_type: MONITOR_DPI_TYPE,
-    dpi_x: *mut UINT,
-    dpi_y: *mut UINT,
-) -> HRESULT;
-type EnableNonClientDpiScaling = unsafe extern "system" fn(hwnd: HWND) -> BOOL;
-
-// Helper function to dynamically load function pointer.
-// `library` and `function` must be zero-terminated.
-fn get_function_impl(library: &str, function: &str) -> Option<*const c_void> {
-    assert_eq!(library.chars().last(), Some('\0'));
-    assert_eq!(function.chars().last(), Some('\0'));
-
-    // Library names we will use are ASCII so we can use the A version to avoid string conversion.
-    let module = unsafe { LoadLibraryA(library.as_ptr() as LPCSTR) };
-    if module.is_null() {
-        return None;
-    }
-
-    let function_ptr = unsafe { GetProcAddress(module, function.as_ptr() as LPCSTR) };
-    if function_ptr.is_null() {
-        return None;
-    }
-
-    Some(function_ptr as _)
-}
-
-macro_rules! get_function {
-    ($lib:expr, $func:ident) => {
-        get_function_impl(concat!($lib, '\0'), concat!(stringify!($func), '\0'))
-            .map(|f| unsafe { mem::transmute::<*const _, $func>(f) })
-    };
-}
-
-lazy_static! {
-    static ref GET_DPI_FOR_WINDOW: Option<GetDpiForWindow> =
-        get_function!("user32.dll", GetDpiForWindow);
-    static ref GET_DPI_FOR_MONITOR: Option<GetDpiForMonitor> =
-        get_function!("shcore.dll", GetDpiForMonitor);
-    static ref ENABLE_NON_CLIENT_DPI_SCALING: Option<EnableNonClientDpiScaling> =
-        get_function!("user32.dll", EnableNonClientDpiScaling);
-}
 
 pub fn become_dpi_aware(enable: bool) {
     if !enable {
@@ -82,8 +27,7 @@ pub fn become_dpi_aware(enable: bool) {
     static ENABLE_DPI_AWARENESS: Once = ONCE_INIT;
     ENABLE_DPI_AWARENESS.call_once(|| {
         unsafe {
-            if let Some(SetProcessDpiAwarenessContext) =
-                get_function!("user32.dll", SetProcessDpiAwarenessContext)
+            if let Some(SetProcessDpiAwarenessContext) = *SET_PROCESS_DPI_AWARENESS_CONTEXT
             {
                 // We are on Windows 10 Anniversary Update (1607) or later.
                 if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
@@ -93,12 +37,11 @@ pub fn become_dpi_aware(enable: bool) {
                     // V1 if we can't set V2.
                     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
                 }
-            } else if let Some(SetProcessDpiAwareness) =
-                get_function!("shcore.dll", SetProcessDpiAwareness)
+            } else if let Some(SetProcessDpiAwareness) = *SET_PROCESS_DPI_AWARENESS
             {
                 // We are on Windows 8.1 or later.
                 SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
-            } else if let Some(SetProcessDPIAware) = get_function!("user32.dll", SetProcessDPIAware)
+            } else if let Some(SetProcessDPIAware) = *SET_PROCESS_DPI_AWARE
             {
                 // We are on Vista or later.
                 SetProcessDPIAware();
