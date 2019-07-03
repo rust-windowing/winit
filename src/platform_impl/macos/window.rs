@@ -28,7 +28,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
-    platform::macos::{ActivationPolicy, WindowExtMacOS},
+    platform::macos::{ActivationPolicy, RequestUserAttentionType, WindowExtMacOS},
     platform_impl::platform::{
         app_state::AppState,
         ffi,
@@ -778,11 +778,13 @@ impl WindowExtMacOS for UnownedWindow {
     }
 
     #[inline]
-    fn request_user_attention(&self, is_critical: bool) {
+    fn request_user_attention(&self, request_type: RequestUserAttentionType) {
         unsafe {
-            NSApp().requestUserAttention_(match is_critical {
-                true => NSRequestUserAttentionType::NSCriticalRequest,
-                false => NSRequestUserAttentionType::NSInformationalRequest,
+            NSApp().requestUserAttention_(match request_type {
+                RequestUserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
+                RequestUserAttentionType::Informational => {
+                    NSRequestUserAttentionType::NSInformationalRequest
+                }
             });
         }
     }

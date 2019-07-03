@@ -15,6 +15,7 @@ and `WindowEvent::HoveredFile`.
 - On macOS, drop unused Metal dependency.
 - On Windows, fix the trail effect happening on transparent decorated windows. Borderless (or un-decorated) windows were not affected.
 - On Windows, fix `with_maximized` not properly setting window size to entire window.
+- On macOS, change `WindowExtMacOS::request_user_attention()` to take an `enum` instead of a `bool`.
 
 # 0.20.0 Alpha 1
 
