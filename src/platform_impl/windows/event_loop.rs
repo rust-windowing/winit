@@ -1517,10 +1517,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             // https://msdn.microsoft.com/en-us/library/windows/desktop/dn312083(v=vs.85).aspx
             let new_dpi_x = u32::from(LOWORD(wparam as DWORD));
             let new_dpi_factor = dpi_to_scale_factor(new_dpi_x);
+            let old_dpi_factor: f64;
 
             let allow_resize = {
                 let mut window_state = subclass_input.window_state.lock();
-                let old_dpi_factor = window_state.dpi_factor;
+                old_dpi_factor = window_state.dpi_factor;
                 window_state.dpi_factor = new_dpi_factor;
 
                 new_dpi_factor != old_dpi_factor && window_state.fullscreen.is_none()
@@ -1557,10 +1558,24 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 margins_vertical = (margin_bottom + margin_top) as u32;
             }
 
-            let physical_inner_rect = PhysicalSize::new(
-                (rect.right - rect.left) as u32 - margins_horizontal,
-                (rect.bottom - rect.top) as u32 - margins_vertical,
-            );
+            // Use the rect suggested by Windows
+            // let physical_inner_rect = PhysicalSize::new(
+            //     (rect.right - rect.left) as u32 - margins_horizontal,
+            //     (rect.bottom - rect.top) as u32 - margins_vertical,
+            // );
+
+            // We calculate our own rect because the default suggested rect doesn't do a great job
+            // of preserving the window's logical size.
+            let physical_inner_rect = {
+                let mut current_rect = mem::zeroed();
+                winuser::GetClientRect(window, &mut current_rect);
+
+                let client_rect = PhysicalSize::new(
+                    (current_rect.right - current_rect.left) as u32,
+                    (current_rect.bottom - current_rect.top) as u32,
+                );
+                client_rect.to_logical(old_dpi_factor).to_physical(new_dpi_factor)
+            };
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
