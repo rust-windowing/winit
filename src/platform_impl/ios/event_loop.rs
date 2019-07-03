@@ -163,7 +163,7 @@ impl<T> Drop for EventLoopProxy<T> {
 impl<T> EventLoopProxy<T> {
     fn new(sender: Sender<T>) -> EventLoopProxy<T> {
         unsafe {
-            // just wakeup the eventloop
+            // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *mut c_void) {}
 
             // adding a Source to the main CFRunLoop lets us wake it up and
