@@ -2,11 +2,16 @@
 
 # 0.20.0 Alpha 2 (2019-06-28)
 
+- On X11, non-resizable windows now have maximize explicitly disabled.
+- On Windows, support paths longer than MAX_PATH (260 characters) in `WindowEvent::DroppedFile`
+and `WindowEvent::HoveredFile`.
 - On Mac, implement `DeviceEvent::Button`.
 - Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
 - On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
+- Revert the use of invisible surfaces in Wayland, which introduced graphical glitches with OpenGL (#835)
 - On X11, implement `_NET_WM_PING` to allow desktop environment to kill unresponsive programs.
 - On Windows, when a window is initially invisible, it won't take focus from the existing visible windows.
+- On macOS, drop unused Metal dependency.
 
 # 0.20.0 Alpha 1 (2019-06-21)
 

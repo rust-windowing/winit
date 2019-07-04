@@ -23,12 +23,12 @@ pub fn implement_pointer<T: 'static>(
     store: Arc<Mutex<WindowStore>>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
 ) -> WlPointer {
-    let mut mouse_focus = None;
-    let mut axis_buffer = None;
-    let mut axis_discrete_buffer = None;
-    let mut axis_state = TouchPhase::Ended;
-
     seat.get_pointer(|pointer| {
+        let mut mouse_focus = None;
+        let mut axis_buffer = None;
+        let mut axis_discrete_buffer = None;
+        let mut axis_state = TouchPhase::Ended;
+
         pointer.implement_closure(
             move |evt, pointer| {
                 let mut sink = sink.lock().unwrap();

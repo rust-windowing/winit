@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    io::{Seek, SeekFrom, Write},
     sync::{Arc, Mutex, Weak},
 };
 
@@ -18,8 +17,8 @@ use crate::{
 use smithay_client_toolkit::{
     output::OutputMgr,
     reexports::client::{
-        protocol::{wl_seat, wl_shm, wl_subsurface, wl_surface},
-        Display, NewProxy,
+        protocol::{wl_seat, wl_surface},
+        Display,
     },
     surface::{get_dpi_factor, get_outputs},
     window::{ConceptFrame, Event as WEvent, State as WState, Theme, Window as SWindow},
@@ -29,9 +28,7 @@ use super::{make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
 use crate::platform_impl::platform::wayland::event_loop::{available_monitors, primary_monitor};
 
 pub struct Window {
-    _bg_surface: wl_surface::WlSurface,
-    user_surface: wl_surface::WlSurface,
-    _user_subsurface: wl_subsurface::WlSubsurface,
+    surface: wl_surface::WlSurface,
     frame: Arc<Mutex<SWindow<ConceptFrame>>>,
     outputs: OutputMgr, // Access to info for all monitors
     size: Arc<Mutex<(u32, u32)>>,
@@ -54,76 +51,47 @@ impl Window {
         let fullscreen = Arc::new(Mutex::new(false));
 
         let window_store = evlp.store.clone();
-        let bg_surface = evlp
-            .env
-            .compositor
-            .create_surface(NewProxy::implement_dummy)
-            .unwrap();
-        let user_surface = evlp.env.create_surface(move |dpi, surface| {
+        let surface = evlp.env.create_surface(move |dpi, surface| {
             window_store.lock().unwrap().dpi_change(&surface, dpi);
             surface.set_buffer_scale(dpi);
         });
-        let user_subsurface = evlp
-            .env
-            .subcompositor
-            .get_subsurface(&user_surface, &bg_surface, NewProxy::implement_dummy)
-            .unwrap();
-        user_subsurface.set_desync();
 
         let window_store = evlp.store.clone();
-        let my_surface = user_surface.clone();
-        let my_bg_surface = bg_surface.clone();
-
-        // prepare a 1px buffer to display on the root window
-        let mut pool = smithay_client_toolkit::utils::MemPool::new(&evlp.env.shm, || {}).unwrap();
-        pool.resize(4).unwrap();
-        pool.seek(SeekFrom::Start(0)).unwrap();
-        pool.write(&[0, 0, 0, 0]).unwrap();
-        pool.flush().unwrap();
-        let buffer = pool.buffer(0, 1, 1, 4, wl_shm::Format::Argb8888);
-
+        let my_surface = surface.clone();
         let mut frame = SWindow::<ConceptFrame>::init_from_env(
             &evlp.env,
-            bg_surface.clone(),
+            surface.clone(),
             (width, height),
-            move |event| {
-                match event {
-                    WEvent::Configure { new_size, states } => {
-                        let mut store = window_store.lock().unwrap();
-                        let is_fullscreen = states.contains(&WState::Fullscreen);
+            move |event| match event {
+                WEvent::Configure { new_size, states } => {
+                    let mut store = window_store.lock().unwrap();
+                    let is_fullscreen = states.contains(&WState::Fullscreen);
 
-                        for window in &mut store.windows {
-                            if window.surface.as_ref().equals(&my_surface.as_ref()) {
-                                window.newsize = new_size;
-                                *(window.need_refresh.lock().unwrap()) = true;
-                                *(window.fullscreen.lock().unwrap()) = is_fullscreen;
-                                *(window.need_frame_refresh.lock().unwrap()) = true;
-                                if !window.configured {
-                                    // this is our first configure event, display ourselves !
-                                    window.configured = true;
-                                    my_bg_surface.attach(Some(&buffer), 0, 0);
-                                    my_bg_surface.commit();
-                                }
-                                return;
-                            }
+                    for window in &mut store.windows {
+                        if window.surface.as_ref().equals(&my_surface.as_ref()) {
+                            window.newsize = new_size;
+                            *(window.need_refresh.lock().unwrap()) = true;
+                            *(window.fullscreen.lock().unwrap()) = is_fullscreen;
+                            *(window.need_frame_refresh.lock().unwrap()) = true;
+                            return;
                         }
                     }
-                    WEvent::Refresh => {
-                        let store = window_store.lock().unwrap();
-                        for window in &store.windows {
-                            if window.surface.as_ref().equals(&my_surface.as_ref()) {
-                                *(window.need_frame_refresh.lock().unwrap()) = true;
-                                return;
-                            }
+                }
+                WEvent::Refresh => {
+                    let store = window_store.lock().unwrap();
+                    for window in &store.windows {
+                        if window.surface.as_ref().equals(&my_surface.as_ref()) {
+                            *(window.need_frame_refresh.lock().unwrap()) = true;
+                            return;
                         }
                     }
-                    WEvent::Close => {
-                        let mut store = window_store.lock().unwrap();
-                        for window in &mut store.windows {
-                            if window.surface.as_ref().equals(&my_surface.as_ref()) {
-                                window.closed = true;
-                                return;
-                            }
+                }
+                WEvent::Close => {
+                    let mut store = window_store.lock().unwrap();
+                    for window in &mut store.windows {
+                        if window.surface.as_ref().equals(&my_surface.as_ref()) {
+                            window.closed = true;
+                            return;
                         }
                     }
                 }
@@ -173,19 +141,17 @@ impl Window {
             need_refresh: need_refresh.clone(),
             fullscreen: fullscreen.clone(),
             need_frame_refresh: need_frame_refresh.clone(),
-            surface: user_surface.clone(),
+            surface: surface.clone(),
             kill_switch: kill_switch.clone(),
             frame: Arc::downgrade(&frame),
             current_dpi: 1,
             new_dpi: None,
-            configured: false,
         });
+        evlp.evq.borrow_mut().sync_roundtrip().unwrap();
 
         Ok(Window {
             display: evlp.display.clone(),
-            _bg_surface: bg_surface,
-            user_surface,
-            _user_subsurface: user_subsurface,
+            surface,
             frame,
             outputs: evlp.env.outputs.clone(),
             size,
@@ -198,7 +164,7 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        make_wid(&self.user_surface)
+        make_wid(&self.surface)
     }
 
     pub fn set_title(&self, title: &str) {
@@ -270,7 +236,7 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> i32 {
-        get_dpi_factor(&self.user_surface)
+        get_dpi_factor(&self.surface)
     }
 
     pub fn set_decorations(&self, decorate: bool) {
@@ -337,11 +303,11 @@ impl Window {
     }
 
     pub fn surface(&self) -> &wl_surface::WlSurface {
-        &self.user_surface
+        &self.surface
     }
 
     pub fn current_monitor(&self) -> MonitorHandle {
-        let output = get_outputs(&self.user_surface).last().unwrap().clone();
+        let output = get_outputs(&self.surface).last().unwrap().clone();
         MonitorHandle {
             proxy: output,
             mgr: self.outputs.clone(),
@@ -380,7 +346,6 @@ struct InternalWindow {
     frame: Weak<Mutex<SWindow<ConceptFrame>>>,
     current_dpi: i32,
     new_dpi: Option<i32>,
-    configured: bool,
 }
 
 pub struct WindowStore {

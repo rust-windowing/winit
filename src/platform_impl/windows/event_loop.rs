@@ -182,7 +182,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         unsafe {
-            let mut msg = mem::uninitialized();
+            let mut msg = mem::zeroed();
             let mut msg_unprocessed = false;
 
             'main: loop {
@@ -507,7 +507,7 @@ impl<T> EventLoopRunner<T> {
 
 // Returns true if the wait time was reached, and false if a message must be processed.
 unsafe fn wait_until_time_or_msg(wait_until: Instant) -> bool {
-    let mut msg = mem::uninitialized();
+    let mut msg = mem::zeroed();
     let now = Instant::now();
     if now <= wait_until {
         // MsgWaitForMultipleObjects tends to overshoot just a little bit. We subtract 1 millisecond
@@ -1645,7 +1645,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                 }
             };
             if in_modal_loop {
-                let mut msg = mem::uninitialized();
+                let mut msg = mem::zeroed();
                 loop {
                     if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
                         break;
