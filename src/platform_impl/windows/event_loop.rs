@@ -195,6 +195,7 @@ impl<T: 'static> EventLoop<T> {
                     }
                     winuser::TranslateMessage(&mut msg);
                     winuser::DispatchMessageW(&mut msg);
+
                     msg_unprocessed = false;
                 }
                 runner!().events_cleared();
@@ -202,19 +203,21 @@ impl<T: 'static> EventLoop<T> {
                     panic::resume_unwind(payload);
                 }
 
-                let control_flow = runner!().control_flow;
-                match control_flow {
-                    ControlFlow::Exit => break 'main,
-                    ControlFlow::Wait => {
-                        if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
-                            break 'main;
+                if !msg_unprocessed {
+                    let control_flow = runner!().control_flow;
+                    match control_flow {
+                        ControlFlow::Exit => break 'main,
+                        ControlFlow::Wait => {
+                            if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
+                                break 'main;
+                            }
+                            msg_unprocessed = true;
                         }
-                        msg_unprocessed = true;
+                        ControlFlow::WaitUntil(resume_time) => {
+                            wait_until_time_or_msg(resume_time);
+                        }
+                        ControlFlow::Poll => (),
                     }
-                    ControlFlow::WaitUntil(resume_time) => {
-                        wait_until_time_or_msg(resume_time);
-                    }
-                    ControlFlow::Poll => (),
                 }
             }
         }
@@ -253,6 +256,7 @@ pub(crate) struct EventLoopRunner<T> {
     runner_state: RunnerState,
     modal_redraw_window: HWND,
     in_modal_loop: bool,
+    in_repaint: bool,
     event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
     panic_error: Option<PanicError>,
 }
@@ -316,6 +320,7 @@ impl<T> EventLoopRunner<T> {
             control_flow: ControlFlow::default(),
             runner_state: RunnerState::New,
             in_modal_loop: false,
+            in_repaint: false,
             modal_redraw_window: event_loop.window_target.p.thread_msg_target,
             event_handler: mem::transmute::<
                 Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
@@ -429,10 +434,26 @@ impl<T> EventLoopRunner<T> {
         }
 
         self.runner_state = RunnerState::HandlingEvents;
-        self.call_event_handler(event);
+        match (self.in_repaint, &event) {
+            (
+                true,
+                Event::WindowEvent {
+                    event: WindowEvent::RedrawRequested,
+                    ..
+                },
+            )
+            | (false, _) => self.call_event_handler(event),
+            (true, _) => {
+                self.events_cleared();
+                self.new_events();
+                self.process_event(event);
+            }
+        }
     }
 
     fn events_cleared(&mut self) {
+        self.in_repaint = false;
+
         match self.runner_state {
             // If we were handling events, send the EventsCleared message.
             RunnerState::HandlingEvents => {
@@ -483,6 +504,10 @@ impl<T> EventLoopRunner<T> {
             Event::EventsCleared => self
                 .trigger_newevents_on_redraw
                 .store(false, Ordering::Relaxed),
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => self.in_repaint = true,
             _ => (),
         }
 
@@ -871,12 +896,12 @@ unsafe extern "system" fn public_window_callback<T>(
         _ if msg == *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID => {
             use crate::event::WindowEvent::RedrawRequested;
             let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
+            subclass_input.window_state.lock().queued_out_of_band_redraw = false;
             if let Some(ref mut runner) = *runner {
                 // This check makes sure that calls to `request_redraw()` during `EventsCleared`
                 // handling dispatch `RedrawRequested` immediately after `EventsCleared`, without
                 // spinning up a new event loop iteration. We do this because that's what the API
                 // says to do.
-                let control_flow = runner.control_flow;
                 let runner_state = runner.runner_state;
                 let mut request_redraw = || {
                     runner.call_event_handler(Event::WindowEvent {
@@ -886,15 +911,14 @@ unsafe extern "system" fn public_window_callback<T>(
                 };
                 match runner_state {
                     RunnerState::Idle(..) | RunnerState::DeferredNewEvents(..) => request_redraw(),
-                    RunnerState::HandlingEvents => match control_flow {
-                        ControlFlow::Poll => request_redraw(),
-                        ControlFlow::WaitUntil(resume_time) => {
-                            if resume_time <= Instant::now() {
-                                request_redraw()
-                            }
-                        }
-                        _ => (),
-                    },
+                    RunnerState::HandlingEvents => {
+                        winuser::RedrawWindow(
+                            window,
+                            ptr::null(),
+                            ptr::null_mut(),
+                            winuser::RDW_INTERNALPAINT,
+                        );
+                    }
                     _ => (),
                 }
             }

@@ -9,6 +9,9 @@ and `WindowEvent::HoveredFile`.
 - Revert the use of invisible surfaces in Wayland, which introduced graphical glitches with OpenGL (#835)
 - On X11, implement `_NET_WM_PING` to allow desktop environment to kill unresponsive programs.
 - On Windows, when a window is initially invisible, it won't take focus from the existing visible windows.
+- On Windows, fix multiple calls to `request_redraw` during `EventsCleared` sending multiple `RedrawRequested events.`
+- On Windows, fix edge case where `RedrawRequested` could be dispatched before input events in event loop iteration.
+- On Windows, fix timing issue that could cause events to be improperly dispatched after `RedrawRequested` but before `EventsCleared`.
 - On macOS, drop unused Metal dependency.
 
 # 0.20.0 Alpha 1
