@@ -196,22 +196,7 @@ impl<T: 'static> EventLoop<T> {
                     winuser::TranslateMessage(&mut msg);
                     winuser::DispatchMessageW(&mut msg);
 
-                    // Officially, the windows API says that `WM_PAINT` will always be the last
-                    // message delivered in a single run of the event loop, and Winit's event
-                    // loop logic relies on that. However, there are situations where the event
-                    // queue is cleared, WM_PAINT gets delivered, but a new event is added to
-                    // the queue before the next call to `PeekMessageW`. This check ensures that,
-                    // even in that scenario, we dispatch `EventsCleared` properly.
-                    if msg.message == winuser::WM_PAINT
-                        && 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1)
-                    {
-                        msg_unprocessed = true;
-                        if msg.message != winuser::WM_PAINT {
-                            break;
-                        }
-                    } else {
-                        msg_unprocessed = false;
-                    }
+                    msg_unprocessed = false;
                 }
                 runner!().events_cleared();
                 if let Some(payload) = runner!().panic_error.take() {
@@ -271,6 +256,7 @@ pub(crate) struct EventLoopRunner<T> {
     runner_state: RunnerState,
     modal_redraw_window: HWND,
     in_modal_loop: bool,
+    in_repaint: bool,
     event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
     panic_error: Option<PanicError>,
 }
@@ -334,6 +320,7 @@ impl<T> EventLoopRunner<T> {
             control_flow: ControlFlow::default(),
             runner_state: RunnerState::New,
             in_modal_loop: false,
+            in_repaint: false,
             modal_redraw_window: event_loop.window_target.p.thread_msg_target,
             event_handler: mem::transmute::<
                 Box<dyn FnMut(Event<T>, &mut ControlFlow)>,
@@ -447,10 +434,22 @@ impl<T> EventLoopRunner<T> {
         }
 
         self.runner_state = RunnerState::HandlingEvents;
-        self.call_event_handler(event);
+        match (self.in_repaint, &event) {
+            (true, Event::WindowEvent{event: WindowEvent::RedrawRequested, ..}) |
+            (false, _) => {
+                self.call_event_handler(event)
+            },
+            (true, _) => {
+                self.events_cleared();
+                self.new_events();
+                self.process_event(event);
+            }
+        }
     }
 
     fn events_cleared(&mut self) {
+        self.in_repaint = false;
+
         match self.runner_state {
             // If we were handling events, send the EventsCleared message.
             RunnerState::HandlingEvents => {
@@ -501,6 +500,8 @@ impl<T> EventLoopRunner<T> {
             Event::EventsCleared => self
                 .trigger_newevents_on_redraw
                 .store(false, Ordering::Relaxed),
+            Event::WindowEvent{event: WindowEvent::RedrawRequested, ..} =>
+                self.in_repaint = true,
             _ => (),
         }
 
