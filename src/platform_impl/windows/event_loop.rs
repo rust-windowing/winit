@@ -435,10 +435,14 @@ impl<T> EventLoopRunner<T> {
 
         self.runner_state = RunnerState::HandlingEvents;
         match (self.in_repaint, &event) {
-            (true, Event::WindowEvent{event: WindowEvent::RedrawRequested, ..}) |
-            (false, _) => {
-                self.call_event_handler(event)
-            },
+            (
+                true,
+                Event::WindowEvent {
+                    event: WindowEvent::RedrawRequested,
+                    ..
+                },
+            )
+            | (false, _) => self.call_event_handler(event),
             (true, _) => {
                 self.events_cleared();
                 self.new_events();
@@ -500,8 +504,10 @@ impl<T> EventLoopRunner<T> {
             Event::EventsCleared => self
                 .trigger_newevents_on_redraw
                 .store(false, Ordering::Relaxed),
-            Event::WindowEvent{event: WindowEvent::RedrawRequested, ..} =>
-                self.in_repaint = true,
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => self.in_repaint = true,
             _ => (),
         }
 
