@@ -109,6 +109,8 @@ struct MwmHints {
 mod mwm {
     use libc::c_ulong;
 
+    // Motif WM hints are obsolete, but still widely supported.
+    // https://stackoverflow.com/a/1909708
     pub const MWM_HINTS_FUNCTIONS: c_ulong = 1 << 0;
     pub const MWM_HINTS_DECORATIONS: c_ulong = 1 << 1;
 
