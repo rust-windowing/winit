@@ -195,26 +195,44 @@ impl<T: 'static> EventLoop<T> {
                     }
                     winuser::TranslateMessage(&mut msg);
                     winuser::DispatchMessageW(&mut msg);
-                    msg_unprocessed = false;
+
+                    // Officially, the windows API says that `WM_PAINT` will always be the last
+                    // message delivered in a single run of the event loop, and Winit's event
+                    // loop logic relies on that. However, there are situations where the event
+                    // queue is cleared, WM_PAINT gets delivered, but a new event is added to
+                    // the queue before the next call to `PeekMessageW`. This check ensures that,
+                    // even in that scenario, we dispatch `EventsCleared` properly.
+                    if msg.message == winuser::WM_PAINT
+                        && 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1)
+                    {
+                        msg_unprocessed = true;
+                        if msg.message != winuser::WM_PAINT {
+                            break;
+                        }
+                    } else {
+                        msg_unprocessed = false;
+                    }
                 }
                 runner!().events_cleared();
                 if let Some(payload) = runner!().panic_error.take() {
                     panic::resume_unwind(payload);
                 }
 
-                let control_flow = runner!().control_flow;
-                match control_flow {
-                    ControlFlow::Exit => break 'main,
-                    ControlFlow::Wait => {
-                        if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
-                            break 'main;
+                if !msg_unprocessed {
+                    let control_flow = runner!().control_flow;
+                    match control_flow {
+                        ControlFlow::Exit => break 'main,
+                        ControlFlow::Wait => {
+                            if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
+                                break 'main;
+                            }
+                            msg_unprocessed = true;
                         }
-                        msg_unprocessed = true;
+                        ControlFlow::WaitUntil(resume_time) => {
+                            wait_until_time_or_msg(resume_time);
+                        }
+                        ControlFlow::Poll => (),
                     }
-                    ControlFlow::WaitUntil(resume_time) => {
-                        wait_until_time_or_msg(resume_time);
-                    }
-                    ControlFlow::Poll => (),
                 }
             }
         }
