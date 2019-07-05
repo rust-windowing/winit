@@ -13,6 +13,7 @@ and `WindowEvent::HoveredFile`.
 - On Windows, fix edge case where `RedrawRequested` could be dispatched before input events in event loop iteration.
 - On Windows, fix timing issue that could cause events to be improperly dispatched after `RedrawRequested` but before `EventsCleared`.
 - On macOS, drop unused Metal dependency.
+- On Windows, fix `with_maximized` not properly setting window size to entire window.
 
 # 0.20.0 Alpha 1
 
