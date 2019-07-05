@@ -1,6 +1,7 @@
 use std::{
     io, mem,
     ops::BitAnd,
+    os::raw::c_void,
     ptr, slice,
     sync::atomic::{AtomicBool, Ordering},
 };
@@ -12,8 +13,43 @@ use winapi::{
         minwindef::{BOOL, DWORD},
         windef::{HWND, POINT, RECT},
     },
-    um::{winbase::lstrlenW, winuser},
+    um::{
+        libloaderapi::{GetProcAddress, LoadLibraryA},
+        winbase::lstrlenW,
+        winnt::LPCSTR,
+        winuser,
+    },
 };
+
+// Helper function to dynamically load function pointer.
+// `library` and `function` must be zero-terminated.
+pub(super) fn get_function_impl(library: &str, function: &str) -> Option<*const c_void> {
+    assert_eq!(library.chars().last(), Some('\0'));
+    assert_eq!(function.chars().last(), Some('\0'));
+
+    // Library names we will use are ASCII so we can use the A version to avoid string conversion.
+    let module = unsafe { LoadLibraryA(library.as_ptr() as LPCSTR) };
+    if module.is_null() {
+        return None;
+    }
+
+    let function_ptr = unsafe { GetProcAddress(module, function.as_ptr() as LPCSTR) };
+    if function_ptr.is_null() {
+        return None;
+    }
+
+    Some(function_ptr as _)
+}
+
+macro_rules! get_function {
+    ($lib:expr, $func:ident) => {
+        crate::platform_impl::platform::util::get_function_impl(
+            concat!($lib, '\0'),
+            concat!(stringify!($func), '\0'),
+        )
+        .map(|f| unsafe { std::mem::transmute::<*const _, $func>(f) })
+    };
+}
 
 pub fn has_flag<T>(bitset: T, flag: T) -> bool
 where
