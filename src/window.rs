@@ -288,7 +288,7 @@ impl WindowBuilder {
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
     #[inline]
     pub fn build<T: 'static>(
-        mut self,
+        self,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Result<Window, OsError> {
         // building
