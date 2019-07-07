@@ -1,7 +1,7 @@
 use std::{
     collections::VecDeque,
     ffi::c_void,
-    fmt::{self, Debug, Formatter},
+    fmt::{self, Debug},
     marker::PhantomData,
     mem, ptr,
     sync::mpsc::{self, Receiver, Sender},
