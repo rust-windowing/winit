@@ -93,7 +93,7 @@ impl XConnection {
         device_id: c_int,
     ) -> Result<PointerState<'_>, XError> {
         unsafe {
-            let mut pointer_state: PointerState<'_> = mem::uninitialized();
+            let mut pointer_state: PointerState<'_> = MaybeUninit::uninit().assume_init();
             pointer_state.xconn = self;
             pointer_state.relative_to_window = (self.xinput2.XIQueryPointer)(
                 self.display,
@@ -141,7 +141,7 @@ impl XConnection {
     }
 
     pub fn lookup_utf8(&self, ic: ffi::XIC, key_event: &mut ffi::XKeyEvent) -> String {
-        let mut buffer: [u8; TEXT_BUFFER_SIZE] = unsafe { mem::uninitialized() };
+        let mut buffer: [u8; TEXT_BUFFER_SIZE] = unsafe { MaybeUninit::uninit().assume_init() };
         let (_, status, count) = self.lookup_utf8_inner(ic, key_event, &mut buffer);
         // The buffer overflowed, so we'll make a new one on the heap.
         if status == ffi::XBufferOverflow {

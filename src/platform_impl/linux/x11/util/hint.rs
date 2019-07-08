@@ -317,13 +317,13 @@ impl XConnection {
 
     pub fn get_normal_hints(&self, window: ffi::Window) -> Result<NormalHints<'_>, XError> {
         let size_hints = self.alloc_size_hints();
-        let mut supplied_by_user: c_long = unsafe { mem::uninitialized() };
+        let mut supplied_by_user = MaybeUninit::uninit();
         unsafe {
             (self.xlib.XGetWMNormalHints)(
                 self.display,
                 window,
                 size_hints.ptr,
-                &mut supplied_by_user,
+                supplied_by_user.as_mut_ptr(),
             );
         }
         self.check_errors().map(|_| NormalHints { size_hints })

@@ -183,7 +183,8 @@ impl XConnection {
         window: ffi::Window,
         root: ffi::Window,
     ) -> Result<TranslatedCoords, XError> {
-        let mut translated_coords: TranslatedCoords = unsafe { mem::uninitialized() };
+        let mut translated_coords: TranslatedCoords =
+            unsafe { MaybeUninit::uninit().assume_init() };
         unsafe {
             (self.xlib.XTranslateCoordinates)(
                 self.display,
@@ -202,7 +203,7 @@ impl XConnection {
 
     // This is adequate for inner_size
     pub fn get_geometry(&self, window: ffi::Window) -> Result<Geometry, XError> {
-        let mut geometry: Geometry = unsafe { mem::uninitialized() };
+        let mut geometry: Geometry = unsafe { MaybeUninit::uninit().assume_init() };
         let _status = unsafe {
             (self.xlib.XGetGeometry)(
                 self.display,
@@ -264,19 +265,19 @@ impl XConnection {
 
     fn get_parent_window(&self, window: ffi::Window) -> Result<ffi::Window, XError> {
         let parent = unsafe {
-            let mut root: ffi::Window = mem::uninitialized();
-            let mut parent: ffi::Window = mem::uninitialized();
+            let mut root = MaybeUninit::uninit();
+            let mut parent = MaybeUninit::uninit();
             let mut children: *mut ffi::Window = ptr::null_mut();
-            let mut nchildren: c_uint = mem::uninitialized();
+            let mut nchildren = MaybeUninit::uninit();
 
             // What's filled into `parent` if `window` is the root window?
             let _status = (self.xlib.XQueryTree)(
                 self.display,
                 window,
-                &mut root,
-                &mut parent,
+                root.as_mut_ptr(),
+                parent.as_mut_ptr(),
                 &mut children,
-                &mut nchildren,
+                nchildren.as_mut_ptr(),
             );
 
             // The list of children isn't used
@@ -284,7 +285,7 @@ impl XConnection {
                 (self.xlib.XFree)(children as *mut _);
             }
 
-            parent
+            parent.assume_init()
         };
         self.check_errors().map(|_| parent)
     }

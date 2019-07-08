@@ -20,7 +20,7 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
     ffi::CStr,
-    mem,
+    mem::{self, MaybeUninit},
     ops::Deref,
     os::raw::*,
     rc::Rc,
@@ -100,11 +100,7 @@ impl<T: 'static> EventLoop<T> {
             .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
-            let mut result = XExtension {
-                opcode: mem::uninitialized(),
-                first_event_id: mem::uninitialized(),
-                first_error_id: mem::uninitialized(),
-            };
+            let mut result: XExtension = MaybeUninit::uninit().assume_init();
             let res = (xconn.xlib.XQueryExtension)(
                 xconn.display,
                 b"XInputExtension\0".as_ptr() as *const c_char,
@@ -204,8 +200,9 @@ impl<T: 'static> EventLoop<T> {
                 move |evt, &mut ()| {
                     if evt.readiness.is_readable() {
                         // process all pending events
-                        let mut xev = unsafe { mem::uninitialized() };
-                        while unsafe { processor.poll_one_event(&mut xev) } {
+                        let mut xev = MaybeUninit::uninit();
+                        while unsafe { processor.poll_one_event(xev.as_mut_ptr()) } {
+                            let mut xev = unsafe { xev.assume_init() };
                             processor.process_event(&mut xev, &mut callback);
                         }
                     }
@@ -395,9 +392,10 @@ struct DeviceInfo<'a> {
 impl<'a> DeviceInfo<'a> {
     fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
         unsafe {
-            let mut count = mem::uninitialized();
-            let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
+            let mut count = MaybeUninit::uninit();
+            let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, count.as_mut_ptr());
             xconn.check_errors().ok().and_then(|_| {
+                let count = count.assume_init();
                 if info.is_null() || count == 0 {
                     None
                 } else {

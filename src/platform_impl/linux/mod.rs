@@ -1,6 +1,6 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::{collections::VecDeque, env, ffi::CStr, fmt, mem, os::raw::*, sync::Arc};
+use std::{collections::VecDeque, env, ffi::CStr, fmt, mem::MaybeUninit, os::raw::*, sync::Arc};
 
 use parking_lot::Mutex;
 use smithay_client_toolkit::reexports::client::ConnectError;
@@ -410,7 +410,7 @@ unsafe extern "C" fn x_error_callback(
 ) -> c_int {
     let xconn_lock = X11_BACKEND.lock();
     if let Ok(ref xconn) = *xconn_lock {
-        let mut buf: [c_char; 1024] = mem::uninitialized();
+        let mut buf: [c_char; 1024] = MaybeUninit::uninit().assume_init();
         (xconn.xlib.XGetErrorText)(
             display,
             (*event).error_code as c_int,

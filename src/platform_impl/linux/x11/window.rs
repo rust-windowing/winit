@@ -1,4 +1,13 @@
-use std::{cmp, collections::HashSet, env, ffi::CString, mem, os::raw::*, path::Path, sync::Arc};
+use std::{
+    cmp,
+    collections::HashSet,
+    env,
+    ffi::CString,
+    mem::{self, MaybeUninit},
+    os::raw::*,
+    path::Path,
+    sync::Arc,
+};
 
 use libc;
 use parking_lot::Mutex;
@@ -410,11 +419,11 @@ impl UnownedWindow {
                 unsafe {
                     // XSetInputFocus generates an error if the window is not visible, so we wait
                     // until we receive VisibilityNotify.
-                    let mut event = mem::uninitialized();
+                    let mut event = MaybeUninit::uninit();
                     (xconn.xlib.XIfEvent)(
                         // This will flush the request buffer IF it blocks.
                         xconn.display,
-                        &mut event as *mut ffi::XEvent,
+                        event.as_mut_ptr(),
                         Some(visibility_predicate),
                         window.xwindow as _,
                     );
@@ -453,7 +462,7 @@ impl UnownedWindow {
                 // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
                 // the limit defined by OpenBSD.
                 const MAXHOSTNAMELEN: usize = 256;
-                let mut hostname: [c_char; MAXHOSTNAMELEN] = mem::uninitialized();
+                let mut hostname: [c_char; MAXHOSTNAMELEN] = MaybeUninit::uninit().assume_init();
                 let status = libc::gethostname(hostname.as_mut_ptr(), hostname.len());
                 if status != 0 {
                     return None;
@@ -1134,13 +1143,13 @@ impl UnownedWindow {
         let cursor = unsafe {
             // We don't care about this color, since it only fills bytes
             // in the pixmap which are not 0 in the mask.
-            let dummy_color: ffi::XColor = mem::uninitialized();
+            let mut dummy_color = MaybeUninit::uninit();
             let cursor = (self.xconn.xlib.XCreatePixmapCursor)(
                 self.xconn.display,
                 pixmap,
                 pixmap,
-                &dummy_color as *const _ as *mut _,
-                &dummy_color as *const _ as *mut _,
+                dummy_color.as_mut_ptr(),
+                dummy_color.as_mut_ptr(),
                 0,
                 0,
             );

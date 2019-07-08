@@ -45,10 +45,10 @@ impl XConnection {
         let mut done = false;
         while !done {
             unsafe {
-                let mut actual_type: ffi::Atom = mem::uninitialized();
-                let mut actual_format: c_int = mem::uninitialized();
-                let mut quantity_returned: c_ulong = mem::uninitialized();
-                let mut bytes_after: c_ulong = mem::uninitialized();
+                let mut actual_type: ffi::Atom = MaybeUninit::uninit().assume_init();
+                let mut actual_format: c_int = MaybeUninit::uninit().assume_init();
+                let mut quantity_returned: c_ulong = MaybeUninit::uninit().assume_init();
+                let mut bytes_after: c_ulong = MaybeUninit::uninit().assume_init();
                 let mut buf: *mut c_uchar = ptr::null_mut();
                 (self.xlib.XGetWindowProperty)(
                     self.display,
