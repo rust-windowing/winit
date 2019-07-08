@@ -5,6 +5,7 @@
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
+- **Breaking:** On Linux, the functions `is_wayland`, `is_x11`, `xlib_xconnection` and `wayland_display` have been moved to a new `EventLoopWindowTargetExtUnix` trait.
 - On X11, non-resizable windows now have maximize explicitly disabled.
 - On Windows, support paths longer than MAX_PATH (260 characters) in `WindowEvent::DroppedFile`
 and `WindowEvent::HoveredFile`.

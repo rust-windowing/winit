@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use smithay_client_toolkit::reexports::client::ConnectError;
 
 pub use self::x11::XNotSupported;
-use self::x11::{ffi::XVisualInfo, XConnection, XError};
+use self::x11::{ffi::XVisualInfo, get_xtarget, XConnection, XError};
 use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -504,7 +504,7 @@ impl<T: 'static> EventLoop<T> {
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
-            EventLoop::X(ref evlp) => evlp
+            EventLoop::X(ref evlp) => get_xtarget(&evlp.target)
                 .x_connection()
                 .available_monitors()
                 .into_iter()
@@ -517,7 +517,9 @@ impl<T: 'static> EventLoop<T> {
     pub fn primary_monitor(&self) -> MonitorHandle {
         match *self {
             EventLoop::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.primary_monitor()),
-            EventLoop::X(ref evlp) => MonitorHandle::X(evlp.x_connection().primary_monitor()),
+            EventLoop::X(ref evlp) => {
+                MonitorHandle::X(get_xtarget(&evlp.target).x_connection().primary_monitor())
+            }
         }
     }
 
@@ -548,14 +550,6 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    #[inline]
-    pub fn is_wayland(&self) -> bool {
-        match *self {
-            EventLoop::Wayland(_) => true,
-            EventLoop::X(_) => false,
-        }
-    }
-
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
         match *self {
             EventLoop::Wayland(ref evl) => evl.window_target(),
@@ -576,6 +570,16 @@ impl<T: 'static> EventLoopProxy<T> {
 pub enum EventLoopWindowTarget<T> {
     Wayland(wayland::EventLoopWindowTarget<T>),
     X(x11::EventLoopWindowTarget<T>),
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    #[inline]
+    pub fn is_wayland(&self) -> bool {
+        match *self {
+            EventLoopWindowTarget::Wayland(_) => true,
+            EventLoopWindowTarget::X(_) => false,
+        }
+    }
 }
 
 fn sticky_exit_callback<T, F>(

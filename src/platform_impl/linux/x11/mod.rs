@@ -63,7 +63,7 @@ pub struct EventLoop<T: 'static> {
     event_processor: Rc<RefCell<EventProcessor<T>>>,
     user_sender: ::calloop::channel::Sender<T>,
     pending_events: Rc<RefCell<VecDeque<Event<T>>>>,
-    target: Rc<RootELW<T>>,
+    pub(crate) target: Rc<RootELW<T>>,
 }
 
 #[derive(Clone)]
@@ -223,12 +223,6 @@ impl<T: 'static> EventLoop<T> {
         };
 
         result
-    }
-
-    /// Returns the `XConnection` of this events loop.
-    #[inline]
-    pub fn x_connection(&self) -> &Arc<XConnection> {
-        &get_xtarget(&self.target).xconn
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
@@ -406,11 +400,18 @@ fn drain_events<T: 'static>(
     }
 }
 
-fn get_xtarget<T>(rt: &RootELW<T>) -> &EventLoopWindowTarget<T> {
-    if let super::EventLoopWindowTarget::X(ref target) = rt.p {
-        target
-    } else {
-        unreachable!();
+pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
+    match target.p {
+        super::EventLoopWindowTarget::X(ref target) => target,
+        _ => unreachable!(),
+    }
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    /// Returns the `XConnection` of this events loop.
+    #[inline]
+    pub fn x_connection(&self) -> &Arc<XConnection> {
+        &self.xconn
     }
 }
 
