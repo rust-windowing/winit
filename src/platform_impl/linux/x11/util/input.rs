@@ -1,4 +1,4 @@
-use std::str;
+use std::{slice, str};
 
 use super::*;
 use crate::event::ModifiersState;
@@ -25,16 +25,16 @@ impl From<ffi::XIModifierState> for ModifiersState {
 
 pub struct PointerState<'a> {
     xconn: &'a XConnection,
-    root: ffi::Window,
-    child: ffi::Window,
+    //root: ffi::Window,
+    //child: ffi::Window,
     pub root_x: c_double,
     pub root_y: c_double,
-    win_x: c_double,
-    win_y: c_double,
+    //win_x: c_double,
+    //win_y: c_double,
     buttons: ffi::XIButtonState,
     modifiers: ffi::XIModifierState,
-    group: ffi::XIGroupState,
-    relative_to_window: bool,
+    //group: ffi::XIGroupState,
+    //relative_to_window: bool,
 }
 
 impl<'a> PointerState<'a> {
@@ -93,29 +93,46 @@ impl XConnection {
         device_id: c_int,
     ) -> Result<PointerState<'_>, XError> {
         unsafe {
-            let mut pointer_state: PointerState<'_> = MaybeUninit::uninit().assume_init();
-            pointer_state.xconn = self;
-            pointer_state.relative_to_window = (self.xinput2.XIQueryPointer)(
+            let mut root = MaybeUninit::uninit();
+            let mut child = MaybeUninit::uninit();
+            let mut root_x = MaybeUninit::uninit();
+            let mut root_y = MaybeUninit::uninit();
+            let mut win_x = MaybeUninit::uninit();
+            let mut win_y = MaybeUninit::uninit();
+            let mut buttons = MaybeUninit::uninit();
+            let mut modifiers = MaybeUninit::uninit();
+            let mut group = MaybeUninit::uninit();
+
+            let _relative_to_window = (self.xinput2.XIQueryPointer)(
                 self.display,
                 device_id,
                 window,
-                &mut pointer_state.root,
-                &mut pointer_state.child,
-                &mut pointer_state.root_x,
-                &mut pointer_state.root_y,
-                &mut pointer_state.win_x,
-                &mut pointer_state.win_y,
-                &mut pointer_state.buttons,
-                &mut pointer_state.modifiers,
-                &mut pointer_state.group,
+                root.as_mut_ptr(),
+                child.as_mut_ptr(),
+                root_x.as_mut_ptr(),
+                root_y.as_mut_ptr(),
+                win_x.as_mut_ptr(),
+                win_y.as_mut_ptr(),
+                buttons.as_mut_ptr(),
+                modifiers.as_mut_ptr(),
+                group.as_mut_ptr(),
             ) == ffi::True;
-            if let Err(err) = self.check_errors() {
-                // Running the destrutor would be bad news for us...
-                mem::forget(pointer_state);
-                Err(err)
-            } else {
-                Ok(pointer_state)
-            }
+
+            self.check_errors()?;
+
+            Ok(PointerState {
+                xconn: self,
+                //root: root.assume_init(),
+                //child: child.assume_init(),
+                root_x: root_x.assume_init(),
+                root_y: root_y.assume_init(),
+                //win_x: win_x.assume_init(),
+                //win_y: win_y.assume_init(),
+                buttons: buttons.assume_init(),
+                modifiers: modifiers.assume_init(),
+                //group: group.assume_init(),
+                //relative_to_window,
+            })
         }
     }
 
@@ -123,7 +140,8 @@ impl XConnection {
         &self,
         ic: ffi::XIC,
         key_event: &mut ffi::XKeyEvent,
-        buffer: &mut [u8],
+        buffer: *mut u8,
+        size: usize,
     ) -> (ffi::KeySym, ffi::Status, c_int) {
         let mut keysym: ffi::KeySym = 0;
         let mut status: ffi::Status = 0;
@@ -131,8 +149,8 @@ impl XConnection {
             (self.xlib.Xutf8LookupString)(
                 ic,
                 key_event,
-                buffer.as_mut_ptr() as *mut c_char,
-                buffer.len() as c_int,
+                buffer as *mut c_char,
+                size as c_int,
                 &mut keysym,
                 &mut status,
             )
@@ -141,21 +159,28 @@ impl XConnection {
     }
 
     pub fn lookup_utf8(&self, ic: ffi::XIC, key_event: &mut ffi::XKeyEvent) -> String {
-        let mut buffer: [u8; TEXT_BUFFER_SIZE] = unsafe { MaybeUninit::uninit().assume_init() };
-        let (_, status, count) = self.lookup_utf8_inner(ic, key_event, &mut buffer);
-        // The buffer overflowed, so we'll make a new one on the heap.
-        if status == ffi::XBufferOverflow {
-            let mut buffer = Vec::with_capacity(count as usize);
-            unsafe { buffer.set_len(count as usize) };
-            let (_, _, new_count) = self.lookup_utf8_inner(ic, key_event, &mut buffer);
+        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
+        // which do not require initialization.
+        let mut buffer: [MaybeUninit<u8>; TEXT_BUFFER_SIZE] =
+            unsafe { MaybeUninit::uninit().assume_init() };
+        // If the buffer overflows, we'll make a new one on the heap.
+        let mut vec;
+
+        let (_, status, count) =
+            self.lookup_utf8_inner(ic, key_event, buffer.as_mut_ptr() as *mut u8, buffer.len());
+
+        let bytes = if status == ffi::XBufferOverflow {
+            vec = Vec::with_capacity(count as usize);
+            let (_, _, new_count) =
+                self.lookup_utf8_inner(ic, key_event, vec.as_mut_ptr(), vec.capacity());
             debug_assert_eq!(count, new_count);
-            str::from_utf8(&buffer[..count as usize])
-                .unwrap_or("")
-                .to_string()
+
+            unsafe { vec.set_len(count as usize) };
+            &vec[..count as usize]
         } else {
-            str::from_utf8(&buffer[..count as usize])
-                .unwrap_or("")
-                .to_string()
-        }
+            unsafe { slice::from_raw_parts(buffer.as_ptr() as *const u8, count as usize) }
+        };
+
+        str::from_utf8(bytes).unwrap_or("").to_string()
     }
 }

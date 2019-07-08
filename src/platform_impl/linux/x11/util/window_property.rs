@@ -45,11 +45,12 @@ impl XConnection {
         let mut done = false;
         while !done {
             unsafe {
-                let mut actual_type: ffi::Atom = MaybeUninit::uninit().assume_init();
-                let mut actual_format: c_int = MaybeUninit::uninit().assume_init();
-                let mut quantity_returned: c_ulong = MaybeUninit::uninit().assume_init();
-                let mut bytes_after: c_ulong = MaybeUninit::uninit().assume_init();
+                let mut actual_type = MaybeUninit::uninit();
+                let mut actual_format = MaybeUninit::uninit();
+                let mut quantity_returned = MaybeUninit::uninit();
+                let mut bytes_after = MaybeUninit::uninit();
                 let mut buf: *mut c_uchar = ptr::null_mut();
+
                 (self.xlib.XGetWindowProperty)(
                     self.display,
                     window,
@@ -60,18 +61,23 @@ impl XConnection {
                     PROPERTY_BUFFER_SIZE,
                     ffi::False,
                     property_type,
-                    &mut actual_type,
-                    &mut actual_format,
+                    actual_type.as_mut_ptr(),
+                    actual_format.as_mut_ptr(),
                     // This is the quantity of items we retrieved in our format, NOT of 32-bit chunks!
-                    &mut quantity_returned,
+                    quantity_returned.as_mut_ptr(),
                     // ...and this is a quantity of bytes. So, this function deals in 3 different units.
-                    &mut bytes_after,
+                    bytes_after.as_mut_ptr(),
                     &mut buf,
                 );
 
                 if let Err(e) = self.check_errors() {
                     return Err(GetPropertyError::XError(e));
                 }
+
+                let actual_type = actual_type.assume_init();
+                let actual_format = actual_format.assume_init();
+                let quantity_returned = quantity_returned.assume_init();
+                let bytes_after = bytes_after.assume_init();
 
                 if actual_type != property_type {
                     return Err(GetPropertyError::TypeMismatch(actual_type));

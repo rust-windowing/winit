@@ -6,6 +6,7 @@ use std::{
     mem::{self, MaybeUninit},
     os::raw::*,
     path::Path,
+    ptr, slice,
     sync::Arc,
 };
 
@@ -458,19 +459,22 @@ impl UnownedWindow {
         let pid_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_PID\0") };
         let client_machine_atom = unsafe { self.xconn.get_atom_unchecked(b"WM_CLIENT_MACHINE\0") };
         unsafe {
-            let (hostname, hostname_length) = {
-                // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
-                // the limit defined by OpenBSD.
-                const MAXHOSTNAMELEN: usize = 256;
-                let mut hostname: [c_char; MAXHOSTNAMELEN] = MaybeUninit::uninit().assume_init();
-                let status = libc::gethostname(hostname.as_mut_ptr(), hostname.len());
-                if status != 0 {
-                    return None;
-                }
-                hostname[MAXHOSTNAMELEN - 1] = '\0' as c_char; // a little extra safety
-                let hostname_length = libc::strlen(hostname.as_ptr());
-                (hostname, hostname_length as usize)
-            };
+            // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
+            // the limit defined by OpenBSD.
+            const MAXHOSTNAMELEN: usize = 256;
+            // `assume_init` is safe here because the array consists of `MaybeUninit` values,
+            // which do not require initialization.
+            let mut buffer: [MaybeUninit<c_char>; MAXHOSTNAMELEN] =
+                MaybeUninit::uninit().assume_init();
+            let status = libc::gethostname(buffer.as_mut_ptr() as *mut c_char, buffer.len());
+            if status != 0 {
+                return None;
+            }
+            ptr::write(buffer[MAXHOSTNAMELEN - 1].as_mut_ptr() as *mut u8, b'\0'); // a little extra safety
+            let hostname_length = libc::strlen(buffer.as_ptr() as *const c_char);
+
+            let hostname = slice::from_raw_parts(buffer.as_ptr() as *const c_char, hostname_length);
+
             self.xconn
                 .change_property(
                     self.xwindow,

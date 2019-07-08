@@ -183,8 +183,10 @@ impl XConnection {
         window: ffi::Window,
         root: ffi::Window,
     ) -> Result<TranslatedCoords, XError> {
-        let mut translated_coords: TranslatedCoords =
-            unsafe { MaybeUninit::uninit().assume_init() };
+        let mut x_rel_root = MaybeUninit::uninit();
+        let mut y_rel_root = MaybeUninit::uninit();
+        let mut child = MaybeUninit::uninit();
+
         unsafe {
             (self.xlib.XTranslateCoordinates)(
                 self.display,
@@ -192,33 +194,60 @@ impl XConnection {
                 root,
                 0,
                 0,
-                &mut translated_coords.x_rel_root,
-                &mut translated_coords.y_rel_root,
-                &mut translated_coords.child,
+                x_rel_root.as_mut_ptr(),
+                y_rel_root.as_mut_ptr(),
+                child.as_mut_ptr(),
             );
         }
-        //println!("XTranslateCoordinates coords:{:?}", translated_coords);
-        self.check_errors().map(|_| translated_coords)
+
+        self.check_errors()?;
+
+        unsafe {
+            Ok(TranslatedCoords {
+                x_rel_root: x_rel_root.assume_init(),
+                y_rel_root: y_rel_root.assume_init(),
+                child: child.assume_init(),
+            })
+        }
     }
 
     // This is adequate for inner_size
     pub fn get_geometry(&self, window: ffi::Window) -> Result<Geometry, XError> {
-        let mut geometry: Geometry = unsafe { MaybeUninit::uninit().assume_init() };
+        let mut root = MaybeUninit::uninit();
+        let mut x_rel_parent = MaybeUninit::uninit();
+        let mut y_rel_parent = MaybeUninit::uninit();
+        let mut width = MaybeUninit::uninit();
+        let mut height = MaybeUninit::uninit();
+        let mut border = MaybeUninit::uninit();
+        let mut depth = MaybeUninit::uninit();
+
         let _status = unsafe {
             (self.xlib.XGetGeometry)(
                 self.display,
                 window,
-                &mut geometry.root,
-                &mut geometry.x_rel_parent,
-                &mut geometry.y_rel_parent,
-                &mut geometry.width,
-                &mut geometry.height,
-                &mut geometry.border,
-                &mut geometry.depth,
+                root.as_mut_ptr(),
+                x_rel_parent.as_mut_ptr(),
+                y_rel_parent.as_mut_ptr(),
+                width.as_mut_ptr(),
+                height.as_mut_ptr(),
+                border.as_mut_ptr(),
+                depth.as_mut_ptr(),
             )
         };
-        //println!("XGetGeometry geo:{:?}", geometry);
-        self.check_errors().map(|_| geometry)
+
+        self.check_errors()?;
+
+        unsafe {
+            Ok(Geometry {
+                root: root.assume_init(),
+                x_rel_parent: x_rel_parent.assume_init(),
+                y_rel_parent: y_rel_parent.assume_init(),
+                width: width.assume_init(),
+                height: height.assume_init(),
+                border: border.assume_init(),
+                depth: depth.assume_init(),
+            })
+        }
     }
 
     fn get_frame_extents(&self, window: ffi::Window) -> Option<FrameExtents> {

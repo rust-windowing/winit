@@ -410,14 +410,16 @@ unsafe extern "C" fn x_error_callback(
 ) -> c_int {
     let xconn_lock = X11_BACKEND.lock();
     if let Ok(ref xconn) = *xconn_lock {
-        let mut buf: [c_char; 1024] = MaybeUninit::uninit().assume_init();
+        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
+        // which do not require initialization.
+        let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
         (xconn.xlib.XGetErrorText)(
             display,
             (*event).error_code as c_int,
-            buf.as_mut_ptr(),
+            buf.as_mut_ptr() as *mut c_char,
             buf.len() as c_int,
         );
-        let description = CStr::from_ptr(buf.as_ptr()).to_string_lossy();
+        let description = CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy();
 
         let error = XError {
             description: description.into_owned(),

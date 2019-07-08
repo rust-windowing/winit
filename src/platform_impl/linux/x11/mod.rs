@@ -100,18 +100,27 @@ impl<T: 'static> EventLoop<T> {
             .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
-            let mut result: XExtension = MaybeUninit::uninit().assume_init();
+            let mut opcode = MaybeUninit::uninit();
+            let mut first_event_id = MaybeUninit::uninit();
+            let mut first_error_id = MaybeUninit::uninit();
+
             let res = (xconn.xlib.XQueryExtension)(
                 xconn.display,
                 b"XInputExtension\0".as_ptr() as *const c_char,
-                &mut result.opcode as *mut c_int,
-                &mut result.first_event_id as *mut c_int,
-                &mut result.first_error_id as *mut c_int,
+                opcode.as_mut_ptr(),
+                first_event_id.as_mut_ptr(),
+                first_error_id.as_mut_ptr(),
             );
+
             if res == ffi::False {
                 panic!("X server missing XInput extension");
             }
-            result
+
+            XExtension {
+                opcode: opcode.assume_init(),
+                first_event_id: first_event_id.assume_init(),
+                first_error_id: first_error_id.assume_init(),
+            }
         };
 
         unsafe {
@@ -394,18 +403,19 @@ impl<'a> DeviceInfo<'a> {
         unsafe {
             let mut count = MaybeUninit::uninit();
             let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, count.as_mut_ptr());
-            xconn.check_errors().ok().and_then(|_| {
-                let count = count.assume_init();
-                if info.is_null() || count == 0 {
-                    None
-                } else {
-                    Some(DeviceInfo {
-                        xconn,
-                        info,
-                        count: count as usize,
-                    })
-                }
-            })
+            xconn.check_errors().ok()?;
+
+            let count = count.assume_init();
+
+            if info.is_null() || count == 0 {
+                None
+            } else {
+                Some(DeviceInfo {
+                    xconn,
+                    info,
+                    count: count as usize,
+                })
+            }
         }
     }
 }
