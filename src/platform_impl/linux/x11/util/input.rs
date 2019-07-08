@@ -23,18 +23,19 @@ impl From<ffi::XIModifierState> for ModifiersState {
     }
 }
 
+// NOTE: Some of these fields are not used, but may be of use in the future.
 pub struct PointerState<'a> {
     xconn: &'a XConnection,
-    //root: ffi::Window,
-    //child: ffi::Window,
+    pub root: ffi::Window,
+    pub child: ffi::Window,
     pub root_x: c_double,
     pub root_y: c_double,
-    //win_x: c_double,
-    //win_y: c_double,
+    pub win_x: c_double,
+    pub win_y: c_double,
     buttons: ffi::XIButtonState,
     modifiers: ffi::XIModifierState,
-    //group: ffi::XIGroupState,
-    //relative_to_window: bool,
+    pub group: ffi::XIGroupState,
+    pub relative_to_window: bool,
 }
 
 impl<'a> PointerState<'a> {
@@ -103,7 +104,7 @@ impl XConnection {
             let mut modifiers = MaybeUninit::uninit();
             let mut group = MaybeUninit::uninit();
 
-            let _relative_to_window = (self.xinput2.XIQueryPointer)(
+            let relative_to_window = (self.xinput2.XIQueryPointer)(
                 self.display,
                 device_id,
                 window,
@@ -122,16 +123,16 @@ impl XConnection {
 
             Ok(PointerState {
                 xconn: self,
-                //root: root.assume_init(),
-                //child: child.assume_init(),
+                root: root.assume_init(),
+                child: child.assume_init(),
                 root_x: root_x.assume_init(),
                 root_y: root_y.assume_init(),
-                //win_x: win_x.assume_init(),
-                //win_y: win_y.assume_init(),
+                win_x: win_x.assume_init(),
+                win_y: win_y.assume_init(),
                 buttons: buttons.assume_init(),
                 modifiers: modifiers.assume_init(),
-                //group: group.assume_init(),
-                //relative_to_window,
+                group: group.assume_init(),
+                relative_to_window,
             })
         }
     }
