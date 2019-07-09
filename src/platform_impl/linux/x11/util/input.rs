@@ -94,44 +94,44 @@ impl XConnection {
         device_id: c_int,
     ) -> Result<PointerState<'_>, XError> {
         unsafe {
-            let mut root = MaybeUninit::uninit();
-            let mut child = MaybeUninit::uninit();
-            let mut root_x = MaybeUninit::uninit();
-            let mut root_y = MaybeUninit::uninit();
-            let mut win_x = MaybeUninit::uninit();
-            let mut win_y = MaybeUninit::uninit();
-            let mut buttons = MaybeUninit::uninit();
-            let mut modifiers = MaybeUninit::uninit();
-            let mut group = MaybeUninit::uninit();
+            let mut root = 0;
+            let mut child = 0;
+            let mut root_x = 0.0;
+            let mut root_y = 0.0;
+            let mut win_x = 0.0;
+            let mut win_y = 0.0;
+            let mut buttons = MaybeUninit::zeroed().assume_init();
+            let mut modifiers = MaybeUninit::zeroed().assume_init();
+            let mut group = MaybeUninit::zeroed().assume_init();
 
             let relative_to_window = (self.xinput2.XIQueryPointer)(
                 self.display,
                 device_id,
                 window,
-                root.as_mut_ptr(),
-                child.as_mut_ptr(),
-                root_x.as_mut_ptr(),
-                root_y.as_mut_ptr(),
-                win_x.as_mut_ptr(),
-                win_y.as_mut_ptr(),
-                buttons.as_mut_ptr(),
-                modifiers.as_mut_ptr(),
-                group.as_mut_ptr(),
+                &mut root,
+                &mut child,
+                &mut root_x,
+                &mut root_y,
+                &mut win_x,
+                &mut win_y,
+                &mut buttons,
+                &mut modifiers,
+                &mut group,
             ) == ffi::True;
 
             self.check_errors()?;
 
             Ok(PointerState {
                 xconn: self,
-                root: root.assume_init(),
-                child: child.assume_init(),
-                root_x: root_x.assume_init(),
-                root_y: root_y.assume_init(),
-                win_x: win_x.assume_init(),
-                win_y: win_y.assume_init(),
-                buttons: buttons.assume_init(),
-                modifiers: modifiers.assume_init(),
-                group: group.assume_init(),
+                root,
+                child,
+                root_x,
+                root_y,
+                win_x,
+                win_y,
+                buttons,
+                modifiers,
+                group,
                 relative_to_window,
             })
         }
