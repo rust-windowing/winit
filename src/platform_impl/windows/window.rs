@@ -153,7 +153,12 @@ impl Window {
                 if !window_state.queued_out_of_band_redraw {
                     window_state.queued_out_of_band_redraw = true;
                     drop(window_state);
-                    winuser::SendNotifyMessageA(self.window.0, *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID, 0, 0);
+                    winuser::SendNotifyMessageA(
+                        self.window.0,
+                        *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID,
+                        0,
+                        0,
+                    );
                 }
             }
         }

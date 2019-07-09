@@ -11,19 +11,12 @@ use std::{
     time::Instant,
 };
 
-use winapi::{
-    shared::{
-        windef::HWND,
-    },
-    um::winuser,
-};
+use winapi::{shared::windef::HWND, um::winuser};
 
 use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
-    platform_impl::platform::{
-        event_loop::EventLoop,
-    },
+    platform_impl::platform::event_loop::EventLoop,
 };
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
@@ -43,7 +36,10 @@ struct EventLoopRunner<T> {
 }
 pub type PanicError = Box<dyn Any + Send + 'static>;
 
-fn dispatch_buffered_events<T>(runner: &mut EventLoopRunner<T>, buffer: &RefCell<VecDeque<Event<T>>>) {
+fn dispatch_buffered_events<T>(
+    runner: &mut EventLoopRunner<T>,
+    buffer: &RefCell<VecDeque<Event<T>>>,
+) {
     loop {
         // We do this instead of using a `while let` loop because if we use a `while let`
         // loop the reference returned `borrow_mut()` doesn't get dropped until the end
@@ -391,22 +387,18 @@ impl<T> EventLoopRunner<T> {
         match event {
             Event::NewEvents(_) => {
                 self.in_repaint = false;
-                self
-                    .trigger_newevents_on_redraw
+                self.trigger_newevents_on_redraw
                     .store(true, Ordering::Relaxed)
-            },
+            }
             Event::EventsCleared => {
                 self.in_repaint = false;
-                self
-                    .trigger_newevents_on_redraw
+                self.trigger_newevents_on_redraw
                     .store(false, Ordering::Relaxed)
-            },
+            }
             Event::WindowEvent {
                 event: WindowEvent::RedrawRequested,
                 ..
-            } => {
-                self.in_repaint = true
-            },
+            } => self.in_repaint = true,
             _ => (),
         }
 
