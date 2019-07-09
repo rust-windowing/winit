@@ -100,27 +100,21 @@ impl<T: 'static> EventLoop<T> {
             .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
-            let mut opcode = MaybeUninit::uninit();
-            let mut first_event_id = MaybeUninit::uninit();
-            let mut first_error_id = MaybeUninit::uninit();
+            let mut ext = XExtension::default();
 
             let res = (xconn.xlib.XQueryExtension)(
                 xconn.display,
                 b"XInputExtension\0".as_ptr() as *const c_char,
-                opcode.as_mut_ptr(),
-                first_event_id.as_mut_ptr(),
-                first_error_id.as_mut_ptr(),
+                &mut ext.opcode,
+                &mut ext.first_event_id,
+                &mut ext.first_error_id,
             );
 
             if res == ffi::False {
                 panic!("X server missing XInput extension");
             }
 
-            XExtension {
-                opcode: opcode.assume_init(),
-                first_event_id: first_event_id.assume_init(),
-                first_error_id: first_error_id.assume_init(),
-            }
+            ext
         };
 
         unsafe {
@@ -401,11 +395,9 @@ struct DeviceInfo<'a> {
 impl<'a> DeviceInfo<'a> {
     fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
         unsafe {
-            let mut count = MaybeUninit::uninit();
-            let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, count.as_mut_ptr());
+            let mut count = 0;
+            let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
             xconn.check_errors().ok()?;
-
-            let count = count.assume_init();
 
             if info.is_null() || count == 0 {
                 None
@@ -520,7 +512,7 @@ impl<'a> Drop for GenericEventCookie<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 struct XExtension {
     opcode: c_int,
     first_event_id: c_int,

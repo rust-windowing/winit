@@ -100,9 +100,9 @@ impl XConnection {
             let mut root_y = 0.0;
             let mut win_x = 0.0;
             let mut win_y = 0.0;
-            let mut buttons = MaybeUninit::zeroed().assume_init();
-            let mut modifiers = MaybeUninit::zeroed().assume_init();
-            let mut group = MaybeUninit::zeroed().assume_init();
+            let mut buttons = Default::default();
+            let mut modifiers = Default::default();
+            let mut group = Default::default();
 
             let relative_to_window = (self.xinput2.XIQueryPointer)(
                 self.display,

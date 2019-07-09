@@ -43,14 +43,14 @@ impl XConnection {
         let mut offset = 0;
 
         let mut done = false;
+        let mut actual_type = 0;
+        let mut actual_format = 0;
+        let mut quantity_returned = 0;
+        let mut bytes_after = 0;
+        let mut buf: *mut c_uchar = ptr::null_mut();
+
         while !done {
             unsafe {
-                let mut actual_type = MaybeUninit::uninit();
-                let mut actual_format = MaybeUninit::uninit();
-                let mut quantity_returned = MaybeUninit::uninit();
-                let mut bytes_after = MaybeUninit::uninit();
-                let mut buf: *mut c_uchar = ptr::null_mut();
-
                 (self.xlib.XGetWindowProperty)(
                     self.display,
                     window,
@@ -61,23 +61,18 @@ impl XConnection {
                     PROPERTY_BUFFER_SIZE,
                     ffi::False,
                     property_type,
-                    actual_type.as_mut_ptr(),
-                    actual_format.as_mut_ptr(),
+                    &mut actual_type,
+                    &mut actual_format,
                     // This is the quantity of items we retrieved in our format, NOT of 32-bit chunks!
-                    quantity_returned.as_mut_ptr(),
+                    &mut quantity_returned,
                     // ...and this is a quantity of bytes. So, this function deals in 3 different units.
-                    bytes_after.as_mut_ptr(),
+                    &mut bytes_after,
                     &mut buf,
                 );
 
                 if let Err(e) = self.check_errors() {
                     return Err(GetPropertyError::XError(e));
                 }
-
-                let actual_type = actual_type.assume_init();
-                let actual_format = actual_format.assume_init();
-                let quantity_returned = quantity_returned.assume_init();
-                let bytes_after = bytes_after.assume_init();
 
                 if actual_type != property_type {
                     return Err(GetPropertyError::TypeMismatch(actual_type));

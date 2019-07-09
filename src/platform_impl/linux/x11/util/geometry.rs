@@ -41,14 +41,14 @@ impl AaRect {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TranslatedCoords {
     pub x_rel_root: c_int,
     pub y_rel_root: c_int,
     pub child: ffi::Window,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Geometry {
     pub root: ffi::Window,
     // If you want positions relative to the root window, use translate_coords.
@@ -183,7 +183,7 @@ impl XConnection {
         window: ffi::Window,
         root: ffi::Window,
     ) -> Result<TranslatedCoords, XError> {
-        let mut coords: TranslatedCoords = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut coords = TranslatedCoords::default();
 
         unsafe {
             (self.xlib.XTranslateCoordinates)(
@@ -204,7 +204,7 @@ impl XConnection {
 
     // This is adequate for inner_size
     pub fn get_geometry(&self, window: ffi::Window) -> Result<Geometry, XError> {
-        let mut geometry: Geometry = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut geometry = Geometry::default();
 
         let _status = unsafe {
             (self.xlib.XGetGeometry)(
@@ -268,19 +268,19 @@ impl XConnection {
 
     fn get_parent_window(&self, window: ffi::Window) -> Result<ffi::Window, XError> {
         let parent = unsafe {
-            let mut root = MaybeUninit::uninit();
-            let mut parent = MaybeUninit::uninit();
+            let mut root = 0;
+            let mut parent = 0;
             let mut children: *mut ffi::Window = ptr::null_mut();
-            let mut nchildren = MaybeUninit::uninit();
+            let mut nchildren = 0;
 
             // What's filled into `parent` if `window` is the root window?
             let _status = (self.xlib.XQueryTree)(
                 self.display,
                 window,
-                root.as_mut_ptr(),
-                parent.as_mut_ptr(),
+                &mut root,
+                &mut parent,
                 &mut children,
-                nchildren.as_mut_ptr(),
+                &mut nchildren,
             );
 
             // The list of children isn't used
@@ -288,7 +288,7 @@ impl XConnection {
                 (self.xlib.XFree)(children as *mut _);
             }
 
-            parent.assume_init()
+            parent
         };
         self.check_errors().map(|_| parent)
     }
