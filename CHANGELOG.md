@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.20.0 Alpha 2 (2019-06-28)
+
 - On X11, non-resizable windows now have maximize explicitly disabled.
 - On Windows, support paths longer than MAX_PATH (260 characters) in `WindowEvent::DroppedFile`
 and `WindowEvent::HoveredFile`.
@@ -17,7 +19,7 @@ and `WindowEvent::HoveredFile`.
 - On Windows, fix `with_maximized` not properly setting window size to entire window.
 - On macOS, change `WindowExtMacOS::request_user_attention()` to take an `enum` instead of a `bool`.
 
-# 0.20.0 Alpha 1
+# 0.20.0 Alpha 1 (2019-06-21)
 
 - Changes below are considered **breaking**.
 - Change all occurrences of `EventsLoop` to `EventLoop`.
