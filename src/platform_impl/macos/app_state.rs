@@ -88,7 +88,8 @@ struct Handler<'a> {
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<Event<'a, Never>>>,
-    deferred_events: Mutex<VecDeque<Event<'a, Never>>>,
+    // We don't need it any more. See line 270
+    // deferred_events: Mutex<VecDeque<Event<'a, Never>>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
 }
@@ -101,9 +102,10 @@ impl<'a> Handler<'a> {
         self.pending_events.lock().unwrap()
     }
 
-    fn deferred(&self) -> MutexGuard<'_, VecDeque<Event<'a, Never>>> {
-        self.deferred_events.lock().unwrap()
-    }
+    // We don't need it any more.
+    // fn deferred(&self) -> MutexGuard<'_, VecDeque<Event<'a, Never>>> {
+    //     self.deferred_events.lock().unwrap()
+    // }
 
     fn redraw(&self) -> MutexGuard<'_, Vec<WindowId>> {
         self.pending_redraw.lock().unwrap()
@@ -149,9 +151,10 @@ impl<'a> Handler<'a> {
         mem::replace(&mut *self.events(), Default::default())
     }
 
-    fn take_deferred(&self) -> VecDeque<Event<'_, Never>> {
-        mem::replace(&mut *self.deferred(), Default::default())
-    }
+    // We don't need it any more.
+    // fn take_deferred(&self) -> VecDeque<Event<'_, Never>> {
+    //     mem::replace(&mut *self.deferred(), Default::default())
+    // }
 
     fn should_redraw(&self) -> Vec<WindowId> {
         mem::replace(&mut *self.redraw(), Default::default())
@@ -264,12 +267,15 @@ impl AppState {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
             panic!("Event sent from different thread: {:#?}", event);
         }
-        HANDLER.deferred().push_back(event);
+        // HANDLER.deferred().push_back(event); // Commenting this out due to unnecessity
+        // We check that events are sent here from the same thread so we do not need to process
+        // asynchronously, thus we do not need a VecDeque here
         if !HANDLER.get_in_callback() {
             HANDLER.set_in_callback(true);
-            for event in HANDLER.take_deferred() {
+            // Since we do not push_back, we don't need to take_deferred
+            // for event in HANDLER.take_deferred() {
                 HANDLER.handle_nonuser_event(event);
-            }
+            // }
             HANDLER.set_in_callback(false);
         }
     }

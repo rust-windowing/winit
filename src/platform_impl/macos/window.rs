@@ -117,17 +117,15 @@ fn create_window(
         let screen = match attrs.fullscreen {
             Some(ref monitor_id) => {
                 let monitor_screen = monitor_id.inner.ns_screen();
-                Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
+                Some(monitor_screen.unwrap_or(NSScreen::mainScreen(nil)))
             }
             _ => None,
         };
         let frame = match screen {
-            Some(screen) => appkit::NSScreen::frame(screen),
+            Some(screen) => NSScreen::frame(screen),
             None => {
-                // Not sure what dpi_factor we need here.
-                // If i understand correctly, here we fail to create NSScreen frame, so we've got
-                // no dpi_factor
-                let hidpi_factor = 1.0;
+                let screen = NSScreen::mainScreen(nil);
+                let hidpi_factor = NSScreen::backingScaleFactor(screen) as f64;
                 let (width, height) = match attrs.inner_size {
                     Some(size) => {
                         let logical = size.to_logical(hidpi_factor);

@@ -25,7 +25,7 @@ use crate::{
     window::WindowId,
 };
 
-pub struct WindowDelegateState<'a> {
+pub struct WindowDelegateState {
     ns_window: IdRef, // never changes
     ns_view: IdRef,   // never changes
 
@@ -43,14 +43,12 @@ pub struct WindowDelegateState<'a> {
 
     // Used to prevent redundant events.
     previous_dpi_factor: f64,
-
-    new_inner_rect_opt: &'a mut Option<PhysicalSize>,
 }
 
-impl<'a> WindowDelegateState<'a> {
+impl WindowDelegateState {
     pub fn new(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> Self {
         let hidpi_factor = window.hidpi_factor();
-        let new_inner_rect_opt = window.inner_size();
+        let mut new_inner_rect_opt = Some(window.inner_size());
 
         let mut delegate_state = WindowDelegateState {
             ns_window: window.ns_window.clone(),
@@ -59,11 +57,10 @@ impl<'a> WindowDelegateState<'a> {
             initial_fullscreen,
             previous_position: None,
             previous_dpi_factor: hidpi_factor,
-            new_inner_rect_opt: &mut Some(new_inner_rect_opt),
         };
 
         if hidpi_factor != 1.0 {
-            delegate_state.emit_hidpi_factor_changed_event();
+            delegate_state.emit_hidpi_factor_changed_event(&mut new_inner_rect_opt);
             delegate_state.emit_resize_event();
         }
 
@@ -85,12 +82,12 @@ impl<'a> WindowDelegateState<'a> {
         AppState::queue_event(event);
     }
 
-    pub fn emit_hidpi_factor_changed_event(&mut self) {
+    pub fn emit_hidpi_factor_changed_event(&mut self, new_inner_rect_opt: &mut Option<PhysicalSize>) {
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*self.ns_window)),
             event: WindowEvent::HiDpiFactorChanged {
                 hidpi_factor: self.previous_dpi_factor,
-                new_inner_size: &mut self.new_inner_rect_opt,
+                new_inner_size: new_inner_rect_opt,
             },
         };
         AppState::send_event_immediately(event);
@@ -223,17 +220,17 @@ lazy_static! {
 
 // This function is definitely unsafe, but labeling that would increase
 // boilerplate and wouldn't really clarify anything...
-fn with_state<F: FnOnce(&mut WindowDelegateState<'_>) -> T, T>(this: &Object, callback: F) {
+fn with_state<F: FnOnce(&mut WindowDelegateState) -> T, T>(this: &Object, callback: F) {
     let state_ptr = unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
-        &mut *(state_ptr as *mut WindowDelegateState<'_>)
+        &mut *(state_ptr as *mut WindowDelegateState)
     };
     callback(state_ptr);
 }
 
 extern "C" fn dealloc(this: &Object, _sel: Sel) {
     with_state(this, |state| unsafe {
-        Box::from_raw(state as *mut WindowDelegateState<'_>);
+        Box::from_raw(state as *mut WindowDelegateState);
     });
 }
 
@@ -297,17 +294,11 @@ extern "C" fn window_did_change_screen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidChangeScreen:`");
     with_state(this, |state| {
         let hidpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
-        let ns_size = unsafe { NSWindow::contentSize(*state.ns_window) };
+        let ns_size = unsafe { NSWindow::frame(*state.ns_window).size };
+        let new_size = inner_size(ns_size, hidpi_factor);
         if state.previous_dpi_factor != hidpi_factor {
             state.previous_dpi_factor = hidpi_factor;
-            state.emit_event(
-                WindowEvent::HiDpiFactorChanged {
-                    hidpi_factor,
-                    new_inner_size: &mut Some(inner_size(ns_size, hidpi_factor)),
-                }
-                .to_static()
-                .unwrap(),
-            );
+            state.emit_hidpi_factor_changed_event(&mut Some(new_size));
             state.emit_resize_event();
         }
     });
@@ -319,17 +310,11 @@ extern "C" fn window_did_change_backing_properties(this: &Object, _: Sel, _: id)
     trace!("Triggered `windowDidChangeBackingProperties:`");
     with_state(this, |state| {
         let hidpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
-        let ns_size = unsafe { NSWindow::contentSize(*state.ns_window) };
+        let ns_size = unsafe { NSWindow::frame(*state.ns_window).size };
+        let new_size = inner_size(ns_size, hidpi_factor);
         if state.previous_dpi_factor != hidpi_factor {
             state.previous_dpi_factor = hidpi_factor;
-            state.emit_event(
-                WindowEvent::HiDpiFactorChanged {
-                    hidpi_factor,
-                    new_inner_size: &mut Some(inner_size(ns_size, hidpi_factor)),
-                }
-                .to_static()
-                .unwrap(),
-            );
+            state.emit_hidpi_factor_changed_event(&mut Some(new_size));
             state.emit_resize_event();
         }
     });
