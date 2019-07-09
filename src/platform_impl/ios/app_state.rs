@@ -71,7 +71,7 @@ impl Drop for AppStateImpl {
                     let () = msg_send![window, release];
                 }
             },
-            _ => {},
+            _ => {}
         }
     }
 }
@@ -128,15 +128,13 @@ impl AppState {
                 queued_windows.push(window);
                 msg_send![window, retain];
                 return;
-            },
-            &mut AppStateImpl::ProcessingEvents { .. } => {},
-            &mut AppStateImpl::InUserCallback { .. } => {},
-            &mut AppStateImpl::Terminated => {
-                panic!(
-                    "Attempt to create a `Window` \
-                     after the app has terminated"
-                )
-            },
+            }
+            &mut AppStateImpl::ProcessingEvents { .. } => {}
+            &mut AppStateImpl::InUserCallback { .. } => {}
+            &mut AppStateImpl::Terminated => panic!(
+                "Attempt to create a `Window` \
+                 after the app has terminated"
+            ),
             app_state => unreachable!("unexpected state: {:#?}", app_state), /* all other cases should be impossible */
         }
         drop(this);
@@ -154,13 +152,11 @@ impl AppState {
                 let windows = ptr::read(queued_windows);
                 let events = ptr::read(queued_events);
                 (windows, events)
-            },
-            _ => {
-                panic!(
-                    "winit iOS expected the app to be in a `NotLaunched` \
-                     state, but was not - please file an issue"
-                )
-            },
+            }
+            _ => panic!(
+                "winit iOS expected the app to be in a `NotLaunched` \
+                 state, but was not - please file an issue"
+            ),
         };
         ptr::write(
             &mut this.app_state,
@@ -180,12 +176,10 @@ impl AppState {
                 ref mut queued_windows,
                 ..
             } => mem::replace(queued_windows, Vec::new()),
-            _ => {
-                panic!(
-                    "winit iOS expected the app to be in a `Launching` \
-                     state, but was not - please file an issue"
-                )
-            },
+            _ => panic!(
+                "winit iOS expected the app to be in a `Launching` \
+                 state, but was not - please file an issue"
+            ),
         };
         // have to drop RefMut because the window setup code below can trigger new events
         drop(this);
@@ -228,13 +222,11 @@ impl AppState {
                 let events = ptr::read(queued_events);
                 let event_handler = ptr::read(queued_event_handler);
                 (windows, events, event_handler)
-            },
-            _ => {
-                panic!(
-                    "winit iOS expected the app to be in a `Launching` \
-                     state, but was not - please file an issue"
-                )
-            },
+            }
+            _ => panic!(
+                "winit iOS expected the app to be in a `Launching` \
+                 state, but was not - please file an issue"
+            ),
         };
         ptr::write(
             &mut this.app_state,
@@ -283,7 +275,7 @@ impl AppState {
                         },
                     );
                     Event::NewEvents(StartCause::Poll)
-                },
+                }
                 ControlFlow::Wait => {
                     let (event_handler, start) = match &mut this.app_state {
                         &mut AppStateImpl::NotLaunched { .. }
@@ -305,7 +297,7 @@ impl AppState {
                         start,
                         requested_resume: None,
                     })
-                },
+                }
                 ControlFlow::WaitUntil(requested_resume) => {
                     let (event_handler, start) = match &mut this.app_state {
                         &mut AppStateImpl::NotLaunched { .. }
@@ -334,7 +326,7 @@ impl AppState {
                             requested_resume: Some(requested_resume),
                         })
                     }
-                },
+                }
                 ControlFlow::Exit => bug!("unexpected controlflow `Exit`"),
             };
         drop(this);
@@ -365,7 +357,7 @@ impl AppState {
             } => {
                 queued_events.extend(events);
                 return;
-            },
+            }
             &mut AppStateImpl::ProcessingEvents {
                 ref mut event_handler,
                 ref mut active_control_flow,
@@ -461,7 +453,7 @@ impl AppState {
         let mut this = AppState::get_mut();
         match &mut this.app_state {
             &mut AppStateImpl::NotLaunched { .. } | &mut AppStateImpl::Launching { .. } => return,
-            &mut AppStateImpl::ProcessingEvents { .. } => {},
+            &mut AppStateImpl::ProcessingEvents { .. } => {}
             _ => unreachable!(),
         };
         drop(this);
@@ -474,25 +466,21 @@ impl AppState {
             &mut AppStateImpl::ProcessingEvents {
                 ref mut event_handler,
                 ref mut active_control_flow,
-            } => {
-                (
-                    ManuallyDrop::new(ptr::read(event_handler)),
-                    *active_control_flow,
-                )
-            },
+            } => (
+                ManuallyDrop::new(ptr::read(event_handler)),
+                *active_control_flow,
+            ),
             _ => unreachable!(),
         };
 
         let new = this.control_flow;
         match (old, new) {
-            (ControlFlow::Poll, ControlFlow::Poll) => {
-                ptr::write(
-                    &mut this.app_state,
-                    AppStateImpl::PollFinished {
-                        waiting_event_handler: ManuallyDrop::into_inner(event_handler),
-                    },
-                )
-            },
+            (ControlFlow::Poll, ControlFlow::Poll) => ptr::write(
+                &mut this.app_state,
+                AppStateImpl::PollFinished {
+                    waiting_event_handler: ManuallyDrop::into_inner(event_handler),
+                },
+            ),
             (ControlFlow::Wait, ControlFlow::Wait) => {
                 let start = Instant::now();
                 ptr::write(
@@ -502,7 +490,7 @@ impl AppState {
                         start,
                     },
                 )
-            },
+            }
             (ControlFlow::WaitUntil(old_instant), ControlFlow::WaitUntil(new_instant))
                 if old_instant == new_instant =>
             {
@@ -525,7 +513,7 @@ impl AppState {
                     },
                 );
                 this.waker.stop()
-            },
+            }
             (_, ControlFlow::WaitUntil(new_instant)) => {
                 let start = Instant::now();
                 ptr::write(
@@ -536,7 +524,7 @@ impl AppState {
                     },
                 );
                 this.waker.start_at(new_instant)
-            },
+            }
             (_, ControlFlow::Poll) => {
                 ptr::write(
                     &mut this.app_state,
@@ -545,13 +533,13 @@ impl AppState {
                     },
                 );
                 this.waker.start()
-            },
+            }
             (_, ControlFlow::Exit) => {
                 // https://developer.apple.com/library/archive/qa/qa1561/_index.html
                 // it is not possible to quit an iOS app gracefully and programatically
                 warn!("`ControlFlow::Exit` ignored on iOS");
                 this.control_flow = old
-            },
+            }
         }
     }
 

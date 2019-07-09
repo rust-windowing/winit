@@ -13,17 +13,7 @@ fn main() {
     // you'll be bitten by the low-quality downscaling built into the WM.
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icon.png");
 
-    let (icon_rgba, icon_width, icon_height) = {
-        let image = image::open(path).expect("Failed to open icon path");
-        use image::{GenericImageView, Pixel};
-        let (width, height) = image.dimensions();
-        let mut rgba = Vec::with_capacity((width * height) as usize * 4);
-        for (_, _, pixel) in image.pixels() {
-            rgba.extend_from_slice(&pixel.to_rgba().data);
-        }
-        (rgba, width, height)
-    };
-    let icon = Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon");
+    let icon = load_icon(Path::new(path));
 
     let event_loop = EventLoop::new();
 
@@ -43,7 +33,7 @@ fn main() {
                 CloseRequested => *control_flow = ControlFlow::Exit,
                 DroppedFile(path) => {
                     window.set_window_icon(Some(load_icon(&path)));
-                },
+                }
                 _ => (),
             }
         }

@@ -201,7 +201,7 @@ pub enum WindowEvent {
     /// * Changing the display's DPI factor (e.g. in Control Panel on Windows).
     /// * Moving the window to a display with a different DPI factor.
     ///
-    /// For more information about DPI in general, see the [`dpi`](dpi/index.html) module.
+    /// For more information about DPI in general, see the [`dpi`](../dpi/index.html) module.
     HiDpiFactorChanged(f64),
 }
 

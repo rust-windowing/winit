@@ -1,10 +1,6 @@
 #![allow(non_snake_case, unused_unsafe)]
 
-use std::{
-    mem,
-    os::raw::c_void,
-    sync::{Once, ONCE_INIT},
-};
+use std::{mem, os::raw::c_void, sync::Once};
 
 use winapi::{
     shared::{
@@ -79,7 +75,7 @@ pub fn become_dpi_aware(enable: bool) {
     if !enable {
         return;
     }
-    static ENABLE_DPI_AWARENESS: Once = ONCE_INIT;
+    static ENABLE_DPI_AWARENESS: Once = Once::new();
     ENABLE_DPI_AWARENESS.call_once(|| {
         unsafe {
             if let Some(SetProcessDpiAwarenessContext) =

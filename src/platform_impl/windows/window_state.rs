@@ -30,6 +30,9 @@ pub struct WindowState {
     pub dpi_factor: f64,
 
     pub fullscreen: Option<MonitorHandle>,
+    /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
+    /// times in `EventsCleared`.
+    pub queued_out_of_band_redraw: bool,
     window_flags: WindowFlags,
 }
 
@@ -110,6 +113,7 @@ impl WindowState {
             dpi_factor,
 
             fullscreen: None,
+            queued_out_of_band_redraw: false,
             window_flags: WindowFlags::empty(),
         }
     }
@@ -170,7 +174,7 @@ impl MouseProperties {
             Err(e) => {
                 self.cursor_flags = old_flags;
                 return Err(e);
-            },
+            }
         }
 
         Ok(())
@@ -215,8 +219,9 @@ impl WindowFlags {
         if self.contains(WindowFlags::NO_BACK_BUFFER) {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
         }
-        // if self.contains(WindowFlags::TRANSPARENT) {
-        // }
+        if self.contains(WindowFlags::TRANSPARENT) && self.contains(WindowFlags::DECORATIONS) {
+            style_ex |= WS_EX_LAYERED;
+        }
         if self.contains(WindowFlags::CHILD) {
             style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
         }
@@ -307,9 +312,11 @@ impl WindowFlags {
                             y,
                             w,
                             h,
-                            winuser::SWP_NOZORDER | winuser::SWP_FRAMECHANGED,
+                            winuser::SWP_NOZORDER
+                                | winuser::SWP_FRAMECHANGED
+                                | winuser::SWP_NOACTIVATE,
                         );
-                    },
+                    }
                     None => {
                         // Refresh the window frame.
                         winuser::SetWindowPos(
@@ -322,9 +329,10 @@ impl WindowFlags {
                             winuser::SWP_NOZORDER
                                 | winuser::SWP_NOMOVE
                                 | winuser::SWP_NOSIZE
-                                | winuser::SWP_FRAMECHANGED,
+                                | winuser::SWP_FRAMECHANGED
+                                | winuser::SWP_NOACTIVATE,
                         );
-                    },
+                    }
                 }
                 winuser::SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 0, 0);
             }

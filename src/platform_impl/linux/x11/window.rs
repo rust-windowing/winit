@@ -330,8 +330,9 @@ impl UnownedWindow {
                 (xconn.xlib.XSetWMProtocols)(
                     xconn.display,
                     window.xwindow,
-                    &event_loop.wm_delete_window as *const ffi::Atom as *mut ffi::Atom,
-                    1,
+                    &[event_loop.wm_delete_window, event_loop.net_wm_ping] as *const ffi::Atom
+                        as *mut ffi::Atom,
+                    2,
                 );
             } //.queue();
 
@@ -384,7 +385,7 @@ impl UnownedWindow {
                         ImeContextCreationError::XError(err) => OsError::XError(err),
                         ImeContextCreationError::Null => {
                             OsError::XMisc("IME Context creation failed")
-                        },
+                        }
                     };
                     return Err(os_error!(e));
                 }
@@ -558,7 +559,7 @@ impl UnownedWindow {
                     self.set_position_inner(position.0, position.1).queue();
                 }
                 flusher
-            },
+            }
             Some(RootMonitorHandle {
                 inner: PlatformMonitorHandle::X(monitor),
             }) => {
@@ -568,7 +569,7 @@ impl UnownedWindow {
                 self.set_position_inner(monitor_origin.0, monitor_origin.1)
                     .queue();
                 self.set_fullscreen_hint(true)
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -666,20 +667,11 @@ impl UnownedWindow {
     }
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
-        let wm_hints = unsafe { self.xconn.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
-        self.xconn.change_property(
-            self.xwindow,
-            wm_hints,
-            wm_hints,
-            util::PropMode::Replace,
-            &[
-                util::MWM_HINTS_DECORATIONS, // flags
-                0,                           // functions
-                decorations as c_ulong,      // decorations
-                0,                           // input mode
-                0,                           // status
-            ],
-        )
+        let mut hints = self.xconn.get_motif_hints(self.xwindow);
+
+        hints.set_decorations(decorations);
+
+        self.xconn.set_motif_hints(self.xwindow, &hints)
     }
 
     #[inline]
@@ -688,6 +680,14 @@ impl UnownedWindow {
             .flush()
             .expect("Failed to set decoration state");
         self.invalidate_cached_frame_extents();
+    }
+
+    fn set_maximizable_inner(&self, maximizable: bool) -> util::Flusher<'_> {
+        let mut hints = self.xconn.get_motif_hints(self.xwindow);
+
+        hints.set_maximizable(maximizable);
+
+        self.xconn.set_motif_hints(self.xwindow, &hints)
     }
 
     fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher<'_> {
@@ -984,6 +984,8 @@ impl UnownedWindow {
             (window_size.clone(), window_size)
         };
 
+        self.set_maximizable_inner(resizable).queue();
+
         let dpi_factor = self.hidpi_factor();
         let min_inner_size = logical_min
             .map(|logical_size| logical_size.to_physical(dpi_factor))
@@ -1190,11 +1192,11 @@ impl UnownedWindow {
                 ffi::GrabSuccess => Ok(()),
                 ffi::AlreadyGrabbed => {
                     Err("Cursor could not be grabbed: already grabbed by another client")
-                },
+                }
                 ffi::GrabInvalidTime => Err("Cursor could not be grabbed: invalid time"),
                 ffi::GrabNotViewable => {
                     Err("Cursor could not be grabbed: grab location not viewable")
-                },
+                }
                 ffi::GrabFrozen => Err("Cursor could not be grabbed: frozen by another client"),
                 _ => unreachable!(),
             }

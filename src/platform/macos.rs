@@ -8,6 +8,26 @@ use crate::{
     window::{Window, WindowBuilder},
 };
 
+/// Corresponds to `NSRequestUserAttentionType`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RequestUserAttentionType {
+    /// Corresponds to `NSCriticalRequest`.
+    ///
+    /// Dock icon will bounce until the application is focused.
+    Critical,
+
+    /// Corresponds to `NSInformationalRequest`.
+    ///
+    /// Dock icon will bounce once.
+    Informational,
+}
+
+impl Default for RequestUserAttentionType {
+    fn default() -> Self {
+        RequestUserAttentionType::Critical
+    }
+}
+
 /// Additional methods on `Window` that are specific to MacOS.
 pub trait WindowExtMacOS {
     /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
@@ -22,11 +42,7 @@ pub trait WindowExtMacOS {
 
     /// Request user attention, causing the application's dock icon to bounce.
     /// Note that this has no effect if the application is already focused.
-    ///
-    /// The `is_critical` flag has the following effects:
-    /// - `false`: the dock icon will only bounce once.
-    /// - `true`: the dock icon will bounce until the application is focused.
-    fn request_user_attention(&self, is_critical: bool);
+    fn request_user_attention(&self, request_type: RequestUserAttentionType);
 
     /// Returns whether or not the window is in simple fullscreen mode.
     fn simple_fullscreen(&self) -> bool;
@@ -53,8 +69,8 @@ impl WindowExtMacOS for Window {
     }
 
     #[inline]
-    fn request_user_attention(&self, is_critical: bool) {
-        self.window.request_user_attention(is_critical)
+    fn request_user_attention(&self, request_type: RequestUserAttentionType) {
+        self.window.request_user_attention(request_type)
     }
 
     #[inline]

@@ -15,9 +15,9 @@ struct TouchPoint {
     id: i32,
 }
 
-pub(crate) fn implement_touch(
+pub(crate) fn implement_touch<T: 'static>(
     seat: &wl_seat::WlSeat,
-    sink: Arc<Mutex<WindowEventsSink>>,
+    sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
 ) -> WlTouch {
     let mut pending_ids = Vec::new();
@@ -32,7 +32,7 @@ pub(crate) fn implement_touch(
                     } => {
                         let wid = store.find_wid(&surface);
                         if let Some(wid) = wid {
-                            sink.send_event(
+                            sink.send_window_event(
                                 WindowEvent::Touch(crate::event::Touch {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -49,12 +49,12 @@ pub(crate) fn implement_touch(
                                 id,
                             });
                         }
-                    },
+                    }
                     TouchEvent::Up { id, .. } => {
                         let idx = pending_ids.iter().position(|p| p.id == id);
                         if let Some(idx) = idx {
                             let pt = pending_ids.remove(idx);
-                            sink.send_event(
+                            sink.send_window_event(
                                 WindowEvent::Touch(crate::event::Touch {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -66,12 +66,12 @@ pub(crate) fn implement_touch(
                                 pt.wid,
                             );
                         }
-                    },
+                    }
                     TouchEvent::Motion { id, x, y, .. } => {
                         let pt = pending_ids.iter_mut().find(|p| p.id == id);
                         if let Some(pt) = pt {
                             pt.location = (x, y);
-                            sink.send_event(
+                            sink.send_window_event(
                                 WindowEvent::Touch(crate::event::Touch {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -83,11 +83,11 @@ pub(crate) fn implement_touch(
                                 pt.wid,
                             );
                         }
-                    },
+                    }
                     TouchEvent::Frame => (),
                     TouchEvent::Cancel => {
                         for pt in pending_ids.drain(..) {
-                            sink.send_event(
+                            sink.send_window_event(
                                 WindowEvent::Touch(crate::event::Touch {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -99,7 +99,7 @@ pub(crate) fn implement_touch(
                                 pt.wid,
                             );
                         }
-                    },
+                    }
                     _ => unreachable!(),
                 }
             },

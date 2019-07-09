@@ -33,7 +33,7 @@ pub fn wchar_ptr_to_string(wchar: *const wchar_t) -> String {
 }
 
 pub unsafe fn status_map<T, F: FnMut(&mut T) -> BOOL>(mut fun: F) -> Option<T> {
-    let mut data: T = mem::uninitialized();
+    let mut data: T = mem::zeroed();
     if fun(&mut data) != 0 {
         Some(data)
     } else {
@@ -59,7 +59,7 @@ pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {
 
 pub fn get_client_rect(hwnd: HWND) -> Result<RECT, io::Error> {
     unsafe {
-        let mut rect = mem::uninitialized();
+        let mut rect = mem::zeroed();
         let mut top_left = mem::zeroed();
 
         win_to_err(|| winuser::ClientToScreen(hwnd, &mut top_left))?;
@@ -129,7 +129,7 @@ impl CursorIcon {
             CursorIcon::NotAllowed | CursorIcon::NoDrop => winuser::IDC_NO,
             CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
                 winuser::IDC_SIZEALL
-            },
+            }
             CursorIcon::EResize
             | CursorIcon::WResize
             | CursorIcon::EwResize
@@ -140,10 +140,10 @@ impl CursorIcon {
             | CursorIcon::RowResize => winuser::IDC_SIZENS,
             CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => {
                 winuser::IDC_SIZENESW
-            },
+            }
             CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => {
                 winuser::IDC_SIZENWSE
-            },
+            }
             CursorIcon::Wait => winuser::IDC_WAIT,
             CursorIcon::Progress => winuser::IDC_APPSTARTING,
             CursorIcon::Help => winuser::IDC_HELP,

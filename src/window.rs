@@ -71,7 +71,7 @@ pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
 
-    // Platform-specific configuration. Private.
+    // Platform-specific configuration.
     pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
 }
 
@@ -288,19 +288,9 @@ impl WindowBuilder {
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
     #[inline]
     pub fn build<T: 'static>(
-        mut self,
+        self,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Result<Window, OsError> {
-        self.window.inner_size = Some(self.window.inner_size.unwrap_or_else(|| {
-            if let Some(ref monitor) = self.window.fullscreen {
-                // resizing the window to the dimensions of the monitor when fullscreen
-                LogicalSize::from_physical(monitor.size(), monitor.hidpi_factor()) // DPI factor applies here since this is a borderless window and not real fullscreen
-            } else {
-                // default dimensions
-                (1024, 768).into()
-            }
-        }));
-
         // building
         platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)
             .map(|window| Window { window })
@@ -329,7 +319,7 @@ impl Window {
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// See the [`dpi`](dpi/index.html) module for more information.
+    /// See the [`dpi`](../dpi/index.html) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
     /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
