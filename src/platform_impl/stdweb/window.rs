@@ -30,10 +30,6 @@ impl MonitorHandle {
         unimplemented!();
     }
 
-    pub fn dimensions(&self) -> PhysicalSize {
-        unimplemented!();
-    }
-
     pub fn name(&self) -> Option<String> {
         unimplemented!();
     }

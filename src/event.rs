@@ -7,7 +7,6 @@
 
 use instant::Instant;
 use std::path::PathBuf;
-use stdweb::js;
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},

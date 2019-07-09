@@ -6,7 +6,7 @@ use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootELW, EventLoop
 use instant::{Duration, Instant};
 use crate::window::{WindowId as RootWI};
 use stdweb::{
-    js, _js_impl,
+    js,
     traits::*,
     web::{
         document,

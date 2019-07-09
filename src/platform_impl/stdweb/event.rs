@@ -1,5 +1,5 @@
 use stdweb::{
-    js, _js_impl,
+    js,
     JsSerialize,
     web::event::{IKeyboardEvent, IMouseEvent},
     unstable::TryInto
