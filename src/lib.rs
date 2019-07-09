@@ -38,7 +38,7 @@
 //! It is no longer possible to use a method like previous versions' `EventLoop::poll_events()` to
 //! handle events individually outside of `winit`'s event loop, because this is not possible to do
 //! well on web and mobile platforms. For more details on how and why, see [`EventLoopExtDesktop`].
-//! 
+//!
 //!
 //! ```no_run
 //! use winit::{

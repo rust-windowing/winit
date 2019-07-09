@@ -40,7 +40,7 @@ pub enum Event<T> {
         window_id: WindowId,
         event: WindowEvent,
     },
-    
+
     /// Emitted when the OS sends an event to a device.
     DeviceEvent {
         device_id: DeviceId,
@@ -49,12 +49,12 @@ pub enum Event<T> {
 
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
-    
+
     /// Emitted when new events arrive from the OS to be processed.  This event type is useful as a place
     /// to put code that should be done before you start processing events, such as updating frame timing
     /// information for benchmarking.
     NewEvents(StartCause),
-    
+
     /// Emitted when all of the event loop's events have been processed and control flow is about
     /// to be taken away from the program.  This event type is useful as a place to put your code that
     /// should be run after all events have been handled from the event queue and you want to do
