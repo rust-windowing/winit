@@ -82,7 +82,10 @@ impl WindowDelegateState {
         AppState::queue_event(event);
     }
 
-    pub fn emit_hidpi_factor_changed_event(&mut self, new_inner_rect_opt: &mut Option<PhysicalSize>) {
+    pub fn emit_hidpi_factor_changed_event(
+        &mut self,
+        new_inner_rect_opt: &mut Option<PhysicalSize>,
+    ) {
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*self.ns_window)),
             event: WindowEvent::HiDpiFactorChanged {

@@ -274,7 +274,7 @@ impl AppState {
             HANDLER.set_in_callback(true);
             // Since we do not push_back, we don't need to take_deferred
             // for event in HANDLER.take_deferred() {
-                HANDLER.handle_nonuser_event(event);
+            HANDLER.handle_nonuser_event(event);
             // }
             HANDLER.set_in_callback(false);
         }
