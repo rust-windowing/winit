@@ -3,6 +3,25 @@
 //! These are sent to the closure given to [`EventLoop::run(...)`][event_loop_run], where they get
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
+//! Some of these events represent different "parts" of a traditional event-handling loop.  You could
+//! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
+//!
+//! ```rust,no_run
+//! let control_flow = &mut ControlFlow::Wait;
+//! event_handler(NewEvents(StartCause::Init), ..., control_flow);
+//! while *control_flow != ControlFlow::Exit {
+//!     event_handler(NewEvents(StartCause::Something), ..., control_flow);
+//!     for e in (window events, user events, device events) {
+//!         event_handler(e, ..., control_flow);
+//!     }
+//!     event_handler(EventsCleared, ..., control_flow);
+//! }
+//! event_handler(LoopDestroyed, ..., control_flow);
+//! ```
+//!
+//! This leaves out timing details like `ControlFlow::WaitUntil` but hopefully
+//! describes what happens in what order.
+//!
 //! [event_loop_run]: crate::event_loop::EventLoop::run
 use instant::Instant;
 use std::path::PathBuf;
@@ -21,19 +40,27 @@ pub enum Event<T> {
         window_id: WindowId,
         event: WindowEvent,
     },
+    
     /// Emitted when the OS sends an event to a device.
     DeviceEvent {
         device_id: DeviceId,
         event: DeviceEvent,
     },
+
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
-    /// Emitted when new events arrive from the OS to be processed.
+    
+    /// Emitted when new events arrive from the OS to be processed.  This event type is useful as a place
+    /// to put code that should be done before you start processing events, such as updating frame timing
+    /// information for benchmarking.
     NewEvents(StartCause),
-    /// Emitted when all events (except for `RedrawRequested`) have been reported.
-    ///
-    /// This event is followed by zero or more instances of `RedrawRequested`
-    /// and, finally, `RedrawEventsCleared`.
+    
+    /// Emitted when all of the event loop's events have been processed and control flow is about
+    /// to be taken away from the program.  This event type is useful as a place to put your code that
+    /// should be run after all events have been handled from the event queue and you want to do
+    /// stuff (updating state, performing calculations, etc) that happens as the "main body"
+    /// of an event-handling loop.  If your program is doing drawing, it's usually better to do it
+    /// in response to [`WindowEvent::RedrawRequested`](../event/enum.WindowEvent.html#variant.RedrawRequested).
     MainEventsCleared,
 
     /// The OS or application has requested that a window be redrawn.
@@ -48,7 +75,8 @@ pub enum Event<T> {
     RedrawEventsCleared,
 
     /// Emitted when the event loop is being shut down. This is irreversable - if this event is
-    /// emitted, it is guaranteed to be the last event emitted.
+    /// emitted, it is guaranteed to be the last event emitted.  You generally want to treat
+    /// this as an "do on quit" event.
     LoopDestroyed,
 
     /// Emitted when the application has been suspended.

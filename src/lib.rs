@@ -33,8 +33,12 @@
 //! [`EventLoop`] object it was created with.
 //!
 //! You do this by calling [`event_loop.run(...)`][event_loop_run]. This function will run forever
-//! unless `control_flow` is set to [`ControlFlow`]`::`[`Exit`], at which point [`Event`]`::`[`LoopDestroyed`]
-//! is emitted and the entire program terminates.
+//! unless the `control_flow` argument given to the closure is set to [`ControlFlow`]`::`[`Exit`],
+//! at which point [`Event`]`::`[`LoopDestroyed`] is emitted and the entire program terminates.
+//! It is no longer possible to use a method like previous versions' `EventLoop::poll_events()` to
+//! handle events individually outside of `winit`'s event loop, because this is not possible to do
+//! well on web and mobile platforms. For more details on how and why, see [`EventLoopExtDesktop`].
+//! 
 //!
 //! ```no_run
 //! use winit::{
@@ -90,6 +94,7 @@
 //! to create an OpenGL/Vulkan/DirectX/Metal/etc. context that will draw on the [`Window`].
 //!
 //! [`EventLoop`]: event_loop::EventLoop
+//! [`EventLoopExtDesktop`]: ./platform/desktop/trait.EventLoopExtDesktop.html
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [event_loop_run]: event_loop::EventLoop::run
 //! [`ControlFlow`]: event_loop::ControlFlow
