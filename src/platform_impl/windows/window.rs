@@ -152,7 +152,8 @@ impl Window {
                 let mut window_state = self.window_state.lock();
                 if !window_state.queued_out_of_band_redraw {
                     window_state.queued_out_of_band_redraw = true;
-                    winuser::PostMessageW(self.window.0, *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID, 0, 0);
+                    drop(window_state);
+                    winuser::SendNotifyMessageA(self.window.0, *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID, 0, 0);
                 }
             }
         }

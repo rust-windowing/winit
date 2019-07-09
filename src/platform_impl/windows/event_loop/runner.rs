@@ -43,6 +43,20 @@ struct EventLoopRunner<T> {
 }
 pub type PanicError = Box<dyn Any + Send + 'static>;
 
+fn dispatch_buffered_events<T>(runner: &mut EventLoopRunner<T>, buffer: &RefCell<VecDeque<Event<T>>>) {
+    loop {
+        // We do this instead of using a `while let` loop because if we use a `while let`
+        // loop the reference returned `borrow_mut()` doesn't get dropped until the end
+        // of the loop's body and attempts to add events to the event buffer while in
+        // `process_event` will fail.
+        let buffered_event_opt = buffer.borrow_mut().pop_front();
+        match buffered_event_opt {
+            Some(event) => runner.process_event(event),
+            None => break,
+        }
+    }
+}
+
 impl<T> ELRShared<T> {
     pub(crate) fn new() -> ELRShared<T> {
         ELRShared {
@@ -57,16 +71,8 @@ impl<T> ELRShared<T> {
     {
         let mut runner = EventLoopRunner::new(event_loop, f);
         {
+            dispatch_buffered_events(&mut runner, &self.buffer);
             let mut runner_ref = self.runner.borrow_mut();
-            loop {
-                let event = self.buffer.borrow_mut().pop_front();
-                match event {
-                    Some(e) => {
-                        runner.process_event(e);
-                    }
-                    None => break,
-                }
-            }
             *runner_ref = Some(runner);
         }
     }
@@ -102,18 +108,7 @@ impl<T> ELRShared<T> {
             if let Some(ref mut runner) = *runner_ref {
                 runner.process_event(event);
 
-                // Dispatch any events that were buffered during the call to `process_event`.
-                loop {
-                    // We do this instead of using a `while let` loop because if we use a `while let`
-                    // loop the reference returned `borrow_mut()` doesn't get dropped until the end
-                    // of the loop's body and attempts to add events to the event buffer while in
-                    // `process_event` will fail.
-                    let buffered_event_opt = self.buffer.borrow_mut().pop_front();
-                    match buffered_event_opt {
-                        Some(event) => runner.process_event(event),
-                        None => break,
-                    }
-                }
+                dispatch_buffered_events(runner, &self.buffer);
 
                 return;
             }
@@ -129,14 +124,7 @@ impl<T> ELRShared<T> {
             if let Some(ref mut runner) = *runner_ref {
                 runner.call_event_handler(event);
 
-                // Dispatch any events that were buffered during the call to `call_event_handler`.
-                loop {
-                    let buffered_event_opt = self.buffer.borrow_mut().pop_front();
-                    match buffered_event_opt {
-                        Some(event) => runner.process_event(event),
-                        None => break,
-                    }
-                }
+                dispatch_buffered_events(runner, &self.buffer);
 
                 return;
             }
@@ -149,6 +137,8 @@ impl<T> ELRShared<T> {
         let mut runner_ref = self.runner.borrow_mut();
         if let Some(ref mut runner) = *runner_ref {
             runner.events_cleared();
+
+            dispatch_buffered_events(runner, &self.buffer);
         }
     }
 
@@ -355,8 +345,6 @@ impl<T> EventLoopRunner<T> {
     }
 
     fn events_cleared(&mut self) {
-        self.in_repaint = false;
-
         match self.runner_state {
             // If we were handling events, send the EventsCleared message.
             RunnerState::HandlingEvents => {
@@ -401,16 +389,24 @@ impl<T> EventLoopRunner<T> {
 
     fn call_event_handler(&mut self, event: Event<T>) {
         match event {
-            Event::NewEvents(_) => self
-                .trigger_newevents_on_redraw
-                .store(true, Ordering::Relaxed),
-            Event::EventsCleared => self
-                .trigger_newevents_on_redraw
-                .store(false, Ordering::Relaxed),
+            Event::NewEvents(_) => {
+                self.in_repaint = false;
+                self
+                    .trigger_newevents_on_redraw
+                    .store(true, Ordering::Relaxed)
+            },
+            Event::EventsCleared => {
+                self.in_repaint = false;
+                self
+                    .trigger_newevents_on_redraw
+                    .store(false, Ordering::Relaxed)
+            },
             Event::WindowEvent {
                 event: WindowEvent::RedrawRequested,
                 ..
-            } => self.in_repaint = true,
+            } => {
+                self.in_repaint = true
+            },
             _ => (),
         }
 
