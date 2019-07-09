@@ -55,10 +55,10 @@ pub enum OsError {
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            OsError::XError(e) => formatter.pad(&e.description),
-            OsError::XMisc(e) => formatter.pad(e),
+            OsError::XError(e) => f.pad(&e.description),
+            OsError::XMisc(e) => f.pad(e),
         }
     }
 }
