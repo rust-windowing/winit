@@ -1,6 +1,6 @@
 # Unreleased
 
-# 0.20.0 Alpha 2 (2019-06-28)
+# 0.20.0 Alpha 2 (2019-07-09)
 
 - On X11, non-resizable windows now have maximize explicitly disabled.
 - On Windows, support paths longer than MAX_PATH (260 characters) in `WindowEvent::DroppedFile`
