@@ -147,6 +147,8 @@ impl<T> EventLoop<T> {
         runner.set_listener(Box::new(move |evt, ctrl| event_handler(evt, &relw, ctrl)));
 
         let document = &document();
+        let window = &window();
+
         add_event(&runner, document, |elrs, _: BlurEvent| {
             elrs.send_event(Event::WindowEvent {
                 window_id: RootWI(WindowId),
@@ -197,6 +199,14 @@ impl<T> EventLoop<T> {
                     }
                 }
             });
+        });
+        add_event(&runner, window, |elrs, _event: UnloadEvent| {
+            elrs.send_event(Event::LoopDestroyed);
+            // Mark the event loop as exited, so new events are chucked out
+            match *elrs.0.runner.borrow_mut() {
+                Some(ref mut runner) => runner.control = ControlFlowStatus::Exit,
+                None => ()
+            }
         });
 
         stdweb::event_loop(); // TODO: this is only necessary for stdweb emscripten, should it be here?
@@ -371,6 +381,8 @@ impl<T: 'static> EventLoopRunnerShared<T> {
         // The user is informed via Event::NewEvents that there is a batch of events to process
         // However, there is only one of these per batch of events
         self.handle_event(Event::NewEvents(start_cause), &mut control);
+        // In the case the event is just a NewEvents (a Poll has completed or a WaitUntil expired)
+        // don't run the event handler twice.
         if !event_is_start {
             self.handle_event(event, &mut control);
         }
