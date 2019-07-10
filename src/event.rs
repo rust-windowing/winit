@@ -3,11 +3,11 @@
 //! These are sent to the closure given to [`EventLoop::run(...)`][event_loop_run], where they get
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
-//! Some of these events represent different "parts" of a traditional event-handling loop.  You could
+//! Some of these events represent different "parts" of a traditional event-handling loop. You could
 //! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
 //!
 //! ```rust,no_run
-//! let control_flow = &mut ControlFlow::Wait;
+//! let control_flow = &mut ControlFlow::Poll;
 //! event_handler(NewEvents(StartCause::Init), ..., control_flow);
 //! while *control_flow != ControlFlow::Exit {
 //!     event_handler(NewEvents(StartCause::Something), ..., control_flow);
