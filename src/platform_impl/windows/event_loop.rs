@@ -21,7 +21,6 @@ use std::{
     mem, panic, ptr,
     rc::Rc,
     sync::{
-        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, Sender},
         Arc,
     },
@@ -109,7 +108,6 @@ pub struct EventLoop<T: 'static> {
 
 pub struct EventLoopWindowTarget<T> {
     thread_id: DWORD,
-    trigger_newevents_on_redraw: Arc<AtomicBool>,
     thread_msg_target: HWND,
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
@@ -136,7 +134,6 @@ impl<T: 'static> EventLoop<T> {
             window_target: RootELW {
                 p: EventLoopWindowTarget {
                     thread_id,
-                    trigger_newevents_on_redraw: Arc::new(AtomicBool::new(true)),
                     thread_msg_target,
                     runner_shared,
                 },
@@ -235,7 +232,6 @@ impl<T> EventLoopWindowTarget<T> {
     pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
         EventLoopThreadExecutor {
             thread_id: self.thread_id,
-            trigger_newevents_on_redraw: self.trigger_newevents_on_redraw.clone(),
             target_window: self.thread_msg_target,
         }
     }
@@ -306,7 +302,6 @@ impl<T> Drop for EventLoop<T> {
 
 pub(crate) struct EventLoopThreadExecutor {
     thread_id: DWORD,
-    trigger_newevents_on_redraw: Arc<AtomicBool>,
     target_window: HWND,
 }
 
@@ -318,10 +313,6 @@ impl EventLoopThreadExecutor {
     pub(super) fn in_event_loop_thread(&self) -> bool {
         let cur_thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
         self.thread_id == cur_thread_id
-    }
-
-    pub(super) fn trigger_newevents_on_redraw(&self) -> bool {
-        !self.in_event_loop_thread() || self.trigger_newevents_on_redraw.load(Ordering::Relaxed)
     }
 
     /// Executes a function in the event loop thread. If we're already in the event loop thread,
@@ -413,12 +404,6 @@ lazy_static! {
     pub static ref INITIAL_DPI_MSG_ID: u32 = {
         unsafe {
             winuser::RegisterWindowMessageA("Winit::InitialDpiMsg\0".as_ptr() as LPCSTR)
-        }
-    };
-    // Message sent by a `Window` if it's requesting a redraw without sending a NewEvents.
-    pub static ref REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID: u32 = {
-        unsafe {
-            winuser::RegisterWindowMessageA("Winit::RequestRedrawNoNewevents\0".as_ptr() as LPCSTR)
         }
     };
     // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
@@ -598,41 +583,8 @@ unsafe extern "system" fn public_window_callback<T>(
             0
         }
 
-        _ if msg == *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID => {
-            use crate::event::WindowEvent::RedrawRequested;
-            subclass_input.window_state.lock().queued_out_of_band_redraw = false;
-
-            // This check makes sure that requesting a redraw during `EventsCleared`
-            // handling dispatch `RedrawRequested` immediately after `EventsCleared`, without
-            // spinning up a new event loop iteration. We do this because that's what the API
-            // says to do.
-            match subclass_input.event_loop_runner.handling_events() {
-                true => {
-                    winuser::RedrawWindow(
-                        window,
-                        ptr::null(),
-                        ptr::null_mut(),
-                        winuser::RDW_INTERNALPAINT,
-                    );
-                }
-                false => {
-                    subclass_input
-                        .event_loop_runner
-                        .call_event_handler(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
-                            event: RedrawRequested,
-                        });
-                }
-            }
-
-            0
-        }
         winuser::WM_PAINT => {
-            use crate::event::WindowEvent::RedrawRequested;
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: RedrawRequested,
-            });
+            subclass_input.send_event(Event::RedrawRequested(RootWindowId(WindowId(window))));
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
