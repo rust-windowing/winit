@@ -1,11 +1,11 @@
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    platform::desktop::EventLoopExtDesktop,
-    window::WindowBuilder,
-};
-
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    use winit::{
+        event::{Event, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        platform::desktop::EventLoopExtDesktop,
+        window::WindowBuilder,
+    };
     let mut event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
@@ -38,4 +38,9 @@ fn main() {
     });
 
     println!("Okay we're done now for real.");
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    panic!("Example not supported on Wasm");
 }

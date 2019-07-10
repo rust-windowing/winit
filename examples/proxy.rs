@@ -1,10 +1,11 @@
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
-
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    use winit::{
+        event::{Event, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        window::WindowBuilder,
+    };
+
     let event_loop: EventLoop<i32> = EventLoop::new_user_event();
 
     let _window = WindowBuilder::new()
@@ -34,4 +35,9 @@ fn main() {
             _ => *control_flow = ControlFlow::Wait,
         }
     });
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    panic!("Example not supported on Wasm");
 }
