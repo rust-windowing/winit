@@ -1,4 +1,5 @@
 use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::VideoMode;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Handle;
@@ -12,11 +13,16 @@ impl Handle {
         unimplemented!();
     }
 
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn name(&self) -> Option<String> {
         unimplemented!();
     }
 
-    pub fn name(&self) -> Option<String> {
+    pub fn size(&self) -> PhysicalSize {
         unimplemented!();
+    }
+
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        // TODO: is this possible ?
+        std::iter::empty()
     }
 }
