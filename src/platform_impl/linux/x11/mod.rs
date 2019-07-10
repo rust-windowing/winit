@@ -249,6 +249,12 @@ impl<T: 'static> EventLoop<T> {
         let mut control_flow = ControlFlow::default();
         let wt = get_xtarget(&self.target);
 
+        callback(
+            crate::event::Event::NewEvents(crate::event::StartCause::Init),
+            &self.target,
+            &mut control_flow,
+        );
+
         loop {
             // Empty the event buffer
             {
