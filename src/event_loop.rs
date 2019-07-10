@@ -9,13 +9,13 @@
 //! [create_proxy]: ./struct.EventLoop.html#method.create_proxy
 //! [event_loop_proxy]: ./struct.EventLoopProxy.html
 //! [send_event]: ./struct.EventLoopProxy.html#method.send_event
-use std::{error, fmt, ops::Deref, time::Instant};
+use instant::Instant;
+use std::ops::Deref;
+use std::{error, fmt};
 
-use crate::{
-    event::Event,
-    monitor::{AvailableMonitorsIter, MonitorHandle},
-    platform_impl,
-};
+use event::Event;
+use monitor::{AvailableMonitorsIter, MonitorHandle};
+use platform_impl;
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -69,7 +69,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 /// the control flow to `Poll`.
 ///
 /// [events_cleared]: ../event/enum.Event.html#variant.EventsCleared
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.

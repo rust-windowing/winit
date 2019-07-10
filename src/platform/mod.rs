@@ -21,3 +21,4 @@ pub mod unix;
 pub mod windows;
 
 pub mod desktop;
+pub mod web;
