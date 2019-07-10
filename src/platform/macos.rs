@@ -2,29 +2,47 @@
 
 use std::os::raw::c_void;
 
-use crate::dpi::LogicalSize;
-use crate::monitor::MonitorHandle;
-use crate::window::{Window, WindowBuilder};
+use crate::{
+    dpi::LogicalSize,
+    monitor::MonitorHandle,
+    window::{Window, WindowBuilder},
+};
+
+/// Corresponds to `NSRequestUserAttentionType`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RequestUserAttentionType {
+    /// Corresponds to `NSCriticalRequest`.
+    ///
+    /// Dock icon will bounce until the application is focused.
+    Critical,
+
+    /// Corresponds to `NSInformationalRequest`.
+    ///
+    /// Dock icon will bounce once.
+    Informational,
+}
+
+impl Default for RequestUserAttentionType {
+    fn default() -> Self {
+        RequestUserAttentionType::Critical
+    }
+}
 
 /// Additional methods on `Window` that are specific to MacOS.
 pub trait WindowExtMacOS {
     /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
-    fn nswindow(&self) -> *mut c_void;
+    fn ns_window(&self) -> *mut c_void;
 
     /// Returns a pointer to the cocoa `NSView` that is used by this window.
     ///
     /// The pointer will become invalid when the `Window` is destroyed.
-    fn nsview(&self) -> *mut c_void;
+    fn ns_view(&self) -> *mut c_void;
 
     /// Request user attention, causing the application's dock icon to bounce.
     /// Note that this has no effect if the application is already focused.
-    ///
-    /// The `is_critical` flag has the following effects:
-    /// - `false`: the dock icon will only bounce once.
-    /// - `true`: the dock icon will bounce until the application is focused.
-    fn request_user_attention(&self, is_critical: bool);
+    fn request_user_attention(&self, request_type: RequestUserAttentionType);
 
     /// Returns whether or not the window is in simple fullscreen mode.
     fn simple_fullscreen(&self) -> bool;
@@ -41,18 +59,18 @@ pub trait WindowExtMacOS {
 
 impl WindowExtMacOS for Window {
     #[inline]
-    fn nswindow(&self) -> *mut c_void {
-        self.window.nswindow()
+    fn ns_window(&self) -> *mut c_void {
+        self.window.ns_window()
     }
 
     #[inline]
-    fn nsview(&self) -> *mut c_void {
-        self.window.nsview()
+    fn ns_view(&self) -> *mut c_void {
+        self.window.ns_view()
     }
 
     #[inline]
-    fn request_user_attention(&self, is_critical: bool) {
-        self.window.request_user_attention(is_critical)
+    fn request_user_attention(&self, request_type: RequestUserAttentionType) {
+        self.window.request_user_attention(request_type)
     }
 
     #[inline]
@@ -97,7 +115,8 @@ pub trait WindowBuilderExtMacOS {
     /// Sets the activation policy for the window being built.
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
-    fn with_movable_by_window_background(self, movable_by_window_background: bool) -> WindowBuilder;
+    fn with_movable_by_window_background(self, movable_by_window_background: bool)
+        -> WindowBuilder;
     /// Makes the titlebar transparent and allows the content to appear behind it.
     fn with_titlebar_transparent(self, titlebar_transparent: bool) -> WindowBuilder;
     /// Hides the window title.
@@ -120,7 +139,10 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 
     #[inline]
-    fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> WindowBuilder {
+    fn with_movable_by_window_background(
+        mut self,
+        movable_by_window_background: bool,
+    ) -> WindowBuilder {
         self.platform_specific.movable_by_window_background = movable_by_window_background;
         self
     }
@@ -167,7 +189,7 @@ pub trait MonitorHandleExtMacOS {
     /// Returns the identifier of the monitor for Cocoa.
     fn native_id(&self) -> u32;
     /// Returns a pointer to the NSScreen representing this monitor.
-    fn nsscreen(&self) -> Option<*mut c_void>;
+    fn ns_screen(&self) -> Option<*mut c_void>;
 }
 
 impl MonitorHandleExtMacOS for MonitorHandle {
@@ -176,7 +198,7 @@ impl MonitorHandleExtMacOS for MonitorHandle {
         self.inner.native_identifier()
     }
 
-    fn nsscreen(&self) -> Option<*mut c_void> {
-        self.inner.nsscreen().map(|s| s as *mut c_void)
+    fn ns_screen(&self) -> Option<*mut c_void> {
+        self.inner.ns_screen().map(|s| s as *mut c_void)
     }
 }

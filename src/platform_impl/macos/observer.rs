@@ -1,9 +1,9 @@
-use std::{self, ptr, os::raw::*, time::Instant};
+use std::{self, os::raw::*, ptr, time::Instant};
 
-use platform_impl::platform::app_state::AppState;
+use crate::platform_impl::platform::app_state::AppState;
 
 #[link(name = "CoreFoundation", kind = "framework")]
-extern {
+extern "C" {
     pub static kCFRunLoopDefaultMode: CFRunLoopMode;
     pub static kCFRunLoopCommonModes: CFRunLoopMode;
 
@@ -33,15 +33,8 @@ extern {
         callout: CFRunLoopTimerCallBack,
         context: *mut CFRunLoopTimerContext,
     ) -> CFRunLoopTimerRef;
-    pub fn CFRunLoopAddTimer(
-        rl: CFRunLoopRef,
-        timer: CFRunLoopTimerRef,
-        mode: CFRunLoopMode,
-    );
-    pub fn CFRunLoopTimerSetNextFireDate(
-        timer: CFRunLoopTimerRef,
-        fireDate: CFAbsoluteTime,
-    );
+    pub fn CFRunLoopAddTimer(rl: CFRunLoopRef, timer: CFRunLoopTimerRef, mode: CFRunLoopMode);
+    pub fn CFRunLoopTimerSetNextFireDate(timer: CFRunLoopTimerRef, fireDate: CFAbsoluteTime);
     pub fn CFRunLoopTimerInvalidate(time: CFRunLoopTimerRef);
 
     pub fn CFRunLoopSourceCreate(
@@ -49,11 +42,8 @@ extern {
         order: CFIndex,
         context: *mut CFRunLoopSourceContext,
     ) -> CFRunLoopSourceRef;
-    pub fn CFRunLoopAddSource(
-        rl: CFRunLoopRef,
-        source: CFRunLoopSourceRef,
-        mode: CFRunLoopMode,
-    );
+    pub fn CFRunLoopAddSource(rl: CFRunLoopRef, source: CFRunLoopSourceRef, mode: CFRunLoopMode);
+    #[allow(dead_code)]
     pub fn CFRunLoopSourceInvalidate(source: CFRunLoopSourceRef);
     pub fn CFRunLoopSourceSignal(source: CFRunLoopSourceRef);
 
@@ -62,6 +52,7 @@ extern {
 }
 
 pub type Boolean = u8;
+#[allow(dead_code)]
 const FALSE: Boolean = 0;
 const TRUE: Boolean = 1;
 
@@ -87,24 +78,23 @@ pub type CFRunLoopActivity = CFOptionFlags;
 pub type CFAbsoluteTime = CFTimeInterval;
 pub type CFTimeInterval = f64;
 
+#[allow(non_upper_case_globals)]
 pub const kCFRunLoopEntry: CFRunLoopActivity = 0;
+#[allow(non_upper_case_globals)]
 pub const kCFRunLoopBeforeWaiting: CFRunLoopActivity = 1 << 5;
+#[allow(non_upper_case_globals)]
 pub const kCFRunLoopAfterWaiting: CFRunLoopActivity = 1 << 6;
+#[allow(non_upper_case_globals)]
 pub const kCFRunLoopExit: CFRunLoopActivity = 1 << 7;
 
-pub type CFRunLoopObserverCallBack = extern "C" fn(
-    observer: CFRunLoopObserverRef,
-    activity: CFRunLoopActivity,
-    info: *mut c_void,
-);
-pub type CFRunLoopTimerCallBack = extern "C" fn(
-    timer: CFRunLoopTimerRef,
-    info: *mut c_void
-);
+pub type CFRunLoopObserverCallBack =
+    extern "C" fn(observer: CFRunLoopObserverRef, activity: CFRunLoopActivity, info: *mut c_void);
+pub type CFRunLoopTimerCallBack = extern "C" fn(timer: CFRunLoopTimerRef, info: *mut c_void);
 
 pub enum CFRunLoopObserverContext {}
 pub enum CFRunLoopTimerContext {}
 
+#[allow(non_snake_case)]
 #[repr(C)]
 pub struct CFRunLoopSourceContext {
     pub version: CFIndex,
@@ -120,7 +110,7 @@ pub struct CFRunLoopSourceContext {
 }
 
 // begin is queued with the highest priority to ensure it is processed before other observers
-extern fn control_flow_begin_handler(
+extern "C" fn control_flow_begin_handler(
     _: CFRunLoopObserverRef,
     activity: CFRunLoopActivity,
     _: *mut c_void,
@@ -131,7 +121,7 @@ extern fn control_flow_begin_handler(
             //trace!("Triggered `CFRunLoopAfterWaiting`");
             AppState::wakeup();
             //trace!("Completed `CFRunLoopAfterWaiting`");
-        },
+        }
         kCFRunLoopEntry => unimplemented!(), // not expected to ever happen
         _ => unreachable!(),
     }
@@ -139,7 +129,7 @@ extern fn control_flow_begin_handler(
 
 // end is queued with the lowest priority to ensure it is processed after other observers
 // without that, LoopDestroyed would  get sent after EventsCleared
-extern fn control_flow_end_handler(
+extern "C" fn control_flow_end_handler(
     _: CFRunLoopObserverRef,
     activity: CFRunLoopActivity,
     _: *mut c_void,
@@ -150,8 +140,8 @@ extern fn control_flow_end_handler(
             //trace!("Triggered `CFRunLoopBeforeWaiting`");
             AppState::cleared();
             //trace!("Completed `CFRunLoopBeforeWaiting`");
-        },
-        kCFRunLoopExit => (),//unimplemented!(), // not expected to ever happen
+        }
+        kCFRunLoopExit => (), //unimplemented!(), // not expected to ever happen
         _ => unreachable!(),
     }
 }
@@ -172,7 +162,7 @@ impl RunLoop {
         let observer = CFRunLoopObserverCreate(
             ptr::null_mut(),
             flags,
-            TRUE, // Indicates we want this to run repeatedly
+            TRUE,     // Indicates we want this to run repeatedly
             priority, // The lower the value, the sooner this will run
             handler,
             ptr::null_mut(),
@@ -197,7 +187,6 @@ pub fn setup_control_flow_observers() {
     }
 }
 
-
 pub struct EventLoopWaker {
     timer: CFRunLoopTimerRef,
 }
@@ -213,7 +202,7 @@ impl Drop for EventLoopWaker {
 
 impl Default for EventLoopWaker {
     fn default() -> EventLoopWaker {
-        extern fn wakeup_main_loop(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
+        extern "C" fn wakeup_main_loop(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
         unsafe {
             // create a timer with a 1µs interval (1ns does not work) to mimic polling.
             // it is initially setup with a first fire time really far into the
@@ -250,8 +239,8 @@ impl EventLoopWaker {
             unsafe {
                 let current = CFAbsoluteTimeGetCurrent();
                 let duration = instant - now;
-                let fsecs = duration.subsec_nanos() as f64 / 1_000_000_000.0
-                    + duration.as_secs() as f64;
+                let fsecs =
+                    duration.subsec_nanos() as f64 / 1_000_000_000.0 + duration.as_secs() as f64;
                 CFRunLoopTimerSetNextFireDate(self.timer, current + fsecs)
             }
         }

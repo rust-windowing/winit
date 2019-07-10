@@ -1,20 +1,24 @@
 // Important: all XIM calls need to happen from the same thread!
 
+mod callbacks;
+mod context;
 mod inner;
 mod input_method;
-mod context;
-mod callbacks;
 
-use std::sync::Arc;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{
+    mpsc::{Receiver, Sender},
+    Arc,
+};
 
 use super::{ffi, util, XConnection, XError};
 
-use self::inner::{close_im, ImeInner};
-use self::input_method::PotentialInputMethods;
-use self::context::ImeContext;
-use self::callbacks::*;
 pub use self::context::ImeContextCreationError;
+use self::{
+    callbacks::*,
+    context::ImeContext,
+    inner::{close_im, ImeInner},
+    input_method::PotentialInputMethods,
+};
 
 pub type ImeReceiver = Receiver<(ffi::Window, i16, i16)>;
 pub type ImeSender = Sender<(ffi::Window, i16, i16)>;
@@ -37,10 +41,7 @@ impl Ime {
         let potential_input_methods = PotentialInputMethods::new(&xconn);
 
         let (mut inner, client_data) = {
-            let mut inner = Box::new(ImeInner::new(
-                xconn,
-                potential_input_methods,
-            ));
+            let mut inner = Box::new(ImeInner::new(xconn, potential_input_methods));
             let inner_ptr = Box::into_raw(inner);
             let client_data = inner_ptr as _;
             let destroy_callback = ffi::XIMCallback {
@@ -54,9 +55,12 @@ impl Ime {
 
         let xconn = Arc::clone(&inner.xconn);
 
-        let input_method = inner.potential_input_methods.open_im(&xconn, Some(&|| {
-            let _ = unsafe { set_instantiate_callback(&xconn, client_data) };
-        }));
+        let input_method = inner.potential_input_methods.open_im(
+            &xconn,
+            Some(&|| {
+                let _ = unsafe { set_instantiate_callback(&xconn, client_data) };
+            }),
+        );
 
         let is_fallback = input_method.is_fallback();
         if let Some(input_method) = input_method.ok() {
@@ -84,19 +88,12 @@ impl Ime {
     // Ok(_) indicates that nothing went wrong internally
     // Ok(true) indicates that the action was actually performed
     // Ok(false) indicates that the action is not presently applicable
-    pub fn create_context(&mut self, window: ffi::Window)
-        -> Result<bool, ImeContextCreationError>
-    {
+    pub fn create_context(&mut self, window: ffi::Window) -> Result<bool, ImeContextCreationError> {
         let context = if self.is_destroyed() {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
-            Some(unsafe { ImeContext::new(
-                &self.inner.xconn,
-                self.inner.im,
-                window,
-                None,
-            ) }?)
+            Some(unsafe { ImeContext::new(&self.inner.xconn, self.inner.im, window, None) }?)
         };
         self.inner.contexts.insert(window, context);
         Ok(!self.is_destroyed())

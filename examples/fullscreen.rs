@@ -1,10 +1,10 @@
-extern crate winit;
-
 use std::io::{self, Write};
-use winit::monitor::MonitorHandle;
-use winit::window::WindowBuilder;
-use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState, KeyboardInput};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::{
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    monitor::MonitorHandle,
+    window::WindowBuilder,
+};
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -91,7 +91,10 @@ fn main() {
                         #[cfg(target_os = "macos")]
                         {
                             use winit::platform::macos::WindowExtMacOS;
-                            println!("window.simple_fullscreen {:?}", WindowExtMacOS::simple_fullscreen(&window));
+                            println!(
+                                "window.simple_fullscreen {:?}",
+                                WindowExtMacOS::simple_fullscreen(&window)
+                            );
                         }
                     }
                     (VirtualKeyCode::M, ElementState::Pressed) => {
@@ -123,7 +126,10 @@ fn prompt_for_monitor(event_loop: &EventLoop<()>) -> MonitorHandle {
     let mut num = String::new();
     io::stdin().read_line(&mut num).unwrap();
     let num = num.trim().parse().ok().expect("Please enter a number");
-    let monitor = event_loop.available_monitors().nth(num).expect("Please enter a valid ID");
+    let monitor = event_loop
+        .available_monitors()
+        .nth(num)
+        .expect("Please enter a valid ID");
 
     println!("Using {:?}", monitor.name());
 

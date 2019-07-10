@@ -22,14 +22,14 @@ use platform_impl;
 ///
 /// An `EventLoop` can be seen more or less as a "context". Calling `EventLoop::new()`
 /// initializes everything that will be required to create windows. For example on Linux creating
-/// an events loop opens a connection to the X or Wayland server.
+/// an event loop opens a connection to the X or Wayland server.
 ///
 /// To wake up an `EventLoop` from a another thread, see the `EventLoopProxy` docs.
 ///
 /// Note that the `EventLoop` cannot be shared across threads (due to platform-dependant logic
 /// forbidding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
-/// `EventLoopProxy` allows you to wake up an `EventLoop` from an other thread.
+/// `EventLoopProxy` allows you to wake up an `EventLoop` from another thread.
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
@@ -46,14 +46,14 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T> fmt::Debug for EventLoop<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
-        fmtr.pad("EventLoop { .. }")
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad("EventLoop { .. }")
     }
 }
 
 impl<T> fmt::Debug for EventLoopWindowTarget<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
-        fmtr.pad("EventLoopWindowTarget { .. }")
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad("EventLoopWindowTarget { .. }")
     }
 }
 
@@ -121,7 +121,7 @@ impl<T> EventLoop<T> {
         }
     }
 
-    /// Hijacks the calling thread and initializes the `winit` event loop with the provided
+    /// Hijacks the calling thread and initializes the winit event loop with the provided
     /// closure. Since the closure is `'static`, it must be a `move` closure if it needs to
     /// access any data from the calling context.
     ///
@@ -147,10 +147,8 @@ impl<T> EventLoop<T> {
     }
 
     /// Returns the list of all the monitors available on the system.
-    ///
-    // Note: should be replaced with `-> impl Iterator` once stable.
     #[inline]
-    pub fn available_monitors(&self) -> AvailableMonitorsIter {
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         let data = self.event_loop.available_monitors();
         AvailableMonitorsIter {
             data: data.into_iter(),
@@ -191,8 +189,8 @@ impl<T: 'static> EventLoopProxy<T> {
 }
 
 impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
-        fmtr.pad("EventLoopProxy { .. }")
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad("EventLoopProxy { .. }")
     }
 }
 
@@ -202,7 +200,7 @@ impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
 pub struct EventLoopClosed;
 
 impl fmt::Display for EventLoopClosed {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", error::Error::description(self))
     }
 }

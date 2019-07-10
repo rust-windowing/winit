@@ -1,20 +1,31 @@
-use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, Weak};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex, Weak},
+};
 
-use dpi::{LogicalPosition, LogicalSize};
-use error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use platform_impl::{MonitorHandle as PlatformMonitorHandle, PlatformSpecificWindowBuilderAttributes as PlAttributes};
-use monitor::MonitorHandle as RootMonitorHandle;
-use window::{WindowAttributes, CursorIcon};
+use crate::{
+    dpi::{LogicalPosition, LogicalSize},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    monitor::MonitorHandle as RootMonitorHandle,
+    platform_impl::{
+        MonitorHandle as PlatformMonitorHandle,
+        PlatformSpecificWindowBuilderAttributes as PlAttributes,
+    },
+    window::{CursorIcon, WindowAttributes},
+};
 
-use sctk::surface::{get_dpi_factor, get_outputs};
-use sctk::window::{ConceptFrame, Event as WEvent, State as WState, Window as SWindow, Theme};
-use sctk::reexports::client::Display;
-use sctk::reexports::client::protocol::{wl_seat, wl_surface};
-use sctk::output::OutputMgr;
+use smithay_client_toolkit::{
+    output::OutputMgr,
+    reexports::client::{
+        protocol::{wl_seat, wl_surface},
+        Display,
+    },
+    surface::{get_dpi_factor, get_outputs},
+    window::{ConceptFrame, Event as WEvent, State as WState, Theme, Window as SWindow},
+};
 
 use super::{make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
-use platform_impl::platform::wayland::event_loop::{available_monitors, primary_monitor};
+use crate::platform_impl::platform::wayland::event_loop::{available_monitors, primary_monitor};
 
 pub struct Window {
     surface: wl_surface::WlSurface,
@@ -29,7 +40,11 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new<T>(evlp: &EventLoopWindowTarget<T>, attributes: WindowAttributes, pl_attribs: PlAttributes) -> Result<Window, RootOsError> {
+    pub fn new<T>(
+        evlp: &EventLoopWindowTarget<T>,
+        attributes: WindowAttributes,
+        pl_attribs: PlAttributes,
+    ) -> Result<Window, RootOsError> {
         let (width, height) = attributes.inner_size.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
@@ -81,7 +96,8 @@ impl Window {
                     }
                 }
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         if let Some(app_id) = pl_attribs.app_id {
             frame.set_app_id(app_id);
@@ -135,10 +151,10 @@ impl Window {
 
         Ok(Window {
             display: evlp.display.clone(),
-            surface: surface,
-            frame: frame,
+            surface,
+            frame,
             outputs: evlp.env.outputs.clone(),
-            size: size,
+            size,
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
             need_frame_refresh,
             need_refresh,
@@ -199,12 +215,18 @@ impl Window {
 
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.frame.lock().unwrap().set_min_size(dimensions.map(Into::into));
+        self.frame
+            .lock()
+            .unwrap()
+            .set_min_size(dimensions.map(Into::into));
     }
 
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.frame.lock().unwrap().set_max_size(dimensions.map(Into::into));
+        self.frame
+            .lock()
+            .unwrap()
+            .set_max_size(dimensions.map(Into::into));
     }
 
     #[inline]
@@ -251,7 +273,6 @@ impl Window {
             self.frame.lock().unwrap().unset_fullscreen();
         }
     }
-
 
     pub fn set_theme<T: Theme>(&self, theme: T) {
         self.frame.lock().unwrap().set_theme(theme)
@@ -380,7 +401,16 @@ impl WindowStore {
 
     pub fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(Option<(u32, u32)>, &mut (u32, u32), Option<i32>, bool, bool, bool, WindowId, Option<&mut SWindow<ConceptFrame>>),
+        F: FnMut(
+            Option<(u32, u32)>,
+            &mut (u32, u32),
+            Option<i32>,
+            bool,
+            bool,
+            bool,
+            WindowId,
+            Option<&mut SWindow<ConceptFrame>>,
+        ),
     {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();
@@ -403,4 +433,3 @@ impl WindowStore {
         }
     }
 }
-

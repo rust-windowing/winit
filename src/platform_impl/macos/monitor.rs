@@ -1,10 +1,21 @@
 use std::{collections::VecDeque, fmt};
 
-use cocoa::{appkit::NSScreen, base::{id, nil}, foundation::{NSString, NSUInteger}};
-use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
+use cocoa::{
+    appkit::NSScreen,
+    base::{id, nil},
+    foundation::{NSString, NSUInteger},
+};
+use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayMode};
+use core_video_sys::{
+    kCVReturnSuccess, kCVTimeIsIndefinite, CVDisplayLinkCreateWithCGDisplay,
+    CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
+};
 
-use dpi::{PhysicalPosition, PhysicalSize};
-use platform_impl::platform::util::IdRef;
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    monitor::VideoMode,
+    platform_impl::platform::util::IdRef,
+};
 
 #[derive(Clone, PartialEq)]
 pub struct MonitorHandle(CGDirectDisplayID);
@@ -26,13 +37,13 @@ pub fn primary_monitor() -> MonitorHandle {
 }
 
 impl fmt::Debug for MonitorHandle {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // TODO: Do this using the proper fmt API
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,
             native_identifier: u32,
-            dimensions: PhysicalSize,
+            size: PhysicalSize,
             position: PhysicalPosition,
             hidpi_factor: f64,
         }
@@ -40,7 +51,7 @@ impl fmt::Debug for MonitorHandle {
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
             native_identifier: self.native_identifier(),
-            dimensions: self.dimensions(),
+            size: self.size(),
             position: self.position(),
             hidpi_factor: self.hidpi_factor(),
         };
@@ -65,15 +76,12 @@ impl MonitorHandle {
         self.0
     }
 
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         let MonitorHandle(display_id) = *self;
         let display = CGDisplay::new(display_id);
         let height = display.pixels_high();
         let width = display.pixels_wide();
-        PhysicalSize::from_logical(
-            (width as f64, height as f64),
-            self.hidpi_factor(),
-        )
+        PhysicalSize::from_logical((width as f64, height as f64), self.hidpi_factor())
     }
 
     #[inline]
@@ -86,14 +94,52 @@ impl MonitorHandle {
     }
 
     pub fn hidpi_factor(&self) -> f64 {
-        let screen = match self.nsscreen() {
+        let screen = match self.ns_screen() {
             Some(screen) => screen,
             None => return 1.0, // default to 1.0 when we can't find the screen
         };
         unsafe { NSScreen::backingScaleFactor(screen) as f64 }
     }
 
-    pub(crate) fn nsscreen(&self) -> Option<id> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        let cv_refresh_rate = unsafe {
+            let mut display_link = std::ptr::null_mut();
+            assert_eq!(
+                CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link),
+                kCVReturnSuccess
+            );
+            let time = CVDisplayLinkGetNominalOutputVideoRefreshPeriod(display_link);
+            CVDisplayLinkRelease(display_link);
+
+            // This value is indefinite if an invalid display link was specified
+            assert!(time.flags & kCVTimeIsIndefinite == 0);
+
+            time.timeScale as i64 / time.timeValue
+        };
+
+        CGDisplayMode::all_display_modes(self.0, std::ptr::null())
+            .expect("failed to obtain list of display modes")
+            .into_iter()
+            .map(move |mode| {
+                let cg_refresh_rate = mode.refresh_rate().round() as i64;
+
+                // CGDisplayModeGetRefreshRate returns 0.0 for any display that
+                // isn't a CRT
+                let refresh_rate = if cg_refresh_rate > 0 {
+                    cg_refresh_rate
+                } else {
+                    cv_refresh_rate
+                };
+
+                VideoMode {
+                    size: (mode.width() as u32, mode.height() as u32),
+                    refresh_rate: refresh_rate as u16,
+                    bit_depth: mode.bit_depth() as u16,
+                }
+            })
+    }
+
+    pub(crate) fn ns_screen(&self) -> Option<id> {
         unsafe {
             let native_id = self.native_identifier();
             let screens = NSScreen::screens(nil);

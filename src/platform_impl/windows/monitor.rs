@@ -1,21 +1,34 @@
-use winapi::shared::minwindef::{BOOL, DWORD, LPARAM, TRUE};
-use winapi::shared::windef::{HDC, HMONITOR, HWND, LPRECT, POINT};
-use winapi::um::winnt::LONG;
-use winapi::um::winuser;
+use winapi::{
+    shared::{
+        minwindef::{BOOL, DWORD, LPARAM, TRUE, WORD},
+        windef::{HDC, HMONITOR, HWND, LPRECT, POINT},
+    },
+    um::{wingdi, winnt::LONG, winuser},
+};
 
-use std::{mem, ptr, io};
-use std::collections::VecDeque;
+use std::{
+    collections::{HashSet, VecDeque},
+    io, mem, ptr,
+};
 
-use super::{EventLoop, util};
-use dpi::{PhysicalPosition, PhysicalSize};
-use platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
-use platform_impl::platform::window::Window;
+use super::{util, EventLoop};
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    monitor::VideoMode,
+    platform_impl::platform::{
+        dpi::{dpi_to_scale_factor, get_monitor_dpi},
+        window::Window,
+    },
+};
 
 /// Win32 implementation of the main `MonitorHandle` object.
-#[derive(Debug, Clone)]
+#[derive(Derivative)]
+#[derivative(Debug, Clone)]
 pub struct MonitorHandle {
     /// Monitor handle.
     hmonitor: HMonitor,
+    #[derivative(Debug = "ignore")]
+    monitor_info: winuser::MONITORINFOEXW,
     /// The system name of the monitor.
     monitor_name: String,
     /// True if this is the primary monitor.
@@ -65,16 +78,12 @@ pub fn available_monitors() -> VecDeque<MonitorHandle> {
 
 pub fn primary_monitor() -> MonitorHandle {
     const ORIGIN: POINT = POINT { x: 0, y: 0 };
-    let hmonitor = unsafe {
-        winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY)
-    };
+    let hmonitor = unsafe { winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY) };
     MonitorHandle::from_hmonitor(hmonitor)
 }
 
 pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
-    let hmonitor = unsafe {
-        winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST)
-    };
+    let hmonitor = unsafe { winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST) };
     MonitorHandle::from_hmonitor(hmonitor)
 }
 
@@ -100,7 +109,7 @@ impl Window {
 }
 
 pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINFOEXW, io::Error> {
-    let mut monitor_info: winuser::MONITORINFOEXW = unsafe { mem::uninitialized() };
+    let mut monitor_info: winuser::MONITORINFOEXW = unsafe { mem::zeroed() };
     monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
     let status = unsafe {
         winuser::GetMonitorInfoW(
@@ -130,6 +139,7 @@ impl MonitorHandle {
             position: (place.left as i32, place.top as i32),
             dimensions,
             hidpi_factor: dpi_to_scale_factor(get_monitor_dpi(hmonitor).unwrap_or(96)),
+            monitor_info,
         }
     }
 
@@ -157,7 +167,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn dimensions(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize {
         self.dimensions.into()
     }
 
@@ -169,5 +179,40 @@ impl MonitorHandle {
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
         self.hidpi_factor
+    }
+
+    #[inline]
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        // EnumDisplaySettingsExW can return duplicate values (or some of the
+        // fields are probably changing, but we aren't looking at those fields
+        // anyway), so we're using a HashSet deduplicate
+        let mut modes = HashSet::new();
+        let mut i = 0;
+
+        loop {
+            unsafe {
+                let device_name = self.monitor_info.szDevice.as_ptr();
+                let mut mode: wingdi::DEVMODEW = mem::zeroed();
+                mode.dmSize = mem::size_of_val(&mode) as WORD;
+                if winuser::EnumDisplaySettingsExW(device_name, i, &mut mode, 0) == 0 {
+                    break;
+                }
+                i += 1;
+
+                const REQUIRED_FIELDS: DWORD = wingdi::DM_BITSPERPEL
+                    | wingdi::DM_PELSWIDTH
+                    | wingdi::DM_PELSHEIGHT
+                    | wingdi::DM_DISPLAYFREQUENCY;
+                assert!(mode.dmFields & REQUIRED_FIELDS == REQUIRED_FIELDS);
+
+                modes.insert(VideoMode {
+                    size: (mode.dmPelsWidth, mode.dmPelsHeight),
+                    bit_depth: mode.dmBitsPerPel as u16,
+                    refresh_rate: mode.dmDisplayFrequency as u16,
+                });
+            }
+        }
+
+        modes.into_iter()
     }
 }

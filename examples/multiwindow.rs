@@ -1,9 +1,9 @@
-extern crate winit;
-
 use std::collections::HashMap;
-use winit::window::Window;
-use winit::event::{Event, WindowEvent, ElementState, KeyboardInput};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::{
+    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::Window,
+};
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -28,12 +28,19 @@ fn main() {
                         if windows.is_empty() {
                             *control_flow = ControlFlow::Exit;
                         }
-                    },
-                    WindowEvent::KeyboardInput { input: KeyboardInput { state: ElementState::Pressed, .. }, .. } => {
+                    }
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                ..
+                            },
+                        ..
+                    } => {
                         let window = Window::new(&event_loop).unwrap();
                         windows.insert(window.id(), window);
-                    },
-                    _ => ()
+                    }
+                    _ => (),
                 }
             }
             _ => (),

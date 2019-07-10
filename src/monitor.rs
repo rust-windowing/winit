@@ -12,8 +12,10 @@
 //! [window_get]: ../window/struct.Window.html#method.available_monitors
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
-use platform_impl;
-use dpi::{PhysicalPosition, PhysicalSize};
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    platform_impl,
+};
 
 /// An iterator over all available monitors.
 ///
@@ -44,6 +46,45 @@ impl Iterator for AvailableMonitorsIter {
     }
 }
 
+/// Describes a fullscreen video mode of a monitor.
+///
+/// Can be acquired with:
+/// - [`MonitorHandle::video_modes`][monitor_get].
+///
+/// [monitor_get]: ../monitor/struct.MonitorHandle.html#method.video_modes
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct VideoMode {
+    pub(crate) size: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+}
+
+impl VideoMode {
+    /// Returns the resolution of this video mode.
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
+    }
+
+    /// Returns the bit depth of this video mode, as in how many bits you have
+    /// available per color. This is generally 24 bits or 32 bits on modern
+    /// systems, depending on whether the alpha channel is counted or not.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Always returns 32.
+    /// - **iOS:** Always returns 32.
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    /// Returns the refresh rate of this video mode. **Note**: the returned
+    /// refresh rate is an integer approximation, and you shouldn't rely on this
+    /// value to be exact.
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+}
+
 /// Handle to a monitor.
 ///
 /// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
@@ -51,7 +92,7 @@ impl Iterator for AvailableMonitorsIter {
 /// [`Window`]: ../window/struct.Window.html
 #[derive(Debug, Clone)]
 pub struct MonitorHandle {
-    pub(crate) inner: platform_impl::MonitorHandle
+    pub(crate) inner: platform_impl::MonitorHandle,
 }
 
 impl MonitorHandle {
@@ -65,8 +106,8 @@ impl MonitorHandle {
 
     /// Returns the monitor's resolution.
     #[inline]
-    pub fn dimensions(&self) -> PhysicalSize {
-        self.inner.dimensions()
+    pub fn size(&self) -> PhysicalSize {
+        self.inner.size()
     }
 
     /// Returns the top-left corner position of the monitor relative to the larger full
@@ -78,7 +119,7 @@ impl MonitorHandle {
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// See the [`dpi`](dpi/index.html) module for more information.
+    /// See the [`dpi`](../dpi/index.html) module for more information.
     ///
     /// ## Platform-specific
     ///
@@ -87,5 +128,11 @@ impl MonitorHandle {
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
         self.inner.hidpi_factor()
+    }
+
+    /// Returns all fullscreen video modes supported by this monitor.
+    #[inline]
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+        self.inner.video_modes()
     }
 }

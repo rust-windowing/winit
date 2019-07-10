@@ -1,13 +1,18 @@
-use monitor::MonitorHandle;
-use window::{CursorIcon, WindowAttributes};
-use std::{io, ptr};
+use crate::{
+    dpi::LogicalSize,
+    monitor::MonitorHandle,
+    platform_impl::platform::{event_loop, icon::WinIcon, util},
+    window::{CursorIcon, WindowAttributes},
+};
 use parking_lot::MutexGuard;
-use dpi::LogicalSize;
-use platform_impl::platform::{util, event_loop};
-use platform_impl::platform::icon::WinIcon;
-use winapi::shared::windef::{RECT, HWND};
-use winapi::shared::minwindef::DWORD;
-use winapi::um::winuser;
+use std::{io, ptr};
+use winapi::{
+    shared::{
+        minwindef::DWORD,
+        windef::{HWND, RECT},
+    },
+    um::winuser,
+};
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Clone)]
@@ -25,6 +30,9 @@ pub struct WindowState {
     pub dpi_factor: f64,
 
     pub fullscreen: Option<MonitorHandle>,
+    /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
+    /// times in `EventsCleared`.
+    pub queued_out_of_band_redraw: bool,
     window_flags: WindowFlags,
 }
 
@@ -86,7 +94,7 @@ impl WindowState {
         attributes: &WindowAttributes,
         window_icon: Option<WinIcon>,
         taskbar_icon: Option<WinIcon>,
-        dpi_factor: f64
+        dpi_factor: f64,
     ) -> WindowState {
         WindowState {
             mouse: MouseProperties {
@@ -105,7 +113,8 @@ impl WindowState {
             dpi_factor,
 
             fullscreen: None,
-            window_flags: WindowFlags::empty()
+            queued_out_of_band_redraw: false,
+            window_flags: WindowFlags::empty(),
         }
     }
 
@@ -113,26 +122,37 @@ impl WindowState {
         self.window_flags
     }
 
-    pub fn set_window_flags<F>(mut this: MutexGuard<Self>, window: HWND, set_client_rect: Option<RECT>, f: F)
-        where F: FnOnce(&mut WindowFlags)
+    pub fn set_window_flags<F>(
+        mut this: MutexGuard<'_, Self>,
+        window: HWND,
+        set_client_rect: Option<RECT>,
+        f: F,
+    ) where
+        F: FnOnce(&mut WindowFlags),
     {
         let old_flags = this.window_flags;
         f(&mut this.window_flags);
 
         let is_fullscreen = this.fullscreen.is_some();
-        this.window_flags.set(WindowFlags::MARKER_FULLSCREEN, is_fullscreen);
+        this.window_flags
+            .set(WindowFlags::MARKER_FULLSCREEN, is_fullscreen);
         let new_flags = this.window_flags;
 
         drop(this);
         old_flags.apply_diff(window, new_flags, set_client_rect);
     }
 
-    pub fn refresh_window_state(this: MutexGuard<Self>, window: HWND, set_client_rect: Option<RECT>) {
+    pub fn refresh_window_state(
+        this: MutexGuard<'_, Self>,
+        window: HWND,
+        set_client_rect: Option<RECT>,
+    ) {
         Self::set_window_flags(this, window, set_client_rect, |_| ());
     }
 
     pub fn set_window_flags_in_place<F>(&mut self, f: F)
-        where F: FnOnce(&mut WindowFlags)
+    where
+        F: FnOnce(&mut WindowFlags),
     {
         f(&mut self.window_flags);
     }
@@ -144,7 +164,8 @@ impl MouseProperties {
     }
 
     pub fn set_cursor_flags<F>(&mut self, window: HWND, f: F) -> Result<(), io::Error>
-        where F: FnOnce(&mut CursorFlags)
+    where
+        F: FnOnce(&mut CursorFlags),
     {
         let old_flags = self.cursor_flags;
         f(&mut self.cursor_flags);
@@ -198,9 +219,7 @@ impl WindowFlags {
         if self.contains(WindowFlags::NO_BACK_BUFFER) {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
         }
-        if self.contains(WindowFlags::TRANSPARENT) {
-            // Is this necessary? The docs say that WS_EX_LAYERED requires a windows class without
-            // CS_OWNDC, and Winit windows have that flag set.
+        if self.contains(WindowFlags::TRANSPARENT) && self.contains(WindowFlags::DECORATIONS) {
             style_ex |= WS_EX_LAYERED;
         }
         if self.contains(WindowFlags::CHILD) {
@@ -232,8 +251,8 @@ impl WindowFlags {
                     window,
                     match new.contains(WindowFlags::VISIBLE) {
                         true => winuser::SW_SHOW,
-                        false => winuser::SW_HIDE
-                    }
+                        false => winuser::SW_HIDE,
+                    },
                 );
             }
         }
@@ -242,10 +261,13 @@ impl WindowFlags {
                 winuser::SetWindowPos(
                     window,
                     match new.contains(WindowFlags::ALWAYS_ON_TOP) {
-                        true  => winuser::HWND_TOPMOST,
+                        true => winuser::HWND_TOPMOST,
                         false => winuser::HWND_NOTOPMOST,
                     },
-                    0, 0, 0, 0,
+                    0,
+                    0,
+                    0,
+                    0,
                     winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOMOVE | winuser::SWP_NOSIZE,
                 );
                 winuser::UpdateWindow(window);
@@ -258,8 +280,8 @@ impl WindowFlags {
                     window,
                     match new.contains(WindowFlags::MAXIMIZED) {
                         true => winuser::SW_MAXIMIZE,
-                        false => winuser::SW_RESTORE
-                    }
+                        false => winuser::SW_RESTORE,
+                    },
                 );
             }
         }
@@ -273,7 +295,9 @@ impl WindowFlags {
                 winuser::SetWindowLongW(window, winuser::GWL_STYLE, style as _);
                 winuser::SetWindowLongW(window, winuser::GWL_EXSTYLE, style_ex as _);
 
-                match set_client_rect.and_then(|r| util::adjust_window_rect_with_styles(window, style, style_ex, r)) {
+                match set_client_rect
+                    .and_then(|r| util::adjust_window_rect_with_styles(window, style, style_ex, r))
+                {
                     Some(client_rect) => {
                         let (x, y, w, h) = (
                             client_rect.left,
@@ -284,21 +308,29 @@ impl WindowFlags {
                         winuser::SetWindowPos(
                             window,
                             ptr::null_mut(),
-                            x, y, w, h,
+                            x,
+                            y,
+                            w,
+                            h,
                             winuser::SWP_NOZORDER
-                            | winuser::SWP_FRAMECHANGED,
+                                | winuser::SWP_FRAMECHANGED
+                                | winuser::SWP_NOACTIVATE,
                         );
-                    },
+                    }
                     None => {
                         // Refresh the window frame.
                         winuser::SetWindowPos(
                             window,
                             ptr::null_mut(),
-                            0, 0, 0, 0,
+                            0,
+                            0,
+                            0,
+                            0,
                             winuser::SWP_NOZORDER
-                            | winuser::SWP_NOMOVE
-                            | winuser::SWP_NOSIZE
-                            | winuser::SWP_FRAMECHANGED,
+                                | winuser::SWP_NOMOVE
+                                | winuser::SWP_NOSIZE
+                                | winuser::SWP_FRAMECHANGED
+                                | winuser::SWP_NOACTIVATE,
                         );
                     }
                 }

@@ -1,12 +1,14 @@
 use std::os::raw::c_ushort;
 
-use cocoa::{appkit::{NSEvent, NSEventModifierFlags}, base::id};
-
-use event::{
-    ElementState, KeyboardInput,
-    ModifiersState, VirtualKeyCode, WindowEvent,
+use cocoa::{
+    appkit::{NSEvent, NSEventModifierFlags},
+    base::id,
 };
-use platform_impl::platform::DEVICE_ID;
+
+use crate::{
+    event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
+    platform_impl::platform::DEVICE_ID,
+};
 
 pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
     // We only translate keys that are affected by keyboard layout.
@@ -57,9 +59,9 @@ pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
         '-' | '_' => VirtualKeyCode::Minus,
         ']' | '}' => VirtualKeyCode::RBracket,
         '[' | '{' => VirtualKeyCode::LBracket,
-        '\''| '"' => VirtualKeyCode::Apostrophe,
+        '\'' | '"' => VirtualKeyCode::Apostrophe,
         ';' | ':' => VirtualKeyCode::Semicolon,
-        '\\'| '|' => VirtualKeyCode::Backslash,
+        '\\' | '|' => VirtualKeyCode::Backslash,
         ',' | '<' => VirtualKeyCode::Comma,
         '/' | '?' => VirtualKeyCode::Slash,
         '.' | '>' => VirtualKeyCode::Period,
@@ -198,7 +200,6 @@ pub fn scancode_to_keycode(scancode: c_ushort) -> Option<VirtualKeyCode> {
         0x7d => VirtualKeyCode::Down,
         0x7e => VirtualKeyCode::Up,
         //0x7f =>  unkown,
-
         0xa => VirtualKeyCode::Caret,
         _ => return None,
     })
@@ -215,16 +216,14 @@ pub fn check_function_keys(string: &String) -> Option<VirtualKeyCode> {
             0xf71a => VirtualKeyCode::F23,
             0xf71b => VirtualKeyCode::F24,
             _ => return None,
-        })
+        });
     }
 
     None
 }
 
 pub fn event_mods(event: id) -> ModifiersState {
-    let flags = unsafe {
-        NSEvent::modifierFlags(event)
-    };
+    let flags = unsafe { NSEvent::modifierFlags(event) };
     ModifiersState {
         shift: flags.contains(NSEventModifierFlags::NSShiftKeyMask),
         ctrl: flags.contains(NSEventModifierFlags::NSControlKeyMask),
@@ -238,9 +237,7 @@ pub fn get_scancode(event: cocoa::base::id) -> c_ushort {
     // and there is no easy way to navtively retrieve the layout-dependent character.
     // In winit, we use keycode to refer to the key's character, and so this function aligns
     // AppKit's terminology with ours.
-    unsafe {
-        msg_send![event, keyCode]
-    }
+    unsafe { msg_send![event, keyCode] }
 }
 
 pub unsafe fn modifier_event(
@@ -249,7 +246,8 @@ pub unsafe fn modifier_event(
     was_key_pressed: bool,
 ) -> Option<WindowEvent> {
     if !was_key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
-    || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask) {
+        || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask)
+    {
         let state = if was_key_pressed {
             ElementState::Released
         } else {

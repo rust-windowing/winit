@@ -1,45 +1,39 @@
 #![allow(non_snake_case, unused_unsafe)]
 
-use std::mem;
-use std::os::raw::c_void;
-use std::sync::{Once, ONCE_INIT};
+use std::{mem, os::raw::c_void, sync::Once};
 
-use winapi::shared::minwindef::{BOOL, UINT, FALSE};
-use winapi::shared::windef::{
-    DPI_AWARENESS_CONTEXT,
-    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE,
-    HMONITOR,
-    HWND,
+use winapi::{
+    shared::{
+        minwindef::{BOOL, FALSE, UINT},
+        windef::{DPI_AWARENESS_CONTEXT, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, HMONITOR, HWND},
+        winerror::S_OK,
+    },
+    um::{
+        libloaderapi::{GetProcAddress, LoadLibraryA},
+        shellscalingapi::{
+            MDT_EFFECTIVE_DPI, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
+            PROCESS_PER_MONITOR_DPI_AWARE,
+        },
+        wingdi::{GetDeviceCaps, LOGPIXELSX},
+        winnt::{HRESULT, LPCSTR},
+        winuser::{self, MONITOR_DEFAULTTONEAREST},
+    },
 };
-use winapi::shared::winerror::S_OK;
-use winapi::um::libloaderapi::{GetProcAddress, LoadLibraryA};
-use winapi::um::shellscalingapi::{
-    MDT_EFFECTIVE_DPI,
-    MONITOR_DPI_TYPE,
-    PROCESS_DPI_AWARENESS,
-    PROCESS_PER_MONITOR_DPI_AWARE,
-};
-use winapi::um::wingdi::{GetDeviceCaps, LOGPIXELSX};
-use winapi::um::winnt::{HRESULT, LPCSTR};
-use winapi::um::winuser::{self, MONITOR_DEFAULTTONEAREST};
 
 const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: DPI_AWARENESS_CONTEXT = -4isize as _;
 
-type SetProcessDPIAware = unsafe extern "system" fn () -> BOOL;
-type SetProcessDpiAwareness = unsafe extern "system" fn (
-    value: PROCESS_DPI_AWARENESS,
-) -> HRESULT;
-type SetProcessDpiAwarenessContext = unsafe extern "system" fn (
-    value: DPI_AWARENESS_CONTEXT,
-) -> BOOL;
-type GetDpiForWindow = unsafe extern "system" fn (hwnd: HWND) -> UINT;
-type GetDpiForMonitor = unsafe extern "system" fn (
+type SetProcessDPIAware = unsafe extern "system" fn() -> BOOL;
+type SetProcessDpiAwareness = unsafe extern "system" fn(value: PROCESS_DPI_AWARENESS) -> HRESULT;
+type SetProcessDpiAwarenessContext =
+    unsafe extern "system" fn(value: DPI_AWARENESS_CONTEXT) -> BOOL;
+type GetDpiForWindow = unsafe extern "system" fn(hwnd: HWND) -> UINT;
+type GetDpiForMonitor = unsafe extern "system" fn(
     hmonitor: HMONITOR,
     dpi_type: MONITOR_DPI_TYPE,
     dpi_x: *mut UINT,
     dpi_y: *mut UINT,
 ) -> HRESULT;
-type EnableNonClientDpiScaling = unsafe extern "system" fn (hwnd: HWND) -> BOOL;
+type EnableNonClientDpiScaling = unsafe extern "system" fn(hwnd: HWND) -> BOOL;
 
 // Helper function to dynamically load function pointer.
 // `library` and `function` must be zero-terminated.
@@ -65,53 +59,48 @@ macro_rules! get_function {
     ($lib:expr, $func:ident) => {
         get_function_impl(concat!($lib, '\0'), concat!(stringify!($func), '\0'))
             .map(|f| unsafe { mem::transmute::<*const _, $func>(f) })
-    }
+    };
 }
 
 lazy_static! {
-    static ref GET_DPI_FOR_WINDOW: Option<GetDpiForWindow> = get_function!(
-        "user32.dll",
-        GetDpiForWindow
-    );
-    static ref GET_DPI_FOR_MONITOR: Option<GetDpiForMonitor> = get_function!(
-        "shcore.dll",
-        GetDpiForMonitor
-    );
-    static ref ENABLE_NON_CLIENT_DPI_SCALING: Option<EnableNonClientDpiScaling> = get_function!(
-        "user32.dll",
-        EnableNonClientDpiScaling
-    );
+    static ref GET_DPI_FOR_WINDOW: Option<GetDpiForWindow> =
+        get_function!("user32.dll", GetDpiForWindow);
+    static ref GET_DPI_FOR_MONITOR: Option<GetDpiForMonitor> =
+        get_function!("shcore.dll", GetDpiForMonitor);
+    static ref ENABLE_NON_CLIENT_DPI_SCALING: Option<EnableNonClientDpiScaling> =
+        get_function!("user32.dll", EnableNonClientDpiScaling);
 }
 
 pub fn become_dpi_aware(enable: bool) {
-    if !enable { return; }
-    static ENABLE_DPI_AWARENESS: Once = ONCE_INIT;
-    ENABLE_DPI_AWARENESS.call_once(|| { unsafe {
-        if let Some(SetProcessDpiAwarenessContext) = get_function!(
-            "user32.dll",
-            SetProcessDpiAwarenessContext
-        ) {
-            // We are on Windows 10 Anniversary Update (1607) or later.
-            if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
-            == FALSE {
-                // V2 only works with Windows 10 Creators Update (1703). Try using the older
-                // V1 if we can't set V2.
-                SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+    if !enable {
+        return;
+    }
+    static ENABLE_DPI_AWARENESS: Once = Once::new();
+    ENABLE_DPI_AWARENESS.call_once(|| {
+        unsafe {
+            if let Some(SetProcessDpiAwarenessContext) =
+                get_function!("user32.dll", SetProcessDpiAwarenessContext)
+            {
+                // We are on Windows 10 Anniversary Update (1607) or later.
+                if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+                    == FALSE
+                {
+                    // V2 only works with Windows 10 Creators Update (1703). Try using the older
+                    // V1 if we can't set V2.
+                    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+                }
+            } else if let Some(SetProcessDpiAwareness) =
+                get_function!("shcore.dll", SetProcessDpiAwareness)
+            {
+                // We are on Windows 8.1 or later.
+                SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
+            } else if let Some(SetProcessDPIAware) = get_function!("user32.dll", SetProcessDPIAware)
+            {
+                // We are on Vista or later.
+                SetProcessDPIAware();
             }
-        } else if let Some(SetProcessDpiAwareness) = get_function!(
-            "shcore.dll",
-            SetProcessDpiAwareness
-        ) {
-            // We are on Windows 8.1 or later.
-            SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
-        } else if let Some(SetProcessDPIAware) = get_function!(
-            "user32.dll",
-            SetProcessDPIAware
-        ) {
-            // We are on Vista or later.
-            SetProcessDPIAware();
         }
-    } });
+    });
 }
 
 pub fn enable_non_client_dpi_scaling(hwnd: HWND) {
@@ -132,7 +121,7 @@ pub fn get_monitor_dpi(hmonitor: HMONITOR) -> Option<u32> {
                 // MSDN says that "the values of *dpiX and *dpiY are identical. You only need to
                 // record one of the values to determine the DPI and respond appropriately".
                 // https://msdn.microsoft.com/en-us/library/windows/desktop/dn280510(v=vs.85).aspx
-                return Some(dpi_x as u32)
+                return Some(dpi_x as u32);
             }
         }
     }

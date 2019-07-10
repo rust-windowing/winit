@@ -28,11 +28,8 @@ impl XConnection {
 
     fn get_supported_hints(&self, root: ffi::Window) -> Vec<ffi::Atom> {
         let supported_atom = unsafe { self.get_atom_unchecked(b"_NET_SUPPORTED\0") };
-        self.get_property(
-            root,
-            supported_atom,
-            ffi::XA_ATOM,
-        ).unwrap_or_else(|_| Vec::with_capacity(0))
+        self.get_property(root, supported_atom, ffi::XA_ATOM)
+            .unwrap_or_else(|_| Vec::with_capacity(0))
     }
 
     fn get_wm_name(&self, root: ffi::Window) -> Option<String> {
@@ -61,15 +58,9 @@ impl XConnection {
         // Querying this property on the root window will give us the ID of a child window created by
         // the WM.
         let root_window_wm_check = {
-            let result = self.get_property(
-                root,
-                check_atom,
-                ffi::XA_WINDOW,
-            );
+            let result = self.get_property(root, check_atom, ffi::XA_WINDOW);
 
-            let wm_check = result
-                .ok()
-                .and_then(|wm_check| wm_check.get(0).cloned());
+            let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
 
             if let Some(wm_check) = wm_check {
                 wm_check
@@ -81,15 +72,9 @@ impl XConnection {
         // Querying the same property on the child window we were given, we should get this child
         // window's ID again.
         let child_window_wm_check = {
-            let result = self.get_property(
-                root_window_wm_check,
-                check_atom,
-                ffi::XA_WINDOW,
-            );
+            let result = self.get_property(root_window_wm_check, check_atom, ffi::XA_WINDOW);
 
-            let wm_check = result
-                .ok()
-                .and_then(|wm_check| wm_check.get(0).cloned());
+            let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
 
             if let Some(wm_check) = wm_check {
                 wm_check
@@ -107,11 +92,7 @@ impl XConnection {
         let wm_name = {
             let utf8_string_atom = unsafe { self.get_atom_unchecked(b"UTF8_STRING\0") };
 
-            let result = self.get_property(
-                root_window_wm_check,
-                wm_name_atom,
-                utf8_string_atom,
-            );
+            let result = self.get_property(root_window_wm_check, wm_name_atom, utf8_string_atom);
 
             // IceWM requires this. IceWM was also the only WM tested that returns a null-terminated
             // string. For more fun trivia, IceWM is also unique in including version and uname
@@ -126,15 +107,12 @@ impl XConnection {
             };
 
             if no_utf8 {
-                self.get_property(
-                    root_window_wm_check,
-                    wm_name_atom,
-                    ffi::XA_STRING,
-                )
+                self.get_property(root_window_wm_check, wm_name_atom, ffi::XA_STRING)
             } else {
                 result
             }
-        }.ok();
+        }
+        .ok();
 
         wm_name.and_then(|wm_name| String::from_utf8(wm_name).ok())
     }

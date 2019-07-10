@@ -1,10 +1,11 @@
 use cocoa::{
-    appkit::NSImage, base::{id, nil},
+    appkit::NSImage,
+    base::{id, nil},
     foundation::{NSDictionary, NSPoint, NSString},
 };
 use objc::runtime::Sel;
 
-use window::CursorIcon;
+use crate::window::CursorIcon;
 
 pub enum Cursor {
     Native(&'static str),
@@ -22,7 +23,9 @@ impl From<CursorIcon> for Cursor {
             CursorIcon::VerticalText => Cursor::Native("IBeamCursorForVerticalLayout"),
             CursorIcon::Copy => Cursor::Native("dragCopyCursor"),
             CursorIcon::Alias => Cursor::Native("dragLinkCursor"),
-            CursorIcon::NotAllowed | CursorIcon::NoDrop => Cursor::Native("operationNotAllowedCursor"),
+            CursorIcon::NotAllowed | CursorIcon::NoDrop => {
+                Cursor::Native("operationNotAllowedCursor")
+            }
             CursorIcon::ContextMenu => Cursor::Native("contextualMenuCursor"),
             CursorIcon::Crosshair => Cursor::Native("crosshairCursor"),
             CursorIcon::EResize => Cursor::Native("resizeRightCursor"),
@@ -52,7 +55,9 @@ impl From<CursorIcon> for Cursor {
             // https://bugs.eclipse.org/bugs/show_bug.cgi?id=522349
             // This is the wrong semantics for `Wait`, but it's the same as
             // what's used in Safari and Chrome.
-            CursorIcon::Wait | CursorIcon::Progress => Cursor::Undocumented("busyButClickableCursor"),
+            CursorIcon::Wait | CursorIcon::Progress => {
+                Cursor::Undocumented("busyButClickableCursor")
+            }
 
             // For the rest, we can just snatch the cursors from WebKit...
             // They fit the style of the native cursors, and will seem
@@ -75,19 +80,19 @@ impl Cursor {
         match self {
             Cursor::Native(cursor_name) => {
                 let sel = Sel::register(cursor_name);
-                msg_send![class!(NSCursor), performSelector:sel]
-            },
+                msg_send![class!(NSCursor), performSelector: sel]
+            }
             Cursor::Undocumented(cursor_name) => {
                 let class = class!(NSCursor);
                 let sel = Sel::register(cursor_name);
-                let sel = if msg_send![class, respondsToSelector:sel] {
+                let sel = if msg_send![class, respondsToSelector: sel] {
                     sel
                 } else {
                     warn!("Cursor `{}` appears to be invalid", cursor_name);
                     sel!(arrowCursor)
                 };
-                msg_send![class, performSelector:sel]
-            },
+                msg_send![class, performSelector: sel]
+            }
             Cursor::WebKit(cursor_name) => load_webkit_cursor(cursor_name),
         }
     }
@@ -104,27 +109,15 @@ pub unsafe fn load_webkit_cursor(cursor_name: &str) -> id {
     let key_x = NSString::alloc(nil).init_str("hotx");
     let key_y = NSString::alloc(nil).init_str("hoty");
 
-    let cursor_path: id = msg_send![cursor_root,
-        stringByAppendingPathComponent:cursor_name
-    ];
-    let pdf_path: id = msg_send![cursor_path,
-        stringByAppendingPathComponent:cursor_pdf
-    ];
-    let info_path: id = msg_send![cursor_path,
-        stringByAppendingPathComponent:cursor_plist
-    ];
+    let cursor_path: id = msg_send![cursor_root, stringByAppendingPathComponent: cursor_name];
+    let pdf_path: id = msg_send![cursor_path, stringByAppendingPathComponent: cursor_pdf];
+    let info_path: id = msg_send![cursor_path, stringByAppendingPathComponent: cursor_plist];
 
     let image = NSImage::alloc(nil).initByReferencingFile_(pdf_path);
-    let info = NSDictionary::dictionaryWithContentsOfFile_(
-        nil,
-        info_path,
-    );
+    let info = NSDictionary::dictionaryWithContentsOfFile_(nil, info_path);
     let x = info.valueForKey_(key_x);
     let y = info.valueForKey_(key_y);
-    let point = NSPoint::new(
-        msg_send![x, doubleValue],
-        msg_send![y, doubleValue],
-    );
+    let point = NSPoint::new(msg_send![x, doubleValue], msg_send![y, doubleValue]);
     let cursor: id = msg_send![class!(NSCursor), alloc];
     msg_send![cursor,
         initWithImage:image

@@ -1,7 +1,8 @@
-extern crate winit;
-use winit::window::WindowBuilder;
-use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState, KeyboardInput};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::{
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
 
 fn main() {
     let event_loop = EventLoop::new();

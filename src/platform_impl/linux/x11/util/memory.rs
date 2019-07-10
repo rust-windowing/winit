@@ -12,10 +12,7 @@ impl<'a, T> XSmartPointer<'a, T> {
     // Returns None if ptr is null.
     pub fn new(xconn: &'a XConnection, ptr: *mut T) -> Option<Self> {
         if !ptr.is_null() {
-            Some(XSmartPointer {
-                xconn,
-                ptr,
-            })
+            Some(XSmartPointer { xconn, ptr })
         } else {
             None
         }
@@ -45,17 +42,17 @@ impl<'a, T> Drop for XSmartPointer<'a, T> {
 }
 
 impl XConnection {
-    pub fn alloc_class_hint(&self) -> XSmartPointer<ffi::XClassHint> {
+    pub fn alloc_class_hint(&self) -> XSmartPointer<'_, ffi::XClassHint> {
         XSmartPointer::new(self, unsafe { (self.xlib.XAllocClassHint)() })
             .expect("`XAllocClassHint` returned null; out of memory")
     }
 
-    pub fn alloc_size_hints(&self) -> XSmartPointer<ffi::XSizeHints> {
+    pub fn alloc_size_hints(&self) -> XSmartPointer<'_, ffi::XSizeHints> {
         XSmartPointer::new(self, unsafe { (self.xlib.XAllocSizeHints)() })
             .expect("`XAllocSizeHints` returned null; out of memory")
     }
 
-    pub fn alloc_wm_hints(&self) -> XSmartPointer<ffi::XWMHints> {
+    pub fn alloc_wm_hints(&self) -> XSmartPointer<'_, ffi::XWMHints> {
         XSmartPointer::new(self, unsafe { (self.xlib.XAllocWMHints)() })
             .expect("`XAllocWMHints` returned null; out of memory")
     }
