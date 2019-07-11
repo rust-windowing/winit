@@ -20,7 +20,7 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
     ffi::CStr,
-    mem,
+    mem::{self, MaybeUninit},
     ops::Deref,
     os::raw::*,
     rc::Rc,
@@ -100,22 +100,21 @@ impl<T: 'static> EventLoop<T> {
             .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
-            let mut result = XExtension {
-                opcode: mem::uninitialized(),
-                first_event_id: mem::uninitialized(),
-                first_error_id: mem::uninitialized(),
-            };
+            let mut ext = XExtension::default();
+
             let res = (xconn.xlib.XQueryExtension)(
                 xconn.display,
                 b"XInputExtension\0".as_ptr() as *const c_char,
-                &mut result.opcode as *mut c_int,
-                &mut result.first_event_id as *mut c_int,
-                &mut result.first_error_id as *mut c_int,
+                &mut ext.opcode,
+                &mut ext.first_event_id,
+                &mut ext.first_error_id,
             );
+
             if res == ffi::False {
                 panic!("X server missing XInput extension");
             }
-            result
+
+            ext
         };
 
         unsafe {
@@ -204,8 +203,9 @@ impl<T: 'static> EventLoop<T> {
                 move |evt, &mut ()| {
                     if evt.readiness.is_readable() {
                         // process all pending events
-                        let mut xev = unsafe { mem::uninitialized() };
-                        while unsafe { processor.poll_one_event(&mut xev) } {
+                        let mut xev = MaybeUninit::uninit();
+                        while unsafe { processor.poll_one_event(xev.as_mut_ptr()) } {
+                            let mut xev = unsafe { xev.assume_init() };
                             processor.process_event(&mut xev, &mut callback);
                         }
                     }
@@ -401,19 +401,19 @@ struct DeviceInfo<'a> {
 impl<'a> DeviceInfo<'a> {
     fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
         unsafe {
-            let mut count = mem::uninitialized();
+            let mut count = 0;
             let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
-            xconn.check_errors().ok().and_then(|_| {
-                if info.is_null() || count == 0 {
-                    None
-                } else {
-                    Some(DeviceInfo {
-                        xconn,
-                        info,
-                        count: count as usize,
-                    })
-                }
-            })
+            xconn.check_errors().ok()?;
+
+            if info.is_null() || count == 0 {
+                None
+            } else {
+                Some(DeviceInfo {
+                    xconn,
+                    info,
+                    count: count as usize,
+                })
+            }
         }
     }
 }
@@ -518,7 +518,7 @@ impl<'a> Drop for GenericEventCookie<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 struct XExtension {
     opcode: c_int,
     first_event_id: c_int,

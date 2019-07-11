@@ -41,14 +41,14 @@ impl AaRect {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TranslatedCoords {
     pub x_rel_root: c_int,
     pub y_rel_root: c_int,
     pub child: ffi::Window,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Geometry {
     pub root: ffi::Window,
     // If you want positions relative to the root window, use translate_coords.
@@ -183,7 +183,8 @@ impl XConnection {
         window: ffi::Window,
         root: ffi::Window,
     ) -> Result<TranslatedCoords, XError> {
-        let mut translated_coords: TranslatedCoords = unsafe { mem::uninitialized() };
+        let mut coords = TranslatedCoords::default();
+
         unsafe {
             (self.xlib.XTranslateCoordinates)(
                 self.display,
@@ -191,18 +192,20 @@ impl XConnection {
                 root,
                 0,
                 0,
-                &mut translated_coords.x_rel_root,
-                &mut translated_coords.y_rel_root,
-                &mut translated_coords.child,
+                &mut coords.x_rel_root,
+                &mut coords.y_rel_root,
+                &mut coords.child,
             );
         }
-        //println!("XTranslateCoordinates coords:{:?}", translated_coords);
-        self.check_errors().map(|_| translated_coords)
+
+        self.check_errors()?;
+        Ok(coords)
     }
 
     // This is adequate for inner_size
     pub fn get_geometry(&self, window: ffi::Window) -> Result<Geometry, XError> {
-        let mut geometry: Geometry = unsafe { mem::uninitialized() };
+        let mut geometry = Geometry::default();
+
         let _status = unsafe {
             (self.xlib.XGetGeometry)(
                 self.display,
@@ -216,8 +219,9 @@ impl XConnection {
                 &mut geometry.depth,
             )
         };
-        //println!("XGetGeometry geo:{:?}", geometry);
-        self.check_errors().map(|_| geometry)
+
+        self.check_errors()?;
+        Ok(geometry)
     }
 
     fn get_frame_extents(&self, window: ffi::Window) -> Option<FrameExtents> {
@@ -264,10 +268,10 @@ impl XConnection {
 
     fn get_parent_window(&self, window: ffi::Window) -> Result<ffi::Window, XError> {
         let parent = unsafe {
-            let mut root: ffi::Window = mem::uninitialized();
-            let mut parent: ffi::Window = mem::uninitialized();
+            let mut root = 0;
+            let mut parent = 0;
             let mut children: *mut ffi::Window = ptr::null_mut();
-            let mut nchildren: c_uint = mem::uninitialized();
+            let mut nchildren = 0;
 
             // What's filled into `parent` if `window` is the root window?
             let _status = (self.xlib.XQueryTree)(

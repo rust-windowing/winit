@@ -43,13 +43,14 @@ impl XConnection {
         let mut offset = 0;
 
         let mut done = false;
+        let mut actual_type = 0;
+        let mut actual_format = 0;
+        let mut quantity_returned = 0;
+        let mut bytes_after = 0;
+        let mut buf: *mut c_uchar = ptr::null_mut();
+
         while !done {
             unsafe {
-                let mut actual_type: ffi::Atom = mem::uninitialized();
-                let mut actual_format: c_int = mem::uninitialized();
-                let mut quantity_returned: c_ulong = mem::uninitialized();
-                let mut bytes_after: c_ulong = mem::uninitialized();
-                let mut buf: *mut c_uchar = ptr::null_mut();
                 (self.xlib.XGetWindowProperty)(
                     self.display,
                     window,

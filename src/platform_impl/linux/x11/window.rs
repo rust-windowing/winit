@@ -1,4 +1,14 @@
-use std::{cmp, collections::HashSet, env, ffi::CString, mem, os::raw::*, path::Path, sync::Arc};
+use std::{
+    cmp,
+    collections::HashSet,
+    env,
+    ffi::CString,
+    mem::{self, MaybeUninit},
+    os::raw::*,
+    path::Path,
+    ptr, slice,
+    sync::Arc,
+};
 
 use libc;
 use parking_lot::Mutex;
@@ -410,11 +420,11 @@ impl UnownedWindow {
                 unsafe {
                     // XSetInputFocus generates an error if the window is not visible, so we wait
                     // until we receive VisibilityNotify.
-                    let mut event = mem::uninitialized();
+                    let mut event = MaybeUninit::uninit();
                     (xconn.xlib.XIfEvent)(
                         // This will flush the request buffer IF it blocks.
                         xconn.display,
-                        &mut event as *mut ffi::XEvent,
+                        event.as_mut_ptr(),
                         Some(visibility_predicate),
                         window.xwindow as _,
                     );
@@ -449,19 +459,22 @@ impl UnownedWindow {
         let pid_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_PID\0") };
         let client_machine_atom = unsafe { self.xconn.get_atom_unchecked(b"WM_CLIENT_MACHINE\0") };
         unsafe {
-            let (hostname, hostname_length) = {
-                // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
-                // the limit defined by OpenBSD.
-                const MAXHOSTNAMELEN: usize = 256;
-                let mut hostname: [c_char; MAXHOSTNAMELEN] = mem::uninitialized();
-                let status = libc::gethostname(hostname.as_mut_ptr(), hostname.len());
-                if status != 0 {
-                    return None;
-                }
-                hostname[MAXHOSTNAMELEN - 1] = '\0' as c_char; // a little extra safety
-                let hostname_length = libc::strlen(hostname.as_ptr());
-                (hostname, hostname_length as usize)
-            };
+            // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
+            // the limit defined by OpenBSD.
+            const MAXHOSTNAMELEN: usize = 256;
+            // `assume_init` is safe here because the array consists of `MaybeUninit` values,
+            // which do not require initialization.
+            let mut buffer: [MaybeUninit<c_char>; MAXHOSTNAMELEN] =
+                MaybeUninit::uninit().assume_init();
+            let status = libc::gethostname(buffer.as_mut_ptr() as *mut c_char, buffer.len());
+            if status != 0 {
+                return None;
+            }
+            ptr::write(buffer[MAXHOSTNAMELEN - 1].as_mut_ptr() as *mut u8, b'\0'); // a little extra safety
+            let hostname_length = libc::strlen(buffer.as_ptr() as *const c_char);
+
+            let hostname = slice::from_raw_parts(buffer.as_ptr() as *const c_char, hostname_length);
+
             self.xconn
                 .change_property(
                     self.xwindow,
@@ -1134,13 +1147,13 @@ impl UnownedWindow {
         let cursor = unsafe {
             // We don't care about this color, since it only fills bytes
             // in the pixmap which are not 0 in the mask.
-            let dummy_color: ffi::XColor = mem::uninitialized();
+            let mut dummy_color = MaybeUninit::uninit();
             let cursor = (self.xconn.xlib.XCreatePixmapCursor)(
                 self.xconn.display,
                 pixmap,
                 pixmap,
-                &dummy_color as *const _ as *mut _,
-                &dummy_color as *const _ as *mut _,
+                dummy_color.as_mut_ptr(),
+                dummy_color.as_mut_ptr(),
                 0,
                 0,
             );
