@@ -204,9 +204,9 @@ impl Default for EventLoopWaker {
     fn default() -> EventLoopWaker {
         extern "C" fn wakeup_main_loop(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
         unsafe {
-            // create a timer with a 1µs interval (1ns does not work) to mimic polling.
-            // it is initially setup with a first fire time really far into the
-            // future, but that gets changed to fire immediatley in did_finish_launching
+            // Create a timer with a 0.1µs interval (1ns does not work) to mimic polling.
+            // It is initially setup with a first fire time really far into the
+            // future, but that gets changed to fire immediately in did_finish_launching
             let timer = CFRunLoopTimerCreate(
                 ptr::null_mut(),
                 std::f64::MAX,
