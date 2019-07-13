@@ -84,7 +84,7 @@ impl WindowDelegateState {
 
     pub fn emit_hidpi_factor_changed_event(
         &mut self,
-        new_inner_rect_opt: &mut Option<PhysicalSize>,
+        new_inner_rect_opt: &'static mut std::option::Option<PhysicalSize>,
     ) {
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*self.ns_window)),
@@ -301,8 +301,12 @@ extern "C" fn window_did_change_screen(this: &Object, _: Sel, _: id) {
         let new_size = inner_size(ns_size, hidpi_factor);
         if state.previous_dpi_factor != hidpi_factor {
             state.previous_dpi_factor = hidpi_factor;
-            state.emit_hidpi_factor_changed_event(&mut Some(new_size));
+            let mut new_inner_rect = Some(new_size);
+            state.emit_hidpi_factor_changed_event(&mut new_inner_rect);
             state.emit_resize_event();
+            if let Some(window) = state.window.upgrade() {
+                window.inner_rect = new_inner_rect;
+            };
         }
     });
     trace!("Completed `windowDidChangeScreen:`");

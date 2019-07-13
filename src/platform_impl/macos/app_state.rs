@@ -20,7 +20,7 @@ use crate::{
 };
 
 lazy_static! {
-    static ref HANDLER: Handler<'static> = Default::default();
+    static ref HANDLER: Handler = Default::default();
 }
 
 impl<'a, Never> Event<'a, Never> {
@@ -80,32 +80,30 @@ where
 }
 
 #[derive(Default)]
-struct Handler<'a> {
+struct Handler {
     ready: AtomicBool,
     in_callback: AtomicBool,
     control_flow: Mutex<ControlFlow>,
     control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
-    pending_events: Mutex<VecDeque<Event<'a, Never>>>,
-    // We don't need it any more. See line 270
-    // deferred_events: Mutex<VecDeque<Event<'a, Never>>>,
+    pending_events: Mutex<VecDeque<Event<'static, Never>>>,
+    deferred_events: Mutex<VecDeque<Event<'static, Never>>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
 }
 
-unsafe impl<'a> Send for Handler<'a> {}
-unsafe impl<'a> Sync for Handler<'a> {}
+unsafe impl Send for Handler {}
+unsafe impl Sync for Handler {}
 
-impl<'a> Handler<'a> {
-    fn events(&self) -> MutexGuard<'_, VecDeque<Event<'a, Never>>> {
+impl Handler {
+    fn events(&self) -> MutexGuard<'_, VecDeque<Event<'static, Never>>> {
         self.pending_events.lock().unwrap()
     }
 
-    // We don't need it any more.
-    // fn deferred(&self) -> MutexGuard<'_, VecDeque<Event<'a, Never>>> {
-    //     self.deferred_events.lock().unwrap()
-    // }
+    fn deferred(&self) -> MutexGuard<'_, VecDeque<Event<'static, Never>>> {
+        self.deferred_events.lock().unwrap()
+    }
 
     fn redraw(&self) -> MutexGuard<'_, Vec<WindowId>> {
         self.pending_redraw.lock().unwrap()
@@ -151,10 +149,9 @@ impl<'a> Handler<'a> {
         mem::replace(&mut *self.events(), Default::default())
     }
 
-    // We don't need it any more.
-    // fn take_deferred(&self) -> VecDeque<Event<'_, Never>> {
-    //     mem::replace(&mut *self.deferred(), Default::default())
-    // }
+    fn take_deferred(&self) -> VecDeque<Event<'_, Never>> {
+        mem::replace(&mut *self.deferred(), Default::default())
+    }
 
     fn should_redraw(&self) -> Vec<WindowId> {
         mem::replace(&mut *self.redraw(), Default::default())
@@ -263,19 +260,16 @@ impl AppState {
         HANDLER.events().append(&mut events);
     }
 
-    pub fn send_event_immediately(event: Event<'_, Never>) {
+    pub fn send_event_immediately(event: Event<'static, Never>) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
             panic!("Event sent from different thread: {:#?}", event);
         }
-        // HANDLER.deferred().push_back(event); // Commenting this out due to unnecessity
-        // We check that events are sent here from the same thread so we do not need to process
-        // asynchronously, thus we do not need a VecDeque here
+        HANDLER.deferred().push_back(event);
         if !HANDLER.get_in_callback() {
             HANDLER.set_in_callback(true);
-            // Since we do not push_back, we don't need to take_deferred
-            // for event in HANDLER.take_deferred() {
-            HANDLER.handle_nonuser_event(event);
-            // }
+            for event in HANDLER.take_deferred() {
+                HANDLER.handle_nonuser_event(event);
+            }
             HANDLER.set_in_callback(false);
         }
     }

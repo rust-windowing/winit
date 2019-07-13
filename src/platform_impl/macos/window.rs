@@ -280,6 +280,7 @@ pub struct UnownedWindow {
     decorations: AtomicBool,
     cursor: Weak<Mutex<util::Cursor>>,
     cursor_visible: AtomicBool,
+    pub inner_rect: Option<PhysicalSize>,
 }
 
 unsafe impl Send for UnownedWindow {}
@@ -315,6 +316,8 @@ impl UnownedWindow {
 
         let input_context = unsafe { util::create_input_context(*ns_view) };
 
+        let dpi_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) as f64 };
+
         unsafe {
             if win_attribs.transparent {
                 ns_window.setOpaque_(NO);
@@ -322,7 +325,6 @@ impl UnownedWindow {
             }
 
             ns_app.activateIgnoringOtherApps_(YES);
-            let dpi_factor = NSWindow::backingScaleFactor(*ns_window) as f64;
             win_attribs.min_inner_size.map(|dim| {
                 let logical_dim = dim.to_logical(dpi_factor);
                 set_min_inner_size(*ns_window, logical_dim)
@@ -350,6 +352,7 @@ impl UnownedWindow {
         let maximized = win_attribs.maximized;
         let visible = win_attribs.visible;
         let decorations = win_attribs.decorations;
+        let inner_rect = win_attribs.inner_size.map(|size| size.to_physical(dpi_factor));
 
         let window = Arc::new(UnownedWindow {
             ns_view,
@@ -359,6 +362,7 @@ impl UnownedWindow {
             decorations: AtomicBool::new(decorations),
             cursor,
             cursor_visible: AtomicBool::new(true),
+            inner_rect,
         });
 
         let delegate = new_delegate(&window, fullscreen.is_some());
