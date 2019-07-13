@@ -4,6 +4,7 @@ use std::fmt;
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     error::{ExternalError, NotSupportedError, OsError},
+    event::Event,
     event_loop::EventLoopWindowTarget,
     monitor::{AvailableMonitorsIter, MonitorHandle},
     platform_impl,
@@ -295,6 +296,20 @@ impl WindowBuilder {
         platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)
             .map(|window| Window { window })
     }
+
+    /// Builds the window without an event loop.
+    ///
+    /// Intended for use with embedded windows where external code controls the main event loop.
+    /// Embedded windows should be created with `WindowBuilderExtWindows.with_parent_window` or
+    /// other similar platform-specific functions.
+    ///
+    /// Call `Window.set_event_handler` to set an event handler for the window.
+    ///
+    /// Possible causes of error include denied permission, incompatible system, and lack of memory.
+    #[inline]
+    pub fn build_without_event_loop(self) -> Result<Window, OsError> {
+        unimplemented!();
+    }
 }
 
 /// Base Window functions.
@@ -356,6 +371,23 @@ impl Window {
     #[inline]
     pub fn request_redraw(&self) {
         self.window.request_redraw()
+    }
+
+    /// Sets the event handler for a window and returns any previously set event handler.
+    ///
+    /// If an event handler is set, the handler is called for events with `window_id == window.id()`.
+    ///
+    /// This function is mainly intended for embedded windows with an external parent window such as
+    /// when using `WindowBuilderExtWindows.with_parent_window` where external code controls the main
+    /// event loop. However, it can also be used with `EventLoop.run` for per-window event handling.
+    /// In such cases, the event handler is called before the main event handler passed to
+    /// `EventLoop.run` is called.
+    #[inline]
+    pub fn set_event_handler<T: 'static>(
+        &self,
+        _event_handler: Option<Box<dyn FnMut(Event<T>) -> bool>>,
+    ) -> Option<Box<dyn FnMut(Event<T>) -> bool>> {
+        unimplemented!();
     }
 }
 
