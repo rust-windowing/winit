@@ -1457,8 +1457,8 @@ unsafe extern "system" fn public_window_callback<T>(
                         continue;
                     }
 
-                    let x = location.x as f64;
-                    let y = location.y as f64;
+                    let x = location.x as f64 + (input.x % 100) as f64 / 100f64;
+                    let y = location.y as f64 + (input.y % 100) as f64 / 100f64;
                     let location = LogicalPosition::from_physical((x, y), dpi_factor);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
