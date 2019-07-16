@@ -12,14 +12,14 @@ mod platform;
 ))]
 #[path = "linux/mod.rs"]
 mod platform;
+#[cfg(target_os = "ios")]
+#[path = "apple/ios/mod.rs"]
+mod platform;
 #[cfg(target_os = "macos")]
-#[path = "macos/mod.rs"]
+#[path = "apple/macos/mod.rs"]
 mod platform;
 #[cfg(target_os = "android")]
 #[path = "android/mod.rs"]
-mod platform;
-#[cfg(target_os = "ios")]
-#[path = "ios/mod.rs"]
 mod platform;
 #[cfg(target_os = "emscripten")]
 #[path = "emscripten/mod.rs"]
