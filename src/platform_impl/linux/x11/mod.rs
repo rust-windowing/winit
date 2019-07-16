@@ -278,8 +278,10 @@ impl<T: 'static> EventLoop<T> {
             }
             // Empty the redraw requests
             {
-                let mut guard = wt.pending_redraws.lock().unwrap();
-                for wid in guard.drain() {
+                // Release the lock to prevent deadlock
+                let windows: Vec<_> = wt.pending_redraws.lock().unwrap().drain().collect();
+
+                for wid in windows {
                     sticky_exit_callback(
                         Event::WindowEvent {
                             window_id: crate::window::WindowId(super::WindowId::X(wid)),
