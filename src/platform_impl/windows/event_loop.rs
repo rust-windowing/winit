@@ -1448,8 +1448,17 @@ unsafe extern "system" fn public_window_callback<T>(
             {
                 let dpi_factor = hwnd_scale_factor(window);
                 for input in &inputs {
-                    let x = (input.x as f64) / 100f64;
-                    let y = (input.y as f64) / 100f64;
+                    let mut location = POINT {
+                        x: input.x / 100,
+                        y: input.y / 100,
+                    };
+
+                    if winuser::ScreenToClient(window, &mut location as *mut _) == 0 {
+                        continue;
+                    }
+
+                    let x = location.x as f64 + (input.x % 100) as f64 / 100f64;
+                    let y = location.y as f64 + (input.y % 100) as f64 / 100f64;
                     let location = LogicalPosition::from_physical((x, y), dpi_factor);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
@@ -1510,8 +1519,17 @@ unsafe extern "system" fn public_window_callback<T>(
                 // The information retrieved appears in reverse chronological order, with the most recent entry in the first
                 // row of the returned array
                 for pointer_info in pointer_infos.iter().rev() {
-                    let x = pointer_info.ptPixelLocation.x as f64;
-                    let y = pointer_info.ptPixelLocation.y as f64;
+                    let mut location = POINT {
+                        x: pointer_info.ptPixelLocation.x,
+                        y: pointer_info.ptPixelLocation.y,
+                    };
+
+                    if winuser::ScreenToClient(window, &mut location as *mut _) == 0 {
+                        continue;
+                    }
+
+                    let x = location.x as f64;
+                    let y = location.y as f64;
                     let location = LogicalPosition::from_physical((x, y), dpi_factor);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),

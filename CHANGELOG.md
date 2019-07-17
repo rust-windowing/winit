@@ -18,6 +18,7 @@ and `WindowEvent::HoveredFile`.
 - On Windows, fix the trail effect happening on transparent decorated windows. Borderless (or un-decorated) windows were not affected.
 - On Windows, fix `with_maximized` not properly setting window size to entire window.
 - On macOS, change `WindowExtMacOS::request_user_attention()` to take an `enum` instead of a `bool`.
+- On Windows, location of `WindowEvent::Touch` are window client coordinates instead of screen coordinates.
 
 # 0.20.0 Alpha 1 (2019-06-21)
 
