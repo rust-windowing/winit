@@ -1,9 +1,6 @@
-// TODO: dpi
-// TODO: close events (stdweb PR required)
+// TODO: close events (port from old stdweb branch)
 // TODO: pointer locking (stdweb PR required)
-// TODO: mouse wheel events (stdweb PR required)
-// TODO: key event: .which() (stdweb PR)
-// TODO: should there be a maximization / fullscreen API?
+// TODO: fullscreen API (stdweb PR required)
 
 mod device;
 mod error;
