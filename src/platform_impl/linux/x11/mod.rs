@@ -60,6 +60,7 @@ pub struct EventLoop<T: 'static> {
     _x11_source: ::calloop::Source<::calloop::generic::Generic<::calloop::generic::EventedRawFd>>,
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
+    event_processor: Rc<RefCell<EventProcessor<T>>>,
     user_sender: ::calloop::channel::Sender<T>,
     pending_events: Rc<RefCell<VecDeque<Event<T>>>>,
     target: Rc<RootELW<T>>,
@@ -171,7 +172,7 @@ impl<T: 'static> EventLoop<T> {
         // Handle X11 events
         let pending_events: Rc<RefCell<VecDeque<_>>> = Default::default();
 
-        let mut processor = EventProcessor {
+        let processor = EventProcessor {
             target: target.clone(),
             dnd,
             devices: Default::default(),
@@ -189,6 +190,9 @@ impl<T: 'static> EventLoop<T> {
 
         processor.init_device(ffi::XIAllDevices);
 
+        let processor = Rc::new(RefCell::new(processor));
+        let event_processor = processor.clone();
+
         // Setup the X11 event source
         let mut x11_events =
             ::calloop::generic::Generic::from_raw_fd(get_xtarget(&target).xconn.x11_fd);
@@ -197,17 +201,11 @@ impl<T: 'static> EventLoop<T> {
             .handle()
             .insert_source(x11_events, {
                 let pending_events = pending_events.clone();
-                let mut callback = move |event| {
-                    pending_events.borrow_mut().push_back(event);
-                };
                 move |evt, &mut ()| {
                     if evt.readiness.is_readable() {
-                        // process all pending events
-                        let mut xev = MaybeUninit::uninit();
-                        while unsafe { processor.poll_one_event(xev.as_mut_ptr()) } {
-                            let mut xev = unsafe { xev.assume_init() };
-                            processor.process_event(&mut xev, &mut callback);
-                        }
+                        let mut processor = processor.borrow_mut();
+                        let mut pending_events = pending_events.borrow_mut();
+                        drain_events(&mut processor, &mut pending_events);
                     }
                 }
             })
@@ -220,6 +218,7 @@ impl<T: 'static> EventLoop<T> {
             _user_source,
             user_sender,
             pending_user_events,
+            event_processor,
             target,
         };
 
@@ -362,6 +361,10 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
             }
+
+            // If the user callback had any interaction with the X server,
+            // it may have received and buffered some user input events.
+            self.drain_events();
         }
 
         callback(
@@ -377,6 +380,29 @@ impl<T: 'static> EventLoop<T> {
     {
         self.run_return(callback);
         ::std::process::exit(0);
+    }
+
+    fn drain_events(&self) {
+        let mut processor = self.event_processor.borrow_mut();
+        let mut pending_events = self.pending_events.borrow_mut();
+
+        drain_events(&mut processor, &mut pending_events);
+    }
+}
+
+fn drain_events<T: 'static>(
+    processor: &mut EventProcessor<T>,
+    pending_events: &mut VecDeque<Event<T>>,
+) {
+    let mut callback = |event| {
+        pending_events.push_back(event);
+    };
+
+    // process all pending events
+    let mut xev = MaybeUninit::uninit();
+    while unsafe { processor.poll_one_event(xev.as_mut_ptr()) } {
+        let mut xev = unsafe { xev.assume_init() };
+        processor.process_event(&mut xev, &mut callback);
     }
 }
 
