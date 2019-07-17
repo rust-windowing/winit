@@ -130,7 +130,6 @@ extern crate bitflags;
 #[macro_use]
 extern crate objc;
 #[cfg(feature = "std_web")]
-#[macro_use]
 extern crate std_web as stdweb;
 
 pub mod dpi;
