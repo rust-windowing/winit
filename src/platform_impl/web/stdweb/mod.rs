@@ -8,6 +8,7 @@ pub use self::timeout::Timeout;
 use crate::platform::web::WindowExtStdweb;
 use crate::window::Window;
 
+use stdweb::js;
 use stdweb::web::html_element::CanvasElement;
 
 pub fn throw(msg: &str) {
