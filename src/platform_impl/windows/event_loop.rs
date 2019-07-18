@@ -1558,7 +1558,10 @@ unsafe extern "system" fn public_window_callback<T>(
                     let y = display_rect.top as f64
                         + pointer_info.ptHimetricLocation.y as f64 * himetric_to_pixel_ratio_y;
 
-                    let mut location = POINT { x: x.floor() as i32, y: y.floor() as i32};
+                    let mut location = POINT {
+                        x: x.floor() as i32,
+                        y: y.floor() as i32,
+                    };
 
                     if winuser::ScreenToClient(window, &mut location as *mut _) == 0 {
                         continue;
