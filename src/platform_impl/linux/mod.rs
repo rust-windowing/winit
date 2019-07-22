@@ -1,6 +1,6 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::{collections::VecDeque, env, ffi::CStr, fmt, mem, os::raw::*, sync::Arc};
+use std::{collections::VecDeque, env, ffi::CStr, fmt, mem::MaybeUninit, os::raw::*, sync::Arc};
 
 use parking_lot::Mutex;
 use smithay_client_toolkit::reexports::client::ConnectError;
@@ -55,10 +55,10 @@ pub enum OsError {
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            OsError::XError(e) => formatter.pad(&e.description),
-            OsError::XMisc(e) => formatter.pad(e),
+            OsError::XError(e) => f.pad(&e.description),
+            OsError::XMisc(e) => f.pad(e),
         }
     }
 }
@@ -448,14 +448,16 @@ unsafe extern "C" fn x_error_callback(
 ) -> c_int {
     let xconn_lock = X11_BACKEND.lock();
     if let Ok(ref xconn) = *xconn_lock {
-        let mut buf: [c_char; 1024] = mem::uninitialized();
+        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
+        // which do not require initialization.
+        let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
         (xconn.xlib.XGetErrorText)(
             display,
             (*event).error_code as c_int,
-            buf.as_mut_ptr(),
+            buf.as_mut_ptr() as *mut c_char,
             buf.len() as c_int,
         );
-        let description = CStr::from_ptr(buf.as_ptr()).to_string_lossy();
+        let description = CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy();
 
         let error = XError {
             description: description.into_owned(),

@@ -1,4 +1,14 @@
-use std::{cmp, collections::HashSet, env, ffi::CString, mem, os::raw::*, path::Path, sync::Arc};
+use std::{
+    cmp,
+    collections::HashSet,
+    env,
+    ffi::CString,
+    mem::{self, MaybeUninit},
+    os::raw::*,
+    path::Path,
+    ptr, slice,
+    sync::Arc,
+};
 
 use libc;
 use parking_lot::Mutex;
@@ -333,8 +343,9 @@ impl UnownedWindow {
                 (xconn.xlib.XSetWMProtocols)(
                     xconn.display,
                     window.xwindow,
-                    &event_loop.wm_delete_window as *const ffi::Atom as *mut ffi::Atom,
-                    1,
+                    &[event_loop.wm_delete_window, event_loop.net_wm_ping] as *const ffi::Atom
+                        as *mut ffi::Atom,
+                    2,
                 );
             } //.queue();
 
@@ -413,11 +424,11 @@ impl UnownedWindow {
                 unsafe {
                     // XSetInputFocus generates an error if the window is not visible, so we wait
                     // until we receive VisibilityNotify.
-                    let mut event = mem::uninitialized();
+                    let mut event = MaybeUninit::uninit();
                     (xconn.xlib.XIfEvent)(
                         // This will flush the request buffer IF it blocks.
                         xconn.display,
-                        &mut event as *mut ffi::XEvent,
+                        event.as_mut_ptr(),
                         Some(visibility_predicate),
                         window.xwindow as _,
                     );
@@ -452,19 +463,22 @@ impl UnownedWindow {
         let pid_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_PID\0") };
         let client_machine_atom = unsafe { self.xconn.get_atom_unchecked(b"WM_CLIENT_MACHINE\0") };
         unsafe {
-            let (hostname, hostname_length) = {
-                // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
-                // the limit defined by OpenBSD.
-                const MAXHOSTNAMELEN: usize = 256;
-                let mut hostname: [c_char; MAXHOSTNAMELEN] = mem::uninitialized();
-                let status = libc::gethostname(hostname.as_mut_ptr(), hostname.len());
-                if status != 0 {
-                    return None;
-                }
-                hostname[MAXHOSTNAMELEN - 1] = '\0' as c_char; // a little extra safety
-                let hostname_length = libc::strlen(hostname.as_ptr());
-                (hostname, hostname_length as usize)
-            };
+            // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
+            // the limit defined by OpenBSD.
+            const MAXHOSTNAMELEN: usize = 256;
+            // `assume_init` is safe here because the array consists of `MaybeUninit` values,
+            // which do not require initialization.
+            let mut buffer: [MaybeUninit<c_char>; MAXHOSTNAMELEN] =
+                MaybeUninit::uninit().assume_init();
+            let status = libc::gethostname(buffer.as_mut_ptr() as *mut c_char, buffer.len());
+            if status != 0 {
+                return None;
+            }
+            ptr::write(buffer[MAXHOSTNAMELEN - 1].as_mut_ptr() as *mut u8, b'\0'); // a little extra safety
+            let hostname_length = libc::strlen(buffer.as_ptr() as *const c_char);
+
+            let hostname = slice::from_raw_parts(buffer.as_ptr() as *const c_char, hostname_length);
+
             self.xconn
                 .change_property(
                     self.xwindow,
@@ -751,20 +765,11 @@ impl UnownedWindow {
     }
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
-        let wm_hints = unsafe { self.xconn.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
-        self.xconn.change_property(
-            self.xwindow,
-            wm_hints,
-            wm_hints,
-            util::PropMode::Replace,
-            &[
-                util::MWM_HINTS_DECORATIONS, // flags
-                0,                           // functions
-                decorations as c_ulong,      // decorations
-                0,                           // input mode
-                0,                           // status
-            ],
-        )
+        let mut hints = self.xconn.get_motif_hints(self.xwindow);
+
+        hints.set_decorations(decorations);
+
+        self.xconn.set_motif_hints(self.xwindow, &hints)
     }
 
     #[inline]
@@ -773,6 +778,14 @@ impl UnownedWindow {
             .flush()
             .expect("Failed to set decoration state");
         self.invalidate_cached_frame_extents();
+    }
+
+    fn set_maximizable_inner(&self, maximizable: bool) -> util::Flusher<'_> {
+        let mut hints = self.xconn.get_motif_hints(self.xwindow);
+
+        hints.set_maximizable(maximizable);
+
+        self.xconn.set_motif_hints(self.xwindow, &hints)
     }
 
     fn set_always_on_top_inner(&self, always_on_top: bool) -> util::Flusher<'_> {
@@ -1069,6 +1082,8 @@ impl UnownedWindow {
             (window_size.clone(), window_size)
         };
 
+        self.set_maximizable_inner(resizable).queue();
+
         let dpi_factor = self.hidpi_factor();
         let min_inner_size = logical_min
             .map(|logical_size| logical_size.to_physical(dpi_factor))
@@ -1217,13 +1232,13 @@ impl UnownedWindow {
         let cursor = unsafe {
             // We don't care about this color, since it only fills bytes
             // in the pixmap which are not 0 in the mask.
-            let dummy_color: ffi::XColor = mem::uninitialized();
+            let mut dummy_color = MaybeUninit::uninit();
             let cursor = (self.xconn.xlib.XCreatePixmapCursor)(
                 self.xconn.display,
                 pixmap,
                 pixmap,
-                &dummy_color as *const _ as *mut _,
-                &dummy_color as *const _ as *mut _,
+                dummy_color.as_mut_ptr(),
+                dummy_color.as_mut_ptr(),
                 0,
                 0,
             );

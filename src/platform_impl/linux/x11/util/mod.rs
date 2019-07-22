@@ -18,7 +18,12 @@ pub use self::{
     randr::*, window_property::*, wm::*,
 };
 
-use std::{mem, ops::BitAnd, os::raw::*, ptr};
+use std::{
+    mem::{self, MaybeUninit},
+    ops::BitAnd,
+    os::raw::*,
+    ptr,
+};
 
 use super::{ffi, XConnection, XError};
 

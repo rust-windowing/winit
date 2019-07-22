@@ -149,7 +149,11 @@ impl Window {
                     winuser::RDW_INTERNALPAINT,
                 );
             } else {
-                winuser::PostMessageW(self.window.0, *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID, 0, 0);
+                let mut window_state = self.window_state.lock();
+                if !window_state.queued_out_of_band_redraw {
+                    window_state.queued_out_of_band_redraw = true;
+                    winuser::PostMessageW(self.window.0, *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID, 0, 0);
+                }
             }
         }
     }
@@ -211,7 +215,7 @@ impl Window {
     }
 
     pub(crate) fn inner_size_physical(&self) -> (u32, u32) {
-        let mut rect: RECT = unsafe { mem::uninitialized() };
+        let mut rect: RECT = unsafe { mem::zeroed() };
         if unsafe { winuser::GetClientRect(self.window.0, &mut rect) } == 0 {
             panic!("Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit")
         }

@@ -1,7 +1,7 @@
 use std::{
     collections::VecDeque,
     ffi::c_void,
-    fmt::{self, Debug, Formatter},
+    fmt::{self, Debug},
     marker::PhantomData,
     mem, ptr,
     sync::mpsc::{self, Receiver, Sender},
@@ -163,7 +163,7 @@ impl<T> Drop for EventLoopProxy<T> {
 impl<T> EventLoopProxy<T> {
     fn new(sender: Sender<T>) -> EventLoopProxy<T> {
         unsafe {
-            // just wakeup the eventloop
+            // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *mut c_void) {}
 
             // adding a Source to the main CFRunLoop lets us wake it up and
@@ -264,9 +264,8 @@ struct EventLoopHandler<F, T: 'static> {
 }
 
 impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("EventLoopHandler")
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventLoopHandler")
             .field("event_loop", &self.event_loop)
             .finish()
     }

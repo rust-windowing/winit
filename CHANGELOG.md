@@ -1,15 +1,33 @@
 # Unreleased
 
-- Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
-- On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
-- On Windows, when a window is initially invisible, it won't take focus from the existing visible windows.
 - On macOS, the dock and the menu bar are now hidden in fullscreen mode.
 - `Window::set_fullscreen` now takes `Option<Fullscreen>` where `Fullscreen`
   consists of `Fullscreen::Exclusive(VideoMode)` and
   `Fullscreen::Borderless(MonitorHandle)` variants.
     - Adds support for exclusive fullscreen mode.
 
-# 0.20.0 Alpha 1
+# 0.20.0 Alpha 2 (2019-07-09)
+
+- On X11, non-resizable windows now have maximize explicitly disabled.
+- On Windows, support paths longer than MAX_PATH (260 characters) in `WindowEvent::DroppedFile`
+and `WindowEvent::HoveredFile`.
+- On Mac, implement `DeviceEvent::Button`.
+- Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
+- On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
+- Revert the use of invisible surfaces in Wayland, which introduced graphical glitches with OpenGL (#835)
+- On X11, implement `_NET_WM_PING` to allow desktop environment to kill unresponsive programs.
+- On Windows, when a window is initially invisible, it won't take focus from the existing visible windows.
+- On Windows, fix multiple calls to `request_redraw` during `EventsCleared` sending multiple `RedrawRequested events.`
+- On Windows, fix edge case where `RedrawRequested` could be dispatched before input events in event loop iteration.
+- On Windows, fix timing issue that could cause events to be improperly dispatched after `RedrawRequested` but before `EventsCleared`.
+- On macOS, drop unused Metal dependency.
+- On Windows, fix the trail effect happening on transparent decorated windows. Borderless (or un-decorated) windows were not affected.
+- On Windows, fix `with_maximized` not properly setting window size to entire window.
+- On macOS, change `WindowExtMacOS::request_user_attention()` to take an `enum` instead of a `bool`.
+- On Windows, location of `WindowEvent::Touch` are window client coordinates instead of screen coordinates.
+- On X11, fix delayed events after window redraw.
+
+# 0.20.0 Alpha 1 (2019-06-21)
 
 - Changes below are considered **breaking**.
 - Change all occurrences of `EventsLoop` to `EventLoop`.

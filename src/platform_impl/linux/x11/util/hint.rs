@@ -1,8 +1,7 @@
+use std::slice;
 use std::sync::Arc;
 
 use super::*;
-
-pub const MWM_HINTS_DECORATIONS: c_ulong = 2;
 
 #[derive(Debug)]
 pub enum StateOperation {
@@ -90,6 +89,92 @@ impl WindowType {
             &Normal => b"_NET_WM_WINDOW_TYPE_NORMAL\0",
         };
         unsafe { xconn.get_atom_unchecked(atom_name) }
+    }
+}
+
+pub struct MotifHints {
+    hints: MwmHints,
+}
+
+#[repr(C)]
+struct MwmHints {
+    flags: c_ulong,
+    functions: c_ulong,
+    decorations: c_ulong,
+    input_mode: c_long,
+    status: c_ulong,
+}
+
+#[allow(dead_code)]
+mod mwm {
+    use libc::c_ulong;
+
+    // Motif WM hints are obsolete, but still widely supported.
+    // https://stackoverflow.com/a/1909708
+    pub const MWM_HINTS_FUNCTIONS: c_ulong = 1 << 0;
+    pub const MWM_HINTS_DECORATIONS: c_ulong = 1 << 1;
+
+    pub const MWM_FUNC_ALL: c_ulong = 1 << 0;
+    pub const MWM_FUNC_RESIZE: c_ulong = 1 << 1;
+    pub const MWM_FUNC_MOVE: c_ulong = 1 << 2;
+    pub const MWM_FUNC_MINIMIZE: c_ulong = 1 << 3;
+    pub const MWM_FUNC_MAXIMIZE: c_ulong = 1 << 4;
+    pub const MWM_FUNC_CLOSE: c_ulong = 1 << 5;
+}
+
+impl MotifHints {
+    pub fn new() -> MotifHints {
+        MotifHints {
+            hints: MwmHints {
+                flags: 0,
+                functions: 0,
+                decorations: 0,
+                input_mode: 0,
+                status: 0,
+            },
+        }
+    }
+
+    pub fn set_decorations(&mut self, decorations: bool) {
+        self.hints.flags |= mwm::MWM_HINTS_DECORATIONS;
+        self.hints.decorations = decorations as c_ulong;
+    }
+
+    pub fn set_maximizable(&mut self, maximizable: bool) {
+        if maximizable {
+            self.add_func(mwm::MWM_FUNC_MAXIMIZE);
+        } else {
+            self.remove_func(mwm::MWM_FUNC_MAXIMIZE);
+        }
+    }
+
+    fn add_func(&mut self, func: c_ulong) {
+        if self.hints.flags & mwm::MWM_HINTS_FUNCTIONS != 0 {
+            if self.hints.functions & mwm::MWM_FUNC_ALL != 0 {
+                self.hints.functions &= !func;
+            } else {
+                self.hints.functions |= func;
+            }
+        }
+    }
+
+    fn remove_func(&mut self, func: c_ulong) {
+        if self.hints.flags & mwm::MWM_HINTS_FUNCTIONS == 0 {
+            self.hints.flags |= mwm::MWM_HINTS_FUNCTIONS;
+            self.hints.functions = mwm::MWM_FUNC_ALL;
+        }
+
+        if self.hints.functions & mwm::MWM_FUNC_ALL != 0 {
+            self.hints.functions |= func;
+        } else {
+            self.hints.functions &= !func;
+        }
+    }
+}
+
+impl MwmHints {
+    fn as_slice(&self) -> &[c_ulong] {
+        unsafe { slice::from_raw_parts(self as *const _ as *const c_ulong, 5) }
     }
 }
 
@@ -232,13 +317,13 @@ impl XConnection {
 
     pub fn get_normal_hints(&self, window: ffi::Window) -> Result<NormalHints<'_>, XError> {
         let size_hints = self.alloc_size_hints();
-        let mut supplied_by_user: c_long = unsafe { mem::uninitialized() };
+        let mut supplied_by_user = MaybeUninit::uninit();
         unsafe {
             (self.xlib.XGetWMNormalHints)(
                 self.display,
                 window,
                 size_hints.ptr,
-                &mut supplied_by_user,
+                supplied_by_user.as_mut_ptr(),
             );
         }
         self.check_errors().map(|_| NormalHints { size_hints })
@@ -253,5 +338,33 @@ impl XConnection {
             (self.xlib.XSetWMNormalHints)(self.display, window, normal_hints.size_hints.ptr);
         }
         Flusher::new(self)
+    }
+
+    pub fn get_motif_hints(&self, window: ffi::Window) -> MotifHints {
+        let motif_hints = unsafe { self.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
+
+        let mut hints = MotifHints::new();
+
+        if let Ok(props) = self.get_property::<c_ulong>(window, motif_hints, motif_hints) {
+            hints.hints.flags = props.get(0).cloned().unwrap_or(0);
+            hints.hints.functions = props.get(1).cloned().unwrap_or(0);
+            hints.hints.decorations = props.get(2).cloned().unwrap_or(0);
+            hints.hints.input_mode = props.get(3).cloned().unwrap_or(0) as c_long;
+            hints.hints.status = props.get(4).cloned().unwrap_or(0);
+        }
+
+        hints
+    }
+
+    pub fn set_motif_hints(&self, window: ffi::Window, hints: &MotifHints) -> Flusher<'_> {
+        let motif_hints = unsafe { self.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
+
+        self.change_property(
+            window,
+            motif_hints,
+            motif_hints,
+            PropMode::Replace,
+            hints.hints.as_slice(),
+        )
     }
 }

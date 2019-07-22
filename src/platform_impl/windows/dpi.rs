@@ -1,10 +1,6 @@
 #![allow(non_snake_case, unused_unsafe)]
 
-use std::{
-    mem,
-    os::raw::c_void,
-    sync::{Once, ONCE_INIT},
-};
+use std::{mem, os::raw::c_void, sync::Once};
 
 use winapi::{
     shared::{
@@ -13,13 +9,12 @@ use winapi::{
         winerror::S_OK,
     },
     um::{
-        libloaderapi::{GetProcAddress, LoadLibraryA},
         shellscalingapi::{
             MDT_EFFECTIVE_DPI, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
             PROCESS_PER_MONITOR_DPI_AWARE,
         },
         wingdi::{GetDeviceCaps, LOGPIXELSX},
-        winnt::{HRESULT, LPCSTR},
+        winnt::HRESULT,
         winuser::{self, MONITOR_DEFAULTTONEAREST},
     },
 };
@@ -39,33 +34,6 @@ type GetDpiForMonitor = unsafe extern "system" fn(
 ) -> HRESULT;
 type EnableNonClientDpiScaling = unsafe extern "system" fn(hwnd: HWND) -> BOOL;
 
-// Helper function to dynamically load function pointer.
-// `library` and `function` must be zero-terminated.
-fn get_function_impl(library: &str, function: &str) -> Option<*const c_void> {
-    assert_eq!(library.chars().last(), Some('\0'));
-    assert_eq!(function.chars().last(), Some('\0'));
-
-    // Library names we will use are ASCII so we can use the A version to avoid string conversion.
-    let module = unsafe { LoadLibraryA(library.as_ptr() as LPCSTR) };
-    if module.is_null() {
-        return None;
-    }
-
-    let function_ptr = unsafe { GetProcAddress(module, function.as_ptr() as LPCSTR) };
-    if function_ptr.is_null() {
-        return None;
-    }
-
-    Some(function_ptr as _)
-}
-
-macro_rules! get_function {
-    ($lib:expr, $func:ident) => {
-        get_function_impl(concat!($lib, '\0'), concat!(stringify!($func), '\0'))
-            .map(|f| unsafe { mem::transmute::<*const _, $func>(f) })
-    };
-}
-
 lazy_static! {
     static ref GET_DPI_FOR_WINDOW: Option<GetDpiForWindow> =
         get_function!("user32.dll", GetDpiForWindow);
@@ -79,7 +47,7 @@ pub fn become_dpi_aware(enable: bool) {
     if !enable {
         return;
     }
-    static ENABLE_DPI_AWARENESS: Once = ONCE_INIT;
+    static ENABLE_DPI_AWARENESS: Once = Once::new();
     ENABLE_DPI_AWARENESS.call_once(|| {
         unsafe {
             if let Some(SetProcessDpiAwarenessContext) =

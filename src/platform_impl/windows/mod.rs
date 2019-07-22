@@ -67,6 +67,8 @@ impl WindowId {
     }
 }
 
+#[macro_use]
+mod util;
 mod dpi;
 mod drop_handler;
 mod event;
@@ -74,6 +76,5 @@ mod event_loop;
 mod icon;
 mod monitor;
 mod raw_input;
-mod util;
 mod window;
 mod window_state;
