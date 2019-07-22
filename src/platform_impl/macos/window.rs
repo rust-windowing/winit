@@ -13,9 +13,9 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform::macos::{ActivationPolicy, WindowExtMacOS},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform::macos::{ActivationPolicy, RequestUserAttentionType, WindowExtMacOS},
+    platform::macos::{ActivationPolicy, WindowExtMacOS},
     platform_impl::platform::{
         app_state::AppState,
         ffi,
