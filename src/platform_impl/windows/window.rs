@@ -516,6 +516,19 @@ impl Window {
                 _ => (),
             }
 
+            unsafe {
+                // There are some scenarios where calling `ChangeDisplaySettingsExW` takes long
+                // enough to execute that the DWM thinks our program has frozen and takes over
+                // our program's window. When that happens, the `SetWindowPos` call below gets
+                // eaten and the window doesn't get set to the proper fullscreen position.
+                //
+                // Calling `PeekMessageW` here notifies Windows that our process is still running
+                // fine, taking control back from the DWM and ensuring that the `SetWindowPos` call
+                // below goes through.
+                let mut msg = mem::zeroed();
+                winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0);
+            }
+
             // Update window style
             WindowState::set_window_flags(window_state_lock, window.0, |f| {
                 f.set(WindowFlags::MARKER_FULLSCREEN, fullscreen.is_some())
