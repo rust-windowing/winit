@@ -2,6 +2,11 @@
 
 - On Windows, location of `WindowEvent::Touch` are window client coordinates instead of screen coordinates.
 - On X11, fix delayed events after window redraw.
+- Changes to the `RedrawRequested` event (#1041):
+  - `RedrawRequested` has been moved from `WindowEvent` to `Event`.
+  - `EventsCleared` has been renamed to `MainEventsCleared`.
+  - `RedrawRequested` is now issued only after `MainEventsCleared`.
+  - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
