@@ -196,6 +196,7 @@ impl AppState {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(Event::LoopDestroyed);
         HANDLER.set_in_callback(false);
+        HANDLER.callback.lock().unwrap().take();
     }
 
     pub fn launched() {
