@@ -367,9 +367,7 @@ pub unsafe fn create_window(
     }
     match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(_)) => unimplemented!(),
-        Some(Fullscreen::Borderless(ref monitor)) => {
-            msg_send![window, setScreen:monitor.ui_screen()]
-        }
+        Some(Fullscreen::Borderless(ref monitor)) => msg_send![window, setScreen:monitor.ui_screen()],
         None => (),
     }
 
