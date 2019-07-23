@@ -1,5 +1,5 @@
 # Unreleased
-
+- On macOS, drop the run closure on exit.
 - On Windows, location of `WindowEvent::Touch` are window client coordinates instead of screen coordinates.
 - On X11, fix delayed events after window redraw.
 
