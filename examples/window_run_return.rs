@@ -1,11 +1,21 @@
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    platform::desktop::EventLoopExtDesktop,
-    window::WindowBuilder,
-};
-
+// Limit this example to only compatible platforms.
+#[cfg(any(
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 fn main() {
+    use winit::{
+        event::{Event, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        platform::desktop::EventLoopExtDesktop,
+        window::WindowBuilder,
+    };
+
     let mut event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
@@ -38,4 +48,9 @@ fn main() {
     });
 
     println!("Okay we're done now for real.");
+}
+
+#[cfg(any(target_os = "ios", target_os = "android", target_os = "emscripten"))]
+fn main() {
+    println!("This platform doesn't support run_return.");
 }
