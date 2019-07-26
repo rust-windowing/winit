@@ -39,7 +39,7 @@ use winapi::{
     },
     um::{
         commctrl, libloaderapi, ole2, processthreadsapi, winbase,
-        winnt::{LONG, LPCSTR, SHORT},
+        winnt::{HANDLE, LONG, LPCSTR, SHORT},
         winuser,
     },
 };
@@ -71,12 +71,19 @@ type GetPointerFrameInfoHistory = unsafe extern "system" fn(
 ) -> BOOL;
 
 type SkipPointerFrameMessages = unsafe extern "system" fn(pointerId: UINT) -> BOOL;
+type GetPointerDeviceRects = unsafe extern "system" fn(
+    device: HANDLE,
+    pointerDeviceRect: *mut RECT,
+    displayRect: *mut RECT,
+) -> BOOL;
 
 lazy_static! {
     static ref GET_POINTER_FRAME_INFO_HISTORY: Option<GetPointerFrameInfoHistory> =
         get_function!("user32.dll", GetPointerFrameInfoHistory);
     static ref SKIP_POINTER_FRAME_MESSAGES: Option<SkipPointerFrameMessages> =
         get_function!("user32.dll", SkipPointerFrameMessages);
+    static ref GET_POINTER_DEVICE_RECTS: Option<GetPointerDeviceRects> =
+        get_function!("user32.dll", GetPointerDeviceRects);
 }
 
 pub(crate) struct SubclassInput<T> {
@@ -1484,9 +1491,14 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_POINTERDOWN | winuser::WM_POINTERUPDATE | winuser::WM_POINTERUP => {
-            if let (Some(GetPointerFrameInfoHistory), Some(SkipPointerFrameMessages)) = (
+            if let (
+                Some(GetPointerFrameInfoHistory),
+                Some(SkipPointerFrameMessages),
+                Some(GetPointerDeviceRects),
+            ) = (
                 *GET_POINTER_FRAME_INFO_HISTORY,
                 *SKIP_POINTER_FRAME_MESSAGES,
+                *GET_POINTER_DEVICE_RECTS,
             ) {
                 let pointer_id = LOWORD(wparam as DWORD) as UINT;
                 let mut entries_count = 0 as UINT;
@@ -1519,17 +1531,44 @@ unsafe extern "system" fn public_window_callback<T>(
                 // The information retrieved appears in reverse chronological order, with the most recent entry in the first
                 // row of the returned array
                 for pointer_info in pointer_infos.iter().rev() {
+                    let mut device_rect: RECT = mem::uninitialized();
+                    let mut display_rect: RECT = mem::uninitialized();
+
+                    if (GetPointerDeviceRects(
+                        pointer_info.sourceDevice,
+                        &mut device_rect as *mut _,
+                        &mut display_rect as *mut _,
+                    )) == 0
+                    {
+                        continue;
+                    }
+
+                    // For the most precise himetric to pixel conversion we calculate the ratio between the resolution
+                    // of the display device (pixel) and the touch device (himetric).
+                    let himetric_to_pixel_ratio_x = (display_rect.right - display_rect.left) as f64
+                        / (device_rect.right - device_rect.left) as f64;
+                    let himetric_to_pixel_ratio_y = (display_rect.bottom - display_rect.top) as f64
+                        / (device_rect.bottom - device_rect.top) as f64;
+
+                    // ptHimetricLocation's origin is 0,0 even on multi-monitor setups.
+                    // On multi-monitor setups we need to translate the himetric location to the rect of the
+                    // display device it's attached to.
+                    let x = display_rect.left as f64
+                        + pointer_info.ptHimetricLocation.x as f64 * himetric_to_pixel_ratio_x;
+                    let y = display_rect.top as f64
+                        + pointer_info.ptHimetricLocation.y as f64 * himetric_to_pixel_ratio_y;
+
                     let mut location = POINT {
-                        x: pointer_info.ptPixelLocation.x,
-                        y: pointer_info.ptPixelLocation.y,
+                        x: x.floor() as i32,
+                        y: y.floor() as i32,
                     };
 
                     if winuser::ScreenToClient(window, &mut location as *mut _) == 0 {
                         continue;
                     }
 
-                    let x = location.x as f64;
-                    let y = location.y as f64;
+                    let x = location.x as f64 + x.fract();
+                    let y = location.y as f64 + y.fract();
                     let location = LogicalPosition::from_physical((x, y), dpi_factor);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
