@@ -538,6 +538,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<MonitorHandle>) {
         self.window.set_fullscreen(monitor)
