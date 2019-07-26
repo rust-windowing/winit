@@ -1,4 +1,5 @@
 - [ ] Tested on all platforms changed
+- [ ] Compilation warnings were addressed
 - [ ] `cargo fmt` has been run on this branch
 - [ ] Added an entry to `CHANGELOG.md` if knowledge of this change could be valuable to users
 - [ ] Updated documentation to reflect any user-facing changes, including notes of platform-specific behavior
