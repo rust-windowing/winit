@@ -19,14 +19,11 @@ fn main() {
             event: WindowEvent::CloseRequested,
             ..
         } => *control_flow = ControlFlow::Exit,
-        Event::EventsCleared => {
+        Event::MainEventsCleared => {
             window.request_redraw();
             *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0))
         }
-        Event::WindowEvent {
-            event: WindowEvent::RedrawRequested,
-            ..
-        } => {
+        Event::RedrawRequested(_) => {
             println!("{:?}", event);
         }
         _ => (),
