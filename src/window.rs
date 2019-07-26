@@ -224,6 +224,10 @@ impl WindowBuilder {
 
     /// Sets the window fullscreen state. None means a normal window, Some(MonitorHandle)
     /// means a fullscreen window on that specific monitor
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
     #[inline]
     pub fn with_fullscreen(mut self, monitor: Option<MonitorHandle>) -> WindowBuilder {
         self.window.fullscreen = monitor;

@@ -2,6 +2,7 @@
 - On macOS, drop the run closure on exit.
 - On Windows, location of `WindowEvent::Touch` are window client coordinates instead of screen coordinates.
 - On X11, fix delayed events after window redraw.
+- On Windows, screen saver won't start if the window is in fullscreen mode.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
