@@ -129,6 +129,7 @@ pub trait WindowBuilderExtMacOS {
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
     /// Build window with `resizeIncrements` property. Values must not be 0.
     fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
+    fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -180,6 +181,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_resize_increments(mut self, increments: LogicalSize) -> WindowBuilder {
         self.platform_specific.resize_increments = Some(increments.into());
+        self
+    }
+
+    #[inline]
+    fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> WindowBuilder {
+        self.platform_specific.disallow_hidpi = disallow_hidpi;
         self
     }
 }
