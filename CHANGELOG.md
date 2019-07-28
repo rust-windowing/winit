@@ -5,7 +5,6 @@
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
-- **Breaking:** On Linux, the functions `is_wayland`, `is_x11`, `xlib_xconnection` and `wayland_display` have been moved to a new `EventLoopWindowTargetExtUnix` trait.
 - On X11, non-resizable windows now have maximize explicitly disabled.
 - On Windows, support paths longer than MAX_PATH (260 characters) in `WindowEvent::DroppedFile`
 and `WindowEvent::HoveredFile`.
@@ -22,6 +21,7 @@ and `WindowEvent::HoveredFile`.
 - On Windows, fix the trail effect happening on transparent decorated windows. Borderless (or un-decorated) windows were not affected.
 - On Windows, fix `with_maximized` not properly setting window size to entire window.
 - On macOS, change `WindowExtMacOS::request_user_attention()` to take an `enum` instead of a `bool`.
+- On Linux, the functions `is_wayland`, `is_x11`, `xlib_xconnection` and `wayland_display` have been moved to a new `EventLoopWindowTargetExtUnix` trait.
 
 # 0.20.0 Alpha 1 (2019-06-21)
 
