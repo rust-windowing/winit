@@ -1,6 +1,6 @@
 use std::{self, os::raw::*, ptr, time::Instant};
 
-use crate::platform_impl::platform::app_state::AppState;
+use crate::platform_impl::platform::{app_state::AppState, ffi};
 
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
@@ -13,7 +13,7 @@ extern "C" {
     pub fn CFRunLoopObserverCreate(
         allocator: CFAllocatorRef,
         activities: CFOptionFlags,
-        repeats: Boolean,
+        repeats: ffi::Boolean,
         order: CFIndex,
         callout: CFRunLoopObserverCallBack,
         context: *mut CFRunLoopObserverContext,
@@ -50,11 +50,6 @@ extern "C" {
     pub fn CFAbsoluteTimeGetCurrent() -> CFAbsoluteTime;
     pub fn CFRelease(cftype: *const c_void);
 }
-
-pub type Boolean = u8;
-#[allow(dead_code)]
-const FALSE: Boolean = 0;
-const TRUE: Boolean = 1;
 
 pub enum CFAllocator {}
 pub type CFAllocatorRef = *mut CFAllocator;
@@ -102,7 +97,7 @@ pub struct CFRunLoopSourceContext {
     pub retain: extern "C" fn(*const c_void) -> *const c_void,
     pub release: extern "C" fn(*const c_void),
     pub copyDescription: extern "C" fn(*const c_void) -> CFStringRef,
-    pub equal: extern "C" fn(*const c_void, *const c_void) -> Boolean,
+    pub equal: extern "C" fn(*const c_void, *const c_void) -> ffi::Boolean,
     pub hash: extern "C" fn(*const c_void) -> CFHashCode,
     pub schedule: extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode),
     pub cancel: extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode),
@@ -162,8 +157,8 @@ impl RunLoop {
         let observer = CFRunLoopObserverCreate(
             ptr::null_mut(),
             flags,
-            TRUE,     // Indicates we want this to run repeatedly
-            priority, // The lower the value, the sooner this will run
+            ffi::TRUE, // Indicates we want this to run repeatedly
+            priority,  // The lower the value, the sooner this will run
             handler,
             ptr::null_mut(),
         );

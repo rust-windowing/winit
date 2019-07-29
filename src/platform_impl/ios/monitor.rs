@@ -1,18 +1,44 @@
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{BTreeSet, VecDeque},
     fmt,
     ops::{Deref, DerefMut},
 };
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::VideoMode,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
 };
 
-use crate::platform_impl::platform::ffi::{
-    id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger,
-};
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VideoMode {
+    pub(crate) size: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+    pub(crate) monitor: MonitorHandle,
+}
 
+impl VideoMode {
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
+    }
+
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+
+    pub fn monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle {
+            inner: self.monitor.clone(),
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Inner {
     uiscreen: id,
 }
@@ -25,6 +51,7 @@ impl Drop for Inner {
     }
 }
 
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MonitorHandle {
     inner: Inner,
 }
@@ -140,21 +167,24 @@ impl Inner {
         }
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
         let refresh_rate: NSInteger = unsafe { msg_send![self.uiscreen, maximumFramesPerSecond] };
 
         let available_modes: id = unsafe { msg_send![self.uiscreen, availableModes] };
         let available_mode_count: NSUInteger = unsafe { msg_send![available_modes, count] };
 
-        let mut modes = HashSet::with_capacity(available_mode_count);
+        let mut modes = BTreeSet::new();
 
         for i in 0..available_mode_count {
             let mode: id = unsafe { msg_send![available_modes, objectAtIndex: i] };
             let size: CGSize = unsafe { msg_send![mode, size] };
-            modes.insert(VideoMode {
-                size: (size.width as u32, size.height as u32),
-                bit_depth: 32,
-                refresh_rate: refresh_rate as u16,
+            modes.insert(RootVideoMode {
+                video_mode: VideoMode {
+                    size: (size.width as u32, size.height as u32),
+                    bit_depth: 32,
+                    refresh_rate: refresh_rate as u16,
+                    monitor: MonitorHandle::retained_new(self.uiscreen),
+                },
             });
         }
 
