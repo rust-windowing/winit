@@ -17,7 +17,7 @@ use crate::{
         ffi::{id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask},
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
-    window::{CursorIcon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
 pub struct Inner {
@@ -157,10 +157,11 @@ impl Inner {
         warn!("`Window::set_maximized` is ignored on iOS")
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
             match monitor {
-                Some(monitor) => {
+                Some(Fullscreen::Exclusive(_)) => unimplemented!("exclusive fullscreen on iOS"), // TODO
+                Some(Fullscreen::Borderless(monitor)) => {
                     let uiscreen = monitor.ui_screen() as id;
                     let current: id = msg_send![self.window, screen];
                     let bounds: CGRect = msg_send![uiscreen, bounds];
@@ -176,7 +177,7 @@ impl Inner {
         }
     }
 
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         unsafe {
             let monitor = self.current_monitor();
             let uiscreen = monitor.inner.ui_screen();
@@ -189,7 +190,7 @@ impl Inner {
                 && screen_space_bounds.size.width == screen_bounds.size.width
                 && screen_space_bounds.size.height == screen_bounds.size.height
             {
-                Some(monitor)
+                Some(Fullscreen::Borderless(monitor))
             } else {
                 None
             }
@@ -293,11 +294,12 @@ impl Window {
         // TODO: transparency, visible
 
         unsafe {
-            let screen = window_attributes
-                .fullscreen
-                .as_ref()
-                .map(|screen| screen.ui_screen() as _)
-                .unwrap_or_else(|| monitor::main_uiscreen().ui_screen());
+            let screen = match window_attributes.fullscreen {
+                Some(Fullscreen::Exclusive(_)) => unimplemented!("exclusive fullscreen on iOS"), // TODO: do we set the frame to video mode bounds instead of screen bounds?
+                Some(Fullscreen::Borderless(ref monitor)) => monitor.ui_screen() as id,
+                None => monitor::main_uiscreen().ui_screen(),
+            };
+
             let screen_bounds: CGRect = msg_send![screen, bounds];
 
             let frame = match window_attributes.inner_size {

@@ -8,15 +8,14 @@ use objc::{
 use crate::{
     event::{DeviceId as RootDeviceId, Event, Touch, TouchPhase, WindowEvent},
     platform::ios::MonitorHandleExtIOS,
-    window::{WindowAttributes, WindowId as RootWindowId},
-};
-
-use crate::platform_impl::platform::{
-    app_state::AppState,
-    event_loop,
-    ffi::{id, nil, CGFloat, CGPoint, CGRect, UIInterfaceOrientationMask, UITouchPhase},
-    window::PlatformSpecificWindowBuilderAttributes,
-    DeviceId,
+    platform_impl::platform::{
+        app_state::AppState,
+        event_loop,
+        ffi::{id, nil, CGFloat, CGPoint, CGRect, UIInterfaceOrientationMask, UITouchPhase},
+        window::PlatformSpecificWindowBuilderAttributes,
+        DeviceId,
+    },
+    window::{Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
 
 // requires main thread
@@ -366,8 +365,12 @@ pub unsafe fn create_window(
     if let Some(hidpi_factor) = platform_attributes.hidpi_factor {
         let () = msg_send![window, setContentScaleFactor: hidpi_factor as CGFloat];
     }
-    if let &Some(ref monitor) = &window_attributes.fullscreen {
-        let () = msg_send![window, setScreen:monitor.ui_screen()];
+    match window_attributes.fullscreen {
+        Some(Fullscreen::Exclusive(_)) => unimplemented!(),
+        Some(Fullscreen::Borderless(ref monitor)) => {
+            msg_send![window, setScreen:monitor.ui_screen()]
+        }
+        None => (),
     }
 
     window
