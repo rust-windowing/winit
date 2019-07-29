@@ -236,6 +236,10 @@ impl WindowBuilder {
 
     /// Sets the window fullscreen state. None means a normal window, Some(Fullscreen)
     /// means a fullscreen window on that specific monitor
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
     #[inline]
     pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> WindowBuilder {
         self.window.fullscreen = monitor;
@@ -558,6 +562,7 @@ impl Window {
     ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** Does not support exclusive fullscreen mode.
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
     ///
     /// [simple]:
     /// ../platform/macos/trait.WindowExtMacOS.html#tymethod.set_simple_fullscreen

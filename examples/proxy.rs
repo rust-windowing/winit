@@ -5,7 +5,7 @@ use winit::{
 };
 
 fn main() {
-    let event_loop: EventLoop<i32> = EventLoop::new_user_event();
+    let event_loop: EventLoop<i32> = EventLoop::with_user_event();
 
     let _window = WindowBuilder::new()
         .with_title("A fantastic window!")

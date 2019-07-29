@@ -65,6 +65,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub titlebar_buttons_hidden: bool,
     pub fullsize_content_view: bool,
     pub resize_increments: Option<LogicalSize>,
+    pub disallow_hidpi: bool,
 }
 
 fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
@@ -85,10 +86,15 @@ fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
     }
 }
 
-unsafe fn create_view(ns_window: id) -> Option<(IdRef, Weak<Mutex<util::Cursor>>)> {
+unsafe fn create_view(
+    ns_window: id,
+    pl_attribs: &PlatformSpecificWindowBuilderAttributes,
+) -> Option<(IdRef, Weak<Mutex<util::Cursor>>)> {
     let (ns_view, cursor) = new_view(ns_window);
     ns_view.non_nil().map(|ns_view| {
-        ns_view.setWantsBestResolutionOpenGLSurface_(YES);
+        if !pl_attribs.disallow_hidpi {
+            ns_view.setWantsBestResolutionOpenGLSurface_(YES);
+        }
 
         // On Mojave, views automatically become layer-backed shortly after being added to
         // a window. Changing the layer-backedness of a view breaks the association between
@@ -306,10 +312,11 @@ impl UnownedWindow {
             os_error!(OsError::CreationError("Couldn't create `NSWindow`"))
         })?;
 
-        let (ns_view, cursor) = unsafe { create_view(*ns_window) }.ok_or_else(|| {
-            unsafe { pool.drain() };
-            os_error!(OsError::CreationError("Couldn't create `NSView`"))
-        })?;
+        let (ns_view, cursor) =
+            unsafe { create_view(*ns_window, &pl_attribs) }.ok_or_else(|| {
+                unsafe { pool.drain() };
+                os_error!(OsError::CreationError("Couldn't create `NSView`"))
+            })?;
 
         let input_context = unsafe { util::create_input_context(*ns_view) };
 
