@@ -10,11 +10,14 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
-    platform::ios::{MonitorHandleExtIOS, ValidOrientations},
+    platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
     platform_impl::platform::{
         app_state::AppState,
         event_loop,
-        ffi::{id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask},
+        ffi::{
+            id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
+            UIRectEdge,
+        },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
     window::{CursorIcon, Fullscreen, WindowAttributes},
@@ -375,6 +378,26 @@ impl Inner {
             ];
         }
     }
+
+    pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
+        unsafe {
+            let prefers_home_indicator_hidden = if hidden { NO } else { YES };
+            let () = msg_send![
+                self.view_controller,
+                setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
+            ];
+        }
+    }
+
+    pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
+        let edges: UIRectEdge = edges.into();
+        unsafe {
+            let () = msg_send![
+                self.view_controller,
+                setPreferredScreenEdgesDeferringSystemGestures: edges
+            ];
+        }
+    }
 }
 
 impl Inner {
@@ -496,6 +519,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub root_view_class: &'static Class,
     pub hidpi_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
+    pub prefers_home_indicator_hidden: bool,
+    pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -504,6 +529,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             root_view_class: class!(UIView),
             hidpi_factor: None,
             valid_orientations: Default::default(),
+            prefers_home_indicator_hidden: false,
+            preferred_screen_edges_deferring_system_gestures: ScreenEdge::NONE,
         }
     }
 }
