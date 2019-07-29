@@ -406,7 +406,11 @@ pub unsafe fn create_window(
         let () = msg_send![window, setContentScaleFactor: hidpi_factor as CGFloat];
     }
     match window_attributes.fullscreen {
-        Some(Fullscreen::Exclusive(_)) => unimplemented!(),
+        Some(Fullscreen::Exclusive(ref video_mode)) => {
+            let uiscreen = video_mode.monitor().ui_screen() as id;
+            let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+            msg_send![window, setScreen:video_mode.monitor().ui_screen()]
+        }
         Some(Fullscreen::Borderless(ref monitor)) => {
             msg_send![window, setScreen:monitor.ui_screen()]
         }

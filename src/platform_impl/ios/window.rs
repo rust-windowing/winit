@@ -162,21 +162,27 @@ impl Inner {
 
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
-            match monitor {
-                Some(Fullscreen::Exclusive(_)) => unimplemented!("exclusive fullscreen on iOS"), // TODO
-                Some(Fullscreen::Borderless(monitor)) => {
-                    let uiscreen = monitor.ui_screen() as id;
-                    let current: id = msg_send![self.window, screen];
-                    let bounds: CGRect = msg_send![uiscreen, bounds];
-
-                    // this is pretty slow on iOS, so avoid doing it if we can
-                    if uiscreen != current {
-                        let () = msg_send![self.window, setScreen: uiscreen];
-                    }
-                    let () = msg_send![self.window, setFrame: bounds];
+            let uiscreen = match monitor {
+                Some(Fullscreen::Exclusive(video_mode)) => {
+                    let uiscreen = video_mode.video_mode.monitor.ui_screen() as id;
+                    let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+                    uiscreen
                 }
-                None => warn!("`Window::set_fullscreen(None)` ignored on iOS"),
+                Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
+                None => {
+                    warn!("`Window::set_fullscreen(None)` ignored on iOS");
+                    return;
+                }
+            };
+
+            let current: id = msg_send![self.window, screen];
+            let bounds: CGRect = msg_send![uiscreen, bounds];
+
+            // this is pretty slow on iOS, so avoid doing it if we can
+            if uiscreen != current {
+                let () = msg_send![self.window, setScreen: uiscreen];
             }
+            let () = msg_send![self.window, setFrame: bounds];
         }
     }
 
@@ -298,7 +304,9 @@ impl Window {
 
         unsafe {
             let screen = match window_attributes.fullscreen {
-                Some(Fullscreen::Exclusive(_)) => unimplemented!("exclusive fullscreen on iOS"), // TODO: do we set the frame to video mode bounds instead of screen bounds?
+                Some(Fullscreen::Exclusive(ref video_mode)) => {
+                    video_mode.video_mode.monitor.ui_screen() as id
+                }
                 Some(Fullscreen::Borderless(ref monitor)) => monitor.ui_screen() as id,
                 None => monitor::main_uiscreen().ui_screen(),
             };

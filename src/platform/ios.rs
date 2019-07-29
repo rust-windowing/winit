@@ -4,7 +4,7 @@ use std::os::raw::c_void;
 
 use crate::{
     event_loop::EventLoop,
-    monitor::MonitorHandle,
+    monitor::{MonitorHandle, VideoMode},
     window::{Window, WindowBuilder},
 };
 
@@ -162,12 +162,20 @@ impl WindowBuilderExtIOS for WindowBuilder {
 pub trait MonitorHandleExtIOS {
     /// Returns a pointer to the `UIScreen` that is used by this monitor.
     fn ui_screen(&self) -> *mut c_void;
+
+    /// Returns the preferred `VideoMode` for this monitor.
+    fn preferred_video_mode(&self) -> VideoMode;
 }
 
 impl MonitorHandleExtIOS for MonitorHandle {
     #[inline]
     fn ui_screen(&self) -> *mut c_void {
         self.inner.ui_screen() as _
+    }
+
+    #[inline]
+    fn preferred_video_mode(&self) -> VideoMode {
+        self.inner.preferred_video_mode()
     }
 }
 

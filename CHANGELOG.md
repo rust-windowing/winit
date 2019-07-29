@@ -11,6 +11,8 @@
   consists of `Fullscreen::Exclusive(VideoMode)` and
   `Fullscreen::Borderless(MonitorHandle)` variants.
     - Adds support for exclusive fullscreen mode.
+- On iOS add support for hiding the home indicator.
+- On iOS add support for deferring system gestures.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 

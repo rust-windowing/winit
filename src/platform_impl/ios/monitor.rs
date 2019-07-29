@@ -10,15 +10,50 @@ use crate::{
     platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
+    pub(crate) screen_mode: id,
     pub(crate) monitor: MonitorHandle,
 }
 
+impl Clone for VideoMode {
+    fn clone(&self) -> VideoMode {
+        VideoMode {
+            size: self.size,
+            bit_depth: self.bit_depth,
+            refresh_rate: self.refresh_rate,
+            screen_mode: unsafe { msg_send![self.screen_mode, retain] },
+            monitor: self.monitor.clone(),
+        }
+    }
+}
+
+impl Drop for VideoMode {
+    fn drop(&mut self) {
+        unsafe {
+            assert_main_thread!("`VideoMode` can only be dropped on the main thread on iOS");
+            msg_send![self.screen_mode, release];
+        }
+    }
+}
+
 impl VideoMode {
+    unsafe fn retained_new(uiscreen: id, screen_mode: id) -> VideoMode {
+        assert_main_thread!("`VideoMode` can only be created on the main thread on iOS");
+        let refresh_rate: NSInteger = msg_send![uiscreen, maximumFramesPerSecond];
+        let size: CGSize = msg_send![screen_mode, size];
+        VideoMode {
+            size: (size.width as u32, size.height as u32),
+            bit_depth: 32,
+            refresh_rate: refresh_rate as u16,
+            screen_mode: msg_send![screen_mode, retain],
+            monitor: MonitorHandle::retained_new(uiscreen),
+        }
+    }
+
     pub fn size(&self) -> PhysicalSize {
         self.size.into()
     }
@@ -133,9 +168,10 @@ impl MonitorHandle {
 impl Inner {
     pub fn name(&self) -> Option<String> {
         unsafe {
-            if self.uiscreen == main_uiscreen().uiscreen {
+            let main = main_uiscreen();
+            if self.uiscreen == main.uiscreen {
                 Some("Primary".to_string())
-            } else if self.uiscreen == mirrored_uiscreen().uiscreen {
+            } else if self.uiscreen == mirrored_uiscreen(&main).uiscreen {
                 Some("Mirrored".to_string())
             } else {
                 uiscreens()
@@ -168,24 +204,17 @@ impl Inner {
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
-        let refresh_rate: NSInteger = unsafe { msg_send![self.uiscreen, maximumFramesPerSecond] };
-
-        let available_modes: id = unsafe { msg_send![self.uiscreen, availableModes] };
-        let available_mode_count: NSUInteger = unsafe { msg_send![available_modes, count] };
-
         let mut modes = BTreeSet::new();
+        unsafe {
+            let available_modes: id = msg_send![self.uiscreen, availableModes];
+            let available_mode_count: NSUInteger = msg_send![available_modes, count];
 
-        for i in 0..available_mode_count {
-            let mode: id = unsafe { msg_send![available_modes, objectAtIndex: i] };
-            let size: CGSize = unsafe { msg_send![mode, size] };
-            modes.insert(RootVideoMode {
-                video_mode: VideoMode {
-                    size: (size.width as u32, size.height as u32),
-                    bit_depth: 32,
-                    refresh_rate: refresh_rate as u16,
-                    monitor: MonitorHandle::retained_new(self.uiscreen),
-                },
-            });
+            for i in 0..available_mode_count {
+                let mode: id = msg_send![available_modes, objectAtIndex: i];
+                modes.insert(RootVideoMode {
+                    video_mode: VideoMode::retained_new(self.uiscreen, mode),
+                });
+            }
         }
 
         modes.into_iter()
@@ -197,6 +226,15 @@ impl Inner {
     pub fn ui_screen(&self) -> id {
         self.uiscreen
     }
+
+    pub fn preferred_video_mode(&self) -> RootVideoMode {
+        unsafe {
+            let mode: id = msg_send![self.uiscreen, preferredMode];
+            RootVideoMode {
+                video_mode: VideoMode::retained_new(self.uiscreen, mode),
+            }
+        }
+    }
 }
 
 // requires being run on main thread
@@ -206,8 +244,8 @@ pub unsafe fn main_uiscreen() -> MonitorHandle {
 }
 
 // requires being run on main thread
-unsafe fn mirrored_uiscreen() -> MonitorHandle {
-    let uiscreen: id = msg_send![class!(UIScreen), mirroredScreen];
+unsafe fn mirrored_uiscreen(monitor: &MonitorHandle) -> MonitorHandle {
+    let uiscreen: id = msg_send![monitor.uiscreen, mirroredScreen];
     MonitorHandle::retained_new(uiscreen)
 }
 
