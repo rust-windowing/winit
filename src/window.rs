@@ -246,11 +246,12 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets the window fullscreen state.
+    /// Sets the window fullscreen state. None means a normal window, Some(MonitorHandle)
+    /// means a fullscreen window on that specific monitor
     ///
-    /// See [`Window::set_fullscreen`] for details.
+    /// ## Platform-specific
     ///
-    /// [`Window::set_fullscreen`]: struct.Window.html#method.set_fullscreen
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
     #[inline]
     pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> Self {
         self.window.fullscreen = monitor;
