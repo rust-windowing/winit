@@ -1,11 +1,11 @@
 # Unreleased
+
 - On macOS, drop the run closure on exit.
 - On Windows, location of `WindowEvent::Touch` are window client coordinates instead of screen coordinates.
 - On X11, fix delayed events after window redraw.
 - On macOS, add `WindowBuilderExt::with_disallow_hidpi` to have the option to turn off best resolution openGL surface.
 - On Windows, screen saver won't start if the window is in fullscreen mode.
 - Change all occurrences of the `new_user_event` method to `with_user_event`.
-
 - On macOS, the dock and the menu bar are now hidden in fullscreen mode.
 - `Window::set_fullscreen` now takes `Option<Fullscreen>` where `Fullscreen`
   consists of `Fullscreen::Exclusive(VideoMode)` and
