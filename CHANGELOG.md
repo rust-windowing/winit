@@ -4,6 +4,7 @@
 - On X11, fix delayed events after window redraw.
 - On macOS, add `WindowBuilderExt::with_disallow_hidpi` to have the option to turn off best resolution openGL surface.
 - On Windows, screen saver won't start if the window is in fullscreen mode.
+- Change all occurrences of the `new_user_event` method to `with_user_event`.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
