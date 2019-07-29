@@ -78,6 +78,7 @@
   - `EventsCleared` has been renamed to `MainEventsCleared`.
   - `RedrawRequested` is now issued only after `MainEventsCleared`.
   - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
+- On macOS, add `WindowBuilderExt::with_disallow_hidpi` to have the option to turn off best resolution openGL surface.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
