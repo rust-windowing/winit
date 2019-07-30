@@ -538,7 +538,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             hidpi_factor: None,
             valid_orientations: Default::default(),
             prefers_home_indicator_hidden: false,
-            preferred_screen_edges_deferring_system_gestures: ScreenEdge::NONE,
+            preferred_screen_edges_deferring_system_gestures: Default::default(),
         }
     }
 }

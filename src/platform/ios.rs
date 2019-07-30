@@ -8,9 +8,9 @@ use crate::{
     window::{Window, WindowBuilder},
 };
 
-/// Additional methods on `EventLoop` that are specific to iOS.
+/// Additional methods on [`EventLoop`] that are specific to iOS.
 pub trait EventLoopExtIOS {
-    /// Returns the idiom (phone/tablet/tv/etc) for the current device.
+    /// Returns the [`Idiom`] (phone/tablet/tv/etc) for the current device.
     fn idiom(&self) -> Idiom;
 }
 
@@ -20,38 +20,65 @@ impl<T: 'static> EventLoopExtIOS for EventLoop<T> {
     }
 }
 
-/// Additional methods on `Window` that are specific to iOS.
+/// Additional methods on [`Window`] that are specific to iOS.
 pub trait WindowExtIOS {
-    /// Returns a pointer to the `UIWindow` that is used by this window.
+    /// Returns a pointer to the [`UIWindow`] that is used by this window.
     ///
-    /// The pointer will become invalid when the `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
+    ///
+    /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     fn ui_window(&self) -> *mut c_void;
 
-    /// Returns a pointer to the `UIViewController` that is used by this window.
+    /// Returns a pointer to the [`UIViewController`] that is used by this window.
     ///
-    /// The pointer will become invalid when the `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
+    ///
+    /// [`UIViewController`]: https://developer.apple.com/documentation/uikit/uiviewcontroller?language=objc
     fn ui_view_controller(&self) -> *mut c_void;
 
-    /// Returns a pointer to the `UIView` that is used by this window.
+    /// Returns a pointer to the [`UIView`] that is used by this window.
     ///
-    /// The pointer will become invalid when the `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
+    ///
+    /// [`UIView`]: https://developer.apple.com/documentation/uikit/uiview?language=objc
     fn ui_view(&self) -> *mut c_void;
 
-    /// Sets the HiDpi factor used by this window.
+    /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `hidpi_factor`.
     ///
-    /// This translates to `-[UIWindow setContentScaleFactor:hidpi_factor]`.
+    /// The default value is device dependent, and it's recommended GLES or Metal applications set
+    /// this to [`MonitorHandle::hidpi_factor()`].
+    ///
+    /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
+    /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     fn set_hidpi_factor(&self, hidpi_factor: f64);
 
-    /// Sets the valid orientations for screens showing this `Window`.
+    /// Sets the valid orientations for the [`Window`].
     ///
-    /// On iPhones and iPods upside down portrait is never enabled.
+    /// The default value is [`ValidOrientations::LandscapeAndPortrait`].
+    ///
+    /// This changes the value returned by
+    /// [`-[UIViewController supportedInterfaceOrientations]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621435-supportedinterfaceorientations?language=objc),
+    /// and then calls
+    /// [`-[UIViewController attemptRotationToDeviceOrientation]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621400-attemptrotationtodeviceorientati?language=objc).
     fn set_valid_orientations(&self, valid_orientations: ValidOrientations);
 
-    /// Sets whether the `Window` prefers the home indicator hidden.
+    /// Sets whether the [`Window`] prefers the home indicator hidden.
+    ///
+    /// The default is to prefer showing the home indicator.
+    ///
+    /// This changes the value returned by
+    /// [`-[UIViewController prefersHomeIndicatorAutoHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887510-prefershomeindicatorautohidden?language=objc),
+    /// and then calls
+    /// [`-[UIViewController setNeedsUpdateOfHomeIndicatorAutoHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc).
     fn set_prefers_home_indicator_hidden(&self, hidden: bool);
 
     /// Sets the screen edges for which the system gestures will take a lower priority than the
-    /// applications touch handling.
+    /// application's touch handling.
+    ///
+    /// This changes the value returned by
+    /// [`-[UIViewController preferredScreenEdgesDeferringSystemGestures]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887512-preferredscreenedgesdeferringsys?language=objc),
+    /// and then calls
+    /// [`-[UIViewController setNeedsUpdateOfScreenEdgesDeferringSystemGestures]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc).
     fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge);
 }
 
@@ -93,29 +120,45 @@ impl WindowExtIOS for Window {
     }
 }
 
-/// Additional methods on `WindowBuilder` that are specific to iOS.
+/// Additional methods on [`WindowBuilder`] that are specific to iOS.
 pub trait WindowBuilderExtIOS {
-    /// Sets the root view class used by the `Window`, otherwise a barebones `UIView` is provided.
+    /// Sets the root view class used by the [`Window`], otherwise a barebones [`UIView`] is provided.
     ///
-    /// The class will be initialized by calling `[root_view initWithFrame:CGRect]`
+    /// An instance of the class will be initialized by calling [`-[UIView initWithFrame:]`](https://developer.apple.com/documentation/uikit/uiview/1622488-initwithframe?language=objc).
+    ///
+    /// [`UIView`]: https://developer.apple.com/documentation/uikit/uiview?language=objc
     fn with_root_view_class(self, root_view_class: *const c_void) -> WindowBuilder;
 
-    /// Sets the `contentScaleFactor` of the underlying `UIWindow` to `hidpi_factor`.
+    /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `hidpi_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
-    /// this to `MonitorHandle::hidpi_factor()`.
+    /// this to [`MonitorHandle::hidpi_factor()`].
+    ///
+    /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
+    /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     fn with_hidpi_factor(self, hidpi_factor: f64) -> WindowBuilder;
 
-    /// Sets the valid orientations for the `Window`.
+    /// Sets the valid orientations for the [`Window`].
+    ///
+    /// The default value is [`ValidOrientations::LandscapeAndPortrait`].
+    ///
+    /// This sets the initial value returned by
+    /// [`-[UIViewController supportedInterfaceOrientations]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621435-supportedinterfaceorientations?language=objc).
     fn with_valid_orientations(self, valid_orientations: ValidOrientations) -> WindowBuilder;
 
-    /// Sets whether the `Window` prefers the home indicator hidden.
+    /// Sets whether the [`Window`] prefers the home indicator hidden.
     ///
     /// The default is to prefer showing the home indicator.
+    ///
+    /// This sets the initial value returned by
+    /// [`-[UIViewController prefersHomeIndicatorAutoHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887510-prefershomeindicatorautohidden?language=objc).
     fn with_prefers_home_indicator_hidden(self, hidden: bool) -> WindowBuilder;
 
     /// Sets the screen edges for which the system gestures will take a lower priority than the
-    /// applications touch handling.
+    /// application's touch handling.
+    ///
+    /// This sets the initial value returned by
+    /// [`-[UIViewController preferredScreenEdgesDeferringSystemGestures]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887512-preferredscreenedgesdeferringsys?language=objc).
     fn with_preferred_screen_edges_deferring_system_gestures(
         self,
         edges: ScreenEdge,
@@ -158,12 +201,16 @@ impl WindowBuilderExtIOS for WindowBuilder {
     }
 }
 
-/// Additional methods on `MonitorHandle` that are specific to iOS.
+/// Additional methods on [`MonitorHandle`] that are specific to iOS.
 pub trait MonitorHandleExtIOS {
-    /// Returns a pointer to the `UIScreen` that is used by this monitor.
+    /// Returns a pointer to the [`UIScreen`] that is used by this monitor.
+    ///
+    /// [`UIScreen`]: https://developer.apple.com/documentation/uikit/uiscreen?language=objc
     fn ui_screen(&self) -> *mut c_void;
 
-    /// Returns the preferred `VideoMode` for this monitor.
+    /// Returns the preferred [`VideoMode`] for this monitor.
+    ///
+    /// This translates to a call to [`-[UIScreen preferredMode]`](https://developer.apple.com/documentation/uikit/uiscreen/1617823-preferredmode?language=objc).
     fn preferred_video_mode(&self) -> VideoMode;
 }
 
@@ -179,7 +226,7 @@ impl MonitorHandleExtIOS for MonitorHandle {
     }
 }
 
-/// Valid orientations for a particular `Window`.
+/// Valid orientations for a particular [`Window`].
 #[derive(Clone, Copy, Debug)]
 pub enum ValidOrientations {
     /// Excludes `PortraitUpsideDown` on iphone
@@ -220,6 +267,7 @@ bitflags! {
     /// The [edges] of a screen.
     ///
     /// [edges]: https://developer.apple.com/documentation/uikit/uirectedge?language=objc
+    #[derive(Default)]
     pub struct ScreenEdge: u8 {
         const NONE   = 0;
         const TOP    = 1 << 0;
