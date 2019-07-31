@@ -294,7 +294,7 @@ impl<T: 'static> EventLoop<T> {
             // send Events cleared
             {
                 sticky_exit_callback(
-                    crate::event::Event::EventsCleared,
+                    crate::event::Event::MainEventsCleared,
                     &self.window_target,
                     &mut control_flow,
                     &mut callback,
@@ -438,7 +438,8 @@ impl<T> EventLoop<T> {
                     );
                 }
                 if refresh {
-                    sink.send_window_event(crate::event::WindowEvent::RedrawRequested, wid);
+                    unimplemented!()
+                    //sink.send_window_event(crate::event::WindowEvent::RedrawRequested, wid);
                 }
                 if closed {
                     sink.send_window_event(crate::event::WindowEvent::CloseRequested, wid);
