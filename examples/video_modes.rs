@@ -7,6 +7,6 @@ fn main() {
     println!("Listing available video modes:");
 
     for mode in monitor.video_modes() {
-        println!("{:?}", mode);
+        println!("{}", mode);
     }
 }

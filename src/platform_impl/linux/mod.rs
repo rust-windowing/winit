@@ -13,8 +13,8 @@ use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     icon::Icon,
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode},
-    window::{CursorIcon, WindowAttributes},
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
 mod dlopen;
@@ -92,7 +92,7 @@ impl DeviceId {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MonitorHandle {
     X(x11::MonitorHandle),
     Wayland(wayland::MonitorHandle),
@@ -140,10 +140,50 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+    pub fn video_modes(&self) -> Box<dyn Iterator<Item = RootVideoMode>> {
         match self {
             MonitorHandle::X(m) => Box::new(m.video_modes()),
             MonitorHandle::Wayland(m) => Box::new(m.video_modes()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VideoMode {
+    X(x11::VideoMode),
+    Wayland(wayland::VideoMode),
+}
+
+impl VideoMode {
+    #[inline]
+    pub fn size(&self) -> PhysicalSize {
+        match self {
+            &VideoMode::X(ref m) => m.size(),
+            &VideoMode::Wayland(ref m) => m.size(),
+        }
+    }
+
+    #[inline]
+    pub fn bit_depth(&self) -> u16 {
+        match self {
+            &VideoMode::X(ref m) => m.bit_depth(),
+            &VideoMode::Wayland(ref m) => m.bit_depth(),
+        }
+    }
+
+    #[inline]
+    pub fn refresh_rate(&self) -> u16 {
+        match self {
+            &VideoMode::X(ref m) => m.refresh_rate(),
+            &VideoMode::Wayland(ref m) => m.refresh_rate(),
+        }
+    }
+
+    #[inline]
+    pub fn monitor(&self) -> RootMonitorHandle {
+        match self {
+            &VideoMode::X(ref m) => m.monitor(),
+            &VideoMode::Wayland(ref m) => m.monitor(),
         }
     }
 }
@@ -310,17 +350,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         match self {
             &Window::X(ref w) => w.fullscreen(),
-            &Window::Wayland(ref w) => w.fullscreen().map(|monitor_id| RootMonitorHandle {
-                inner: MonitorHandle::Wayland(monitor_id),
-            }),
+            &Window::Wayland(ref w) => w.fullscreen(),
         }
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         match self {
             &Window::X(ref w) => w.set_fullscreen(monitor),
             &Window::Wayland(ref w) => w.set_fullscreen(monitor),

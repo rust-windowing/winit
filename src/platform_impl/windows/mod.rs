@@ -4,7 +4,7 @@ use winapi::{self, shared::windef::HWND};
 
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
-    monitor::MonitorHandle,
+    monitor::{MonitorHandle, VideoMode},
     window::Window,
 };
 

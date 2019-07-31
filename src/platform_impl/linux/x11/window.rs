@@ -16,12 +16,13 @@ use parking_lot::Mutex;
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    monitor::MonitorHandle as RootMonitorHandle,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
         x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
+        VideoMode as PlatformVideoMode,
     },
-    window::{CursorIcon, Icon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Icon, WindowAttributes},
 };
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
@@ -46,9 +47,11 @@ pub struct SharedState {
     pub guessed_dpi: Option<f64>,
     pub last_monitor: Option<X11MonitorHandle>,
     pub dpi_adjusted: Option<(f64, f64)>,
-    pub fullscreen: Option<RootMonitorHandle>,
-    // Used to restore position after exiting fullscreen.
+    pub fullscreen: Option<Fullscreen>,
+    // Used to restore position after exiting fullscreen
     pub restore_position: Option<(i32, i32)>,
+    // Used to restore video mode after exiting fullscreen
+    pub desktop_video_mode: Option<(ffi::RRCrtc, ffi::RRMode)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
     pub min_inner_size: Option<LogicalSize>,
     pub max_inner_size: Option<LogicalSize>,
@@ -408,6 +411,7 @@ impl UnownedWindow {
             if window_attrs.fullscreen.is_some() {
                 window
                     .set_fullscreen_inner(window_attrs.fullscreen.clone())
+                    .unwrap()
                     .queue();
             }
             if window_attrs.always_on_top {
@@ -564,41 +568,122 @@ impl UnownedWindow {
         self.set_netwm(fullscreen.into(), (fullscreen_atom as c_long, 0, 0, 0))
     }
 
-    fn set_fullscreen_inner(&self, monitor: Option<RootMonitorHandle>) -> util::Flusher<'_> {
-        match monitor {
+    fn set_fullscreen_inner(&self, fullscreen: Option<Fullscreen>) -> Option<util::Flusher<'_>> {
+        let mut shared_state_lock = self.shared_state.lock();
+        let old_fullscreen = shared_state_lock.fullscreen.clone();
+        if old_fullscreen == fullscreen {
+            return None;
+        }
+        shared_state_lock.fullscreen = fullscreen.clone();
+
+        match (&old_fullscreen, &fullscreen) {
+            // Store the desktop video mode before entering exclusive
+            // fullscreen, so we can restore it upon exit, as XRandR does not
+            // provide a mechanism to set this per app-session or restore this
+            // to the desktop video mode as macOS and Windows do
+            (
+                &None,
+                &Some(Fullscreen::Exclusive(RootVideoMode {
+                    video_mode: PlatformVideoMode::X(ref video_mode),
+                })),
+            )
+            | (
+                &Some(Fullscreen::Borderless(_)),
+                &Some(Fullscreen::Exclusive(RootVideoMode {
+                    video_mode: PlatformVideoMode::X(ref video_mode),
+                })),
+            ) => {
+                let monitor = video_mode.monitor.as_ref().unwrap();
+                shared_state_lock.desktop_video_mode =
+                    Some((monitor.id, self.xconn.get_crtc_mode(monitor.id)));
+            }
+            // Restore desktop video mode upon exiting exclusive fullscreen
+            (&Some(Fullscreen::Exclusive(_)), &None)
+            | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+                let (monitor_id, mode_id) = shared_state_lock.desktop_video_mode.take().unwrap();
+                self.xconn
+                    .set_crtc_config(monitor_id, mode_id)
+                    .expect("failed to restore desktop video mode");
+            }
+            _ => (),
+        }
+
+        drop(shared_state_lock);
+
+        match fullscreen {
             None => {
                 let flusher = self.set_fullscreen_hint(false);
-                if let Some(position) = self.shared_state.lock().restore_position.take() {
+                let mut shared_state_lock = self.shared_state.lock();
+                if let Some(position) = shared_state_lock.restore_position.take() {
                     self.set_position_inner(position.0, position.1).queue();
                 }
-                flusher
+                Some(flusher)
             }
-            Some(RootMonitorHandle {
-                inner: PlatformMonitorHandle::X(monitor),
-            }) => {
+            Some(fullscreen) => {
+                let (video_mode, monitor) = match fullscreen {
+                    Fullscreen::Exclusive(RootVideoMode {
+                        video_mode: PlatformVideoMode::X(ref video_mode),
+                    }) => (Some(video_mode), video_mode.monitor.as_ref().unwrap()),
+                    Fullscreen::Borderless(RootMonitorHandle {
+                        inner: PlatformMonitorHandle::X(ref monitor),
+                    }) => (None, monitor),
+                    _ => unreachable!(),
+                };
+
+                if let Some(video_mode) = video_mode {
+                    // FIXME: this is actually not correct if we're setting the
+                    // video mode to a resolution higher than the current
+                    // desktop resolution, because XRandR does not automatically
+                    // reposition the monitors to the right and below this
+                    // monitor.
+                    //
+                    // What ends up happening is we will get the fullscreen
+                    // window showing up on those monitors as well, because
+                    // their virtual position now overlaps with the monitor that
+                    // we just made larger..
+                    //
+                    // It'd be quite a bit of work to handle this correctly (and
+                    // nobody else seems to bother doing this correctly either),
+                    // so we're just leaving this broken. Fixing this would
+                    // involve storing all CRTCs upon entering fullscreen,
+                    // restoring them upon exit, and after entering fullscreen,
+                    // repositioning displays to the right and below this
+                    // display. I think there would still be edge cases that are
+                    // difficult or impossible to handle correctly, e.g. what if
+                    // a new monitor was plugged in while in fullscreen?
+                    //
+                    // I think we might just want to disallow setting the video
+                    // mode higher than the current desktop video mode (I'm sure
+                    // this will make someone unhappy, but it's very unusual for
+                    // games to want to do this anyway).
+                    self.xconn
+                        .set_crtc_config(monitor.id, video_mode.native_mode)
+                        .expect("failed to set video mode");
+                }
+
                 let window_position = self.outer_position_physical();
                 self.shared_state.lock().restore_position = Some(window_position);
                 let monitor_origin: (i32, i32) = monitor.position().into();
                 self.set_position_inner(monitor_origin.0, monitor_origin.1)
                     .queue();
-                self.set_fullscreen_hint(true)
+                Some(self.set_fullscreen_hint(true))
             }
-            _ => unreachable!(),
         }
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.shared_state.lock().fullscreen.clone()
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
-        self.shared_state.lock().fullscreen = monitor.clone();
-        self.set_fullscreen_inner(monitor)
-            .flush()
-            .expect("Failed to change window fullscreen state");
-        self.invalidate_cached_frame_extents();
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        if let Some(flusher) = self.set_fullscreen_inner(fullscreen) {
+            flusher
+                .flush()
+                .expect("Failed to change window fullscreen state");
+            self.invalidate_cached_frame_extents();
+        }
     }
 
     fn get_rect(&self) -> util::AaRect {

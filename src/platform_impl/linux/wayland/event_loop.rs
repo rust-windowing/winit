@@ -16,8 +16,11 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::ModifiersState,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    monitor::VideoMode,
-    platform_impl::platform::sticky_exit_callback,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    platform_impl::platform::{
+        sticky_exit_callback, MonitorHandle as PlatformMonitorHandle,
+        VideoMode as PlatformVideoMode,
+    },
 };
 
 use super::{window::WindowStore, DeviceId, WindowId};
@@ -605,17 +608,67 @@ impl<T> Drop for SeatData<T> {
  * Monitor stuff
  */
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VideoMode {
+    pub(crate) size: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+    pub(crate) monitor: MonitorHandle,
+}
+
+impl VideoMode {
+    #[inline]
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
+    }
+
+    #[inline]
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    #[inline]
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+
+    #[inline]
+    pub fn monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle {
+            inner: PlatformMonitorHandle::Wayland(self.monitor.clone()),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct MonitorHandle {
     pub(crate) proxy: wl_output::WlOutput,
     pub(crate) mgr: OutputMgr,
 }
 
-impl Clone for MonitorHandle {
-    fn clone(&self) -> MonitorHandle {
-        MonitorHandle {
-            proxy: self.proxy.clone(),
-            mgr: self.mgr.clone(),
-        }
+impl PartialEq for MonitorHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.native_identifier() == other.native_identifier()
+    }
+}
+
+impl Eq for MonitorHandle {}
+
+impl PartialOrd for MonitorHandle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for MonitorHandle {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.native_identifier().cmp(&other.native_identifier())
+    }
+}
+
+impl std::hash::Hash for MonitorHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.native_identifier().hash(state);
     }
 }
 
@@ -682,15 +735,20 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+        let monitor = self.clone();
+
         self.mgr
             .with_info(&self.proxy, |_, info| info.modes.clone())
             .unwrap_or(vec![])
             .into_iter()
-            .map(|x| VideoMode {
-                size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
-                refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
-                bit_depth: 32,
+            .map(move |x| RootVideoMode {
+                video_mode: PlatformVideoMode::Wayland(VideoMode {
+                    size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
+                    refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
+                    bit_depth: 32,
+                    monitor: monitor.clone(),
+                }),
             })
     }
 }

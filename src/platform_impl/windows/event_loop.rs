@@ -1020,6 +1020,17 @@ unsafe extern "system" fn public_window_callback<T>(
         // other unwanted default hotkeys as well.
         winuser::WM_SYSCHAR => 0,
 
+        winuser::WM_SYSCOMMAND => {
+            if wparam == winuser::SC_SCREENSAVE {
+                let window_state = subclass_input.window_state.lock();
+                if window_state.fullscreen.is_some() {
+                    return 0;
+                }
+            }
+
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
+        }
+
         winuser::WM_MOUSEMOVE => {
             use crate::event::WindowEvent::{CursorEntered, CursorMoved};
             let mouse_was_outside_window = {

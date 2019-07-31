@@ -1,7 +1,16 @@
 # Unreleased
+
 - On macOS, drop the run closure on exit.
 - On Windows, location of `WindowEvent::Touch` are window client coordinates instead of screen coordinates.
 - On X11, fix delayed events after window redraw.
+- On macOS, add `WindowBuilderExt::with_disallow_hidpi` to have the option to turn off best resolution openGL surface.
+- On Windows, screen saver won't start if the window is in fullscreen mode.
+- Change all occurrences of the `new_user_event` method to `with_user_event`.
+- On macOS, the dock and the menu bar are now hidden in fullscreen mode.
+- `Window::set_fullscreen` now takes `Option<Fullscreen>` where `Fullscreen`
+  consists of `Fullscreen::Exclusive(VideoMode)` and
+  `Fullscreen::Borderless(MonitorHandle)` variants.
+    - Adds support for exclusive fullscreen mode.
 - On Linux, the functions `is_wayland`, `is_x11`, `xlib_xconnection` and `wayland_display` have been moved to a new `EventLoopWindowTargetExtUnix` trait.
 
 # 0.20.0 Alpha 2 (2019-07-09)

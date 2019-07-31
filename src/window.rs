@@ -5,7 +5,7 @@ use crate::{
     dpi::{LogicalPosition, LogicalSize},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
-    monitor::{AvailableMonitorsIter, MonitorHandle},
+    monitor::{AvailableMonitorsIter, MonitorHandle, VideoMode},
     platform_impl,
 };
 
@@ -42,6 +42,18 @@ pub struct Window {
 impl fmt::Debug for Window {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.pad("Window { .. }")
+    }
+}
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        // If the window is in exclusive fullscreen, we must restore the desktop
+        // video mode (generally this would be done on application exit, but
+        // closing the window doesn't necessarily always mean application exit,
+        // such as when there are multiple windows)
+        if let Some(Fullscreen::Exclusive(_)) = self.fullscreen() {
+            self.set_fullscreen(None);
+        }
     }
 }
 
@@ -110,7 +122,7 @@ pub struct WindowAttributes {
     /// Whether the window should be set as fullscreen upon creation.
     ///
     /// The default is `None`.
-    pub fullscreen: Option<MonitorHandle>,
+    pub fullscreen: Option<Fullscreen>,
 
     /// The title of the window in the title bar.
     ///
@@ -222,10 +234,14 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets the window fullscreen state. None means a normal window, Some(MonitorHandle)
+    /// Sets the window fullscreen state. None means a normal window, Some(Fullscreen)
     /// means a fullscreen window on that specific monitor
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: Option<MonitorHandle>) -> WindowBuilder {
+    pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> WindowBuilder {
         self.window.fullscreen = monitor;
         self
     }
@@ -291,7 +307,6 @@ impl WindowBuilder {
         self,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Result<Window, OsError> {
-        // building
         platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)
             .map(|window| Window { window })
     }
@@ -533,10 +548,27 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS:** `Fullscreen::Exclusive` provides true exclusive mode with a
+    ///   video mode change. *Caveat!* macOS doesn't provide task switching (or
+    ///   spaces!) while in exclusive fullscreen mode. This mode should be used
+    ///   when a video mode change is desired, but for a better user experience,
+    ///   borderless fullscreen might be preferred.
+    ///
+    ///   `Fullscreen::Borderless` provides a borderless fullscreen window on a
+    ///   separate space. This is the idiomatic way for fullscreen games to work
+    ///   on macOS. See [`WindowExtMacOs::set_simple_fullscreen`][simple] if
+    ///   separate spaces are not preferred.
+    ///
+    ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Wayland:** Does not support exclusive fullscreen mode.
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
+    ///
+    /// [simple]:
+    /// ../platform/macos/trait.WindowExtMacOS.html#tymethod.set_simple_fullscreen
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<MonitorHandle>) {
-        self.window.set_fullscreen(monitor)
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        self.window.set_fullscreen(fullscreen)
     }
 
     /// Gets the window's current fullscreen state.
@@ -545,7 +577,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn fullscreen(&self) -> Option<MonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.window.fullscreen()
     }
 
@@ -753,4 +785,10 @@ impl Default for CursorIcon {
     fn default() -> Self {
         CursorIcon::Default
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Fullscreen {
+    Exclusive(VideoMode),
+    Borderless(MonitorHandle),
 }
