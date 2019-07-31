@@ -73,6 +73,11 @@
 - On iOS, fix DPI sent out by views on creation was `0.0` - now it gives a reasonable number.
 - On iOS, RedrawRequested now works for gl/metal backed views.
 - On iOS, RedrawRequested is generally ordered after EventsCleared.
+- Changes to the `RedrawRequested` event (#1041):
+  - `RedrawRequested` has been moved from `WindowEvent` to `Event`.
+  - `EventsCleared` has been renamed to `MainEventsCleared`.
+  - `RedrawRequested` is now issued only after `MainEventsCleared`.
+  - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
