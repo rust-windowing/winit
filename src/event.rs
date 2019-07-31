@@ -30,9 +30,22 @@ pub enum Event<T> {
     UserEvent(T),
     /// Emitted when new events arrive from the OS to be processed.
     NewEvents(StartCause),
-    /// Emitted when all of the event loop's events have been processed and control flow is about
-    /// to be taken away from the program.
-    EventsCleared,
+    /// Emitted when all events (except for `RedrawRequested`) have been reported.
+    ///
+    /// This event is followed by zero or more instances of `RedrawRequested`
+    /// and, finally, `RedrawEventsCleared`.
+    MainEventsCleared,
+
+    /// The OS or application has requested that a window be redrawn.
+    ///
+    /// Emitted only after `MainEventsCleared`.
+    RedrawRequested(WindowId),
+
+    /// Emitted after any `RedrawRequested` events.
+    ///
+    /// If there are no `RedrawRequested` events, it is reported immediately after
+    /// `MainEventsCleared`.
+    RedrawEventsCleared,
 
     /// Emitted when the event loop is being shut down. This is irreversable - if this event is
     /// emitted, it is guaranteed to be the last event emitted.
@@ -53,7 +66,9 @@ impl<T> Event<T> {
             WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
             DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
             NewEvents(cause) => Ok(NewEvents(cause)),
-            EventsCleared => Ok(EventsCleared),
+            MainEventsCleared => Ok(MainEventsCleared),
+            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
+            RedrawEventsCleared => Ok(RedrawEventsCleared),
             LoopDestroyed => Ok(LoopDestroyed),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
@@ -188,9 +203,6 @@ pub enum WindowEvent {
         axis: AxisId,
         value: f64,
     },
-
-    /// The OS or application has requested that the window be redrawn.
-    RedrawRequested,
 
     /// Touch event has been received
     Touch(Touch),

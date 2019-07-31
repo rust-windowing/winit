@@ -38,7 +38,7 @@ use self::{
 };
 use crate::{
     error::OsError as RootOsError,
-    event::{Event, WindowEvent},
+    event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::{platform::sticky_exit_callback, PlatformSpecificWindowBuilderAttributes},
     window::WindowAttributes,
@@ -144,6 +144,8 @@ impl<T: 'static> EventLoop<T> {
 
         xconn.update_cached_wm_info(root);
 
+        let pending_redraws: Arc<Mutex<HashSet<WindowId>>> = Default::default();
+
         let mut mod_keymap = ModifierKeymap::new();
         mod_keymap.reset_from_x_connection(&xconn);
 
@@ -157,7 +159,7 @@ impl<T: 'static> EventLoop<T> {
                 xconn,
                 wm_delete_window,
                 net_wm_ping,
-                pending_redraws: Default::default(),
+                pending_redraws: pending_redraws.clone(),
             }),
             _marker: ::std::marker::PhantomData,
         });
@@ -219,7 +221,9 @@ impl<T: 'static> EventLoop<T> {
                     if evt.readiness.is_readable() {
                         let mut processor = processor.borrow_mut();
                         let mut pending_events = pending_events.borrow_mut();
-                        drain_events(&mut processor, &mut pending_events);
+                        let mut pending_redraws = pending_redraws.lock().unwrap();
+
+                        drain_events(&mut processor, &mut pending_events, &mut pending_redraws);
                     }
                 }
             })
@@ -283,6 +287,15 @@ impl<T: 'static> EventLoop<T> {
                     );
                 }
             }
+            // send MainEventsCleared
+            {
+                sticky_exit_callback(
+                    crate::event::Event::MainEventsCleared,
+                    &self.target,
+                    &mut control_flow,
+                    &mut callback,
+                );
+            }
             // Empty the redraw requests
             {
                 // Release the lock to prevent deadlock
@@ -290,20 +303,17 @@ impl<T: 'static> EventLoop<T> {
 
                 for wid in windows {
                     sticky_exit_callback(
-                        Event::WindowEvent {
-                            window_id: crate::window::WindowId(super::WindowId::X(wid)),
-                            event: WindowEvent::RedrawRequested,
-                        },
+                        Event::RedrawRequested(crate::window::WindowId(super::WindowId::X(wid))),
                         &self.target,
                         &mut control_flow,
                         &mut callback,
                     );
                 }
             }
-            // send Events cleared
+            // send RedrawEventsCleared
             {
                 sticky_exit_callback(
-                    crate::event::Event::EventsCleared,
+                    crate::event::Event::RedrawEventsCleared,
                     &self.target,
                     &mut control_flow,
                     &mut callback,
@@ -393,17 +403,24 @@ impl<T: 'static> EventLoop<T> {
     fn drain_events(&self) {
         let mut processor = self.event_processor.borrow_mut();
         let mut pending_events = self.pending_events.borrow_mut();
+        let wt = get_xtarget(&self.target);
+        let mut pending_redraws = wt.pending_redraws.lock().unwrap();
 
-        drain_events(&mut processor, &mut pending_events);
+        drain_events(&mut processor, &mut pending_events, &mut pending_redraws);
     }
 }
 
 fn drain_events<T: 'static>(
     processor: &mut EventProcessor<T>,
     pending_events: &mut VecDeque<Event<T>>,
+    pending_redraws: &mut HashSet<WindowId>,
 ) {
     let mut callback = |event| {
-        pending_events.push_back(event);
+        if let Event::RedrawRequested(crate::window::WindowId(super::WindowId::X(wid))) = event {
+            pending_redraws.insert(wid);
+        } else {
+            pending_events.push_back(event);
+        }
     };
 
     // process all pending events
