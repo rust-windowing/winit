@@ -11,6 +11,9 @@
   consists of `Fullscreen::Exclusive(VideoMode)` and
   `Fullscreen::Borderless(MonitorHandle)` variants.
     - Adds support for exclusive fullscreen mode.
+- On iOS, add support for hiding the home indicator.
+- On iOS, add support for deferring system gestures.
+- On iOS, fix a crash that occurred while acquiring a monitor's name.
 - On Linux, the functions `is_wayland`, `is_x11`, `xlib_xconnection` and `wayland_display` have been moved to a new `EventLoopWindowTargetExtUnix` trait.
 
 # 0.20.0 Alpha 2 (2019-07-09)
