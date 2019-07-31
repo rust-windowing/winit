@@ -1,10 +1,10 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::{ffi::CString, ops::BitOr, os::raw::*};
+use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
 
 use objc::{runtime::Object, Encode, Encoding};
 
-use crate::platform::ios::{Idiom, ValidOrientations};
+use crate::platform::ios::{Idiom, ScreenEdge, ValidOrientations};
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;
@@ -170,6 +170,34 @@ impl UIInterfaceOrientationMask {
                     | UIInterfaceOrientationMask::PortraitUpsideDown
             }
         }
+    }
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UIRectEdge(NSUInteger);
+
+unsafe impl Encode for UIRectEdge {
+    fn encode() -> Encoding {
+        NSUInteger::encode()
+    }
+}
+
+impl From<ScreenEdge> for UIRectEdge {
+    fn from(screen_edge: ScreenEdge) -> UIRectEdge {
+        assert_eq!(
+            screen_edge.bits() & !ScreenEdge::ALL.bits(),
+            0,
+            "invalid `ScreenEdge`"
+        );
+        UIRectEdge(screen_edge.bits().into())
+    }
+}
+
+impl Into<ScreenEdge> for UIRectEdge {
+    fn into(self) -> ScreenEdge {
+        let bits: u8 = self.0.try_into().expect("invalid `UIRectEdge`");
+        ScreenEdge::from_bits(bits).expect("invalid `ScreenEdge`")
     }
 }
 

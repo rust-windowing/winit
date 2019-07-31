@@ -10,11 +10,14 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
-    platform::ios::{MonitorHandleExtIOS, ValidOrientations},
+    platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
     platform_impl::platform::{
         app_state::AppState,
         event_loop,
-        ffi::{id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask},
+        ffi::{
+            id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
+            UIRectEdge,
+        },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
     window::{CursorIcon, Fullscreen, WindowAttributes},
@@ -159,21 +162,27 @@ impl Inner {
 
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
-            match monitor {
-                Some(Fullscreen::Exclusive(_)) => unimplemented!("exclusive fullscreen on iOS"), // TODO
-                Some(Fullscreen::Borderless(monitor)) => {
-                    let uiscreen = monitor.ui_screen() as id;
-                    let current: id = msg_send![self.window, screen];
-                    let bounds: CGRect = msg_send![uiscreen, bounds];
-
-                    // this is pretty slow on iOS, so avoid doing it if we can
-                    if uiscreen != current {
-                        let () = msg_send![self.window, setScreen: uiscreen];
-                    }
-                    let () = msg_send![self.window, setFrame: bounds];
+            let uiscreen = match monitor {
+                Some(Fullscreen::Exclusive(video_mode)) => {
+                    let uiscreen = video_mode.video_mode.monitor.ui_screen() as id;
+                    let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+                    uiscreen
                 }
-                None => warn!("`Window::set_fullscreen(None)` ignored on iOS"),
+                Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
+                None => {
+                    warn!("`Window::set_fullscreen(None)` ignored on iOS");
+                    return;
+                }
+            };
+
+            let current: id = msg_send![self.window, screen];
+            let bounds: CGRect = msg_send![uiscreen, bounds];
+
+            // this is pretty slow on iOS, so avoid doing it if we can
+            if uiscreen != current {
+                let () = msg_send![self.window, setScreen: uiscreen];
             }
+            let () = msg_send![self.window, setFrame: bounds];
         }
     }
 
@@ -295,7 +304,9 @@ impl Window {
 
         unsafe {
             let screen = match window_attributes.fullscreen {
-                Some(Fullscreen::Exclusive(_)) => unimplemented!("exclusive fullscreen on iOS"), // TODO: do we set the frame to video mode bounds instead of screen bounds?
+                Some(Fullscreen::Exclusive(ref video_mode)) => {
+                    video_mode.video_mode.monitor.ui_screen() as id
+                }
                 Some(Fullscreen::Borderless(ref monitor)) => monitor.ui_screen() as id,
                 None => monitor::main_uiscreen().ui_screen(),
             };
@@ -372,6 +383,26 @@ impl Inner {
             msg_send![
                 self.view_controller,
                 setSupportedInterfaceOrientations: supported_orientations
+            ];
+        }
+    }
+
+    pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
+        unsafe {
+            let prefers_home_indicator_hidden = if hidden { NO } else { YES };
+            let () = msg_send![
+                self.view_controller,
+                setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
+            ];
+        }
+    }
+
+    pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
+        let edges: UIRectEdge = edges.into();
+        unsafe {
+            let () = msg_send![
+                self.view_controller,
+                setPreferredScreenEdgesDeferringSystemGestures: edges
             ];
         }
     }
@@ -496,6 +527,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub root_view_class: &'static Class,
     pub hidpi_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
+    pub prefers_home_indicator_hidden: bool,
+    pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -504,6 +537,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             root_view_class: class!(UIView),
             hidpi_factor: None,
             valid_orientations: Default::default(),
+            prefers_home_indicator_hidden: false,
+            preferred_screen_edges_deferring_system_gestures: Default::default(),
         }
     }
 }
