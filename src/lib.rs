@@ -48,19 +48,16 @@
 //!
 //! event_loop.run(move |event, _, control_flow| {
 //!     match event {
-//!         Event::EventsCleared => {
+//!         Event::MainEventsCleared => {
 //!             // Application update code.
 //!     
 //!             // Queue a RedrawRequested event.
 //!             window.request_redraw();
 //!         },
-//!         Event::WindowEvent {
-//!             event: WindowEvent::RedrawRequested,
-//!             ..
-//!         } => {
+//!         Event::RedrawRequested(_) => {
 //!             // Redraw the application.
 //!             //
-//!             // It's preferrable to render in this event rather than in EventsCleared, since
+//!             // It's preferrable to render in this event rather than in MainEventsCleared, since
 //!             // rendering in here allows the program to gracefully handle redraws requested
 //!             // by the OS.
 //!         },
