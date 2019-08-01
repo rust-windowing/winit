@@ -12,7 +12,7 @@ use crate::event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, 
 
 pub fn init_keyboard(
     seat: &wl_seat::WlSeat,
-    sink: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
+    sink: ::calloop::channel::Sender<(crate::event::WindowEvent<'static>, super::WindowId)>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
 ) -> wl_keyboard::WlKeyboard {
     // { variables to be captured by the closures

@@ -9,7 +9,7 @@ use super::{
 };
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::PhysicalPosition,
     event::{DeviceEvent, Event, KeyboardInput, ModifiersState, WindowEvent},
     event_loop::EventLoopWindowTarget as RootELW,
 };
@@ -91,7 +91,7 @@ impl<T: 'static> EventProcessor<T> {
 
     pub(super) fn process_event<F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
     where
-        F: FnMut(Event<T>),
+        F: FnMut(Event<'static, T>),
     {
         let wt = get_xtarget(&self.target);
         // XFilterEvent tells us when an event has been discarded by the input method.
@@ -268,9 +268,9 @@ impl<T: 'static> EventProcessor<T> {
             ffi::ConfigureNotify => {
                 #[derive(Debug, Default)]
                 struct Events {
-                    resized: Option<WindowEvent>,
-                    moved: Option<WindowEvent>,
-                    dpi_changed: Option<WindowEvent>,
+                    resized: Option<WindowEvent<'static>>,
+                    moved: Option<WindowEvent<'static>>,
+                    //dpi_changed: Option<WindowEvent>, FIXME
                 }
 
                 let xev: &ffi::XConfigureEvent = xev.as_ref();
@@ -289,7 +289,6 @@ impl<T: 'static> EventProcessor<T> {
                     let new_inner_size = (xev.width as u32, xev.height as u32);
                     let new_inner_position = (xev.x as i32, xev.y as i32);
 
-                    let mut monitor = window.current_monitor(); // This must be done *before* locking!
                     let mut shared_state_lock = window.shared_state.lock();
 
                     let (mut resized, moved) = {
@@ -337,9 +336,7 @@ impl<T: 'static> EventProcessor<T> {
                             .inner_pos_to_outer(new_inner_position.0, new_inner_position.1);
                         shared_state_lock.position = Some(outer);
                         if moved {
-                            let logical_position =
-                                LogicalPosition::from_physical(outer, monitor.hidpi_factor);
-                            events.moved = Some(WindowEvent::Moved(logical_position));
+                            events.moved = Some(WindowEvent::Moved(outer.into()));
                         }
                         outer
                     } else {
@@ -362,14 +359,14 @@ impl<T: 'static> EventProcessor<T> {
                             });
                         let new_hidpi_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
-                            monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
+                            let monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
                             let new_hidpi_factor = monitor.hidpi_factor;
                             shared_state_lock.last_monitor = Some(monitor.clone());
                             new_hidpi_factor
                         };
                         if last_hidpi_factor != new_hidpi_factor {
-                            events.dpi_changed =
-                                Some(WindowEvent::HiDpiFactorChanged(new_hidpi_factor));
+                            // FIXME
+                            //events.dpi_changed = Some(WindowEvent::HiDpiFactorChanged(new_hidpi_factor));
                             let (new_width, new_height, flusher) = window.adjust_for_dpi(
                                 last_hidpi_factor,
                                 new_hidpi_factor,
@@ -409,9 +406,7 @@ impl<T: 'static> EventProcessor<T> {
                     }
 
                     if resized {
-                        let logical_size =
-                            LogicalSize::from_physical(new_inner_size, monitor.hidpi_factor);
-                        events.resized = Some(WindowEvent::Resized(logical_size));
+                        events.resized = Some(WindowEvent::Resized(new_inner_size.into()));
                     }
 
                     events
@@ -419,9 +414,10 @@ impl<T: 'static> EventProcessor<T> {
 
                 if let Some(events) = events {
                     let window_id = mkwid(xwindow);
-                    if let Some(event) = events.dpi_changed {
-                        callback(Event::WindowEvent { window_id, event });
-                    }
+                    // FIXME
+                    //if let Some(event) = events.dpi_changed {
+                        //callback(Event::WindowEvent { window_id, event });
+                    //}
                     if let Some(event) = events.resized {
                         callback(Event::WindowEvent { window_id, event });
                     }
@@ -671,24 +667,17 @@ impl<T: 'static> EventProcessor<T> {
                             util::maybe_change(&mut shared_state_lock.cursor_pos, new_cursor_pos)
                         });
                         if cursor_moved == Some(true) {
-                            let dpi_factor =
-                                self.with_window(xev.event, |window| window.hidpi_factor());
-                            if let Some(dpi_factor) = dpi_factor {
-                                let position = LogicalPosition::from_physical(
-                                    (xev.event_x as f64, xev.event_y as f64),
-                                    dpi_factor,
-                                );
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: CursorMoved {
-                                        device_id,
-                                        position,
-                                        modifiers,
-                                    },
-                                });
-                            } else {
-                                return;
-                            }
+                            let position = PhysicalPosition::new(
+                                xev.event_x as f64, xev.event_y as f64);
+
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: CursorMoved {
+                                    device_id,
+                                    position,
+                                    modifiers,
+                                },
+                            });
                         } else if cursor_moved.is_none() {
                             return;
                         }
@@ -783,36 +772,30 @@ impl<T: 'static> EventProcessor<T> {
                             event: CursorEntered { device_id },
                         });
 
-                        if let Some(dpi_factor) =
-                            self.with_window(xev.event, |window| window.hidpi_factor())
-                        {
-                            let position = LogicalPosition::from_physical(
-                                (xev.event_x as f64, xev.event_y as f64),
-                                dpi_factor,
-                            );
+                        let position = PhysicalPosition::new(
+                            xev.event_x as f64, xev.event_y as f64);
 
-                            // The mods field on this event isn't actually populated, so query the
-                            // pointer device. In the future, we can likely remove this round-trip by
-                            // relying on `Xkb` for modifier values.
-                            //
-                            // This needs to only be done after confirming the window still exists,
-                            // since otherwise we risk getting a `BadWindow` error if the window was
-                            // dropped with queued events.
-                            let modifiers = wt
-                                .xconn
-                                .query_pointer(xev.event, xev.deviceid)
-                                .expect("Failed to query pointer device")
-                                .get_modifier_state();
+                        // The mods field on this event isn't actually populated, so query the
+                        // pointer device. In the future, we can likely remove this round-trip by
+                        // relying on `Xkb` for modifier values.
+                        //
+                        // This needs to only be done after confirming the window still exists,
+                        // since otherwise we risk getting a `BadWindow` error if the window was
+                        // dropped with queued events.
+                        let modifiers = wt
+                            .xconn
+                            .query_pointer(xev.event, xev.deviceid)
+                            .expect("Failed to query pointer device")
+                            .get_modifier_state();
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: CursorMoved {
-                                    device_id,
-                                    position,
-                                    modifiers,
-                                },
-                            });
-                        }
+                        callback(Event::WindowEvent {
+                            window_id,
+                            event: CursorMoved {
+                                device_id,
+                                position,
+                                modifiers,
+                            },
+                        });
                     }
                     ffi::XI_Leave => {
                         let xev: &ffi::XILeaveEvent = unsafe { &*(xev.data as *const _) };
@@ -832,11 +815,6 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
-                        let dpi_factor =
-                            match self.with_window(xev.event, |window| window.hidpi_factor()) {
-                                Some(dpi_factor) => dpi_factor,
-                                None => return,
-                            };
                         let window_id = mkwid(xev.event);
 
                         wt.ime
@@ -858,10 +836,9 @@ impl<T: 'static> EventProcessor<T> {
                             .map(|device| device.attachment)
                             .unwrap_or(2);
 
-                        let position = LogicalPosition::from_physical(
-                            (xev.event_x as f64, xev.event_y as f64),
-                            dpi_factor,
-                        );
+                        let position = PhysicalPosition::new(
+                            xev.event_x as f64, xev.event_y as f64);
+
                         callback(Event::WindowEvent {
                             window_id,
                             event: CursorMoved {
@@ -895,23 +872,18 @@ impl<T: 'static> EventProcessor<T> {
                             ffi::XI_TouchEnd => TouchPhase::Ended,
                             _ => unreachable!(),
                         };
-                        let dpi_factor =
-                            self.with_window(xev.event, |window| window.hidpi_factor());
-                        if let Some(dpi_factor) = dpi_factor {
-                            let location = LogicalPosition::from_physical(
-                                (xev.event_x as f64, xev.event_y as f64),
-                                dpi_factor,
-                            );
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::Touch(Touch {
-                                    device_id: mkdid(xev.deviceid),
-                                    phase,
-                                    location,
-                                    id: xev.detail as u64,
-                                }),
-                            })
-                        }
+                        let location = PhysicalPosition::new(
+                            xev.event_x as f64, xev.event_y as f64);
+
+                        callback(Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Touch(Touch {
+                                device_id: mkdid(xev.deviceid),
+                                phase,
+                                location,
+                                id: xev.detail as u64,
+                            }),
+                        });
                     }
 
                     ffi::XI_RawButtonPress | ffi::XI_RawButtonRelease => {
@@ -1065,17 +1037,19 @@ impl<T: 'static> EventProcessor<T> {
                                 .find(|prev_monitor| prev_monitor.name == new_monitor.name)
                                 .map(|prev_monitor| {
                                     if new_monitor.hidpi_factor != prev_monitor.hidpi_factor {
-                                        for (window_id, window) in wt.windows.borrow().iter() {
+                                        for (_window_id, window) in wt.windows.borrow().iter() {
                                             if let Some(window) = window.upgrade() {
                                                 // Check if the window is on this monitor
                                                 let monitor = window.current_monitor();
                                                 if monitor.name == new_monitor.name {
+                                                    /* FIXME
                                                     callback(Event::WindowEvent {
                                                         window_id: mkwid(window_id.0),
                                                         event: WindowEvent::HiDpiFactorChanged(
                                                             new_monitor.hidpi_factor,
                                                         ),
                                                     });
+                                                    */
                                                     let (width, height) =
                                                         window.inner_size_physical();
                                                     let (_, _, flusher) = window.adjust_for_dpi(

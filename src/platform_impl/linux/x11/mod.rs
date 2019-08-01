@@ -60,7 +60,7 @@ pub struct EventLoop<T: 'static> {
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
     user_sender: ::calloop::channel::Sender<T>,
-    pending_events: Rc<RefCell<VecDeque<Event<T>>>>,
+    pending_events: Rc<RefCell<VecDeque<Event<'static, T>>>>,
     target: Rc<RootELW<T>>,
 }
 
@@ -240,7 +240,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, mut callback: F)
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         let mut control_flow = ControlFlow::default();
         let wt = get_xtarget(&self.target);
@@ -366,7 +366,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(callback);
         ::std::process::exit(0);

@@ -27,7 +27,7 @@ use smithay_client_toolkit::{
 };
 
 pub struct WindowEventsSink {
-    buffer: VecDeque<(crate::event::WindowEvent, crate::window::WindowId)>,
+    buffer: VecDeque<(crate::event::WindowEvent<'static>, crate::window::WindowId)>,
 }
 
 impl WindowEventsSink {
@@ -37,16 +37,16 @@ impl WindowEventsSink {
         }
     }
 
-    pub fn send_event(&mut self, evt: crate::event::WindowEvent, wid: WindowId) {
+    pub fn send_event(&mut self, evt: crate::event::WindowEvent<'static>, wid: WindowId) {
         self.buffer.push_back((
             evt,
             crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
         ));
     }
 
-    fn empty_with<F, T>(&mut self, mut callback: F)
+    fn empty_with<F, T: 'static>(&mut self, mut callback: F)
     where
-        F: FnMut(crate::event::Event<T>),
+        F: FnMut(crate::event::Event<'_, T>),
     {
         for (evt, wid) in self.buffer.drain(..) {
             callback(crate::event::Event::WindowEvent {
@@ -70,7 +70,7 @@ pub struct EventLoop<T: 'static> {
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     user_sender: ::calloop::channel::Sender<T>,
     _kbd_source: ::calloop::Source<
-        ::calloop::channel::Channel<(crate::event::WindowEvent, super::WindowId)>,
+        ::calloop::channel::Channel<(crate::event::WindowEvent<'static>, super::WindowId)>,
     >,
     window_target: RootELW<T>,
 }
@@ -207,7 +207,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> !
     where
-        F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(callback);
         ::std::process::exit(0);
@@ -215,7 +215,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, mut callback: F)
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         // send pending events to the server
         self.display.flush().expect("Wayland connection lost.");
@@ -400,7 +400,12 @@ impl<T> EventLoop<T> {
                         frame.resize(w, h);
                         frame.refresh();
                         let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
-                        sink.send_event(crate::event::WindowEvent::Resized(logical_size), wid);
+                        let physical_size = logical_size.to_physical(
+                            new_dpi.unwrap_or(1) as f64); // FIXME
+                        sink.send_event(
+                            crate::event::WindowEvent::Resized(physical_size),
+                            wid,
+                        );
                         *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
@@ -409,11 +414,13 @@ impl<T> EventLoop<T> {
                         }
                     }
                 }
-                if let Some(dpi) = new_dpi {
-                    sink.send_event(
+                if let Some(_dpi) = new_dpi {
+                    /* FIXME
+                    sink.send_window_event(
                         crate::event::WindowEvent::HiDpiFactorChanged(dpi as f64),
                         wid,
                     );
+                    */
                 }
                 if refresh {
                     sink.send_event(crate::event::WindowEvent::RedrawRequested, wid);
@@ -434,7 +441,7 @@ struct SeatManager {
     sink: Arc<Mutex<WindowEventsSink>>,
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
-    kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
+    kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent<'static>, super::WindowId)>,
 }
 
 impl SeatManager {
@@ -473,7 +480,7 @@ impl SeatManager {
 struct SeatData {
     sink: Arc<Mutex<WindowEventsSink>>,
     store: Arc<Mutex<WindowStore>>,
-    kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
+    kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent<'static>, super::WindowId)>,
     pointer: Option<wl_pointer::WlPointer>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
