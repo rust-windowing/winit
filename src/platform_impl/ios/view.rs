@@ -93,8 +93,8 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
                 let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width,
-                    height: screen_frame.size.height,
+                    width: screen_frame.size.width as _,
+                    height: screen_frame.size.height as _,
                 };
                 AppState::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
@@ -258,8 +258,8 @@ unsafe fn get_window_class() -> &'static Class {
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
                 let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width,
-                    height: screen_frame.size.height,
+                    width: screen_frame.size.width as _,
+                    height: screen_frame.size.height as _,
                 };
                 AppState::handle_nonuser_events(
                     std::iter::once(Event::WindowEvent {
