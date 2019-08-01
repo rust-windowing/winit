@@ -114,8 +114,7 @@ pub struct Proxy<T> {
     source: CFRunLoopSourceRef,
 }
 
-unsafe impl<T> Send for Proxy<T> {}
-unsafe impl<T> Sync for Proxy<T> {}
+unsafe impl<T: Send> Send for Proxy<T> {}
 
 impl<T> Proxy<T> {
     fn new(sender: mpsc::Sender<T>) -> Self {
