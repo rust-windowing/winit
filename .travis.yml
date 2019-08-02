@@ -34,11 +34,27 @@ matrix:
       os: osx
       rust: stable
 
-    # iOS
+    # iOS x86_64
     - env: TARGET=x86_64-apple-ios
       os: osx
       rust: nightly
     - env: TARGET=x86_64-apple-ios
+      os: osx
+      rust: stable
+
+    # iOS armv7
+    - env: TARGET=armv7-apple-ios
+      os: osx
+      rust: nightly
+    - env: TARGET=armv7-apple-ios
+      os: osx
+      rust: stable
+
+    # iOS arm64
+    - env: TARGET=aarch64-apple-ios
+      os: osx
+      rust: nightly
+    - env: TARGET=aarch64-apple-ios
       os: osx
       rust: stable
 
@@ -52,9 +68,9 @@ script:
   - cargo +stable fmt --all -- --check
   - cargo build --target $TARGET --verbose
   - cargo build --target $TARGET --features serde --verbose
-  # Running iOS apps on OSX requires the simulator so we skip that for now
-  - if [ "$TARGET" != "x86_64-apple-ios" ]; then cargo test --target $TARGET --verbose; fi
-  - if [ "$TARGET" != "x86_64-apple-ios" ]; then cargo test --target $TARGET --features serde --verbose; fi
+  # Running iOS apps on macOS requires the Simulator so we skip that for now
+  - if [[ $TARGET != *-apple-ios ]]; then cargo test --target $TARGET --verbose; fi
+  - if [[ $TARGET != *-apple-ios ]]; then cargo test --target $TARGET --features serde --verbose; fi
 
 after_success:
   - |
