@@ -201,6 +201,23 @@ impl Into<ScreenEdge> for UIRectEdge {
     }
 }
 
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UIScreenOverscanCompensation(NSInteger);
+
+unsafe impl Encode for UIScreenOverscanCompensation {
+    fn encode() -> Encoding {
+        NSInteger::encode()
+    }
+}
+
+#[allow(dead_code)]
+impl UIScreenOverscanCompensation {
+    pub const Scale: UIScreenOverscanCompensation = UIScreenOverscanCompensation(0);
+    pub const InsetBounds: UIScreenOverscanCompensation = UIScreenOverscanCompensation(1);
+    pub const None: UIScreenOverscanCompensation = UIScreenOverscanCompensation(2);
+}
+
 #[link(name = "UIKit", kind = "framework")]
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
