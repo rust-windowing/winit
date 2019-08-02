@@ -487,8 +487,8 @@ pub enum EventLoopProxy<T: 'static> {
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         match self {
-            X(proxy) => EventLoopProxy::X(proxy.clone()),
-            Wayland(proxy) => EventLoopProxy::Wayland(proxy.clone()),
+            EventLoopProxy::X(proxy) => EventLoopProxy::X(proxy.clone()),
+            EventLoopProxy::Wayland(proxy) => EventLoopProxy::Wayland(proxy.clone()),
         }
     }
 }
