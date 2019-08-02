@@ -42,12 +42,6 @@ impl Canvas {
             .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
             .unchecked_into();
 
-        document
-            .body()
-            .ok_or_else(|| os_error!(OsError("Failed to find body node".to_owned())))?
-            .append_child(&canvas)
-            .map_err(|_| os_error!(OsError("Failed to append canvas".to_owned())))?;
-
         // TODO: Set up unique ids
         canvas
             .set_attribute("tabindex", "0")
