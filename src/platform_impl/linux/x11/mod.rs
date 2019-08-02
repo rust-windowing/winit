@@ -66,9 +66,16 @@ pub struct EventLoop<T: 'static> {
     target: Rc<RootELW<T>>,
 }
 
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     user_sender: ::calloop::channel::Sender<T>,
+}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        EventLoopProxy {
+            user_sender: self.user_sender.clone(),
+        }
+    }
 }
 
 impl<T: 'static> EventLoop<T> {

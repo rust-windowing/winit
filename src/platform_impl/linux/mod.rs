@@ -485,6 +485,15 @@ pub enum EventLoopProxy<T: 'static> {
     Wayland(wayland::EventLoopProxy<T>),
 }
 
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        match self {
+            X(proxy) => EventLoopProxy::X(proxy.clone()),
+            Wayland(proxy) => EventLoopProxy::Wayland(proxy.clone()),
+        }
+    }
+}
+
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
         if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {

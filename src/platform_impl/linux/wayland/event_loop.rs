@@ -111,6 +111,14 @@ pub struct EventLoopWindowTarget<T> {
     _marker: ::std::marker::PhantomData<T>,
 }
 
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        EventLoopProxy {
+            user_sender: self.user_sender.clone(),
+        }
+    }
+}
+
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
         self.user_sender.send(event).map_err(|_| EventLoopClosed)
