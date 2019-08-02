@@ -90,7 +90,6 @@ pub struct EventLoop<T: 'static> {
 // A handle that can be sent across threads and used to wake up the `EventLoop`.
 //
 // We should only try and wake up the `EventLoop` if it still exists, so we hold Weak ptrs.
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     user_sender: ::calloop::channel::Sender<T>,
 }

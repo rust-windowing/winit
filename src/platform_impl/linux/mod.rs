@@ -479,7 +479,6 @@ pub enum EventLoop<T: 'static> {
     X(x11::EventLoop<T>),
 }
 
-#[derive(Clone)]
 pub enum EventLoopProxy<T: 'static> {
     X(x11::EventLoopProxy<T>),
     Wayland(wayland::EventLoopProxy<T>),

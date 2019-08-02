@@ -678,7 +678,6 @@ impl EventLoopThreadExecutor {
 
 type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     target_window: HWND,
     event_send: Sender<T>,
