@@ -34,8 +34,12 @@ impl Canvas {
     where
         F: 'static + Fn(),
     {
-        let window = web_sys::window().expect("Failed to obtain window");
-        let document = window.document().expect("Failed to obtain document");
+        let window =
+            web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
+
+        let document = window
+            .document()
+            .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
 
         let canvas: HtmlCanvasElement = document
             .create_element("canvas")
@@ -49,7 +53,7 @@ impl Canvas {
         // https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex
         canvas
             .set_attribute("tabindex", "0")
-            .expect("Failed to set a tabindex");
+            .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
 
         Ok(Canvas {
             raw: canvas,

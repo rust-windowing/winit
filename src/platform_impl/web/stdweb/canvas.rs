@@ -56,7 +56,7 @@ impl Canvas {
         // https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex
         canvas
             .set_attribute("tabindex", "0")
-            .expect("Failed to set a tabindex");
+            .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
 
         Ok(Canvas {
             raw: canvas,
