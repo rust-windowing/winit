@@ -8,7 +8,7 @@ use smithay_client_toolkit::reexports::client::ConnectError;
 pub use self::x11::XNotSupported;
 use self::x11::{ffi::XVisualInfo, XConnection, XError};
 use crate::{
-    dpi::{Position, Size, PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},

@@ -31,7 +31,7 @@ use std::{
 
 use libc::{self, setlocale, LC_CTYPE};
 
-use mio::{Events, Poll, PollOpt, Ready, Token, unix::EventedFd};
+use mio::{unix::EventedFd, Events, Poll, PollOpt, Ready, Token};
 
 use mio_extras::channel::{channel, Receiver, Sender};
 
@@ -163,14 +163,16 @@ impl<T: 'static> EventLoop<T> {
             X_TOKEN,
             Ready::readable(),
             PollOpt::level(),
-        ).unwrap();
+        )
+        .unwrap();
 
         poll.register(
             &user_channel,
             USER_TOKEN,
             Ready::readable(),
             PollOpt::level(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let event_processor = EventProcessor {
             target: target.clone(),
@@ -302,7 +304,9 @@ impl<T: 'static> EventLoop<T> {
                 // If the XConnection already contains buffered events, we don't
                 // need to wait for data on the socket.
                 // However, we still need to check for user events.
-                self.poll.poll(&mut events, Some(Duration::from_millis(0))).unwrap();
+                self.poll
+                    .poll(&mut events, Some(Duration::from_millis(0)))
+                    .unwrap();
                 events.clear();
 
                 callback(
@@ -314,8 +318,7 @@ impl<T: 'static> EventLoop<T> {
                 self.poll.poll(&mut events, timeout).unwrap();
                 events.clear();
 
-                let wait_cancelled = deadline.map_or(false,
-                    |deadline| Instant::now() < deadline);
+                let wait_cancelled = deadline.map_or(false, |deadline| Instant::now() < deadline);
 
                 if wait_cancelled {
                     cause = StartCause::WaitCancelled {
@@ -348,7 +351,9 @@ impl<T: 'static> EventLoop<T> {
     }
 
     fn drain_events<F>(&mut self, callback: &mut F, control_flow: &mut ControlFlow)
-            where F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow) {
+    where
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
         let target = &self.target;
         let mut xev = MaybeUninit::uninit();
 

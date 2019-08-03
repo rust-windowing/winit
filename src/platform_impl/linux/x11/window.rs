@@ -4,7 +4,7 @@ use libc;
 use parking_lot::Mutex;
 
 use crate::{
-    dpi::{Position, Size, PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
@@ -899,8 +899,8 @@ impl UnownedWindow {
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
         self.shared_state.lock().min_inner_size = dimensions;
-        let physical_dimensions = dimensions
-            .map(|dimensions| dimensions.to_physical(self.hidpi_factor()).into());
+        let physical_dimensions =
+            dimensions.map(|dimensions| dimensions.to_physical(self.hidpi_factor()).into());
         self.set_min_inner_size_physical(physical_dimensions);
     }
 
@@ -912,8 +912,8 @@ impl UnownedWindow {
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         self.shared_state.lock().max_inner_size = dimensions;
-        let physical_dimensions = dimensions
-            .map(|dimensions| dimensions.to_physical(self.hidpi_factor()).into());
+        let physical_dimensions =
+            dimensions.map(|dimensions| dimensions.to_physical(self.hidpi_factor()).into());
         self.set_max_inner_size_physical(physical_dimensions);
     }
 
@@ -1226,10 +1226,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_position(
-        &self,
-        position: Position,
-    ) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
         let (x, y) = position.to_physical(self.hidpi_factor()).into();
         self.set_cursor_position_physical(x, y)
     }

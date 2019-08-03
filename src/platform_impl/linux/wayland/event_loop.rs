@@ -39,15 +39,19 @@ pub struct WindowEventsSink {
 }
 
 impl WindowEventsSink {
-    pub fn new(sender: Sender<(WindowEvent<'static>, crate::window::WindowId)>) -> WindowEventsSink {
+    pub fn new(
+        sender: Sender<(WindowEvent<'static>, crate::window::WindowId)>,
+    ) -> WindowEventsSink {
         WindowEventsSink { sender }
     }
 
     pub fn send_event(&self, evt: WindowEvent<'static>, wid: WindowId) {
-        self.sender.send((
-            evt,
-            crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
-        )).unwrap();
+        self.sender
+            .send((
+                evt,
+                crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
+            ))
+            .unwrap();
     }
 }
 
@@ -108,7 +112,8 @@ impl<T: 'static> EventLoop<T> {
 
         let sink = WindowEventsSink::new(kbd_sender);
 
-        poll.register(&kbd_channel, KBD_TOKEN, Ready::readable(), PollOpt::level()).unwrap();
+        poll.register(&kbd_channel, KBD_TOKEN, Ready::readable(), PollOpt::level())
+            .unwrap();
 
         let mut seat_manager = SeatManager {
             sink,
@@ -138,11 +143,18 @@ impl<T: 'static> EventLoop<T> {
         )
         .unwrap();
 
-        poll.register(&event_queue, EVQ_TOKEN, Ready::readable(), PollOpt::level()).unwrap();
+        poll.register(&event_queue, EVQ_TOKEN, Ready::readable(), PollOpt::level())
+            .unwrap();
 
         let (user_sender, user_channel) = channel();
 
-        poll.register(&user_channel, USER_TOKEN, Ready::readable(), PollOpt::level()).unwrap();
+        poll.register(
+            &user_channel,
+            USER_TOKEN,
+            Ready::readable(),
+            PollOpt::level(),
+        )
+        .unwrap();
 
         Ok(EventLoop {
             poll,
@@ -238,7 +250,9 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::Exit => break,
                 ControlFlow::Poll => {
                     // non-blocking dispatch
-                    self.poll.poll(&mut events, Some(Duration::from_millis(0))).unwrap();
+                    self.poll
+                        .poll(&mut events, Some(Duration::from_millis(0)))
+                        .unwrap();
                     events.clear();
 
                     callback(
@@ -274,23 +288,19 @@ impl<T: 'static> EventLoop<T> {
                     let now = Instant::now();
                     if now < deadline {
                         callback(
-                            Event::NewEvents(
-                                StartCause::WaitCancelled {
-                                    start,
-                                    requested_resume: Some(deadline),
-                                },
-                            ),
+                            Event::NewEvents(StartCause::WaitCancelled {
+                                start,
+                                requested_resume: Some(deadline),
+                            }),
                             &self.window_target,
                             &mut control_flow,
                         );
                     } else {
                         callback(
-                            Event::NewEvents(
-                                StartCause::ResumeTimeReached {
-                                    start,
-                                    requested_resume: deadline,
-                                },
-                            ),
+                            Event::NewEvents(StartCause::ResumeTimeReached {
+                                start,
+                                requested_resume: deadline,
+                            }),
                             &self.window_target,
                             &mut control_flow,
                         );
@@ -299,11 +309,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        callback(
-            Event::LoopDestroyed,
-            &self.window_target,
-            &mut control_flow,
-        );
+        callback(Event::LoopDestroyed, &self.window_target, &mut control_flow);
     }
 
     pub fn primary_monitor(&self) -> MonitorHandle {
@@ -329,8 +335,9 @@ impl<T: 'static> EventLoop<T> {
 
 impl<T> EventLoop<T> {
     fn post_dispatch_triggers<F>(&mut self, mut callback: F, control_flow: &mut ControlFlow)
-            where F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow)
-            {
+    where
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
         let window_target = match self.window_target.p {
             crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
             _ => unreachable!(),
@@ -348,7 +355,9 @@ impl<T> EventLoop<T> {
                 *cleanup_needed = false;
                 for wid in pruned {
                     callback(Event::WindowEvent {
-                        window_id: crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
+                        window_id: crate::window::WindowId(
+                            crate::platform_impl::WindowId::Wayland(wid),
+                        ),
                         event: WindowEvent::Destroyed,
                     });
                 }
@@ -357,17 +366,20 @@ impl<T> EventLoop<T> {
         // process pending resize/refresh
         window_target.store.lock().unwrap().for_each(
             |newsize, size, prev_dpi, new_dpi, refresh, frame_refresh, closed, wid, frame| {
-                let window_id = crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid));
+                let window_id =
+                    crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid));
                 if let Some(frame) = frame {
                     if let Some((w, h)) = newsize {
                         frame.resize(w, h);
                         frame.refresh();
                         let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
-                        let physical_size = logical_size.to_physical(
-                            new_dpi.unwrap_or(prev_dpi) as f64);
+                        let physical_size =
+                            logical_size.to_physical(new_dpi.unwrap_or(prev_dpi) as f64);
 
                         callback(Event::WindowEvent {
-                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
+                            window_id: crate::window::WindowId(
+                                crate::platform_impl::WindowId::Wayland(wid),
+                            ),
                             event: WindowEvent::Resized(physical_size),
                         });
                         *size = (w, h);
@@ -388,7 +400,7 @@ impl<T> EventLoop<T> {
                             event: WindowEvent::HiDpiFactorChanged {
                                 hidpi_factor: dpi,
                                 new_inner_size: &mut new_inner_size,
-                            }
+                            },
                         });
 
                         if let Some(new_size) = new_inner_size {

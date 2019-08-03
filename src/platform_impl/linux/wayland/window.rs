@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    dpi::{Position, Size, LogicalSize, PhysicalPosition, PhysicalSize},
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
@@ -67,8 +67,10 @@ impl Window {
         user_subsurface.set_desync();
 
         let dpi = get_dpi_factor(&user_surface) as f64;
-        let (width, height) = attributes.inner_size
-            .map(|size| size.to_logical(dpi).into()).unwrap_or((800, 600));
+        let (width, height) = attributes
+            .inner_size
+            .map(|size| size.to_logical(dpi).into())
+            .unwrap_or((800, 600));
 
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
@@ -162,8 +164,16 @@ impl Window {
         frame.set_title(attributes.title);
 
         // min-max dimensions
-        frame.set_min_size(attributes.min_inner_size.map(|size| size.to_logical(dpi).into()));
-        frame.set_max_size(attributes.max_inner_size.map(|size| size.to_logical(dpi).into()));
+        frame.set_min_size(
+            attributes
+                .min_inner_size
+                .map(|size| size.to_logical(dpi).into()),
+        );
+        frame.set_max_size(
+            attributes
+                .max_inner_size
+                .map(|size| size.to_logical(dpi).into()),
+        );
 
         let kill_switch = Arc::new(Mutex::new(false));
         let need_frame_refresh = Arc::new(Mutex::new(true));

@@ -658,8 +658,8 @@ impl<T: 'static> EventProcessor<T> {
                             util::maybe_change(&mut shared_state_lock.cursor_pos, new_cursor_pos)
                         });
                         if cursor_moved == Some(true) {
-                            let position = PhysicalPosition::new(
-                                xev.event_x as f64, xev.event_y as f64);
+                            let position =
+                                PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
 
                             callback(Event::WindowEvent {
                                 window_id,
@@ -763,8 +763,8 @@ impl<T: 'static> EventProcessor<T> {
                             event: CursorEntered { device_id },
                         });
 
-                        let position = PhysicalPosition::new(
-                            xev.event_x as f64, xev.event_y as f64);
+                        let position =
+                            PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
 
                         // The mods field on this event isn't actually populated, so query the
                         // pointer device. In the future, we can likely remove this round-trip by
@@ -827,8 +827,8 @@ impl<T: 'static> EventProcessor<T> {
                             .map(|device| device.attachment)
                             .unwrap_or(2);
 
-                        let position = PhysicalPosition::new(
-                            xev.event_x as f64, xev.event_y as f64);
+                        let position =
+                            PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
 
                         callback(Event::WindowEvent {
                             window_id,
@@ -863,8 +863,8 @@ impl<T: 'static> EventProcessor<T> {
                             ffi::XI_TouchEnd => TouchPhase::Ended,
                             _ => unreachable!(),
                         };
-                        let location = PhysicalPosition::new(
-                            xev.event_x as f64, xev.event_y as f64);
+                        let location =
+                            PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
 
                         callback(Event::WindowEvent {
                             window_id,
@@ -1033,17 +1033,24 @@ impl<T: 'static> EventProcessor<T> {
                                                 // Check if the window is on this monitor
                                                 let monitor = window.current_monitor();
                                                 if monitor.name == new_monitor.name {
-                                                    let (width, height) = window.inner_size_physical();
-                                                    let (new_width, new_height) = window.adjust_for_dpi(
-                                                        prev_monitor.hidpi_factor,
-                                                        new_monitor.hidpi_factor,
-                                                        width,
-                                                        height,
-                                                    );
+                                                    let (width, height) =
+                                                        window.inner_size_physical();
+                                                    let (new_width, new_height) = window
+                                                        .adjust_for_dpi(
+                                                            prev_monitor.hidpi_factor,
+                                                            new_monitor.hidpi_factor,
+                                                            width,
+                                                            height,
+                                                        );
 
                                                     let window_id = crate::window::WindowId(
-                                                        crate::platform_impl::platform::WindowId::X(*window_id));
-                                                    let mut new_inner_size = Some(PhysicalSize::new(new_width, new_height));
+                                                        crate::platform_impl::platform::WindowId::X(
+                                                            *window_id,
+                                                        ),
+                                                    );
+                                                    let mut new_inner_size = Some(
+                                                        PhysicalSize::new(new_width, new_height),
+                                                    );
 
                                                     callback(Event::WindowEvent {
                                                         window_id,
@@ -1054,8 +1061,11 @@ impl<T: 'static> EventProcessor<T> {
                                                     });
 
                                                     if let Some(new_size) = new_inner_size {
-                                                        let (new_width, new_height) = new_size.into();
-                                                        window.set_inner_size_physical(new_width, new_height);
+                                                        let (new_width, new_height) =
+                                                            new_size.into();
+                                                        window.set_inner_size_physical(
+                                                            new_width, new_height,
+                                                        );
                                                     }
                                                 }
                                             }
