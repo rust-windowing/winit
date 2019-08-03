@@ -17,14 +17,13 @@ struct TouchPoint {
 
 pub(crate) fn implement_touch(
     seat: &wl_seat::WlSeat,
-    sink: Arc<Mutex<WindowEventsSink>>,
+    sink: WindowEventsSink,
     store: Arc<Mutex<WindowStore>>,
 ) -> WlTouch {
     let mut pending_ids = Vec::new();
     seat.get_touch(|touch| {
         touch.implement_closure(
             move |evt, _| {
-                let mut sink = sink.lock().unwrap();
                 let store = store.lock().unwrap();
                 match evt {
                     TouchEvent::Down {

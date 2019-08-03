@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    dpi::{Position, Size, PhysicalPosition, PhysicalSize},
+    dpi::{Position, Size, LogicalSize, PhysicalPosition, PhysicalSize},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
@@ -48,12 +48,7 @@ impl Window {
         attributes: WindowAttributes,
         pl_attribs: PlAttributes,
     ) -> Result<Window, RootOsError> {
-        let (width, height) = // attributes.inner_size.map(Into::into); FIXME
-            (800, 600);
-        // Create the window
-        let size = Arc::new(Mutex::new((width, height)));
-        let fullscreen = Arc::new(Mutex::new(false));
-
+        // Create the surface first to get initial DPI
         let window_store = evlp.store.clone();
         let bg_surface = evlp
             .env
@@ -70,6 +65,14 @@ impl Window {
             .get_subsurface(&user_surface, &bg_surface, NewProxy::implement_dummy)
             .unwrap();
         user_subsurface.set_desync();
+
+        let dpi = get_dpi_factor(&user_surface) as f64;
+        let (width, height) = attributes.inner_size
+            .map(|size| size.to_logical(dpi).into()).unwrap_or((800, 600));
+
+        // Create the window
+        let size = Arc::new(Mutex::new((width, height)));
+        let fullscreen = Arc::new(Mutex::new(false));
 
         let window_store = evlp.store.clone();
         let my_surface = user_surface.clone();
@@ -159,8 +162,8 @@ impl Window {
         frame.set_title(attributes.title);
 
         // min-max dimensions
-        frame.set_min_size(None); // attributes.min_inner_size.map(Into::into)); FIXME
-        frame.set_max_size(None); // attributes.max_inner_size.map(Into::into)); FIXME
+        frame.set_min_size(attributes.min_inner_size.map(|size| size.to_logical(dpi).into()));
+        frame.set_max_size(attributes.max_inner_size.map(|size| size.to_logical(dpi).into()));
 
         let kill_switch = Arc::new(Mutex::new(false));
         let need_frame_refresh = Arc::new(Mutex::new(true));
@@ -226,7 +229,9 @@ impl Window {
     }
 
     pub fn inner_size(&self) -> PhysicalSize {
-        self.size.lock().unwrap().clone().into() // FIXME
+        let dpi = self.hidpi_factor() as f64;
+        let size = LogicalSize::from(*self.size.lock().unwrap());
+        size.to_physical(dpi)
     }
 
     pub fn request_redraw(&self) {
@@ -235,33 +240,38 @@ impl Window {
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize {
+        let dpi = self.hidpi_factor() as f64;
         let (w, h) = self.size.lock().unwrap().clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
-        (w, h).into() // FIXME
+        let size = LogicalSize::from((w, h));
+        size.to_physical(dpi)
     }
 
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, size: Size) {
-        let (w, h) = size.to_physical(1.0).into(); // FIXME
+        let dpi = self.hidpi_factor() as f64;
+        let (w, h) = size.to_logical(dpi).into();
         self.frame.lock().unwrap().resize(w, h);
         *(self.size.lock().unwrap()) = (w, h);
     }
 
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
+        let dpi = self.hidpi_factor() as f64;
         self.frame
             .lock()
             .unwrap()
-            .set_min_size(dimensions.map(|dim| dim.to_physical(1.0).into())); // FIXME
+            .set_min_size(dimensions.map(|dim| dim.to_logical(dpi).into()));
     }
 
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
+        let dpi = self.hidpi_factor() as f64;
         self.frame
             .lock()
             .unwrap()
-            .set_max_size(dimensions.map(|dim| dim.to_physical(1.0).into())); // FIXME
+            .set_max_size(dimensions.map(|dim| dim.to_logical(dpi).into()));
     }
 
     #[inline]
@@ -440,6 +450,7 @@ impl WindowStore {
         F: FnMut(
             Option<(u32, u32)>,
             &mut (u32, u32),
+            i32,
             Option<i32>,
             bool,
             bool,
@@ -454,6 +465,7 @@ impl WindowStore {
             f(
                 window.newsize.take(),
                 &mut *(window.size.lock().unwrap()),
+                window.current_dpi,
                 window.new_dpi,
                 ::std::mem::replace(&mut *window.need_refresh.lock().unwrap(), false),
                 ::std::mem::replace(&mut *window.need_frame_refresh.lock().unwrap(), false),

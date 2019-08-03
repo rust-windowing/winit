@@ -13,7 +13,7 @@ use smithay_client_toolkit::reexports::client::protocol::{
 
 pub fn implement_pointer(
     seat: &wl_seat::WlSeat,
-    sink: Arc<Mutex<WindowEventsSink>>,
+    sink: WindowEventsSink,
     store: Arc<Mutex<WindowStore>>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
 ) -> WlPointer {
@@ -25,7 +25,6 @@ pub fn implement_pointer(
     seat.get_pointer(|pointer| {
         pointer.implement_closure(
             move |evt, pointer| {
-                let mut sink = sink.lock().unwrap();
                 let store = store.lock().unwrap();
                 match evt {
                     PtrEvent::Enter {
