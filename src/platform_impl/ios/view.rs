@@ -12,7 +12,8 @@ use crate::{
         app_state::AppState,
         event_loop,
         ffi::{
-            id, nil, CGFloat, CGPoint, CGRect, UIInterfaceOrientationMask, UIRectEdge, UITouchPhase,
+            id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
+            UIRectEdge, UITouchPhase,
         },
         window::PlatformSpecificWindowBuilderAttributes,
         DeviceId,
@@ -218,6 +219,16 @@ unsafe fn get_window_class() -> &'static Class {
                         break;
                     }
                     let location: CGPoint = msg_send![touch, locationInView: nil];
+                    let trait_collection: id = msg_send![object, traitCollection];
+                    let touch_capability: UIForceTouchCapability =
+                        msg_send![trait_collection, forceTouchCapability];
+                    let force = if touch_capability == UIForceTouchCapability::Available {
+                        let force: CGFloat = msg_send![touch, force];
+                        let max_force: CGFloat = msg_send![touch, maximumPossibleForce];
+                        Some((force / max_force) as _)
+                    } else {
+                        None
+                    };
                     let touch_id = touch as u64;
                     let phase: UITouchPhase = msg_send![touch, phase];
                     let phase = match phase {
@@ -235,6 +246,7 @@ unsafe fn get_window_class() -> &'static Class {
                             device_id: RootDeviceId(DeviceId { uiscreen }),
                             id: touch_id,
                             location: (location.x as f64, location.y as f64).into(),
+                            force,
                             phase,
                         }),
                     });

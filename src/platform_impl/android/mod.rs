@@ -75,6 +75,7 @@ impl EventLoop {
                                 android_glue::MotionAction::Cancel => TouchPhase::Cancelled,
                             },
                             location,
+                            force: None, // TODO
                             id: motion.pointer_id as u64,
                             device_id: DEVICE_ID,
                         }),

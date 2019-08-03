@@ -918,6 +918,7 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id: mkdid(xev.deviceid),
                                     phase,
                                     location,
+                                    force: None, // TODO
                                     id: xev.detail as u64,
                                 }),
                             })

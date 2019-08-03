@@ -303,27 +303,36 @@ pub enum TouchPhase {
     Cancelled,
 }
 
-/// Represents touch event
+/// Represents a touch event
 ///
-/// Every time user touches screen new Start event with some finger id is generated.
-/// When the finger is removed from the screen End event with same id is generated.
+/// Every time the user touches the screen, a new `Start` event with an unique
+/// identifier for the finger is generated. When the finger is lifted, an `End`
+/// event is generated with the same finger id.
 ///
-/// For every id there will be at least 2 events with phases Start and End (or Cancelled).
-/// There may be 0 or more Move events.
+/// After a `Start` event has been emitted, there may be zero or more `Move`
+/// events when the finger is moved or the touch pressure changes.
 ///
+/// The finger id may be reused by the system after an `End` event. The user
+/// should assume that a new `Start` event received with the same id has nothing
+/// to do with the old finger and is a new finger.
 ///
-/// Depending on platform implementation id may or may not be reused by system after End event.
-///
-/// Gesture regonizer using this event should assume that Start event received with same id
-/// as previously received End event is a new finger and has nothing to do with an old one.
-///
-/// Touch may be cancelled if for example window lost focus.
+/// A `Cancelled` event is emitted when the system has canceled tracking this
+/// touch, such as when the window loses focus, or on iOS if the user moves the
+/// device against their face.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
     pub location: LogicalPosition,
-    /// unique identifier of a finger.
+    /// Force of the touch, between 0.0 and 1.0, where 1.0 is the maximum
+    /// possible force. Returns `None` if the platform does not provide this
+    /// data.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **iOS**.
+    pub force: Option<f64>,
+    /// Unique identifier of a finger.
     pub id: u64,
 }
 
