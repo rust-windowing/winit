@@ -35,9 +35,9 @@ pub struct SharedState {
     pub inner_position_rel_parent: Option<(i32, i32)>,
     pub guessed_dpi: Option<f64>,
     pub last_monitor: Option<X11MonitorHandle>,
-    pub dpi_adjusted: Option<(f64, f64)>,
+    pub dpi_adjusted: Option<(u32, u32)>,
     pub fullscreen: Option<RootMonitorHandle>,
-    // Used to restore position after exiting fullscreen.
+    // Used to restore position after exiting fullscreen
     pub restore_position: Option<(i32, i32)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
     pub min_inner_size: Option<Size>,
@@ -921,12 +921,10 @@ impl UnownedWindow {
         &self,
         old_dpi_factor: f64,
         new_dpi_factor: f64,
-        width: f64,
-        height: f64,
-    ) -> (f64, f64, util::Flusher<'_>) {
+        width: u32,
+        height: u32,
+    ) -> (u32, u32) {
         let scale_factor = new_dpi_factor / old_dpi_factor;
-        let new_width = width * scale_factor;
-        let new_height = height * scale_factor;
         self.update_normal_hints(|normal_hints| {
             let dpi_adjuster = |(width, height): (u32, u32)| -> (u32, u32) {
                 let new_width = width as f64 * scale_factor;
@@ -943,15 +941,11 @@ impl UnownedWindow {
             normal_hints.set_base_size(base_size);
         })
         .expect("Failed to update normal hints");
-        unsafe {
-            (self.xconn.xlib.XResizeWindow)(
-                self.xconn.display,
-                self.xwindow,
-                new_width.round() as c_uint,
-                new_height.round() as c_uint,
-            );
-        }
-        (new_width, new_height, util::Flusher::new(&self.xconn))
+
+        let new_width = (width as f64 * scale_factor).round() as u32;
+        let new_height = (height as f64 * scale_factor).round() as u32;
+
+        (new_width, new_height)
     }
 
     pub fn set_resizable(&self, resizable: bool) {
