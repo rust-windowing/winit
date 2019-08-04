@@ -16,6 +16,8 @@
 - On iOS, fix a crash that occurred while acquiring a monitor's name.
 - On iOS, fix armv7-apple-ios compile target.
 - Removed the `T: Clone` requirement from the `Clone` impl of `EventLoopProxy<T>`.
+- On iOS, add `set_prefers_status_bar_hidden` extension function instead of
+  hijacking `set_decorations` for this purpose.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
