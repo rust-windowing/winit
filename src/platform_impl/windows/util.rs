@@ -6,22 +6,19 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use crate::{
-    dpi::PhysicalSize,
-    window::CursorIcon,
-};
+use crate::{dpi::PhysicalSize, window::CursorIcon};
 use winapi::{
     ctypes::wchar_t,
     shared::{
         minwindef::{BOOL, DWORD, UINT},
-        windef::{DPI_AWARENESS_CONTEXT, HMONITOR, HWND, RECT, LPRECT},
+        windef::{DPI_AWARENESS_CONTEXT, HMONITOR, HWND, LPRECT, RECT},
     },
     um::{
         libloaderapi::{GetProcAddress, LoadLibraryA},
         shellscalingapi::{MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
         winbase::lstrlenW,
-        winuser,
         winnt::{HRESULT, LONG, LPCSTR},
+        winuser,
     },
 };
 
@@ -88,10 +85,7 @@ pub fn adjust_size(hwnd: HWND, size: PhysicalSize) -> PhysicalSize {
         bottom: height as LONG,
     };
     let rect = adjust_window_rect(hwnd, rect).unwrap_or(rect);
-    PhysicalSize::new(
-        (rect.right - rect.left) as _,
-        (rect.bottom - rect.top) as _
-    )
+    PhysicalSize::new((rect.right - rect.left) as _, (rect.bottom - rect.top) as _)
 }
 
 pub fn adjust_window_rect(hwnd: HWND, rect: RECT) -> Option<RECT> {
@@ -113,7 +107,9 @@ pub fn adjust_window_rect_with_styles(
             *r = rect;
 
             let b_menu = !winuser::GetMenu(hwnd).is_null() as BOOL;
-            if let (Some(get_dpi_for_window), Some(adjust_window_rect_ex_for_dpi)) = (*GET_DPI_FOR_WINDOW, *ADJUST_WINDOW_RECT_EX_FOR_DPI) {
+            if let (Some(get_dpi_for_window), Some(adjust_window_rect_ex_for_dpi)) =
+                (*GET_DPI_FOR_WINDOW, *ADJUST_WINDOW_RECT_EX_FOR_DPI)
+            {
                 let dpi = get_dpi_for_window(hwnd);
                 adjust_window_rect_ex_for_dpi(r, style as _, b_menu, style_ex as _, dpi)
             } else {
@@ -206,7 +202,8 @@ macro_rules! get_function {
 }
 
 pub type SetProcessDPIAware = unsafe extern "system" fn() -> BOOL;
-pub type SetProcessDpiAwareness = unsafe extern "system" fn(value: PROCESS_DPI_AWARENESS) -> HRESULT;
+pub type SetProcessDpiAwareness =
+    unsafe extern "system" fn(value: PROCESS_DPI_AWARENESS) -> HRESULT;
 pub type SetProcessDpiAwarenessContext =
     unsafe extern "system" fn(value: DPI_AWARENESS_CONTEXT) -> BOOL;
 pub type GetDpiForWindow = unsafe extern "system" fn(hwnd: HWND) -> UINT;
@@ -217,7 +214,13 @@ pub type GetDpiForMonitor = unsafe extern "system" fn(
     dpi_y: *mut UINT,
 ) -> HRESULT;
 pub type EnableNonClientDpiScaling = unsafe extern "system" fn(hwnd: HWND) -> BOOL;
-pub type AdjustWindowRectExForDpi = unsafe extern "system" fn(rect: LPRECT, dwStyle: DWORD, bMenu: BOOL, dwExStyle: DWORD, dpi: UINT) -> BOOL;
+pub type AdjustWindowRectExForDpi = unsafe extern "system" fn(
+    rect: LPRECT,
+    dwStyle: DWORD,
+    bMenu: BOOL,
+    dwExStyle: DWORD,
+    dpi: UINT,
+) -> BOOL;
 
 lazy_static! {
     pub static ref GET_DPI_FOR_WINDOW: Option<GetDpiForWindow> =

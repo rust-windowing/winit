@@ -1574,7 +1574,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     (current_rect.right - current_rect.left) as u32,
                     (current_rect.bottom - current_rect.top) as u32,
                 );
-                client_rect.to_logical(old_dpi_factor).to_physical(new_dpi_factor)
+                client_rect
+                    .to_logical(old_dpi_factor)
+                    .to_physical(new_dpi_factor)
             };
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after

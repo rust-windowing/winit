@@ -1,12 +1,14 @@
 #![allow(non_snake_case, unused_unsafe)]
 
-use std::{
-    sync::{Once, ONCE_INIT},
-};
+use std::sync::{Once, ONCE_INIT};
 
+use crate::platform_impl::platform::util::{
+    ENABLE_NON_CLIENT_DPI_SCALING, GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, SET_PROCESS_DPI_AWARE,
+    SET_PROCESS_DPI_AWARENESS, SET_PROCESS_DPI_AWARENESS_CONTEXT,
+};
 use winapi::{
     shared::{
-        minwindef::{FALSE},
+        minwindef::FALSE,
         windef::{DPI_AWARENESS_CONTEXT, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, HMONITOR, HWND},
         winerror::S_OK,
     },
@@ -16,7 +18,6 @@ use winapi::{
         winuser::{self, MONITOR_DEFAULTTONEAREST},
     },
 };
-use crate::platform_impl::platform::util::{GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, ENABLE_NON_CLIENT_DPI_SCALING, SET_PROCESS_DPI_AWARENESS_CONTEXT, SET_PROCESS_DPI_AWARENESS, SET_PROCESS_DPI_AWARE};
 
 const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: DPI_AWARENESS_CONTEXT = -4isize as _;
 
@@ -27,8 +28,7 @@ pub fn become_dpi_aware(enable: bool) {
     static ENABLE_DPI_AWARENESS: Once = ONCE_INIT;
     ENABLE_DPI_AWARENESS.call_once(|| {
         unsafe {
-            if let Some(SetProcessDpiAwarenessContext) = *SET_PROCESS_DPI_AWARENESS_CONTEXT
-            {
+            if let Some(SetProcessDpiAwarenessContext) = *SET_PROCESS_DPI_AWARENESS_CONTEXT {
                 // We are on Windows 10 Anniversary Update (1607) or later.
                 if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
                     == FALSE
@@ -37,12 +37,10 @@ pub fn become_dpi_aware(enable: bool) {
                     // V1 if we can't set V2.
                     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
                 }
-            } else if let Some(SetProcessDpiAwareness) = *SET_PROCESS_DPI_AWARENESS
-            {
+            } else if let Some(SetProcessDpiAwareness) = *SET_PROCESS_DPI_AWARENESS {
                 // We are on Windows 8.1 or later.
                 SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
-            } else if let Some(SetProcessDPIAware) = *SET_PROCESS_DPI_AWARE
-            {
+            } else if let Some(SetProcessDPIAware) = *SET_PROCESS_DPI_AWARE {
                 // We are on Vista or later.
                 SetProcessDPIAware();
             }
