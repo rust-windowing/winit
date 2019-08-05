@@ -90,7 +90,6 @@ pub struct EventLoop<T: 'static> {
 // A handle that can be sent across threads and used to wake up the `EventLoop`.
 //
 // We should only try and wake up the `EventLoop` if it still exists, so we hold Weak ptrs.
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     user_sender: ::calloop::channel::Sender<T>,
 }
@@ -109,6 +108,14 @@ pub struct EventLoopWindowTarget<T> {
     // The list of seats
     pub seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     _marker: ::std::marker::PhantomData<T>,
+}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        EventLoopProxy {
+            user_sender: self.user_sender.clone(),
+        }
+    }
 }
 
 impl<T: 'static> EventLoopProxy<T> {
