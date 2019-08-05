@@ -2,6 +2,7 @@
 
 - Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
 - On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
+- On Windows, fix window rectangle not getting set correctly on high-DPI systems.
 
 # 0.20.0 Alpha 1
 
