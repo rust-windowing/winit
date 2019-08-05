@@ -13,7 +13,7 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
     platform_impl::platform::{
-        app_state::AppState,
+        app_state::{self, AppState},
         event_loop,
         ffi::{
             id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
@@ -28,7 +28,6 @@ pub struct Inner {
     pub window: id,
     pub view_controller: id,
     pub view: id,
-    supports_safe_area: bool,
 }
 
 impl Drop for Inner {
@@ -300,7 +299,7 @@ impl DerefMut for Window {
 
 impl Window {
     pub fn new<T>(
-        event_loop: &EventLoopWindowTarget<T>,
+        _event_loop: &EventLoopWindowTarget<T>,
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
@@ -347,14 +346,11 @@ impl Window {
                 view_controller,
             );
 
-            let supports_safe_area = event_loop.capabilities().supports_safe_area;
-
             let result = Window {
                 inner: Inner {
                     window,
                     view_controller,
                     view,
-                    supports_safe_area,
                 },
             };
             AppState::set_key_window(window);
@@ -462,7 +458,7 @@ impl Inner {
     // requires main thread
     unsafe fn safe_area_screen_space(&self) -> CGRect {
         let bounds: CGRect = msg_send![self.window, bounds];
-        if self.supports_safe_area {
+        if app_state::capabilities().safe_area {
             let safe_area: UIEdgeInsets = msg_send![self.window, safeAreaInsets];
             let safe_bounds = CGRect {
                 origin: CGPoint {

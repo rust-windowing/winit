@@ -16,7 +16,8 @@ use crate::platform_impl::platform::{
     ffi::{
         id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
         CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-        CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, NSUInteger,
+        CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, NSInteger, NSOperatingSystemVersion,
+        NSUInteger,
     },
 };
 
@@ -617,4 +618,55 @@ impl EventLoopWaker {
             }
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct Capabilities {
+    pub safe_area: bool,
+    pub home_indicator_hidden: bool,
+    pub defer_system_gestures: bool,
+    pub maximum_frames_per_second: bool,
+    pub force_touch: bool,
+}
+
+impl NSOperatingSystemVersion {
+    fn meets_requirements(&self, required_major: NSInteger, required_minor: NSInteger) -> bool {
+        (self.major, self.minor) >= (required_major, required_minor)
+    }
+}
+
+impl From<NSOperatingSystemVersion> for Capabilities {
+    fn from(os_version: NSOperatingSystemVersion) -> Capabilities {
+        assert!(
+            os_version.major >= 8,
+            "`winit` requires iOS version 8 or greater"
+        );
+
+        let safe_area = os_version.meets_requirements(11, 0);
+        let home_indicator_hidden = os_version.meets_requirements(11, 0);
+        let defer_system_gestures = os_version.meets_requirements(11, 0);
+        let maximum_frames_per_second = os_version.meets_requirements(10, 3);
+        let force_touch = os_version.meets_requirements(9, 0);
+
+        Capabilities {
+            safe_area,
+            home_indicator_hidden,
+            defer_system_gestures,
+            maximum_frames_per_second,
+            force_touch,
+        }
+    }
+}
+
+pub fn capabilities() -> Capabilities {
+    lazy_static! {
+        static ref CAPABILITIES: Capabilities = {
+            let version: NSOperatingSystemVersion = unsafe {
+                let process_info: id = msg_send![class!(NSProcessInfo), processInfo];
+                msg_send![process_info, operatingSystemVersion]
+            };
+            version.into()
+        };
+    }
+    CAPABILITIES.clone()
 }

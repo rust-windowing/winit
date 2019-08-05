@@ -7,7 +7,10 @@ use std::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
+    platform_impl::platform::{
+        app_state,
+        ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
+    },
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -43,7 +46,12 @@ impl Drop for VideoMode {
 impl VideoMode {
     unsafe fn retained_new(uiscreen: id, screen_mode: id) -> VideoMode {
         assert_main_thread!("`VideoMode` can only be created on the main thread on iOS");
-        let refresh_rate: NSInteger = msg_send![uiscreen, maximumFramesPerSecond];
+        let refresh_rate: NSInteger = if app_state::capabilities().maximum_frames_per_second {
+            msg_send![uiscreen, maximumFramesPerSecond]
+        } else {
+            log::warn!("`-[UIScreen maximumFramesPerSecond]` is unsupported, defaulting to 60 fps");
+            60
+        };
         let size: CGSize = msg_send![screen_mode, size];
         VideoMode {
             size: (size.width as u32, size.height as u32),
