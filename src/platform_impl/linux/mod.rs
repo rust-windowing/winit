@@ -479,10 +479,18 @@ pub enum EventLoop<T: 'static> {
     X(x11::EventLoop<T>),
 }
 
-#[derive(Clone)]
 pub enum EventLoopProxy<T: 'static> {
     X(x11::EventLoopProxy<T>),
     Wayland(wayland::EventLoopProxy<T>),
+}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        match self {
+            EventLoopProxy::X(proxy) => EventLoopProxy::X(proxy.clone()),
+            EventLoopProxy::Wayland(proxy) => EventLoopProxy::Wayland(proxy.clone()),
+        }
+    }
 }
 
 impl<T: 'static> EventLoop<T> {

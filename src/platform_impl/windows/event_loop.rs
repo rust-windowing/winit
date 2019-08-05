@@ -390,12 +390,20 @@ impl EventLoopThreadExecutor {
 
 type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     target_window: HWND,
     event_send: Sender<T>,
 }
 unsafe impl<T: Send + 'static> Send for EventLoopProxy<T> {}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        Self {
+            target_window: self.target_window,
+            event_send: self.event_send.clone(),
+        }
+    }
+}
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
