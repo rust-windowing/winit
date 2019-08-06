@@ -27,6 +27,7 @@
 - On iOS, add touch pressure information for touch events.
 - Implement `raw_window_handle::HasRawWindowHandle` for `Window` type on all supported platforms.
 - On macOS, fix the signature of `-[NSView drawRect:]`.
+- On iOS, fix improper `msg_send` usage that was UB and/or would break if `!` is stabilized.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 

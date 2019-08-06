@@ -38,7 +38,7 @@ impl Drop for VideoMode {
     fn drop(&mut self) {
         unsafe {
             assert_main_thread!("`VideoMode` can only be dropped on the main thread on iOS");
-            msg_send![self.screen_mode, release];
+            msg_send![self.screen_mode, release]
         }
     }
 }

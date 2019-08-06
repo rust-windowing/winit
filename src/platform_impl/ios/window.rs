@@ -392,7 +392,7 @@ impl Inner {
             msg_send![
                 self.view_controller,
                 setSupportedInterfaceOrientations: supported_orientations
-            ];
+            ]
         }
     }
 

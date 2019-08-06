@@ -127,7 +127,7 @@ impl AppState {
                 ..
             } => {
                 queued_windows.push(window);
-                msg_send![window, retain];
+                let _: id = msg_send![window, retain];
                 return;
             }
             &mut AppStateImpl::ProcessingEvents { .. } => {}
@@ -200,7 +200,7 @@ impl AppState {
                 // completed. This may result in incorrect visual appearance.
                 // ```
                 let screen: id = msg_send![window, screen];
-                let () = msg_send![screen, retain];
+                let _: id = msg_send![screen, retain];
                 let () = msg_send![window, setScreen:0 as id];
                 let () = msg_send![window, setScreen: screen];
                 let () = msg_send![screen, release];
