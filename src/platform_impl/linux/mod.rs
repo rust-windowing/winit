@@ -1,6 +1,6 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::{collections::VecDeque, env, ffi::CStr, fmt, mem, os::raw::*, sync::Arc};
+use std::{collections::VecDeque, env, ffi::CStr, fmt, mem::MaybeUninit, os::raw::*, sync::Arc};
 
 use parking_lot::Mutex;
 use smithay_client_toolkit::reexports::client::ConnectError;
@@ -13,8 +13,8 @@ use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     icon::Icon,
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode},
-    window::{CursorIcon, WindowAttributes},
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
 mod dlopen;
@@ -55,10 +55,10 @@ pub enum OsError {
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            OsError::XError(e) => formatter.pad(&e.description),
-            OsError::XMisc(e) => formatter.pad(e),
+            OsError::XError(e) => f.pad(&e.description),
+            OsError::XMisc(e) => f.pad(e),
         }
     }
 }
@@ -92,7 +92,7 @@ impl DeviceId {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MonitorHandle {
     X(x11::MonitorHandle),
     Wayland(wayland::MonitorHandle),
@@ -140,10 +140,50 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+    pub fn video_modes(&self) -> Box<dyn Iterator<Item = RootVideoMode>> {
         match self {
             MonitorHandle::X(m) => Box::new(m.video_modes()),
             MonitorHandle::Wayland(m) => Box::new(m.video_modes()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VideoMode {
+    X(x11::VideoMode),
+    Wayland(wayland::VideoMode),
+}
+
+impl VideoMode {
+    #[inline]
+    pub fn size(&self) -> PhysicalSize {
+        match self {
+            &VideoMode::X(ref m) => m.size(),
+            &VideoMode::Wayland(ref m) => m.size(),
+        }
+    }
+
+    #[inline]
+    pub fn bit_depth(&self) -> u16 {
+        match self {
+            &VideoMode::X(ref m) => m.bit_depth(),
+            &VideoMode::Wayland(ref m) => m.bit_depth(),
+        }
+    }
+
+    #[inline]
+    pub fn refresh_rate(&self) -> u16 {
+        match self {
+            &VideoMode::X(ref m) => m.refresh_rate(),
+            &VideoMode::Wayland(ref m) => m.refresh_rate(),
+        }
+    }
+
+    #[inline]
+    pub fn monitor(&self) -> RootMonitorHandle {
+        match self {
+            &VideoMode::X(ref m) => m.monitor(),
+            &VideoMode::Wayland(ref m) => m.monitor(),
         }
     }
 }
@@ -310,17 +350,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         match self {
             &Window::X(ref w) => w.fullscreen(),
-            &Window::Wayland(ref w) => w.fullscreen().map(|monitor_id| RootMonitorHandle {
-                inner: MonitorHandle::Wayland(monitor_id),
-            }),
+            &Window::Wayland(ref w) => w.fullscreen(),
         }
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         match self {
             &Window::X(ref w) => w.set_fullscreen(monitor),
             &Window::Wayland(ref w) => w.set_fullscreen(monitor),
@@ -410,14 +448,16 @@ unsafe extern "C" fn x_error_callback(
 ) -> c_int {
     let xconn_lock = X11_BACKEND.lock();
     if let Ok(ref xconn) = *xconn_lock {
-        let mut buf: [c_char; 1024] = mem::uninitialized();
+        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
+        // which do not require initialization.
+        let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
         (xconn.xlib.XGetErrorText)(
             display,
             (*event).error_code as c_int,
-            buf.as_mut_ptr(),
+            buf.as_mut_ptr() as *mut c_char,
             buf.len() as c_int,
         );
-        let description = CStr::from_ptr(buf.as_ptr()).to_string_lossy();
+        let description = CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy();
 
         let error = XError {
             description: description.into_owned(),
@@ -439,10 +479,18 @@ pub enum EventLoop<T: 'static> {
     X(x11::EventLoop<T>),
 }
 
-#[derive(Clone)]
 pub enum EventLoopProxy<T: 'static> {
     X(x11::EventLoopProxy<T>),
     Wayland(wayland::EventLoopProxy<T>),
+}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        match self {
+            EventLoopProxy::X(proxy) => EventLoopProxy::X(proxy.clone()),
+            EventLoopProxy::Wayland(proxy) => EventLoopProxy::Wayland(proxy.clone()),
+        }
+    }
 }
 
 impl<T: 'static> EventLoop<T> {

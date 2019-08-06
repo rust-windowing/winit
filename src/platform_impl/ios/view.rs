@@ -8,16 +8,50 @@ use objc::{
 use crate::{
     event::{DeviceId as RootDeviceId, Event, Touch, TouchPhase, WindowEvent},
     platform::ios::MonitorHandleExtIOS,
-    window::{WindowAttributes, WindowId as RootWindowId},
+    platform_impl::platform::{
+        app_state::AppState,
+        event_loop,
+        ffi::{
+            id, nil, CGFloat, CGPoint, CGRect, UIInterfaceOrientationMask, UIRectEdge, UITouchPhase,
+        },
+        window::PlatformSpecificWindowBuilderAttributes,
+        DeviceId,
+    },
+    window::{Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
 
-use crate::platform_impl::platform::{
-    app_state::AppState,
-    event_loop,
-    ffi::{id, nil, CGFloat, CGPoint, CGRect, UIInterfaceOrientationMask, UITouchPhase},
-    window::PlatformSpecificWindowBuilderAttributes,
-    DeviceId,
-};
+macro_rules! add_property {
+    (
+        $decl:ident,
+        $name:ident: $t:ty,
+        $setter_name:ident: |$object:ident| $after_set:expr,
+        $getter_name:ident,
+    ) => {
+        {
+            const VAR_NAME: &'static str = concat!("_", stringify!($name));
+            $decl.add_ivar::<$t>(VAR_NAME);
+            #[allow(non_snake_case)]
+            extern "C" fn $setter_name($object: &mut Object, _: Sel, value: $t) {
+                unsafe {
+                    $object.set_ivar::<$t>(VAR_NAME, value);
+                }
+                $after_set
+            }
+            #[allow(non_snake_case)]
+            extern "C" fn $getter_name($object: &Object, _: Sel) -> $t {
+                unsafe { *$object.get_ivar::<$t>(VAR_NAME) }
+            }
+            $decl.add_method(
+                sel!($setter_name:),
+                $setter_name as extern "C" fn(&mut Object, Sel, $t),
+            );
+            $decl.add_method(
+                sel!($getter_name),
+                $getter_name as extern "C" fn(&Object, Sel) -> $t,
+            );
+        }
+    };
+}
 
 // requires main thread
 unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
@@ -59,8 +93,8 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
                 let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width,
-                    height: screen_frame.size.height,
+                    width: screen_frame.size.width as _,
+                    height: screen_frame.size.height as _,
                 };
                 AppState::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
@@ -92,67 +126,56 @@ unsafe fn get_view_controller_class() -> &'static Class {
     if CLASS.is_none() {
         let uiviewcontroller_class = class!(UIViewController);
 
-        extern "C" fn set_prefers_status_bar_hidden(object: &mut Object, _: Sel, hidden: BOOL) {
-            unsafe {
-                object.set_ivar::<BOOL>("_prefers_status_bar_hidden", hidden);
-                let () = msg_send![object, setNeedsStatusBarAppearanceUpdate];
-            }
-        }
-
-        extern "C" fn prefers_status_bar_hidden(object: &Object, _: Sel) -> BOOL {
-            unsafe { *object.get_ivar::<BOOL>("_prefers_status_bar_hidden") }
-        }
-
-        extern "C" fn set_supported_orientations(
-            object: &mut Object,
-            _: Sel,
-            orientations: UIInterfaceOrientationMask,
-        ) {
-            unsafe {
-                object.set_ivar::<UIInterfaceOrientationMask>(
-                    "_supported_orientations",
-                    orientations,
-                );
-                let () = msg_send![class!(UIViewController), attemptRotationToDeviceOrientation];
-            }
-        }
-
-        extern "C" fn supported_orientations(
-            object: &Object,
-            _: Sel,
-        ) -> UIInterfaceOrientationMask {
-            unsafe { *object.get_ivar::<UIInterfaceOrientationMask>("_supported_orientations") }
-        }
-
         extern "C" fn should_autorotate(_: &Object, _: Sel) -> BOOL {
             YES
         }
 
         let mut decl = ClassDecl::new("WinitUIViewController", uiviewcontroller_class)
             .expect("Failed to declare class `WinitUIViewController`");
-        decl.add_ivar::<BOOL>("_prefers_status_bar_hidden");
-        decl.add_ivar::<UIInterfaceOrientationMask>("_supported_orientations");
-        decl.add_method(
-            sel!(setPrefersStatusBarHidden:),
-            set_prefers_status_bar_hidden as extern "C" fn(&mut Object, Sel, BOOL),
-        );
-        decl.add_method(
-            sel!(prefersStatusBarHidden),
-            prefers_status_bar_hidden as extern "C" fn(&Object, Sel) -> BOOL,
-        );
-        decl.add_method(
-            sel!(setSupportedInterfaceOrientations:),
-            set_supported_orientations
-                as extern "C" fn(&mut Object, Sel, UIInterfaceOrientationMask),
-        );
-        decl.add_method(
-            sel!(supportedInterfaceOrientations),
-            supported_orientations as extern "C" fn(&Object, Sel) -> UIInterfaceOrientationMask,
-        );
         decl.add_method(
             sel!(shouldAutorotate),
             should_autorotate as extern "C" fn(&Object, Sel) -> BOOL,
         );
+        add_property! {
+            decl,
+            prefers_status_bar_hidden: BOOL,
+            setPrefersStatusBarHidden: |object| {
+                unsafe {
+                    let () = msg_send![object, setNeedsStatusBarAppearanceUpdate];
+                }
+            },
+            prefersStatusBarHidden,
+        }
+        add_property! {
+            decl,
+            prefers_home_indicator_auto_hidden: BOOL,
+            setPrefersHomeIndicatorAutoHidden: |object| {
+                unsafe {
+                    let () = msg_send![object, setNeedsUpdateOfHomeIndicatorAutoHidden];
+                }
+            },
+            prefersHomeIndicatorAutoHidden,
+        }
+        add_property! {
+            decl,
+            supported_orientations: UIInterfaceOrientationMask,
+            setSupportedInterfaceOrientations: |object| {
+                unsafe {
+                    let () = msg_send![class!(UIViewController), attemptRotationToDeviceOrientation];
+                }
+            },
+            supportedInterfaceOrientations,
+        }
+        add_property! {
+            decl,
+            preferred_screen_edges_deferring_system_gestures: UIRectEdge,
+            setPreferredScreenEdgesDeferringSystemGestures: |object| {
+                unsafe {
+                    let () = msg_send![object, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
+                }
+            },
+            preferredScreenEdgesDeferringSystemGestures,
+        }
         CLASS = Some(decl.register());
     }
     CLASS.unwrap()
@@ -235,8 +258,8 @@ unsafe fn get_window_class() -> &'static Class {
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
                 let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width,
-                    height: screen_frame.size.height,
+                    width: screen_frame.size.width as _,
+                    height: screen_frame.size.height as _,
                 };
                 AppState::handle_nonuser_events(
                     std::iter::once(Event::WindowEvent {
@@ -334,6 +357,14 @@ pub unsafe fn create_view_controller(
         platform_attributes.valid_orientations,
         idiom,
     );
+    let prefers_home_indicator_hidden = if platform_attributes.prefers_home_indicator_hidden {
+        YES
+    } else {
+        NO
+    };
+    let edges: UIRectEdge = platform_attributes
+        .preferred_screen_edges_deferring_system_gestures
+        .into();
     let () = msg_send![
         view_controller,
         setPrefersStatusBarHidden: status_bar_hidden
@@ -341,6 +372,14 @@ pub unsafe fn create_view_controller(
     let () = msg_send![
         view_controller,
         setSupportedInterfaceOrientations: supported_orientations
+    ];
+    let () = msg_send![
+        view_controller,
+        setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
+    ];
+    let () = msg_send![
+        view_controller,
+        setPreferredScreenEdgesDeferringSystemGestures: edges
     ];
     let () = msg_send![view_controller, setView: view];
     view_controller
@@ -366,8 +405,16 @@ pub unsafe fn create_window(
     if let Some(hidpi_factor) = platform_attributes.hidpi_factor {
         let () = msg_send![window, setContentScaleFactor: hidpi_factor as CGFloat];
     }
-    if let &Some(ref monitor) = &window_attributes.fullscreen {
-        let () = msg_send![window, setScreen:monitor.ui_screen()];
+    match window_attributes.fullscreen {
+        Some(Fullscreen::Exclusive(ref video_mode)) => {
+            let uiscreen = video_mode.monitor().ui_screen() as id;
+            let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+            msg_send![window, setScreen:video_mode.monitor().ui_screen()]
+        }
+        Some(Fullscreen::Borderless(ref monitor)) => {
+            msg_send![window, setScreen:monitor.ui_screen()]
+        }
+        None => (),
     }
 
     window

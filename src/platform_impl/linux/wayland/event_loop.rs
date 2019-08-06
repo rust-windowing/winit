@@ -7,15 +7,23 @@ use std::{
     time::Instant,
 };
 
+use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1::client::{
+    zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
+    zwp_relative_pointer_v1::ZwpRelativePointerV1,
+};
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::ModifiersState,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    monitor::VideoMode,
-    platform_impl::platform::sticky_exit_callback,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    platform_impl::platform::{
+        sticky_exit_callback, MonitorHandle as PlatformMonitorHandle,
+        VideoMode as PlatformVideoMode,
+    },
 };
 
-use super::{window::WindowStore, WindowId};
+use super::{window::WindowStore, DeviceId, WindowId};
 
 use smithay_client_toolkit::{
     output::OutputMgr,
@@ -26,33 +34,37 @@ use smithay_client_toolkit::{
     Environment,
 };
 
-pub struct WindowEventsSink {
-    buffer: VecDeque<(crate::event::WindowEvent, crate::window::WindowId)>,
+pub struct WindowEventsSink<T> {
+    buffer: VecDeque<crate::event::Event<T>>,
 }
 
-impl WindowEventsSink {
-    pub fn new() -> WindowEventsSink {
+impl<T> WindowEventsSink<T> {
+    pub fn new() -> WindowEventsSink<T> {
         WindowEventsSink {
             buffer: VecDeque::new(),
         }
     }
 
-    pub fn send_event(&mut self, evt: crate::event::WindowEvent, wid: WindowId) {
-        self.buffer.push_back((
-            evt,
-            crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
-        ));
+    pub fn send_window_event(&mut self, evt: crate::event::WindowEvent, wid: WindowId) {
+        self.buffer.push_back(crate::event::Event::WindowEvent {
+            event: evt,
+            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
+        });
     }
 
-    fn empty_with<F, T>(&mut self, mut callback: F)
+    pub fn send_device_event(&mut self, evt: crate::event::DeviceEvent, dev_id: DeviceId) {
+        self.buffer.push_back(crate::event::Event::DeviceEvent {
+            event: evt,
+            device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(dev_id)),
+        });
+    }
+
+    fn empty_with<F>(&mut self, mut callback: F)
     where
         F: FnMut(crate::event::Event<T>),
     {
-        for (evt, wid) in self.buffer.drain(..) {
-            callback(crate::event::Event::WindowEvent {
-                event: evt,
-                window_id: wid,
-            })
+        for evt in self.buffer.drain(..) {
+            callback(evt)
         }
     }
 }
@@ -65,7 +77,7 @@ pub struct EventLoop<T: 'static> {
     // the output manager
     pub outputs: OutputMgr,
     // our sink, shared with some handlers, buffering the events
-    sink: Arc<Mutex<WindowEventsSink>>,
+    sink: Arc<Mutex<WindowEventsSink<T>>>,
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     user_sender: ::calloop::channel::Sender<T>,
@@ -78,7 +90,6 @@ pub struct EventLoop<T: 'static> {
 // A handle that can be sent across threads and used to wake up the `EventLoop`.
 //
 // We should only try and wake up the `EventLoop` if it still exists, so we hold Weak ptrs.
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     user_sender: ::calloop::channel::Sender<T>,
 }
@@ -97,6 +108,14 @@ pub struct EventLoopWindowTarget<T> {
     // The list of seats
     pub seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     _marker: ::std::marker::PhantomData<T>,
+}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        EventLoopProxy {
+            user_sender: self.user_sender.clone(),
+        }
+    }
 }
 
 impl<T: 'static> EventLoopProxy<T> {
@@ -122,13 +141,14 @@ impl<T: 'static> EventLoop<T> {
             .handle()
             .insert_source(kbd_channel, move |evt, &mut ()| {
                 if let ::calloop::channel::Event::Msg((evt, wid)) = evt {
-                    kbd_sink.lock().unwrap().send_event(evt, wid);
+                    kbd_sink.lock().unwrap().send_window_event(evt, wid);
                 }
             })
             .unwrap();
 
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
+            relative_pointer_manager_proxy: None,
             store: store.clone(),
             seats: seats.clone(),
             kbd_sender,
@@ -143,6 +163,15 @@ impl<T: 'static> EventLoop<T> {
                     ref interface,
                     version,
                 } => {
+                    if interface == "zwp_relative_pointer_manager_v1" {
+                        seat_manager.relative_pointer_manager_proxy = Some(
+                            registry
+                                .bind(version, id, move |pointer_manager| {
+                                    pointer_manager.implement_closure(|_, _| (), ())
+                                })
+                                .unwrap(),
+                        )
+                    }
                     if interface == "wl_seat" {
                         seat_manager.add_seat(id, version, registry)
                     }
@@ -388,7 +417,7 @@ impl<T> EventLoop<T> {
                 let pruned = window_target.store.lock().unwrap().cleanup();
                 *cleanup_needed = false;
                 for wid in pruned {
-                    sink.send_event(crate::event::WindowEvent::Destroyed, wid);
+                    sink.send_window_event(crate::event::WindowEvent::Destroyed, wid);
                 }
             }
         }
@@ -400,7 +429,10 @@ impl<T> EventLoop<T> {
                         frame.resize(w, h);
                         frame.refresh();
                         let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
-                        sink.send_event(crate::event::WindowEvent::Resized(logical_size), wid);
+                        sink.send_window_event(
+                            crate::event::WindowEvent::Resized(logical_size),
+                            wid,
+                        );
                         *size = (w, h);
                     } else if frame_refresh {
                         frame.refresh();
@@ -410,16 +442,16 @@ impl<T> EventLoop<T> {
                     }
                 }
                 if let Some(dpi) = new_dpi {
-                    sink.send_event(
+                    sink.send_window_event(
                         crate::event::WindowEvent::HiDpiFactorChanged(dpi as f64),
                         wid,
                     );
                 }
                 if refresh {
-                    sink.send_event(crate::event::WindowEvent::RedrawRequested, wid);
+                    sink.send_window_event(crate::event::WindowEvent::RedrawRequested, wid);
                 }
                 if closed {
-                    sink.send_event(crate::event::WindowEvent::CloseRequested, wid);
+                    sink.send_window_event(crate::event::WindowEvent::CloseRequested, wid);
                 }
             },
         )
@@ -430,14 +462,15 @@ impl<T> EventLoop<T> {
  * Wayland protocol implementations
  */
 
-struct SeatManager {
-    sink: Arc<Mutex<WindowEventsSink>>,
+struct SeatManager<T: 'static> {
+    sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
+    relative_pointer_manager_proxy: Option<ZwpRelativePointerManagerV1>,
 }
 
-impl SeatManager {
+impl<T: 'static> SeatManager<T> {
     fn add_seat(&mut self, id: u32, version: u32, registry: wl_registry::WlRegistry) {
         use std::cmp::min;
 
@@ -445,6 +478,8 @@ impl SeatManager {
             sink: self.sink.clone(),
             store: self.store.clone(),
             pointer: None,
+            relative_pointer: None,
+            relative_pointer_manager_proxy: self.relative_pointer_manager_proxy.as_ref().cloned(),
             keyboard: None,
             touch: None,
             kbd_sender: self.kbd_sender.clone(),
@@ -470,17 +505,19 @@ impl SeatManager {
     }
 }
 
-struct SeatData {
-    sink: Arc<Mutex<WindowEventsSink>>,
+struct SeatData<T> {
+    sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     pointer: Option<wl_pointer::WlPointer>,
+    relative_pointer: Option<ZwpRelativePointerV1>,
+    relative_pointer_manager_proxy: Option<ZwpRelativePointerManagerV1>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
 }
 
-impl SeatData {
+impl<T: 'static> SeatData<T> {
     fn receive(&mut self, evt: wl_seat::Event, seat: wl_seat::WlSeat) {
         match evt {
             wl_seat::Event::Name { .. } => (),
@@ -492,7 +529,19 @@ impl SeatData {
                         self.sink.clone(),
                         self.store.clone(),
                         self.modifiers_tracker.clone(),
-                    ))
+                    ));
+
+                    self.relative_pointer =
+                        self.relative_pointer_manager_proxy
+                            .as_ref()
+                            .and_then(|manager| {
+                                super::pointer::implement_relative_pointer(
+                                    self.sink.clone(),
+                                    self.pointer.as_ref().unwrap(),
+                                    manager,
+                                )
+                                .ok()
+                            })
                 }
                 // destroy pointer if applicable
                 if !capabilities.contains(wl_seat::Capability::Pointer) {
@@ -540,7 +589,7 @@ impl SeatData {
     }
 }
 
-impl Drop for SeatData {
+impl<T> Drop for SeatData<T> {
     fn drop(&mut self) {
         if let Some(pointer) = self.pointer.take() {
             if pointer.as_ref().version() >= 3 {
@@ -564,17 +613,67 @@ impl Drop for SeatData {
  * Monitor stuff
  */
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VideoMode {
+    pub(crate) size: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+    pub(crate) monitor: MonitorHandle,
+}
+
+impl VideoMode {
+    #[inline]
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
+    }
+
+    #[inline]
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    #[inline]
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+
+    #[inline]
+    pub fn monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle {
+            inner: PlatformMonitorHandle::Wayland(self.monitor.clone()),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct MonitorHandle {
     pub(crate) proxy: wl_output::WlOutput,
     pub(crate) mgr: OutputMgr,
 }
 
-impl Clone for MonitorHandle {
-    fn clone(&self) -> MonitorHandle {
-        MonitorHandle {
-            proxy: self.proxy.clone(),
-            mgr: self.mgr.clone(),
-        }
+impl PartialEq for MonitorHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.native_identifier() == other.native_identifier()
+    }
+}
+
+impl Eq for MonitorHandle {}
+
+impl PartialOrd for MonitorHandle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for MonitorHandle {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.native_identifier().cmp(&other.native_identifier())
+    }
+}
+
+impl std::hash::Hash for MonitorHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.native_identifier().hash(state);
     }
 }
 
@@ -641,15 +740,20 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+        let monitor = self.clone();
+
         self.mgr
             .with_info(&self.proxy, |_, info| info.modes.clone())
             .unwrap_or(vec![])
             .into_iter()
-            .map(|x| VideoMode {
-                size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
-                refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
-                bit_depth: 32,
+            .map(move |x| RootVideoMode {
+                video_mode: PlatformVideoMode::Wayland(VideoMode {
+                    size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
+                    refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
+                    bit_depth: 32,
+                    monitor: monitor.clone(),
+                }),
             })
     }
 }

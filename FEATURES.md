@@ -84,6 +84,9 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Fullscreen**: The windows created by winit can be put into fullscreen mode.
 - **Fullscreen toggle**: The windows created by winit can be switched to and from fullscreen after
   creation.
+- **Exclusive fullscreen**: Winit allows changing the video mode of the monitor
+  for fullscreen windows, and if applicable, captures the monitor for exclusive
+  use by this application.
 - **HiDPI support**: Winit assists developers in appropriately scaling HiDPI content.
 - **Popup / modal windows**: Windows can be created relative to the client area of other windows, and parent
   windows can be disabled in favor of popup windows. This feature also guarantees that popup windows
@@ -129,6 +132,19 @@ If your PR makes notable changes to Winit's features, please update this section
 * GTK Theme Variant
 * Base window size
 
+### iOS
+* Get the `UIWindow` object pointer
+* Get the `UIViewController` object pointer
+* Get the `UIView` object pointer
+* Get the `UIScreen` object pointer
+* Setting the `UIView` hidpi factor
+* Valid orientations
+* Home indicator visibility
+* Deferrring system gestures
+* Support for custom `UIView` derived class
+* Getting the device idiom
+* Getting the preferred video mode
+
 ## Usability
 * `serde`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
 
@@ -148,22 +164,23 @@ Legend:
 |Window initialization            |✔️     |✔️     |▢[#5]      |✔️             |▢[#33]|▢[#33] |❓        |
 |Providing pointer to init OpenGL |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |❓        |
 |Providing pointer to init Vulkan |✔️     |✔️     |✔️         |✔️             |✔️     |❓     |**N/A**   |
-|Window decorations               |✔️     |✔️     |✔️         |▢[#306]        |**N/A**|**N/A**|**N/A**   |
-|Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
+|Window decorations               |✔️     |✔️     |✔️         |▢[#306]        |**N/A**|✔️     |**N/A**   |
+|Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |**N/A**   |
 |Window resizing                  |✔️     |▢[#219]|✔️         |▢[#306]        |**N/A**|**N/A**|❓        |
 |Window resize increments         |❌     |❌     |❌         |❌             |❌    |❌     |❌        |
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
 |Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
-|Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
-|Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❌        |
+|Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |❌        |
+|Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |❌        |
+|Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |✔️     |❌        |
 |HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️         |
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |❌        |
 
 ### System information
 |Feature          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
 |---------------- | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|Monitor list     |✔️    |✔️    |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |
+|Monitor list     |✔️    |✔️    |✔️       |✔️          |**N/A**|✔️     |**N/A**   |
 |Video mode query |✔️    |✔️    |✔️       |✔️          |❌      |✔️     |❌         |
 
 ### Input handling
@@ -174,7 +191,7 @@ Legend:
 |Cursor grab             |✔️       |▢[#165] |▢[#242]  |❌[#306]    |**N/A**|**N/A**|✔️       |
 |Cursor icon             |✔️       |✔️      |✔️       |❌[#306]    |**N/A**|**N/A**|❌       |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️       |
-|Multitouch              |❓        |❌      |✔️       |✔️          |❓     |❌     |❌       |
+|Multitouch              |✔️       |❌      |✔️       |✔️          |❓     |✔️     |❌       |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️       |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❌       |
@@ -187,7 +204,7 @@ Changes in the API that have been agreed upon but aren't implemented across all 
 |Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |Emscripten|
 |------------------------------      | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
 |New API for HiDPI ([#315] [#319])   |✔️    |✔️    |✔️       |✔️          |▢[#721]|✔️    |✔️       |
-|Event Loop 2.0 ([#459])             |✔️    |❌    |❌       |✔️          |❌     |❌    |❌       |
+|Event Loop 2.0 ([#459])             |✔️    |✔️    |❌       |✔️          |❌     |✔️     |❌       |
 |Keyboard Input ([#812])             |❌    |❌    |❌       |❌          |❌     |❌     |❌      |
 
 ### Completed API Reworks

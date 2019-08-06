@@ -5,7 +5,7 @@ use crate::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
-    monitor::{AvailableMonitorsIter, MonitorHandle},
+    monitor::{AvailableMonitorsIter, MonitorHandle, VideoMode},
     platform_impl,
 };
 
@@ -45,6 +45,18 @@ impl fmt::Debug for Window {
     }
 }
 
+impl Drop for Window {
+    fn drop(&mut self) {
+        // If the window is in exclusive fullscreen, we must restore the desktop
+        // video mode (generally this would be done on application exit, but
+        // closing the window doesn't necessarily always mean application exit,
+        // such as when there are multiple windows)
+        if let Some(Fullscreen::Exclusive(_)) = self.fullscreen() {
+            self.set_fullscreen(None);
+        }
+    }
+}
+
 /// Identifier of a window. Unique for each window.
 ///
 /// Can be obtained with `window.id()`.
@@ -71,7 +83,7 @@ pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
 
-    // Platform-specific configuration. Private.
+    // Platform-specific configuration.
     pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
 }
 
@@ -110,7 +122,7 @@ pub struct WindowAttributes {
     /// Whether the window should be set as fullscreen upon creation.
     ///
     /// The default is `None`.
-    pub fullscreen: Option<MonitorHandle>,
+    pub fullscreen: Option<Fullscreen>,
 
     /// The title of the window in the title bar.
     ///
@@ -222,10 +234,14 @@ impl WindowBuilder {
         self
     }
 
-    /// Sets the window fullscreen state. None means a normal window, Some(MonitorHandle)
+    /// Sets the window fullscreen state. None means a normal window, Some(Fullscreen)
     /// means a fullscreen window on that specific monitor
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: Option<MonitorHandle>) -> WindowBuilder {
+    pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> WindowBuilder {
         self.window.fullscreen = monitor;
         self
     }
@@ -288,7 +304,7 @@ impl WindowBuilder {
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
     #[inline]
     pub fn build<T: 'static>(
-        mut self,
+        self,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Result<Window, OsError> {
         self.window.inner_size = Some(self.window.inner_size.unwrap_or_else(|| {
@@ -328,7 +344,7 @@ impl Window {
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// See the [`dpi`](dpi/index.html) module for more information.
+    /// See the [`dpi`](../dpi/index.html) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
     /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
@@ -540,10 +556,27 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS:** `Fullscreen::Exclusive` provides true exclusive mode with a
+    ///   video mode change. *Caveat!* macOS doesn't provide task switching (or
+    ///   spaces!) while in exclusive fullscreen mode. This mode should be used
+    ///   when a video mode change is desired, but for a better user experience,
+    ///   borderless fullscreen might be preferred.
+    ///
+    ///   `Fullscreen::Borderless` provides a borderless fullscreen window on a
+    ///   separate space. This is the idiomatic way for fullscreen games to work
+    ///   on macOS. See [`WindowExtMacOs::set_simple_fullscreen`][simple] if
+    ///   separate spaces are not preferred.
+    ///
+    ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Wayland:** Does not support exclusive fullscreen mode.
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
+    ///
+    /// [simple]:
+    /// ../platform/macos/trait.WindowExtMacOS.html#tymethod.set_simple_fullscreen
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<MonitorHandle>) {
-        self.window.set_fullscreen(monitor)
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        self.window.set_fullscreen(fullscreen)
     }
 
     /// Gets the window's current fullscreen state.
@@ -552,7 +585,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn fullscreen(&self) -> Option<MonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.window.fullscreen()
     }
 
@@ -760,4 +793,10 @@ impl Default for CursorIcon {
     fn default() -> Self {
         CursorIcon::Default
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Fullscreen {
+    Exclusive(VideoMode),
+    Borderless(MonitorHandle),
 }

@@ -10,14 +10,17 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
-    platform::ios::{MonitorHandleExtIOS, ValidOrientations},
+    platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
     platform_impl::platform::{
         app_state::AppState,
         event_loop,
-        ffi::{id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask},
+        ffi::{
+            id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
+            UIRectEdge,
+        },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
-    window::{CursorIcon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
 pub struct Inner {
@@ -63,8 +66,8 @@ impl Inner {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             Ok(LogicalPosition {
-                x: safe_area.origin.x,
-                y: safe_area.origin.y,
+                x: safe_area.origin.x as _,
+                y: safe_area.origin.y as _,
             })
         }
     }
@@ -73,8 +76,8 @@ impl Inner {
         unsafe {
             let screen_frame = self.screen_frame();
             Ok(LogicalPosition {
-                x: screen_frame.origin.x,
-                y: screen_frame.origin.y,
+                x: screen_frame.origin.x as _,
+                y: screen_frame.origin.y as _,
             })
         }
     }
@@ -98,8 +101,8 @@ impl Inner {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             LogicalSize {
-                width: safe_area.size.width,
-                height: safe_area.size.height,
+                width: safe_area.size.width as _,
+                height: safe_area.size.height as _,
             }
         }
     }
@@ -108,8 +111,8 @@ impl Inner {
         unsafe {
             let screen_frame = self.screen_frame();
             LogicalSize {
-                width: screen_frame.size.width,
-                height: screen_frame.size.height,
+                width: screen_frame.size.width as _,
+                height: screen_frame.size.height as _,
             }
         }
     }
@@ -157,26 +160,33 @@ impl Inner {
         warn!("`Window::set_maximized` is ignored on iOS")
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
-            match monitor {
-                Some(monitor) => {
-                    let uiscreen = monitor.ui_screen() as id;
-                    let current: id = msg_send![self.window, screen];
-                    let bounds: CGRect = msg_send![uiscreen, bounds];
-
-                    // this is pretty slow on iOS, so avoid doing it if we can
-                    if uiscreen != current {
-                        let () = msg_send![self.window, setScreen: uiscreen];
-                    }
-                    let () = msg_send![self.window, setFrame: bounds];
+            let uiscreen = match monitor {
+                Some(Fullscreen::Exclusive(video_mode)) => {
+                    let uiscreen = video_mode.video_mode.monitor.ui_screen() as id;
+                    let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+                    uiscreen
                 }
-                None => warn!("`Window::set_fullscreen(None)` ignored on iOS"),
+                Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
+                None => {
+                    warn!("`Window::set_fullscreen(None)` ignored on iOS");
+                    return;
+                }
+            };
+
+            let current: id = msg_send![self.window, screen];
+            let bounds: CGRect = msg_send![uiscreen, bounds];
+
+            // this is pretty slow on iOS, so avoid doing it if we can
+            if uiscreen != current {
+                let () = msg_send![self.window, setScreen: uiscreen];
             }
+            let () = msg_send![self.window, setFrame: bounds];
         }
     }
 
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         unsafe {
             let monitor = self.current_monitor();
             let uiscreen = monitor.inner.ui_screen();
@@ -189,7 +199,7 @@ impl Inner {
                 && screen_space_bounds.size.width == screen_bounds.size.width
                 && screen_space_bounds.size.height == screen_bounds.size.height
             {
-                Some(monitor)
+                Some(Fullscreen::Borderless(monitor))
             } else {
                 None
             }
@@ -293,19 +303,22 @@ impl Window {
         // TODO: transparency, visible
 
         unsafe {
-            let screen = window_attributes
-                .fullscreen
-                .as_ref()
-                .map(|screen| screen.ui_screen() as _)
-                .unwrap_or_else(|| monitor::main_uiscreen().ui_screen());
+            let screen = match window_attributes.fullscreen {
+                Some(Fullscreen::Exclusive(ref video_mode)) => {
+                    video_mode.video_mode.monitor.ui_screen() as id
+                }
+                Some(Fullscreen::Borderless(ref monitor)) => monitor.ui_screen() as id,
+                None => monitor::main_uiscreen().ui_screen(),
+            };
+
             let screen_bounds: CGRect = msg_send![screen, bounds];
 
             let frame = match window_attributes.inner_size {
                 Some(dim) => CGRect {
                     origin: screen_bounds.origin,
                     size: CGSize {
-                        width: dim.width,
-                        height: dim.height,
+                        width: dim.width as _,
+                        height: dim.height as _,
                     },
                 },
                 None => screen_bounds,
@@ -370,6 +383,26 @@ impl Inner {
             msg_send![
                 self.view_controller,
                 setSupportedInterfaceOrientations: supported_orientations
+            ];
+        }
+    }
+
+    pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
+        unsafe {
+            let prefers_home_indicator_hidden = if hidden { NO } else { YES };
+            let () = msg_send![
+                self.view_controller,
+                setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
+            ];
+        }
+    }
+
+    pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
+        let edges: UIRectEdge = edges.into();
+        unsafe {
+            let () = msg_send![
+                self.view_controller,
+                setPreferredScreenEdgesDeferringSystemGestures: edges
             ];
         }
     }
@@ -494,6 +527,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub root_view_class: &'static Class,
     pub hidpi_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
+    pub prefers_home_indicator_hidden: bool,
+    pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -502,6 +537,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             root_view_class: class!(UIView),
             hidpi_factor: None,
             valid_orientations: Default::default(),
+            prefers_home_indicator_hidden: false,
+            preferred_screen_edges_deferring_system_gestures: Default::default(),
         }
     }
 }

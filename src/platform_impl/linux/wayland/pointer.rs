@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use crate::event::{
-    ElementState, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
+    DeviceEvent, ElementState, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
+    WindowEvent,
 };
 
 use super::{event_loop::WindowEventsSink, window::WindowStore, DeviceId};
@@ -11,18 +12,23 @@ use smithay_client_toolkit::reexports::client::protocol::{
     wl_seat,
 };
 
-pub fn implement_pointer(
+use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1::client::{
+    zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1, zwp_relative_pointer_v1::Event,
+    zwp_relative_pointer_v1::ZwpRelativePointerV1,
+};
+
+pub fn implement_pointer<T: 'static>(
     seat: &wl_seat::WlSeat,
-    sink: Arc<Mutex<WindowEventsSink>>,
+    sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
 ) -> WlPointer {
-    let mut mouse_focus = None;
-    let mut axis_buffer = None;
-    let mut axis_discrete_buffer = None;
-    let mut axis_state = TouchPhase::Ended;
-
     seat.get_pointer(|pointer| {
+        let mut mouse_focus = None;
+        let mut axis_buffer = None;
+        let mut axis_discrete_buffer = None;
+        let mut axis_state = TouchPhase::Ended;
+
         pointer.implement_closure(
             move |evt, pointer| {
                 let mut sink = sink.lock().unwrap();
@@ -37,7 +43,7 @@ pub fn implement_pointer(
                         let wid = store.find_wid(&surface);
                         if let Some(wid) = wid {
                             mouse_focus = Some(wid);
-                            sink.send_event(
+                            sink.send_window_event(
                                 WindowEvent::CursorEntered {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -45,7 +51,7 @@ pub fn implement_pointer(
                                 },
                                 wid,
                             );
-                            sink.send_event(
+                            sink.send_window_event(
                                 WindowEvent::CursorMoved {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -61,7 +67,7 @@ pub fn implement_pointer(
                         mouse_focus = None;
                         let wid = store.find_wid(&surface);
                         if let Some(wid) = wid {
-                            sink.send_event(
+                            sink.send_window_event(
                                 WindowEvent::CursorLeft {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -77,7 +83,7 @@ pub fn implement_pointer(
                         ..
                     } => {
                         if let Some(wid) = mouse_focus {
-                            sink.send_event(
+                            sink.send_window_event(
                                 WindowEvent::CursorMoved {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -103,7 +109,7 @@ pub fn implement_pointer(
                                 // TODO figure out the translation ?
                                 _ => return,
                             };
-                            sink.send_event(
+                            sink.send_window_event(
                                 WindowEvent::MouseInput {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -127,7 +133,7 @@ pub fn implement_pointer(
                                     wl_pointer::Axis::HorizontalScroll => x += value as f32,
                                     _ => unreachable!(),
                                 }
-                                sink.send_event(
+                                sink.send_window_event(
                                     WindowEvent::MouseWheel {
                                         device_id: crate::event::DeviceId(
                                             crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -161,7 +167,7 @@ pub fn implement_pointer(
                         let axis_discrete_buffer = axis_discrete_buffer.take();
                         if let Some(wid) = mouse_focus {
                             if let Some((x, y)) = axis_discrete_buffer {
-                                sink.send_event(
+                                sink.send_window_event(
                                     WindowEvent::MouseWheel {
                                         device_id: crate::event::DeviceId(
                                             crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -173,7 +179,7 @@ pub fn implement_pointer(
                                     wid,
                                 );
                             } else if let Some((x, y)) = axis_buffer {
-                                sink.send_event(
+                                sink.send_window_event(
                                     WindowEvent::MouseWheel {
                                         device_id: crate::event::DeviceId(
                                             crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -214,4 +220,24 @@ pub fn implement_pointer(
         )
     })
     .unwrap()
+}
+
+pub fn implement_relative_pointer<T: 'static>(
+    sink: Arc<Mutex<WindowEventsSink<T>>>,
+    pointer: &WlPointer,
+    manager: &ZwpRelativePointerManagerV1,
+) -> Result<ZwpRelativePointerV1, ()> {
+    manager.get_relative_pointer(pointer, |rel_pointer| {
+        rel_pointer.implement_closure(
+            move |evt, _rel_pointer| {
+                let mut sink = sink.lock().unwrap();
+                match evt {
+                    Event::RelativeMotion { dx, dy, .. } => sink
+                        .send_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId),
+                    _ => unreachable!(),
+                }
+            },
+            (),
+        )
+    })
 }

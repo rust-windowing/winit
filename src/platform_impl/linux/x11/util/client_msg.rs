@@ -30,13 +30,17 @@ impl XConnection {
         event_mask: Option<c_long>,
         data: ClientMsgPayload,
     ) -> Flusher<'_> {
-        let mut event: ffi::XClientMessageEvent = unsafe { mem::uninitialized() };
-        event.type_ = ffi::ClientMessage;
-        event.display = self.display;
-        event.window = window;
-        event.message_type = message_type;
-        event.format = c_long::FORMAT as c_int;
-        event.data = unsafe { mem::transmute(data) };
+        let event = ffi::XClientMessageEvent {
+            type_: ffi::ClientMessage,
+            display: self.display,
+            window,
+            message_type,
+            format: c_long::FORMAT as c_int,
+            data: unsafe { mem::transmute(data) },
+            // These fields are ignored by `XSendEvent`
+            serial: 0,
+            send_event: 0,
+        };
         self.send_event(target_window, event_mask, event)
     }
 
@@ -54,12 +58,17 @@ impl XConnection {
         let format = T::FORMAT;
         let size_of_t = mem::size_of::<T>();
         debug_assert_eq!(size_of_t, format.get_actual_size());
-        let mut event: ffi::XClientMessageEvent = unsafe { mem::uninitialized() };
-        event.type_ = ffi::ClientMessage;
-        event.display = self.display;
-        event.window = window;
-        event.message_type = message_type;
-        event.format = format as c_int;
+        let mut event = ffi::XClientMessageEvent {
+            type_: ffi::ClientMessage,
+            display: self.display,
+            window,
+            message_type,
+            format: format as c_int,
+            data: ffi::ClientMessageData::new(),
+            // These fields are ignored by `XSendEvent`
+            serial: 0,
+            send_event: 0,
+        };
 
         let t_per_payload = format.get_payload_size() / size_of_t;
         assert!(t_per_payload > 0);

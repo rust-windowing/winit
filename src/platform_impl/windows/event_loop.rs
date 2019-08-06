@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! An events loop on Win32 is a background thread.
 //!
 //! Creating an events loop spawns a thread and blocks it in a permanent Win32 events loop.
@@ -37,7 +38,7 @@ use winapi::{
     },
     um::{
         commctrl, libloaderapi, ole2, processthreadsapi, winbase,
-        winnt::{LPCSTR, SHORT},
+        winnt::{HANDLE, LPCSTR, SHORT},
         winuser,
     },
 };
@@ -58,6 +59,29 @@ use crate::{
     },
     window::WindowId as RootWindowId,
 };
+
+type GetPointerFrameInfoHistory = unsafe extern "system" fn(
+    pointerId: UINT,
+    entriesCount: *mut UINT,
+    pointerCount: *mut UINT,
+    pointerInfo: *mut winuser::POINTER_INFO,
+) -> BOOL;
+
+type SkipPointerFrameMessages = unsafe extern "system" fn(pointerId: UINT) -> BOOL;
+type GetPointerDeviceRects = unsafe extern "system" fn(
+    device: HANDLE,
+    pointerDeviceRect: *mut RECT,
+    displayRect: *mut RECT,
+) -> BOOL;
+
+lazy_static! {
+    static ref GET_POINTER_FRAME_INFO_HISTORY: Option<GetPointerFrameInfoHistory> =
+        get_function!("user32.dll", GetPointerFrameInfoHistory);
+    static ref SKIP_POINTER_FRAME_MESSAGES: Option<SkipPointerFrameMessages> =
+        get_function!("user32.dll", SkipPointerFrameMessages);
+    static ref GET_POINTER_DEVICE_RECTS: Option<GetPointerDeviceRects> =
+        get_function!("user32.dll", GetPointerDeviceRects);
+}
 
 pub(crate) struct SubclassInput<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
@@ -183,7 +207,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         unsafe {
-            let mut msg = mem::uninitialized();
+            let mut msg = mem::zeroed();
             let mut msg_unprocessed = false;
 
             'main: loop {
@@ -196,6 +220,7 @@ impl<T: 'static> EventLoop<T> {
                     }
                     winuser::TranslateMessage(&mut msg);
                     winuser::DispatchMessageW(&mut msg);
+
                     msg_unprocessed = false;
                 }
                 runner!().events_cleared();
@@ -203,19 +228,21 @@ impl<T: 'static> EventLoop<T> {
                     panic::resume_unwind(payload);
                 }
 
-                let control_flow = runner!().control_flow;
-                match control_flow {
-                    ControlFlow::Exit => break 'main,
-                    ControlFlow::Wait => {
-                        if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
-                            break 'main;
+                if !msg_unprocessed {
+                    let control_flow = runner!().control_flow;
+                    match control_flow {
+                        ControlFlow::Exit => break 'main,
+                        ControlFlow::Wait => {
+                            if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
+                                break 'main;
+                            }
+                            msg_unprocessed = true;
                         }
-                        msg_unprocessed = true;
+                        ControlFlow::WaitUntil(resume_time) => {
+                            wait_until_time_or_msg(resume_time);
+                        }
+                        ControlFlow::Poll => (),
                     }
-                    ControlFlow::WaitUntil(resume_time) => {
-                        wait_until_time_or_msg(resume_time);
-                    }
-                    ControlFlow::Poll => (),
                 }
             }
         }
@@ -254,6 +281,7 @@ pub(crate) struct EventLoopRunner<T: 'static> {
     runner_state: RunnerState,
     modal_redraw_window: HWND,
     in_modal_loop: bool,
+    in_repaint: bool,
     event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>,
     panic_error: Option<PanicError>,
 }
@@ -326,6 +354,7 @@ impl<T> EventLoopRunner<T> {
             control_flow: ControlFlow::default(),
             runner_state: RunnerState::New,
             in_modal_loop: false,
+            in_repaint: false,
             modal_redraw_window: event_loop.window_target.p.thread_msg_target,
             event_handler: mem::transmute::<
                 Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>,
@@ -439,10 +468,26 @@ impl<T> EventLoopRunner<T> {
         }
 
         self.runner_state = RunnerState::HandlingEvents;
-        self.call_event_handler(event);
+        match (self.in_repaint, &event) {
+            (
+                true,
+                Event::WindowEvent {
+                    event: WindowEvent::RedrawRequested,
+                    ..
+                },
+            )
+            | (false, _) => self.call_event_handler(event),
+            (true, _) => {
+                self.events_cleared();
+                self.new_events();
+                self.process_event(event);
+            }
+        }
     }
 
     fn events_cleared(&mut self) {
+        self.in_repaint = false;
+
         match self.runner_state {
             // If we were handling events, send the EventsCleared message.
             RunnerState::HandlingEvents => {
@@ -493,6 +538,10 @@ impl<T> EventLoopRunner<T> {
             Event::EventsCleared => self
                 .trigger_newevents_on_redraw
                 .store(false, Ordering::Relaxed),
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => self.in_repaint = true,
             _ => (),
         }
 
@@ -517,7 +566,7 @@ impl<T> EventLoopRunner<T> {
 
 // Returns true if the wait time was reached, and false if a message must be processed.
 unsafe fn wait_until_time_or_msg(wait_until: Instant) -> bool {
-    let mut msg = mem::uninitialized();
+    let mut msg = mem::zeroed();
     let now = Instant::now();
     if now <= wait_until {
         // MsgWaitForMultipleObjects tends to overshoot just a little bit. We subtract 1 millisecond
@@ -639,12 +688,20 @@ impl EventLoopThreadExecutor {
 
 type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     target_window: HWND,
     event_send: Sender<T>,
 }
 unsafe impl<T: Send + 'static> Send for EventLoopProxy<T> {}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        Self {
+            target_window: self.target_window,
+            event_send: self.event_send.clone(),
+        }
+    }
+}
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
@@ -874,12 +931,12 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         _ if msg == *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID => {
             use crate::event::WindowEvent::RedrawRequested;
             let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
+            subclass_input.window_state.lock().queued_out_of_band_redraw = false;
             if let Some(ref mut runner) = *runner {
                 // This check makes sure that calls to `request_redraw()` during `EventsCleared`
                 // handling dispatch `RedrawRequested` immediately after `EventsCleared`, without
                 // spinning up a new event loop iteration. We do this because that's what the API
                 // says to do.
-                let control_flow = runner.control_flow;
                 let runner_state = runner.runner_state;
                 let mut request_redraw = || {
                     runner.call_event_handler(Event::WindowEvent {
@@ -889,15 +946,14 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 };
                 match runner_state {
                     RunnerState::Idle(..) | RunnerState::DeferredNewEvents(..) => request_redraw(),
-                    RunnerState::HandlingEvents => match control_flow {
-                        ControlFlow::Poll => request_redraw(),
-                        ControlFlow::WaitUntil(resume_time) => {
-                            if resume_time <= Instant::now() {
-                                request_redraw()
-                            }
-                        }
-                        _ => (),
-                    },
+                    RunnerState::HandlingEvents => {
+                        winuser::RedrawWindow(
+                            window,
+                            ptr::null(),
+                            ptr::null_mut(),
+                            winuser::RDW_INTERNALPAINT,
+                        );
+                    }
                     _ => (),
                 }
             }
@@ -972,6 +1028,17 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         // with wparam being SC_KEYMENU, but this may prevent some
         // other unwanted default hotkeys as well.
         winuser::WM_SYSCHAR => 0,
+
+        winuser::WM_SYSCOMMAND => {
+            if wparam == winuser::SC_SCREENSAVE {
+                let window_state = subclass_input.window_state.lock();
+                if window_state.fullscreen.is_some() {
+                    return 0;
+                }
+            }
+
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
+        }
 
         winuser::WM_MOUSEMOVE => {
             use crate::event::WindowEvent::{CursorEntered, CursorMoved};
@@ -1406,8 +1473,17 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             ) > 0
             {
                 for input in &inputs {
-                    let x = (input.x as f64) / 100f64;
-                    let y = (input.y as f64) / 100f64;
+                    let mut location = POINT {
+                        x: input.x / 100,
+                        y: input.y / 100,
+                    };
+
+                    if winuser::ScreenToClient(window, &mut location as *mut _) == 0 {
+                        continue;
+                    }
+
+                    let x = location.x as f64 + (input.x % 100) as f64 / 100f64;
+                    let y = location.y as f64 + (input.y % 100) as f64 / 100f64;
                     let location = PhysicalPosition::new(x, y);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
@@ -1429,6 +1505,111 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 }
             }
             winuser::CloseTouchInputHandle(htouch);
+            0
+        }
+
+        winuser::WM_POINTERDOWN | winuser::WM_POINTERUPDATE | winuser::WM_POINTERUP => {
+            if let (
+                Some(GetPointerFrameInfoHistory),
+                Some(SkipPointerFrameMessages),
+                Some(GetPointerDeviceRects),
+            ) = (
+                *GET_POINTER_FRAME_INFO_HISTORY,
+                *SKIP_POINTER_FRAME_MESSAGES,
+                *GET_POINTER_DEVICE_RECTS,
+            ) {
+                let pointer_id = LOWORD(wparam as DWORD) as UINT;
+                let mut entries_count = 0 as UINT;
+                let mut pointers_count = 0 as UINT;
+                if GetPointerFrameInfoHistory(
+                    pointer_id,
+                    &mut entries_count as *mut _,
+                    &mut pointers_count as *mut _,
+                    std::ptr::null_mut(),
+                ) == 0
+                {
+                    return 0;
+                }
+
+                let pointer_info_count = (entries_count * pointers_count) as usize;
+                let mut pointer_infos = Vec::with_capacity(pointer_info_count);
+                pointer_infos.set_len(pointer_info_count);
+                if GetPointerFrameInfoHistory(
+                    pointer_id,
+                    &mut entries_count as *mut _,
+                    &mut pointers_count as *mut _,
+                    pointer_infos.as_mut_ptr(),
+                ) == 0
+                {
+                    return 0;
+                }
+
+                let dpi_factor = hwnd_scale_factor(window);
+                // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getpointerframeinfohistory
+                // The information retrieved appears in reverse chronological order, with the most recent entry in the first
+                // row of the returned array
+                for pointer_info in pointer_infos.iter().rev() {
+                    let mut device_rect: RECT = mem::uninitialized();
+                    let mut display_rect: RECT = mem::uninitialized();
+
+                    if (GetPointerDeviceRects(
+                        pointer_info.sourceDevice,
+                        &mut device_rect as *mut _,
+                        &mut display_rect as *mut _,
+                    )) == 0
+                    {
+                        continue;
+                    }
+
+                    // For the most precise himetric to pixel conversion we calculate the ratio between the resolution
+                    // of the display device (pixel) and the touch device (himetric).
+                    let himetric_to_pixel_ratio_x = (display_rect.right - display_rect.left) as f64
+                        / (device_rect.right - device_rect.left) as f64;
+                    let himetric_to_pixel_ratio_y = (display_rect.bottom - display_rect.top) as f64
+                        / (device_rect.bottom - device_rect.top) as f64;
+
+                    // ptHimetricLocation's origin is 0,0 even on multi-monitor setups.
+                    // On multi-monitor setups we need to translate the himetric location to the rect of the
+                    // display device it's attached to.
+                    let x = display_rect.left as f64
+                        + pointer_info.ptHimetricLocation.x as f64 * himetric_to_pixel_ratio_x;
+                    let y = display_rect.top as f64
+                        + pointer_info.ptHimetricLocation.y as f64 * himetric_to_pixel_ratio_y;
+
+                    let mut location = POINT {
+                        x: x.floor() as i32,
+                        y: y.floor() as i32,
+                    };
+
+                    if winuser::ScreenToClient(window, &mut location as *mut _) == 0 {
+                        continue;
+                    }
+
+                    let x = location.x as f64 + x.fract();
+                    let y = location.y as f64 + y.fract();
+                    let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                    subclass_input.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: WindowEvent::Touch(Touch {
+                            phase: if pointer_info.pointerFlags & winuser::POINTER_FLAG_DOWN != 0 {
+                                TouchPhase::Started
+                            } else if pointer_info.pointerFlags & winuser::POINTER_FLAG_UP != 0 {
+                                TouchPhase::Ended
+                            } else if pointer_info.pointerFlags & winuser::POINTER_FLAG_UPDATE != 0
+                            {
+                                TouchPhase::Moved
+                            } else {
+                                continue;
+                            },
+                            location,
+                            id: pointer_info.pointerId as u64,
+                            device_id: DEVICE_ID,
+                        }),
+                    });
+                }
+
+                SkipPointerFrameMessages(pointer_id);
+            }
             0
         }
 
@@ -1645,7 +1826,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                 }
             };
             if in_modal_loop {
-                let mut msg = mem::uninitialized();
+                let mut msg = mem::zeroed();
                 loop {
                     if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
                         break;
