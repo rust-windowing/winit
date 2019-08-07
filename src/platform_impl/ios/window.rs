@@ -16,7 +16,7 @@ use crate::{
         event_loop,
         ffi::{
             id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
-            UIRectEdge,
+            UIRectEdge, UIScreenOverscanCompensation,
         },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
@@ -66,8 +66,8 @@ impl Inner {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             Ok(LogicalPosition {
-                x: safe_area.origin.x,
-                y: safe_area.origin.y,
+                x: safe_area.origin.x as _,
+                y: safe_area.origin.y as _,
             })
         }
     }
@@ -76,8 +76,8 @@ impl Inner {
         unsafe {
             let screen_frame = self.screen_frame();
             Ok(LogicalPosition {
-                x: screen_frame.origin.x,
-                y: screen_frame.origin.y,
+                x: screen_frame.origin.x as _,
+                y: screen_frame.origin.y as _,
             })
         }
     }
@@ -101,8 +101,8 @@ impl Inner {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             LogicalSize {
-                width: safe_area.size.width,
-                height: safe_area.size.height,
+                width: safe_area.size.width as _,
+                height: safe_area.size.height as _,
             }
         }
     }
@@ -111,8 +111,8 @@ impl Inner {
         unsafe {
             let screen_frame = self.screen_frame();
             LogicalSize {
-                width: screen_frame.size.width,
-                height: screen_frame.size.height,
+                width: screen_frame.size.width as _,
+                height: screen_frame.size.height as _,
             }
         }
     }
@@ -175,14 +175,22 @@ impl Inner {
                 }
             };
 
-            let current: id = msg_send![self.window, screen];
-            let bounds: CGRect = msg_send![uiscreen, bounds];
-
             // this is pretty slow on iOS, so avoid doing it if we can
+            let current: id = msg_send![self.window, screen];
             if uiscreen != current {
                 let () = msg_send![self.window, setScreen: uiscreen];
             }
+
+            let bounds: CGRect = msg_send![uiscreen, bounds];
             let () = msg_send![self.window, setFrame: bounds];
+
+            // For external displays, we must disable overscan compensation or
+            // the displayed image will have giant black bars surrounding it on
+            // each side
+            let () = msg_send![
+                uiscreen,
+                setOverscanCompensation: UIScreenOverscanCompensation::None
+            ];
         }
     }
 
@@ -317,8 +325,8 @@ impl Window {
                 Some(dim) => CGRect {
                     origin: screen_bounds.origin,
                     size: CGSize {
-                        width: dim.width,
-                        height: dim.height,
+                        width: dim.width as _,
+                        height: dim.height as _,
                     },
                 },
                 None => screen_bounds,

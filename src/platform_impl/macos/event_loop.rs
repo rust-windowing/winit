@@ -108,7 +108,6 @@ impl<T> EventLoop<T> {
     }
 }
 
-#[derive(Clone)]
 pub struct Proxy<T> {
     sender: mpsc::Sender<T>,
     source: CFRunLoopSourceRef,
@@ -116,6 +115,12 @@ pub struct Proxy<T> {
 
 unsafe impl<T> Send for Proxy<T> {}
 unsafe impl<T> Sync for Proxy<T> {}
+
+impl<T> Clone for Proxy<T> {
+    fn clone(&self) -> Self {
+        Proxy::new(self.sender.clone())
+    }
+}
 
 impl<T> Proxy<T> {
     fn new(sender: mpsc::Sender<T>) -> Self {
