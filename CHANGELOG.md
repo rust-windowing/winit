@@ -85,6 +85,9 @@ and `WindowEvent::HoveredFile`.
 - On macOS, change `WindowExtMacOS::request_user_attention()` to take an `enum` instead of a `bool`.
 
 # 0.20.0 Alpha 1 (2019-06-21)
+- On Windows, fix window rectangle not getting set correctly on high-DPI systems.
+
+# 0.20.0 Alpha 1
 
 - Changes below are considered **breaking**.
 - Change all occurrences of `EventsLoop` to `EventLoop`.
