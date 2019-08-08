@@ -585,10 +585,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Controls whether the status bar is hidden
-    ///   via [`setPrefersStatusBarHidden`].
-    ///
-    /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
+    /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)

@@ -214,14 +214,8 @@ impl Inner {
         }
     }
 
-    pub fn set_decorations(&self, decorations: bool) {
-        unsafe {
-            let status_bar_hidden = if decorations { NO } else { YES };
-            let () = msg_send![
-                self.view_controller,
-                setPrefersStatusBarHidden: status_bar_hidden
-            ];
-        }
+    pub fn set_decorations(&self, _decorations: bool) {
+        warn!("`Window::set_decorations` is ignored on iOS")
     }
 
     pub fn set_always_on_top(&self, _always_on_top: bool) {
@@ -414,6 +408,16 @@ impl Inner {
             ];
         }
     }
+
+    pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
+        unsafe {
+            let status_bar_hidden = if hidden { YES } else { NO };
+            let () = msg_send![
+                self.view_controller,
+                setPrefersStatusBarHidden: status_bar_hidden
+            ];
+        }
+    }
 }
 
 impl Inner {
@@ -536,6 +540,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub hidpi_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
     pub prefers_home_indicator_hidden: bool,
+    pub prefers_status_bar_hidden: bool,
     pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }
 
@@ -546,6 +551,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             hidpi_factor: None,
             valid_orientations: Default::default(),
             prefers_home_indicator_hidden: false,
+            prefers_status_bar_hidden: false,
             preferred_screen_edges_deferring_system_gestures: Default::default(),
         }
     }
