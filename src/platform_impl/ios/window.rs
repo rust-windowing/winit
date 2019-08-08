@@ -16,7 +16,7 @@ use crate::{
         event_loop,
         ffi::{
             id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
-            UIRectEdge,
+            UIRectEdge, UIScreenOverscanCompensation,
         },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
@@ -175,14 +175,22 @@ impl Inner {
                 }
             };
 
-            let current: id = msg_send![self.window, screen];
-            let bounds: CGRect = msg_send![uiscreen, bounds];
-
             // this is pretty slow on iOS, so avoid doing it if we can
+            let current: id = msg_send![self.window, screen];
             if uiscreen != current {
                 let () = msg_send![self.window, setScreen: uiscreen];
             }
+
+            let bounds: CGRect = msg_send![uiscreen, bounds];
             let () = msg_send![self.window, setFrame: bounds];
+
+            // For external displays, we must disable overscan compensation or
+            // the displayed image will have giant black bars surrounding it on
+            // each side
+            let () = msg_send![
+                uiscreen,
+                setOverscanCompensation: UIScreenOverscanCompensation::None
+            ];
         }
     }
 
