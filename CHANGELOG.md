@@ -15,7 +15,10 @@
 - On iOS, add support for deferring system gestures.
 - On iOS, fix a crash that occurred while acquiring a monitor's name.
 - On iOS, fix armv7-apple-ios compile target.
-- Removed the `T: Clone` requirement from the `Clone` impl of `EventLoopProxy<T>`
+- Removed the `T: Clone` requirement from the `Clone` impl of `EventLoopProxy<T>`.
+- On iOS, disable overscan compensation for external displays (removes black
+  bars surrounding the image).
+- On Linux, the functions `is_wayland`, `is_x11`, `xlib_xconnection` and `wayland_display` have been moved to a new `EventLoopWindowTargetExtUnix` trait.
 - On macOS and iOS, corrected the auto trait impls of `EventLoopProxy`.
 
 # 0.20.0 Alpha 2 (2019-07-09)
