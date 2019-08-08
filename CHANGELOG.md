@@ -18,9 +18,10 @@
 - Removed the `T: Clone` requirement from the `Clone` impl of `EventLoopProxy<T>`.
 - On iOS, disable overscan compensation for external displays (removes black
   bars surrounding the image).
+- On Linux, the functions `is_wayland`, `is_x11`, `xlib_xconnection` and `wayland_display` have been moved to a new `EventLoopWindowTargetExtUnix` trait.
 - On iOS, add `set_prefers_status_bar_hidden` extension function instead of
   hijacking `set_decorations` for this purpose.
-
+  
 # 0.20.0 Alpha 2 (2019-07-09)
 
 - On X11, non-resizable windows now have maximize explicitly disabled.
