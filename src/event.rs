@@ -324,16 +324,71 @@ pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
     pub location: LogicalPosition,
-    /// Force of the touch, between 0.0 and 1.0, where 1.0 is the maximum
-    /// possible force. Returns `None` if the platform does not provide this
-    /// data.
+    /// Describes how hard the screen was pressed. May be `None` if the platform
+    /// does not support pressure sensitivity.
     ///
     /// ## Platform-specific
     ///
     /// - Only available on **iOS**.
-    pub force: Option<f64>,
+    pub force: Option<Force>,
     /// Unique identifier of a finger.
     pub id: u64,
+}
+
+/// Describes the force of a touch event
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Force {
+    /// On iOS, the force is calibrated so that the same number corresponds to
+    /// roughly the same amount of pressure on the screen regardless of the
+    /// device.
+    Calibrated {
+        /// The force of the touch, where a value of 1.0 represents the force of
+        /// an average touch (predetermined by the system, not user-specific).
+        ///
+        /// The force reported by Apple Pencil is measured along the axis of the
+        /// pencil. If you want a force perpendicular to the device, you need to
+        /// calculate this value using the `altitude_angle` value.
+        force: f64,
+        /// The maximum possible force for a touch.
+        ///
+        /// The value of this field is sufficiently high to provide a wide
+        /// dynamic range for values of the `force` field.
+        max_possible_force: f64,
+        /// The altitude (in radians) of the stylus.
+        ///
+        /// A value of 0 radians indicates that the stylus is parallel to the
+        /// surface. The value of this property is Pi/2 when the stylus is
+        /// perpendicular to the surface.
+        altitude_angle: Option<f64>,
+    },
+    /// If the platform reports the force as normalized, we have no way of
+    /// knowing how much pressure 1.0 corresponds to – we know it's the maximum
+    /// amount of force, but as to how much force, you might either have to
+    /// press really really hard, or not hard at all, depending on the device.
+    Normalized(f64),
+}
+
+impl Force {
+    /// Returns the force normalized to the range between 0.0 and 1.0 inclusive.
+    /// Instead of normalizing the force, you should prefer to handle
+    /// `Force::Calibrated` so that the amount of force the user has to apply is
+    /// consistent across devices.
+    pub fn normalized(&self) -> f64 {
+        match self {
+            Force::Calibrated {
+                force,
+                max_possible_force,
+                altitude_angle,
+            } => {
+                let force = match altitude_angle {
+                    Some(altitude_angle) => force / altitude_angle.sin(),
+                    None => *force,
+                };
+                force / max_possible_force
+            }
+            Force::Normalized(force) => *force,
+        }
+    }
 }
 
 /// Hardware-dependent keyboard scan code.

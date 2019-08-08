@@ -6,14 +6,14 @@ use objc::{
 };
 
 use crate::{
-    event::{DeviceId as RootDeviceId, Event, Touch, TouchPhase, WindowEvent},
+    event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::MonitorHandleExtIOS,
     platform_impl::platform::{
         app_state::AppState,
         event_loop,
         ffi::{
             id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
-            UIRectEdge, UITouchPhase,
+            UIRectEdge, UITouchPhase, UITouchType,
         },
         window::PlatformSpecificWindowBuilderAttributes,
         DeviceId,
@@ -219,13 +219,24 @@ unsafe fn get_window_class() -> &'static Class {
                         break;
                     }
                     let location: CGPoint = msg_send![touch, locationInView: nil];
+                    let touch_type: UITouchType = msg_send![touch, type];
                     let trait_collection: id = msg_send![object, traitCollection];
                     let touch_capability: UIForceTouchCapability =
                         msg_send![trait_collection, forceTouchCapability];
                     let force = if touch_capability == UIForceTouchCapability::Available {
                         let force: CGFloat = msg_send![touch, force];
-                        let max_force: CGFloat = msg_send![touch, maximumPossibleForce];
-                        Some((force / max_force) as _)
+                        let max_possible_force: CGFloat = msg_send![touch, maximumPossibleForce];
+                        let altitude_angle: Option<f64> = if touch_type == UITouchType::Pencil {
+                            let angle: CGFloat = msg_send![touch, altitudeAngle];
+                            Some(angle as _)
+                        } else {
+                            None
+                        };
+                        Some(Force::Calibrated {
+                            force: force as _,
+                            max_possible_force: max_possible_force as _,
+                            altitude_angle,
+                        })
                     } else {
                         None
                     };
