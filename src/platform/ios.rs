@@ -80,6 +80,16 @@ pub trait WindowExtIOS {
     /// and then calls
     /// [`-[UIViewController setNeedsUpdateOfScreenEdgesDeferringSystemGestures]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc).
     fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge);
+
+    /// Sets whether the [`Window`] prefers the status bar hidden.
+    ///
+    /// The default is to prefer showing the status bar.
+    ///
+    /// This changes the value returned by
+    /// [`-[UIViewController prefersStatusBarHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc),
+    /// and then calls
+    /// [`-[UIViewController setNeedsStatusBarAppearanceUpdate]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc).
+    fn set_prefers_status_bar_hidden(&self, hidden: bool);
 }
 
 impl WindowExtIOS for Window {
@@ -117,6 +127,11 @@ impl WindowExtIOS for Window {
     fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
         self.window
             .set_preferred_screen_edges_deferring_system_gestures(edges)
+    }
+
+    #[inline]
+    fn set_prefers_status_bar_hidden(&self, hidden: bool) {
+        self.window.set_prefers_status_bar_hidden(hidden)
     }
 }
 
@@ -163,6 +178,14 @@ pub trait WindowBuilderExtIOS {
         self,
         edges: ScreenEdge,
     ) -> WindowBuilder;
+
+    /// Sets whether the [`Window`] prefers the status bar hidden.
+    ///
+    /// The default is to prefer showing the status bar.
+    ///
+    /// This sets the initial value returned by
+    /// [`-[UIViewController prefersStatusBarHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc).
+    fn with_prefers_status_bar_hidden(self, hidden: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtIOS for WindowBuilder {
@@ -197,6 +220,12 @@ impl WindowBuilderExtIOS for WindowBuilder {
     ) -> WindowBuilder {
         self.platform_specific
             .preferred_screen_edges_deferring_system_gestures = edges;
+        self
+    }
+
+    #[inline]
+    fn with_prefers_status_bar_hidden(mut self, hidden: bool) -> WindowBuilder {
+        self.platform_specific.prefers_status_bar_hidden = hidden;
         self
     }
 }

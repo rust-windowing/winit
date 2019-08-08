@@ -140,6 +140,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Setting the `UIView` hidpi factor
 * Valid orientations
 * Home indicator visibility
+* Status bar visibility
 * Deferrring system gestures
 * Support for custom `UIView` derived class
 * Getting the device idiom
@@ -164,8 +165,8 @@ Legend:
 |Window initialization            |✔️     |✔️     |▢[#5]      |✔️             |▢[#33]|▢[#33] |❓        |
 |Providing pointer to init OpenGL |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |❓        |
 |Providing pointer to init Vulkan |✔️     |✔️     |✔️         |✔️             |✔️     |❓     |**N/A**   |
-|Window decorations               |✔️     |✔️     |✔️         |▢[#306]        |**N/A**|✔️     |**N/A**   |
-|Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |**N/A**   |
+|Window decorations               |✔️     |✔️     |✔️         |▢[#306]        |**N/A**|**N/A**|**N/A**   |
+|Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |
 |Window resizing                  |✔️     |▢[#219]|✔️         |▢[#306]        |**N/A**|**N/A**|❓        |
 |Window resize increments         |❌     |❌     |❌         |❌             |❌    |❌     |❌        |
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**   |

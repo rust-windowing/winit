@@ -19,6 +19,8 @@
 - On iOS, disable overscan compensation for external displays (removes black
   bars surrounding the image).
 - On Linux, the functions `is_wayland`, `is_x11`, `xlib_xconnection` and `wayland_display` have been moved to a new `EventLoopWindowTargetExtUnix` trait.
+- On iOS, add `set_prefers_status_bar_hidden` extension function instead of
+  hijacking `set_decorations` for this purpose.
 - On macOS and iOS, corrected the auto trait impls of `EventLoopProxy`.
 
 # 0.20.0 Alpha 2 (2019-07-09)
