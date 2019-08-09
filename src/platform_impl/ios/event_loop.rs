@@ -142,8 +142,7 @@ pub struct EventLoopProxy<T> {
     source: CFRunLoopSourceRef,
 }
 
-unsafe impl<T> Send for EventLoopProxy<T> {}
-unsafe impl<T> Sync for EventLoopProxy<T> {}
+unsafe impl<T: Send> Send for EventLoopProxy<T> {}
 
 impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> EventLoopProxy<T> {
