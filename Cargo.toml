@@ -78,4 +78,4 @@ x11-dl = "2.18.3"
 percent-encoding = "2.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
-version = "0.8"
+version = "0.9"
