@@ -1,3 +1,5 @@
+#![cfg(target_arch = "wasm32")]
+
 #[cfg(feature = "stdweb")]
 use stdweb::web::html_element::CanvasElement;
 
