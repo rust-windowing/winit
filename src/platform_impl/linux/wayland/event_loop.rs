@@ -2,6 +2,7 @@ use std::{
     cell::RefCell,
     collections::VecDeque,
     fmt,
+    io::ErrorKind,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -209,6 +210,25 @@ impl<T: 'static> EventLoop<T> {
         );
 
         loop {
+            // Read events from the event queue
+            {
+                let mut evq = get_target(&self.window_target).evq.borrow_mut();
+
+                evq.dispatch_pending()
+                    .expect("failed to dispatch wayland events");
+
+                if let Some(read) = evq.prepare_read() {
+                    if let Err(e) = read.read_events() {
+                        if e.kind() != ErrorKind::WouldBlock {
+                            panic!("failed to read wayland events: {}", e);
+                        }
+                    }
+
+                    evq.dispatch_pending()
+                        .expect("failed to dispatch wayland events");
+                }
+            }
+
             self.post_dispatch_triggers(&mut callback, &mut control_flow);
 
             while let Ok((event, window_id)) = self.kbd_channel.try_recv() {
@@ -338,10 +358,7 @@ impl<T> EventLoop<T> {
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        let window_target = match self.window_target.p {
-            crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
-            _ => unreachable!(),
-        };
+        let window_target = get_target(&self.window_target);
 
         let mut callback = |event: Event<'_, T>| {
             sticky_exit_callback(event, &self.window_target, control_flow, &mut callback);
@@ -424,6 +441,13 @@ impl<T> EventLoop<T> {
                 }
             },
         )
+    }
+}
+
+fn get_target<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
+    match target.p {
+        crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+        _ => unreachable!(),
     }
 }
 
