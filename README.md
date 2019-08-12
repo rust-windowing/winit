@@ -1,3 +1,9 @@
+# This branch has been archived
+
+Please direct all work against `master`.
+
+--------
+
 # winit - Cross-platform window creation and management in Rust
 
 [![Crates.io](https://img.shields.io/crates/v/winit.svg)](https://crates.io/crates/winit)
@@ -7,7 +13,7 @@
 
 ```toml
 [dependencies]
-winit = "0.19.1"
+winit = "0.19.2"
 ```
 
 ## [Documentation](https://docs.rs/winit)

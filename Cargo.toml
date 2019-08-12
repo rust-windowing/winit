@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.19.1"
+version = "0.19.2"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 keywords = ["windowing"]
@@ -67,4 +67,4 @@ wayland-client = { version = "0.21", features = [ "dlopen", "egl", "cursor"] }
 smithay-client-toolkit = "0.4.3"
 x11-dl = "2.18.3"
 parking_lot = "0.8"
-percent-encoding = "1.0"
+percent-encoding = "2.0"
