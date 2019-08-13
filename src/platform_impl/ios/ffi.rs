@@ -70,6 +70,24 @@ pub enum UITouchPhase {
     Cancelled,
 }
 
+#[derive(Debug, PartialEq)]
+#[allow(dead_code)]
+#[repr(isize)]
+pub enum UIForceTouchCapability {
+    Unknown = 0,
+    Unavailable,
+    Available,
+}
+
+#[derive(Debug, PartialEq)]
+#[allow(dead_code)]
+#[repr(isize)]
+pub enum UITouchType {
+    Direct = 0,
+    Indirect,
+    Pencil,
+}
+
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct UIEdgeInsets {

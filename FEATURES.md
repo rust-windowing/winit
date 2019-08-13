@@ -103,6 +103,7 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Cursor grab**: Locking the cursor so it cannot exit the client area of a window.
 - **Cursor icon**: Changing the cursor icon, or hiding the cursor.
 - **Touch events**: Single-touch events.
+- **Touch pressure**: Touch events contain information about the amount of force being applied.
 - **Multitouch**: Multi-touch events, including cancellation of a gesture.
 - **Keyboard events**: Properly processing keyboard events using the user-specified keymap and
   translating keypresses into UTF-8 characters, handling dead keys and IMEs.
@@ -192,6 +193,7 @@ Legend:
 |Cursor grab             |✔️       |▢[#165] |▢[#242]  |❌[#306]    |**N/A**|**N/A**|✔️       |
 |Cursor icon             |✔️       |✔️      |✔️       |❌[#306]    |**N/A**|**N/A**|❌       |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️       |
+|Touch pressure          |❌       |❌      |❌       |❌          |❌     |✔️     |❌       |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |❓     |✔️     |❌       |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️       |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |

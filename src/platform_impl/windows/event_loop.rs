@@ -1164,6 +1164,7 @@ unsafe extern "system" fn public_window_callback<T>(
                                 continue;
                             },
                             location,
+                            force: None, // TODO
                             id: input.dwID as u64,
                             device_id: DEVICE_ID,
                         }),
@@ -1268,6 +1269,7 @@ unsafe extern "system" fn public_window_callback<T>(
                                 continue;
                             },
                             location,
+                            force: None, // TODO
                             id: pointer_info.pointerId as u64,
                             device_id: DEVICE_ID,
                         }),

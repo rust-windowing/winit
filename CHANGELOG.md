@@ -27,6 +27,7 @@
 - On iOS, add `set_prefers_status_bar_hidden` extension function instead of
   hijacking `set_decorations` for this purpose.
 - On macOS and iOS, corrected the auto trait impls of `EventLoopProxy`.
+- On iOS, add touch pressure information for touch events.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
