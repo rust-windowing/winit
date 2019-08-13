@@ -9,6 +9,7 @@ use std::{
     ptr,
     sync::{mpsc::channel, Arc},
 };
+use raw_window_handle::{RawWindowHandle, windows::WindowsHandle};
 
 use winapi::{
     ctypes::c_int,
@@ -337,6 +338,15 @@ impl Window {
     #[inline]
     pub fn hwnd(&self) -> HWND {
         self.window.0
+    }
+
+    #[inline]
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let handle = WindowsHandle {
+            hwnd: self.window.0 as *mut _,
+            ..WindowsHandle::empty()
+        };
+        RawWindowHandle::Windows(handle)
     }
 
     #[inline]

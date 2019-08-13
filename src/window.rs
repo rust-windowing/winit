@@ -721,6 +721,12 @@ impl Window {
     }
 }
 
+unsafe impl raw_window_handle::HasRawWindowHandle for Window {
+    fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
+        self.window.raw_window_handle()
+    }
+}
+
 /// Describes the appearance of the mouse cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

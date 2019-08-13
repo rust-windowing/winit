@@ -2,6 +2,7 @@ use std::{
     collections::VecDeque,
     ops::{Deref, DerefMut},
 };
+use raw_window_handle::ios::IOSHandle;
 
 use objc::runtime::{Class, Object, NO, YES};
 
@@ -249,6 +250,15 @@ impl Inner {
 
     pub fn id(&self) -> WindowId {
         self.window.into()
+    }
+
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let handle = IOSHandle {
+            ui_window: self.window as _,
+            ui_view: self.ui_view as _,
+            ui_view_controller: self.ui_view_controller as _,
+            ..IOSHandle::empty()
+        }
     }
 }
 

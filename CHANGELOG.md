@@ -23,6 +23,7 @@
   hijacking `set_decorations` for this purpose.
 - On macOS and iOS, corrected the auto trait impls of `EventLoopProxy`.
 - On iOS, add touch pressure information for touch events.
+- Implement `raw_window_handle::HasRawWindowHandle` for `Window` type on all supported platforms.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
