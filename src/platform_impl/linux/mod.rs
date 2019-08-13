@@ -3,8 +3,8 @@
 use std::{collections::VecDeque, env, ffi::CStr, fmt, mem::MaybeUninit, os::raw::*, sync::Arc};
 
 use parking_lot::Mutex;
-use smithay_client_toolkit::reexports::client::ConnectError;
 use raw_window_handle::RawWindowHandle;
+use smithay_client_toolkit::reexports::client::ConnectError;
 
 pub use self::x11::XNotSupported;
 use self::x11::{ffi::XVisualInfo, get_xtarget, XConnection, XError};

@@ -1,8 +1,8 @@
+use raw_window_handle::unix::WaylandHandle;
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex, Weak},
 };
-use raw_window_handle::unix::WaylandHandle;
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},

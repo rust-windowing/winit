@@ -1,3 +1,4 @@
+use raw_window_handle::{macos::MacOSHandle, RawWindowHandle};
 use std::{
     collections::VecDeque,
     f64,
@@ -7,7 +8,6 @@ use std::{
         Arc, Mutex, Weak,
     },
 };
-use raw_window_handle::{RawWindowHandle, macos::MacOSHandle};
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},

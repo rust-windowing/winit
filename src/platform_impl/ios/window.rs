@@ -1,8 +1,8 @@
+use raw_window_handle::ios::IOSHandle;
 use std::{
     collections::VecDeque,
     ops::{Deref, DerefMut},
 };
-use raw_window_handle::ios::IOSHandle;
 
 use objc::runtime::{Class, Object, NO, YES};
 
@@ -258,7 +258,8 @@ impl Inner {
             ui_view: self.ui_view as _,
             ui_view_controller: self.ui_view_controller as _,
             ..IOSHandle::empty()
-        }
+        };
+        RawWindowHandle::IOS(handle)
     }
 }
 

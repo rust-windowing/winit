@@ -1,3 +1,4 @@
+use raw_window_handle::unix::X11Handle;
 use std::{
     cmp,
     collections::HashSet,
@@ -9,7 +10,6 @@ use std::{
     ptr, slice,
     sync::Arc,
 };
-use raw_window_handle::unix::X11Handle;
 
 use libc;
 use parking_lot::Mutex;

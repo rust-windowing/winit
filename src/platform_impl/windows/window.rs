@@ -1,6 +1,7 @@
 #![cfg(target_os = "windows")]
 
 use parking_lot::Mutex;
+use raw_window_handle::{windows::WindowsHandle, RawWindowHandle};
 use std::{
     cell::Cell,
     ffi::OsStr,
@@ -9,7 +10,6 @@ use std::{
     ptr,
     sync::{mpsc::channel, Arc},
 };
-use raw_window_handle::{RawWindowHandle, windows::WindowsHandle};
 
 use winapi::{
     ctypes::c_int,
