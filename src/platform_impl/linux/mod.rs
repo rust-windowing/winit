@@ -3,6 +3,7 @@
 use std::{collections::VecDeque, env, ffi::CStr, fmt, mem::MaybeUninit, os::raw::*, sync::Arc};
 
 use parking_lot::Mutex;
+use raw_window_handle::RawWindowHandle;
 use smithay_client_toolkit::reexports::client::ConnectError;
 
 pub use self::x11::XNotSupported;
@@ -438,6 +439,13 @@ impl Window {
         match self {
             &Window::X(ref window) => MonitorHandle::X(window.primary_monitor()),
             &Window::Wayland(ref window) => MonitorHandle::Wayland(window.primary_monitor()),
+        }
+    }
+
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        match self {
+            &Window::X(ref window) => RawWindowHandle::X11(window.raw_window_handle()),
+            &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
         }
     }
 }

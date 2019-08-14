@@ -1,3 +1,4 @@
+use raw_window_handle::unix::X11Handle;
 use std::{
     cmp,
     collections::HashSet,
@@ -1374,5 +1375,14 @@ impl UnownedWindow {
             .lock()
             .unwrap()
             .insert(WindowId(self.xwindow));
+    }
+
+    #[inline]
+    pub fn raw_window_handle(&self) -> X11Handle {
+        X11Handle {
+            window: self.xwindow,
+            display: self.xconn.display as _,
+            ..X11Handle::empty()
+        }
     }
 }
