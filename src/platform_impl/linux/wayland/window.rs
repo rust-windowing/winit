@@ -337,8 +337,8 @@ impl Window {
 
     pub fn raw_window_handle(&self) -> WaylandHandle {
         WaylandHandle {
-            surface: self.surface.as_ref().c_ptr() as *mut _,
-            display: self.display.as_ref().c_ptr() as *mut _,
+            surface: self.surface().as_ref().c_ptr() as *mut _,
+            display: self.display().as_ref().c_ptr() as *mut _,
             ..WaylandHandle::empty()
         }
     }
