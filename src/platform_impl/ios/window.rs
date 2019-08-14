@@ -255,8 +255,8 @@ impl Inner {
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let handle = IOSHandle {
             ui_window: self.window as _,
-            ui_view: self.ui_view as _,
-            ui_view_controller: self.ui_view_controller as _,
+            ui_view: self.view as _,
+            ui_view_controller: self.view_controller as _,
             ..IOSHandle::empty()
         };
         RawWindowHandle::IOS(handle)
