@@ -104,7 +104,7 @@ lazy_static! {
         );
         decl.add_method(
             sel!(drawRect:),
-            draw_rect as extern "C" fn(&Object, Sel, id),
+            draw_rect as extern "C" fn(&Object, Sel, NSRect),
         );
         decl.add_method(
             sel!(acceptsFirstResponder),
@@ -280,7 +280,7 @@ extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
     trace!("Completed `viewDidMoveToWindow`");
 }
 
-extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: id) {
+extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
