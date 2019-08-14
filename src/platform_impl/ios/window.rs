@@ -1,4 +1,4 @@
-use raw_window_handle::ios::IOSHandle;
+use raw_window_handle::{ios::IOSHandle, RawWindowHandle};
 use std::{
     collections::VecDeque,
     ops::{Deref, DerefMut},

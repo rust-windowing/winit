@@ -909,8 +909,8 @@ impl UnownedWindow {
     #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let handle = MacOSHandle {
-            ns_window: self.ns_window as *mut _,
-            ns_view: self.ns_view as *mut _,
+            ns_window: *self.ns_window as *mut _,
+            ns_view: *self.ns_view as *mut _,
             ..MacOSHandle::empty()
         };
         RawWindowHandle::MacOS(handle)
