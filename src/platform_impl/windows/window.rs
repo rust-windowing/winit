@@ -13,7 +13,7 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{DWORD, UINT},
+        minwindef::UINT,
         windef::{HWND, POINT, RECT},
     },
     um::{
@@ -520,22 +520,6 @@ pub struct WindowWrapper(HWND);
 // https://github.com/retep998/winapi-rs/issues/396
 unsafe impl Sync for WindowWrapper {}
 unsafe impl Send for WindowWrapper {}
-
-pub unsafe fn adjust_size(
-    physical_size: PhysicalSize,
-    style: DWORD,
-    ex_style: DWORD,
-) -> (LONG, LONG) {
-    let (width, height): (u32, u32) = physical_size.into();
-    let mut rect = RECT {
-        left: 0,
-        right: width as LONG,
-        top: 0,
-        bottom: height as LONG,
-    };
-    winuser::AdjustWindowRectEx(&mut rect, style, 0, ex_style);
-    (rect.right - rect.left, rect.bottom - rect.top)
-}
 
 unsafe fn init<T: 'static>(
     mut attributes: WindowAttributes,
