@@ -1,5 +1,7 @@
 # Unreleased
 
+- On macOs, implement `run_return`
+
 # 0.20.0 Alpha 3 (2019-08-14)
 
 - On macOS, drop the run closure on exit.

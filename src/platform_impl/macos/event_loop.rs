@@ -1,5 +1,6 @@
 use std::{
-    collections::VecDeque, marker::PhantomData, mem, os::raw::c_void, process, ptr, sync::mpsc,
+    collections::VecDeque, marker::PhantomData, mem, os::raw::c_void, process, ptr, rc::Rc,
+    sync::mpsc,
 };
 
 use cocoa::{
@@ -34,7 +35,7 @@ impl<T> Default for EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
-    window_target: RootWindowTarget<T>,
+    window_target: Rc<RootWindowTarget<T>>,
     _delegate: IdRef,
 }
 
@@ -59,10 +60,10 @@ impl<T> EventLoop<T> {
         };
         setup_control_flow_observers();
         EventLoop {
-            window_target: RootWindowTarget {
+            window_target: Rc::new(RootWindowTarget {
                 p: Default::default(),
                 _marker: PhantomData,
-            },
+            }),
             _delegate: delegate,
         }
     }
@@ -81,26 +82,26 @@ impl<T> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run<F>(self, callback: F) -> !
+    pub fn run<F>(mut self, callback: F) -> !
     where
         F: 'static + FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+    {
+        self.run_return(callback);
+        process::exit(0);
+    }
+
+    pub fn run_return<F>(&mut self, callback: F)
+    where
+        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
             let _pool = NSAutoreleasePool::new(nil);
             let app = NSApp();
             assert_ne!(app, nil);
-            AppState::set_callback(callback, self.window_target);
+            AppState::set_callback(callback, Rc::clone(&self.window_target));
             let _: () = msg_send![app, run];
             AppState::exit();
-            process::exit(0)
         }
-    }
-
-    pub fn run_return<F>(&mut self, _callback: F)
-    where
-        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
-    {
-        unimplemented!();
     }
 
     pub fn create_proxy(&self) -> Proxy<T> {
