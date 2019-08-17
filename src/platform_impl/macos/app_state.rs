@@ -177,6 +177,7 @@ impl Handler {
 pub enum AppState {}
 
 impl AppState {
+    // This function extends lifetime of `callback` to 'static as its side effect
     pub unsafe fn set_callback<F, T>(callback: F, window_target: Rc<RootWindowTarget<T>>)
     where
         F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
@@ -184,8 +185,8 @@ impl AppState {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
             // This transmute is always safe, in case it was reached through `run`, since our
             // lifetime will be already 'static. In other cases caller should ensure that all data
-            // he passed to callback will actually outlive it, some apps just can't move everything
-            // to event loop, so this is something that they should care about.
+            // they passed to callback will actually outlive it, some apps just can't move
+            // everything to event loop, so this is something that they should care about.
             callback: mem::transmute::<
                 Box<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>,
                 Box<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>,
