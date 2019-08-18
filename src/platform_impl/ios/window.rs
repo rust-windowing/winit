@@ -4,7 +4,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc::runtime::{Class, Object, NO, YES};
+use objc::runtime::{Class, Object, BOOL, NO, YES};
 
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize},
@@ -13,8 +13,7 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
     platform_impl::platform::{
-        app_state::{self, AppState},
-        event_loop,
+        app_state, event_loop,
         ffi::{
             id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
             UIRectEdge, UIScreenOverscanCompensation,
@@ -28,6 +27,7 @@ pub struct Inner {
     pub window: id,
     pub view_controller: id,
     pub view: id,
+    gl_or_metal_backed: bool,
 }
 
 impl Drop for Inner {
@@ -58,7 +58,11 @@ impl Inner {
 
     pub fn request_redraw(&self) {
         unsafe {
-            let () = msg_send![self.view, setNeedsDisplay];
+            if self.gl_or_metal_backed {
+                app_state::queue_gl_or_metal_redraw(self.window);
+            } else {
+                let () = msg_send![self.view, setNeedsDisplay];
+            }
         }
     }
 
@@ -337,6 +341,16 @@ impl Window {
             };
 
             let view = view::create_view(&window_attributes, &platform_attributes, frame.clone());
+
+            let gl_or_metal_backed = {
+                let view_class: id = msg_send![view, class];
+                let layer_class: id = msg_send![view_class, layerClass];
+                let is_metal: BOOL =
+                    msg_send![layer_class, isSubclassOfClass: class!(CAMetalLayer)];
+                let is_gl: BOOL = msg_send![layer_class, isSubclassOfClass: class!(CAEAGLLayer)];
+                is_metal == YES || is_gl == YES
+            };
+
             let view_controller =
                 view::create_view_controller(&window_attributes, &platform_attributes, view);
             let window = view::create_window(
@@ -351,9 +365,10 @@ impl Window {
                     window,
                     view_controller,
                     view,
+                    gl_or_metal_backed,
                 },
             };
-            AppState::set_key_window(window);
+            app_state::set_key_window(window);
             Ok(result)
         }
     }

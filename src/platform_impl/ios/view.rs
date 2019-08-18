@@ -9,7 +9,7 @@ use crate::{
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::MonitorHandleExtIOS,
     platform_impl::platform::{
-        app_state::{self, AppState, OSCapabilities},
+        app_state::{self, OSCapabilities},
         event_loop,
         ffi::{
             id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
@@ -101,7 +101,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         extern "C" fn draw_rect(object: &Object, _: Sel, rect: CGRect) {
             unsafe {
                 let window: id = msg_send![object, window];
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::RedrawRequested,
                 });
@@ -112,6 +112,9 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
 
         extern "C" fn layout_subviews(object: &Object, _: Sel) {
             unsafe {
+                let superclass: &'static Class = msg_send![object, superclass];
+                let () = msg_send![super(object, superclass), layoutSubviews];
+
                 let window: id = msg_send![object, window];
                 let bounds: CGRect = msg_send![window, bounds];
                 let screen: id = msg_send![window, screen];
@@ -122,12 +125,10 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
                 };
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::Resized(size),
                 });
-                let superclass: &'static Class = msg_send![object, superclass];
-                let () = msg_send![super(object, superclass), layoutSubviews];
             }
         }
 
@@ -223,7 +224,7 @@ unsafe fn get_window_class() -> &'static Class {
 
         extern "C" fn become_key_window(object: &Object, _: Sel) {
             unsafe {
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(object.into()),
                     event: WindowEvent::Focused(true),
                 });
@@ -233,7 +234,7 @@ unsafe fn get_window_class() -> &'static Class {
 
         extern "C" fn resign_key_window(object: &Object, _: Sel) {
             unsafe {
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(object.into()),
                     event: WindowEvent::Focused(false),
                 });
@@ -302,7 +303,7 @@ unsafe fn get_window_class() -> &'static Class {
                         }),
                     });
                 }
-                AppState::handle_nonuser_events(touch_events);
+                app_state::handle_nonuser_events(touch_events);
             }
         }
 
@@ -324,7 +325,7 @@ unsafe fn get_window_class() -> &'static Class {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
                 };
-                AppState::handle_nonuser_events(
+                app_state::handle_nonuser_events(
                     std::iter::once(Event::WindowEvent {
                         window_id: RootWindowId(object.into()),
                         event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
@@ -474,9 +475,7 @@ pub unsafe fn create_window(
             let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
             msg_send![window, setScreen:video_mode.monitor().ui_screen()]
         }
-        Some(Fullscreen::Borderless(ref monitor)) => {
-            msg_send![window, setScreen:monitor.ui_screen()]
-        }
+        Some(Fullscreen::Borderless(ref monitor)) => msg_send![window, setScreen:monitor.ui_screen()],
         None => (),
     }
 
@@ -486,17 +485,17 @@ pub unsafe fn create_window(
 pub fn create_delegate_class() {
     extern "C" fn did_finish_launching(_: &mut Object, _: Sel, _: id, _: id) -> BOOL {
         unsafe {
-            AppState::did_finish_launching();
+            app_state::did_finish_launching();
         }
         YES
     }
 
     extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
-        unsafe { AppState::handle_nonuser_event(Event::Resumed) }
+        unsafe { app_state::handle_nonuser_event(Event::Resumed) }
     }
 
     extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
-        unsafe { AppState::handle_nonuser_event(Event::Suspended) }
+        unsafe { app_state::handle_nonuser_event(Event::Suspended) }
     }
 
     extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {}
@@ -521,8 +520,8 @@ pub fn create_delegate_class() {
                     });
                 }
             }
-            AppState::handle_nonuser_events(events);
-            AppState::terminated();
+            app_state::handle_nonuser_events(events);
+            app_state::terminated();
         }
     }
 
