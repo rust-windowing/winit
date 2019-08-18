@@ -184,6 +184,13 @@ impl AppState {
                  state, but was not - please file an issue"
             ),
         };
+        // start waking up the event loop now!
+        debug_assert!(
+            this.control_flow == ControlFlow::Poll,
+            "winit iOS is unexpectedly not setup to `Poll` on launch!"
+        );
+        this.waker.start();
+
         // have to drop RefMut because the window setup code below can trigger new events
         drop(this);
 
