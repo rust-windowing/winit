@@ -1,6 +1,6 @@
 # Unreleased
 
-- On macOs, implement `run_return`.
+- On macOS, implement `run_return`.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
