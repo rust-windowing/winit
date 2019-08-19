@@ -50,9 +50,13 @@ impl VideoMode {
         let refresh_rate: NSInteger = if os_capabilities.maximum_frames_per_second {
             msg_send![uiscreen, maximumFramesPerSecond]
         } else {
+            // https://developer.apple.com/library/archive/technotes/tn2460/_index.html
+            // https://en.wikipedia.org/wiki/IPad_Pro#Model_comparison
+            //
             // All iOS devices support 60 fps, and on devices where `maximumFramesPerSecond` is not
             // supported, they are all guaranteed to have 60hz refresh rates. This does not
-            // correctly handle external displays.
+            // correctly handle external displays. ProMotion displays support 120fps, but they were
+            // introduced at the same time as the `maximumFramesPerSecond` API.
             //
             // FIXME: earlier OSs could calculate the refresh rate using
             // `-[CADisplayLink duration]`.
