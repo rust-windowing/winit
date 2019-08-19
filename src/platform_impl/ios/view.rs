@@ -9,7 +9,7 @@ use crate::{
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::MonitorHandleExtIOS,
     platform_impl::platform::{
-        app_state::{self, AppState},
+        app_state::{self, AppState, OSCapabilities},
         event_loop,
         ffi::{
             id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
@@ -31,14 +31,14 @@ macro_rules! add_property {
         add_property!(
             $decl,
             $name: $t,
-            $setter_name: true; |$object| $after_set,
+            $setter_name: true, |_, _|{}; |$object| $after_set,
             $getter_name,
         )
     };
     (
         $decl:ident,
         $name:ident: $t:ty,
-        $setter_name:ident: $capability:expr; |$object:ident| $after_set:expr,
+        $setter_name:ident: $capability:expr, $err:expr; |$object:ident| $after_set:expr,
         $getter_name:ident,
     ) => {
         {
@@ -59,7 +59,7 @@ macro_rules! add_property {
                     unsafe {
                         $object.set_ivar::<$t>(VAR_NAME, value);
                     }
-                    log::warn!(concat!("`", stringify!($getter_name), "` is has no effect on this version of iOS"))
+                    $err(&app_state::os_capabilities(), "ignoring")
                 }
                 $setter_name
             };
@@ -150,7 +150,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
 unsafe fn get_view_controller_class() -> &'static Class {
     static mut CLASS: Option<&'static Class> = None;
     if CLASS.is_none() {
-        let capabilities = app_state::capabilities();
+        let os_capabilities = app_state::os_capabilities();
 
         let uiviewcontroller_class = class!(UIViewController);
 
@@ -177,11 +177,14 @@ unsafe fn get_view_controller_class() -> &'static Class {
         add_property! {
             decl,
             prefers_home_indicator_auto_hidden: BOOL,
-            setPrefersHomeIndicatorAutoHidden: capabilities.home_indicator_hidden; |object| {
-                unsafe {
-                    let () = msg_send![object, setNeedsUpdateOfHomeIndicatorAutoHidden];
-                }
-            },
+            setPrefersHomeIndicatorAutoHidden:
+                os_capabilities.home_indicator_hidden,
+                OSCapabilities::home_indicator_hidden_err_msg;
+                |object| {
+                    unsafe {
+                        let () = msg_send![object, setNeedsUpdateOfHomeIndicatorAutoHidden];
+                    }
+                },
             prefersHomeIndicatorAutoHidden,
         }
         add_property! {
@@ -197,11 +200,14 @@ unsafe fn get_view_controller_class() -> &'static Class {
         add_property! {
             decl,
             preferred_screen_edges_deferring_system_gestures: UIRectEdge,
-            setPreferredScreenEdgesDeferringSystemGestures: capabilities.defer_system_gestures; |object| {
-                unsafe {
-                    let () = msg_send![object, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
-                }
-            },
+            setPreferredScreenEdgesDeferringSystemGestures:
+                os_capabilities.defer_system_gestures,
+                OSCapabilities::defer_system_gestures_err_msg;
+                |object| {
+                    unsafe {
+                        let () = msg_send![object, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
+                    }
+                },
             preferredScreenEdgesDeferringSystemGestures,
         }
         CLASS = Some(decl.register());
@@ -240,7 +246,7 @@ unsafe fn get_window_class() -> &'static Class {
                 let uiscreen = msg_send![object, screen];
                 let touches_enum: id = msg_send![touches, objectEnumerator];
                 let mut touch_events = Vec::new();
-                let supports_force = app_state::capabilities().force_touch;
+                let os_supports_force = app_state::os_capabilities().force_touch;
                 loop {
                     let touch: id = msg_send![touches_enum, nextObject];
                     if touch == nil {
@@ -248,10 +254,11 @@ unsafe fn get_window_class() -> &'static Class {
                     }
                     let location: CGPoint = msg_send![touch, locationInView: nil];
                     let touch_type: UITouchType = msg_send![touch, type];
-                    let force = if supports_force {
+                    let force = if os_supports_force {
                         let trait_collection: id = msg_send![object, traitCollection];
                         let touch_capability: UIForceTouchCapability =
                             msg_send![trait_collection, forceTouchCapability];
+                        // Both the OS _and_ the device need to be checked for force touch support.
                         if touch_capability == UIForceTouchCapability::Available {
                             let force: CGFloat = msg_send![touch, force];
                             let max_possible_force: CGFloat =

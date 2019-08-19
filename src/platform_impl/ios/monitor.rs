@@ -38,7 +38,7 @@ impl Drop for VideoMode {
     fn drop(&mut self) {
         unsafe {
             assert_main_thread!("`VideoMode` can only be dropped on the main thread on iOS");
-            msg_send![self.screen_mode, release]
+            let () = msg_send![self.screen_mode, release];
         }
     }
 }
@@ -46,10 +46,17 @@ impl Drop for VideoMode {
 impl VideoMode {
     unsafe fn retained_new(uiscreen: id, screen_mode: id) -> VideoMode {
         assert_main_thread!("`VideoMode` can only be created on the main thread on iOS");
-        let refresh_rate: NSInteger = if app_state::capabilities().maximum_frames_per_second {
+        let os_capabilities = app_state::os_capabilities();
+        let refresh_rate: NSInteger = if os_capabilities.maximum_frames_per_second {
             msg_send![uiscreen, maximumFramesPerSecond]
         } else {
-            log::warn!("`-[UIScreen maximumFramesPerSecond]` is unsupported, defaulting to 60 fps");
+            // All iOS devices support 60 fps, and on devices where `maximumFramesPerSecond` is not
+            // supported, they are all guaranteed to have 60hz refresh rates. This does not
+            // correctly handle external displays.
+            //
+            // FIXME: earlier OSs could calculate the refresh rate using
+            // `-[CADisplayLink duration]`.
+            os_capabilities.maximum_frames_per_second_err_msg("defaulting to 60 fps");
             60
         };
         let size: CGSize = msg_send![screen_mode, size];

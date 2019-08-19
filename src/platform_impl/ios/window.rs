@@ -458,7 +458,7 @@ impl Inner {
     // requires main thread
     unsafe fn safe_area_screen_space(&self) -> CGRect {
         let bounds: CGRect = msg_send![self.window, bounds];
-        if app_state::capabilities().safe_area {
+        if app_state::os_capabilities().safe_area {
             let safe_area: UIEdgeInsets = msg_send![self.window, safeAreaInsets];
             let safe_bounds = CGRect {
                 origin: CGPoint {
