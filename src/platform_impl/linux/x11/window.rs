@@ -4,7 +4,7 @@ use std::{
     collections::HashSet,
     env,
     ffi::CString,
-    mem::{self, MaybeUninit},
+    mem::{self, replace, MaybeUninit},
     os::raw::*,
     path::Path,
     ptr, slice,
@@ -1211,8 +1211,8 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        *self.cursor.lock() = cursor;
-        if *self.cursor_visible.lock() {
+        let old_cursor = replace(&mut *self.cursor.lock(), cursor);
+        if cursor != old_cursor && *self.cursor_visible.lock() {
             self.update_cursor(self.get_cursor(cursor));
         }
     }
