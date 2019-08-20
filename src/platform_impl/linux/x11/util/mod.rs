@@ -3,6 +3,7 @@
 
 mod atom;
 mod client_msg;
+mod cursor;
 mod format;
 mod geometry;
 mod hint;
