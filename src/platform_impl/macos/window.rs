@@ -352,7 +352,9 @@ impl UnownedWindow {
         let maximized = win_attribs.maximized;
         let visible = win_attribs.visible;
         let decorations = win_attribs.decorations;
-        let inner_rect = win_attribs.inner_size.map(|size| size.to_physical(dpi_factor));
+        let inner_rect = win_attribs
+            .inner_size
+            .map(|size| size.to_physical(dpi_factor));
 
         let window = Arc::new(UnownedWindow {
             ns_view,

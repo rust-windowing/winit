@@ -7,7 +7,7 @@ use std::{
 use cocoa::{
     appkit::{self, NSView, NSWindow},
     base::{id, nil},
-    foundation::{NSAutoreleasePool},
+    foundation::NSAutoreleasePool,
 };
 use objc::{
     declare::ClassDecl,
@@ -15,11 +15,11 @@ use objc::{
 };
 
 use crate::{
-    dpi::{LogicalSize},
+    dpi::LogicalSize,
     event::{Event, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
-        event::{EventWrapper, EventProxy, WindowEventProxy},
+        event::{EventProxy, EventWrapper, WindowEventProxy},
         util::{self, IdRef},
         window::{get_window_id, UnownedWindow},
     },
@@ -82,10 +82,9 @@ impl WindowDelegateState {
     }
 
     pub fn emit_static_hidpi_factor_changed_event(&self) {
-        let wrapper = EventWrapper::EventProxy(
-            EventProxy::WindowEvent {
-                ns_window: IdRef::retain(*self.ns_window),
-                proxy: WindowEventProxy::HiDpiFactorChangedProxy,
+        let wrapper = EventWrapper::EventProxy(EventProxy::WindowEvent {
+            ns_window: IdRef::retain(*self.ns_window),
+            proxy: WindowEventProxy::HiDpiFactorChangedProxy,
         });
         AppState::send_event_immediately(wrapper);
     }

@@ -10,17 +10,20 @@ use std::{
     time::Instant,
 };
 
-use cocoa::{appkit::{NSApp, NSWindow}, base::nil};
+use cocoa::{
+    appkit::{NSApp, NSWindow},
+    base::nil,
+};
 
 use crate::{
     dpi::{LogicalSize, PhysicalSize},
-    event::{Event, StartCause, WindowEvent} ,
+    event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{
-        event::{EventProxy, WindowEventProxy, EventWrapper},
+        event::{EventProxy, EventWrapper, WindowEventProxy},
         observer::EventLoopWaker,
         util::{IdRef, Never},
-        window::get_window_id
+        window::get_window_id,
     },
     window::WindowId,
 };
@@ -193,7 +196,7 @@ impl Handler {
         Event::WindowEvent {
             window_id: WindowId(get_window_id(*ns_window)),
             event: WindowEvent::HiDpiFactorChanged {
-                hidpi_factor: hidpi_factor,
+                hidpi_factor,
                 new_inner_size: &mut *self.window_size,
             },
         }
@@ -202,7 +205,8 @@ impl Handler {
     fn make_event(&mut self, proxy: EventProxy) -> Event<'_, Never> {
         match proxy {
             EventProxy::WindowEvent {
-                ns_window, proxy: WindowEventProxy::HiDpiFactorChangedProxy,
+                ns_window,
+                proxy: WindowEventProxy::HiDpiFactorChangedProxy,
             } => self.create_hidpi_factor_changed_event(ns_window),
         }
     }
@@ -303,10 +307,14 @@ impl AppState {
                     EventWrapper::EventProxy(proxy) => {
                         let event = HANDLER.make_event(proxy);
                         HANDLER.handle_nonuser_event(event);
-                        if let Event::WindowEvent { event: window_event, .. } = event {
+                        if let Event::WindowEvent {
+                            event: window_event,
+                            ..
+                        } = event
+                        {
                             proxy.callback(window_event);
                         };
-                    },
+                    }
                 };
             }
             HANDLER.set_in_callback(false);

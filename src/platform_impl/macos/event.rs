@@ -2,13 +2,16 @@ use std::os::raw::c_ushort;
 
 use cocoa::{
     appkit::{NSEvent, NSEventModifierFlags, NSWindow},
-    foundation::{NSRect, NSSize},
     base::id,
+    foundation::{NSRect, NSSize},
 };
 
 use crate::{
-    event::{Event, ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
-    platform_impl::platform::{DEVICE_ID, util::{IdRef, Never}},
+    event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
+    platform_impl::platform::{
+        util::{IdRef, Never},
+        DEVICE_ID,
+    },
 };
 
 #[derive(Debug)]
@@ -42,7 +45,11 @@ impl WindowEventProxy {
     fn callback(self, ns_window: IdRef, event: WindowEvent<'_>) {
         match self {
             WindowEventProxy::HiDpiFactorChangedProxy => {
-                if let WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size } = event {
+                if let WindowEvent::HiDpiFactorChanged {
+                    hidpi_factor,
+                    new_inner_size,
+                } = event
+                {
                     let origin = unsafe { NSWindow::frame(*ns_window).origin };
                     if let Some(physical_size) = new_inner_size {
                         let logical_size = physical_size.to_logical(hidpi_factor);
@@ -51,7 +58,7 @@ impl WindowEventProxy {
                         unsafe { ns_window.setFrame_display_(rect, cocoa::base::YES) };
                     };
                 };
-            },
+            }
         }
     }
 }
