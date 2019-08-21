@@ -29,7 +29,7 @@ pub(crate) enum EventProxy {
 }
 
 impl EventProxy {
-    pub fn callback(self, event: WindowEvent<'_>) {
+    pub fn callback(self, event: &WindowEvent<'_>) {
         match self {
             EventProxy::WindowEvent { ns_window, proxy } => proxy.callback(ns_window, event),
         };
@@ -42,7 +42,7 @@ pub(crate) enum WindowEventProxy {
 }
 
 impl WindowEventProxy {
-    fn callback(self, ns_window: IdRef, event: WindowEvent<'_>) {
+    fn callback(self, ns_window: IdRef, event: &WindowEvent<'_>) {
         match self {
             WindowEventProxy::HiDpiFactorChangedProxy => {
                 if let WindowEvent::HiDpiFactorChanged {
@@ -52,7 +52,7 @@ impl WindowEventProxy {
                 {
                     let origin = unsafe { NSWindow::frame(*ns_window).origin };
                     if let Some(physical_size) = new_inner_size {
-                        let logical_size = physical_size.to_logical(hidpi_factor);
+                        let logical_size = physical_size.to_logical(*hidpi_factor);
                         let size = NSSize::new(logical_size.width, logical_size.height);
                         let rect = NSRect::new(origin, size);
                         unsafe { ns_window.setFrame_display_(rect, cocoa::base::YES) };

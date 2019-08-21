@@ -187,14 +187,14 @@ impl Handler {
         }
     }
 
-    fn create_hidpi_factor_changed_event(&mut self, ns_window: IdRef) -> Event<'_, Never> {
-        let hidpi_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) } as f64;
-        let ns_size = unsafe { NSWindow::frame(*ns_window).size };
+    fn create_hidpi_factor_changed_event(&mut self, ns_window: &IdRef) -> Event<'_, Never> {
+        let hidpi_factor = unsafe { NSWindow::backingScaleFactor(**ns_window) } as f64;
+        let ns_size = unsafe { NSWindow::frame(**ns_window).size };
         let new_size = LogicalSize::new(ns_size.width, ns_size.height).to_physical(hidpi_factor);
         self.window_size = Box::new(Some(new_size));
         // let new_inner_size: &'static mut Option<PhysicalSize> =
         Event::WindowEvent {
-            window_id: WindowId(get_window_id(*ns_window)),
+            window_id: WindowId(get_window_id(**ns_window)),
             event: WindowEvent::HiDpiFactorChanged {
                 hidpi_factor,
                 new_inner_size: &mut *self.window_size,
@@ -202,7 +202,7 @@ impl Handler {
         }
     }
 
-    fn make_event(&mut self, proxy: EventProxy) -> Event<'_, Never> {
+    fn make_event(&mut self, proxy: &EventProxy) -> Event<'_, Never> {
         match proxy {
             EventProxy::WindowEvent {
                 ns_window,
@@ -305,14 +305,14 @@ impl AppState {
                 match wrapper {
                     EventWrapper::StaticEvent(event) => HANDLER.handle_nonuser_event(event),
                     EventWrapper::EventProxy(proxy) => {
-                        let event = HANDLER.make_event(proxy);
+                        let event = HANDLER.make_event(&proxy);
                         HANDLER.handle_nonuser_event(event);
                         if let Event::WindowEvent {
                             event: window_event,
                             ..
                         } = event
                         {
-                            proxy.callback(window_event);
+                            proxy.callback(&window_event);
                         };
                     }
                 };
