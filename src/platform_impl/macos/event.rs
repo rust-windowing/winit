@@ -1,14 +1,60 @@
 use std::os::raw::c_ushort;
 
 use cocoa::{
-    appkit::{NSEvent, NSEventModifierFlags},
+    appkit::{NSEvent, NSEventModifierFlags, NSWindow},
+    foundation::{NSRect, NSSize},
     base::id,
 };
 
 use crate::{
-    event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
-    platform_impl::platform::DEVICE_ID,
+    event::{Event, ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
+    platform_impl::platform::{DEVICE_ID, util::{IdRef, Never}},
 };
+
+#[derive(Debug)]
+pub(crate) enum EventWrapper {
+    StaticEvent(Event<'static, Never>),
+    EventProxy(EventProxy),
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum EventProxy {
+    WindowEvent {
+        ns_window: IdRef,
+        proxy: WindowEventProxy,
+    },
+}
+
+impl EventProxy {
+    pub fn callback(self, event: WindowEvent<'_>) {
+        match self {
+            EventProxy::WindowEvent { ns_window, proxy } => proxy.callback(ns_window, event),
+        };
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum WindowEventProxy {
+    HiDpiFactorChangedProxy,
+}
+
+impl WindowEventProxy {
+    fn callback(self, ns_window: IdRef, event: WindowEvent<'_>) {
+        match self {
+            WindowEventProxy::HiDpiFactorChangedProxy => {
+                if let WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size } = event {
+                    let origin = unsafe { NSWindow::frame(*ns_window).origin };
+                    if let Some(physical_size) = new_inner_size {
+                        let logical_size = physical_size.to_logical(hidpi_factor);
+                        let size = NSSize::new(logical_size.width, logical_size.height);
+                        let rect = NSRect::new(origin, size);
+                        unsafe { ns_window.setFrame_display_(rect, cocoa::base::YES) };
+                    };
+                };
+            },
+        }
+    }
+}
 
 pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
     // We only translate keys that are affected by keyboard layout.

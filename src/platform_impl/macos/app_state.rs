@@ -10,12 +10,18 @@ use std::{
     time::Instant,
 };
 
-use cocoa::{appkit::NSApp, base::nil};
+use cocoa::{appkit::{NSApp, NSWindow}, base::nil};
 
 use crate::{
-    event::{Event, StartCause, WindowEvent},
+    dpi::{LogicalSize, PhysicalSize},
+    event::{Event, StartCause, WindowEvent} ,
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
-    platform_impl::platform::{observer::EventLoopWaker, util::Never},
+    platform_impl::platform::{
+        event::{EventProxy, WindowEventProxy, EventWrapper},
+        observer::EventLoopWaker,
+        util::{IdRef, Never},
+        window::get_window_id
+    },
     window::WindowId,
 };
 
@@ -88,9 +94,10 @@ struct Handler {
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<Event<'static, Never>>>,
-    deferred_events: Mutex<VecDeque<Event<'static, Never>>>,
+    deferred_events: Mutex<VecDeque<EventWrapper>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
+    window_size: Box<Option<PhysicalSize>>,
 }
 
 unsafe impl Send for Handler {}
@@ -101,7 +108,7 @@ impl Handler {
         self.pending_events.lock().unwrap()
     }
 
-    fn deferred(&self) -> MutexGuard<'_, VecDeque<Event<'static, Never>>> {
+    fn deferred(&self) -> MutexGuard<'_, VecDeque<EventWrapper>> {
         self.deferred_events.lock().unwrap()
     }
 
@@ -149,7 +156,7 @@ impl Handler {
         mem::replace(&mut *self.events(), Default::default())
     }
 
-    fn take_deferred(&self) -> VecDeque<Event<'_, Never>> {
+    fn take_deferred(&self) -> VecDeque<EventWrapper> {
         mem::replace(&mut *self.deferred(), Default::default())
     }
 
@@ -174,6 +181,29 @@ impl Handler {
     fn handle_user_events(&self) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
             callback.handle_user_events(&mut *self.control_flow.lock().unwrap());
+        }
+    }
+
+    fn create_hidpi_factor_changed_event(&mut self, ns_window: IdRef) -> Event<'_, Never> {
+        let hidpi_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) } as f64;
+        let ns_size = unsafe { NSWindow::frame(*ns_window).size };
+        let new_size = LogicalSize::new(ns_size.width, ns_size.height).to_physical(hidpi_factor);
+        self.window_size = Box::new(Some(new_size));
+        // let new_inner_size: &'static mut Option<PhysicalSize> =
+        Event::WindowEvent {
+            window_id: WindowId(get_window_id(*ns_window)),
+            event: WindowEvent::HiDpiFactorChanged {
+                hidpi_factor: hidpi_factor,
+                new_inner_size: &mut *self.window_size,
+            },
+        }
+    }
+
+    fn make_event(&mut self, proxy: EventProxy) -> Event<'_, Never> {
+        match proxy {
+            EventProxy::WindowEvent {
+                ns_window, proxy: WindowEventProxy::HiDpiFactorChangedProxy,
+            } => self.create_hidpi_factor_changed_event(ns_window),
         }
     }
 }
@@ -260,15 +290,24 @@ impl AppState {
         HANDLER.events().append(&mut events);
     }
 
-    pub fn send_event_immediately(event: Event<'static, Never>) {
+    pub fn send_event_immediately(wrapper: EventWrapper) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
-            panic!("Event sent from different thread: {:#?}", event);
+            panic!("Event sent from different thread: {:#?}", wrapper);
         }
-        HANDLER.deferred().push_back(event);
+        HANDLER.deferred().push_back(wrapper);
         if !HANDLER.get_in_callback() {
             HANDLER.set_in_callback(true);
-            for event in HANDLER.take_deferred() {
-                HANDLER.handle_nonuser_event(event);
+            for wrapper in HANDLER.take_deferred() {
+                match wrapper {
+                    EventWrapper::StaticEvent(event) => HANDLER.handle_nonuser_event(event),
+                    EventWrapper::EventProxy(proxy) => {
+                        let event = HANDLER.make_event(proxy);
+                        HANDLER.handle_nonuser_event(event);
+                        if let Event::WindowEvent { event: window_event, .. } = event {
+                            proxy.callback(window_event);
+                        };
+                    },
+                };
             }
             HANDLER.set_in_callback(false);
         }
