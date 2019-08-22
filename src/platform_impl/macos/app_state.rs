@@ -100,7 +100,7 @@ struct Handler {
     deferred_events: Mutex<VecDeque<EventWrapper>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
-    window_size: Box<Option<PhysicalSize>>,
+    window_size: Mutex<Option<PhysicalSize>>,
 }
 
 unsafe impl Send for Handler {}
@@ -121,6 +121,10 @@ impl Handler {
 
     fn waker(&self) -> MutexGuard<'_, EventLoopWaker> {
         self.waker.lock().unwrap()
+    }
+
+    fn window_size(&self) -> MutexGuard<'_, Option<PhysicalSize>> {
+        self.window_size.lock().unwrap()
     }
 
     fn is_ready(&self) -> bool {
@@ -163,6 +167,14 @@ impl Handler {
         mem::replace(&mut *self.deferred(), Default::default())
     }
 
+    fn take_window_size(&self) -> &mut Option<PhysicalSize> {
+        &mut mem::replace(&mut *self.window_size(), Default::default())
+    }
+
+    fn set_window_size(&self, size: Option<PhysicalSize>) {
+        mem::replace(&mut *self.window_size(), size);
+    }
+
     fn should_redraw(&self) -> Vec<WindowId> {
         mem::replace(&mut *self.redraw(), Default::default())
     }
@@ -187,22 +199,22 @@ impl Handler {
         }
     }
 
-    fn create_hidpi_factor_changed_event(&mut self, ns_window: &IdRef) -> Event<'_, Never> {
+    fn create_hidpi_factor_changed_event(&self, ns_window: &IdRef) -> Event<'_, Never> {
         let hidpi_factor = unsafe { NSWindow::backingScaleFactor(**ns_window) } as f64;
         let ns_size = unsafe { NSWindow::frame(**ns_window).size };
         let new_size = LogicalSize::new(ns_size.width, ns_size.height).to_physical(hidpi_factor);
-        self.window_size = Box::new(Some(new_size));
+        self.set_window_size(Some(new_size));
         // let new_inner_size: &'static mut Option<PhysicalSize> =
         Event::WindowEvent {
             window_id: WindowId(get_window_id(**ns_window)),
             event: WindowEvent::HiDpiFactorChanged {
                 hidpi_factor,
-                new_inner_size: &mut *self.window_size,
+                new_inner_size: self.take_window_size(),
             },
         }
     }
 
-    fn make_event(&mut self, proxy: &EventProxy) -> Event<'_, Never> {
+    fn make_event(&self, proxy: &EventProxy) -> Event<'_, Never> {
         match proxy {
             EventProxy::WindowEvent {
                 ns_window,
