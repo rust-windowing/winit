@@ -1,13 +1,11 @@
 use std::os::raw::c_ushort;
 
 use cocoa::{
-    appkit::{NSEvent, NSEventModifierFlags, NSWindow},
+    appkit::{NSEvent, NSEventModifierFlags},
     base::id,
-    foundation::{NSRect, NSSize},
 };
 
 use crate::{
-    dpi::PhysicalSize,
     event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
     platform_impl::platform::{
         util::{IdRef, Never},

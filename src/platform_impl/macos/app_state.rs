@@ -332,12 +332,13 @@ impl AppState {
                     EventWrapper::EventProxy(proxy) => {
                         let event = HANDLER.make_event(&proxy);
                         HANDLER.handle_nonuser_event(event);
-                        if let EventProxy::HiDpiFactorChangedProxy {
-                            ns_window,
-                            hidpi_factor,
-                        } = proxy
-                        {
-                            HANDLER.handle_post_hidipi_changed_effects(ns_window, hidpi_factor);
+                        match proxy {
+                            EventProxy::HiDpiFactorChangedProxy {
+                                ns_window,
+                                hidpi_factor,
+                            } => {
+                                HANDLER.handle_post_hidipi_changed_effects(ns_window, hidpi_factor)
+                            }
                         }
                     }
                 };
