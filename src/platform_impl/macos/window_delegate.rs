@@ -19,7 +19,7 @@ use crate::{
     event::{Event, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
-        event::{EventProxy, EventWrapper, WindowEventProxy},
+        event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         window::{get_window_id, UnownedWindow},
     },
@@ -82,10 +82,13 @@ impl WindowDelegateState {
     }
 
     pub fn emit_static_hidpi_factor_changed_event(&self) {
-        let wrapper = EventWrapper::EventProxy(EventProxy::WindowEvent {
-            ns_window: IdRef::retain(*self.ns_window),
-            proxy: WindowEventProxy::HiDpiFactorChangedProxy,
-        });
+        let hidpi_factor = unsafe { NSWindow::backingScaleFactor(*self.ns_window) } as f64;
+        let wrapper = EventWrapper::EventProxy(
+            EventProxy::HiDpiFactorChangedProxy {
+                ns_window: IdRef::retain(*self.ns_window),
+                hidpi_factor,
+            }
+        );
         AppState::send_event_immediately(wrapper);
     }
 

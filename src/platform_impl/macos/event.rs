@@ -7,6 +7,7 @@ use cocoa::{
 };
 
 use crate::{
+    dpi::PhysicalSize,
     event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
     platform_impl::platform::{
         util::{IdRef, Never},
@@ -22,46 +23,28 @@ pub(crate) enum EventWrapper {
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum EventProxy {
-    WindowEvent {
+    HiDpiFactorChangedProxy {
         ns_window: IdRef,
-        proxy: WindowEventProxy,
+        hidpi_factor: f64,
     },
 }
 
 impl EventProxy {
-    pub fn callback(self, event: &WindowEvent<'_>) {
+    pub fn callback(self, new_size: &Option<PhysicalSize>) {
         match self {
-            EventProxy::WindowEvent { ns_window, proxy } => proxy.callback(ns_window, event),
+            EventProxy::HiDpiFactorChangedProxy { ns_window, hidpi_factor } => {
+                let origin = unsafe { NSWindow::frame(*ns_window).origin };
+                if let Some(physical_size) = new_size {
+                    let logical_size = physical_size.to_logical(hidpi_factor);
+                    let size = NSSize::new(logical_size.width, logical_size.height);
+                    let rect = NSRect::new(origin, size);
+                    unsafe { ns_window.setFrame_display_(rect, cocoa::base::YES) };
+                };
+            },
         };
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub(crate) enum WindowEventProxy {
-    HiDpiFactorChangedProxy,
-}
-
-impl WindowEventProxy {
-    fn callback(self, ns_window: IdRef, event: &WindowEvent<'_>) {
-        match self {
-            WindowEventProxy::HiDpiFactorChangedProxy => {
-                if let WindowEvent::HiDpiFactorChanged {
-                    hidpi_factor,
-                    new_inner_size,
-                } = event
-                {
-                    let origin = unsafe { NSWindow::frame(*ns_window).origin };
-                    if let Some(physical_size) = new_inner_size {
-                        let logical_size = physical_size.to_logical(*hidpi_factor);
-                        let size = NSSize::new(logical_size.width, logical_size.height);
-                        let rect = NSRect::new(origin, size);
-                        unsafe { ns_window.setFrame_display_(rect, cocoa::base::YES) };
-                    };
-                };
-            }
-        }
-    }
-}
 
 pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
     // We only translate keys that are affected by keyboard layout.

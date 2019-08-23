@@ -12,6 +12,7 @@ use std::{
 
 use cocoa::{
     appkit::{NSApp, NSWindow},
+    foundation::{NSRect, NSSize},
     base::nil,
 };
 
@@ -20,7 +21,7 @@ use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{
-        event::{EventProxy, EventWrapper, WindowEventProxy},
+        event::{EventProxy, EventWrapper},
         observer::EventLoopWaker,
         util::{IdRef, Never},
         window::get_window_id,
@@ -167,8 +168,8 @@ impl Handler {
         mem::replace(&mut *self.deferred(), Default::default())
     }
 
-    fn take_window_size(&self) -> &mut Option<PhysicalSize> {
-        &mut mem::replace(&mut *self.window_size(), Default::default())
+    fn take_window_size(&self) -> Box<Option<PhysicalSize>> {
+        Box::new(mem::replace(&mut *self.window_size(), Default::default()))
     }
 
     fn set_window_size(&self, size: Option<PhysicalSize>) {
@@ -199,28 +200,36 @@ impl Handler {
         }
     }
 
-    fn create_hidpi_factor_changed_event(&self, ns_window: &IdRef) -> Event<'_, Never> {
-        let hidpi_factor = unsafe { NSWindow::backingScaleFactor(**ns_window) } as f64;
+    fn create_hidpi_factor_changed_event(&self, ns_window: &IdRef, hidpi_factor: f64) -> Event<'_, Never> {
         let ns_size = unsafe { NSWindow::frame(**ns_window).size };
         let new_size = LogicalSize::new(ns_size.width, ns_size.height).to_physical(hidpi_factor);
         self.set_window_size(Some(new_size));
-        // let new_inner_size: &'static mut Option<PhysicalSize> =
         Event::WindowEvent {
             window_id: WindowId(get_window_id(**ns_window)),
             event: WindowEvent::HiDpiFactorChanged {
                 hidpi_factor,
-                new_inner_size: self.take_window_size(),
+                new_inner_size: Box::leak(self.take_window_size()),
             },
         }
     }
 
     fn make_event(&self, proxy: &EventProxy) -> Event<'_, Never> {
         match proxy {
-            EventProxy::WindowEvent {
+            EventProxy::HiDpiFactorChangedProxy {
                 ns_window,
-                proxy: WindowEventProxy::HiDpiFactorChangedProxy,
-            } => self.create_hidpi_factor_changed_event(ns_window),
+                hidpi_factor,
+            } => self.create_hidpi_factor_changed_event(ns_window, *hidpi_factor),
         }
+    }
+
+    fn handle_post_hidipi_changed_effects(&self, ns_window: IdRef, hidpi_factor: f64) {
+        let origin = unsafe { NSWindow::frame(*ns_window).origin };
+        if let Some(physical_size) = Box::leak(self.take_window_size()) {
+            let logical_size = physical_size.to_logical(hidpi_factor);
+            let size = NSSize::new(logical_size.width, logical_size.height);
+            let rect = NSRect::new(origin, size);
+            unsafe { ns_window.setFrame_display_(rect, cocoa::base::YES) };
+        };
     }
 }
 
@@ -319,13 +328,11 @@ impl AppState {
                     EventWrapper::EventProxy(proxy) => {
                         let event = HANDLER.make_event(&proxy);
                         HANDLER.handle_nonuser_event(event);
-                        if let Event::WindowEvent {
-                            event: window_event,
-                            ..
-                        } = event
-                        {
-                            proxy.callback(&window_event);
-                        };
+                        if let EventProxy::HiDpiFactorChangedProxy {
+                            ns_window, hidpi_factor,
+                        } = proxy {
+                            HANDLER.handle_post_hidipi_changed_effects(ns_window, hidpi_factor);
+                        }
                     }
                 };
             }
