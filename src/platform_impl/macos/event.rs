@@ -16,35 +16,18 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(crate) enum EventWrapper {
+pub enum EventWrapper {
     StaticEvent(Event<'static, Never>),
     EventProxy(EventProxy),
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum EventProxy {
+pub enum EventProxy {
     HiDpiFactorChangedProxy {
         ns_window: IdRef,
         hidpi_factor: f64,
     },
 }
-
-impl EventProxy {
-    pub fn callback(self, new_size: &Option<PhysicalSize>) {
-        match self {
-            EventProxy::HiDpiFactorChangedProxy { ns_window, hidpi_factor } => {
-                let origin = unsafe { NSWindow::frame(*ns_window).origin };
-                if let Some(physical_size) = new_size {
-                    let logical_size = physical_size.to_logical(hidpi_factor);
-                    let size = NSSize::new(logical_size.width, logical_size.height);
-                    let rect = NSRect::new(origin, size);
-                    unsafe { ns_window.setFrame_display_(rect, cocoa::base::YES) };
-                };
-            },
-        };
-    }
-}
-
 
 pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
     // We only translate keys that are affected by keyboard layout.
