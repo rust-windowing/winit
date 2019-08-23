@@ -23,10 +23,7 @@ pub enum EventWrapper {
 
 #[derive(Debug, PartialEq)]
 pub enum EventProxy {
-    HiDpiFactorChangedProxy {
-        ns_window: IdRef,
-        hidpi_factor: f64,
-    },
+    HiDpiFactorChangedProxy { ns_window: IdRef, hidpi_factor: f64 },
 }
 
 pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {

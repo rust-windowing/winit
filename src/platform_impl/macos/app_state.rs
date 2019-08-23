@@ -12,8 +12,8 @@ use std::{
 
 use cocoa::{
     appkit::{NSApp, NSWindow},
-    foundation::{NSRect, NSSize},
     base::nil,
+    foundation::{NSRect, NSSize},
 };
 
 use crate::{
@@ -200,7 +200,11 @@ impl Handler {
         }
     }
 
-    fn create_hidpi_factor_changed_event(&self, ns_window: &IdRef, hidpi_factor: f64) -> Event<'_, Never> {
+    fn create_hidpi_factor_changed_event(
+        &self,
+        ns_window: &IdRef,
+        hidpi_factor: f64,
+    ) -> Event<'_, Never> {
         let ns_size = unsafe { NSWindow::frame(**ns_window).size };
         let new_size = LogicalSize::new(ns_size.width, ns_size.height).to_physical(hidpi_factor);
         self.set_window_size(Some(new_size));
@@ -329,8 +333,10 @@ impl AppState {
                         let event = HANDLER.make_event(&proxy);
                         HANDLER.handle_nonuser_event(event);
                         if let EventProxy::HiDpiFactorChangedProxy {
-                            ns_window, hidpi_factor,
-                        } = proxy {
+                            ns_window,
+                            hidpi_factor,
+                        } = proxy
+                        {
                             HANDLER.handle_post_hidipi_changed_effects(ns_window, hidpi_factor);
                         }
                     }

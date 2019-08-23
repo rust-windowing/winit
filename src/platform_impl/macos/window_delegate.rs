@@ -83,12 +83,10 @@ impl WindowDelegateState {
 
     pub fn emit_static_hidpi_factor_changed_event(&self) {
         let hidpi_factor = unsafe { NSWindow::backingScaleFactor(*self.ns_window) } as f64;
-        let wrapper = EventWrapper::EventProxy(
-            EventProxy::HiDpiFactorChangedProxy {
-                ns_window: IdRef::retain(*self.ns_window),
-                hidpi_factor,
-            }
-        );
+        let wrapper = EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
+            ns_window: IdRef::retain(*self.ns_window),
+            hidpi_factor,
+        });
         AppState::send_event_immediately(wrapper);
     }
 
