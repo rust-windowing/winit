@@ -12,9 +12,11 @@ use crate::{
         app_state::AppState,
         event_loop,
         ffi::{
-            id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
-            UIRectEdge, UITouchPhase, UITouchType,
+            id, nil, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIForceTouchCapability,
+            UIInterfaceOrientationMask, UIRectEdge, UIScreenOverscanCompensation, UITouchPhase,
+            UITouchType,
         },
+        monitor,
         window::PlatformSpecificWindowBuilderAttributes,
         DeviceId,
     },
@@ -335,20 +337,41 @@ unsafe fn get_window_class() -> &'static Class {
     CLASS.unwrap()
 }
 
+unsafe fn frame_from_window_attributes(window_attributes: &WindowAttributes) -> CGRect {
+    let screen = match window_attributes.fullscreen {
+        Some(Fullscreen::Exclusive(ref video_mode)) => {
+            video_mode.video_mode.monitor.ui_screen() as id
+        }
+        Some(Fullscreen::Borderless(ref monitor)) => monitor.ui_screen() as id,
+        None => monitor::main_uiscreen().ui_screen(),
+    };
+    let screen_bounds: CGRect = msg_send![screen, bounds];
+    match window_attributes.inner_size {
+        Some(dim) => CGRect {
+            origin: screen_bounds.origin,
+            size: CGSize {
+                width: dim.width as _,
+                height: dim.height as _,
+            },
+        },
+        None => screen_bounds,
+    }
+}
+
 // requires main thread
 pub unsafe fn create_view(
-    _window_attributes: &WindowAttributes,
+    window_attributes: &WindowAttributes,
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
-    frame: CGRect,
 ) -> id {
     let class = get_view_class(platform_attributes.root_view_class);
-
     let view: id = msg_send![class, alloc];
     assert!(!view.is_null(), "Failed to create `UIView` instance");
-    let view: id = msg_send![view, initWithFrame: frame];
+    let view: id = msg_send![
+        view,
+        initWithFrame: frame_from_window_attributes(&window_attributes)
+    ];
     assert!(!view.is_null(), "Failed to initialize `UIView` instance");
     let () = msg_send![view, setMultipleTouchEnabled: YES];
-
     view
 }
 
@@ -360,12 +383,12 @@ pub unsafe fn create_view_controller(
 ) -> id {
     let class = get_view_controller_class();
 
-    let view_controller: id = msg_send![class, alloc];
+    let mut view_controller: id = msg_send![class, alloc];
     assert!(
         !view_controller.is_null(),
         "Failed to create `UIViewController` instance"
     );
-    let view_controller: id = msg_send![view_controller, init];
+    view_controller = msg_send![view_controller, init];
     assert!(
         !view_controller.is_null(),
         "Failed to initialize `UIViewController` instance"
@@ -412,14 +435,15 @@ pub unsafe fn create_view_controller(
 pub unsafe fn create_window(
     window_attributes: &WindowAttributes,
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
-    frame: CGRect,
     view_controller: id,
 ) -> id {
     let class = get_window_class();
-
-    let window: id = msg_send![class, alloc];
+    let mut window: id = msg_send![class, alloc];
     assert!(!window.is_null(), "Failed to create `UIWindow` instance");
-    let window: id = msg_send![window, initWithFrame: frame];
+    window = msg_send![
+        window,
+        initWithFrame: frame_from_window_attributes(&window_attributes)
+    ];
     assert!(
         !window.is_null(),
         "Failed to initialize `UIWindow` instance"
@@ -439,6 +463,7 @@ pub unsafe fn create_window(
         }
         None => (),
     }
+    let () = msg_send![window, makeKeyAndVisible];
 
     window
 }

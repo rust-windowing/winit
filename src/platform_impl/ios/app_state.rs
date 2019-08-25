@@ -18,6 +18,7 @@ use crate::platform_impl::platform::{
         CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
         CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, NSUInteger,
     },
+    window::Inner as WindowInner,
 };
 
 macro_rules! bug {
@@ -30,11 +31,11 @@ macro_rules! bug {
 #[derive(Debug)]
 enum AppStateImpl {
     NotLaunched {
-        queued_windows: Vec<id>,
+        queued_windows: Vec<*mut WindowInner>,
         queued_events: Vec<Event<Never>>,
     },
     Launching {
-        queued_windows: Vec<id>,
+        queued_windows: Vec<*mut WindowInner>,
         queued_events: Vec<Event<Never>>,
         queued_event_handler: Box<dyn EventHandler>,
     },
@@ -54,26 +55,6 @@ enum AppStateImpl {
         waiting_event_handler: Box<dyn EventHandler>,
     },
     Terminated,
-}
-
-impl Drop for AppStateImpl {
-    fn drop(&mut self) {
-        match self {
-            &mut AppStateImpl::NotLaunched {
-                ref mut queued_windows,
-                ..
-            }
-            | &mut AppStateImpl::Launching {
-                ref mut queued_windows,
-                ..
-            } => unsafe {
-                for &mut window in queued_windows {
-                    let () = msg_send![window, release];
-                }
-            },
-            _ => {}
-        }
-    }
 }
 
 pub struct AppState {
@@ -116,29 +97,37 @@ impl AppState {
         RefMut::map(guard, |state| state.as_mut().unwrap())
     }
 
-    // requires main thread and window is a UIWindow
-    // retains window
-    pub unsafe fn set_key_window(window: id) {
+    pub unsafe fn defer_window_init(window: *mut WindowInner) {
         let mut this = AppState::get_mut();
-        match &mut this.app_state {
-            &mut AppStateImpl::NotLaunched {
+        match this.app_state {
+            // `UIApplicationMain` not called yet, so defer initialization
+            AppStateImpl::NotLaunched {
+                ref mut queued_windows,
+                ..
+            } => queued_windows.push(window),
+            // `UIApplicationMain` already called, so initialize immediately
+            _ => (*window).init(),
+            ref app_state => unreachable!("unexpected state: {:#?}", app_state),
+        }
+        drop(this);
+    }
+
+    pub unsafe fn cancel_deferred_window_init(window: *mut WindowInner) {
+        let mut this = AppState::get_mut();
+        match this.app_state {
+            AppStateImpl::NotLaunched {
+                ref mut queued_windows,
+                ..
+            }
+            | AppStateImpl::Launching {
                 ref mut queued_windows,
                 ..
             } => {
-                queued_windows.push(window);
-                msg_send![window, retain];
-                return;
+                queued_windows.remove(queued_windows.iter().position(|x| x == &window).unwrap());
             }
-            &mut AppStateImpl::ProcessingEvents { .. } => {}
-            &mut AppStateImpl::InUserCallback { .. } => {}
-            &mut AppStateImpl::Terminated => panic!(
-                "Attempt to create a `Window` \
-                 after the app has terminated"
-            ),
-            app_state => unreachable!("unexpected state: {:#?}", app_state), /* all other cases should be impossible */
+            _ => (),
         }
         drop(this);
-        msg_send![window, makeKeyAndVisible]
     }
 
     // requires main thread
@@ -171,11 +160,18 @@ impl AppState {
     // requires main thread
     pub unsafe fn did_finish_launching() {
         let mut this = AppState::get_mut();
-        let windows = match &mut this.app_state {
+        let (windows, events, event_handler) = match &mut this.app_state {
             &mut AppStateImpl::Launching {
                 ref mut queued_windows,
+                ref mut queued_event_handler,
+                ref mut queued_events,
                 ..
-            } => mem::replace(queued_windows, Vec::new()),
+            } => {
+                let windows = mem::replace(queued_windows, Vec::new());
+                let events = ptr::read(queued_events);
+                let event_handler = ptr::read(queued_event_handler);
+                (windows, events, event_handler)
+            }
             _ => panic!(
                 "winit iOS expected the app to be in a `Launching` \
                  state, but was not - please file an issue"
@@ -184,48 +180,17 @@ impl AppState {
         // have to drop RefMut because the window setup code below can trigger new events
         drop(this);
 
+        // Create UIKit views, view controllers and windows for each window
         for window in windows {
-            let count: NSUInteger = msg_send![window, retainCount];
-            // make sure the window is still referenced
-            if count > 1 {
-                // Do a little screen dance here to account for windows being created before
-                // `UIApplicationMain` is called. This fixes visual issues such as being
-                // offcenter and sized incorrectly. Additionally, to fix orientation issues, we
-                // gotta reset the `rootViewController`.
-                //
-                // relevant iOS log:
-                // ```
-                // [ApplicationLifecycle] Windows were created before application initialzation
-                // completed. This may result in incorrect visual appearance.
-                // ```
-                let screen: id = msg_send![window, screen];
-                let () = msg_send![screen, retain];
-                let () = msg_send![window, setScreen:0 as id];
-                let () = msg_send![window, setScreen: screen];
-                let () = msg_send![screen, release];
-                let controller: id = msg_send![window, rootViewController];
-                let () = msg_send![window, setRootViewController:ptr::null::<()>()];
-                let () = msg_send![window, setRootViewController: controller];
-                let () = msg_send![window, makeKeyAndVisible];
-            }
-            let () = msg_send![window, release];
+            (*window).init();
         }
 
         let mut this = AppState::get_mut();
-        let (windows, events, event_handler) = match &mut this.app_state {
-            &mut AppStateImpl::Launching {
-                ref mut queued_windows,
-                ref mut queued_events,
-                ref mut queued_event_handler,
-            } => {
-                let windows = ptr::read(queued_windows);
-                let events = ptr::read(queued_events);
-                let event_handler = ptr::read(queued_event_handler);
-                (windows, events, event_handler)
-            }
-            _ => panic!(
-                "winit iOS expected the app to be in a `Launching` \
-                 state, but was not - please file an issue"
+        match this.app_state {
+            AppStateImpl::Launching { .. } => (),
+            _ => unreachable!(
+                "winit iOS expected the app to be in a `Launching` state, but was not - please \
+                 file an issue"
             ),
         };
         ptr::write(
@@ -239,17 +204,6 @@ impl AppState {
 
         let events = std::iter::once(Event::NewEvents(StartCause::Init)).chain(events);
         AppState::handle_nonuser_events(events);
-
-        // the above window dance hack, could possibly trigger new windows to be created.
-        // we can just set those windows up normally, as they were created after didFinishLaunching
-        for window in windows {
-            let count: NSUInteger = msg_send![window, retainCount];
-            // make sure the window is still referenced
-            if count > 1 {
-                let () = msg_send![window, makeKeyAndVisible];
-            }
-            let () = msg_send![window, release];
-        }
     }
 
     // requires main thread

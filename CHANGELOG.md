@@ -1,6 +1,7 @@
 # Unreleased
 
 - On macOS, implement `run_return`.
+- On iOS 13.0, fix `NSInternalInconsistencyException` upon touching the screen.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
