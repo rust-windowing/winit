@@ -187,12 +187,12 @@ impl Handler {
         }
     }
 
-    fn handle_hidpi_factor_changed_event(&self, ns_window: &IdRef, hidpi_factor: f64) {
-        let ns_size = unsafe { NSWindow::frame(**ns_window).size };
+    fn handle_hidpi_factor_changed_event(&self, ns_window: IdRef, hidpi_factor: f64) {
+        let ns_size = unsafe { NSWindow::frame(*ns_window).size };
         let new_size = LogicalSize::new(ns_size.width, ns_size.height).to_physical(hidpi_factor);
         let new_inner_size = &mut Some(new_size);
         let event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(**ns_window)),
+            window_id: WindowId(get_window_id(*ns_window)),
             event: WindowEvent::HiDpiFactorChanged {
                 hidpi_factor,
                 new_inner_size,
@@ -201,7 +201,7 @@ impl Handler {
 
         self.handle_nonuser_event(event);
 
-        let origin = unsafe { NSWindow::frame(**ns_window).origin };
+        let origin = unsafe { NSWindow::frame(*ns_window).origin };
         if let Some(physical_size) = new_inner_size {
             let logical_size = physical_size.to_logical(hidpi_factor);
             let size = NSSize::new(logical_size.width, logical_size.height);
@@ -210,12 +210,12 @@ impl Handler {
         };
     }
 
-    fn handle_event(&self, proxy: &EventProxy) {
+    fn handle_event(&self, proxy: EventProxy) {
         match proxy {
             EventProxy::HiDpiFactorChangedProxy {
                 ns_window,
                 hidpi_factor,
-            } => self.handle_hidpi_factor_changed_event(ns_window, *hidpi_factor),
+            } => self.handle_hidpi_factor_changed_event(ns_window, hidpi_factor),
         }
     }
 }
@@ -312,7 +312,7 @@ impl AppState {
             for wrapper in HANDLER.take_deferred() {
                 match wrapper {
                     EventWrapper::StaticEvent(event) => HANDLER.handle_nonuser_event(event),
-                    EventWrapper::EventProxy(proxy) => HANDLER.handle_event(&proxy),
+                    EventWrapper::EventProxy(proxy) => HANDLER.handle_event(proxy),
                 };
             }
             HANDLER.set_in_callback(false);
