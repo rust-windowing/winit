@@ -17,7 +17,7 @@ use cocoa::{
 };
 
 use crate::{
-    dpi::{LogicalSize, PhysicalSize},
+    dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{
@@ -101,7 +101,6 @@ struct Handler {
     deferred_events: Mutex<VecDeque<EventWrapper>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
-    window_size: Mutex<Option<PhysicalSize>>,
 }
 
 unsafe impl Send for Handler {}
@@ -122,10 +121,6 @@ impl Handler {
 
     fn waker(&self) -> MutexGuard<'_, EventLoopWaker> {
         self.waker.lock().unwrap()
-    }
-
-    fn window_size(&self) -> MutexGuard<'_, Option<PhysicalSize>> {
-        self.window_size.lock().unwrap()
     }
 
     fn is_ready(&self) -> bool {
@@ -168,14 +163,6 @@ impl Handler {
         mem::replace(&mut *self.deferred(), Default::default())
     }
 
-    fn take_window_size(&self) -> Box<Option<PhysicalSize>> {
-        Box::new(mem::replace(&mut *self.window_size(), Default::default()))
-    }
-
-    fn set_window_size(&self, size: Option<PhysicalSize>) {
-        mem::replace(&mut *self.window_size(), size);
-    }
-
     fn should_redraw(&self) -> Vec<WindowId> {
         mem::replace(&mut *self.redraw(), Default::default())
     }
@@ -200,40 +187,36 @@ impl Handler {
         }
     }
 
-    fn create_hidpi_factor_changed_event(
-        &self,
-        ns_window: &IdRef,
-        hidpi_factor: f64,
-    ) -> Event<'_, Never> {
+    fn handle_hidpi_factor_changed_event(&self, ns_window: &IdRef, hidpi_factor: f64) {
         let ns_size = unsafe { NSWindow::frame(**ns_window).size };
         let new_size = LogicalSize::new(ns_size.width, ns_size.height).to_physical(hidpi_factor);
-        self.set_window_size(Some(new_size));
-        Event::WindowEvent {
+        let new_inner_size = &mut Some(new_size);
+        let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(**ns_window)),
             event: WindowEvent::HiDpiFactorChanged {
                 hidpi_factor,
-                new_inner_size: Box::leak(self.take_window_size()),
+                new_inner_size,
             },
-        }
-    }
+        };
 
-    fn make_event(&self, proxy: &EventProxy) -> Event<'_, Never> {
-        match proxy {
-            EventProxy::HiDpiFactorChangedProxy {
-                ns_window,
-                hidpi_factor,
-            } => self.create_hidpi_factor_changed_event(ns_window, *hidpi_factor),
-        }
-    }
+        self.handle_nonuser_event(event);
 
-    fn handle_post_hidipi_changed_effects(&self, ns_window: IdRef, hidpi_factor: f64) {
-        let origin = unsafe { NSWindow::frame(*ns_window).origin };
-        if let Some(physical_size) = Box::leak(self.take_window_size()) {
+        let origin = unsafe { NSWindow::frame(**ns_window).origin };
+        if let Some(physical_size) = new_inner_size {
             let logical_size = physical_size.to_logical(hidpi_factor);
             let size = NSSize::new(logical_size.width, logical_size.height);
             let rect = NSRect::new(origin, size);
             unsafe { ns_window.setFrame_display_(rect, cocoa::base::YES) };
         };
+    }
+
+    fn handle_event(&self, proxy: &EventProxy) {
+        match proxy {
+            EventProxy::HiDpiFactorChangedProxy {
+                ns_window,
+                hidpi_factor,
+            } => self.handle_hidpi_factor_changed_event(ns_window, *hidpi_factor),
+        }
     }
 }
 
@@ -329,18 +312,7 @@ impl AppState {
             for wrapper in HANDLER.take_deferred() {
                 match wrapper {
                     EventWrapper::StaticEvent(event) => HANDLER.handle_nonuser_event(event),
-                    EventWrapper::EventProxy(proxy) => {
-                        let event = HANDLER.make_event(&proxy);
-                        HANDLER.handle_nonuser_event(event);
-                        match proxy {
-                            EventProxy::HiDpiFactorChangedProxy {
-                                ns_window,
-                                hidpi_factor,
-                            } => {
-                                HANDLER.handle_post_hidipi_changed_effects(ns_window, hidpi_factor)
-                            }
-                        }
-                    }
+                    EventWrapper::EventProxy(proxy) => HANDLER.handle_event(&proxy),
                 };
             }
             HANDLER.set_in_callback(false);
