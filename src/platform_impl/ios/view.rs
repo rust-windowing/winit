@@ -12,9 +12,8 @@ use crate::{
         app_state::AppState,
         event_loop,
         ffi::{
-            id, nil, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIForceTouchCapability,
-            UIInterfaceOrientationMask, UIRectEdge, UIScreenOverscanCompensation, UITouchPhase,
-            UITouchType,
+            id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
+            UIRectEdge, UITouchPhase, UITouchType,
         },
         monitor,
         window::PlatformSpecificWindowBuilderAttributes,
@@ -337,7 +336,7 @@ unsafe fn get_window_class() -> &'static Class {
     CLASS.unwrap()
 }
 
-unsafe fn frame_from_window_attributes(window_attributes: &WindowAttributes) -> CGRect {
+pub unsafe fn frame_from_window_attributes(window_attributes: &WindowAttributes) -> CGRect {
     let screen = match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(ref video_mode)) => {
             video_mode.video_mode.monitor.ui_screen() as id
@@ -345,17 +344,7 @@ unsafe fn frame_from_window_attributes(window_attributes: &WindowAttributes) -> 
         Some(Fullscreen::Borderless(ref monitor)) => monitor.ui_screen() as id,
         None => monitor::main_uiscreen().ui_screen(),
     };
-    let screen_bounds: CGRect = msg_send![screen, bounds];
-    match window_attributes.inner_size {
-        Some(dim) => CGRect {
-            origin: screen_bounds.origin,
-            size: CGSize {
-                width: dim.width as _,
-                height: dim.height as _,
-            },
-        },
-        None => screen_bounds,
-    }
+    msg_send![screen, bounds]
 }
 
 // requires main thread

@@ -2,6 +2,12 @@
 
 - On macOS, implement `run_return`.
 - On iOS 13.0, fix `NSInternalInconsistencyException` upon touching the screen.
+- On iOS, `Window::set_outer_position` is now ignored.
+- On iOS, `WindowBuilder::with_inner_size` is now ignored (to match behaviour
+  `Window::set_inner_size`, and additionally when combined with `with_fullscreen` this used to
+  result in an incorrect size for the window).
+- On iOS, `Window::inner_position` and `Window::inner_size` no longer include the safe area insets,
+  and the safe area must now be queried with `WindowExtIOS::safe_area_screen_space`.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 

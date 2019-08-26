@@ -14,9 +14,9 @@ use crate::{
 use crate::platform_impl::platform::{
     event_loop::{EventHandler, Never},
     ffi::{
-        id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
+        kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
         CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-        CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, NSUInteger,
+        CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
     },
     window::Inner as WindowInner,
 };
@@ -107,7 +107,6 @@ impl AppState {
             } => queued_windows.push(window),
             // `UIApplicationMain` already called, so initialize immediately
             _ => (*window).init(),
-            ref app_state => unreachable!("unexpected state: {:#?}", app_state),
         }
         drop(this);
     }

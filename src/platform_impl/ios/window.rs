@@ -18,8 +18,8 @@ use crate::{
         app_state::AppState,
         event_loop,
         ffi::{
-            id, CGFloat, CGRect, CGSize, UIInterfaceOrientationMask, UIRectEdge,
-            UIScreenOverscanCompensation,
+            id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
+            UIRectEdge, UIScreenOverscanCompensation,
         },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
@@ -94,68 +94,47 @@ impl Inner {
     }
 
     pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
-        // unsafe {
-        //     let safe_area = self.safe_area_screen_space();
-        //     Ok(LogicalPosition {
-        //         x: safe_area.origin.x as _,
-        //         y: safe_area.origin.y as _,
-        //     })
-        // }
-        unimplemented!()
+        self.outer_position()
     }
 
     pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
-        // unsafe {
-        //     let screen_frame = self.screen_frame();
-        //     Ok(LogicalPosition {
-        //         x: screen_frame.origin.x as _,
-        //         y: screen_frame.origin.y as _,
-        //     })
-        // }
-        unimplemented!()
+        let frame = unsafe {
+            if self.window.is_null() {
+                view::frame_from_window_attributes(&self.window_attributes.borrow())
+            } else {
+                msg_send![self.window, frame]
+            }
+        };
+        Ok(LogicalPosition {
+            x: frame.origin.x,
+            y: frame.origin.y,
+        })
     }
 
-    pub fn set_outer_position(&self, position: LogicalPosition) {
-        self.window_attributes.borrow_mut().fullscreen = None;
-        // unsafe {
-        //     let screen_frame = self.screen_frame();
-        //     let new_screen_frame = CGRect {
-        //         origin: CGPoint {
-        //             x: position.x as _,
-        //             y: position.y as _,
-        //         },
-        //         size: screen_frame.size,
-        //     };
-        //     let bounds = self.from_screen_space(new_screen_frame);
-        //     let () = msg_send![self.window, setBounds: bounds];
-        // }
-        unimplemented!()
+    pub fn set_outer_position(&self, _position: LogicalPosition) {
+        warn!("`Window::set_outer_position` is ignored on iOS")
     }
 
     pub fn inner_size(&self) -> LogicalSize {
-        // unsafe {
-        //     let safe_area = self.safe_area_screen_space();
-        //     LogicalSize {
-        //         width: safe_area.size.width as _,
-        //         height: safe_area.size.height as _,
-        //     }
-        // }
-        unimplemented!()
+        self.outer_size()
     }
 
     pub fn outer_size(&self) -> LogicalSize {
-        // unsafe {
-        //     let screen_frame = self.screen_frame();
-        //     LogicalSize {
-        //         width: screen_frame.size.width as _,
-        //         height: screen_frame.size.height as _,
-        //     }
-        // }
-        unimplemented!()
+        let frame = unsafe {
+            if self.window.is_null() {
+                view::frame_from_window_attributes(&self.window_attributes.borrow())
+            } else {
+                msg_send![self.window, frame]
+            }
+        };
+        LogicalSize {
+            width: frame.size.width,
+            height: frame.size.height,
+        }
     }
 
     pub fn set_inner_size(&self, _size: LogicalSize) {
-        unimplemented!("not clear what `Window::set_inner_size` means on iOS");
+        warn!("`Window::set_inner_size` is ignored on iOS")
     }
 
     pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
@@ -235,8 +214,6 @@ impl Inner {
     }
 
     pub fn fullscreen(&self) -> Option<Fullscreen> {
-        // TODO: we ought to reset this if the user modifies the view bounds manually with the
-        // native handle?
         self.window_attributes.borrow().fullscreen.clone()
     }
 
@@ -344,6 +321,9 @@ impl Window {
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
+        if let Some(_) = window_attributes.inner_size {
+            warn!("`WindowAttributes::inner_size` is ignored on iOS");
+        }
         if let Some(_) = window_attributes.min_inner_size {
             warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
         }
@@ -379,9 +359,11 @@ impl Inner {
     pub fn ui_window(&self) -> id {
         self.window
     }
+
     pub fn ui_view_controller(&self) -> id {
         self.view_controller
     }
+
     pub fn ui_view(&self) -> id {
         self.view
     }
@@ -459,85 +441,51 @@ impl Inner {
             }
         }
     }
-}
 
-impl Inner {
-    // requires main thread
-    unsafe fn screen_frame(&self) -> CGRect {
-        // self.to_screen_space(msg_send![self.window, bounds])
-        unimplemented!()
-    }
+    pub fn safe_area_screen_space(&self) -> (LogicalPosition, LogicalSize) {
+        assert!(
+            !self.window.is_null(),
+            "`safe_area_screen_space` cannot be called before `EventLoop::run` on iOS"
+        );
+        let rect = unsafe {
+            if self.supports_safe_area {
+                let window_frame: CGRect = msg_send![self.window, frame];
+                let safe_area: UIEdgeInsets = msg_send![self.window, safeAreaInsets];
+                CGRect {
+                    origin: CGPoint {
+                        x: window_frame.origin.x + safe_area.left,
+                        y: window_frame.origin.y + safe_area.top,
+                    },
+                    size: CGSize {
+                        width: window_frame.size.width - safe_area.left - safe_area.right,
+                        height: window_frame.size.height - safe_area.top - safe_area.bottom,
+                    },
+                }
+            } else {
+                let mut window_frame: CGRect = msg_send![self.window, frame];
+                let status_bar_frame: CGRect = {
+                    let app: id = msg_send![class!(UIApplication), sharedApplication];
+                    msg_send![app, statusBarFrame]
+                };
+                if window_frame.origin.y <= status_bar_frame.size.height {
+                    window_frame.origin.y = status_bar_frame.size.height;
+                    window_frame.size.height -=
+                        status_bar_frame.size.height - window_frame.origin.y;
+                }
+                window_frame
+            }
+        };
 
-    // requires main thread
-    unsafe fn to_screen_space(&self, rect: CGRect) -> CGRect {
-        // let screen: id = msg_send![self.window, screen];
-        // if !screen.is_null() {
-        //     let screen_space: id = msg_send![screen, coordinateSpace];
-        //     msg_send![self.window, convertRect:rect toCoordinateSpace:screen_space]
-        // } else {
-        //     rect
-        // }
-        unimplemented!()
-    }
-
-    // requires main thread
-    unsafe fn from_screen_space(&self, rect: CGRect) -> CGRect {
-        // let screen: id = msg_send![self.window, screen];
-        // if !screen.is_null() {
-        //     let screen_space: id = msg_send![screen, coordinateSpace];
-        //     msg_send![self.window, convertRect:rect fromCoordinateSpace:screen_space]
-        // } else {
-        //     rect
-        // }
-        unimplemented!()
-    }
-
-    // requires main thread
-    unsafe fn safe_area_screen_space(&self) -> CGRect {
-        // let bounds: CGRect = msg_send![self.window, bounds];
-        // if self.supports_safe_area {
-        //     let safe_area: UIEdgeInsets = msg_send![self.window, safeAreaInsets];
-        //     let safe_bounds = CGRect {
-        //         origin: CGPoint {
-        //             x: bounds.origin.x + safe_area.left,
-        //             y: bounds.origin.y + safe_area.top,
-        //         },
-        //         size: CGSize {
-        //             width: bounds.size.width - safe_area.left - safe_area.right,
-        //             height: bounds.size.height - safe_area.top - safe_area.bottom,
-        //         },
-        //     };
-        //     self.to_screen_space(safe_bounds)
-        // } else {
-        //     let screen_frame = self.to_screen_space(bounds);
-        //     let status_bar_frame: CGRect = {
-        //         let app: id = msg_send![class!(UIApplication), sharedApplication];
-        //         assert!(
-        //             !app.is_null(),
-        //             "`Window::get_inner_position` cannot be called before `EventLoop::run` on iOS"
-        //         );
-        //         msg_send![app, statusBarFrame]
-        //     };
-        //     let (y, height) = if screen_frame.origin.y > status_bar_frame.size.height {
-        //         (screen_frame.origin.y, screen_frame.size.height)
-        //     } else {
-        //         let y = status_bar_frame.size.height;
-        //         let height = screen_frame.size.height
-        //             - (status_bar_frame.size.height - screen_frame.origin.y);
-        //         (y, height)
-        //     };
-        //     CGRect {
-        //         origin: CGPoint {
-        //             x: screen_frame.origin.x,
-        //             y,
-        //         },
-        //         size: CGSize {
-        //             width: screen_frame.size.width,
-        //             height,
-        //         },
-        //     }
-        // }
-        unimplemented!()
+        (
+            LogicalPosition {
+                x: rect.origin.x,
+                y: rect.origin.y,
+            },
+            LogicalSize {
+                width: rect.size.width,
+                height: rect.size.height,
+            },
+        )
     }
 }
 

@@ -3,6 +3,7 @@
 use std::os::raw::c_void;
 
 use crate::{
+    dpi::{LogicalPosition, LogicalSize},
     event_loop::EventLoop,
     monitor::{MonitorHandle, VideoMode},
     window::{Window, WindowBuilder},
@@ -24,14 +25,16 @@ impl<T: 'static> EventLoopExtIOS for EventLoop<T> {
 pub trait WindowExtIOS {
     /// Returns a pointer to the [`UIWindow`] that is used by this window.
     ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
+    /// The pointer will be null before the event loop is running, and the pointer will become
+    /// invalid when the [`Window`] is destroyed.
     ///
     /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     fn ui_window(&self) -> *mut c_void;
 
     /// Returns a pointer to the [`UIViewController`] that is used by this window.
     ///
-    /// The pointer will become invalid when the [`Window`] is destroyed.
+    /// The pointer will be null before the event loop is running, and the pointer will become
+    /// invalid when the [`Window`] is destroyed.
     ///
     /// [`UIViewController`]: https://developer.apple.com/documentation/uikit/uiviewcontroller?language=objc
     fn ui_view_controller(&self) -> *mut c_void;
@@ -90,6 +93,14 @@ pub trait WindowExtIOS {
     /// and then calls
     /// [`-[UIViewController setNeedsStatusBarAppearanceUpdate]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/1621354-setneedsstatusbarappearanceupdat?language=objc).
     fn set_prefers_status_bar_hidden(&self, hidden: bool);
+
+    /// The safe area of a view reflects the area not covered by navigation bars, tab bars,
+    /// toolbars, and other ancestors that obscure a view controller's view.
+    ///
+    /// This may not be called before the event loop is running.
+    ///
+    /// See [`-[UIView safeAreaInsets]`](https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc).
+    fn safe_area_screen_space(&self) -> (LogicalPosition, LogicalSize);
 }
 
 impl WindowExtIOS for Window {
@@ -132,6 +143,11 @@ impl WindowExtIOS for Window {
     #[inline]
     fn set_prefers_status_bar_hidden(&self, hidden: bool) {
         self.window.set_prefers_status_bar_hidden(hidden)
+    }
+
+    #[inline]
+    fn safe_area_screen_space(&self) -> (LogicalPosition, LogicalSize) {
+        self.window.safe_area_screen_space()
     }
 }
 
