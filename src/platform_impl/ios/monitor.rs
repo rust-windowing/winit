@@ -7,7 +7,10 @@ use std::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform_impl::platform::ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
+    platform_impl::platform::{
+        app_state,
+        ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
+    },
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -35,7 +38,7 @@ impl Drop for VideoMode {
     fn drop(&mut self) {
         unsafe {
             assert_main_thread!("`VideoMode` can only be dropped on the main thread on iOS");
-            msg_send![self.screen_mode, release];
+            let () = msg_send![self.screen_mode, release];
         }
     }
 }
@@ -43,7 +46,23 @@ impl Drop for VideoMode {
 impl VideoMode {
     unsafe fn retained_new(uiscreen: id, screen_mode: id) -> VideoMode {
         assert_main_thread!("`VideoMode` can only be created on the main thread on iOS");
-        let refresh_rate: NSInteger = msg_send![uiscreen, maximumFramesPerSecond];
+        let os_capabilities = app_state::os_capabilities();
+        let refresh_rate: NSInteger = if os_capabilities.maximum_frames_per_second {
+            msg_send![uiscreen, maximumFramesPerSecond]
+        } else {
+            // https://developer.apple.com/library/archive/technotes/tn2460/_index.html
+            // https://en.wikipedia.org/wiki/IPad_Pro#Model_comparison
+            //
+            // All iOS devices support 60 fps, and on devices where `maximumFramesPerSecond` is not
+            // supported, they are all guaranteed to have 60hz refresh rates. This does not
+            // correctly handle external displays. ProMotion displays support 120fps, but they were
+            // introduced at the same time as the `maximumFramesPerSecond` API.
+            //
+            // FIXME: earlier OSs could calculate the refresh rate using
+            // `-[CADisplayLink duration]`.
+            os_capabilities.maximum_frames_per_second_err_msg("defaulting to 60 fps");
+            60
+        };
         let size: CGSize = msg_send![screen_mode, size];
         VideoMode {
             size: (size.width as u32, size.height as u32),

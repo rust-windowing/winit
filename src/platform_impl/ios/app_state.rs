@@ -6,6 +6,8 @@ use std::{
     time::Instant,
 };
 
+use objc::runtime::{BOOL, YES};
+
 use crate::{
     event::{Event, StartCause},
     event_loop::ControlFlow,
@@ -16,7 +18,8 @@ use crate::platform_impl::platform::{
     ffi::{
         id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
         CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-        CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, NSUInteger,
+        CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, NSInteger, NSOperatingSystemVersion,
+        NSUInteger,
     },
 };
 
@@ -126,7 +129,7 @@ impl AppState {
                 ..
             } => {
                 queued_windows.push(window);
-                msg_send![window, retain];
+                let _: id = msg_send![window, retain];
                 return;
             }
             &mut AppStateImpl::ProcessingEvents { .. } => {}
@@ -199,7 +202,7 @@ impl AppState {
                 // completed. This may result in incorrect visual appearance.
                 // ```
                 let screen: id = msg_send![window, screen];
-                let () = msg_send![screen, retain];
+                let _: id = msg_send![screen, retain];
                 let () = msg_send![window, setScreen:0 as id];
                 let () = msg_send![window, setScreen: screen];
                 let () = msg_send![screen, release];
@@ -617,4 +620,96 @@ impl EventLoopWaker {
             }
         }
     }
+}
+
+macro_rules! os_capabilities {
+    (
+        $(
+            $(#[$attr:meta])*
+            $error_name:ident: $objc_call:literal,
+            $name:ident: $major:literal-$minor:literal
+        ),*
+        $(,)*
+    ) => {
+        #[derive(Clone, Debug)]
+        pub struct OSCapabilities {
+            $(
+                pub $name: bool,
+            )*
+
+            os_version: NSOperatingSystemVersion,
+        }
+
+        impl From<NSOperatingSystemVersion> for OSCapabilities {
+            fn from(os_version: NSOperatingSystemVersion) -> OSCapabilities {
+                $(let $name = os_version.meets_requirements($major, $minor);)*
+                OSCapabilities { $($name,)* os_version, }
+            }
+        }
+
+        impl OSCapabilities {$(
+            $(#[$attr])*
+            pub fn $error_name(&self, extra_msg: &str) {
+                log::warn!(
+                    concat!("`", $objc_call, "` requires iOS {}.{}+. This device is running iOS {}.{}.{}. {}"),
+                    $major, $minor, self.os_version.major, self.os_version.minor, self.os_version.patch,
+                    extra_msg
+                )
+            }
+        )*}
+    };
+}
+
+os_capabilities! {
+    /// https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    #[allow(unused)] // error message unused
+    safe_area_err_msg: "-[UIView safeAreaInsets]",
+    safe_area: 11-0,
+    /// https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc
+    home_indicator_hidden_err_msg: "-[UIViewController setNeedsUpdateOfHomeIndicatorAutoHidden]",
+    home_indicator_hidden: 11-0,
+    /// https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc
+    defer_system_gestures_err_msg: "-[UIViewController setNeedsUpdateOfScreenEdgesDeferringSystem]",
+    defer_system_gestures: 11-0,
+    /// https://developer.apple.com/documentation/uikit/uiscreen/2806814-maximumframespersecond?language=objc
+    maximum_frames_per_second_err_msg: "-[UIScreen maximumFramesPerSecond]",
+    maximum_frames_per_second: 10-3,
+    /// https://developer.apple.com/documentation/uikit/uitouch/1618110-force?language=objc
+    #[allow(unused)] // error message unused
+    force_touch_err_msg: "-[UITouch force]",
+    force_touch: 9-0,
+}
+
+impl NSOperatingSystemVersion {
+    fn meets_requirements(&self, required_major: NSInteger, required_minor: NSInteger) -> bool {
+        (self.major, self.minor) >= (required_major, required_minor)
+    }
+}
+
+pub fn os_capabilities() -> OSCapabilities {
+    lazy_static! {
+        static ref OS_CAPABILITIES: OSCapabilities = {
+            let version: NSOperatingSystemVersion = unsafe {
+                let process_info: id = msg_send![class!(NSProcessInfo), processInfo];
+                let atleast_ios_8: BOOL = msg_send![
+                    process_info,
+                    respondsToSelector: sel!(operatingSystemVersion)
+                ];
+                // winit requires atleast iOS 8 because no one has put the time into supporting earlier os versions.
+                // Older iOS versions are increasingly difficult to test. For example, Xcode 11 does not support
+                // debugging on devices with an iOS version of less than 8. Another example, in order to use an iOS
+                // simulator older than iOS 8, you must download an older version of Xcode (<9), and at least Xcode 7
+                // has been tested to not even run on macOS 10.15 - Xcode 8 might?
+                //
+                // The minimum required iOS version is likely to grow in the future.
+                assert!(
+                    atleast_ios_8 == YES,
+                    "`winit` requires iOS version 8 or greater"
+                );
+                msg_send![process_info, operatingSystemVersion]
+            };
+            version.into()
+        };
+    }
+    OS_CAPABILITIES.clone()
 }

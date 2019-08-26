@@ -329,7 +329,7 @@ pub struct Touch {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **iOS**.
+    /// - Only available on **iOS** 9.0+.
     pub force: Option<Force>,
     /// Unique identifier of a finger.
     pub id: u64,
