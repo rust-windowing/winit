@@ -398,7 +398,7 @@ impl Inner {
 
     pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
         unsafe {
-            let prefers_home_indicator_hidden = if hidden { NO } else { YES };
+            let prefers_home_indicator_hidden = if hidden { YES } else { NO };
             let () = msg_send![
                 self.view_controller,
                 setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
