@@ -415,8 +415,6 @@ impl Window {
     ///
     /// See `outer_position` for more information about the coordinates.
     ///
-    /// This is a no-op if the window has already been closed.
-    ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
