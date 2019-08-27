@@ -3,6 +3,8 @@
 - On macOS, implement `run_return`.
 - On iOS, fix inverted parameter in `set_prefers_home_indicator_hidden`.
 - On X11, performance is improved when rapidly calling `Window::set_cursor_icon`.
+- On iOS, fix improper `msg_send` usage that was UB and/or would break if `!` is stabilized.
+- On Windows, unset `maximized` when manually changing the window's position or size.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
@@ -31,7 +33,6 @@
 - On iOS, add touch pressure information for touch events.
 - Implement `raw_window_handle::HasRawWindowHandle` for `Window` type on all supported platforms.
 - On macOS, fix the signature of `-[NSView drawRect:]`.
-- On iOS, fix improper `msg_send` usage that was UB and/or would break if `!` is stabilized.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
@@ -51,7 +52,6 @@ and `WindowEvent::HoveredFile`.
 - On Windows, fix the trail effect happening on transparent decorated windows. Borderless (or un-decorated) windows were not affected.
 - On Windows, fix `with_maximized` not properly setting window size to entire window.
 - On macOS, change `WindowExtMacOS::request_user_attention()` to take an `enum` instead of a `bool`.
-- On Windows, unset `maximized` when manually changing the window's position or size.
 
 # 0.20.0 Alpha 1 (2019-06-21)
 
