@@ -1561,25 +1561,26 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 // margin_bottom = adjusted_rect.bottom - suggested_rect.bottom;
             }
 
-            let current_rect = {
-                let mut current_rect = mem::zeroed();
-                winuser::GetClientRect(window, &mut current_rect);
+            let old_physical_inner_rect = {
+                let mut old_physical_inner_rect = mem::zeroed();
+                winuser::GetClientRect(window, &mut old_physical_inner_rect);
                 let mut origin = mem::zeroed();
                 winuser::ClientToScreen(window, &mut origin);
 
-                current_rect.left += origin.x;
-                current_rect.right += origin.x;
-                current_rect.top += origin.y;
-                current_rect.bottom += origin.y;
+                old_physical_inner_rect.left += origin.x;
+                old_physical_inner_rect.right += origin.x;
+                old_physical_inner_rect.top += origin.y;
+                old_physical_inner_rect.bottom += origin.y;
 
-                current_rect
+                old_physical_inner_rect
             };
             let old_physical_inner_size =
                 PhysicalSize::new(
-                    (current_rect.right - current_rect.left) as u32,
-                    (current_rect.bottom - current_rect.top) as u32,
+                    (old_physical_inner_rect.right - old_physical_inner_rect.left) as u32,
+                    (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
                 );
-            // We calculate our own rect because the default suggested rect doesn't do a great job
+
+            // We calculate our own size because the default suggested rect doesn't do a great job
             // of preserving the window's logical size.
             let suggested_physical_inner_size =
                 old_physical_inner_size
@@ -1600,15 +1601,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             let new_physical_inner_size = new_inner_size_opt.unwrap_or(old_physical_inner_size);
 
+            // Unset maximized if we're changing the window's size.
             if new_physical_inner_size != old_physical_inner_size {
                 WindowState::set_window_flags(subclass_input.window_state.lock(), window, None, |f| {
                     f.set(WindowFlags::MAXIMIZED, false)
                 });
             }
 
-            let monitor_before_resize = winuser::MonitorFromWindow(window, 0);
-
-            let new_outer_rect = {
+            let new_outer_rect: RECT;
+            {
                 let suggested_ul = (suggested_rect.left + margin_left, suggested_rect.top + margin_top);
 
                 let mut conservative_rect = RECT {
@@ -1626,6 +1627,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     new_dpi_x,
                 );
 
+                // If we're not dragging the window, offset the window so that the cursor's
+                // relative horizontal position in the title bar is preserved.
                 let dragging_window = subclass_input.event_loop_runner.runner.try_borrow().ok().and_then(|r_opt| r_opt.as_ref().map(|r| r.in_modal_loop)).unwrap_or(false);
                 if dragging_window {
                     let bias = {
@@ -1642,8 +1645,12 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     conservative_rect.right += bias;
                 }
 
+
+                // Check to see if the new window rect is on the monitor with the new DPI factor.
+                // If it isn't, offset the window so that it is.
+                let new_dpi_monitor = winuser::MonitorFromWindow(window, 0);
                 let conservative_rect_monitor = winuser::MonitorFromRect(&conservative_rect, 0);
-                if conservative_rect_monitor == monitor_before_resize {
+                new_outer_rect = if conservative_rect_monitor == new_dpi_monitor {
                     conservative_rect
                 } else {
                     let get_monitor_rect = |monitor| {
@@ -1654,22 +1661,25 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                         winuser::GetMonitorInfoW(monitor, &mut monitor_info);
                         monitor_info.rcMonitor
                     };
-                    let old_monitor = conservative_rect_monitor;
-                    let old_monitor_rect = get_monitor_rect(old_monitor);
-                    let new_monitor_rect = get_monitor_rect(monitor_before_resize);
+                    let wrong_monitor = conservative_rect_monitor;
+                    let wrong_monitor_rect = get_monitor_rect(wrong_monitor);
+                    let new_monitor_rect = get_monitor_rect(new_dpi_monitor);
 
 
-                    let monitor_delta = (
-                        if old_monitor_rect.left == new_monitor_rect.right {
+                    // The direction to nudge the window in to get the window onto the monitor with
+                    // the new DPI factor. We calculate this by seeing which monitor edges are
+                    // shared and nudging away from the wrong monitor based on those.
+                    let delta_nudge_to_dpi_monitor = (
+                        if wrong_monitor_rect.left == new_monitor_rect.right {
                             -1
-                        } else if old_monitor_rect.right == new_monitor_rect.left {
+                        } else if wrong_monitor_rect.right == new_monitor_rect.left {
                             1
                         } else {
                             0
                         },
-                        if old_monitor_rect.bottom == new_monitor_rect.top {
+                        if wrong_monitor_rect.bottom == new_monitor_rect.top {
                             1
-                        } else if old_monitor_rect.top == new_monitor_rect.bottom {
+                        } else if wrong_monitor_rect.top == new_monitor_rect.bottom {
                             -1
                         } else {
                             0
@@ -1678,19 +1688,19 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                     let abort_after_iterations = new_monitor_rect.right - new_monitor_rect.left + new_monitor_rect.bottom - new_monitor_rect.top;
                     for _ in 0..abort_after_iterations {
-                        conservative_rect.left += monitor_delta.0;
-                        conservative_rect.right += monitor_delta.0;
-                        conservative_rect.top += monitor_delta.1;
-                        conservative_rect.bottom += monitor_delta.1;
+                        conservative_rect.left += delta_nudge_to_dpi_monitor.0;
+                        conservative_rect.right += delta_nudge_to_dpi_monitor.0;
+                        conservative_rect.top += delta_nudge_to_dpi_monitor.1;
+                        conservative_rect.bottom += delta_nudge_to_dpi_monitor.1;
 
-                        if winuser::MonitorFromRect(&conservative_rect, 0) == monitor_before_resize {
+                        if winuser::MonitorFromRect(&conservative_rect, 0) == new_dpi_monitor {
                             break;
                         }
                     }
 
                     conservative_rect
-                }
-            };
+                };
+            }
 
             winuser::SetWindowPos(
                 window,
