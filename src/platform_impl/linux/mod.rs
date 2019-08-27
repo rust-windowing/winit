@@ -19,6 +19,7 @@ use crate::{
 };
 
 mod dlopen;
+mod modifiers;
 pub mod wayland;
 pub mod x11;
 

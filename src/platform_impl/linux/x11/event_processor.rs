@@ -12,6 +12,7 @@ use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{DeviceEvent, Event, KeyboardInput, ModifiersState, WindowEvent},
     event_loop::EventLoopWindowTarget as RootELW,
+    platform_impl::platform::modifiers::{ModifierKeyState, ModifierKeymap},
 };
 
 pub(super) struct EventProcessor<T: 'static> {
@@ -21,6 +22,8 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
     pub(super) target: Rc<RootELW<T>>,
+    pub(super) mod_keymap: ModifierKeymap,
+    pub(super) mod_key_state: ModifierKeyState,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -112,12 +115,21 @@ impl<T: 'static> EventProcessor<T> {
         let event_type = xev.get_type();
         match event_type {
             ffi::MappingNotify => {
-                unsafe {
-                    (wt.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
+                let mapping: &ffi::XMappingEvent = xev.as_ref();
+
+                if mapping.request == ffi::MappingModifier
+                    || mapping.request == ffi::MappingKeyboard
+                {
+                    unsafe {
+                        (wt.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
+                    }
+                    wt.xconn
+                        .check_errors()
+                        .expect("Failed to call XRefreshKeyboardMapping");
+
+                    self.mod_keymap.reset_from_x_connection(&wt.xconn);
+                    self.mod_key_state.update(&self.mod_keymap);
                 }
-                wt.xconn
-                    .check_errors()
-                    .expect("Failed to call XRefreshKeyboardMapping");
             }
 
             ffi::ClientMessage => {
@@ -514,12 +526,22 @@ impl<T: 'static> EventProcessor<T> {
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
                 if xkev.keycode != 0 {
-                    let modifiers = ModifiersState {
-                        alt: xkev.state & ffi::Mod1Mask != 0,
-                        shift: xkev.state & ffi::ShiftMask != 0,
-                        ctrl: xkev.state & ffi::ControlMask != 0,
-                        logo: xkev.state & ffi::Mod4Mask != 0,
-                    };
+                    // The modifier state reported by the X server is the state as it existed
+                    // *just prior to* the event.
+                    // https://tronche.com/gui/x/xlib/events/keyboard-pointer/keyboard-pointer.html
+                    //
+                    // However, for clarity and consistency with other platform APIs, we want to
+                    // report the modifier state as it currently stands, having been modified by
+                    // this event. i.e., when Shift is pressed, report `shift: true`; when Shift
+                    // is released, report `shift: false` unless another Shift key is pressed.
+                    // In order to do this, we must track which keycodes correspond to which
+                    // modifiers and which keys are currently pressed.
+                    if let Some(modifier) = self.mod_keymap.get_modifier(xkev.keycode) {
+                        self.mod_key_state
+                            .key_event(state, xkev.keycode, modifier);
+                    }
+
+                    let modifiers = self.mod_key_state.modifiers();
 
                     let keysym = unsafe {
                         let mut keysym = 0;
@@ -1022,18 +1044,19 @@ impl<T: 'static> EventProcessor<T> {
 
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
+                        if let Some(m) = self.mod_keymap.get_modifier(keycode as u32) {
+                            self.mod_key_state.key_event(state, keycode as u32, m);
+                        }
+
+                        let modifiers = self.mod_key_state.modifiers();
+
                         callback(Event::DeviceEvent {
                             device_id: mkdid(device_id),
                             event: DeviceEvent::Key(KeyboardInput {
                                 scancode,
                                 virtual_keycode,
                                 state,
-                                // So, in an ideal world we can use libxkbcommon to get modifiers.
-                                // However, libxkbcommon-x11 isn't as commonly installed as one
-                                // would hope. We can still use the Xkb extension to get
-                                // comprehensive keyboard state updates, but interpreting that
-                                // info manually is going to be involved.
-                                modifiers: ModifiersState::default(),
+                                modifiers,
                             }),
                         });
                     }

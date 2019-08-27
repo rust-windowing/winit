@@ -8,7 +8,7 @@ mod ime;
 mod monitor;
 pub mod util;
 mod window;
-mod xdisplay;
+pub mod xdisplay;
 
 pub use self::{
     monitor::{MonitorHandle, VideoMode},
@@ -39,7 +39,10 @@ use crate::{
     error::OsError as RootOsError,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    platform_impl::{platform::sticky_exit_callback, PlatformSpecificWindowBuilderAttributes},
+    platform_impl::{
+        platform::modifiers::ModifierKeymap, platform::sticky_exit_callback,
+        PlatformSpecificWindowBuilderAttributes,
+    },
     window::WindowAttributes,
 };
 
@@ -143,6 +146,9 @@ impl<T: 'static> EventLoop<T> {
 
         xconn.update_cached_wm_info(root);
 
+        let mut mod_keymap = ModifierKeymap::new();
+        mod_keymap.reset_from_x_connection(&xconn);
+
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
                 ime,
@@ -186,6 +192,8 @@ impl<T: 'static> EventLoop<T> {
             randr_event_offset,
             ime_receiver,
             xi2ext,
+            mod_keymap,
+            mod_key_state: Default::default(),
         };
 
         // Register for device hotplug events
