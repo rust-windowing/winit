@@ -1524,7 +1524,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 old_dpi_factor = window_state.dpi_factor;
                 window_state.dpi_factor = new_dpi_factor;
 
-                new_dpi_factor != old_dpi_factor && window_state.fullscreen.is_none()
+                if new_dpi_factor == old_dpi_factor {
+                    return 0;
+                }
+
+                window_state.fullscreen.is_none() && !window_state.window_flags().contains(WindowFlags::MAXIMIZED)
             };
 
             let style = winuser::GetWindowLongW(window, winuser::GWL_STYLE) as _;
@@ -1539,9 +1543,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             // the outer rect, so we instead adjust the window rect to get the decoration margins
             // and remove them from the outer size.
             let margin_left: i32;
-            let margin_right: i32;
             let margin_top: i32;
-            let margin_bottom: i32;
+            // let margin_right: i32;
+            // let margin_bottom: i32;
             {
                 let mut adjusted_rect = suggested_rect;
                 winuser::AdjustWindowRectExForDpi(
@@ -1552,9 +1556,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     new_dpi_x,
                 );
                 margin_left = suggested_rect.left - adjusted_rect.left;
-                margin_right = adjusted_rect.right - suggested_rect.right;
                 margin_top = suggested_rect.top - adjusted_rect.top;
-                margin_bottom = adjusted_rect.bottom - suggested_rect.bottom;
+                // margin_right = adjusted_rect.right - suggested_rect.right;
+                // margin_bottom = adjusted_rect.bottom - suggested_rect.bottom;
             }
 
             let current_rect = {
@@ -1584,17 +1588,23 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
-            let mut new_inner_rect_opt = Some(suggested_physical_inner_size).filter(|_| allow_resize);
+            let mut new_inner_size_opt = Some(suggested_physical_inner_size).filter(|_| allow_resize);
 
             let _ = subclass_input.send_event_unbuffered(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: HiDpiFactorChanged {
                     hidpi_factor: new_dpi_factor,
-                    new_inner_size: &mut new_inner_rect_opt,
+                    new_inner_size: &mut new_inner_size_opt,
                 },
             });
 
-            let new_physical_inner_rect = new_inner_rect_opt.unwrap_or(old_physical_inner_size);
+            let new_physical_inner_size = new_inner_size_opt.unwrap_or(old_physical_inner_size);
+
+            if new_physical_inner_size != old_physical_inner_size {
+                WindowState::set_window_flags(subclass_input.window_state.lock(), window, None, |f| {
+                    f.set(WindowFlags::MAXIMIZED, false)
+                });
+            }
 
             let monitor_before_resize = winuser::MonitorFromWindow(window, 0);
 
@@ -1604,8 +1614,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 let mut conservative_rect = RECT {
                     left: suggested_ul.0,
                     top: suggested_ul.1,
-                    right: suggested_ul.0 + new_physical_inner_rect.width as LONG,
-                    bottom: suggested_ul.1 + new_physical_inner_rect.height as LONG,
+                    right: suggested_ul.0 + new_physical_inner_size.width as LONG,
+                    bottom: suggested_ul.1 + new_physical_inner_size.height as LONG,
                 };
 
                 winuser::AdjustWindowRectExForDpi(
@@ -1616,18 +1626,21 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     new_dpi_x,
                 );
 
-                let bias = {
-                    let cursor_pos = {
-                        let mut pos = mem::zeroed();
-                        winuser::GetCursorPos(&mut pos);
-                        pos
-                    };
-                    let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left) as f64 / (suggested_rect.right - suggested_rect.left) as f64;
+                let dragging_window = subclass_input.event_loop_runner.runner.try_borrow().ok().and_then(|r_opt| r_opt.as_ref().map(|r| r.in_modal_loop)).unwrap_or(false);
+                if dragging_window {
+                    let bias = {
+                        let cursor_pos = {
+                            let mut pos = mem::zeroed();
+                            winuser::GetCursorPos(&mut pos);
+                            pos
+                        };
+                        let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left) as f64 / (suggested_rect.right - suggested_rect.left) as f64;
 
-                    (cursor_pos.x - (suggested_cursor_horizontal_ratio * (conservative_rect.right - conservative_rect.left) as f64) as LONG) - conservative_rect.left
-                };
-                conservative_rect.left += bias;
-                conservative_rect.right += bias;
+                        (cursor_pos.x - (suggested_cursor_horizontal_ratio * (conservative_rect.right - conservative_rect.left) as f64) as LONG) - conservative_rect.left
+                    };
+                    conservative_rect.left += bias;
+                    conservative_rect.right += bias;
+                }
 
                 let conservative_rect_monitor = winuser::MonitorFromRect(&conservative_rect, 0);
                 if conservative_rect_monitor == monitor_before_resize {

@@ -26,12 +26,12 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 window_id,
             } if window_id == window.id() => *control_flow = ControlFlow::Exit,
-            // Event::WindowEvent {
-            //     event: WindowEvent::HiDpiFactorChanged{new_inner_size, ..},
-            //     ..
-            // } => {
-            //     *new_inner_size = Some(winit::dpi::PhysicalSize::new(256, 256));
-            // }
+            Event::WindowEvent {
+                event: WindowEvent::HiDpiFactorChanged{new_inner_size, ..},
+                ..
+            } => {
+                *new_inner_size = Some(winit::dpi::PhysicalSize::new(256, 256));
+            }
             _ => *control_flow = ControlFlow::Wait,
         }
     });
