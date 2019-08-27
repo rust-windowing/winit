@@ -9,29 +9,18 @@ fn main() {
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
-        // .with_resizable(false)
-        .with_inner_size(winit::dpi::PhysicalSize::new(1024, 256))
+        .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
         .build(&event_loop)
         .unwrap();
 
-    let assert_size = window.inner_size();
-
     event_loop.run(move |event, _, control_flow| {
-        // println!("{:?}", event);
-
-        // assert_eq!(assert_size, window.inner_size());
+        println!("{:?}", event);
 
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
             } if window_id == window.id() => *control_flow = ControlFlow::Exit,
-            Event::WindowEvent {
-                event: WindowEvent::HiDpiFactorChanged{new_inner_size, ..},
-                ..
-            } => {
-                *new_inner_size = Some(winit::dpi::PhysicalSize::new(256, 256));
-            }
             _ => *control_flow = ControlFlow::Wait,
         }
     });
