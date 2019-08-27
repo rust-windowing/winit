@@ -50,7 +50,7 @@
 //!     match event {
 //!         Event::MainEventsCleared => {
 //!             // Application update code.
-//!     
+//!
 //!             // Queue a RedrawRequested event.
 //!             window.request_redraw();
 //!         },
