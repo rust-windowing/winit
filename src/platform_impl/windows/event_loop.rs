@@ -1557,11 +1557,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 margin_bottom = adjusted_rect.bottom - suggested_rect.bottom;
             }
 
-            // let windows_suggested_physical_inner_size = PhysicalSize::new(
-            //     (suggested_rect.right - suggested_rect.left) as u32 - margins_horizontal,
-            //     (suggested_rect.bottom - suggested_rect.top) as u32 - margins_vertical,
-            // );
-
             let current_rect = {
                 let mut current_rect = mem::zeroed();
                 winuser::GetClientRect(window, &mut current_rect);
@@ -1620,6 +1615,19 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     style_ex,
                     new_dpi_x,
                 );
+
+                let bias = {
+                    let cursor_pos = {
+                        let mut pos = mem::zeroed();
+                        winuser::GetCursorPos(&mut pos);
+                        pos
+                    };
+                    let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left) as f64 / (suggested_rect.right - suggested_rect.left) as f64;
+
+                    (cursor_pos.x - (suggested_cursor_horizontal_ratio * (conservative_rect.right - conservative_rect.left) as f64) as LONG) - conservative_rect.left
+                };
+                conservative_rect.left += bias;
+                conservative_rect.right += bias;
 
                 let conservative_rect_monitor = winuser::MonitorFromRect(&conservative_rect, 0);
                 if conservative_rect_monitor == monitor_before_resize {
