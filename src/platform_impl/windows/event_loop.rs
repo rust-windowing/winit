@@ -13,16 +13,14 @@
 //! The closure passed to the `execute_in_thread` method takes an `Inserter` that you can use to
 //! add a `WindowState` entry to a list of window to be used by the callback.
 
+mod runner;
+
 use parking_lot::Mutex;
 use std::{
-    any::Any,
-    cell::RefCell,
-    collections::VecDeque,
     marker::PhantomData,
     mem, panic, ptr,
     rc::Rc,
     sync::{
-        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, Sender},
         Arc,
     },
@@ -44,6 +42,7 @@ use winapi::{
     },
 };
 
+use self::runner::{ELRShared, EventLoopRunnerShared};
 use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalSize},
     event::{DeviceEvent, Event, Force, KeyboardInput, StartCause, Touch, TouchPhase, WindowEvent},
@@ -127,7 +126,6 @@ pub struct EventLoop<T: 'static> {
 
 pub struct EventLoopWindowTarget<T> {
     thread_id: DWORD,
-    trigger_newevents_on_redraw: Arc<AtomicBool>,
     thread_msg_target: HWND,
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
@@ -167,10 +165,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn new_dpi_unaware_any_thread() -> EventLoop<T> {
         let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
-        let runner_shared = Rc::new(ELRShared {
-            runner: RefCell::new(None),
-            buffer: RefCell::new(VecDeque::new()),
-        });
+        let runner_shared = Rc::new(ELRShared::new());
         let (thread_msg_target, thread_msg_sender) =
             thread_event_target_window(runner_shared.clone());
 
@@ -179,7 +174,6 @@ impl<T: 'static> EventLoop<T> {
             window_target: RootELW {
                 p: EventLoopWindowTarget {
                     thread_id,
-                    trigger_newevents_on_redraw: Arc::new(AtomicBool::new(true)),
                     thread_msg_target,
                     runner_shared,
                 },
@@ -206,44 +200,23 @@ impl<T: 'static> EventLoop<T> {
     {
         let event_loop_windows_ref = &self.window_target;
 
-        let mut runner = unsafe {
-            EventLoopRunner::new(self, move |event, control_flow| {
-                event_handler(event, event_loop_windows_ref, control_flow)
-            })
-        };
-        {
-            let runner_shared = self.window_target.p.runner_shared.clone();
-            let mut runner_ref = runner_shared.runner.borrow_mut();
-            loop {
-                let event = runner_shared.buffer.borrow_mut().pop_front();
-                match event {
-                    Some(e) => {
-                        runner.process_event(e);
-                    }
-                    None => break,
-                }
-            }
-            *runner_ref = Some(runner);
+        unsafe {
+            self.window_target
+                .p
+                .runner_shared
+                .set_runner(self, move |event, control_flow| {
+                    event_handler(event, event_loop_windows_ref, control_flow)
+                })
         }
 
-        macro_rules! runner {
-            () => {
-                self.window_target
-                    .p
-                    .runner_shared
-                    .runner
-                    .borrow_mut()
-                    .as_mut()
-                    .unwrap()
-            };
-        }
+        let runner = &self.window_target.p.runner_shared;
 
         unsafe {
             let mut msg = mem::zeroed();
             let mut msg_unprocessed = false;
 
             'main: loop {
-                runner!().new_events();
+                runner.new_events();
                 loop {
                     if !msg_unprocessed {
                         if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
@@ -255,13 +228,14 @@ impl<T: 'static> EventLoop<T> {
 
                     msg_unprocessed = false;
                 }
-                runner!().events_cleared();
-                if let Some(payload) = runner!().panic_error.take() {
+                runner.events_cleared();
+                if let Err(payload) = runner.take_panic_error() {
+                    runner.destroy_runner();
                     panic::resume_unwind(payload);
                 }
 
                 if !msg_unprocessed {
-                    let control_flow = runner!().control_flow;
+                    let control_flow = runner.control_flow();
                     match control_flow {
                         ControlFlow::Exit => break 'main,
                         ControlFlow::Wait => {
@@ -279,8 +253,10 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        runner!().call_event_handler(Event::LoopDestroyed);
-        *self.window_target.p.runner_shared.runner.borrow_mut() = None;
+        unsafe {
+            runner.call_event_handler(Event::LoopDestroyed);
+        }
+        runner.destroy_runner();
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
@@ -296,7 +272,6 @@ impl<T> EventLoopWindowTarget<T> {
     pub(crate) fn create_thread_executor(&self) -> EventLoopThreadExecutor {
         EventLoopThreadExecutor {
             thread_id: self.thread_id,
-            trigger_newevents_on_redraw: self.trigger_newevents_on_redraw.clone(),
             target_window: self.thread_msg_target,
         }
     }
@@ -667,7 +642,6 @@ impl<T> Drop for EventLoop<T> {
 
 pub(crate) struct EventLoopThreadExecutor {
     thread_id: DWORD,
-    trigger_newevents_on_redraw: Arc<AtomicBool>,
     target_window: HWND,
 }
 
@@ -679,10 +653,6 @@ impl EventLoopThreadExecutor {
     pub(super) fn in_event_loop_thread(&self) -> bool {
         let cur_thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
         self.thread_id == cur_thread_id
-    }
-
-    pub(super) fn trigger_newevents_on_redraw(&self) -> bool {
-        !self.in_event_loop_thread() || self.trigger_newevents_on_redraw.load(Ordering::Relaxed)
     }
 
     /// Executes a function in the event loop thread. If we're already in the event loop thread,
@@ -782,12 +752,6 @@ lazy_static! {
     pub static ref INITIAL_DPI_MSG_ID: u32 = {
         unsafe {
             winuser::RegisterWindowMessageA("Winit::InitialDpiMsg\0".as_ptr() as LPCSTR)
-        }
-    };
-    // Message sent by a `Window` if it's requesting a redraw without sending a NewEvents.
-    pub static ref REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID: u32 = {
-        unsafe {
-            winuser::RegisterWindowMessageA("Winit::RequestRedrawNoNewevents\0".as_ptr() as LPCSTR)
         }
     };
     // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
@@ -922,21 +886,15 @@ unsafe extern "system" fn public_window_callback<T>(
     _: UINT_PTR,
     subclass_input_ptr: DWORD_PTR,
 ) -> LRESULT {
-    let subclass_input = &mut *(subclass_input_ptr as *mut SubclassInput<T>);
+    let subclass_input = &*(subclass_input_ptr as *const SubclassInput<T>);
 
     match msg {
         winuser::WM_ENTERSIZEMOVE => {
-            let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
-            if let Some(ref mut runner) = *runner {
-                runner.in_modal_loop = true;
-            }
+            subclass_input.event_loop_runner.set_modal_loop(true);
             0
         }
         winuser::WM_EXITSIZEMOVE => {
-            let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
-            if let Some(ref mut runner) = *runner {
-                runner.in_modal_loop = false;
-            }
+            subclass_input.event_loop_runner.set_modal_loop(false);
             0
         }
         winuser::WM_NCCREATE => {
@@ -975,48 +933,13 @@ unsafe extern "system" fn public_window_callback<T>(
                 event: Destroyed,
             });
 
-            Box::from_raw(subclass_input);
             drop(subclass_input);
+            Box::from_raw(subclass_input_ptr as *mut SubclassInput<T>);
             0
         }
 
-        _ if msg == *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID => {
-            use crate::event::WindowEvent::RedrawRequested;
-            let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
-            subclass_input.window_state.lock().queued_out_of_band_redraw = false;
-            if let Some(ref mut runner) = *runner {
-                // This check makes sure that calls to `request_redraw()` during `EventsCleared`
-                // handling dispatch `RedrawRequested` immediately after `EventsCleared`, without
-                // spinning up a new event loop iteration. We do this because that's what the API
-                // says to do.
-                let runner_state = runner.runner_state;
-                let mut request_redraw = || {
-                    runner.call_event_handler(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId(window)),
-                        event: RedrawRequested,
-                    });
-                };
-                match runner_state {
-                    RunnerState::Idle(..) | RunnerState::DeferredNewEvents(..) => request_redraw(),
-                    RunnerState::HandlingEvents => {
-                        winuser::RedrawWindow(
-                            window,
-                            ptr::null(),
-                            ptr::null_mut(),
-                            winuser::RDW_INTERNALPAINT,
-                        );
-                    }
-                    _ => (),
-                }
-            }
-            0
-        }
         winuser::WM_PAINT => {
-            use crate::event::WindowEvent::RedrawRequested;
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: RedrawRequested,
-            });
+            subclass_input.send_event(Event::RedrawRequested(RootWindowId(WindowId(window))));
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
@@ -1977,14 +1900,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                     winuser::RDW_INTERNALPAINT,
                 );
             };
-            let in_modal_loop = {
-                let runner = subclass_input.event_loop_runner.runner.borrow_mut();
-                if let Some(ref runner) = *runner {
-                    runner.in_modal_loop
-                } else {
-                    false
-                }
-            };
+            let in_modal_loop = subclass_input.event_loop_runner.in_modal_loop();
             if in_modal_loop {
                 let mut msg = mem::zeroed();
                 loop {
@@ -2012,21 +1928,19 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                     }
                 }
 
-                let mut runner = subclass_input.event_loop_runner.runner.borrow_mut();
-                if let Some(ref mut runner) = *runner {
-                    runner.events_cleared();
-                    match runner.control_flow {
-                        // Waiting is handled by the modal loop.
-                        ControlFlow::Exit | ControlFlow::Wait => runner.new_events(),
-                        ControlFlow::WaitUntil(resume_time) => {
-                            wait_until_time_or_msg(resume_time);
-                            runner.new_events();
-                            queue_call_again();
-                        }
-                        ControlFlow::Poll => {
-                            runner.new_events();
-                            queue_call_again();
-                        }
+                let runner = &subclass_input.event_loop_runner;
+                runner.events_cleared();
+                match runner.control_flow() {
+                    // Waiting is handled by the modal loop.
+                    ControlFlow::Exit | ControlFlow::Wait => runner.new_events(),
+                    ControlFlow::WaitUntil(resume_time) => {
+                        wait_until_time_or_msg(resume_time);
+                        runner.new_events();
+                        queue_call_again();
+                    }
+                    ControlFlow::Poll => {
+                        runner.new_events();
+                        queue_call_again();
                     }
                 }
             }
