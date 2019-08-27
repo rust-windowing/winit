@@ -413,7 +413,8 @@ impl Window {
 
     /// Modifies the position of the window.
     ///
-    /// See `outer_position` for more information about the coordinates.
+    /// See `outer_position` for more information about the coordinates. This automatically un-maximizes the
+    /// window if it's maximized.
     ///
     /// ## Platform-specific
     ///
@@ -443,7 +444,8 @@ impl Window {
 
     /// Modifies the inner size of the window.
     ///
-    /// See `inner_size` for more information about the values.
+    /// See `inner_size` for more information about the values. This automatically un-maximizes the
+    /// window if it's maximized.
     ///
     /// ## Platform-specific
     ///

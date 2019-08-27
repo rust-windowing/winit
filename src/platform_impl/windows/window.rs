@@ -212,6 +212,15 @@ impl Window {
     pub fn set_outer_position(&self, logical_position: LogicalPosition) {
         let dpi_factor = self.hidpi_factor();
         let (x, y) = logical_position.to_physical(dpi_factor).into();
+
+        let window_state = Arc::clone(&self.window_state);
+        let window = self.window.clone();
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(WindowFlags::MAXIMIZED, false)
+            });
+        });
+
         self.set_position_physical(x, y);
     }
 
@@ -287,6 +296,15 @@ impl Window {
     pub fn set_inner_size(&self, logical_size: LogicalSize) {
         let dpi_factor = self.hidpi_factor();
         let (width, height) = logical_size.to_physical(dpi_factor).into();
+
+        let window_state = Arc::clone(&self.window_state);
+        let window = self.window.clone();
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(WindowFlags::MAXIMIZED, false)
+            });
+        });
+
         self.set_inner_size_physical(width, height);
     }
 
