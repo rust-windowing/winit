@@ -1,5 +1,7 @@
 # Unreleased
 
+- On macOS, implement `run_return`.
+- On iOS, fix inverted parameter in `set_prefers_home_indicator_hidden`.
 - On X11, performance is improved when rapidly calling `Window::set_cursor_icon`.
 
 # 0.20.0 Alpha 3 (2019-08-14)
@@ -29,6 +31,7 @@
 - On iOS, add touch pressure information for touch events.
 - Implement `raw_window_handle::HasRawWindowHandle` for `Window` type on all supported platforms.
 - On macOS, fix the signature of `-[NSView drawRect:]`.
+- On iOS, fix improper `msg_send` usage that was UB and/or would break if `!` is stabilized.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 

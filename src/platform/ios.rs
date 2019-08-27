@@ -70,6 +70,8 @@ pub trait WindowExtIOS {
     /// [`-[UIViewController prefersHomeIndicatorAutoHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887510-prefershomeindicatorautohidden?language=objc),
     /// and then calls
     /// [`-[UIViewController setNeedsUpdateOfHomeIndicatorAutoHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc).
+    ///
+    /// This only has an effect on iOS 11.0+.
     fn set_prefers_home_indicator_hidden(&self, hidden: bool);
 
     /// Sets the screen edges for which the system gestures will take a lower priority than the
@@ -79,6 +81,8 @@ pub trait WindowExtIOS {
     /// [`-[UIViewController preferredScreenEdgesDeferringSystemGestures]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887512-preferredscreenedgesdeferringsys?language=objc),
     /// and then calls
     /// [`-[UIViewController setNeedsUpdateOfScreenEdgesDeferringSystemGestures]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc).
+    ///
+    /// This only has an effect on iOS 11.0+.
     fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge);
 
     /// Sets whether the [`Window`] prefers the status bar hidden.
@@ -167,6 +171,8 @@ pub trait WindowBuilderExtIOS {
     ///
     /// This sets the initial value returned by
     /// [`-[UIViewController prefersHomeIndicatorAutoHidden]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887510-prefershomeindicatorautohidden?language=objc).
+    ///
+    /// This only has an effect on iOS 11.0+.
     fn with_prefers_home_indicator_hidden(self, hidden: bool) -> WindowBuilder;
 
     /// Sets the screen edges for which the system gestures will take a lower priority than the
@@ -174,6 +180,8 @@ pub trait WindowBuilderExtIOS {
     ///
     /// This sets the initial value returned by
     /// [`-[UIViewController preferredScreenEdgesDeferringSystemGestures]`](https://developer.apple.com/documentation/uikit/uiviewcontroller/2887512-preferredscreenedgesdeferringsys?language=objc).
+    ///
+    /// This only has an effect on iOS 11.0+.
     fn with_preferred_screen_edges_deferring_system_gestures(
         self,
         edges: ScreenEdge,
