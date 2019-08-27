@@ -1,5 +1,7 @@
 # Unreleased
 
+- On X11, performance is improved when rapidly calling `Window::set_cursor_icon`.
+
 # 0.20.0 Alpha 3 (2019-08-14)
 
 - On macOS, drop the run closure on exit.
