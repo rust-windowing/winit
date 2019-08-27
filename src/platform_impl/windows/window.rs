@@ -216,7 +216,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
         self.thread_executor.execute_in_thread(move || {
-            WindowState::set_window_flags(window_state.lock(), window.0, None, |f| {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::MAXIMIZED, false)
             });
         });
@@ -300,7 +300,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
         self.thread_executor.execute_in_thread(move || {
-            WindowState::set_window_flags(window_state.lock(), window.0, None, |f| {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::MAXIMIZED, false)
             });
         });
