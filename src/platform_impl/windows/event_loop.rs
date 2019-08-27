@@ -1538,8 +1538,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             // win32 doesn't provide an `UnadjustWindowRectEx` function to get the client rect from
             // the outer rect, so we instead adjust the window rect to get the decoration margins
             // and remove them from the outer size.
-            let margins_horizontal: u32;
-            let margins_vertical: u32;
             let margin_left: i32;
             let margin_right: i32;
             let margin_top: i32;
@@ -1557,15 +1555,12 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 margin_right = adjusted_rect.right - suggested_rect.right;
                 margin_top = suggested_rect.top - adjusted_rect.top;
                 margin_bottom = adjusted_rect.bottom - suggested_rect.bottom;
-
-                margins_horizontal = (margin_left + margin_right) as u32;
-                margins_vertical = (margin_bottom + margin_top) as u32;
             }
 
-            let windows_suggested_physical_inner_size = PhysicalSize::new(
-                (suggested_rect.right - suggested_rect.left) as u32 - margins_horizontal,
-                (suggested_rect.bottom - suggested_rect.top) as u32 - margins_vertical,
-            );
+            // let windows_suggested_physical_inner_size = PhysicalSize::new(
+            //     (suggested_rect.right - suggested_rect.left) as u32 - margins_horizontal,
+            //     (suggested_rect.bottom - suggested_rect.top) as u32 - margins_vertical,
+            // );
 
             let current_rect = {
                 let mut current_rect = mem::zeroed();
@@ -1605,22 +1600,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             });
 
             let new_physical_inner_rect = new_inner_rect_opt.unwrap_or(old_physical_inner_size);
-            dbg!(new_physical_inner_rect);
-
-            let rect_center = |rect: RECT| ((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2);
-            let current_center = rect_center(current_rect);
-            let suggested_center = rect_center(suggested_rect);
-            let center_delta = (suggested_center.0 - current_center.0, suggested_center.1 - current_center.1);
-            dbg!(center_delta);
-
-            let resize_left = (center_delta.0 < 0) ^ (windows_suggested_physical_inner_size.width < new_physical_inner_rect.width);
-            let resize_up = center_delta.1 < 0;
 
             let monitor_before_resize = winuser::MonitorFromWindow(window, 0);
 
             let new_outer_rect = {
                 let suggested_ul = (suggested_rect.left + margin_left, suggested_rect.top + margin_top);
-                let suggested_br = (suggested_rect.right - margin_right, suggested_rect.bottom - margin_bottom);
 
                 let mut conservative_rect = RECT {
                     left: suggested_ul.0,
@@ -1641,45 +1625,51 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 if conservative_rect_monitor == monitor_before_resize {
                     conservative_rect
                 } else {
-                    let mut rect: RECT = mem::zeroed();
-                    match dbg!(resize_left) {
-                        true => {
-                            rect.left = suggested_ul.0;
-                            rect.right = suggested_ul.0 + new_physical_inner_rect.width as LONG;
-                        },
-                        false => {
-                            rect.left = suggested_br.0 - new_physical_inner_rect.width as LONG;
-                            rect.right = suggested_br.0;
-                        }
-                    }
-                    // match dbg!(resize_up) {
-                    //     true => {
-                            rect.top = suggested_ul.1;
-                            rect.bottom = suggested_ul.1 + new_physical_inner_rect.height as LONG;
-                    //     },
-                    //     false => {
-                    //         rect.top = suggested_br.1 - new_physical_inner_rect.height as LONG;
-                    //         rect.bottom = suggested_br.1;
-                    //     }
-                    // }
+                    let get_monitor_rect = |monitor| {
+                        let mut monitor_info = winuser::MONITORINFO {
+                            cbSize: mem::size_of::<winuser::MONITORINFO>() as _,
+                            ..mem::zeroed()
+                        };
+                        winuser::GetMonitorInfoW(monitor, &mut monitor_info);
+                        monitor_info.rcMonitor
+                    };
+                    let old_monitor = conservative_rect_monitor;
+                    let old_monitor_rect = get_monitor_rect(old_monitor);
+                    let new_monitor_rect = get_monitor_rect(monitor_before_resize);
 
-                    winuser::AdjustWindowRectExForDpi(
-                        &mut rect,
-                        style,
-                        b_menu,
-                        style_ex,
-                        new_dpi_x,
+
+                    let monitor_delta = (
+                        if old_monitor_rect.left == new_monitor_rect.right {
+                            -1
+                        } else if old_monitor_rect.right == new_monitor_rect.left {
+                            1
+                        } else {
+                            0
+                        },
+                        if old_monitor_rect.bottom == new_monitor_rect.top {
+                            1
+                        } else if old_monitor_rect.top == new_monitor_rect.bottom {
+                            -1
+                        } else {
+                            0
+                        },
                     );
 
-                    rect
+                    let abort_after_iterations = new_monitor_rect.right - new_monitor_rect.left + new_monitor_rect.bottom - new_monitor_rect.top;
+                    for _ in 0..abort_after_iterations {
+                        conservative_rect.left += monitor_delta.0;
+                        conservative_rect.right += monitor_delta.0;
+                        conservative_rect.top += monitor_delta.1;
+                        conservative_rect.bottom += monitor_delta.1;
+
+                        if winuser::MonitorFromRect(&conservative_rect, 0) == monitor_before_resize {
+                            break;
+                        }
+                    }
+
+                    conservative_rect
                 }
             };
-
-            println!("suggested_rect {}x{} {}x{}", suggested_rect.left, suggested_rect.top, suggested_rect.right, suggested_rect.bottom);
-            println!("new_outer_rect {}x{} {}x{}", new_outer_rect.left, new_outer_rect.top, new_outer_rect.right, new_outer_rect.bottom);
-
-            let monitor_after_resize = winuser::MonitorFromRect(&new_outer_rect, 0);
-            assert_eq!(monitor_before_resize, monitor_after_resize);
 
             winuser::SetWindowPos(
                 window,
