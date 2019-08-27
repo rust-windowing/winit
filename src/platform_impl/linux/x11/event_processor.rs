@@ -8,6 +8,8 @@ use super::{
     XExtension,
 };
 
+use util::modifiers::{ModifierKeyState, ModifierKeymap};
+
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{DeviceEvent, Event, KeyboardInput, ModifiersState, WindowEvent},
@@ -21,6 +23,8 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
     pub(super) target: Rc<RootELW<T>>,
+    pub(super) mod_keymap: ModifierKeymap,
+    pub(super) mod_key_state: ModifierKeyState,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -112,12 +116,21 @@ impl<T: 'static> EventProcessor<T> {
         let event_type = xev.get_type();
         match event_type {
             ffi::MappingNotify => {
-                unsafe {
-                    (wt.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
+                let mapping: &ffi::XMappingEvent = xev.as_ref();
+
+                if mapping.request == ffi::MappingModifier
+                    || mapping.request == ffi::MappingKeyboard
+                {
+                    unsafe {
+                        (wt.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
+                    }
+                    wt.xconn
+                        .check_errors()
+                        .expect("Failed to call XRefreshKeyboardMapping");
+
+                    self.mod_keymap.reset_from_x_connection(&wt.xconn);
+                    self.mod_key_state.update(&self.mod_keymap);
                 }
-                wt.xconn
-                    .check_errors()
-                    .expect("Failed to call XRefreshKeyboardMapping");
             }
 
             ffi::ClientMessage => {
@@ -514,13 +527,6 @@ impl<T: 'static> EventProcessor<T> {
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
                 if xkev.keycode != 0 {
-                    let modifiers = ModifiersState {
-                        alt: xkev.state & ffi::Mod1Mask != 0,
-                        shift: xkev.state & ffi::ShiftMask != 0,
-                        ctrl: xkev.state & ffi::ControlMask != 0,
-                        logo: xkev.state & ffi::Mod4Mask != 0,
-                    };
-
                     let keysym = unsafe {
                         let mut keysym = 0;
                         (wt.xconn.xlib.XLookupString)(
@@ -535,6 +541,8 @@ impl<T: 'static> EventProcessor<T> {
                     };
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
+                    let modifiers = self.mod_key_state.modifiers();
+
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::KeyboardInput {
@@ -547,6 +555,25 @@ impl<T: 'static> EventProcessor<T> {
                             },
                         },
                     });
+
+                    if let Some(modifier) =
+                        self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode)
+                    {
+                        self.mod_key_state
+                            .key_event(state, xkev.keycode as ffi::KeyCode, modifier);
+
+                        let new_modifiers = self.mod_key_state.modifiers();
+
+                        if modifiers != new_modifiers {
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::ModifiersChanged {
+                                    device_id,
+                                    modifiers: new_modifiers,
+                                },
+                            });
+                        }
+                    }
                 }
 
                 if state == Pressed {

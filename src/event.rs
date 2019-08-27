@@ -133,6 +133,12 @@ pub enum WindowEvent {
         input: KeyboardInput,
     },
 
+    /// Keyboard modifiers have changed
+    ModifiersChanged {
+        device_id: DeviceId,
+        modifiers: ModifiersState,
+    },
+
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,

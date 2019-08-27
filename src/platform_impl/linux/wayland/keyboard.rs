@@ -83,7 +83,25 @@ pub fn init_keyboard(
                 KbEvent::RepeatInfo { .. } => { /* Handled by smithay client toolkit */ }
                 KbEvent::Modifiers {
                     modifiers: event_modifiers,
-                } => *modifiers_tracker.lock().unwrap() = event_modifiers.into(),
+                } => {
+                    let modifiers = event_modifiers.into();
+
+                    *modifiers_tracker.lock().unwrap() = modifiers;
+
+                    if let Some(wid) = *target.lock().unwrap() {
+                        my_sink
+                            .send((
+                                WindowEvent::ModifiersChanged {
+                                    device_id: crate::event::DeviceId(
+                                        crate::platform_impl::DeviceId::Wayland(DeviceId),
+                                    ),
+                                    modifiers,
+                                },
+                                wid,
+                            ))
+                            .unwrap();
+                    }
+                }
             }
         },
         move |repeat_event: KeyRepeatEvent, _| {
