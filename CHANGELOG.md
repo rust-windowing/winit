@@ -2,6 +2,7 @@
 
 - On macOS, implement `run_return`.
 - On iOS, fix inverted parameter in `set_prefers_home_indicator_hidden`.
+- On X11, performance is improved when rapidly calling `Window::set_cursor_icon`.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 

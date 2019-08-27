@@ -1,7 +1,9 @@
-use std::{error::Error, fmt, os::raw::c_int, ptr};
+use std::{collections::HashMap, error::Error, fmt, os::raw::c_int, ptr};
 
 use libc;
 use parking_lot::Mutex;
+
+use crate::window::CursorIcon;
 
 use super::ffi;
 
@@ -19,6 +21,7 @@ pub struct XConnection {
     pub display: *mut ffi::Display,
     pub x11_fd: c_int,
     pub latest_error: Mutex<Option<XError>>,
+    pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
 }
 
 unsafe impl Send for XConnection {}
@@ -64,6 +67,7 @@ impl XConnection {
             display,
             x11_fd: fd,
             latest_error: Mutex::new(None),
+            cursor_cache: Default::default(),
         })
     }
 
