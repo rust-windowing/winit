@@ -1528,7 +1528,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     return 0;
                 }
 
-                window_state.fullscreen.is_none() && !window_state.window_flags().contains(WindowFlags::MAXIMIZED)
+                window_state.fullscreen.is_none()
+                    && !window_state.window_flags().contains(WindowFlags::MAXIMIZED)
             };
 
             let style = winuser::GetWindowLongW(window, winuser::GWL_STYLE) as _;
@@ -1574,22 +1575,21 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                 old_physical_inner_rect
             };
-            let old_physical_inner_size =
-                PhysicalSize::new(
-                    (old_physical_inner_rect.right - old_physical_inner_rect.left) as u32,
-                    (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
-                );
+            let old_physical_inner_size = PhysicalSize::new(
+                (old_physical_inner_rect.right - old_physical_inner_rect.left) as u32,
+                (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
+            );
 
             // We calculate our own size because the default suggested rect doesn't do a great job
             // of preserving the window's logical size.
-            let suggested_physical_inner_size =
-                old_physical_inner_size
-                    .to_logical(old_dpi_factor)
-                    .to_physical(new_dpi_factor);
+            let suggested_physical_inner_size = old_physical_inner_size
+                .to_logical(old_dpi_factor)
+                .to_physical(new_dpi_factor);
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
-            let mut new_inner_size_opt = Some(suggested_physical_inner_size).filter(|_| allow_resize);
+            let mut new_inner_size_opt =
+                Some(suggested_physical_inner_size).filter(|_| allow_resize);
 
             let _ = subclass_input.send_event_unbuffered(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1603,14 +1603,20 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             // Unset maximized if we're changing the window's size.
             if new_physical_inner_size != old_physical_inner_size {
-                WindowState::set_window_flags(subclass_input.window_state.lock(), window, None, |f| {
-                    f.set(WindowFlags::MAXIMIZED, false)
-                });
+                WindowState::set_window_flags(
+                    subclass_input.window_state.lock(),
+                    window,
+                    None,
+                    |f| f.set(WindowFlags::MAXIMIZED, false),
+                );
             }
 
             let new_outer_rect: RECT;
             {
-                let suggested_ul = (suggested_rect.left + margin_left, suggested_rect.top + margin_top);
+                let suggested_ul = (
+                    suggested_rect.left + margin_left,
+                    suggested_rect.top + margin_top,
+                );
 
                 let mut conservative_rect = RECT {
                     left: suggested_ul.0,
@@ -1629,7 +1635,13 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                 // If we're not dragging the window, offset the window so that the cursor's
                 // relative horizontal position in the title bar is preserved.
-                let dragging_window = subclass_input.event_loop_runner.runner.try_borrow().ok().and_then(|r_opt| r_opt.as_ref().map(|r| r.in_modal_loop)).unwrap_or(false);
+                let dragging_window = subclass_input
+                    .event_loop_runner
+                    .runner
+                    .try_borrow()
+                    .ok()
+                    .and_then(|r_opt| r_opt.as_ref().map(|r| r.in_modal_loop))
+                    .unwrap_or(false);
                 if dragging_window {
                     let bias = {
                         let cursor_pos = {
@@ -1637,14 +1649,19 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                             winuser::GetCursorPos(&mut pos);
                             pos
                         };
-                        let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left) as f64 / (suggested_rect.right - suggested_rect.left) as f64;
+                        let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left)
+                            as f64
+                            / (suggested_rect.right - suggested_rect.left) as f64;
 
-                        (cursor_pos.x - (suggested_cursor_horizontal_ratio * (conservative_rect.right - conservative_rect.left) as f64) as LONG) - conservative_rect.left
+                        (cursor_pos.x
+                            - (suggested_cursor_horizontal_ratio
+                                * (conservative_rect.right - conservative_rect.left) as f64)
+                                as LONG)
+                            - conservative_rect.left
                     };
                     conservative_rect.left += bias;
                     conservative_rect.right += bias;
                 }
-
 
                 // Check to see if the new window rect is on the monitor with the new DPI factor.
                 // If it isn't, offset the window so that it is.
@@ -1664,7 +1681,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     let wrong_monitor = conservative_rect_monitor;
                     let wrong_monitor_rect = get_monitor_rect(wrong_monitor);
                     let new_monitor_rect = get_monitor_rect(new_dpi_monitor);
-
 
                     // The direction to nudge the window in to get the window onto the monitor with
                     // the new DPI factor. We calculate this by seeing which monitor edges are
@@ -1686,7 +1702,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                         },
                     );
 
-                    let abort_after_iterations = new_monitor_rect.right - new_monitor_rect.left + new_monitor_rect.bottom - new_monitor_rect.top;
+                    let abort_after_iterations = new_monitor_rect.right - new_monitor_rect.left
+                        + new_monitor_rect.bottom
+                        - new_monitor_rect.top;
                     for _ in 0..abort_after_iterations {
                         conservative_rect.left += delta_nudge_to_dpi_monitor.0;
                         conservative_rect.right += delta_nudge_to_dpi_monitor.0;
