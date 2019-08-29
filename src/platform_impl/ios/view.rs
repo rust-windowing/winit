@@ -132,6 +132,57 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             }
         }
 
+        extern "C" fn set_content_scale_factor(
+            object: &mut Object,
+            _: Sel,
+            untrusted_hidpi_factor: CGFloat,
+        ) {
+            unsafe {
+                let superclass: &'static Class = msg_send![object, superclass];
+                let () = msg_send![
+                    super(object, superclass),
+                    setContentScaleFactor: untrusted_hidpi_factor
+                ];
+
+                // On launch, iOS sets the contentScaleFactor to 0.0. This is a sentinel value that
+                // iOS appears to use to "reset" the contentScaleFactor to the device specific
+                // default value.
+                //
+                // The workaround is to not trust the value received by this function, and always
+                // go through the getter.
+                let hidpi_factor: CGFloat = msg_send![object, contentScaleFactor];
+                assert!(
+                    !hidpi_factor.is_nan()
+                        && hidpi_factor.is_finite()
+                        && hidpi_factor.is_sign_positive()
+                        && hidpi_factor > 0.0,
+                    "invalid hidpi_factor set on UIWindow",
+                );
+
+                let window: id = msg_send![object, window];
+
+                let bounds: CGRect = msg_send![object, bounds];
+                let screen: id = msg_send![window, screen];
+                let screen_space: id = msg_send![screen, coordinateSpace];
+                let screen_frame: CGRect =
+                    msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
+                let size = crate::dpi::LogicalSize {
+                    width: screen_frame.size.width as _,
+                    height: screen_frame.size.height as _,
+                };
+                app_state::handle_nonuser_events(
+                    std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
+                    })
+                    .chain(std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::Resized(size),
+                    })),
+                );
+            }
+        }
+
         let mut decl = ClassDecl::new(&format!("WinitUIView{}", ID), root_view_class)
             .expect("Failed to declare class `WinitUIView`");
         ID += 1;
@@ -142,6 +193,10 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         decl.add_method(
             sel!(layoutSubviews),
             layout_subviews as extern "C" fn(&Object, Sel),
+        );
+        decl.add_method(
+            sel!(setContentScaleFactor:),
+            set_content_scale_factor as extern "C" fn(&mut Object, Sel, CGFloat),
         );
         decl.register()
     })
@@ -307,37 +362,6 @@ unsafe fn get_window_class() -> &'static Class {
             }
         }
 
-        extern "C" fn set_content_scale_factor(object: &mut Object, _: Sel, hidpi_factor: CGFloat) {
-            unsafe {
-                let () = msg_send![
-                    super(object, class!(UIWindow)),
-                    setContentScaleFactor: hidpi_factor
-                ];
-                let view_controller: id = msg_send![object, rootViewController];
-                let view: id = msg_send![view_controller, view];
-                let () = msg_send![view, setContentScaleFactor: hidpi_factor];
-                let bounds: CGRect = msg_send![object, bounds];
-                let screen: id = msg_send![object, screen];
-                let screen_space: id = msg_send![screen, coordinateSpace];
-                let screen_frame: CGRect =
-                    msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
-                let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width as _,
-                    height: screen_frame.size.height as _,
-                };
-                app_state::handle_nonuser_events(
-                    std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(object.into()),
-                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
-                    })
-                    .chain(std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(object.into()),
-                        event: WindowEvent::Resized(size),
-                    })),
-                );
-            }
-        }
-
         let mut decl = ClassDecl::new("WinitUIWindow", uiwindow_class)
             .expect("Failed to declare class `WinitUIWindow`");
         decl.add_method(
@@ -366,11 +390,6 @@ unsafe fn get_window_class() -> &'static Class {
             handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
         );
 
-        decl.add_method(
-            sel!(setContentScaleFactor:),
-            set_content_scale_factor as extern "C" fn(&mut Object, Sel, CGFloat),
-        );
-
         CLASS = Some(decl.register());
     }
     CLASS.unwrap()
@@ -389,6 +408,9 @@ pub unsafe fn create_view(
     let view: id = msg_send![view, initWithFrame: frame];
     assert!(!view.is_null(), "Failed to initialize `UIView` instance");
     let () = msg_send![view, setMultipleTouchEnabled: YES];
+    if let Some(hidpi_factor) = platform_attributes.hidpi_factor {
+        let () = msg_send![view, setContentScaleFactor: hidpi_factor as CGFloat];
+    }
 
     view
 }
@@ -452,7 +474,7 @@ pub unsafe fn create_view_controller(
 // requires main thread
 pub unsafe fn create_window(
     window_attributes: &WindowAttributes,
-    platform_attributes: &PlatformSpecificWindowBuilderAttributes,
+    _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     frame: CGRect,
     view_controller: id,
 ) -> id {
@@ -466,9 +488,6 @@ pub unsafe fn create_window(
         "Failed to initialize `UIWindow` instance"
     );
     let () = msg_send![window, setRootViewController: view_controller];
-    if let Some(hidpi_factor) = platform_attributes.hidpi_factor {
-        let () = msg_send![window, setContentScaleFactor: hidpi_factor as CGFloat];
-    }
     match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(ref video_mode)) => {
             let uiscreen = video_mode.monitor().ui_screen() as id;
