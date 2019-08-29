@@ -183,6 +183,72 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             }
         }
 
+        extern "C" fn handle_touches(object: &Object, _: Sel, touches: id, _: id) {
+            unsafe {
+                let window: id = msg_send![object, window];
+                let uiscreen: id = msg_send![window, screen];
+                let touches_enum: id = msg_send![touches, objectEnumerator];
+                let mut touch_events = Vec::new();
+                let os_supports_force = app_state::os_capabilities().force_touch;
+                loop {
+                    let touch: id = msg_send![touches_enum, nextObject];
+                    if touch == nil {
+                        break;
+                    }
+                    let location: CGPoint = msg_send![touch, locationInView: nil];
+                    let touch_type: UITouchType = msg_send![touch, type];
+                    let force = if os_supports_force {
+                        let trait_collection: id = msg_send![object, traitCollection];
+                        let touch_capability: UIForceTouchCapability =
+                            msg_send![trait_collection, forceTouchCapability];
+                        // Both the OS _and_ the device need to be checked for force touch support.
+                        if touch_capability == UIForceTouchCapability::Available {
+                            let force: CGFloat = msg_send![touch, force];
+                            let max_possible_force: CGFloat =
+                                msg_send![touch, maximumPossibleForce];
+                            let altitude_angle: Option<f64> = if touch_type == UITouchType::Pencil {
+                                let angle: CGFloat = msg_send![touch, altitudeAngle];
+                                Some(angle as _)
+                            } else {
+                                None
+                            };
+                            Some(Force::Calibrated {
+                                force: force as _,
+                                max_possible_force: max_possible_force as _,
+                                altitude_angle,
+                            })
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    let touch_id = touch as u64;
+                    let phase: UITouchPhase = msg_send![touch, phase];
+                    let phase = match phase {
+                        UITouchPhase::Began => TouchPhase::Started,
+                        UITouchPhase::Moved => TouchPhase::Moved,
+                        // 2 is UITouchPhase::Stationary and is not expected here
+                        UITouchPhase::Ended => TouchPhase::Ended,
+                        UITouchPhase::Cancelled => TouchPhase::Cancelled,
+                        _ => panic!("unexpected touch phase: {:?}", phase as i32),
+                    };
+
+                    touch_events.push(Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::Touch(Touch {
+                            device_id: RootDeviceId(DeviceId { uiscreen }),
+                            id: touch_id,
+                            location: (location.x as f64, location.y as f64).into(),
+                            force,
+                            phase,
+                        }),
+                    });
+                }
+                app_state::handle_nonuser_events(touch_events);
+            }
+        }
+
         let mut decl = ClassDecl::new(&format!("WinitUIView{}", ID), root_view_class)
             .expect("Failed to declare class `WinitUIView`");
         ID += 1;
@@ -198,6 +264,24 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             sel!(setContentScaleFactor:),
             set_content_scale_factor as extern "C" fn(&mut Object, Sel, CGFloat),
         );
+
+        decl.add_method(
+            sel!(touchesBegan:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
+        decl.add_method(
+            sel!(touchesMoved:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
+        decl.add_method(
+            sel!(touchesEnded:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
+        decl.add_method(
+            sel!(touchesCancelled:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
+
         decl.register()
     })
 }
@@ -297,71 +381,6 @@ unsafe fn get_window_class() -> &'static Class {
             }
         }
 
-        extern "C" fn handle_touches(object: &Object, _: Sel, touches: id, _: id) {
-            unsafe {
-                let uiscreen = msg_send![object, screen];
-                let touches_enum: id = msg_send![touches, objectEnumerator];
-                let mut touch_events = Vec::new();
-                let os_supports_force = app_state::os_capabilities().force_touch;
-                loop {
-                    let touch: id = msg_send![touches_enum, nextObject];
-                    if touch == nil {
-                        break;
-                    }
-                    let location: CGPoint = msg_send![touch, locationInView: nil];
-                    let touch_type: UITouchType = msg_send![touch, type];
-                    let force = if os_supports_force {
-                        let trait_collection: id = msg_send![object, traitCollection];
-                        let touch_capability: UIForceTouchCapability =
-                            msg_send![trait_collection, forceTouchCapability];
-                        // Both the OS _and_ the device need to be checked for force touch support.
-                        if touch_capability == UIForceTouchCapability::Available {
-                            let force: CGFloat = msg_send![touch, force];
-                            let max_possible_force: CGFloat =
-                                msg_send![touch, maximumPossibleForce];
-                            let altitude_angle: Option<f64> = if touch_type == UITouchType::Pencil {
-                                let angle: CGFloat = msg_send![touch, altitudeAngle];
-                                Some(angle as _)
-                            } else {
-                                None
-                            };
-                            Some(Force::Calibrated {
-                                force: force as _,
-                                max_possible_force: max_possible_force as _,
-                                altitude_angle,
-                            })
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
-                    let touch_id = touch as u64;
-                    let phase: UITouchPhase = msg_send![touch, phase];
-                    let phase = match phase {
-                        UITouchPhase::Began => TouchPhase::Started,
-                        UITouchPhase::Moved => TouchPhase::Moved,
-                        // 2 is UITouchPhase::Stationary and is not expected here
-                        UITouchPhase::Ended => TouchPhase::Ended,
-                        UITouchPhase::Cancelled => TouchPhase::Cancelled,
-                        _ => panic!("unexpected touch phase: {:?}", phase as i32),
-                    };
-
-                    touch_events.push(Event::WindowEvent {
-                        window_id: RootWindowId(object.into()),
-                        event: WindowEvent::Touch(Touch {
-                            device_id: RootDeviceId(DeviceId { uiscreen }),
-                            id: touch_id,
-                            location: (location.x as f64, location.y as f64).into(),
-                            force,
-                            phase,
-                        }),
-                    });
-                }
-                app_state::handle_nonuser_events(touch_events);
-            }
-        }
-
         let mut decl = ClassDecl::new("WinitUIWindow", uiwindow_class)
             .expect("Failed to declare class `WinitUIWindow`");
         decl.add_method(
@@ -371,23 +390,6 @@ unsafe fn get_window_class() -> &'static Class {
         decl.add_method(
             sel!(resignKeyWindow),
             resign_key_window as extern "C" fn(&Object, Sel),
-        );
-
-        decl.add_method(
-            sel!(touchesBegan:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
-        );
-        decl.add_method(
-            sel!(touchesMoved:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
-        );
-        decl.add_method(
-            sel!(touchesEnded:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
-        );
-        decl.add_method(
-            sel!(touchesCancelled:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
         );
 
         CLASS = Some(decl.register());
