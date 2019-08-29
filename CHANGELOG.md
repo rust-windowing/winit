@@ -33,6 +33,10 @@
 - On iOS, add touch pressure information for touch events.
 - Implement `raw_window_handle::HasRawWindowHandle` for `Window` type on all supported platforms.
 - On macOS, fix the signature of `-[NSView drawRect:]`.
+- On iOS, fix the behavior of `ControlFlow::Poll`. It wasn't polling if that was the only mode ever used by the application.
+- On iOS, fix DPI sent out by views on creation was `0.0` - now it gives a reasonable number.
+- On iOS, RedrawRequested now works for gl/metal backed views.
+- On iOS, RedrawRequested is generally ordered after EventsCleared.
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
