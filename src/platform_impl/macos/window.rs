@@ -509,8 +509,8 @@ impl UnownedWindow {
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         unsafe {
             let dimensions = dimensions.unwrap_or(Logical(LogicalSize {
-                width: 0.0,
-                height: 0.0,
+                width: std::f64::MAX,
+                height: std::f64::MAX,
             }));
             let dpi_factor = self.hidpi_factor();
             set_max_inner_size(*self.ns_window, dimensions.to_logical(dpi_factor));
