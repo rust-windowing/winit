@@ -13,7 +13,7 @@ use std::{
 use cocoa::{
     appkit::{NSApp, NSWindow},
     base::nil,
-    foundation::{NSRect, NSSize},
+    foundation::NSSize,
 };
 
 use crate::{
@@ -187,10 +187,14 @@ impl Handler {
         }
     }
 
-    fn handle_hidpi_factor_changed_event(&self, ns_window: IdRef, hidpi_factor: f64) {
-        let ns_size = unsafe { NSWindow::frame(*ns_window).size };
-        let new_size = LogicalSize::new(ns_size.width, ns_size.height).to_physical(hidpi_factor);
-        let new_inner_size = &mut Some(new_size);
+    fn handle_hidpi_factor_changed_event(
+        &self,
+        ns_window: IdRef,
+        suggested_size: LogicalSize,
+        hidpi_factor: f64,
+    ) {
+        let size = suggested_size.to_physical(hidpi_factor);
+        let new_inner_size = &mut Some(size);
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*ns_window)),
             event: WindowEvent::HiDpiFactorChanged {
@@ -201,21 +205,21 @@ impl Handler {
 
         self.handle_nonuser_event(event);
 
-        let origin = unsafe { NSWindow::frame(*ns_window).origin };
-        if let Some(physical_size) = new_inner_size {
-            let logical_size = physical_size.to_logical(hidpi_factor);
-            let size = NSSize::new(logical_size.width, logical_size.height);
-            let rect = NSRect::new(origin, size);
-            unsafe { ns_window.setFrame_display_(rect, cocoa::base::YES) };
-        };
+        // let origin = unsafe { NSWindow::frame(*ns_window).origin };
+        let physical_size = new_inner_size.unwrap_or(size);
+        let logical_size = physical_size.to_logical(hidpi_factor);
+        let size = NSSize::new(logical_size.width, logical_size.height);
+        // let rect = NSRect::new(origin, size);
+        unsafe { NSWindow::setContentSize_(*ns_window, size) };
     }
 
     fn handle_event(&self, proxy: EventProxy) {
         match proxy {
             EventProxy::HiDpiFactorChangedProxy {
                 ns_window,
+                suggested_size,
                 hidpi_factor,
-            } => self.handle_hidpi_factor_changed_event(ns_window, hidpi_factor),
+            } => self.handle_hidpi_factor_changed_event(ns_window, suggested_size, hidpi_factor),
         }
     }
 }

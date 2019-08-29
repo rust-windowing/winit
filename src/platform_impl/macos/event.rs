@@ -6,6 +6,7 @@ use cocoa::{
 };
 
 use crate::{
+    dpi::LogicalSize,
     event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
     platform_impl::platform::{
         util::{IdRef, Never},
@@ -21,7 +22,11 @@ pub enum EventWrapper {
 
 #[derive(Debug, PartialEq)]
 pub enum EventProxy {
-    HiDpiFactorChangedProxy { ns_window: IdRef, hidpi_factor: f64 },
+    HiDpiFactorChangedProxy {
+        ns_window: IdRef,
+        suggested_size: LogicalSize,
+        hidpi_factor: f64,
+    },
 }
 
 pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
