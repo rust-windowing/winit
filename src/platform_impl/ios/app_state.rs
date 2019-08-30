@@ -28,14 +28,14 @@ macro_rules! bug {
 
 // this is the state machine for the app lifecycle
 #[derive(Debug)]
-enum AppStateImpl {
+enum AppStateImpl<'a> {
     NotLaunched {
         queued_windows: Vec<id>,
-        queued_events: Vec<Event<Never>>,
+        queued_events: Vec<Event<'a, Never>>,
     },
     Launching {
         queued_windows: Vec<id>,
-        queued_events: Vec<Event<Never>>,
+        queued_events: Vec<Event<'a, Never>>,
         queued_event_handler: Box<dyn EventHandler>,
     },
     ProcessingEvents {
@@ -44,7 +44,7 @@ enum AppStateImpl {
     },
     // special state to deal with reentrancy and prevent mutable aliasing.
     InUserCallback {
-        queued_events: Vec<Event<Never>>,
+        queued_events: Vec<Event<'a, Never>>,
     },
     Waiting {
         waiting_event_handler: Box<dyn EventHandler>,
@@ -56,7 +56,7 @@ enum AppStateImpl {
     Terminated,
 }
 
-impl Drop for AppStateImpl {
+impl<'a> Drop for AppStateImpl<'a> {
     fn drop(&mut self) {
         match self {
             &mut AppStateImpl::NotLaunched {
@@ -76,19 +76,19 @@ impl Drop for AppStateImpl {
     }
 }
 
-pub struct AppState {
-    app_state: AppStateImpl,
+pub struct AppState<'a> {
+    app_state: AppStateImpl<'a>,
     control_flow: ControlFlow,
     waker: EventLoopWaker,
 }
 
-impl AppState {
+impl<'a> AppState<'a> {
     // requires main thread
-    unsafe fn get_mut() -> RefMut<'static, AppState> {
+    unsafe fn get_mut() -> RefMut<'static, AppState<'static>> {
         // basically everything in UIKit requires the main thread, so it's pointless to use the
         // std::sync APIs.
         // must be mut because plain `static` requires `Sync`
-        static mut APP_STATE: RefCell<Option<AppState>> = RefCell::new(None);
+        static mut APP_STATE: RefCell<Option<AppState<'static>>> = RefCell::new(None);
 
         if cfg!(debug_assertions) {
             assert_main_thread!(
@@ -100,7 +100,7 @@ impl AppState {
         if guard.is_none() {
             #[inline(never)]
             #[cold]
-            unsafe fn init_guard(guard: &mut RefMut<'static, Option<AppState>>) {
+            unsafe fn init_guard(guard: &mut RefMut<'static, Option<AppState<'static>>>) {
                 let waker = EventLoopWaker::new(CFRunLoopGetMain());
                 **guard = Some(AppState {
                     app_state: AppStateImpl::NotLaunched {
@@ -334,12 +334,12 @@ impl AppState {
     }
 
     // requires main thread
-    pub unsafe fn handle_nonuser_event(event: Event<Never>) {
+    pub unsafe fn handle_nonuser_event(event: Event<'a, Never>) {
         AppState::handle_nonuser_events(std::iter::once(event))
     }
 
     // requires main thread
-    pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = Event<Never>>>(events: I) {
+    pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = Event<'a, Never>>>(events: I) {
         let mut this = AppState::get_mut();
         let mut control_flow = this.control_flow;
         let (mut event_handler, active_control_flow) = match &mut this.app_state {
