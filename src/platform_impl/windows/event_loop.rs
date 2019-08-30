@@ -1516,7 +1516,7 @@ unsafe extern "system" fn public_window_callback<T>(
                                 continue;
                             },
                             location,
-                            force: None, // TODO
+                            force: None, // WM_TOUCH doesn't support pressure information
                             id: input.dwID as u64,
                             device_id: DEVICE_ID,
                         }),
