@@ -19,6 +19,7 @@ use crate::{
     event::{Event, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
+        event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         window::{get_window_id, UnownedWindow},
     },
@@ -47,20 +48,18 @@ pub struct WindowDelegateState {
 
 impl WindowDelegateState {
     pub fn new(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> Self {
-        let dpi_factor = window.hidpi_factor();
-
+        let hidpi_factor = window.hidpi_factor();
         let mut delegate_state = WindowDelegateState {
             ns_window: window.ns_window.clone(),
             ns_view: window.ns_view.clone(),
             window: Arc::downgrade(&window),
             initial_fullscreen,
             previous_position: None,
-            previous_dpi_factor: dpi_factor,
+            previous_dpi_factor: hidpi_factor,
         };
 
-        if dpi_factor != 1.0 {
-            delegate_state.emit_event(WindowEvent::HiDpiFactorChanged(dpi_factor));
-            delegate_state.emit_resize_event();
+        if hidpi_factor != 1.0 {
+            delegate_state.emit_static_hidpi_factor_changed_event();
         }
 
         delegate_state
@@ -73,7 +72,7 @@ impl WindowDelegateState {
         self.window.upgrade().map(|ref window| callback(window))
     }
 
-    pub fn emit_event(&mut self, event: WindowEvent) {
+    pub fn emit_event(&mut self, event: WindowEvent<'static>) {
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*self.ns_window)),
             event,
@@ -81,14 +80,30 @@ impl WindowDelegateState {
         AppState::queue_event(event);
     }
 
+    pub fn emit_static_hidpi_factor_changed_event(&mut self) {
+        let hidpi_factor = self.get_hidpi_factor();
+        if hidpi_factor == self.previous_dpi_factor {
+            return ();
+        };
+
+        self.previous_dpi_factor = hidpi_factor;
+        let wrapper = EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
+            ns_window: IdRef::retain(*self.ns_window),
+            suggested_size: self.view_size(),
+            hidpi_factor,
+        });
+        AppState::send_event_immediately(wrapper);
+    }
+
     pub fn emit_resize_event(&mut self) {
-        let rect = unsafe { NSView::frame(*self.ns_view) };
-        let size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
+        let hidpi_factor = self.get_hidpi_factor();
+        let physical_size = self.view_size().to_physical(hidpi_factor);
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*self.ns_window)),
-            event: WindowEvent::Resized(size),
+            event: WindowEvent::Resized(physical_size),
         };
-        AppState::send_event_immediately(event);
+        let wrapper = EventWrapper::StaticEvent(event);
+        AppState::send_event_immediately(wrapper);
     }
 
     fn emit_move_event(&mut self) {
@@ -100,6 +115,15 @@ impl WindowDelegateState {
             self.previous_position = Some((x, y));
             self.emit_event(WindowEvent::Moved((x, y).into()));
         }
+    }
+
+    fn get_hidpi_factor(&self) -> f64 {
+        (unsafe { NSWindow::backingScaleFactor(*self.ns_window) }) as f64
+    }
+
+    fn view_size(&self) -> LogicalSize {
+        let ns_size = unsafe { NSView::frame(*self.ns_view).size };
+        LogicalSize::new(ns_size.width as f64, ns_size.height as f64)
     }
 }
 
@@ -143,10 +167,6 @@ lazy_static! {
         decl.add_method(
             sel!(windowDidMove:),
             window_did_move as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidChangeScreen:),
-            window_did_change_screen as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
             sel!(windowDidChangeBackingProperties:),
@@ -272,29 +292,10 @@ extern "C" fn window_did_move(this: &Object, _: Sel, _: id) {
     trace!("Completed `windowDidMove:`");
 }
 
-extern "C" fn window_did_change_screen(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidChangeScreen:`");
-    with_state(this, |state| {
-        let dpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
-        if state.previous_dpi_factor != dpi_factor {
-            state.previous_dpi_factor = dpi_factor;
-            state.emit_event(WindowEvent::HiDpiFactorChanged(dpi_factor));
-            state.emit_resize_event();
-        }
-    });
-    trace!("Completed `windowDidChangeScreen:`");
-}
-
-// This will always be called before `window_did_change_screen`.
 extern "C" fn window_did_change_backing_properties(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidChangeBackingProperties:`");
     with_state(this, |state| {
-        let dpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
-        if state.previous_dpi_factor != dpi_factor {
-            state.previous_dpi_factor = dpi_factor;
-            state.emit_event(WindowEvent::HiDpiFactorChanged(dpi_factor));
-            state.emit_resize_event();
-        }
+        state.emit_static_hidpi_factor_changed_event();
     });
     trace!("Completed `windowDidChangeBackingProperties:`");
 }
