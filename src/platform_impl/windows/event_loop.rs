@@ -46,7 +46,7 @@ use winapi::{
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalSize},
-    event::{DeviceEvent, Event, KeyboardInput, StartCause, Touch, TouchPhase, WindowEvent},
+    event::{DeviceEvent, Event, Force, KeyboardInput, StartCause, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
         dpi::{
@@ -77,6 +77,12 @@ type GetPointerDeviceRects = unsafe extern "system" fn(
     displayRect: *mut RECT,
 ) -> BOOL;
 
+type GetPointerTouchInfo =
+    unsafe extern "system" fn(pointerId: UINT, touchInfo: *mut winuser::POINTER_TOUCH_INFO) -> BOOL;
+
+type GetPointerPenInfo =
+    unsafe extern "system" fn(pointId: UINT, penInfo: *mut winuser::POINTER_PEN_INFO) -> BOOL;
+
 lazy_static! {
     static ref GET_POINTER_FRAME_INFO_HISTORY: Option<GetPointerFrameInfoHistory> =
         get_function!("user32.dll", GetPointerFrameInfoHistory);
@@ -84,6 +90,10 @@ lazy_static! {
         get_function!("user32.dll", SkipPointerFrameMessages);
     static ref GET_POINTER_DEVICE_RECTS: Option<GetPointerDeviceRects> =
         get_function!("user32.dll", GetPointerDeviceRects);
+    static ref GET_POINTER_TOUCH_INFO: Option<GetPointerTouchInfo> =
+        get_function!("user32.dll", GetPointerTouchInfo);
+    static ref GET_POINTER_PEN_INFO: Option<GetPointerPenInfo> =
+        get_function!("user32.dll", GetPointerPenInfo);
 }
 
 pub(crate) struct SubclassInput<T> {
@@ -852,6 +862,13 @@ pub(crate) fn subclass_window<T>(window: HWND, subclass_input: SubclassInput<T>)
     assert_eq!(subclass_result, 1);
 }
 
+fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
+    match pressure {
+        1..=1024 => Some(Force::Normalized(pressure as f64 / 1024.0)),
+        _ => None,
+    }
+}
+
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
 //
@@ -1587,6 +1604,34 @@ unsafe extern "system" fn public_window_callback<T>(
                         continue;
                     }
 
+                    let force = match pointer_info.pointerType {
+                        winuser::PT_TOUCH => {
+                            let mut touch_info: winuser::POINTER_TOUCH_INFO = mem::uninitialized();
+                            GET_POINTER_TOUCH_INFO.and_then(|GetPointerTouchInfo| {
+                                match GetPointerTouchInfo(
+                                    pointer_info.pointerId,
+                                    &mut touch_info as *mut _,
+                                ) {
+                                    0 => None,
+                                    _ => normalize_pointer_pressure(touch_info.pressure),
+                                }
+                            })
+                        }
+                        winuser::PT_PEN => {
+                            let mut pen_info: winuser::POINTER_PEN_INFO = mem::uninitialized();
+                            GET_POINTER_PEN_INFO.and_then(|GetPointerPenInfo| {
+                                match GetPointerPenInfo(
+                                    pointer_info.pointerId,
+                                    &mut pen_info as *mut _,
+                                ) {
+                                    0 => None,
+                                    _ => normalize_pointer_pressure(pen_info.pressure),
+                                }
+                            })
+                        }
+                        _ => None,
+                    };
+
                     let x = location.x as f64 + x.fract();
                     let y = location.y as f64 + y.fract();
                     let location = LogicalPosition::from_physical((x, y), dpi_factor);
@@ -1604,7 +1649,7 @@ unsafe extern "system" fn public_window_callback<T>(
                                 continue;
                             },
                             location,
-                            force: None, // TODO
+                            force,
                             id: pointer_info.pointerId as u64,
                             device_id: DEVICE_ID,
                         }),
