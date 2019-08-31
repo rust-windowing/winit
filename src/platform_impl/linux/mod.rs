@@ -18,7 +18,6 @@ use crate::{
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
-mod dlopen;
 pub mod wayland;
 pub mod x11;
 
