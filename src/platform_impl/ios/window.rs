@@ -59,6 +59,14 @@ impl Inner {
     pub fn request_redraw(&self) {
         unsafe {
             if self.gl_or_metal_backed {
+                // `setNeedsDisplay` does nothing on UIViews which are directly backed by CAEAGLLayer or CAMetalLayer.
+                // Ordinarily the OS sets up a bunch of UIKit state before calling drawRect: on a UIView, but when using
+                // raw or gl/metal for drawing this work is completely avoided.
+                //
+                // The docs for `setNeedsDisplay` don't mention `CAMetalLayer`; however, this has been confirmed via
+                // testing.
+                //
+                // https://developer.apple.com/documentation/uikit/uiview/1622437-setneedsdisplay?language=objc
                 app_state::queue_gl_or_metal_redraw(self.window);
             } else {
                 let () = msg_send![self.view, setNeedsDisplay];
