@@ -645,6 +645,11 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = Event<Never>>>(events
     for event in events {
         if !processing_redraws && event.is_redraw() {
             log::info!("processing `RedrawRequested` during the main event loop");
+        } else if processing_redraws && !event.is_redraw() {
+            log::warn!(
+                "processing non `RedrawRequested` event after the main event loop: {:#?}",
+                event
+            );
         }
         event_handler.handle_nonuser_event(event, &mut control_flow)
     }
@@ -690,6 +695,11 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = Event<Never>>>(events
         for event in queued_events {
             if !processing_redraws && event.is_redraw() {
                 log::info!("processing `RedrawRequested` during the main event loop");
+            } else if processing_redraws && !event.is_redraw() {
+                log::warn!(
+                    "processing non-`RedrawRequested` event after the main event loop: {:#?}",
+                    event
+                );
             }
             event_handler.handle_nonuser_event(event, &mut control_flow)
         }
