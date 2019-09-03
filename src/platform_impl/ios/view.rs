@@ -58,10 +58,8 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
-                let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width,
-                    height: screen_frame.size.height,
-                };
+                let dpi_factor: CGFloat = msg_send![screen, backingScaleFactor];
+                let size = crate::dpi::LogicalSize::new(screen_frame.size.width, screen_frame.size.height).to_physical(dpi_factor);
                 AppState::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::Resized(size),
@@ -234,14 +232,15 @@ unsafe fn get_window_class() -> &'static Class {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
-                let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width,
-                    height: screen_frame.size.height,
-                };
+                let logical_size = crate::dpi::LogicalSize::new(
+                    screen_frame.size.width, screen_frame.size.height,
+                );
+                let size = logical_size.to_physical(hidpi_factor);
+                let new_inner_size = &mut Some(size);
                 AppState::handle_nonuser_events(
                     std::iter::once(Event::WindowEvent {
                         window_id: RootWindowId(object.into()),
-                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
+                        event: WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size },
                     })
                     .chain(std::iter::once(Event::WindowEvent {
                         window_id: RootWindowId(object.into()),
