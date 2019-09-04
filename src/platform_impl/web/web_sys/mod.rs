@@ -20,7 +20,6 @@ pub fn exit_fullscreen() {
     document.exit_fullscreen();
 }
 
-
 impl WindowExtWebSys for Window {
     fn canvas(&self) -> HtmlCanvasElement {
         self.window.canvas().raw().clone()

@@ -13,7 +13,8 @@ use stdweb::web::event::{
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{
-    document, window, Element, EventListenerHandle, IChildNode, IElement, IEventTarget, IHtmlElement, INode,
+    document, window, Element, EventListenerHandle, IChildNode, IElement, IEventTarget,
+    IHtmlElement, INode,
 };
 
 pub struct Canvas {
@@ -258,8 +259,8 @@ impl Canvas {
             Some(elem) => {
                 let raw: Element = self.raw.clone().into();
                 raw == elem
-            },
-            None => false
+            }
+            None => false,
         }
     }
 }

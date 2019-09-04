@@ -267,8 +267,8 @@ impl Canvas {
             Some(elem) => {
                 let raw: Element = self.raw.clone().into();
                 raw == elem
-            },
-            None => false
+            }
+            None => false,
         }
     }
 }
