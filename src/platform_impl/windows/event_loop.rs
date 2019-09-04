@@ -37,7 +37,7 @@ use winapi::{
     },
     um::{
         commctrl, libloaderapi, ole2, processthreadsapi, winbase,
-        winnt::{LPCSTR, SHORT},
+        winnt::{LONG, LPCSTR, SHORT},
         winuser,
     },
 };
@@ -1524,7 +1524,12 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 old_dpi_factor = window_state.dpi_factor;
                 window_state.dpi_factor = new_dpi_factor;
 
-                new_dpi_factor != old_dpi_factor && window_state.fullscreen.is_none()
+                if new_dpi_factor == old_dpi_factor {
+                    return 0;
+                }
+
+                window_state.fullscreen.is_none()
+                    && !window_state.window_flags().contains(WindowFlags::MAXIMIZED)
             };
 
             let style = winuser::GetWindowLongW(window, winuser::GWL_STYLE) as _;
@@ -1532,16 +1537,18 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let b_menu = !winuser::GetMenu(window).is_null() as BOOL;
 
             // New size as suggested by Windows.
-            let rect = *(lparam as *const RECT);
+            let suggested_rect = *(lparam as *const RECT);
 
             // The window rect provided is the window's outer size, not it's inner size. However,
             // win32 doesn't provide an `UnadjustWindowRectEx` function to get the client rect from
             // the outer rect, so we instead adjust the window rect to get the decoration margins
             // and remove them from the outer size.
-            let margins_horizontal: u32;
-            let margins_vertical: u32;
+            let margin_left: i32;
+            let margin_top: i32;
+            // let margin_right: i32;
+            // let margin_bottom: i32;
             {
-                let mut adjusted_rect = rect;
+                let mut adjusted_rect = suggested_rect;
                 winuser::AdjustWindowRectExForDpi(
                     &mut adjusted_rect,
                     style,
@@ -1549,59 +1556,179 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     style_ex,
                     new_dpi_x,
                 );
-                let margin_left = rect.left - adjusted_rect.left;
-                let margin_right = adjusted_rect.right - rect.right;
-                let margin_top = rect.top - adjusted_rect.top;
-                let margin_bottom = adjusted_rect.bottom - rect.bottom;
-
-                margins_horizontal = (margin_left + margin_right) as u32;
-                margins_vertical = (margin_bottom + margin_top) as u32;
+                margin_left = suggested_rect.left - adjusted_rect.left;
+                margin_top = suggested_rect.top - adjusted_rect.top;
+                // margin_right = adjusted_rect.right - suggested_rect.right;
+                // margin_bottom = adjusted_rect.bottom - suggested_rect.bottom;
             }
 
-            // Use the rect suggested by Windows
-            // let physical_inner_rect = PhysicalSize::new(
-            //     (rect.right - rect.left) as u32 - margins_horizontal,
-            //     (rect.bottom - rect.top) as u32 - margins_vertical,
-            // );
+            let old_physical_inner_rect = {
+                let mut old_physical_inner_rect = mem::zeroed();
+                winuser::GetClientRect(window, &mut old_physical_inner_rect);
+                let mut origin = mem::zeroed();
+                winuser::ClientToScreen(window, &mut origin);
 
-            // We calculate our own rect because the default suggested rect doesn't do a great job
-            // of preserving the window's logical size.
-            let physical_inner_rect = {
-                let mut current_rect = mem::zeroed();
-                winuser::GetClientRect(window, &mut current_rect);
+                old_physical_inner_rect.left += origin.x;
+                old_physical_inner_rect.right += origin.x;
+                old_physical_inner_rect.top += origin.y;
+                old_physical_inner_rect.bottom += origin.y;
 
-                let client_rect = PhysicalSize::new(
-                    (current_rect.right - current_rect.left) as u32,
-                    (current_rect.bottom - current_rect.top) as u32,
-                );
-                client_rect
-                    .to_logical(old_dpi_factor)
-                    .to_physical(new_dpi_factor)
+                old_physical_inner_rect
             };
+            let old_physical_inner_size = PhysicalSize::new(
+                (old_physical_inner_rect.right - old_physical_inner_rect.left) as u32,
+                (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
+            );
+
+            // We calculate our own size because the default suggested rect doesn't do a great job
+            // of preserving the window's logical size.
+            let suggested_physical_inner_size = old_physical_inner_size
+                .to_logical(old_dpi_factor)
+                .to_physical(new_dpi_factor);
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
-            let mut new_inner_rect_opt = Some(physical_inner_rect).filter(|_| allow_resize);
+            let mut new_inner_size_opt =
+                Some(suggested_physical_inner_size).filter(|_| allow_resize);
 
             let _ = subclass_input.send_event_unbuffered(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: HiDpiFactorChanged {
                     hidpi_factor: new_dpi_factor,
-                    new_inner_size: &mut new_inner_rect_opt,
+                    new_inner_size: &mut new_inner_size_opt,
                 },
             });
 
-            if let Some(new_inner_rect) = new_inner_rect_opt {
-                winuser::SetWindowPos(
+            let new_physical_inner_size = new_inner_size_opt.unwrap_or(old_physical_inner_size);
+
+            // Unset maximized if we're changing the window's size.
+            if new_physical_inner_size != old_physical_inner_size {
+                WindowState::set_window_flags(
+                    subclass_input.window_state.lock(),
                     window,
-                    ptr::null_mut(),
-                    rect.left,
-                    rect.top,
-                    (new_inner_rect.width + margins_horizontal) as _,
-                    (new_inner_rect.height + margins_vertical) as _,
-                    winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE,
+                    None,
+                    |f| f.set(WindowFlags::MAXIMIZED, false),
                 );
             }
+
+            let new_outer_rect: RECT;
+            {
+                let suggested_ul = (
+                    suggested_rect.left + margin_left,
+                    suggested_rect.top + margin_top,
+                );
+
+                let mut conservative_rect = RECT {
+                    left: suggested_ul.0,
+                    top: suggested_ul.1,
+                    right: suggested_ul.0 + new_physical_inner_size.width as LONG,
+                    bottom: suggested_ul.1 + new_physical_inner_size.height as LONG,
+                };
+
+                winuser::AdjustWindowRectExForDpi(
+                    &mut conservative_rect,
+                    style,
+                    b_menu,
+                    style_ex,
+                    new_dpi_x,
+                );
+
+                // If we're not dragging the window, offset the window so that the cursor's
+                // relative horizontal position in the title bar is preserved.
+                let dragging_window = subclass_input
+                    .event_loop_runner
+                    .runner
+                    .try_borrow()
+                    .ok()
+                    .and_then(|r_opt| r_opt.as_ref().map(|r| r.in_modal_loop))
+                    .unwrap_or(false);
+                if dragging_window {
+                    let bias = {
+                        let cursor_pos = {
+                            let mut pos = mem::zeroed();
+                            winuser::GetCursorPos(&mut pos);
+                            pos
+                        };
+                        let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left)
+                            as f64
+                            / (suggested_rect.right - suggested_rect.left) as f64;
+
+                        (cursor_pos.x
+                            - (suggested_cursor_horizontal_ratio
+                                * (conservative_rect.right - conservative_rect.left) as f64)
+                                as LONG)
+                            - conservative_rect.left
+                    };
+                    conservative_rect.left += bias;
+                    conservative_rect.right += bias;
+                }
+
+                // Check to see if the new window rect is on the monitor with the new DPI factor.
+                // If it isn't, offset the window so that it is.
+                let new_dpi_monitor = winuser::MonitorFromWindow(window, 0);
+                let conservative_rect_monitor = winuser::MonitorFromRect(&conservative_rect, 0);
+                new_outer_rect = if conservative_rect_monitor == new_dpi_monitor {
+                    conservative_rect
+                } else {
+                    let get_monitor_rect = |monitor| {
+                        let mut monitor_info = winuser::MONITORINFO {
+                            cbSize: mem::size_of::<winuser::MONITORINFO>() as _,
+                            ..mem::zeroed()
+                        };
+                        winuser::GetMonitorInfoW(monitor, &mut monitor_info);
+                        monitor_info.rcMonitor
+                    };
+                    let wrong_monitor = conservative_rect_monitor;
+                    let wrong_monitor_rect = get_monitor_rect(wrong_monitor);
+                    let new_monitor_rect = get_monitor_rect(new_dpi_monitor);
+
+                    // The direction to nudge the window in to get the window onto the monitor with
+                    // the new DPI factor. We calculate this by seeing which monitor edges are
+                    // shared and nudging away from the wrong monitor based on those.
+                    let delta_nudge_to_dpi_monitor = (
+                        if wrong_monitor_rect.left == new_monitor_rect.right {
+                            -1
+                        } else if wrong_monitor_rect.right == new_monitor_rect.left {
+                            1
+                        } else {
+                            0
+                        },
+                        if wrong_monitor_rect.bottom == new_monitor_rect.top {
+                            1
+                        } else if wrong_monitor_rect.top == new_monitor_rect.bottom {
+                            -1
+                        } else {
+                            0
+                        },
+                    );
+
+                    let abort_after_iterations = new_monitor_rect.right - new_monitor_rect.left
+                        + new_monitor_rect.bottom
+                        - new_monitor_rect.top;
+                    for _ in 0..abort_after_iterations {
+                        conservative_rect.left += delta_nudge_to_dpi_monitor.0;
+                        conservative_rect.right += delta_nudge_to_dpi_monitor.0;
+                        conservative_rect.top += delta_nudge_to_dpi_monitor.1;
+                        conservative_rect.bottom += delta_nudge_to_dpi_monitor.1;
+
+                        if winuser::MonitorFromRect(&conservative_rect, 0) == new_dpi_monitor {
+                            break;
+                        }
+                    }
+
+                    conservative_rect
+                };
+            }
+
+            winuser::SetWindowPos(
+                window,
+                ptr::null_mut(),
+                new_outer_rect.left,
+                new_outer_rect.top,
+                new_outer_rect.right - new_outer_rect.left,
+                new_outer_rect.bottom - new_outer_rect.top,
+                winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE,
+            );
 
             0
         }
