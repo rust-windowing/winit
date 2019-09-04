@@ -202,13 +202,20 @@ impl Window {
 
     #[inline]
     pub fn fullscreen(&self) -> Option<RootMH> {
-        // TODO: should there be a maximization / fullscreen API?
-        None
+        if self.canvas.is_fullscreen() {
+            Some(self.current_monitor())
+        } else {
+            None
+        }
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, _monitor: Option<RootMH>) {
-        // TODO: should there be a maximization / fullscreen API?
+    pub fn set_fullscreen(&self, monitor: Option<RootMH>) {
+        if monitor.is_some() {
+            self.canvas.request_fullscreen();
+        } else if self.canvas.is_fullscreen() {
+            backend::exit_fullscreen();
+        }
     }
 
     #[inline]
