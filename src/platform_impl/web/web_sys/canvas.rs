@@ -34,24 +34,26 @@ impl Canvas {
     where
         F: 'static + Fn(),
     {
-        let window = web_sys::window().expect("Failed to obtain window");
-        let document = window.document().expect("Failed to obtain document");
+        let window =
+            web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
+
+        let document = window
+            .document()
+            .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
 
         let canvas: HtmlCanvasElement = document
             .create_element("canvas")
             .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
             .unchecked_into();
 
-        document
-            .body()
-            .ok_or_else(|| os_error!(OsError("Failed to find body node".to_owned())))?
-            .append_child(&canvas)
-            .map_err(|_| os_error!(OsError("Failed to append canvas".to_owned())))?;
-
-        // TODO: Set up unique ids
+        // A tabindex is needed in order to capture local keyboard events.
+        // A "0" value means that the element should be focusable in
+        // sequential keyboard navigation, but its order is defined by the
+        // document's source order.
+        // https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex
         canvas
             .set_attribute("tabindex", "0")
-            .expect("Failed to set a tabindex");
+            .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
 
         Ok(Canvas {
             raw: canvas,

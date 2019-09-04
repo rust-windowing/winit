@@ -2,7 +2,7 @@ use crate::dpi::LogicalPosition;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 
 use stdweb::web::event::{IKeyboardEvent, IMouseEvent, MouseWheelDeltaMode, MouseWheelEvent};
-use stdweb::{unstable::TryInto, JsSerialize};
+use stdweb::{js, unstable::TryInto, JsSerialize};
 
 pub fn mouse_button(event: &impl IMouseEvent) -> MouseButton {
     match event.button() {

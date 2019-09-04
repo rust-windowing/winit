@@ -9,6 +9,7 @@ use crate::platform::web::WindowExtStdweb;
 use crate::window::Window;
 
 use stdweb::web::{document, html_element::CanvasElement};
+use stdweb::js;
 
 pub fn throw(msg: &str) {
     js! { throw @{msg} }
