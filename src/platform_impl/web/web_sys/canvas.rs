@@ -5,7 +5,7 @@ use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, Virt
 use crate::platform_impl::OsError;
 
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
+use web_sys::{Element, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
 
 pub struct Canvas {
     raw: HtmlCanvasElement,
@@ -253,5 +253,22 @@ impl Canvas {
             .expect("Failed to add event listener with callback");
 
         closure
+    }
+
+    pub fn request_fullscreen(&self) {
+        self.raw.request_fullscreen().expect("Fullscreen failed");
+    }
+
+    pub fn is_fullscreen(&self) -> bool {
+        let window = web_sys::window().expect("Failed to obtain window");
+        let document = window.document().expect("Failed to obtain document");
+
+        match document.fullscreen_element() {
+            Some(elem) => {
+                let raw: Element = self.raw.clone().into();
+                raw == elem
+            },
+            None => false
+        }
     }
 }

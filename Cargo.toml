@@ -113,8 +113,9 @@ optional = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.std_web]
 package = "stdweb"
-version = "0.4.17"
+version = "0.4.18"
 optional = true
+features = ["experimental_features_which_may_break_on_minor_version_bumps"]
 
 [patch.crates-io]
-stdweb = { git = "https://github.com/koute/stdweb", rev = "b3a29bb9dd9b9405540d711ed02a21cd7058d5c0"}
+stdweb = { git = "https://github.com/koute/stdweb", rev = "a65b3d73306c3bbb5ac71e7893750c04e7d3da98"}

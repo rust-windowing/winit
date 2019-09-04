@@ -8,10 +8,17 @@ pub use self::timeout::Timeout;
 use crate::platform::web::WindowExtStdweb;
 use crate::window::Window;
 
-use stdweb::web::html_element::CanvasElement;
+use stdweb::web::{
+    document,
+    html_element::CanvasElement
+};
 
 pub fn throw(msg: &str) {
     js! { throw @{msg} }
+}
+
+pub fn exit_fullscreen() {
+    document().exit_fullscreen();
 }
 
 impl WindowExtStdweb for Window {

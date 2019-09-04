@@ -13,7 +13,7 @@ use stdweb::web::event::{
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{
-    document, window, EventListenerHandle, IChildNode, IElement, IEventTarget, IHtmlElement, INode,
+    document, window, Element, EventListenerHandle, IChildNode, IElement, IEventTarget, IHtmlElement, INode,
 };
 
 pub struct Canvas {
@@ -247,5 +247,19 @@ impl Canvas {
 
             handler(event);
         })
+    }
+
+    pub fn request_fullscreen(&self) {
+        self.raw.request_fullscreen();
+    }
+
+    pub fn is_fullscreen(&self) -> bool {
+        match document().fullscreen_element() {
+            Some(elem) => {
+                let raw: Element = self.raw.clone().into();
+                raw == elem
+            },
+            None => false
+        }
     }
 }
