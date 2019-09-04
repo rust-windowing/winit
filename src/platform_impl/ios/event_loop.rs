@@ -16,7 +16,7 @@ use crate::{
 };
 
 use crate::platform_impl::platform::{
-    app_state::AppState,
+    app_state,
     ffi::{
         id, kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes,
         kCFRunLoopDefaultMode, kCFRunLoopEntry, kCFRunLoopExit, nil, CFIndex, CFRelease,
@@ -80,7 +80,7 @@ impl<T: 'static> EventLoop<T> {
                  `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
                  Note: `EventLoop::run` calls `UIApplicationMain` on iOS"
             );
-            AppState::will_launch(Box::new(EventLoopHandler {
+            app_state::will_launch(Box::new(EventLoopHandler {
                 f: event_handler,
                 event_loop: self.window_target,
             }));
@@ -155,7 +155,7 @@ impl<T> EventLoopProxy<T> {
             let rl = CFRunLoopGetMain();
             // we want all the members of context to be zero/null, except one
             let mut context: CFRunLoopSourceContext = mem::zeroed();
-            context.perform = event_loop_proxy_handler;
+            context.perform = Some(event_loop_proxy_handler);
             let source =
                 CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
@@ -188,15 +188,40 @@ fn setup_control_flow_observers() {
             unsafe {
                 #[allow(non_upper_case_globals)]
                 match activity {
-                    kCFRunLoopAfterWaiting => AppState::handle_wakeup_transition(),
+                    kCFRunLoopAfterWaiting => app_state::handle_wakeup_transition(),
                     kCFRunLoopEntry => unimplemented!(), // not expected to ever happen
                     _ => unreachable!(),
                 }
             }
         }
 
+        // Core Animation registers its `CFRunLoopObserver` that performs drawing operations in
+        // `CA::Transaction::ensure_implicit` with a priority of `0x1e8480`. We set the main_end
+        // priority to be 0, in order to send EventsCleared before RedrawRequested. This value was
+        // chosen conservatively to guard against apple using different priorities for their redraw
+        // observers in different OS's or on different devices. If it so happens that it's too
+        // conservative, the main symptom would be non-redraw events coming in after `EventsCleared`.
+        //
+        // The value of `0x1e8480` was determined by inspecting stack traces and the associated
+        // registers for every `CFRunLoopAddObserver` call on an iPad Air 2 running iOS 11.4.
+        //
+        // Also tested to be `0x1e8480` on iPhone 8, iOS 13 beta 4.
+        extern "C" fn control_flow_main_end_handler(
+            _: CFRunLoopObserverRef,
+            activity: CFRunLoopActivity,
+            _: *mut c_void,
+        ) {
+            unsafe {
+                #[allow(non_upper_case_globals)]
+                match activity {
+                    kCFRunLoopBeforeWaiting => app_state::handle_main_events_cleared(),
+                    kCFRunLoopExit => unimplemented!(), // not expected to ever happen
+                    _ => unreachable!(),
+                }
+            }
+        }
+
         // end is queued with the lowest priority to ensure it is processed after other observers
-        // without that, LoopDestroyed will get sent after EventsCleared
         extern "C" fn control_flow_end_handler(
             _: CFRunLoopObserverRef,
             activity: CFRunLoopActivity,
@@ -205,7 +230,7 @@ fn setup_control_flow_observers() {
             unsafe {
                 #[allow(non_upper_case_globals)]
                 match activity {
-                    kCFRunLoopBeforeWaiting => AppState::handle_events_cleared(),
+                    kCFRunLoopBeforeWaiting => app_state::handle_events_cleared(),
                     kCFRunLoopExit => unimplemented!(), // not expected to ever happen
                     _ => unreachable!(),
                 }
@@ -213,6 +238,7 @@ fn setup_control_flow_observers() {
         }
 
         let main_loop = CFRunLoopGetMain();
+
         let begin_observer = CFRunLoopObserverCreate(
             ptr::null_mut(),
             kCFRunLoopEntry | kCFRunLoopAfterWaiting,
@@ -222,6 +248,17 @@ fn setup_control_flow_observers() {
             ptr::null_mut(),
         );
         CFRunLoopAddObserver(main_loop, begin_observer, kCFRunLoopDefaultMode);
+
+        let main_end_observer = CFRunLoopObserverCreate(
+            ptr::null_mut(),
+            kCFRunLoopExit | kCFRunLoopBeforeWaiting,
+            1, // repeat = true
+            0, // see comment on `control_flow_main_end_handler`
+            control_flow_main_end_handler,
+            ptr::null_mut(),
+        );
+        CFRunLoopAddObserver(main_loop, main_end_observer, kCFRunLoopDefaultMode);
+
         let end_observer = CFRunLoopObserverCreate(
             ptr::null_mut(),
             kCFRunLoopExit | kCFRunLoopBeforeWaiting,

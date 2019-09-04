@@ -9,7 +9,7 @@ use crate::{
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::MonitorHandleExtIOS,
     platform_impl::platform::{
-        app_state::{self, AppState, OSCapabilities},
+        app_state::{self, OSCapabilities},
         event_loop,
         ffi::{
             id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
@@ -101,7 +101,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         extern "C" fn draw_rect(object: &Object, _: Sel, rect: CGRect) {
             unsafe {
                 let window: id = msg_send![object, window];
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::RedrawRequested,
                 });
@@ -112,6 +112,9 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
 
         extern "C" fn layout_subviews(object: &Object, _: Sel) {
             unsafe {
+                let superclass: &'static Class = msg_send![object, superclass];
+                let () = msg_send![super(object, superclass), layoutSubviews];
+
                 let window: id = msg_send![object, window];
                 let bounds: CGRect = msg_send![window, bounds];
                 let screen: id = msg_send![window, screen];
@@ -122,12 +125,127 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
                 };
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::Resized(size),
                 });
+            }
+        }
+
+        extern "C" fn set_content_scale_factor(
+            object: &mut Object,
+            _: Sel,
+            untrusted_hidpi_factor: CGFloat,
+        ) {
+            unsafe {
                 let superclass: &'static Class = msg_send![object, superclass];
-                let () = msg_send![super(object, superclass), layoutSubviews];
+                let () = msg_send![
+                    super(object, superclass),
+                    setContentScaleFactor: untrusted_hidpi_factor
+                ];
+
+                // On launch, iOS sets the contentScaleFactor to 0.0. This is a sentinel value that
+                // iOS appears to use to "reset" the contentScaleFactor to the device specific
+                // default value.
+                //
+                // The workaround is to not trust the value received by this function, and always
+                // go through the getter.
+                let hidpi_factor: CGFloat = msg_send![object, contentScaleFactor];
+                assert!(
+                    !hidpi_factor.is_nan()
+                        && hidpi_factor.is_finite()
+                        && hidpi_factor.is_sign_positive()
+                        && hidpi_factor > 0.0,
+                    "invalid hidpi_factor set on UIWindow",
+                );
+
+                let window: id = msg_send![object, window];
+
+                let bounds: CGRect = msg_send![object, bounds];
+                let screen: id = msg_send![window, screen];
+                let screen_space: id = msg_send![screen, coordinateSpace];
+                let screen_frame: CGRect =
+                    msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
+                let size = crate::dpi::LogicalSize {
+                    width: screen_frame.size.width as _,
+                    height: screen_frame.size.height as _,
+                };
+                app_state::handle_nonuser_events(
+                    std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
+                    })
+                    .chain(std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::Resized(size),
+                    })),
+                );
+            }
+        }
+
+        extern "C" fn handle_touches(object: &Object, _: Sel, touches: id, _: id) {
+            unsafe {
+                let window: id = msg_send![object, window];
+                let uiscreen: id = msg_send![window, screen];
+                let touches_enum: id = msg_send![touches, objectEnumerator];
+                let mut touch_events = Vec::new();
+                let os_supports_force = app_state::os_capabilities().force_touch;
+                loop {
+                    let touch: id = msg_send![touches_enum, nextObject];
+                    if touch == nil {
+                        break;
+                    }
+                    let location: CGPoint = msg_send![touch, locationInView: nil];
+                    let touch_type: UITouchType = msg_send![touch, type];
+                    let force = if os_supports_force {
+                        let trait_collection: id = msg_send![object, traitCollection];
+                        let touch_capability: UIForceTouchCapability =
+                            msg_send![trait_collection, forceTouchCapability];
+                        // Both the OS _and_ the device need to be checked for force touch support.
+                        if touch_capability == UIForceTouchCapability::Available {
+                            let force: CGFloat = msg_send![touch, force];
+                            let max_possible_force: CGFloat =
+                                msg_send![touch, maximumPossibleForce];
+                            let altitude_angle: Option<f64> = if touch_type == UITouchType::Pencil {
+                                let angle: CGFloat = msg_send![touch, altitudeAngle];
+                                Some(angle as _)
+                            } else {
+                                None
+                            };
+                            Some(Force::Calibrated {
+                                force: force as _,
+                                max_possible_force: max_possible_force as _,
+                                altitude_angle,
+                            })
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    let touch_id = touch as u64;
+                    let phase: UITouchPhase = msg_send![touch, phase];
+                    let phase = match phase {
+                        UITouchPhase::Began => TouchPhase::Started,
+                        UITouchPhase::Moved => TouchPhase::Moved,
+                        // 2 is UITouchPhase::Stationary and is not expected here
+                        UITouchPhase::Ended => TouchPhase::Ended,
+                        UITouchPhase::Cancelled => TouchPhase::Cancelled,
+                        _ => panic!("unexpected touch phase: {:?}", phase as i32),
+                    };
+
+                    touch_events.push(Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::Touch(Touch {
+                            device_id: RootDeviceId(DeviceId { uiscreen }),
+                            id: touch_id,
+                            location: (location.x as f64, location.y as f64).into(),
+                            force,
+                            phase,
+                        }),
+                    });
+                }
+                app_state::handle_nonuser_events(touch_events);
             }
         }
 
@@ -142,6 +260,28 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             sel!(layoutSubviews),
             layout_subviews as extern "C" fn(&Object, Sel),
         );
+        decl.add_method(
+            sel!(setContentScaleFactor:),
+            set_content_scale_factor as extern "C" fn(&mut Object, Sel, CGFloat),
+        );
+
+        decl.add_method(
+            sel!(touchesBegan:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
+        decl.add_method(
+            sel!(touchesMoved:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
+        decl.add_method(
+            sel!(touchesEnded:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
+        decl.add_method(
+            sel!(touchesCancelled:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
+
         decl.register()
     })
 }
@@ -223,7 +363,7 @@ unsafe fn get_window_class() -> &'static Class {
 
         extern "C" fn become_key_window(object: &Object, _: Sel) {
             unsafe {
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(object.into()),
                     event: WindowEvent::Focused(true),
                 });
@@ -233,107 +373,11 @@ unsafe fn get_window_class() -> &'static Class {
 
         extern "C" fn resign_key_window(object: &Object, _: Sel) {
             unsafe {
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(object.into()),
                     event: WindowEvent::Focused(false),
                 });
                 let () = msg_send![super(object, class!(UIWindow)), resignKeyWindow];
-            }
-        }
-
-        extern "C" fn handle_touches(object: &Object, _: Sel, touches: id, _: id) {
-            unsafe {
-                let uiscreen = msg_send![object, screen];
-                let touches_enum: id = msg_send![touches, objectEnumerator];
-                let mut touch_events = Vec::new();
-                let os_supports_force = app_state::os_capabilities().force_touch;
-                loop {
-                    let touch: id = msg_send![touches_enum, nextObject];
-                    if touch == nil {
-                        break;
-                    }
-                    let location: CGPoint = msg_send![touch, locationInView: nil];
-                    let touch_type: UITouchType = msg_send![touch, type];
-                    let force = if os_supports_force {
-                        let trait_collection: id = msg_send![object, traitCollection];
-                        let touch_capability: UIForceTouchCapability =
-                            msg_send![trait_collection, forceTouchCapability];
-                        // Both the OS _and_ the device need to be checked for force touch support.
-                        if touch_capability == UIForceTouchCapability::Available {
-                            let force: CGFloat = msg_send![touch, force];
-                            let max_possible_force: CGFloat =
-                                msg_send![touch, maximumPossibleForce];
-                            let altitude_angle: Option<f64> = if touch_type == UITouchType::Pencil {
-                                let angle: CGFloat = msg_send![touch, altitudeAngle];
-                                Some(angle as _)
-                            } else {
-                                None
-                            };
-                            Some(Force::Calibrated {
-                                force: force as _,
-                                max_possible_force: max_possible_force as _,
-                                altitude_angle,
-                            })
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
-                    let touch_id = touch as u64;
-                    let phase: UITouchPhase = msg_send![touch, phase];
-                    let phase = match phase {
-                        UITouchPhase::Began => TouchPhase::Started,
-                        UITouchPhase::Moved => TouchPhase::Moved,
-                        // 2 is UITouchPhase::Stationary and is not expected here
-                        UITouchPhase::Ended => TouchPhase::Ended,
-                        UITouchPhase::Cancelled => TouchPhase::Cancelled,
-                        _ => panic!("unexpected touch phase: {:?}", phase as i32),
-                    };
-
-                    touch_events.push(Event::WindowEvent {
-                        window_id: RootWindowId(object.into()),
-                        event: WindowEvent::Touch(Touch {
-                            device_id: RootDeviceId(DeviceId { uiscreen }),
-                            id: touch_id,
-                            location: (location.x as f64, location.y as f64).into(),
-                            force,
-                            phase,
-                        }),
-                    });
-                }
-                AppState::handle_nonuser_events(touch_events);
-            }
-        }
-
-        extern "C" fn set_content_scale_factor(object: &mut Object, _: Sel, hidpi_factor: CGFloat) {
-            unsafe {
-                let () = msg_send![
-                    super(object, class!(UIWindow)),
-                    setContentScaleFactor: hidpi_factor
-                ];
-                let view_controller: id = msg_send![object, rootViewController];
-                let view: id = msg_send![view_controller, view];
-                let () = msg_send![view, setContentScaleFactor: hidpi_factor];
-                let bounds: CGRect = msg_send![object, bounds];
-                let screen: id = msg_send![object, screen];
-                let screen_space: id = msg_send![screen, coordinateSpace];
-                let screen_frame: CGRect =
-                    msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
-                let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width as _,
-                    height: screen_frame.size.height as _,
-                };
-                AppState::handle_nonuser_events(
-                    std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(object.into()),
-                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
-                    })
-                    .chain(std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(object.into()),
-                        event: WindowEvent::Resized(size),
-                    })),
-                );
             }
         }
 
@@ -346,28 +390,6 @@ unsafe fn get_window_class() -> &'static Class {
         decl.add_method(
             sel!(resignKeyWindow),
             resign_key_window as extern "C" fn(&Object, Sel),
-        );
-
-        decl.add_method(
-            sel!(touchesBegan:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
-        );
-        decl.add_method(
-            sel!(touchesMoved:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
-        );
-        decl.add_method(
-            sel!(touchesEnded:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
-        );
-        decl.add_method(
-            sel!(touchesCancelled:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
-        );
-
-        decl.add_method(
-            sel!(setContentScaleFactor:),
-            set_content_scale_factor as extern "C" fn(&mut Object, Sel, CGFloat),
         );
 
         CLASS = Some(decl.register());
@@ -388,6 +410,9 @@ pub unsafe fn create_view(
     let view: id = msg_send![view, initWithFrame: frame];
     assert!(!view.is_null(), "Failed to initialize `UIView` instance");
     let () = msg_send![view, setMultipleTouchEnabled: YES];
+    if let Some(hidpi_factor) = platform_attributes.hidpi_factor {
+        let () = msg_send![view, setContentScaleFactor: hidpi_factor as CGFloat];
+    }
 
     view
 }
@@ -451,7 +476,7 @@ pub unsafe fn create_view_controller(
 // requires main thread
 pub unsafe fn create_window(
     window_attributes: &WindowAttributes,
-    platform_attributes: &PlatformSpecificWindowBuilderAttributes,
+    _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     frame: CGRect,
     view_controller: id,
 ) -> id {
@@ -465,9 +490,6 @@ pub unsafe fn create_window(
         "Failed to initialize `UIWindow` instance"
     );
     let () = msg_send![window, setRootViewController: view_controller];
-    if let Some(hidpi_factor) = platform_attributes.hidpi_factor {
-        let () = msg_send![window, setContentScaleFactor: hidpi_factor as CGFloat];
-    }
     match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(ref video_mode)) => {
             let uiscreen = video_mode.monitor().ui_screen() as id;
@@ -486,17 +508,17 @@ pub unsafe fn create_window(
 pub fn create_delegate_class() {
     extern "C" fn did_finish_launching(_: &mut Object, _: Sel, _: id, _: id) -> BOOL {
         unsafe {
-            AppState::did_finish_launching();
+            app_state::did_finish_launching();
         }
         YES
     }
 
     extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
-        unsafe { AppState::handle_nonuser_event(Event::Resumed) }
+        unsafe { app_state::handle_nonuser_event(Event::Resumed) }
     }
 
     extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
-        unsafe { AppState::handle_nonuser_event(Event::Suspended) }
+        unsafe { app_state::handle_nonuser_event(Event::Suspended) }
     }
 
     extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {}
@@ -521,8 +543,8 @@ pub fn create_delegate_class() {
                     });
                 }
             }
-            AppState::handle_nonuser_events(events);
-            AppState::terminated();
+            app_state::handle_nonuser_events(events);
+            app_state::terminated();
         }
     }
 
