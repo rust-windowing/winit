@@ -1,25 +1,11 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    collections::VecDeque,
-    mem, panic, ptr,
-    rc::Rc,
-    time::Instant,
-};
+use std::{any::Any, cell::RefCell, collections::VecDeque, mem, panic, ptr, rc::Rc, time::Instant};
 
-use winapi::{
-    shared::{
-        windef::HWND,
-    },
-    um::winuser,
-};
+use winapi::{shared::windef::HWND, um::winuser};
 
 use crate::{
     event::{Event, StartCause},
     event_loop::ControlFlow,
-    platform_impl::platform::{
-        event_loop::EventLoop,
-    },
+    platform_impl::platform::event_loop::EventLoop,
     window::WindowId,
 };
 
@@ -116,10 +102,17 @@ impl<T> ELRShared<T> {
         }
     }
 
-    pub(crate) fn events_cleared(&self) {
+    pub(crate) fn main_events_cleared(&self) {
         let mut runner_ref = self.runner.borrow_mut();
         if let Some(ref mut runner) = *runner_ref {
-            runner.events_cleared();
+            runner.main_events_cleared();
+        }
+    }
+
+    pub(crate) fn redraw_events_cleared(&self) {
+        let mut runner_ref = self.runner.borrow_mut();
+        if let Some(ref mut runner) = *runner_ref {
+            runner.redraw_events_cleared();
         }
     }
 
@@ -159,7 +152,9 @@ impl<T> ELRShared<T> {
 
     fn buffer_event(&self, event: Event<T>) {
         match event {
-            Event::RedrawRequested(window_id) => self.redraw_buffer.borrow_mut().push_back(window_id),
+            Event::RedrawRequested(window_id) => {
+                self.redraw_buffer.borrow_mut().push_back(window_id)
+            }
             _ => self.buffer.borrow_mut().push_back(event),
         }
     }
@@ -182,7 +177,11 @@ enum RunnerState {
 }
 
 impl<T> EventLoopRunner<T> {
-    unsafe fn new<F>(event_loop: &EventLoop<T>, redraw_buffer: Rc<RefCell<VecDeque<WindowId>>>, f: F) -> EventLoopRunner<T>
+    unsafe fn new<F>(
+        event_loop: &EventLoop<T>,
+        redraw_buffer: Rc<RefCell<VecDeque<WindowId>>>,
+        f: F,
+    ) -> EventLoopRunner<T>
     where
         F: FnMut(Event<T>, &mut ControlFlow),
     {
@@ -211,7 +210,9 @@ impl<T> EventLoopRunner<T> {
         self.runner_state = match self.runner_state {
             // If we're already handling events or have deferred `NewEvents`, we don't need to do
             // do any processing.
-            RunnerState::HandlingEvents | RunnerState::HandlingRedraw | RunnerState::DeferredNewEvents(..) => self.runner_state,
+            RunnerState::HandlingEvents
+            | RunnerState::HandlingRedraw
+            | RunnerState::DeferredNewEvents(..) => self.runner_state,
 
             // Send the `Init` `NewEvents` and immediately move into event processing.
             RunnerState::New => {
@@ -259,9 +260,9 @@ impl<T> EventLoopRunner<T> {
 
     fn process_event(&mut self, event: Event<T>) {
         // If we're in the modal loop, we need to have some mechanism for finding when the event
-        // queue has been cleared so we can call `events_cleared`. Windows doesn't give any utilities
+        // queue has been cleared so we can call `main_events_cleared`. Windows doesn't give any utilities
         // for doing this, but it DOES guarantee that WM_PAINT will only occur after input events have
-        // been processed. So, we send WM_PAINT to a dummy window which calls `events_cleared` when
+        // been processed. So, we send WM_PAINT to a dummy window which calls `main_events_cleared` when
         // the events queue has been emptied.
         if self.in_modal_loop {
             unsafe {
@@ -311,15 +312,18 @@ impl<T> EventLoopRunner<T> {
         }
 
         match (self.runner_state, &event) {
-            (RunnerState::HandlingRedraw, Event::RedrawRequested(_)) => self.call_event_handler(event),
+            (RunnerState::HandlingRedraw, Event::RedrawRequested(_)) => {
+                self.call_event_handler(event)
+            }
             (_, Event::RedrawRequested(_)) => {
                 self.call_event_handler(Event::MainEventsCleared);
                 self.runner_state = RunnerState::HandlingRedraw;
                 self.call_event_handler(event);
-            },
+            }
             (RunnerState::HandlingRedraw, _) => {
                 warn!("Non-redraw event dispatched durning redraw phase");
-                self.events_cleared();
+                self.main_events_cleared();
+                self.redraw_events_cleared();
                 self.new_events();
                 self.call_event_handler(event);
             }
@@ -340,23 +344,16 @@ impl<T> EventLoopRunner<T> {
         }
     }
 
-    fn events_cleared(&mut self) {
+    fn main_events_cleared(&mut self) {
         match self.runner_state {
             // If we were handling events, send the EventsCleared message.
             RunnerState::HandlingEvents => {
                 self.call_event_handler(Event::MainEventsCleared);
-                self.flush_redraws();
-                self.call_event_handler(Event::RedrawEventsCleared);
-                self.runner_state = RunnerState::Idle(Instant::now());
-            }
-
-            RunnerState::HandlingRedraw => {
-                self.call_event_handler(Event::RedrawEventsCleared);
-                self.runner_state = RunnerState::Idle(Instant::now());
+                self.runner_state = RunnerState::HandlingRedraw;
             }
 
             // If we *weren't* handling events, we don't have to do anything.
-            RunnerState::New | RunnerState::Idle(..) => (),
+            RunnerState::HandlingRedraw | RunnerState::New | RunnerState::Idle(..) => (),
 
             // Some control flows require a NewEvents call even if no events were received. This
             // branch handles those.
@@ -366,8 +363,7 @@ impl<T> EventLoopRunner<T> {
                     ControlFlow::Poll => {
                         self.call_event_handler(Event::NewEvents(StartCause::Poll));
                         self.call_event_handler(Event::MainEventsCleared);
-                        self.flush_redraws();
-                        self.call_event_handler(Event::RedrawEventsCleared);
+                        self.runner_state = RunnerState::HandlingRedraw;
                     }
                     // If we had deferred a WaitUntil and the resume time has since been reached,
                     // send the resume notification and EventsCleared event.
@@ -380,17 +376,36 @@ impl<T> EventLoopRunner<T> {
                                 },
                             ));
                             self.call_event_handler(Event::MainEventsCleared);
-                            self.flush_redraws();
-                            self.call_event_handler(Event::RedrawEventsCleared);
+                            self.runner_state = RunnerState::HandlingRedraw;
                         }
                     }
                     // If we deferred a wait and no events were received, the user doesn't have to
                     // get an event.
-                    ControlFlow::Wait | ControlFlow::Exit => (),
+                    ControlFlow::Wait | ControlFlow::Exit => {
+                        // Mark that we've entered an idle state.
+                        self.runner_state = RunnerState::Idle(wait_start)
+                    }
                 }
-                // Mark that we've entered an idle state.
-                self.runner_state = RunnerState::Idle(wait_start)
             }
+        }
+    }
+
+    fn redraw_events_cleared(&mut self) {
+        match self.runner_state {
+            RunnerState::New | RunnerState::Idle(..) => (),
+            RunnerState::HandlingEvents => {
+                self.main_events_cleared();
+                self.redraw_events_cleared();
+            }
+            RunnerState::HandlingRedraw => {
+                self.flush_redraws();
+                self.call_event_handler(Event::RedrawEventsCleared);
+                self.runner_state = RunnerState::Idle(Instant::now());
+            }
+            RunnerState::DeferredNewEvents { .. } => panic!(
+                "didn't expect {:?} during call to redraw_events_cleared",
+                self.runner_state
+            ),
         }
     }
 

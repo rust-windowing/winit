@@ -183,12 +183,39 @@ impl<T: 'static> EventLoop<T> {
                             break;
                         }
                     }
+
+                    if msg.message == winuser::WM_PAINT {
+                        break;
+                    }
+
                     winuser::TranslateMessage(&mut msg);
                     winuser::DispatchMessageW(&mut msg);
 
                     msg_unprocessed = false;
                 }
-                runner.events_cleared();
+
+                runner.main_events_cleared();
+
+                loop {
+                    if !msg_unprocessed {
+                        if 0 == winuser::PeekMessageW(
+                            &mut msg,
+                            ptr::null_mut(),
+                            winuser::WM_PAINT,
+                            winuser::WM_PAINT,
+                            1,
+                        ) {
+                            break;
+                        }
+                    }
+                    winuser::TranslateMessage(&mut msg);
+                    winuser::DispatchMessageW(&mut msg);
+
+                    msg_unprocessed = false;
+                }
+
+                runner.redraw_events_cleared();
+
                 if let Err(payload) = runner.take_panic_error() {
                     runner.destroy_runner();
                     panic::resume_unwind(payload);
@@ -1408,6 +1435,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                     match msg.message {
                         // Flush the event queue of WM_PAINT messages.
                         winuser::WM_PAINT | winuser::WM_TIMER => {
+                            subclass_input.event_loop_runner.main_events_cleared();
                             // Remove the message from the message queue.
                             winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1);
 
@@ -1426,7 +1454,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                 }
 
                 let runner = &subclass_input.event_loop_runner;
-                runner.events_cleared();
+                runner.redraw_events_cleared();
                 match runner.control_flow() {
                     // Waiting is handled by the modal loop.
                     ControlFlow::Exit | ControlFlow::Wait => runner.new_events(),

@@ -35,9 +35,7 @@ use crate::{
     platform_impl::platform::{
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
-        event_loop::{
-            self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID,
-        },
+        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID},
         icon::{self, IconType, WinIcon},
         monitor,
         raw_input::register_all_mice_and_keyboards_for_raw_input,
