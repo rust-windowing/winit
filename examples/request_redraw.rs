@@ -1,5 +1,3 @@
-use std::time::{Duration, Instant};
-
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
