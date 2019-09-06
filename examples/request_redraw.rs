@@ -15,18 +15,21 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |event, _, control_flow| match event {
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => *control_flow = ControlFlow::Exit,
-        Event::MainEventsCleared => {
-            window.request_redraw();
-            *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::new(1, 0))
+    event_loop.run(move |event, _, control_flow| {
+        println!("{:?}", event);
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *control_flow = ControlFlow::Exit,
+            Event::MainEventsCleared => {
+                println!("request redraw");
+                window.request_redraw();
+            }
+            Event::RedrawRequested(_) => {
+                println!("redraw requested");
+            }
+            _ => (),
         }
-        Event::RedrawRequested(_) => {
-            println!("{:?}", event);
-        }
-        _ => (),
     });
 }
