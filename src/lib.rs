@@ -123,7 +123,7 @@ extern crate serde;
 #[macro_use]
 extern crate derivative;
 #[macro_use]
-#[cfg(any(target_os = "ios", target_os = "windows"))]
+#[cfg(any(target_os = "ios", target_os = "windows", target_os = "linux"))]
 extern crate bitflags;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
