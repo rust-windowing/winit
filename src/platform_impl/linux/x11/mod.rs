@@ -191,7 +191,8 @@ impl<T: 'static> EventLoop<T> {
             ime_receiver,
             xi2ext,
             mod_keymap,
-            mod_key_state: Default::default(),
+            device_mod_state: Default::default(),
+            window_mod_state: Default::default(),
         };
 
         // Register for device hotplug events

@@ -92,9 +92,6 @@ pub fn init_keyboard(
                         my_sink
                             .send((
                                 WindowEvent::ModifiersChanged {
-                                    device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Wayland(DeviceId),
-                                    ),
                                     modifiers,
                                 },
                                 wid,

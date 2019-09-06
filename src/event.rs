@@ -135,7 +135,6 @@ pub enum WindowEvent {
 
     /// Keyboard modifiers have changed
     ModifiersChanged {
-        device_id: DeviceId,
         modifiers: ModifiersState,
     },
 

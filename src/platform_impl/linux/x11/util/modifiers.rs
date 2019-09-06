@@ -31,7 +31,7 @@ pub struct ModifierKeymap {
     keys: HashMap<ffi::KeyCode, Modifier>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ModifierKeyState {
     // Contains currently pressed modifier keys and their corresponding modifiers
     keys: HashMap<ffi::KeyCode, Modifier>,
@@ -94,6 +94,14 @@ impl ModifierKeymap {
 }
 
 impl ModifierKeyState {
+    pub fn clear(&mut self) {
+        self.keys.clear();
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.keys.is_empty()
+    }
+
     pub fn update(&mut self, mods: &ModifierKeymap) {
         self.keys.retain(|k, v| {
             if let Some(m) = mods.get_modifier(*k) {
