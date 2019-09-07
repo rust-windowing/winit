@@ -134,9 +134,7 @@ pub enum WindowEvent {
     },
 
     /// Keyboard modifiers have changed
-    ModifiersChanged {
-        modifiers: ModifiersState,
-    },
+    ModifiersChanged { modifiers: ModifiersState },
 
     /// The cursor has moved on the window.
     CursorMoved {

@@ -561,8 +561,11 @@ impl<T: 'static> EventProcessor<T> {
                     if let Some(modifier) =
                         self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode)
                     {
-                        self.window_mod_state
-                            .key_event(state, xkev.keycode as ffi::KeyCode, modifier);
+                        self.window_mod_state.key_event(
+                            state,
+                            xkev.keycode as ffi::KeyCode,
+                            modifier,
+                        );
 
                         let new_modifiers = self.window_mod_state.modifiers();
 
@@ -898,9 +901,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             callback(Event::WindowEvent {
                                 window_id,
-                                event: WindowEvent::ModifiersChanged {
-                                    modifiers,
-                                },
+                                event: WindowEvent::ModifiersChanged { modifiers },
                             });
                         }
 
@@ -1083,8 +1084,14 @@ impl<T: 'static> EventProcessor<T> {
 
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
-                        if let Some(modifier) = self.mod_keymap.get_modifier(keycode as ffi::KeyCode) {
-                            self.device_mod_state.key_event(state, keycode as ffi::KeyCode, modifier);
+                        if let Some(modifier) =
+                            self.mod_keymap.get_modifier(keycode as ffi::KeyCode)
+                        {
+                            self.device_mod_state.key_event(
+                                state,
+                                keycode as ffi::KeyCode,
+                                modifier,
+                            );
                         }
 
                         let modifiers = self.device_mod_state.modifiers();

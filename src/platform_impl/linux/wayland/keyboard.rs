@@ -90,12 +90,7 @@ pub fn init_keyboard(
 
                     if let Some(wid) = *target.lock().unwrap() {
                         my_sink
-                            .send((
-                                WindowEvent::ModifiersChanged {
-                                    modifiers,
-                                },
-                                wid,
-                            ))
+                            .send((WindowEvent::ModifiersChanged { modifiers }, wid))
                             .unwrap();
                     }
                 }
