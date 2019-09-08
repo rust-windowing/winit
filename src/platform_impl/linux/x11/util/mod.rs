@@ -10,6 +10,7 @@ mod hint;
 mod icon;
 mod input;
 mod memory;
+pub mod modifiers;
 mod randr;
 mod window_property;
 mod wm;
