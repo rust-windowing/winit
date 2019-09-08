@@ -20,103 +20,75 @@ impl From<bool> for StateOperation {
     }
 }
 
-bitflags! {
-    /// X window type. Maps directly to
-    /// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub struct WindowType: u32 {
-        /// A desktop feature. This can include a single window containing desktop icons with the same dimensions as the
-        /// screen, allowing the desktop environment to have full control of the desktop, without the need for proxying
-        /// root window clicks.
-        const DESKTOP       = 1 << 0;
-        /// A dock or panel feature. Typically a Window Manager would keep such windows on top of all other windows.
-        const DOCK          = 1 << 1;
-        /// Toolbar windows. "Torn off" from the main application.
-        const TOOLBAR       = 1 << 2;
-        /// Pinnable menu windows. "Torn off" from the main application.
-        const MENU          = 1 << 3;
-        /// A small persistent utility window, such as a palette or toolbox.
-        const UTILITY       = 1 << 4;
-        /// The window is a splash screen displayed as an application is starting up.
-        const SPLASH        = 1 << 5;
-        /// This is a dialog window.
-        const DIALOG        = 1 << 6;
-        /// A dropdown menu that usually appears when the user clicks on an item in a menu bar.
-        /// This property is typically used on override-redirect windows.
-        const DROPDOWNMENU  = 1 << 7;
-        /// A popup menu that usually appears when the user right clicks on an object.
-        /// This property is typically used on override-redirect windows.
-        const POPUPMENU     = 1 << 8;
-        /// A tooltip window. Usually used to show additional information when hovering over an object with the cursor.
-        /// This property is typically used on override-redirect windows.
-        const TOOLTIP       = 1 << 9;
-        /// The window is a notification.
-        /// This property is typically used on override-redirect windows.
-        const NOTIFICATION  = 1 << 10;
-        /// This should be used on the windows that are popped up by combo boxes.
-        /// This property is typically used on override-redirect windows.
-        const COMBO         = 1 << 11;
-        /// This indicates the the window is being dragged.
-        /// This property is typically used on override-redirect windows.
-        const DND           = 1 << 12;
-        /// This is a normal, top-level window.
-        const NORMAL        = 1 << 13;
-    }
+/// X window type. Maps directly to
+/// [`_NET_WM_WINDOW_TYPE`](https://specifications.freedesktop.org/wm-spec/wm-spec-1.5.html).
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum WindowType {
+    /// A desktop feature. This can include a single window containing desktop icons with the same dimensions as the
+    /// screen, allowing the desktop environment to have full control of the desktop, without the need for proxying
+    /// root window clicks.
+    Desktop,
+    /// A dock or panel feature. Typically a Window Manager would keep such windows on top of all other windows.
+    Dock,
+    /// Toolbar windows. "Torn off" from the main application.
+    Toolbar,
+    /// Pinnable menu windows. "Torn off" from the main application.
+    Menu,
+    /// A small persistent utility window, such as a palette or toolbox.
+    Utility,
+    /// The window is a splash screen displayed as an application is starting up.
+    Splash,
+    /// This is a dialog window.
+    Dialog,
+    /// A dropdown menu that usually appears when the user clicks on an item in a menu bar.
+    /// This property is typically used on override-redirect windows.
+    DropdownMenu,
+    /// A popup menu that usually appears when the user right clicks on an object.
+    /// This property is typically used on override-redirect windows.
+    PopupMenu,
+    /// A tooltip window. Usually used to show additional information when hovering over an object with the cursor.
+    /// This property is typically used on override-redirect windows.
+    Tooltip,
+    /// The window is a notification.
+    /// This property is typically used on override-redirect windows.
+    Notification,
+    /// This should be used on the windows that are popped up by combo boxes.
+    /// This property is typically used on override-redirect windows.
+    Combo,
+    /// This indicates the the window is being dragged.
+    /// This property is typically used on override-redirect windows.
+    Dnd,
+    /// This is a normal, top-level window.
+    Normal,
 }
 
 impl Default for WindowType {
     fn default() -> Self {
-        WindowType::NORMAL
+        WindowType::Normal
     }
 }
 
 impl WindowType {
-    pub(crate) fn get_atoms(&self, xconn: &Arc<XConnection>) -> Vec<ffi::Atom> {
-        let mut vec = vec![];
-        if self.contains(WindowType::DESKTOP) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_DESKTOP\0") });
-        }
-        if self.contains(WindowType::DOCK) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_DOCK\0") });
-        }
-        if self.contains(WindowType::TOOLBAR) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_TOOLBAR\0") });
-        }
-        if self.contains(WindowType::MENU) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_MENU\0") });
-        }
-        if self.contains(WindowType::UTILITY) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_UTILITY\0") });
-        }
-        if self.contains(WindowType::SPLASH) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_SPLASH\0") });
-        }
-        if self.contains(WindowType::DIALOG) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_DIALOG\0") });
-        }
-        if self.contains(WindowType::DROPDOWNMENU) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_DROPDOWN_MENU\0") });
-        }
-        if self.contains(WindowType::POPUPMENU) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_POPUP_MENU\0") });
-        }
-        if self.contains(WindowType::TOOLTIP) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_TOOLTIP\0") });
-        }
-        if self.contains(WindowType::NOTIFICATION) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_NOTIFICATION\0") });
-        }
-        if self.contains(WindowType::COMBO) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_COMBO\0") });
-        }
-        if self.contains(WindowType::DND) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_DND\0") });
-        }
-        if self.contains(WindowType::NORMAL) {
-            vec.push(unsafe { xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE_NORMAL\0") });
-        }
-
-        vec
+    pub(crate) fn as_atom(&self, xconn: &Arc<XConnection>) -> ffi::Atom {
+        use self::WindowType::*;
+        let atom_name: &[u8] = match self {
+            &Desktop => b"_NET_WM_WINDOW_TYPE_DESKTOP\0",
+            &Dock => b"_NET_WM_WINDOW_TYPE_DOCK\0",
+            &Toolbar => b"_NET_WM_WINDOW_TYPE_TOOLBAR\0",
+            &Menu => b"_NET_WM_WINDOW_TYPE_MENU\0",
+            &Utility => b"_NET_WM_WINDOW_TYPE_UTILITY\0",
+            &Splash => b"_NET_WM_WINDOW_TYPE_SPLASH\0",
+            &Dialog => b"_NET_WM_WINDOW_TYPE_DIALOG\0",
+            &DropdownMenu => b"_NET_WM_WINDOW_TYPE_DROPDOWN_MENU\0",
+            &PopupMenu => b"_NET_WM_WINDOW_TYPE_POPUP_MENU\0",
+            &Tooltip => b"_NET_WM_WINDOW_TYPE_TOOLTIP\0",
+            &Notification => b"_NET_WM_WINDOW_TYPE_NOTIFICATION\0",
+            &Combo => b"_NET_WM_WINDOW_TYPE_COMBO\0",
+            &Dnd => b"_NET_WM_WINDOW_TYPE_DND\0",
+            &Normal => b"_NET_WM_WINDOW_TYPE_NORMAL\0",
+        };
+        unsafe { xconn.get_atom_unchecked(atom_name) }
     }
 }
 

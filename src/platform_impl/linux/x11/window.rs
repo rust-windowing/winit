@@ -502,13 +502,13 @@ impl UnownedWindow {
 
     fn set_window_type(&self, window_type: util::WindowType) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE\0") };
-        let window_type_atoms = window_type.get_atoms(&self.xconn);
+        let window_type_atom = window_type.as_atom(&self.xconn);
         self.xconn.change_property(
             self.xwindow,
             hint_atom,
             ffi::XA_ATOM,
             util::PropMode::Replace,
-            &window_type_atoms,
+            &[window_type_atom],
         )
     }
 
