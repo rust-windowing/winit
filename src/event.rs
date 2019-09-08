@@ -134,6 +134,7 @@ pub enum WindowEvent {
     },
 
     /// Keyboard modifiers have changed
+    #[doc(hidden)]
     ModifiersChanged { modifiers: ModifiersState },
 
     /// The cursor has moved on the window.
