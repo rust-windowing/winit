@@ -1568,17 +1568,20 @@ unsafe extern "system" fn public_window_callback<T>(
                 // The information retrieved appears in reverse chronological order, with the most recent entry in the first
                 // row of the returned array
                 for pointer_info in pointer_infos.iter().rev() {
-                    let mut device_rect: RECT = mem::uninitialized();
-                    let mut display_rect: RECT = mem::uninitialized();
+                    let mut device_rect = mem::MaybeUninit::uninit();
+                    let mut display_rect = mem::MaybeUninit::uninit();
 
                     if (GetPointerDeviceRects(
                         pointer_info.sourceDevice,
-                        &mut device_rect as *mut _,
-                        &mut display_rect as *mut _,
+                        device_rect.as_mut_ptr(),
+                        display_rect.as_mut_ptr(),
                     )) == 0
                     {
                         continue;
                     }
+
+                    let device_rect = device_rect.assume_init();
+                    let display_rect = display_rect.assume_init();
 
                     // For the most precise himetric to pixel conversion we calculate the ratio between the resolution
                     // of the display device (pixel) and the touch device (himetric).
@@ -1606,26 +1609,30 @@ unsafe extern "system" fn public_window_callback<T>(
 
                     let force = match pointer_info.pointerType {
                         winuser::PT_TOUCH => {
-                            let mut touch_info: winuser::POINTER_TOUCH_INFO = mem::uninitialized();
+                            let mut touch_info = mem::MaybeUninit::uninit();
                             GET_POINTER_TOUCH_INFO.and_then(|GetPointerTouchInfo| {
                                 match GetPointerTouchInfo(
                                     pointer_info.pointerId,
-                                    &mut touch_info as *mut _,
+                                    touch_info.as_mut_ptr(),
                                 ) {
                                     0 => None,
-                                    _ => normalize_pointer_pressure(touch_info.pressure),
+                                    _ => normalize_pointer_pressure(
+                                        touch_info.assume_init().pressure,
+                                    ),
                                 }
                             })
                         }
                         winuser::PT_PEN => {
-                            let mut pen_info: winuser::POINTER_PEN_INFO = mem::uninitialized();
+                            let mut pen_info = mem::MaybeUninit::uninit();
                             GET_POINTER_PEN_INFO.and_then(|GetPointerPenInfo| {
                                 match GetPointerPenInfo(
                                     pointer_info.pointerId,
-                                    &mut pen_info as *mut _,
+                                    pen_info.as_mut_ptr(),
                                 ) {
                                     0 => None,
-                                    _ => normalize_pointer_pressure(pen_info.pressure),
+                                    _ => {
+                                        normalize_pointer_pressure(pen_info.assume_init().pressure)
+                                    }
                                 }
                             })
                         }
