@@ -194,7 +194,7 @@ Legend:
 |Cursor grab             |✔️       |▢[#165] |▢[#242]  |❌[#306]    |**N/A**|**N/A**|✔️       |
 |Cursor icon             |✔️       |✔️      |✔️       |❌[#306]    |**N/A**|**N/A**|❌       |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️       |
-|Touch pressure          |❌       |❌      |❌       |❌          |❌     |✔️     |❌       |
+|Touch pressure          |✔️       |❌      |❌       |❌          |❌     |✔️     |❌       |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |❓     |✔️     |❌       |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️       |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
