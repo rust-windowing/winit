@@ -15,10 +15,12 @@ pub enum Cursor {
 
 impl From<CursorIcon> for Cursor {
     fn from(cursor: CursorIcon) -> Self {
+        // See native cursors at https://developer.apple.com/documentation/appkit/nscursor?language=objc.
         match cursor {
             CursorIcon::Arrow | CursorIcon::Default => Cursor::Native("arrowCursor"),
             CursorIcon::Hand => Cursor::Native("pointingHandCursor"),
-            CursorIcon::Grabbing | CursorIcon::Grab => Cursor::Native("closedHandCursor"),
+            CursorIcon::Grab => Cursor::Native("openHandCursor"),
+            CursorIcon::Grabbing => Cursor::Native("closedHandCursor"),
             CursorIcon::Text => Cursor::Native("IBeamCursor"),
             CursorIcon::VerticalText => Cursor::Native("IBeamCursorForVerticalLayout"),
             CursorIcon::Copy => Cursor::Native("dragCopyCursor"),
