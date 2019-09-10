@@ -420,7 +420,7 @@ impl Window {
         self.window.set_outer_position(position.into())
     }
 
-    /// Returns the logical size of the window's client area.
+    /// Returns the physical size of the window's client area.
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
     ///
@@ -448,7 +448,7 @@ impl Window {
         self.window.set_inner_size(size.into())
     }
 
-    /// Returns the logical size of the entire window.
+    /// Returns the physical size of the entire window.
     ///
     /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
     /// use `inner_size` instead.
