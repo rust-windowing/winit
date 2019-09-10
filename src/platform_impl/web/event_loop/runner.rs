@@ -48,6 +48,9 @@ impl<T: 'static> Shared<T> {
     pub fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut root::ControlFlow)>) {
         self.0.runner.replace(Some(Runner::new(event_handler)));
         self.send_event(Event::NewEvents(StartCause::Init));
+
+        let close_instance = self.clone();
+        backend::on_unload(move || close_instance.handle_unload());
     }
 
     // Add an event to the event loop runner
@@ -109,6 +112,8 @@ impl<T: 'static> Shared<T> {
             self.handle_event(Event::LoopDestroyed, &mut control);
         }
     }
+
+    fn handle_unload(&self) {}
 
     // handle_event takes in events and either queues them or applies a callback
     //
