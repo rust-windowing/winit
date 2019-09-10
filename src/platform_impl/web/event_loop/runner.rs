@@ -113,7 +113,11 @@ impl<T: 'static> Shared<T> {
         }
     }
 
-    fn handle_unload(&self) {}
+    fn handle_unload(&self) {
+        self.apply_control_flow(root::ControlFlow::Exit);
+        let mut control = self.current_control_flow();
+        self.handle_event(Event::LoopDestroyed, &mut control);
+    }
 
     // handle_event takes in events and either queues them or applies a callback
     //
