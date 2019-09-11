@@ -31,14 +31,14 @@ pub mod x11;
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
 #[derive(Clone, Default)]
-pub struct PlatformSpecificWindowBuilderAttributes {
+pub struct PlatformSpecificWindowBuilderAttributes<'a> {
     pub visual_infos: Option<XVisualInfo>,
     pub screen_id: Option<i32>,
     pub resize_increments: Option<(u32, u32)>,
     pub base_size: Option<(u32, u32)>,
     pub class: Option<(String, String)>,
     pub override_redirect: bool,
-    pub x11_window_types: &'static [x11::util::WindowType],
+    pub x11_window_types: &'a [x11::util::WindowType],
     pub gtk_theme_variant: Option<String>,
     pub app_id: Option<String>,
 }
@@ -193,7 +193,7 @@ impl Window {
     pub fn new<T>(
         window_target: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
+        pl_attribs: PlatformSpecificWindowBuilderAttributes<'_>,
     ) -> Result<Self, RootOsError> {
         match *window_target {
             EventLoopWindowTarget::Wayland(ref window_target) => {

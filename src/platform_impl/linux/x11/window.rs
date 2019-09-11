@@ -86,7 +86,7 @@ impl UnownedWindow {
     pub fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
         window_attrs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes,
+        pl_attribs: PlatformSpecificWindowBuilderAttributes<'_>,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let root = event_loop.root;

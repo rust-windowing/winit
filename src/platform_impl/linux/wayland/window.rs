@@ -44,7 +44,7 @@ impl Window {
     pub fn new<T>(
         evlp: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
-        pl_attribs: PlAttributes,
+        pl_attribs: PlAttributes<'_>,
     ) -> Result<Window, RootOsError> {
         let (width, height) = attributes.inner_size.map(Into::into).unwrap_or((800, 600));
         // Create the window
