@@ -320,8 +320,8 @@ pub trait WindowBuilderExtUnix {
     fn with_class(self, class: String, instance: String) -> WindowBuilder;
     /// Build window with override-redirect flag; defaults to false. Only relevant on X11.
     fn with_override_redirect(self, override_redirect: bool) -> WindowBuilder;
-    /// Build window with `_NET_WM_WINDOW_TYPE` hint; defaults to `Normal`. Only relevant on X11.
-    fn with_x11_window_type(self, x11_window_type: XWindowType) -> WindowBuilder;
+    /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`. Only relevant on X11.
+    fn with_x11_window_type(self, x11_window_type: &'static [x11::util::WindowType]) -> WindowBuilder;
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     fn with_gtk_theme_variant(self, variant: String) -> WindowBuilder;
     /// Build window with resize increment hint. Only implemented on X11.
@@ -364,8 +364,8 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 
     #[inline]
-    fn with_x11_window_type(mut self, x11_window_type: XWindowType) -> WindowBuilder {
-        self.platform_specific.x11_window_type = x11_window_type;
+    fn with_x11_window_type(mut self, x11_window_types: &'static [XWindowType]) -> WindowBuilder {
+        self.platform_specific.x11_window_types = x11_window_types;
         self
     }
 

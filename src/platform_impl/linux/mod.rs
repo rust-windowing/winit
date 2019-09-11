@@ -38,7 +38,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub base_size: Option<(u32, u32)>,
     pub class: Option<(String, String)>,
     pub override_redirect: bool,
-    pub x11_window_type: x11::util::WindowType,
+    pub x11_window_types: &'static [x11::util::WindowType],
     pub gtk_theme_variant: Option<String>,
     pub app_id: Option<String>,
 }
