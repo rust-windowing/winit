@@ -6,6 +6,7 @@
 - On iOS, fix improper `msg_send` usage that was UB and/or would break if `!` is stabilized.
 - On Windows, unset `maximized` when manually changing the window's position or size.
 - On Windows, add touch pressure information for touch events.
+- On Wayland, fix event processing sometimes stalling when using OpenGL with vsync.
 - On X11, return dummy monitor data to avoid panicking when no monitors exist.
 
 # 0.20.0 Alpha 3 (2019-08-14)
