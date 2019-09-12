@@ -66,7 +66,7 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 ### Platform-specific usage
 
-#### Emscripten and WebAssembly
+#### WebAssembly
 
 Building a binary will yield a `.js` file. In order to use it in an HTML file, you need to:
 
