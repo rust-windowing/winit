@@ -135,10 +135,10 @@ impl MonitorHandle {
             id: 0,
             name: "<dummy monitor>".into(),
             hidpi_factor: 1.0,
-            dimensions: (0, 0),
+            dimensions: (1, 1),
             position: (0, 0),
             primary: true,
-            rect: util::AaRect::new((0, 0), (0, 0)),
+            rect: util::AaRect::new((0, 0), (1, 1)),
             video_modes: Vec::new(),
         }
     }
