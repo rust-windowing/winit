@@ -7,7 +7,7 @@ use raw_window_handle::RawWindowHandle;
 use smithay_client_toolkit::reexports::client::ConnectError;
 
 pub use self::x11::XNotSupported;
-use self::x11::{ffi::XVisualInfo, get_xtarget, XConnection, XError};
+use self::x11::{ffi::XVisualInfo, get_xtarget, XConnection, XError, util::WindowType as XWindowType};
 use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -30,17 +30,34 @@ pub mod x11;
 /// If this variable is set with any other value, winit will panic.
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
-#[derive(Clone, Default)]
-pub struct PlatformSpecificWindowBuilderAttributes<'a> {
+#[derive(Clone)]
+pub struct PlatformSpecificWindowBuilderAttributes {
     pub visual_infos: Option<XVisualInfo>,
     pub screen_id: Option<i32>,
     pub resize_increments: Option<(u32, u32)>,
     pub base_size: Option<(u32, u32)>,
     pub class: Option<(String, String)>,
     pub override_redirect: bool,
-    pub x11_window_types: &'a [x11::util::WindowType],
+    pub x11_window_types: Vec<XWindowType>,
     pub gtk_theme_variant: Option<String>,
     pub app_id: Option<String>,
+}
+
+impl Default for PlatformSpecificWindowBuilderAttributes {
+    fn default() -> Self {
+        Self {
+            visual_infos: None,
+            screen_id: None,
+            resize_increments: None,
+            base_size: None,
+            class: None,
+            override_redirect: false,
+            x11_window_types: vec![XWindowType::Normal],
+            gtk_theme_variant: None,
+            app_id: None,
+        }
+    }
+
 }
 
 lazy_static! {
@@ -193,7 +210,7 @@ impl Window {
     pub fn new<T>(
         window_target: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes<'_>,
+        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         match *window_target {
             EventLoopWindowTarget::Wayland(ref window_target) => {

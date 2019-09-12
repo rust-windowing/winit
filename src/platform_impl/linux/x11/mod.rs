@@ -500,7 +500,7 @@ impl Window {
     pub fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes<'_>,
+        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         let window = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
         event_loop

@@ -86,7 +86,7 @@ impl UnownedWindow {
     pub fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
         window_attrs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes<'_>,
+        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
         let root = event_loop.root;
@@ -296,11 +296,7 @@ impl UnownedWindow {
 
             window.set_pid().map(|flusher| flusher.queue());
 
-            // We don't bother setting window type unless explicitly set by users.
-            // We should probably set a default window type here.
-            if pl_attribs.x11_window_types.len() > 0 {
-                window.set_window_types(pl_attribs.x11_window_types).queue();
-            }
+            window.set_window_types(pl_attribs.x11_window_types).queue();
 
             if let Some(variant) = pl_attribs.gtk_theme_variant {
                 window.set_gtk_theme_variant(variant).queue();
@@ -502,7 +498,7 @@ impl UnownedWindow {
         }
     }
 
-    fn set_window_types(&self, window_types: &[util::WindowType]) -> util::Flusher<'_> {
+    fn set_window_types(&self, window_types: Vec<util::WindowType>) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE\0") };
         let atoms: Vec<_> = window_types.iter().map(|t| t.as_atom(&self.xconn)).collect();
         self.xconn.change_property(

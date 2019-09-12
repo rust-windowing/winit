@@ -79,15 +79,15 @@ impl WindowId {
 
 /// Object that allows you to build windows.
 #[derive(Clone)]
-pub struct WindowBuilder<'a> {
+pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
 
     // Platform-specific configuration.
-    pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes<'a>,
+    pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
 }
 
-impl<'a> fmt::Debug for WindowBuilder<'a> {
+impl fmt::Debug for WindowBuilder {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmtr.debug_struct("WindowBuilder")
             .field("window", &self.window)
@@ -180,7 +180,8 @@ impl Default for WindowAttributes {
         }
     }
 }
-impl<'a> WindowBuilder<'a> {
+
+impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
     pub fn new() -> Self {

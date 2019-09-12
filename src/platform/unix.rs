@@ -312,7 +312,7 @@ impl WindowExtUnix for Window {
 }
 
 /// Additional methods on `WindowBuilder` that are specific to Unix.
-pub trait WindowBuilderExtUnix<'a> {
+pub trait WindowBuilderExtUnix {
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
     fn with_x11_screen(self, screen_id: i32) -> Self;
 
@@ -321,7 +321,7 @@ pub trait WindowBuilderExtUnix<'a> {
     /// Build window with override-redirect flag; defaults to false. Only relevant on X11.
     fn with_override_redirect(self, override_redirect: bool) -> Self;
     /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`. Only relevant on X11.
-    fn with_x11_window_type(self, x11_window_type: &'a [x11::util::WindowType]) -> Self;
+    fn with_x11_window_type(self, x11_window_type: Vec<XWindowType>) -> Self;
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     fn with_gtk_theme_variant(self, variant: String) -> Self;
     /// Build window with resize increment hint. Only implemented on X11.
@@ -337,7 +337,7 @@ pub trait WindowBuilderExtUnix<'a> {
     fn with_app_id(self, app_id: String) -> Self;
 }
 
-impl<'a> WindowBuilderExtUnix<'a> for WindowBuilder<'a> {
+impl WindowBuilderExtUnix for WindowBuilder {
     #[inline]
     fn with_x11_visual<T>(mut self, visual_infos: *const T) -> Self {
         self.platform_specific.visual_infos =
@@ -364,7 +364,7 @@ impl<'a> WindowBuilderExtUnix<'a> for WindowBuilder<'a> {
     }
 
     #[inline]
-    fn with_x11_window_type(mut self, x11_window_types: &'a [XWindowType]) -> Self {
+    fn with_x11_window_type(mut self, x11_window_types: Vec<XWindowType>) -> Self {
         self.platform_specific.x11_window_types = x11_window_types;
         self
     }
