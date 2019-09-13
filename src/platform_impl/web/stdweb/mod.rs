@@ -9,6 +9,9 @@ use crate::platform::web::WindowExtStdweb;
 use crate::window::Window;
 
 use stdweb::js;
+use stdweb::web::event::BeforeUnloadEvent;
+use stdweb::web::window;
+use stdweb::web::IEventTarget;
 use stdweb::web::{document, html_element::CanvasElement};
 
 pub fn throw(msg: &str) {
@@ -17,6 +20,10 @@ pub fn throw(msg: &str) {
 
 pub fn exit_fullscreen() {
     document().exit_fullscreen();
+}
+
+pub fn on_unload(mut handler: impl FnMut() + 'static) {
+    window().add_event_listener(move |_: BeforeUnloadEvent| handler());
 }
 
 impl WindowExtStdweb for Window {
