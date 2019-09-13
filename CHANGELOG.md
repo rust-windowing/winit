@@ -8,6 +8,7 @@
 - On Windows, add touch pressure information for touch events.
 - On macOS, differentiate between `CursorIcon::Grab` and `CursorIcon::Grabbing`.
 - On Wayland, fix event processing sometimes stalling when using OpenGL with vsync.
+- Officially remove the Emscripten backend
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
