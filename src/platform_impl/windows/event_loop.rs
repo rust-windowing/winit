@@ -1031,11 +1031,29 @@ unsafe extern "system" fn public_window_callback<T>(
 
         winuser::WM_CHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
-            let chr: char = mem::transmute(wparam as u32);
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: ReceivedCharacter(chr),
-            });
+            let high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
+            let low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
+
+            if high_surrogate {
+                subclass_input.window_state.lock().high_surrogate = Some(wparam);
+            } else if low_surrogate {
+                let mut window_state = subclass_input.window_state.lock();
+                if let Some(high_surrogate) = window_state.high_surrogate.take() {
+                    let pair = [high_surrogate as u16, wparam as u16];
+                    if let Some(Ok(chr)) = std::char::decode_utf16(pair.iter().copied()).next() {
+                        subclass_input.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: ReceivedCharacter(chr),
+                        });
+                    }
+                }
+            } else {
+                let chr: char = mem::transmute(wparam as u32);
+                subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: ReceivedCharacter(chr),
+                });
+            }
             0
         }
 
