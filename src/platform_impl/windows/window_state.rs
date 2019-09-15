@@ -7,7 +7,7 @@ use parking_lot::MutexGuard;
 use std::{io, ptr};
 use winapi::{
     shared::{
-        minwindef::{DWORD},
+        minwindef::DWORD,
         windef::{HWND, RECT},
     },
     um::winuser,
