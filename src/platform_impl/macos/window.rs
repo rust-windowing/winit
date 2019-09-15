@@ -617,25 +617,6 @@ impl UnownedWindow {
         self.set_maximized(maximized);
     }
 
-    fn restore_display_mode(&self) {
-        trace!("Locked shared state in `restore_display_mode`");
-        let shared_state_lock = self.shared_state.lock().unwrap();
-
-        if let Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })) =
-            shared_state_lock.fullscreen
-        {
-            unsafe {
-                ffi::CGRestorePermanentDisplayConfiguration();
-                assert_eq!(
-                    ffi::CGDisplayRelease(video_mode.monitor().inner.native_identifier()),
-                    ffi::kCGErrorSuccess
-                );
-            }
-        }
-
-        trace!("Unlocked shared state in `restore_display_mode`");
-    }
-
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let is_zoomed = self.is_zoomed();
@@ -763,7 +744,39 @@ impl UnownedWindow {
             }
         }
 
+        trace!("Locked shared state in `set_fullscreen`");
+        let mut shared_state_lock = self.shared_state.lock().unwrap();
+        shared_state_lock.fullscreen = fullscreen.clone();
+        trace!("Unlocked shared state in `set_fullscreen`");
+
         match (&old_fullscreen, &fullscreen) {
+            (&None, &Some(_)) => unsafe {
+                util::toggle_full_screen_async(
+                    *self.ns_window,
+                    *self.ns_view,
+                    old_fullscreen.is_none(),
+                    Arc::downgrade(&self.shared_state),
+                );
+            },
+            (&Some(Fullscreen::Borderless(_)), &None) => unsafe {
+                // State is restored by `window_did_exit_fullscreen`
+                util::toggle_full_screen_async(
+                    *self.ns_window,
+                    *self.ns_view,
+                    old_fullscreen.is_none(),
+                    Arc::downgrade(&self.shared_state),
+                );
+            },
+            (&Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })), &None) => unsafe {
+                util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
+                // Rest of the state is restored by `window_did_exit_fullscreen`
+                util::toggle_full_screen_async(
+                    *self.ns_window,
+                    *self.ns_view,
+                    old_fullscreen.is_none(),
+                    Arc::downgrade(&self.shared_state),
+                );
+            },
             (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(_))) => unsafe {
                 // If we're already in fullscreen mode, calling
                 // `CGDisplayCapture` will place the shielding window on top of
@@ -775,37 +788,14 @@ impl UnownedWindow {
                 // delegate in `window:willUseFullScreenPresentationOptions:`.
                 msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
             },
-            (&Some(Fullscreen::Exclusive(_)), &None) => unsafe {
-                self.restore_display_mode();
-
-                util::toggle_full_screen_async(
-                    *self.ns_window,
-                    *self.ns_view,
-                    old_fullscreen.is_none(),
-                    Arc::downgrade(&self.shared_state),
-                );
-            },
-            (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
-                self.restore_display_mode();
-            }
-            (&None, &Some(Fullscreen::Exclusive(_)))
-            | (&None, &Some(Fullscreen::Borderless(_)))
-            | (&Some(Fullscreen::Borderless(_)), &None) => unsafe {
-                // Wish it were this simple for all cases
-                util::toggle_full_screen_async(
-                    *self.ns_window,
-                    *self.ns_view,
-                    old_fullscreen.is_none(),
-                    Arc::downgrade(&self.shared_state),
-                );
+            (
+                &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
+                &Some(Fullscreen::Borderless(_)),
+            ) => unsafe {
+                util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
             },
             _ => (),
         }
-
-        trace!("Locked shared state in `set_fullscreen`");
-        let mut shared_state_lock = self.shared_state.lock().unwrap();
-        shared_state_lock.fullscreen = fullscreen.clone();
-        trace!("Unlocked shared state in `set_fullscreen`");
     }
 
     #[inline]
