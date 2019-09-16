@@ -9,6 +9,7 @@ use objc::runtime::{Class, Object, BOOL, NO, YES};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    event::{Event, WindowEvent},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
     platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
@@ -20,7 +21,7 @@ use crate::{
         },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
 
 pub struct Inner {
@@ -377,6 +378,32 @@ impl Window {
                 },
             };
             app_state::set_key_window(window);
+
+            // Like the Windows and macOS backends, we send a `HiDpiFactorChanged` and `Resized`
+            // event on window creation if the DPI factor != 1.0
+            let hidpi_factor: CGFloat = msg_send![view, contentScaleFactor];
+            if hidpi_factor != 1.0 {
+                let bounds: CGRect = msg_send![view, bounds];
+                let screen: id = msg_send![window, screen];
+                let screen_space: id = msg_send![screen, coordinateSpace];
+                let screen_frame: CGRect =
+                    msg_send![view, convertRect:bounds toCoordinateSpace:screen_space];
+                let size = crate::dpi::LogicalSize {
+                    width: screen_frame.size.width as _,
+                    height: screen_frame.size.height as _,
+                };
+                app_state::handle_nonuser_events(
+                    std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
+                    })
+                    .chain(std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::Resized(size),
+                    })),
+                );
+            }
+
             Ok(result)
         }
     }

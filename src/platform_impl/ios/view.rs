@@ -101,6 +101,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         extern "C" fn draw_rect(object: &Object, _: Sel, rect: CGRect) {
             unsafe {
                 let window: id = msg_send![object, window];
+                assert!(!window.is_null());
                 app_state::handle_nonuser_event(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::RedrawRequested,
@@ -116,6 +117,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let () = msg_send![super(object, superclass), layoutSubviews];
 
                 let window: id = msg_send![object, window];
+                assert!(!window.is_null());
                 let bounds: CGRect = msg_send![window, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
@@ -144,23 +146,24 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     setContentScaleFactor: untrusted_hidpi_factor
                 ];
 
-                // On launch, iOS sets the contentScaleFactor to 0.0. This is a sentinel value that
-                // iOS appears to use to "reset" the contentScaleFactor to the device specific
-                // default value.
-                //
-                // The workaround is to not trust the value received by this function, and always
-                // go through the getter.
+                let window: id = msg_send![object, window];
+                // `window` is null when `setContentScaleFactor` is invoked prior to `[UIWindow
+                // makeKeyAndVisible]` at window creation time (either manually or internally by
+                // UIKit when the `UIView` is first created), in which case we send no events here
+                if window.is_null() {
+                    return;
+                }
+                // `setContentScaleFactor` may be called with a value of 0, which means "reset the
+                // content scale factor to a device-specific default value", so we can't use the
+                // parameter here. We can query the actual factor using the getter
                 let hidpi_factor: CGFloat = msg_send![object, contentScaleFactor];
                 assert!(
                     !hidpi_factor.is_nan()
                         && hidpi_factor.is_finite()
                         && hidpi_factor.is_sign_positive()
                         && hidpi_factor > 0.0,
-                    "invalid hidpi_factor set on UIWindow",
+                    "invalid hidpi_factor set on UIView",
                 );
-
-                let window: id = msg_send![object, window];
-
                 let bounds: CGRect = msg_send![object, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
@@ -186,6 +189,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         extern "C" fn handle_touches(object: &Object, _: Sel, touches: id, _: id) {
             unsafe {
                 let window: id = msg_send![object, window];
+                assert!(!window.is_null());
                 let uiscreen: id = msg_send![window, screen];
                 let touches_enum: id = msg_send![touches, objectEnumerator];
                 let mut touch_events = Vec::new();
