@@ -1030,8 +1030,8 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_CHAR => {
-            use std::char;
             use crate::event::WindowEvent::ReceivedCharacter;
+            use std::char;
             let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
             let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
 
