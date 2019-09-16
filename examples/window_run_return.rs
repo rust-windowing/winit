@@ -50,7 +50,7 @@ fn main() {
     println!("Okay we're done now for real.");
 }
 
-#[cfg(any(target_os = "ios", target_os = "android", target_os = "emscripten"))]
+#[cfg(any(target_os = "ios", target_os = "android"))]
 fn main() {
     println!("This platform doesn't support run_return.");
 }

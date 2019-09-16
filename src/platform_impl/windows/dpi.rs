@@ -1,6 +1,6 @@
 #![allow(non_snake_case, unused_unsafe)]
 
-use std::{mem, os::raw::c_void, sync::Once};
+use std::sync::Once;
 
 use winapi::{
     shared::{

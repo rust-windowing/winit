@@ -32,6 +32,7 @@ pub struct WindowState {
     /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
     /// times in `EventsCleared`.
     pub queued_out_of_band_redraw: bool,
+    pub high_surrogate: Option<u16>,
     window_flags: WindowFlags,
 }
 
@@ -114,6 +115,7 @@ impl WindowState {
 
             fullscreen: None,
             queued_out_of_band_redraw: false,
+            high_surrogate: None,
             window_flags: WindowFlags::empty(),
         }
     }

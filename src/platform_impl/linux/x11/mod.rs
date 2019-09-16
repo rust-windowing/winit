@@ -34,6 +34,7 @@ use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
     ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
+    util::modifiers::ModifierKeymap,
 };
 use crate::{
     error::OsError as RootOsError,
@@ -143,6 +144,9 @@ impl<T: 'static> EventLoop<T> {
 
         xconn.update_cached_wm_info(root);
 
+        let mut mod_keymap = ModifierKeymap::new();
+        mod_keymap.reset_from_x_connection(&xconn);
+
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
                 ime,
@@ -186,6 +190,9 @@ impl<T: 'static> EventLoop<T> {
             randr_event_offset,
             ime_receiver,
             xi2ext,
+            mod_keymap,
+            device_mod_state: Default::default(),
+            window_mod_state: Default::default(),
         };
 
         // Register for device hotplug events

@@ -314,6 +314,25 @@ impl<T: 'static> EventLoop<T> {
             // send pending events to the server
             self.display.flush().expect("Wayland connection lost.");
 
+            // During the run of the user callback, some other code monitoring and reading the
+            // wayland socket may have been run (mesa for example does this with vsync), if that
+            // is the case, some events may have been enqueued in our event queue.
+            //
+            // If some messages are there, the event loop needs to behave as if it was instantly
+            // woken up by messages arriving from the wayland socket, to avoid getting stuck.
+            let instant_wakeup = {
+                let window_target = match self.window_target.p {
+                    crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+                    _ => unreachable!(),
+                };
+                let dispatched = window_target
+                    .evq
+                    .borrow_mut()
+                    .dispatch_pending()
+                    .expect("Wayland connection lost.");
+                dispatched > 0
+            };
+
             match control_flow {
                 ControlFlow::Exit => break,
                 ControlFlow::Poll => {
@@ -328,7 +347,12 @@ impl<T: 'static> EventLoop<T> {
                     );
                 }
                 ControlFlow::Wait => {
-                    self.inner_loop.dispatch(None, &mut ()).unwrap();
+                    let timeout = if instant_wakeup {
+                        Some(::std::time::Duration::from_millis(0))
+                    } else {
+                        None
+                    };
+                    self.inner_loop.dispatch(timeout, &mut ()).unwrap();
                     callback(
                         crate::event::Event::NewEvents(crate::event::StartCause::WaitCancelled {
                             start: Instant::now(),
@@ -341,7 +365,7 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::WaitUntil(deadline) => {
                     let start = Instant::now();
                     // compute the blocking duration
-                    let duration = if deadline > start {
+                    let duration = if deadline > start && !instant_wakeup {
                         deadline - start
                     } else {
                         ::std::time::Duration::from_millis(0)
