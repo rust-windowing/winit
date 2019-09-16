@@ -1038,8 +1038,9 @@ unsafe extern "system" fn public_window_callback<T>(
             if is_high_surrogate {
                 subclass_input.window_state.lock().high_surrogate = Some(wparam as u16);
             } else if is_low_surrogate {
-                let mut window_state = subclass_input.window_state.lock();
-                if let Some(high_surrogate) = window_state.high_surrogate.take() {
+                let high_surrogate = subclass_input.window_state.lock().high_surrogate.take();
+
+                if let Some(high_surrogate) = high_surrogate {
                     let pair = [high_surrogate, wparam as u16];
                     if let Some(Ok(chr)) = char::decode_utf16(pair.iter().copied()).next() {
                         subclass_input.send_event(Event::WindowEvent {
