@@ -144,8 +144,7 @@ pub fn set_cursor_hidden(hidden: bool) {
 pub fn get_cursor_clip() -> Result<RECT, io::Error> {
     unsafe {
         let mut rect: RECT = mem::zeroed();
-        win_to_err(|| winuser::GetClipCursor(&mut rect))
-            .map(|_| rect)
+        win_to_err(|| winuser::GetClipCursor(&mut rect)).map(|_| rect)
     }
 }
 
