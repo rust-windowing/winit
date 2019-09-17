@@ -599,6 +599,7 @@ impl Window {
                     {
                         window_state_lock.dpi_factor = dpi_factor;
                         drop(window_state_lock);
+                        let client_rect = util::adjust_window_rect(window.0, client_rect).unwrap();
 
                         unsafe {
                             winuser::SetWindowPos(
