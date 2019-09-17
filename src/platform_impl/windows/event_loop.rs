@@ -61,7 +61,7 @@ use crate::{
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
-    window::{WindowId as RootWindowId, Fullscreen},
+    window::{Fullscreen, WindowId as RootWindowId},
 };
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
@@ -993,10 +993,13 @@ unsafe extern "system" fn public_window_callback<T>(
                     right: window_pos.x + window_pos.cx,
                     bottom: window_pos.y + window_pos.cy,
                 };
-                let new_monitor = winuser::MonitorFromRect(&new_rect, winuser::MONITOR_DEFAULTTONULL);
+                let new_monitor =
+                    winuser::MonitorFromRect(&new_rect, winuser::MONITOR_DEFAULTTONULL);
                 match fullscreen {
                     Fullscreen::Borderless(ref mut fullscreen_monitor) => {
-                        if new_monitor != fullscreen_monitor.inner.hmonitor() && new_monitor != ptr::null_mut() {
+                        if new_monitor != fullscreen_monitor.inner.hmonitor()
+                            && new_monitor != ptr::null_mut()
+                        {
                             if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor) {
                                 let new_monitor_rect = new_monitor_info.rcMonitor;
                                 window_pos.x = new_monitor_rect.left;
@@ -1005,10 +1008,10 @@ unsafe extern "system" fn public_window_callback<T>(
                                 window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
                             }
                             *fullscreen_monitor = crate::monitor::MonitorHandle {
-                                inner: monitor::MonitorHandle::new(new_monitor)
+                                inner: monitor::MonitorHandle::new(new_monitor),
                             };
                         }
-                    },
+                    }
                     Fullscreen::Exclusive(ref video_mode) => {
                         let old_monitor = video_mode.video_mode.monitor.hmonitor();
                         if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
