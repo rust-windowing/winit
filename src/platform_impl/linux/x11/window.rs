@@ -117,7 +117,7 @@ impl UnownedWindow {
                     .unwrap_or(1.0)
             })
         } else {
-            return Err(os_error!(OsError::XMisc("No monitors were detected.")));
+            1.0
         };
 
         info!("Guessed window DPI factor: {}", dpi_factor);
