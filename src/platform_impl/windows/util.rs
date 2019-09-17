@@ -141,6 +141,16 @@ pub fn set_cursor_hidden(hidden: bool) {
     }
 }
 
+pub fn get_cursor_clip() -> Result<RECT, io::Error> {
+    unsafe {
+        let mut rect: RECT = mem::zeroed();
+        win_to_err(|| winuser::GetClipCursor(&mut rect)).map(|_| rect)
+    }
+}
+
+/// Sets the cursor's clip rect.
+///
+/// Note that calling this will automatically dispatch a `WM_MOUSEMOVE` event.
 pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
     unsafe {
         let rect_ptr = rect
@@ -148,6 +158,19 @@ pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
             .map(|r| r as *const RECT)
             .unwrap_or(ptr::null());
         win_to_err(|| winuser::ClipCursor(rect_ptr))
+    }
+}
+
+pub fn get_desktop_rect() -> RECT {
+    unsafe {
+        let left = winuser::GetSystemMetrics(winuser::SM_XVIRTUALSCREEN);
+        let top = winuser::GetSystemMetrics(winuser::SM_YVIRTUALSCREEN);
+        RECT {
+            left,
+            top,
+            right: left + winuser::GetSystemMetrics(winuser::SM_CXVIRTUALSCREEN),
+            bottom: top + winuser::GetSystemMetrics(winuser::SM_CYVIRTUALSCREEN),
+        }
     }
 }
 

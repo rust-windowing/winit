@@ -13,6 +13,7 @@
 - On macOS 10.15, fix freeze upon exiting exclusive fullscreen mode.
 - On iOS, fix null window on initial `HiDpiFactorChanged` event.
 - On Windows, fix fullscreen window shrinking upon getting restored to a normal window.
+- On Windows, fix hovering the mouse over the active window creating an endless stream of CursorMoved events.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
