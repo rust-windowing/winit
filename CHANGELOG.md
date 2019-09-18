@@ -14,6 +14,7 @@
 - On iOS, fix null window on initial `HiDpiFactorChanged` event.
 - On macOS, fix events not being emitted during modal loops, such as when windows are being resized
   by the user.
+- On Windows, fix hovering the mouse over the active window creating an endless stream of CursorMoved events.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 

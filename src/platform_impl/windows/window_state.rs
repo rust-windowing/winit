@@ -307,10 +307,25 @@ impl CursorFlags {
         let client_rect = util::get_client_rect(window)?;
 
         if util::is_focused(window) {
-            if self.contains(CursorFlags::GRABBED) {
-                util::set_cursor_clip(Some(client_rect))?;
-            } else {
-                util::set_cursor_clip(None)?;
+            let cursor_clip = match self.contains(CursorFlags::GRABBED) {
+                true => Some(client_rect),
+                false => None,
+            };
+
+            let rect_to_tuple = |rect: RECT| (rect.left, rect.top, rect.right, rect.bottom);
+            let active_cursor_clip = rect_to_tuple(util::get_cursor_clip()?);
+            let desktop_rect = rect_to_tuple(util::get_desktop_rect());
+
+            let active_cursor_clip = match desktop_rect == active_cursor_clip {
+                true => None,
+                false => Some(active_cursor_clip),
+            };
+
+            // We do this check because calling `set_cursor_clip` incessantly will flood the event
+            // loop with `WM_MOUSEMOVE` events, and `refresh_os_cursor` is called by `set_cursor_flags`
+            // which at times gets called once every iteration of the eventloop.
+            if active_cursor_clip != cursor_clip.map(rect_to_tuple) {
+                util::set_cursor_clip(cursor_clip)?;
             }
         }
 
