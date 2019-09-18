@@ -34,7 +34,7 @@ impl Window {
                 event: WindowEvent::RedrawRequested,
             })
         })?;
-        
+
         target.register(&mut canvas, id);
 
         let window = Window {
