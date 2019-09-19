@@ -12,6 +12,7 @@
 - On Windows, fix handling of surrogate pairs when dispatching `ReceivedCharacter`.
 - On macOS 10.15, fix freeze upon exiting exclusive fullscreen mode.
 - On iOS, fix null window on initial `HiDpiFactorChanged` event.
+- On Windows, fix fullscreen window shrinking upon getting restored to a normal window.
 - On macOS, fix events not being emitted during modal loops, such as when windows are being resized
   by the user.
 - On Windows, fix hovering the mouse over the active window creating an endless stream of CursorMoved events.
