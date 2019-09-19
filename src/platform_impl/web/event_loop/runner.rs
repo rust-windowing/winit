@@ -16,6 +16,7 @@ impl<T> Clone for Shared<T> {
 pub struct Execution<T> {
     runner: RefCell<Option<Runner<T>>>,
     events: RefCell<VecDeque<Event<T>>>,
+    id: RefCell<u32>,
 }
 
 struct Runner<T> {
@@ -39,6 +40,7 @@ impl<T: 'static> Shared<T> {
         Shared(Rc::new(Execution {
             runner: RefCell::new(None),
             events: RefCell::new(VecDeque::new()),
+            id: RefCell::new(0),
         }))
     }
 
@@ -51,6 +53,15 @@ impl<T: 'static> Shared<T> {
 
         let close_instance = self.clone();
         backend::on_unload(move || close_instance.handle_unload());
+    }
+
+    // Generate a strictly increasing ID
+    // This is used to differentiate windows when handling events
+    pub fn generate_id(&self) -> u32 {
+        let mut id = self.0.id.borrow_mut();
+        *id += 1;
+
+        *id
     }
 
     // Add an event to the event loop runner

@@ -15,6 +15,7 @@ pub struct Window {
     canvas: backend::Canvas,
     previous_pointer: RefCell<&'static str>,
     position: RefCell<LogicalPosition>,
+    id: Id,
 }
 
 impl Window {
@@ -25,19 +26,22 @@ impl Window {
     ) -> Result<Self, RootOE> {
         let runner = target.runner.clone();
 
+        let id = target.generate_id();
+
         let mut canvas = backend::Canvas::create(move || {
             runner.send_event(Event::WindowEvent {
-                window_id: RootWI(Id),
+                window_id: RootWI(id),
                 event: WindowEvent::RedrawRequested,
             })
         })?;
 
-        target.register(&mut canvas);
+        target.register(&mut canvas, id);
 
         let window = Window {
             canvas,
             previous_pointer: RefCell::new("auto"),
             position: RefCell::new(LogicalPosition { x: 0.0, y: 0.0 }),
+            id,
         };
 
         window.set_inner_size(attr.inner_size.unwrap_or(LogicalSize {
@@ -250,17 +254,16 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> Id {
-        // TODO ?
-        unsafe { Id::dummy() }
+        return self.id;
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id;
+pub struct Id(pub(crate) u32);
 
 impl Id {
     pub unsafe fn dummy() -> Id {
-        Id
+        Id(0)
     }
 }
 
