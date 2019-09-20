@@ -1,9 +1,10 @@
 use super::{backend, state::State};
 use crate::event::{Event, StartCause};
 use crate::event_loop as root;
+use crate::window::WindowId;
 
 use instant::{Duration, Instant};
-use std::{cell::RefCell, clone::Clone, collections::VecDeque, rc::Rc};
+use std::{cell::RefCell, clone::Clone, collections::{HashSet, VecDeque}, rc::Rc};
 
 pub struct Shared<T>(Rc<Execution<T>>);
 
@@ -17,6 +18,7 @@ pub struct Execution<T> {
     runner: RefCell<Option<Runner<T>>>,
     events: RefCell<VecDeque<Event<T>>>,
     id: RefCell<u32>,
+    redraw_pending: RefCell<HashSet<WindowId>>,
 }
 
 struct Runner<T> {
@@ -41,6 +43,7 @@ impl<T: 'static> Shared<T> {
             runner: RefCell::new(None),
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
+            redraw_pending: RefCell::new(HashSet::new()),
         }))
     }
 
@@ -62,6 +65,10 @@ impl<T: 'static> Shared<T> {
         *id += 1;
 
         *id
+    }
+
+    pub fn request_redraw(&self, id: WindowId) {
+        self.0.redraw_pending.borrow_mut().insert(id);
     }
 
     // Add an event to the event loop runner

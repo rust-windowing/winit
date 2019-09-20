@@ -4,7 +4,6 @@ use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 use crate::platform_impl::OsError;
 
-use std::rc::Rc;
 use stdweb::traits::IPointerEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::event::{
@@ -13,12 +12,11 @@ use stdweb::web::event::{
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{
-    document, window, EventListenerHandle, IChildNode, IElement, IEventTarget, IHtmlElement,
+    document, EventListenerHandle, IChildNode, IElement, IEventTarget, IHtmlElement,
 };
 
 pub struct Canvas {
     raw: CanvasElement,
-    on_redraw: Rc<dyn Fn()>,
     on_focus: Option<EventListenerHandle>,
     on_blur: Option<EventListenerHandle>,
     on_keyboard_release: Option<EventListenerHandle>,
@@ -39,10 +37,7 @@ impl Drop for Canvas {
 }
 
 impl Canvas {
-    pub fn create<F>(on_redraw: F) -> Result<Self, RootOE>
-    where
-        F: 'static + Fn(),
-    {
+    pub fn create() -> Result<Self, RootOE> {
         let canvas: CanvasElement = document()
             .create_element("canvas")
             .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
@@ -60,7 +55,6 @@ impl Canvas {
 
         Ok(Canvas {
             raw: canvas,
-            on_redraw: Rc::new(on_redraw),
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -102,11 +96,6 @@ impl Canvas {
 
     pub fn raw(&self) -> &CanvasElement {
         &self.raw
-    }
-
-    pub fn request_redraw(&self) {
-        let on_redraw = self.on_redraw.clone();
-        window().request_animation_frame(move |_| on_redraw());
     }
 
     pub fn on_blur<F>(&mut self, mut handler: F)

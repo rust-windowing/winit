@@ -9,7 +9,6 @@ use web_sys::{FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelE
 
 pub struct Canvas {
     raw: HtmlCanvasElement,
-    on_redraw: Closure<dyn Fn()>,
     on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_keyboard_release: Option<Closure<dyn FnMut(KeyboardEvent)>>,
@@ -30,10 +29,7 @@ impl Drop for Canvas {
 }
 
 impl Canvas {
-    pub fn create<F>(on_redraw: F) -> Result<Self, RootOE>
-    where
-        F: 'static + Fn(),
-    {
+    pub fn create() -> Result<Self, RootOE> {
         let window =
             web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
 
@@ -57,7 +53,6 @@ impl Canvas {
 
         Ok(Canvas {
             raw: canvas,
-            on_redraw: Closure::wrap(Box::new(on_redraw) as Box<dyn Fn()>),
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -99,13 +94,6 @@ impl Canvas {
 
     pub fn raw(&self) -> &HtmlCanvasElement {
         &self.raw
-    }
-
-    pub fn request_redraw(&self) {
-        let window = web_sys::window().expect("Failed to obtain window");
-        window
-            .request_animation_frame(&self.on_redraw.as_ref().unchecked_ref())
-            .expect("Failed to request animation frame");
     }
 
     pub fn on_blur<F>(&mut self, mut handler: F)
