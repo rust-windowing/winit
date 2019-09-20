@@ -4,7 +4,12 @@ use crate::event_loop as root;
 use crate::window::WindowId;
 
 use instant::{Duration, Instant};
-use std::{cell::RefCell, clone::Clone, collections::{HashSet, VecDeque}, rc::Rc};
+use std::{
+    cell::RefCell,
+    clone::Clone,
+    collections::{HashSet, VecDeque},
+    rc::Rc,
+};
 
 pub struct Shared<T>(Rc<Execution<T>>);
 
@@ -125,7 +130,13 @@ impl<T: 'static> Shared<T> {
         // Collect all of the redraw events to avoid double-locking the RefCell
         let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
-            self.handle_event(Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested }, &mut control);
+            self.handle_event(
+                Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::RedrawRequested,
+                },
+                &mut control,
+            );
         }
         self.handle_event(Event::EventsCleared, &mut control);
         self.apply_control_flow(control);
