@@ -164,16 +164,14 @@ impl<T: 'static> EventLoop<T> {
                     version,
                 } => {
                     if interface == "zwp_relative_pointer_manager_v1" {
-                        let relative_pointer_manager_proxy =
-                            registry
-                                .bind(version, id, move |pointer_manager| {
-                                    pointer_manager.implement_closure(|_, _| (), ())
-                                })
-                                .unwrap();
+                        let relative_pointer_manager_proxy = registry
+                            .bind(version, id, move |pointer_manager| {
+                                pointer_manager.implement_closure(|_, _| (), ())
+                            })
+                            .unwrap();
 
-                        *seat_manager.relative_pointer_manager_proxy
-                            .lock()
-                            .unwrap() = Some(relative_pointer_manager_proxy);
+                        *seat_manager.relative_pointer_manager_proxy.lock().unwrap() =
+                            Some(relative_pointer_manager_proxy);
                     }
                     if interface == "wl_seat" {
                         seat_manager.add_seat(id, version, registry)
@@ -560,19 +558,19 @@ impl<T: 'static> SeatData<T> {
                         self.modifiers_tracker.clone(),
                     ));
 
-                    self.relative_pointer =
-                        self.relative_pointer_manager_proxy
-                            .lock()
-                            .unwrap()
-                            .as_ref()
-                            .and_then(|manager| {
-                                super::pointer::implement_relative_pointer(
-                                    self.sink.clone(),
-                                    self.pointer.as_ref().unwrap(),
-                                    manager,
-                                )
-                                .ok()
-                            })
+                    self.relative_pointer = self
+                        .relative_pointer_manager_proxy
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .and_then(|manager| {
+                            super::pointer::implement_relative_pointer(
+                                self.sink.clone(),
+                                self.pointer.as_ref().unwrap(),
+                                manager,
+                            )
+                            .ok()
+                        })
                 }
                 // destroy pointer if applicable
                 if !capabilities.contains(wl_seat::Capability::Pointer) {
