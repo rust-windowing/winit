@@ -9,7 +9,11 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
-        platform::wayland::event_loop::{available_monitors, primary_monitor},
+        platform::wayland::event_loop::{
+            available_monitors,
+            primary_monitor,
+            CursorManager
+        },
         MonitorHandle as PlatformMonitorHandle,
         PlatformSpecificWindowBuilderAttributes as PlAttributes,
     },
@@ -38,6 +42,7 @@ pub struct Window {
     need_frame_refresh: Arc<Mutex<bool>>,
     need_refresh: Arc<Mutex<bool>>,
     fullscreen: Arc<Mutex<bool>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
 }
 
 impl Window {
@@ -166,6 +171,7 @@ impl Window {
             need_frame_refresh,
             need_refresh,
             fullscreen,
+            cursor_manager: evlp.cursor_manager.clone(),
         })
     }
 
@@ -297,13 +303,16 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_visible(&self, _visible: bool) {
-        // TODO: This isn't possible on Wayland yet
+    pub fn set_cursor_visible(&self, visible: bool) {
+        self.cursor_manager.lock().unwrap().set_cursor_visible(visible);
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+
+        self.cursor_manager.lock().unwrap()
+            .grab_pointer(if grab { Some(self.surface.clone()) } else { None });
+        Ok(())
     }
 
     #[inline]

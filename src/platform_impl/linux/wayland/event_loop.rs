@@ -11,6 +11,12 @@ use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1
     zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
     zwp_relative_pointer_v1::ZwpRelativePointerV1,
 };
+use smithay_client_toolkit::reexports::protocols::unstable::pointer_constraints::v1::client::{
+    zwp_pointer_constraints_v1::ZwpPointerConstraintsV1,
+    zwp_locked_pointer_v1::ZwpLockedPointerV1,
+};
+
+use smithay_client_toolkit::reexports::client::protocol::wl_surface::WlSurface;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -69,6 +75,60 @@ impl<T> WindowEventsSink<T> {
     }
 }
 
+pub struct CursorManager {
+    pointer_constraints_proxy: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>,
+    pointers: Vec<wl_pointer::WlPointer>,
+    locked_pointers: Vec<ZwpLockedPointerV1>,
+    cursor_visible: Arc<Mutex<bool>>,
+}
+
+impl CursorManager {
+    fn new(constraints: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>) -> CursorManager {
+        CursorManager {
+            pointer_constraints_proxy: constraints,
+            pointers: Vec::new(),
+            locked_pointers: Vec::new(),
+            cursor_visible: Arc::new(Mutex::new(true)),
+        }
+    }
+
+    fn register_pointer(&mut self, pointer: wl_pointer::WlPointer) {
+        println!("Registering one pointer in the CursorManager");
+        self.pointers.push(pointer);
+    }
+
+    pub fn set_cursor_visible(&mut self, visible: bool) {
+        (*self.cursor_visible.lock().unwrap()) = visible;
+    }
+
+    pub fn grab_pointer(&mut self, surface: Option<WlSurface>) {
+        self.locked_pointers.clear();
+
+        if let Some(surface) = surface {
+            for pointer in self.pointers.iter() {
+                let locked_pointer = self
+                    .pointer_constraints_proxy
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .and_then(|pointer_constraints| {
+                        super::pointer::implement_locked_pointer(
+                            &surface,
+                            pointer,
+                            pointer_constraints,
+                        )
+                        .ok()
+                    });
+
+                if let Some(locked_pointer) = locked_pointer {
+                    println!("Created one locked pointer");
+                    self.locked_pointers.push(locked_pointer);
+                }
+            }
+        }
+    }
+}
+
 pub struct EventLoop<T: 'static> {
     // The loop
     inner_loop: ::calloop::EventLoop<()>,
@@ -107,6 +167,8 @@ pub struct EventLoopWindowTarget<T> {
     pub display: Arc<Display>,
     // The list of seats
     pub seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
+    // Utility for grabbing the cursor and changing visibility
+    pub cursor_manager: Arc<Mutex<CursorManager>>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -146,13 +208,19 @@ impl<T: 'static> EventLoop<T> {
             })
             .unwrap();
 
+        let pointer_constraints_proxy = Arc::new(Mutex::new(None));
+
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
             relative_pointer_manager_proxy: None,
+            pointer_constraints_proxy: pointer_constraints_proxy.clone(),
             store: store.clone(),
             seats: seats.clone(),
             kbd_sender,
+            cursor_manager: Arc::new(Mutex::new(CursorManager::new(pointer_constraints_proxy))),
         };
+
+        let cursor_manager = seat_manager.cursor_manager.clone();
 
         let env = Environment::from_display_with_cb(
             &display,
@@ -163,6 +231,7 @@ impl<T: 'static> EventLoop<T> {
                     ref interface,
                     version,
                 } => {
+                    println!("Interface: {}", interface);
                     if interface == "zwp_relative_pointer_manager_v1" {
                         seat_manager.relative_pointer_manager_proxy = Some(
                             registry
@@ -171,6 +240,16 @@ impl<T: 'static> EventLoop<T> {
                                 })
                                 .unwrap(),
                         )
+                    }
+                    if interface == "zwp_pointer_constraints_v1" {
+                        let pointer_constraints_proxy = registry
+                            .bind(version, id, move |pointer_constraints| {
+                                pointer_constraints.implement_closure(|_, _| (), ())
+                            })
+                            .unwrap();
+
+                        *seat_manager.pointer_constraints_proxy.lock().unwrap() =
+                            Some(pointer_constraints_proxy);
                     }
                     if interface == "wl_seat" {
                         seat_manager.add_seat(id, version, registry)
@@ -222,6 +301,7 @@ impl<T: 'static> EventLoop<T> {
                     seats,
                     display,
                     _marker: ::std::marker::PhantomData,
+                    cursor_manager,
                 }),
                 _marker: ::std::marker::PhantomData,
             },
@@ -494,6 +574,8 @@ struct SeatManager<T: 'static> {
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     relative_pointer_manager_proxy: Option<ZwpRelativePointerManagerV1>,
+    pointer_constraints_proxy: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
 }
 
 impl<T: 'static> SeatManager<T> {
@@ -510,6 +592,7 @@ impl<T: 'static> SeatManager<T> {
             touch: None,
             kbd_sender: self.kbd_sender.clone(),
             modifiers_tracker: Arc::new(Mutex::new(ModifiersState::default())),
+            cursor_manager: self.cursor_manager.clone(),
         };
         let seat = registry
             .bind(min(version, 5), id, move |seat| {
@@ -541,6 +624,7 @@ struct SeatData<T> {
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
 }
 
 impl<T: 'static> SeatData<T> {
@@ -555,7 +639,11 @@ impl<T: 'static> SeatData<T> {
                         self.sink.clone(),
                         self.store.clone(),
                         self.modifiers_tracker.clone(),
+                        self.cursor_manager.lock().unwrap().cursor_visible.clone(),
                     ));
+
+                    self.cursor_manager.lock().unwrap()
+                        .register_pointer(self.pointer.as_ref().unwrap().clone());
 
                     self.relative_pointer =
                         self.relative_pointer_manager_proxy
