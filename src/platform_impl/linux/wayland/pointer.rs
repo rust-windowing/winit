@@ -18,9 +18,8 @@ use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1
 };
 
 use smithay_client_toolkit::reexports::protocols::unstable::pointer_constraints::v1::client::{
+    zwp_locked_pointer_v1::ZwpLockedPointerV1, zwp_pointer_constraints_v1::Lifetime,
     zwp_pointer_constraints_v1::ZwpPointerConstraintsV1,
-    zwp_pointer_constraints_v1::Lifetime,
-    zwp_locked_pointer_v1::ZwpLockedPointerV1,
 };
 
 use smithay_client_toolkit::reexports::client::protocol::wl_surface::WlSurface;
@@ -260,11 +259,7 @@ pub fn implement_locked_pointer(
     pointer: &WlPointer,
     constraints: &ZwpPointerConstraintsV1,
 ) -> Result<ZwpLockedPointerV1, ()> {
-    constraints.lock_pointer(
-        surface,
-        pointer,
-        None,
-        Lifetime::Persistent.to_raw(),
-        |c| c.implement_closure(|_, _| { () }, ()),
-    )
+    constraints.lock_pointer(surface, pointer, None, Lifetime::Persistent.to_raw(), |c| {
+        c.implement_closure(|_, _| (), ())
+    })
 }

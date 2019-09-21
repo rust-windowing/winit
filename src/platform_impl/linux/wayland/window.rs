@@ -9,11 +9,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
-        platform::wayland::event_loop::{
-            available_monitors,
-            primary_monitor,
-            CursorManager
-        },
+        platform::wayland::event_loop::{available_monitors, primary_monitor, CursorManager},
         MonitorHandle as PlatformMonitorHandle,
         PlatformSpecificWindowBuilderAttributes as PlAttributes,
     },
@@ -304,14 +300,19 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        self.cursor_manager.lock().unwrap().set_cursor_visible(visible);
+        self.cursor_manager
+            .lock()
+            .unwrap()
+            .set_cursor_visible(visible);
     }
 
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-
-        self.cursor_manager.lock().unwrap()
-            .grab_pointer(if grab { Some(self.surface.clone()) } else { None });
+        self.cursor_manager.lock().unwrap().grab_pointer(if grab {
+            Some(self.surface.clone())
+        } else {
+            None
+        });
         Ok(())
     }
 

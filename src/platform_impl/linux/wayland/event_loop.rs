@@ -7,13 +7,12 @@ use std::{
     time::Instant,
 };
 
+use smithay_client_toolkit::reexports::protocols::unstable::pointer_constraints::v1::client::{
+    zwp_locked_pointer_v1::ZwpLockedPointerV1, zwp_pointer_constraints_v1::ZwpPointerConstraintsV1,
+};
 use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1::client::{
     zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
     zwp_relative_pointer_v1::ZwpRelativePointerV1,
-};
-use smithay_client_toolkit::reexports::protocols::unstable::pointer_constraints::v1::client::{
-    zwp_pointer_constraints_v1::ZwpPointerConstraintsV1,
-    zwp_locked_pointer_v1::ZwpLockedPointerV1,
 };
 
 use smithay_client_toolkit::reexports::client::protocol::wl_surface::WlSurface;
@@ -642,7 +641,9 @@ impl<T: 'static> SeatData<T> {
                         self.cursor_manager.lock().unwrap().cursor_visible.clone(),
                     ));
 
-                    self.cursor_manager.lock().unwrap()
+                    self.cursor_manager
+                        .lock()
+                        .unwrap()
                         .register_pointer(self.pointer.as_ref().unwrap().clone());
 
                     self.relative_pointer =
