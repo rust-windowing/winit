@@ -9,7 +9,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
-        platform::wayland::event_loop::{available_monitors, primary_monitor, CursorManager},
+        platform::wayland::event_loop::{available_monitors, primary_monitor},
         MonitorHandle as PlatformMonitorHandle,
         PlatformSpecificWindowBuilderAttributes as PlAttributes,
     },
@@ -38,7 +38,8 @@ pub struct Window {
     need_frame_refresh: Arc<Mutex<bool>>,
     need_refresh: Arc<Mutex<bool>>,
     fullscreen: Arc<Mutex<bool>>,
-    cursor_manager: Arc<Mutex<CursorManager>>,
+    cursor_grab_changed: Arc<Mutex<Option<bool>>>,
+    cursor_visible_changed: Arc<Mutex<Option<bool>>>,
 }
 
 impl Window {
@@ -141,6 +142,8 @@ impl Window {
         let need_frame_refresh = Arc::new(Mutex::new(true));
         let frame = Arc::new(Mutex::new(frame));
         let need_refresh = Arc::new(Mutex::new(true));
+        let cursor_grab_changed = Arc::new(Mutex::new(None));
+        let cursor_visible_changed = Arc::new(Mutex::new(None));
 
         evlp.store.lock().unwrap().windows.push(InternalWindow {
             closed: false,
@@ -149,6 +152,8 @@ impl Window {
             need_refresh: need_refresh.clone(),
             fullscreen: fullscreen.clone(),
             need_frame_refresh: need_frame_refresh.clone(),
+            cursor_grab_changed: cursor_grab_changed.clone(),
+            cursor_visible_changed: cursor_visible_changed.clone(),
             surface: surface.clone(),
             kill_switch: kill_switch.clone(),
             frame: Arc::downgrade(&frame),
@@ -167,7 +172,8 @@ impl Window {
             need_frame_refresh,
             need_refresh,
             fullscreen,
-            cursor_manager: evlp.cursor_manager.clone(),
+            cursor_grab_changed,
+            cursor_visible_changed,
         })
     }
 
@@ -300,19 +306,12 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        self.cursor_manager
-            .lock()
-            .unwrap()
-            .set_cursor_visible(visible);
+        *self.cursor_visible_changed.lock().unwrap() = Some(visible);
     }
 
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        self.cursor_manager.lock().unwrap().grab_pointer(if grab {
-            Some(self.surface.clone())
-        } else {
-            None
-        });
+        *self.cursor_grab_changed.lock().unwrap() = Some(grab);
         Ok(())
     }
 
@@ -372,6 +371,8 @@ struct InternalWindow {
     need_refresh: Arc<Mutex<bool>>,
     fullscreen: Arc<Mutex<bool>>,
     need_frame_refresh: Arc<Mutex<bool>>,
+    cursor_grab_changed: Arc<Mutex<Option<bool>>>,
+    cursor_visible_changed: Arc<Mutex<Option<bool>>>,
     closed: bool,
     kill_switch: Arc<Mutex<bool>>,
     frame: Weak<Mutex<SWindow<ConceptFrame>>>,
@@ -439,6 +440,9 @@ impl WindowStore {
             bool,
             bool,
             bool,
+            Option<bool>,
+            Option<bool>,
+            &wl_surface::WlSurface,
             WindowId,
             Option<&mut SWindow<ConceptFrame>>,
         ),
@@ -453,6 +457,9 @@ impl WindowStore {
                 ::std::mem::replace(&mut *window.need_refresh.lock().unwrap(), false),
                 ::std::mem::replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
+                window.cursor_visible_changed.lock().unwrap().take(),
+                window.cursor_grab_changed.lock().unwrap().take(),
+                &window.surface,
                 make_wid(&window.surface),
                 opt_mutex_lock.as_mut().map(|m| &mut **m),
             );

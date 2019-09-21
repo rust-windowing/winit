@@ -92,7 +92,6 @@ impl CursorManager {
     }
 
     fn register_pointer(&mut self, pointer: wl_pointer::WlPointer) {
-        println!("Registering one pointer in the CursorManager");
         self.pointers.push(pointer);
     }
 
@@ -100,8 +99,10 @@ impl CursorManager {
         (*self.cursor_visible.lock().unwrap()) = visible;
     }
 
-    pub fn grab_pointer(&mut self, surface: Option<WlSurface>) {
-        self.locked_pointers.clear();
+    pub fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
+        for lp in self.locked_pointers.drain(..) {
+            lp.destroy();
+        }
 
         if let Some(surface) = surface {
             for pointer in self.pointers.iter() {
@@ -112,7 +113,7 @@ impl CursorManager {
                     .as_ref()
                     .and_then(|pointer_constraints| {
                         super::pointer::implement_locked_pointer(
-                            &surface,
+                            surface,
                             pointer,
                             pointer_constraints,
                         )
@@ -120,7 +121,6 @@ impl CursorManager {
                     });
 
                 if let Some(locked_pointer) = locked_pointer {
-                    println!("Created one locked pointer");
                     self.locked_pointers.push(locked_pointer);
                 }
             }
@@ -138,6 +138,8 @@ pub struct EventLoop<T: 'static> {
     // our sink, shared with some handlers, buffering the events
     sink: Arc<Mutex<WindowEventsSink<T>>>,
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
+    // Utility for grabbing the cursor and changing visibility
+    cursor_manager: Arc<Mutex<CursorManager>>,
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     user_sender: ::calloop::channel::Sender<T>,
     _kbd_source: ::calloop::Source<
@@ -166,8 +168,6 @@ pub struct EventLoopWindowTarget<T> {
     pub display: Arc<Display>,
     // The list of seats
     pub seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
-    // Utility for grabbing the cursor and changing visibility
-    pub cursor_manager: Arc<Mutex<CursorManager>>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -230,7 +230,6 @@ impl<T: 'static> EventLoop<T> {
                     ref interface,
                     version,
                 } => {
-                    println!("Interface: {}", interface);
                     if interface == "zwp_relative_pointer_manager_v1" {
                         seat_manager.relative_pointer_manager_proxy = Some(
                             registry
@@ -288,6 +287,7 @@ impl<T: 'static> EventLoop<T> {
             pending_user_events,
             display: display.clone(),
             outputs: env.outputs.clone(),
+            cursor_manager,
             _user_source: user_source,
             user_sender,
             _kbd_source: kbd_source,
@@ -300,7 +300,6 @@ impl<T: 'static> EventLoop<T> {
                     seats,
                     display,
                     _marker: ::std::marker::PhantomData,
-                    cursor_manager,
                 }),
                 _marker: ::std::marker::PhantomData,
             },
@@ -528,7 +527,7 @@ impl<T> EventLoop<T> {
         }
         // process pending resize/refresh
         window_target.store.lock().unwrap().for_each(
-            |newsize, size, new_dpi, refresh, frame_refresh, closed, wid, frame| {
+            |newsize, size, new_dpi, refresh, frame_refresh, closed, cursor_visible, cursor_grab, surface, wid, frame| {
                 if let Some(frame) = frame {
                     if let Some((w, h)) = newsize {
                         frame.resize(w, h);
@@ -557,6 +556,14 @@ impl<T> EventLoop<T> {
                 }
                 if closed {
                     sink.send_window_event(crate::event::WindowEvent::CloseRequested, wid);
+                }
+                if let Some(grab) = cursor_grab {
+                    self.cursor_manager.lock().unwrap()
+                        .grab_pointer(if grab { Some(surface) } else { None });
+                }
+
+                if let Some(visible) = cursor_visible {
+                    self.cursor_manager.lock().unwrap().set_cursor_visible(visible);
                 }
             },
         )
