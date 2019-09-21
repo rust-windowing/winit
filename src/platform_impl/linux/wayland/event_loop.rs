@@ -96,6 +96,14 @@ impl CursorManager {
     }
 
     pub fn set_cursor_visible(&mut self, visible: bool) {
+        // If we want to hide the cursor do it immediately. There is a known
+        // limitation that the cursor will not become visible again until it
+        // enters a new surface
+        if !visible {
+            for pointer in self.pointers.iter() {
+                pointer.set_cursor(0, None, 0, 0);
+            }
+        }
         (*self.cursor_visible.lock().unwrap()) = visible;
     }
 
