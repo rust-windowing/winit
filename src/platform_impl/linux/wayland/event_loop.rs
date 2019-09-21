@@ -527,7 +527,17 @@ impl<T> EventLoop<T> {
         }
         // process pending resize/refresh
         window_target.store.lock().unwrap().for_each(
-            |newsize, size, new_dpi, refresh, frame_refresh, closed, cursor_visible, cursor_grab, surface, wid, frame| {
+            |newsize,
+             size,
+             new_dpi,
+             refresh,
+             frame_refresh,
+             closed,
+             cursor_visible,
+             cursor_grab,
+             surface,
+             wid,
+             frame| {
                 if let Some(frame) = frame {
                     if let Some((w, h)) = newsize {
                         frame.resize(w, h);
@@ -558,12 +568,18 @@ impl<T> EventLoop<T> {
                     sink.send_window_event(crate::event::WindowEvent::CloseRequested, wid);
                 }
                 if let Some(grab) = cursor_grab {
-                    self.cursor_manager.lock().unwrap()
-                        .grab_pointer(if grab { Some(surface) } else { None });
+                    self.cursor_manager.lock().unwrap().grab_pointer(if grab {
+                        Some(surface)
+                    } else {
+                        None
+                    });
                 }
 
                 if let Some(visible) = cursor_visible {
-                    self.cursor_manager.lock().unwrap().set_cursor_visible(visible);
+                    self.cursor_manager
+                        .lock()
+                        .unwrap()
+                        .set_cursor_visible(visible);
                 }
             },
         )
