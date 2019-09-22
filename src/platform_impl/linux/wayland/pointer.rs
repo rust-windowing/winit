@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use crate::event::{
@@ -29,7 +31,7 @@ pub fn implement_pointer<T: 'static>(
     sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
-    cursor_visible: Arc<Mutex<bool>>,
+    cursor_visible: Rc<RefCell<bool>>,
 ) -> WlPointer {
     seat.get_pointer(|pointer| {
         let mut mouse_focus = None;
@@ -71,7 +73,7 @@ pub fn implement_pointer<T: 'static>(
                             );
                         }
 
-                        if *cursor_visible.lock().unwrap() == false {
+                        if *cursor_visible.borrow() == false {
                             pointer.set_cursor(0, None, 0, 0);
                         }
                     }
