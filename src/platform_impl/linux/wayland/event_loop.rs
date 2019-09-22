@@ -96,16 +96,16 @@ impl CursorManager {
     }
 
     pub fn set_cursor_visible(&mut self, visible: bool) {
-        // If we want to hide the cursor do it immediately. There is a known
-        // limitation that the cursor will not become visible again until it
-        // enters a new surface
-        let surface: Option<WlSurface> = None;
         if !visible {
+            let surface: Option<WlSurface> = None;
             for pointer in self.pointers.iter() {
                 pointer.set_cursor(0, surface.as_ref(), 0, 0);
             }
         } else {
-
+            // TODO: When making the cursor visible again we need to obtain
+            // the default cursor surface and send that to set_cursor. Until
+            // this is fixed the cursor will only reappear once the cursor
+            // re-enters the window surface.
         }
         (*self.cursor_visible.try_borrow_mut().unwrap()) = visible;
     }

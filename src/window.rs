@@ -654,6 +654,8 @@ impl Window {
     ///
     /// - **macOS:** This presently merely locks the cursor in a fixed location, which looks visually
     ///   awkward.
+    /// - **Wayland:** This presently merely locks the cursor in a fixed location, which looks visually
+    ///   awkward.
     /// - **Android:** Has no effect.
     /// - **iOS:** Always returns an Err.
     #[inline]
@@ -669,6 +671,9 @@ impl Window {
     ///
     /// - **Windows:** The cursor is only hidden within the confines of the window.
     /// - **X11:** The cursor is only hidden within the confines of the window.
+    /// - **Wayland:** The cursor is only hidden within the confines of the window. When changing
+    ///   the cursor back to visible it will not take effect until the cursor re-enters the
+    ///   window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
     /// - **iOS:** Has no effect.
