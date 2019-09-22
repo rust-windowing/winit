@@ -15,8 +15,10 @@ use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1
     zwp_relative_pointer_v1::ZwpRelativePointerV1,
 };
 
-use smithay_client_toolkit::pointer::{ThemeManager, ThemedPointer};
-use smithay_client_toolkit::reexports::client::protocol::wl_surface::WlSurface;
+use smithay_client_toolkit::pointer::{AutoPointer, AutoThemer};
+use smithay_client_toolkit::reexports::client::protocol::{
+    wl_compositor::WlCompositor, wl_shm::WlShm, wl_surface::WlSurface,
+};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -77,9 +79,8 @@ impl<T> WindowEventsSink<T> {
 
 pub struct CursorManager {
     pointer_constraints_proxy: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>,
-    theme_manager: Option<ThemeManager>,
-    pointers: Vec<wl_pointer::WlPointer>,
-    themed_pointers: Vec<ThemedPointer>,
+    auto_themer: Option<AutoThemer>,
+    pointers: Vec<AutoPointer>,
     locked_pointers: Vec<ZwpLockedPointerV1>,
     cursor_visible: Rc<RefCell<bool>>,
 }
@@ -88,35 +89,33 @@ impl CursorManager {
     fn new(constraints: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>) -> CursorManager {
         CursorManager {
             pointer_constraints_proxy: constraints,
-            theme_manager: None,
+            auto_themer: None,
             pointers: Vec::new(),
-            themed_pointers: Vec::new(),
             locked_pointers: Vec::new(),
             cursor_visible: Rc::new(RefCell::new(true)),
         }
     }
 
     fn register_pointer(&mut self, pointer: wl_pointer::WlPointer) {
-        self.pointers.push(pointer);
+        let auto_themer = self
+            .auto_themer
+            .as_ref()
+            .expect("AutoThemer not initialize. Server did not advertise shm or compositor?");
+        self.pointers.push(auto_themer.theme_pointer(pointer));
     }
 
-    fn set_theme_manager(&mut self, theme_manager: ThemeManager) {
-        self.theme_manager = Some(theme_manager);
+    fn set_auto_themer(&mut self, auto_themer: AutoThemer) {
+        self.auto_themer = Some(auto_themer);
     }
 
     fn set_cursor_visible(&mut self, visible: bool) {
-        self.themed_pointers.clear();
         if !visible {
             for pointer in self.pointers.iter() {
-                pointer.set_cursor(0, None, 0, 0);
+                (**pointer).set_cursor(0, None, 0, 0);
             }
         } else {
-            if let Some(theme_manager) = self.theme_manager.as_ref() {
-                for pointer in self.pointers.iter() {
-                    let themed_pointer = theme_manager.theme_pointer(pointer.clone());
-                    themed_pointer.set_cursor("left_ptr", None).unwrap();
-                    self.themed_pointers.push(themed_pointer);
-                }
+            for pointer in self.pointers.iter() {
+                pointer.set_cursor("left_ptr", None).unwrap();
             }
         }
         (*self.cursor_visible.try_borrow_mut().unwrap()) = visible;
@@ -137,7 +136,7 @@ impl CursorManager {
                     .and_then(|pointer_constraints| {
                         super::pointer::implement_locked_pointer(
                             surface,
-                            pointer,
+                            &**pointer,
                             pointer_constraints,
                         )
                         .ok()
@@ -231,8 +230,6 @@ impl<T: 'static> EventLoop<T> {
             .unwrap();
 
         let pointer_constraints_proxy = Rc::new(RefCell::new(None));
-        let shm_proxy = Rc::new(RefCell::new(None));
-        let shm_proxy2 = shm_proxy.clone();
 
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
@@ -245,6 +242,10 @@ impl<T: 'static> EventLoop<T> {
         };
 
         let cursor_manager = seat_manager.cursor_manager.clone();
+        let cursor_manager2 = cursor_manager.clone();
+
+        let shm_cell = Rc::new(RefCell::new(None));
+        let compositor_cell = Rc::new(RefCell::new(None));
 
         let env = Environment::from_display_with_cb(
             &display,
@@ -255,6 +256,7 @@ impl<T: 'static> EventLoop<T> {
                     ref interface,
                     version,
                 } => {
+                    println!("interface = {}", interface);
                     if interface == "zwp_relative_pointer_manager_v1" {
                         seat_manager.relative_pointer_manager_proxy = Some(
                             registry
@@ -275,12 +277,28 @@ impl<T: 'static> EventLoop<T> {
                             Some(pointer_constraints_proxy);
                     }
                     if interface == "wl_shm" {
-                        *shm_proxy2.borrow_mut() = Some(
-                            registry
-                                .bind(version, id, move |shm| shm.implement_closure(|_, _| (), ()))
-                                .unwrap(),
-                        );
+                        let shm: WlShm = registry
+                            .bind(version, id, move |shm| shm.implement_closure(|_, _| (), ()))
+                            .unwrap();
+
+                        (*shm_cell.borrow_mut()) = Some(shm);
                     }
+                    if interface == "wl_compositor" {
+                        let compositor: WlCompositor = registry
+                            .bind(version, id, move |compositor| {
+                                compositor.implement_closure(|_, _| (), ())
+                            })
+                            .unwrap();
+                        (*compositor_cell.borrow_mut()) = Some(compositor);
+                    }
+
+                    if compositor_cell.borrow().is_some() && shm_cell.borrow().is_some() {
+                        let compositor = compositor_cell.borrow_mut().take().unwrap();
+                        let shm = shm_cell.borrow_mut().take().unwrap();
+                        let auto_themer = AutoThemer::init(None, compositor, &shm);
+                        cursor_manager2.borrow_mut().set_auto_themer(auto_themer);
+                    }
+
                     if interface == "wl_seat" {
                         seat_manager.add_seat(id, version, registry)
                     }
@@ -293,15 +311,6 @@ impl<T: 'static> EventLoop<T> {
             },
         )
         .unwrap();
-
-        let theme_manager = shm_proxy
-            .borrow()
-            .as_ref()
-            .and_then(|shm| ThemeManager::init(None, env.compositor.clone(), shm).ok());
-
-        if let Some(theme_manager) = theme_manager {
-            cursor_manager.borrow_mut().set_theme_manager(theme_manager);
-        }
 
         let source = inner_loop
             .handle()
