@@ -15,6 +15,7 @@ use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1
     zwp_relative_pointer_v1::ZwpRelativePointerV1,
 };
 
+use smithay_client_toolkit::pointer::{ThemeManager, ThemedPointer};
 use smithay_client_toolkit::reexports::client::protocol::wl_surface::WlSurface;
 
 use crate::{
@@ -76,7 +77,9 @@ impl<T> WindowEventsSink<T> {
 
 pub struct CursorManager {
     pointer_constraints_proxy: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>,
+    theme_manager: Option<ThemeManager>,
     pointers: Vec<wl_pointer::WlPointer>,
+    themed_pointers: Vec<ThemedPointer>,
     locked_pointers: Vec<ZwpLockedPointerV1>,
     cursor_visible: Rc<RefCell<bool>>,
 }
@@ -85,7 +88,9 @@ impl CursorManager {
     fn new(constraints: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>) -> CursorManager {
         CursorManager {
             pointer_constraints_proxy: constraints,
+            theme_manager: None,
             pointers: Vec::new(),
+            themed_pointers: Vec::new(),
             locked_pointers: Vec::new(),
             cursor_visible: Rc::new(RefCell::new(true)),
         }
@@ -95,22 +100,29 @@ impl CursorManager {
         self.pointers.push(pointer);
     }
 
-    pub fn set_cursor_visible(&mut self, visible: bool) {
+    fn set_theme_manager(&mut self, theme_manager: ThemeManager) {
+        self.theme_manager = Some(theme_manager);
+    }
+
+    fn set_cursor_visible(&mut self, visible: bool) {
+        self.themed_pointers.clear();
         if !visible {
-            let surface: Option<WlSurface> = None;
             for pointer in self.pointers.iter() {
-                pointer.set_cursor(0, surface.as_ref(), 0, 0);
+                pointer.set_cursor(0, None, 0, 0);
             }
         } else {
-            // TODO: When making the cursor visible again we need to obtain
-            // the default cursor surface and send that to set_cursor. Until
-            // this is fixed the cursor will only reappear once the cursor
-            // re-enters the window surface.
+            if let Some(theme_manager) = self.theme_manager.as_ref() {
+                for pointer in self.pointers.iter() {
+                    let themed_pointer = theme_manager.theme_pointer(pointer.clone());
+                    themed_pointer.set_cursor("left_ptr", None).unwrap();
+                    self.themed_pointers.push(themed_pointer);
+                }
+            }
         }
         (*self.cursor_visible.try_borrow_mut().unwrap()) = visible;
     }
 
-    pub fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
+    fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
         for lp in self.locked_pointers.drain(..) {
             lp.destroy();
         }
@@ -219,6 +231,8 @@ impl<T: 'static> EventLoop<T> {
             .unwrap();
 
         let pointer_constraints_proxy = Rc::new(RefCell::new(None));
+        let shm_proxy = Rc::new(RefCell::new(None));
+        let shm_proxy2 = shm_proxy.clone();
 
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
@@ -260,6 +274,11 @@ impl<T: 'static> EventLoop<T> {
                         *seat_manager.pointer_constraints_proxy.borrow_mut() =
                             Some(pointer_constraints_proxy);
                     }
+                    if interface == "wl_shm" {
+                        *shm_proxy2.borrow_mut() = Some(registry
+                            .bind(version, id, move |shm| shm.implement_closure(|_, _| (), ()))
+                            .unwrap());
+                    }
                     if interface == "wl_seat" {
                         seat_manager.add_seat(id, version, registry)
                     }
@@ -272,6 +291,14 @@ impl<T: 'static> EventLoop<T> {
             },
         )
         .unwrap();
+
+        let theme_manager = shm_proxy.borrow().as_ref().and_then(|shm| {
+            ThemeManager::init(None, env.compositor.clone(), shm).ok()
+        });
+
+        if let Some(theme_manager) = theme_manager {
+            cursor_manager.borrow_mut().set_theme_manager(theme_manager);
+        }
 
         let source = inner_loop
             .handle()
