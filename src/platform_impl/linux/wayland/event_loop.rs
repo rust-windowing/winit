@@ -148,7 +148,7 @@ impl<T: 'static> EventLoop<T> {
 
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
-            relative_pointer_manager_proxy: Arc::new(Mutex::new(None)),
+            relative_pointer_manager_proxy: Rc::new(RefCell::new(None)),
             store: store.clone(),
             seats: seats.clone(),
             kbd_sender,
@@ -170,7 +170,7 @@ impl<T: 'static> EventLoop<T> {
                             })
                             .unwrap();
 
-                        *seat_manager.relative_pointer_manager_proxy.lock().unwrap() =
+                        *seat_manager.relative_pointer_manager_proxy.try_borrow_mut().unwrap() =
                             Some(relative_pointer_manager_proxy);
                     }
                     if interface == "wl_seat" {
@@ -494,7 +494,7 @@ struct SeatManager<T: 'static> {
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
-    relative_pointer_manager_proxy: Arc<Mutex<Option<ZwpRelativePointerManagerV1>>>,
+    relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
 }
 
 impl<T: 'static> SeatManager<T> {
@@ -538,7 +538,7 @@ struct SeatData<T> {
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     pointer: Option<wl_pointer::WlPointer>,
     relative_pointer: Option<ZwpRelativePointerV1>,
-    relative_pointer_manager_proxy: Arc<Mutex<Option<ZwpRelativePointerManagerV1>>>,
+    relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
@@ -560,7 +560,7 @@ impl<T: 'static> SeatData<T> {
 
                     self.relative_pointer = self
                         .relative_pointer_manager_proxy
-                        .lock()
+                        .try_borrow()
                         .unwrap()
                         .as_ref()
                         .and_then(|manager| {
