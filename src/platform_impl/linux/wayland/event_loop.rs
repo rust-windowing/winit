@@ -100,7 +100,7 @@ impl CursorManager {
         let auto_themer = self
             .auto_themer
             .as_ref()
-            .expect("AutoThemer not initialize. Server did not advertise shm or compositor?");
+            .expect("AutoThemer not initialized. Server did not advertise shm or compositor?");
         self.pointers.push(auto_themer.theme_pointer(pointer));
     }
 
@@ -256,7 +256,6 @@ impl<T: 'static> EventLoop<T> {
                     ref interface,
                     version,
                 } => {
-                    println!("interface = {}", interface);
                     if interface == "zwp_relative_pointer_manager_v1" {
                         seat_manager.relative_pointer_manager_proxy = Some(
                             registry
