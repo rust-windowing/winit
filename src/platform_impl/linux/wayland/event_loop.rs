@@ -275,9 +275,11 @@ impl<T: 'static> EventLoop<T> {
                             Some(pointer_constraints_proxy);
                     }
                     if interface == "wl_shm" {
-                        *shm_proxy2.borrow_mut() = Some(registry
-                            .bind(version, id, move |shm| shm.implement_closure(|_, _| (), ()))
-                            .unwrap());
+                        *shm_proxy2.borrow_mut() = Some(
+                            registry
+                                .bind(version, id, move |shm| shm.implement_closure(|_, _| (), ()))
+                                .unwrap(),
+                        );
                     }
                     if interface == "wl_seat" {
                         seat_manager.add_seat(id, version, registry)
@@ -292,9 +294,10 @@ impl<T: 'static> EventLoop<T> {
         )
         .unwrap();
 
-        let theme_manager = shm_proxy.borrow().as_ref().and_then(|shm| {
-            ThemeManager::init(None, env.compositor.clone(), shm).ok()
-        });
+        let theme_manager = shm_proxy
+            .borrow()
+            .as_ref()
+            .and_then(|shm| ThemeManager::init(None, env.compositor.clone(), shm).ok());
 
         if let Some(theme_manager) = theme_manager {
             cursor_manager.borrow_mut().set_theme_manager(theme_manager);
