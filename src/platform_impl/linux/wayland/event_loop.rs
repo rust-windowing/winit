@@ -170,8 +170,10 @@ impl<T: 'static> EventLoop<T> {
                             })
                             .unwrap();
 
-                        *seat_manager.relative_pointer_manager_proxy.try_borrow_mut().unwrap() =
-                            Some(relative_pointer_manager_proxy);
+                        *seat_manager
+                            .relative_pointer_manager_proxy
+                            .try_borrow_mut()
+                            .unwrap() = Some(relative_pointer_manager_proxy);
                     }
                     if interface == "wl_seat" {
                         seat_manager.add_seat(id, version, registry)
