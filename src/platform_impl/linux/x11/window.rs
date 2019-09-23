@@ -131,6 +131,10 @@ impl UnownedWindow {
             .min_inner_size
             .map(|size| size.to_physical(dpi_factor).into());
 
+        let position = window_attrs
+            .outer_position
+            .map(|position| (position.x as i32, position.y as i32));
+
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
             // by the user, so we have to manually apply the initial constraints
@@ -196,8 +200,8 @@ impl UnownedWindow {
             (xconn.xlib.XCreateWindow)(
                 xconn.display,
                 root,
-                0,
-                0,
+                position.map_or(0, |p| p.0 as c_int),
+                position.map_or(0, |p| p.1 as c_int),
                 dimensions.0 as c_uint,
                 dimensions.1 as c_uint,
                 0,
@@ -223,7 +227,7 @@ impl UnownedWindow {
             )
         };
 
-        let window = UnownedWindow {
+        let mut window = UnownedWindow {
             xconn: Arc::clone(xconn),
             xwindow,
             root,
@@ -326,6 +330,7 @@ impl UnownedWindow {
                 }
 
                 let mut normal_hints = util::NormalHints::new(xconn);
+                normal_hints.set_position(position);
                 normal_hints.set_size(Some(dimensions));
                 normal_hints.set_min_size(min_inner_size.map(Into::into));
                 normal_hints.set_max_size(max_inner_size.map(Into::into));
@@ -414,8 +419,13 @@ impl UnownedWindow {
             if window_attrs.fullscreen.is_some() {
                 window
                     .set_fullscreen_inner(window_attrs.fullscreen.clone())
-                    .unwrap()
-                    .queue();
+                    .map(|flusher| flusher.queue());
+
+                if let Some((x, y)) = position {
+                    let shared_state = window.shared_state.get_mut();
+
+                    shared_state.restore_position = Some((x, y));
+                }
             }
             if window_attrs.always_on_top {
                 window

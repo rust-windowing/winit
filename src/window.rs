@@ -114,6 +114,12 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub max_inner_size: Option<LogicalSize>,
 
+    /// The desired position of the window. If this is `None`,
+    /// some platform-specific position will be chosen.
+    ///
+    /// The default is `None`.
+    pub outer_position: Option<LogicalPosition>,
+
     /// Whether the window is resizable or not.
     ///
     /// The default is `true`.
@@ -168,6 +174,7 @@ impl Default for WindowAttributes {
             inner_size: None,
             min_inner_size: None,
             max_inner_size: None,
+            outer_position: None,
             resizable: true,
             title: "winit window".to_owned(),
             maximized: false,
@@ -209,6 +216,17 @@ impl WindowBuilder {
     #[inline]
     pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> Self {
         self.window.max_inner_size = Some(max_size);
+        self
+    }
+
+    /// Sets a desired initial position for the window
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Wayland**: This has no effect.
+    #[inline]
+    pub fn with_outer_position(mut self, position: LogicalPosition) -> Self {
+        self.window.outer_position = Some(position);
         self
     }
 
