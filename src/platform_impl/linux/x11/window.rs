@@ -119,7 +119,7 @@ impl UnownedWindow {
                     .unwrap_or(1.0)
             })
         } else {
-            return Err(os_error!(OsError::XMisc("No monitors were detected.")));
+            1.0
         };
 
         info!("Guessed window DPI factor: {}", dpi_factor);
@@ -637,6 +637,11 @@ impl UnownedWindow {
                     _ => unreachable!(),
                 };
 
+                // Don't set fullscreen on an invalid dummy monitor handle
+                if monitor.id == 0 {
+                    return None;
+                }
+
                 if let Some(video_mode) = video_mode {
                     // FIXME: this is actually not correct if we're setting the
                     // video mode to a resolution higher than the current
@@ -704,11 +709,11 @@ impl UnownedWindow {
     pub fn current_monitor(&self) -> X11MonitorHandle {
         let monitor = self.shared_state.lock().last_monitor.as_ref().cloned();
         monitor.unwrap_or_else(|| {
-            let monitor = self
-                .xconn
-                .get_monitor_for_window(Some(self.get_rect()))
-                .to_owned();
-            self.shared_state.lock().last_monitor = Some(monitor.clone());
+            let monitor = self.xconn.get_monitor_for_window(Some(self.get_rect()));
+            // Avoid caching an invalid dummy monitor handle
+            if monitor.id != 0 {
+                self.shared_state.lock().last_monitor = Some(monitor.clone());
+            }
             monitor
         })
     }
