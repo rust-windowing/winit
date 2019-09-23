@@ -19,6 +19,7 @@
 - On X11, prevent stealing input focus when creating a new window.
   Only steal input focus when entering fullscreen mode.
 - Added support for set_cursor_visible and set_cursor_grab on wayland
+- On Wayland, fixed DeviceEvents for relative mouse movement is not always produced
 
 # 0.20.0 Alpha 3 (2019-08-14)
 

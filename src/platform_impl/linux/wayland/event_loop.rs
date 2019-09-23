@@ -233,7 +233,7 @@ impl<T: 'static> EventLoop<T> {
 
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
-            relative_pointer_manager_proxy: None,
+            relative_pointer_manager_proxy: Rc::new(RefCell::new(None)),
             pointer_constraints_proxy: pointer_constraints_proxy.clone(),
             store: store.clone(),
             seats: seats.clone(),
@@ -257,13 +257,16 @@ impl<T: 'static> EventLoop<T> {
                     version,
                 } => {
                     if interface == "zwp_relative_pointer_manager_v1" {
-                        seat_manager.relative_pointer_manager_proxy = Some(
-                            registry
-                                .bind(version, id, move |pointer_manager| {
-                                    pointer_manager.implement_closure(|_, _| (), ())
-                                })
-                                .unwrap(),
-                        )
+                        let relative_pointer_manager_proxy = registry
+                            .bind(version, id, move |pointer_manager| {
+                                pointer_manager.implement_closure(|_, _| (), ())
+                            })
+                            .unwrap();
+
+                        *seat_manager
+                            .relative_pointer_manager_proxy
+                            .try_borrow_mut()
+                            .unwrap() = Some(relative_pointer_manager_proxy);
                     }
                     if interface == "zwp_pointer_constraints_v1" {
                         let pointer_constraints_proxy = registry
@@ -641,7 +644,7 @@ struct SeatManager<T: 'static> {
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
-    relative_pointer_manager_proxy: Option<ZwpRelativePointerManagerV1>,
+    relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
     pointer_constraints_proxy: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>,
     cursor_manager: Rc<RefCell<CursorManager>>,
 }
@@ -655,7 +658,7 @@ impl<T: 'static> SeatManager<T> {
             store: self.store.clone(),
             pointer: None,
             relative_pointer: None,
-            relative_pointer_manager_proxy: self.relative_pointer_manager_proxy.as_ref().cloned(),
+            relative_pointer_manager_proxy: self.relative_pointer_manager_proxy.clone(),
             keyboard: None,
             touch: None,
             kbd_sender: self.kbd_sender.clone(),
@@ -688,7 +691,7 @@ struct SeatData<T> {
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     pointer: Option<wl_pointer::WlPointer>,
     relative_pointer: Option<ZwpRelativePointerV1>,
-    relative_pointer_manager_proxy: Option<ZwpRelativePointerManagerV1>,
+    relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
@@ -714,17 +717,19 @@ impl<T: 'static> SeatData<T> {
                         .borrow_mut()
                         .register_pointer(self.pointer.as_ref().unwrap().clone());
 
-                    self.relative_pointer =
-                        self.relative_pointer_manager_proxy
-                            .as_ref()
-                            .and_then(|manager| {
-                                super::pointer::implement_relative_pointer(
-                                    self.sink.clone(),
-                                    self.pointer.as_ref().unwrap(),
-                                    manager,
-                                )
-                                .ok()
-                            })
+                    self.relative_pointer = self
+                        .relative_pointer_manager_proxy
+                        .try_borrow()
+                        .unwrap()
+                        .as_ref()
+                        .and_then(|manager| {
+                            super::pointer::implement_relative_pointer(
+                                self.sink.clone(),
+                                self.pointer.as_ref().unwrap(),
+                                manager,
+                            )
+                            .ok()
+                        })
                 }
                 // destroy pointer if applicable
                 if !capabilities.contains(wl_seat::Capability::Pointer) {
