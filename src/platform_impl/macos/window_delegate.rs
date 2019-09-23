@@ -84,11 +84,7 @@ impl WindowDelegateState {
     pub fn emit_resize_event(&mut self) {
         let rect = unsafe { NSView::frame(*self.ns_view) };
         let size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
-        let event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(*self.ns_window)),
-            event: WindowEvent::Resized(size),
-        };
-        AppState::send_event_immediately(event);
+        self.emit_event(WindowEvent::Resized(size));
     }
 
     fn emit_move_event(&mut self) {

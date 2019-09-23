@@ -1031,16 +1031,18 @@ unsafe extern "system" fn public_window_callback<T>(
 
         winuser::WM_CHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
-            let high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
-            let low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
+            use std::char;
+            let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
+            let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
 
-            if high_surrogate {
+            if is_high_surrogate {
                 subclass_input.window_state.lock().high_surrogate = Some(wparam as u16);
-            } else if low_surrogate {
-                let mut window_state = subclass_input.window_state.lock();
-                if let Some(high_surrogate) = window_state.high_surrogate.take() {
+            } else if is_low_surrogate {
+                let high_surrogate = subclass_input.window_state.lock().high_surrogate.take();
+
+                if let Some(high_surrogate) = high_surrogate {
                     let pair = [high_surrogate, wparam as u16];
-                    if let Some(Ok(chr)) = std::char::decode_utf16(pair.iter().copied()).next() {
+                    if let Some(Ok(chr)) = char::decode_utf16(pair.iter().copied()).next() {
                         subclass_input.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
                             event: ReceivedCharacter(chr),
@@ -1048,11 +1050,14 @@ unsafe extern "system" fn public_window_callback<T>(
                     }
                 }
             } else {
-                let chr: char = mem::transmute(wparam as u32);
-                subclass_input.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: ReceivedCharacter(chr),
-                });
+                subclass_input.window_state.lock().high_surrogate = None;
+
+                if let Some(chr) = char::from_u32(wparam as u32) {
+                    subclass_input.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: ReceivedCharacter(chr),
+                    });
+                }
             }
             0
         }
