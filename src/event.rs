@@ -133,6 +133,10 @@ pub enum WindowEvent {
         input: KeyboardInput,
     },
 
+    /// Keyboard modifiers have changed
+    #[doc(hidden)]
+    ModifiersChanged { modifiers: ModifiersState },
+
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,
@@ -329,7 +333,7 @@ pub struct Touch {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **iOS** 9.0+.
+    /// - Only available on **iOS** 9.0+ and **Windows** 8+.
     pub force: Option<Force>,
     /// Unique identifier of a finger.
     pub id: u64,

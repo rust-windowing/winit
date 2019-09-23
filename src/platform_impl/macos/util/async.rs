@@ -231,6 +231,21 @@ pub unsafe fn toggle_full_screen_async(
     );
 }
 
+extern "C" fn restore_display_mode_callback(screen: *mut c_void) {
+    unsafe {
+        let screen = Box::from_raw(screen as *mut u32);
+        ffi::CGRestorePermanentDisplayConfiguration();
+        assert_eq!(ffi::CGDisplayRelease(*screen), ffi::kCGErrorSuccess);
+    }
+}
+pub unsafe fn restore_display_mode_async(ns_screen: u32) {
+    dispatch_async_f(
+        dispatch_get_main_queue(),
+        Box::into_raw(Box::new(ns_screen)) as *mut _,
+        restore_display_mode_callback,
+    );
+}
+
 struct SetMaximizedData {
     ns_window: id,
     is_zoomed: bool,

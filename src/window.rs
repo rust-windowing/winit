@@ -761,7 +761,9 @@ pub enum CursorIcon {
     Alias,
     Copy,
     NoDrop,
+    /// Indicates something can be grabbed.
     Grab,
+    /// Indicates something is grabbed.
     Grabbing,
     AllScroll,
     ZoomIn,

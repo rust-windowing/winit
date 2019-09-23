@@ -5,6 +5,12 @@
 - On X11, performance is improved when rapidly calling `Window::set_cursor_icon`.
 - On iOS, fix improper `msg_send` usage that was UB and/or would break if `!` is stabilized.
 - On Windows, unset `maximized` when manually changing the window's position or size.
+- On Windows, add touch pressure information for touch events.
+- On macOS, differentiate between `CursorIcon::Grab` and `CursorIcon::Grabbing`.
+- On Wayland, fix event processing sometimes stalling when using OpenGL with vsync.
+- Officially remove the Emscripten backend.
+- On Windows, fix handling of surrogate pairs when dispatching `ReceivedCharacter`.
+- On macOS 10.15, fix freeze upon exiting exclusive fullscreen mode.
 - On X11, allow setting mulitple `XWindowType`s.
 
 # 0.20.0 Alpha 3 (2019-08-14)
