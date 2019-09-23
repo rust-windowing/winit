@@ -500,7 +500,11 @@ impl UnownedWindow {
 
     fn set_window_types(&self, window_types: Vec<util::WindowType>) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE\0") };
-        let atoms: Vec<_> = window_types.iter().map(|t| t.as_atom(&self.xconn)).collect();
+        let atoms: Vec<_> = window_types
+            .iter()
+            .map(|t| t.as_atom(&self.xconn))
+            .collect();
+
         self.xconn.change_property(
             self.xwindow,
             hint_atom,

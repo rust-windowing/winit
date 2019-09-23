@@ -7,7 +7,9 @@ use raw_window_handle::RawWindowHandle;
 use smithay_client_toolkit::reexports::client::ConnectError;
 
 pub use self::x11::XNotSupported;
-use self::x11::{ffi::XVisualInfo, get_xtarget, XConnection, XError, util::WindowType as XWindowType};
+use self::x11::{
+    ffi::XVisualInfo, get_xtarget, util::WindowType as XWindowType, XConnection, XError,
+};
 use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -57,7 +59,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             app_id: None,
         }
     }
-
 }
 
 lazy_static! {
