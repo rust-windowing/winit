@@ -1,6 +1,5 @@
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
-use crate::event::{Event, WindowEvent};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{CursorIcon, WindowAttributes, WindowId as RootWI};
@@ -16,6 +15,7 @@ pub struct Window {
     previous_pointer: RefCell<&'static str>,
     position: RefCell<LogicalPosition>,
     id: Id,
+    register_redraw_request: Box<dyn Fn()>,
 }
 
 impl Window {
@@ -28,12 +28,9 @@ impl Window {
 
         let id = target.generate_id();
 
-        let mut canvas = backend::Canvas::create(move || {
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWI(id),
-                event: WindowEvent::RedrawRequested,
-            })
-        })?;
+        let mut canvas = backend::Canvas::create()?;
+
+        let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
         target.register(&mut canvas, id);
 
@@ -42,6 +39,7 @@ impl Window {
             previous_pointer: RefCell::new("auto"),
             position: RefCell::new(LogicalPosition { x: 0.0, y: 0.0 }),
             id,
+            register_redraw_request,
         };
 
         window.set_inner_size(attr.inner_size.unwrap_or(LogicalSize {
@@ -69,7 +67,7 @@ impl Window {
     }
 
     pub fn request_redraw(&self) {
-        self.canvas.request_redraw();
+        (self.register_redraw_request)();
     }
 
     pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
