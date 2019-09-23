@@ -180,10 +180,11 @@ impl Default for WindowAttributes {
         }
     }
 }
+
 impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
-    pub fn new() -> WindowBuilder {
+    pub fn new() -> Self {
         WindowBuilder {
             window: Default::default(),
             platform_specific: Default::default(),
@@ -192,21 +193,21 @@ impl WindowBuilder {
 
     /// Requests the window to be of specific dimensions.
     #[inline]
-    pub fn with_inner_size(mut self, size: LogicalSize) -> WindowBuilder {
+    pub fn with_inner_size(mut self, size: LogicalSize) -> Self {
         self.window.inner_size = Some(size);
         self
     }
 
     /// Sets a minimum dimension size for the window
     #[inline]
-    pub fn with_min_inner_size(mut self, min_size: LogicalSize) -> WindowBuilder {
+    pub fn with_min_inner_size(mut self, min_size: LogicalSize) -> Self {
         self.window.min_inner_size = Some(min_size);
         self
     }
 
     /// Sets a maximum dimension size for the window
     #[inline]
-    pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> WindowBuilder {
+    pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> Self {
         self.window.max_inner_size = Some(max_size);
         self
     }
@@ -222,14 +223,14 @@ impl WindowBuilder {
     ///
     /// Due to a bug in XFCE, this has no effect on Xfwm.
     #[inline]
-    pub fn with_resizable(mut self, resizable: bool) -> WindowBuilder {
+    pub fn with_resizable(mut self, resizable: bool) -> Self {
         self.window.resizable = resizable;
         self
     }
 
     /// Requests a specific title for the window.
     #[inline]
-    pub fn with_title<T: Into<String>>(mut self, title: T) -> WindowBuilder {
+    pub fn with_title<T: Into<String>>(mut self, title: T) -> Self {
         self.window.title = title.into();
         self
     }
@@ -241,42 +242,42 @@ impl WindowBuilder {
     ///
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> WindowBuilder {
+    pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> Self {
         self.window.fullscreen = monitor;
         self
     }
 
     /// Requests maximized mode.
     #[inline]
-    pub fn with_maximized(mut self, maximized: bool) -> WindowBuilder {
+    pub fn with_maximized(mut self, maximized: bool) -> Self {
         self.window.maximized = maximized;
         self
     }
 
     /// Sets whether the window will be initially hidden or visible.
     #[inline]
-    pub fn with_visible(mut self, visible: bool) -> WindowBuilder {
+    pub fn with_visible(mut self, visible: bool) -> Self {
         self.window.visible = visible;
         self
     }
 
     /// Sets whether the background of the window should be transparent.
     #[inline]
-    pub fn with_transparent(mut self, transparent: bool) -> WindowBuilder {
+    pub fn with_transparent(mut self, transparent: bool) -> Self {
         self.window.transparent = transparent;
         self
     }
 
     /// Sets whether the window should have a border, a title bar, etc.
     #[inline]
-    pub fn with_decorations(mut self, decorations: bool) -> WindowBuilder {
+    pub fn with_decorations(mut self, decorations: bool) -> Self {
         self.window.decorations = decorations;
         self
     }
 
     /// Sets whether or not the window will always be on top of other windows.
     #[inline]
-    pub fn with_always_on_top(mut self, always_on_top: bool) -> WindowBuilder {
+    pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
         self.window.always_on_top = always_on_top;
         self
     }
@@ -294,7 +295,7 @@ impl WindowBuilder {
     /// X11 has no universal guidelines for icon sizes, so you're at the whims of the WM. That
     /// said, it's usually in the same ballpark as on Windows.
     #[inline]
-    pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> WindowBuilder {
+    pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
         self.window.window_icon = window_icon;
         self
     }
