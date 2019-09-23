@@ -119,7 +119,7 @@ impl UnownedWindow {
                     .unwrap_or(1.0)
             })
         } else {
-            return Err(os_error!(OsError::XMisc("No monitors were detected.")));
+            1.0
         };
 
         info!("Guessed window DPI factor: {}", dpi_factor);
@@ -298,9 +298,7 @@ impl UnownedWindow {
 
             window.set_pid().map(|flusher| flusher.queue());
 
-            if pl_attribs.x11_window_type != Default::default() {
-                window.set_window_type(pl_attribs.x11_window_type).queue();
-            }
+            window.set_window_types(pl_attribs.x11_window_types).queue();
 
             if let Some(variant) = pl_attribs.gtk_theme_variant {
                 window.set_gtk_theme_variant(variant).queue();
@@ -483,15 +481,19 @@ impl UnownedWindow {
         }
     }
 
-    fn set_window_type(&self, window_type: util::WindowType) -> util::Flusher<'_> {
+    fn set_window_types(&self, window_types: Vec<util::WindowType>) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE\0") };
-        let window_type_atom = window_type.as_atom(&self.xconn);
+        let atoms: Vec<_> = window_types
+            .iter()
+            .map(|t| t.as_atom(&self.xconn))
+            .collect();
+
         self.xconn.change_property(
             self.xwindow,
             hint_atom,
             ffi::XA_ATOM,
             util::PropMode::Replace,
-            &[window_type_atom],
+            &atoms,
         )
     }
 
@@ -635,6 +637,11 @@ impl UnownedWindow {
                     _ => unreachable!(),
                 };
 
+                // Don't set fullscreen on an invalid dummy monitor handle
+                if monitor.id == 0 {
+                    return None;
+                }
+
                 if let Some(video_mode) = video_mode {
                     // FIXME: this is actually not correct if we're setting the
                     // video mode to a resolution higher than the current
@@ -702,11 +709,11 @@ impl UnownedWindow {
     pub fn current_monitor(&self) -> X11MonitorHandle {
         let monitor = self.shared_state.lock().last_monitor.as_ref().cloned();
         monitor.unwrap_or_else(|| {
-            let monitor = self
-                .xconn
-                .get_monitor_for_window(Some(self.get_rect()))
-                .to_owned();
-            self.shared_state.lock().last_monitor = Some(monitor.clone());
+            let monitor = self.xconn.get_monitor_for_window(Some(self.get_rect()));
+            // Avoid caching an invalid dummy monitor handle
+            if monitor.id != 0 {
+                self.shared_state.lock().last_monitor = Some(monitor.clone());
+            }
             monitor
         })
     }

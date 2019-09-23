@@ -130,6 +130,19 @@ impl MonitorHandle {
         })
     }
 
+    fn dummy() -> Self {
+        MonitorHandle {
+            id: 0,
+            name: "<dummy monitor>".into(),
+            hidpi_factor: 1.0,
+            dimensions: (1, 1),
+            position: (0, 0),
+            primary: true,
+            rect: util::AaRect::new((0, 0), (1, 1)),
+            video_modes: Vec::new(),
+        }
+    }
+
     pub fn name(&self) -> Option<String> {
         Some(self.name.clone())
     }
@@ -167,9 +180,13 @@ impl MonitorHandle {
 impl XConnection {
     pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>) -> MonitorHandle {
         let monitors = self.available_monitors();
-        let default = monitors
-            .get(0)
-            .expect("[winit] Failed to find any monitors using XRandR.");
+
+        if monitors.is_empty() {
+            // Return a dummy monitor to avoid panicking
+            return MonitorHandle::dummy();
+        }
+
+        let default = monitors.get(0).unwrap();
 
         let window_rect = match window_rect {
             Some(rect) => rect,
@@ -259,7 +276,7 @@ impl XConnection {
         self.available_monitors()
             .into_iter()
             .find(|monitor| monitor.primary)
-            .expect("[winit] Failed to find any monitors using XRandR.")
+            .unwrap_or_else(MonitorHandle::dummy)
     }
 
     pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, XError> {

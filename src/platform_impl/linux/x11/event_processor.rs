@@ -389,7 +389,11 @@ impl<T: 'static> EventProcessor<T> {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
                             monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
                             let new_hidpi_factor = monitor.hidpi_factor;
-                            shared_state_lock.last_monitor = Some(monitor.clone());
+
+                            // Avoid caching an invalid dummy monitor handle
+                            if monitor.id != 0 {
+                                shared_state_lock.last_monitor = Some(monitor.clone());
+                            }
                             new_hidpi_factor
                         };
                         if last_hidpi_factor != new_hidpi_factor {
