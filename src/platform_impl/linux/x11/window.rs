@@ -957,9 +957,18 @@ impl UnownedWindow {
     }
 
     pub(crate) fn set_position_physical(&self, x: i32, y: i32) {
-        self.set_position_inner(x, y)
-            .flush()
-            .expect("Failed to call `XMoveWindow`");
+        let mut shared_state = self.shared_state.lock();
+
+        if shared_state.fullscreen.is_some() {
+            shared_state.restore_position = Some((x, y));
+        } else {
+            // Drop the guard to prevent deadlock
+            drop(shared_state);
+
+            self.set_position_inner(x, y)
+                .flush()
+                .expect("Failed to call `XMoveWindow`");
+        }
     }
 
     #[inline]
