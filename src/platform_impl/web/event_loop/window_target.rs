@@ -37,7 +37,6 @@ impl<T> WindowTarget<T> {
 
     pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {
         let runner = self.runner.clone();
-
         canvas.on_blur(move || {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
@@ -162,6 +161,18 @@ impl<T> WindowTarget<T> {
                     modifiers,
                 },
             });
+        });
+        
+        let runner = self.runner.clone();
+        canvas.on_fullscreen_change(move || {
+            // If the canvas is marked as fullscreen, it is moving *into* fullscreen
+            // If it is not, it is moving *out of* fullscreen
+            // TODO: determine the proper canvas size
+            if canvas.is_fullscreen() {
+            } else {
+
+            }
+            // TODO: issue a resize and a redraw requested
         });
     }
 }

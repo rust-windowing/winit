@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{Element, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
+use web_sys::{Element, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
 
 pub struct Canvas {
     raw: HtmlCanvasElement,
@@ -24,7 +24,11 @@ pub struct Canvas {
     on_mouse_press: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_release: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
+    on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
+    on_fullscreen_change: Option<Closure<dyn FnMut(Wheel)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
+    // Used to smoothly resize canvas when it enters and exits fullscreen
+    intended_size: Rc<RefCell<LogicalSize>>,
 }
 
 impl Drop for Canvas {
@@ -73,7 +77,12 @@ impl Canvas {
             on_mouse_release: None,
             on_mouse_press: None,
             on_mouse_wheel: None,
+            on_fullscreen_change: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
+            intended_size: Rc::new(RefCell::new(LogicalSize {
+                x: 0,
+                y: 0,
+            }))
         })
     }
 
@@ -97,9 +106,17 @@ impl Canvas {
         self.raw.height() as f64
     }
 
-    pub fn set_size(&self, size: LogicalSize) {
+    pub fn set_size(&self, size: LogicalSize, intended: bool) {
         self.raw.set_width(size.width as u32);
         self.raw.set_height(size.height as u32);
+
+        if intended {
+            *self.intended_size.borrow_mut() = size;
+        }
+    }
+
+    pub fn get_size(&self) -> LogicalSize {
+        *self.intended_size.borrow()
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {
@@ -248,6 +265,13 @@ impl Canvas {
                 handler(0, delta, event::mouse_modifiers(&event));
             }
         }));
+    }
+
+    pub fn on_fullscreen_change<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut()
+    {
+        self.on_fullscreen_change = Some(self.add_event("fullscreenchange", move |event: Event| handler()));
     }
 
     fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
