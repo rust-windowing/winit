@@ -10,19 +10,21 @@ impl Handle {
     }
 
     pub fn position(&self) -> PhysicalPosition {
-        unimplemented!();
+        PhysicalPosition { x: 0.0, y: 0.0 }
     }
 
     pub fn name(&self) -> Option<String> {
-        unimplemented!();
+        None
     }
 
     pub fn size(&self) -> PhysicalSize {
-        unimplemented!();
+        PhysicalSize {
+            width: 0.0,
+            height: 0.0,
+        }
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        // TODO: is this possible ?
         std::iter::empty()
     }
 }
@@ -45,9 +47,6 @@ impl Mode {
     }
 
     pub fn monitor(&self) -> MonitorHandle {
-        MonitorHandle {
-            inner: Handle
-        }
+        MonitorHandle { inner: Handle }
     }
 }
-

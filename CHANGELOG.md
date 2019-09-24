@@ -1,4 +1,5 @@
 # Unreleased
+- Add web support via the 'stdweb' or 'web-sys' features
 
 - On macOS, implement `run_return`.
 - On iOS, fix inverted parameter in `set_prefers_home_indicator_hidden`.

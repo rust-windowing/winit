@@ -4,7 +4,7 @@ use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWI};
 
-use raw_window_handle::{RawWindowHandle, web::WebHandle};
+use raw_window_handle::web::WebHandle;
 
 use super::{backend, monitor, EventLoopWindowTarget};
 
@@ -179,13 +179,13 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
-        // TODO: pointer capture
+        // Intentionally a no-op, as the web does not support setting cursor positions
         Ok(())
     }
 
     #[inline]
     pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        // TODO: pointer capture
+        // Intentionally a no-op, as the web does not (properly) support grabbing the cursor
         Ok(())
     }
 
@@ -201,7 +201,7 @@ impl Window {
 
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
-        // TODO: should there be a maximization / fullscreen API?
+        // Intentionally a no-op, as canvases cannot be 'maximized'
     }
 
     #[inline]
@@ -232,7 +232,7 @@ impl Window {
 
     #[inline]
     pub fn set_ime_position(&self, _position: LogicalPosition) {
-        // TODO: what is this?
+        // Currently a no-op as it does not seem there is good support for this on web
     }
 
     #[inline]

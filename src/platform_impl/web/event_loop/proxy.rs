@@ -2,7 +2,7 @@ use super::runner;
 use crate::event::Event;
 use crate::event_loop::EventLoopClosed;
 
-pub struct Proxy<T: 'static>{
+pub struct Proxy<T: 'static> {
     runner: runner::Shared<T>,
 }
 
@@ -20,7 +20,7 @@ impl<T: 'static> Proxy<T> {
 impl<T: 'static> Clone for Proxy<T> {
     fn clone(&self) -> Self {
         Proxy {
-            runner: self.runner.clone()
+            runner: self.runner.clone(),
         }
     }
 }

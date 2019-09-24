@@ -145,12 +145,20 @@ impl MonitorHandle {
     /// Returns a human-readable name of the monitor.
     ///
     /// Returns `None` if the monitor doesn't exist anymore.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Always returns None
     #[inline]
     pub fn name(&self) -> Option<String> {
         self.inner.name()
     }
 
     /// Returns the monitor's resolution.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Always returns (0,0)
     #[inline]
     pub fn size(&self) -> PhysicalSize {
         self.inner.size()
@@ -158,6 +166,10 @@ impl MonitorHandle {
 
     /// Returns the top-left corner position of the monitor relative to the larger full
     /// screen area.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Always returns (0,0)
     #[inline]
     pub fn position(&self) -> PhysicalPosition {
         self.inner.position()
@@ -171,12 +183,17 @@ impl MonitorHandle {
     ///
     /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
+    /// - **Web:** Always returns 1.0
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
         self.inner.hidpi_factor()
     }
 
     /// Returns all fullscreen video modes supported by this monitor.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Web:** Always returns an empty iterator
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         self.inner.video_modes()
