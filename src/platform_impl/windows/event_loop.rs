@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! An events loop on Win32 is a background thread.
 //!
 //! Creating an events loop spawns a thread and blocks it in a permanent Win32 events loop.
@@ -38,14 +39,14 @@ use winapi::{
     },
     um::{
         commctrl, libloaderapi, ole2, processthreadsapi, winbase,
-        winnt::{LONG, LPCSTR, SHORT},
+        winnt::{HANDLE, LONG, LPCSTR, SHORT},
         winuser,
     },
 };
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalSize},
-    event::{DeviceEvent, Event, KeyboardInput, StartCause, Touch, TouchPhase, WindowEvent},
+    event::{DeviceEvent, Event, Force, KeyboardInput, StartCause, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
         dpi::{
@@ -61,6 +62,39 @@ use crate::{
     },
     window::WindowId as RootWindowId,
 };
+
+type GetPointerFrameInfoHistory = unsafe extern "system" fn(
+    pointerId: UINT,
+    entriesCount: *mut UINT,
+    pointerCount: *mut UINT,
+    pointerInfo: *mut winuser::POINTER_INFO,
+) -> BOOL;
+
+type SkipPointerFrameMessages = unsafe extern "system" fn(pointerId: UINT) -> BOOL;
+type GetPointerDeviceRects = unsafe extern "system" fn(
+    device: HANDLE,
+    pointerDeviceRect: *mut RECT,
+    displayRect: *mut RECT,
+) -> BOOL;
+
+type GetPointerTouchInfo =
+    unsafe extern "system" fn(pointerId: UINT, touchInfo: *mut winuser::POINTER_TOUCH_INFO) -> BOOL;
+
+type GetPointerPenInfo =
+    unsafe extern "system" fn(pointId: UINT, penInfo: *mut winuser::POINTER_PEN_INFO) -> BOOL;
+
+lazy_static! {
+    static ref GET_POINTER_FRAME_INFO_HISTORY: Option<GetPointerFrameInfoHistory> =
+        get_function!("user32.dll", GetPointerFrameInfoHistory);
+    static ref SKIP_POINTER_FRAME_MESSAGES: Option<SkipPointerFrameMessages> =
+        get_function!("user32.dll", SkipPointerFrameMessages);
+    static ref GET_POINTER_DEVICE_RECTS: Option<GetPointerDeviceRects> =
+        get_function!("user32.dll", GetPointerDeviceRects);
+    static ref GET_POINTER_TOUCH_INFO: Option<GetPointerTouchInfo> =
+        get_function!("user32.dll", GetPointerTouchInfo);
+    static ref GET_POINTER_PEN_INFO: Option<GetPointerPenInfo> =
+        get_function!("user32.dll", GetPointerPenInfo);
+}
 
 pub(crate) struct SubclassInput<T> {
     pub window_state: Arc<Mutex<WindowState>>,
@@ -654,12 +688,20 @@ impl EventLoopThreadExecutor {
 
 type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     target_window: HWND,
     event_send: Sender<T>,
 }
 unsafe impl<T: Send + 'static> Send for EventLoopProxy<T> {}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        Self {
+            target_window: self.target_window,
+            event_send: self.event_send.clone(),
+        }
+    }
+}
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
@@ -818,6 +860,13 @@ pub(crate) fn subclass_window<T>(window: HWND, subclass_input: SubclassInput<T>)
         )
     };
     assert_eq!(subclass_result, 1);
+}
+
+fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
+    match pressure {
+        1..=1024 => Some(Force::Normalized(pressure as f64 / 1024.0)),
+        _ => None,
+    }
 }
 
 /// Any window whose callback is configured to this function will have its events propagated
@@ -982,11 +1031,34 @@ unsafe extern "system" fn public_window_callback<T>(
 
         winuser::WM_CHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
-            let chr: char = mem::transmute(wparam as u32);
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: ReceivedCharacter(chr),
-            });
+            use std::char;
+            let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
+            let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
+
+            if is_high_surrogate {
+                subclass_input.window_state.lock().high_surrogate = Some(wparam as u16);
+            } else if is_low_surrogate {
+                let high_surrogate = subclass_input.window_state.lock().high_surrogate.take();
+
+                if let Some(high_surrogate) = high_surrogate {
+                    let pair = [high_surrogate, wparam as u16];
+                    if let Some(Ok(chr)) = char::decode_utf16(pair.iter().copied()).next() {
+                        subclass_input.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: ReceivedCharacter(chr),
+                        });
+                    }
+                }
+            } else {
+                subclass_input.window_state.lock().high_surrogate = None;
+
+                if let Some(chr) = char::from_u32(wparam as u32) {
+                    subclass_input.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: ReceivedCharacter(chr),
+                    });
+                }
+            }
             0
         }
 
@@ -995,6 +1067,17 @@ unsafe extern "system" fn public_window_callback<T>(
         // with wparam being SC_KEYMENU, but this may prevent some
         // other unwanted default hotkeys as well.
         winuser::WM_SYSCHAR => 0,
+
+        winuser::WM_SYSCOMMAND => {
+            if wparam == winuser::SC_SCREENSAVE {
+                let window_state = subclass_input.window_state.lock();
+                if window_state.fullscreen.is_some() {
+                    return 0;
+                }
+            }
+
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
+        }
 
         winuser::WM_MOUSEMOVE => {
             use crate::event::WindowEvent::{CursorEntered, CursorMoved};
@@ -1431,8 +1514,17 @@ unsafe extern "system" fn public_window_callback<T>(
             {
                 let dpi_factor = hwnd_scale_factor(window);
                 for input in &inputs {
-                    let x = (input.x as f64) / 100f64;
-                    let y = (input.y as f64) / 100f64;
+                    let mut location = POINT {
+                        x: input.x / 100,
+                        y: input.y / 100,
+                    };
+
+                    if winuser::ScreenToClient(window, &mut location as *mut _) == 0 {
+                        continue;
+                    }
+
+                    let x = location.x as f64 + (input.x % 100) as f64 / 100f64;
+                    let y = location.y as f64 + (input.y % 100) as f64 / 100f64;
                     let location = LogicalPosition::from_physical((x, y), dpi_factor);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
@@ -1447,6 +1539,7 @@ unsafe extern "system" fn public_window_callback<T>(
                                 continue;
                             },
                             location,
+                            force: None, // WM_TOUCH doesn't support pressure information
                             id: input.dwID as u64,
                             device_id: DEVICE_ID,
                         }),
@@ -1454,6 +1547,147 @@ unsafe extern "system" fn public_window_callback<T>(
                 }
             }
             winuser::CloseTouchInputHandle(htouch);
+            0
+        }
+
+        winuser::WM_POINTERDOWN | winuser::WM_POINTERUPDATE | winuser::WM_POINTERUP => {
+            if let (
+                Some(GetPointerFrameInfoHistory),
+                Some(SkipPointerFrameMessages),
+                Some(GetPointerDeviceRects),
+            ) = (
+                *GET_POINTER_FRAME_INFO_HISTORY,
+                *SKIP_POINTER_FRAME_MESSAGES,
+                *GET_POINTER_DEVICE_RECTS,
+            ) {
+                let pointer_id = LOWORD(wparam as DWORD) as UINT;
+                let mut entries_count = 0 as UINT;
+                let mut pointers_count = 0 as UINT;
+                if GetPointerFrameInfoHistory(
+                    pointer_id,
+                    &mut entries_count as *mut _,
+                    &mut pointers_count as *mut _,
+                    std::ptr::null_mut(),
+                ) == 0
+                {
+                    return 0;
+                }
+
+                let pointer_info_count = (entries_count * pointers_count) as usize;
+                let mut pointer_infos = Vec::with_capacity(pointer_info_count);
+                pointer_infos.set_len(pointer_info_count);
+                if GetPointerFrameInfoHistory(
+                    pointer_id,
+                    &mut entries_count as *mut _,
+                    &mut pointers_count as *mut _,
+                    pointer_infos.as_mut_ptr(),
+                ) == 0
+                {
+                    return 0;
+                }
+
+                let dpi_factor = hwnd_scale_factor(window);
+                // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getpointerframeinfohistory
+                // The information retrieved appears in reverse chronological order, with the most recent entry in the first
+                // row of the returned array
+                for pointer_info in pointer_infos.iter().rev() {
+                    let mut device_rect = mem::MaybeUninit::uninit();
+                    let mut display_rect = mem::MaybeUninit::uninit();
+
+                    if (GetPointerDeviceRects(
+                        pointer_info.sourceDevice,
+                        device_rect.as_mut_ptr(),
+                        display_rect.as_mut_ptr(),
+                    )) == 0
+                    {
+                        continue;
+                    }
+
+                    let device_rect = device_rect.assume_init();
+                    let display_rect = display_rect.assume_init();
+
+                    // For the most precise himetric to pixel conversion we calculate the ratio between the resolution
+                    // of the display device (pixel) and the touch device (himetric).
+                    let himetric_to_pixel_ratio_x = (display_rect.right - display_rect.left) as f64
+                        / (device_rect.right - device_rect.left) as f64;
+                    let himetric_to_pixel_ratio_y = (display_rect.bottom - display_rect.top) as f64
+                        / (device_rect.bottom - device_rect.top) as f64;
+
+                    // ptHimetricLocation's origin is 0,0 even on multi-monitor setups.
+                    // On multi-monitor setups we need to translate the himetric location to the rect of the
+                    // display device it's attached to.
+                    let x = display_rect.left as f64
+                        + pointer_info.ptHimetricLocation.x as f64 * himetric_to_pixel_ratio_x;
+                    let y = display_rect.top as f64
+                        + pointer_info.ptHimetricLocation.y as f64 * himetric_to_pixel_ratio_y;
+
+                    let mut location = POINT {
+                        x: x.floor() as i32,
+                        y: y.floor() as i32,
+                    };
+
+                    if winuser::ScreenToClient(window, &mut location as *mut _) == 0 {
+                        continue;
+                    }
+
+                    let force = match pointer_info.pointerType {
+                        winuser::PT_TOUCH => {
+                            let mut touch_info = mem::MaybeUninit::uninit();
+                            GET_POINTER_TOUCH_INFO.and_then(|GetPointerTouchInfo| {
+                                match GetPointerTouchInfo(
+                                    pointer_info.pointerId,
+                                    touch_info.as_mut_ptr(),
+                                ) {
+                                    0 => None,
+                                    _ => normalize_pointer_pressure(
+                                        touch_info.assume_init().pressure,
+                                    ),
+                                }
+                            })
+                        }
+                        winuser::PT_PEN => {
+                            let mut pen_info = mem::MaybeUninit::uninit();
+                            GET_POINTER_PEN_INFO.and_then(|GetPointerPenInfo| {
+                                match GetPointerPenInfo(
+                                    pointer_info.pointerId,
+                                    pen_info.as_mut_ptr(),
+                                ) {
+                                    0 => None,
+                                    _ => {
+                                        normalize_pointer_pressure(pen_info.assume_init().pressure)
+                                    }
+                                }
+                            })
+                        }
+                        _ => None,
+                    };
+
+                    let x = location.x as f64 + x.fract();
+                    let y = location.y as f64 + y.fract();
+                    let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                    subclass_input.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: WindowEvent::Touch(Touch {
+                            phase: if pointer_info.pointerFlags & winuser::POINTER_FLAG_DOWN != 0 {
+                                TouchPhase::Started
+                            } else if pointer_info.pointerFlags & winuser::POINTER_FLAG_UP != 0 {
+                                TouchPhase::Ended
+                            } else if pointer_info.pointerFlags & winuser::POINTER_FLAG_UPDATE != 0
+                            {
+                                TouchPhase::Moved
+                            } else {
+                                continue;
+                            },
+                            location,
+                            force,
+                            id: pointer_info.pointerId as u64,
+                            device_id: DEVICE_ID,
+                        }),
+                    });
+                }
+
+                SkipPointerFrameMessages(pointer_id);
+            }
             0
         }
 

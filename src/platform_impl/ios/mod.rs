@@ -79,7 +79,7 @@ use std::fmt;
 
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
-    monitor::MonitorHandle,
+    monitor::{MonitorHandle, VideoMode},
     window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
 };
 

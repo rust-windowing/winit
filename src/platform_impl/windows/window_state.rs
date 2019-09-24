@@ -1,8 +1,7 @@
 use crate::{
     dpi::LogicalSize,
-    monitor::MonitorHandle,
     platform_impl::platform::{event_loop, icon::WinIcon, util},
-    window::{CursorIcon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 use parking_lot::MutexGuard;
 use std::{io, ptr};
@@ -29,10 +28,11 @@ pub struct WindowState {
     pub saved_window: Option<SavedWindow>,
     pub dpi_factor: f64,
 
-    pub fullscreen: Option<MonitorHandle>,
+    pub fullscreen: Option<Fullscreen>,
     /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
     /// times in `EventsCleared`.
     pub queued_out_of_band_redraw: bool,
+    pub high_surrogate: Option<u16>,
     window_flags: WindowFlags,
 }
 
@@ -84,6 +84,7 @@ bitflags! {
             WindowFlags::RESIZABLE.bits |
             WindowFlags::MAXIMIZED.bits
         );
+        const FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
         const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
         const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
     }
@@ -114,6 +115,7 @@ impl WindowState {
 
             fullscreen: None,
             queued_out_of_band_redraw: false,
+            high_surrogate: None,
             window_flags: WindowFlags::empty(),
         }
     }
@@ -122,32 +124,16 @@ impl WindowState {
         self.window_flags
     }
 
-    pub fn set_window_flags<F>(
-        mut this: MutexGuard<'_, Self>,
-        window: HWND,
-        set_client_rect: Option<RECT>,
-        f: F,
-    ) where
+    pub fn set_window_flags<F>(mut this: MutexGuard<'_, Self>, window: HWND, f: F)
+    where
         F: FnOnce(&mut WindowFlags),
     {
         let old_flags = this.window_flags;
         f(&mut this.window_flags);
-
-        let is_fullscreen = this.fullscreen.is_some();
-        this.window_flags
-            .set(WindowFlags::MARKER_FULLSCREEN, is_fullscreen);
         let new_flags = this.window_flags;
 
         drop(this);
-        old_flags.apply_diff(window, new_flags, set_client_rect);
-    }
-
-    pub fn refresh_window_state(
-        this: MutexGuard<'_, Self>,
-        window: HWND,
-        set_client_rect: Option<RECT>,
-    ) {
-        Self::set_window_flags(this, window, set_client_rect, |_| ());
+        old_flags.apply_diff(window, new_flags);
     }
 
     pub fn set_window_flags_in_place<F>(&mut self, f: F)
@@ -185,6 +171,7 @@ impl WindowFlags {
     fn mask(mut self) -> WindowFlags {
         if self.contains(WindowFlags::MARKER_FULLSCREEN) {
             self &= WindowFlags::FULLSCREEN_AND_MASK;
+            self |= WindowFlags::FULLSCREEN_OR_MASK;
         }
         if !self.contains(WindowFlags::VISIBLE) {
             self &= WindowFlags::INVISIBLE_AND_MASK;
@@ -236,7 +223,7 @@ impl WindowFlags {
     }
 
     /// Adjust the window client rectangle to the return value, if present.
-    fn apply_diff(mut self, window: HWND, mut new: WindowFlags, set_client_rect: Option<RECT>) {
+    fn apply_diff(mut self, window: HWND, mut new: WindowFlags) {
         self = self.mask();
         new = new.mask();
 
@@ -295,45 +282,20 @@ impl WindowFlags {
                 winuser::SetWindowLongW(window, winuser::GWL_STYLE, style as _);
                 winuser::SetWindowLongW(window, winuser::GWL_EXSTYLE, style_ex as _);
 
-                match set_client_rect
-                    .and_then(|r| util::adjust_window_rect_with_styles(window, style, style_ex, r))
-                {
-                    Some(client_rect) => {
-                        let (x, y, w, h) = (
-                            client_rect.left,
-                            client_rect.top,
-                            client_rect.right - client_rect.left,
-                            client_rect.bottom - client_rect.top,
-                        );
-                        winuser::SetWindowPos(
-                            window,
-                            ptr::null_mut(),
-                            x,
-                            y,
-                            w,
-                            h,
-                            winuser::SWP_NOZORDER
-                                | winuser::SWP_FRAMECHANGED
-                                | winuser::SWP_NOACTIVATE,
-                        );
-                    }
-                    None => {
-                        // Refresh the window frame.
-                        winuser::SetWindowPos(
-                            window,
-                            ptr::null_mut(),
-                            0,
-                            0,
-                            0,
-                            0,
-                            winuser::SWP_NOZORDER
-                                | winuser::SWP_NOMOVE
-                                | winuser::SWP_NOSIZE
-                                | winuser::SWP_FRAMECHANGED
-                                | winuser::SWP_NOACTIVATE,
-                        );
-                    }
+                let mut flags = winuser::SWP_NOZORDER
+                    | winuser::SWP_NOMOVE
+                    | winuser::SWP_NOSIZE
+                    | winuser::SWP_FRAMECHANGED;
+
+                // We generally don't want style changes here to affect window
+                // focus, but for fullscreen windows they must be activated
+                // (i.e. focused) so that they appear on top of the taskbar
+                if !new.contains(WindowFlags::MARKER_FULLSCREEN) {
+                    flags |= winuser::SWP_NOACTIVATE;
                 }
+
+                // Refresh the window frame
+                winuser::SetWindowPos(window, ptr::null_mut(), 0, 0, 0, 0, flags);
                 winuser::SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 0, 0);
             }
         }
@@ -345,10 +307,25 @@ impl CursorFlags {
         let client_rect = util::get_client_rect(window)?;
 
         if util::is_focused(window) {
-            if self.contains(CursorFlags::GRABBED) {
-                util::set_cursor_clip(Some(client_rect))?;
-            } else {
-                util::set_cursor_clip(None)?;
+            let cursor_clip = match self.contains(CursorFlags::GRABBED) {
+                true => Some(client_rect),
+                false => None,
+            };
+
+            let rect_to_tuple = |rect: RECT| (rect.left, rect.top, rect.right, rect.bottom);
+            let active_cursor_clip = rect_to_tuple(util::get_cursor_clip()?);
+            let desktop_rect = rect_to_tuple(util::get_desktop_rect());
+
+            let active_cursor_clip = match desktop_rect == active_cursor_clip {
+                true => None,
+                false => Some(active_cursor_clip),
+            };
+
+            // We do this check because calling `set_cursor_clip` incessantly will flood the event
+            // loop with `WM_MOUSEMOVE` events, and `refresh_os_cursor` is called by `set_cursor_flags`
+            // which at times gets called once every iteration of the eventloop.
+            if active_cursor_clip != cursor_clip.map(rect_to_tuple) {
+                util::set_cursor_clip(cursor_clip)?;
             }
         }
 
