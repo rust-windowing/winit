@@ -2,15 +2,7 @@
 fn main() {
     extern crate env_logger;
 
-<<<<<<< HEAD
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
-=======
-use winit::{
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::{CursorIcon, Fullscreen, WindowBuilder},
-};
->>>>>>> master
 
     use winit::{
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},

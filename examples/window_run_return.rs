@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-#[cfg(not(target_arch = "wasm32"))]
-=======
 // Limit this example to only compatible platforms.
 #[cfg(any(
     target_os = "windows",
@@ -11,7 +8,6 @@
     target_os = "netbsd",
     target_os = "openbsd"
 ))]
->>>>>>> master
 fn main() {
     use winit::{
         event::{Event, WindowEvent},
@@ -19,10 +15,6 @@ fn main() {
         platform::desktop::EventLoopExtDesktop,
         window::WindowBuilder,
     };
-<<<<<<< HEAD
-=======
-
->>>>>>> master
     let mut event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
@@ -57,13 +49,7 @@ fn main() {
     println!("Okay we're done now for real.");
 }
 
-<<<<<<< HEAD
-#[cfg(target_arch = "wasm32")]
-fn main() {
-    panic!("Example not supported on Wasm");
-=======
-#[cfg(any(target_os = "ios", target_os = "android"))]
+#[cfg(any(target_os = "ios", target_os = "android", target_arch = "wasm32"))]
 fn main() {
     println!("This platform doesn't support run_return.");
->>>>>>> master
 }
