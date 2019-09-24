@@ -10,10 +10,7 @@ impl Handle {
     }
 
     pub fn position(&self) -> PhysicalPosition {
-        PhysicalPosition {
-            x: 0.0,
-            y: 0.0,
-        }
+        PhysicalPosition { x: 0.0, y: 0.0 }
     }
 
     pub fn name(&self) -> Option<String> {
@@ -23,7 +20,7 @@ impl Handle {
     pub fn size(&self) -> PhysicalSize {
         PhysicalSize {
             width: 0.0,
-            height: 0.0
+            height: 0.0,
         }
     }
 

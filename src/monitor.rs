@@ -101,7 +101,7 @@ impl MonitorHandle {
     /// Returns `None` if the monitor doesn't exist anymore.
     ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **Web:** Always returns None
     #[inline]
     pub fn name(&self) -> Option<String> {
@@ -111,7 +111,7 @@ impl MonitorHandle {
     /// Returns the monitor's resolution.
     ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **Web:** Always returns (0,0)
     #[inline]
     pub fn size(&self) -> PhysicalSize {
@@ -122,7 +122,7 @@ impl MonitorHandle {
     /// screen area.
     ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **Web:** Always returns (0,0)
     #[inline]
     pub fn position(&self) -> PhysicalPosition {
