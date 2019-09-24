@@ -286,6 +286,10 @@ impl WindowBuilder {
     /// Builds the window.
     ///
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: The window is created but not inserted into the web page automatically. Please
+    /// see the web platform module for more information.
     #[inline]
     pub fn build<T: 'static>(
         self,
@@ -305,6 +309,10 @@ impl Window {
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: The window is created but not inserted into the web page automatically. Please
+    /// see the web platform module for more information.
     #[inline]
     pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
         let builder = WindowBuilder::new();
@@ -460,6 +468,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
         self.window.set_min_inner_size(dimensions)
@@ -470,6 +479,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
         self.window.set_max_inner_size(dimensions)
@@ -495,6 +505,7 @@ impl Window {
     ///
     /// - **Android:** Has no effect.
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_visible(&self, visible: bool) {
         self.window.set_visible(visible)
@@ -514,6 +525,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
@@ -524,6 +536,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.window.set_maximized(maximized)
@@ -555,6 +568,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Controls whether the status bar is hidden
     ///   via [`setPrefersStatusBarHidden`].
+    /// - **Web:** Has no effect.
     ///
     /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
     #[inline]
@@ -567,6 +581,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         self.window.set_always_on_top(always_on_top)
@@ -590,6 +605,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_ime_position(&self, position: LogicalPosition) {
         self.window.set_ime_position(position)
@@ -614,6 +630,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Always returns an `Err`.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
         self.window.set_cursor_position(position)
@@ -627,6 +644,7 @@ impl Window {
     ///   awkward.
     /// - **Android:** Has no effect.
     /// - **iOS:** Always returns an Err.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_grab(grab)

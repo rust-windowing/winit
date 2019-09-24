@@ -1,4 +1,5 @@
 # Unreleased
+- Add web support via the 'stdweb' or 'web-sys' features
 
 # 0.20.0 Alpha 2 (2019-07-09)
 
