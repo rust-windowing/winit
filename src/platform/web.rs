@@ -1,5 +1,10 @@
 #![cfg(target_arch = "wasm32")]
 
+//! The web target does not automatically insert the canvas element object into the web page, to
+//! allow end users to determine how the page should be laid out. Use the `WindowExtStdweb` or
+//! `WindowExtWebSys` traits (depending on your web backend) to retrieve the canvas from the
+//! Window.
+
 #[cfg(feature = "stdweb")]
 use stdweb::web::html_element::CanvasElement;
 
