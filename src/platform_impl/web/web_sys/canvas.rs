@@ -12,7 +12,6 @@ use web_sys::{Element, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, Poin
 
 pub struct Canvas {
     raw: HtmlCanvasElement,
-    on_redraw: Closure<dyn Fn()>,
     on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_keyboard_release: Option<Closure<dyn FnMut(KeyboardEvent)>>,
@@ -24,11 +23,10 @@ pub struct Canvas {
     on_mouse_press: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_release: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
-    on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
-    on_fullscreen_change: Option<Closure<dyn FnMut(Wheel)>>,
+    on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
     // Used to smoothly resize canvas when it enters and exits fullscreen
-    intended_size: Rc<RefCell<LogicalSize>>,
+    intended_size: RefCell<LogicalSize>,
 }
 
 impl Drop for Canvas {
@@ -38,10 +36,7 @@ impl Drop for Canvas {
 }
 
 impl Canvas {
-    pub fn create<F>(on_redraw: F) -> Result<Self, RootOE>
-    where
-        F: 'static + Fn(),
-    {
+    pub fn create() -> Result<Self, RootOE> {
         let window =
             web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
 
@@ -65,7 +60,6 @@ impl Canvas {
 
         Ok(Canvas {
             raw: canvas,
-            on_redraw: Closure::wrap(Box::new(on_redraw) as Box<dyn Fn()>),
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -79,10 +73,10 @@ impl Canvas {
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
-            intended_size: Rc::new(RefCell::new(LogicalSize {
-                x: 0,
-                y: 0,
-            }))
+            intended_size: RefCell::new(LogicalSize {
+                width: 0.0,
+                height: 0.0,
+            })
         })
     }
 
@@ -115,19 +109,20 @@ impl Canvas {
         }
     }
 
-    pub fn get_size(&self) -> LogicalSize {
+    pub fn intended_size(&self) -> LogicalSize {
         *self.intended_size.borrow()
+    }
+
+    pub fn window_size(&self) -> LogicalSize {
+        let window = web_sys::window().expect("Failed to obtain window");
+        let width = window.inner_width().expect("Failed to get width").as_f64().expect("Failed to get width as f64");
+        let height = window.inner_height().expect("Failed to get height").as_f64().expect("Failed to get height as f64");
+
+        LogicalSize { width, height }
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {
         &self.raw
-    }
-
-    pub fn request_redraw(&self) {
-        let window = web_sys::window().expect("Failed to obtain window");
-        window
-            .request_animation_frame(&self.on_redraw.as_ref().unchecked_ref())
-            .expect("Failed to request animation frame");
     }
 
     pub fn on_blur<F>(&mut self, mut handler: F)

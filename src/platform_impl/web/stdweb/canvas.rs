@@ -20,7 +20,6 @@ use stdweb::web::{
 
 pub struct Canvas {
     raw: CanvasElement,
-    on_redraw: Rc<dyn Fn()>,
     on_focus: Option<EventListenerHandle>,
     on_blur: Option<EventListenerHandle>,
     on_keyboard_release: Option<EventListenerHandle>,
@@ -42,10 +41,7 @@ impl Drop for Canvas {
 }
 
 impl Canvas {
-    pub fn create<F>(on_redraw: F) -> Result<Self, RootOE>
-    where
-        F: 'static + Fn(),
-    {
+    pub fn create() -> Result<Self, RootOE> {
         let canvas: CanvasElement = document()
             .create_element("canvas")
             .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
@@ -63,7 +59,6 @@ impl Canvas {
 
         Ok(Canvas {
             raw: canvas,
-            on_redraw: Rc::new(on_redraw),
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -106,11 +101,6 @@ impl Canvas {
 
     pub fn raw(&self) -> &CanvasElement {
         &self.raw
-    }
-
-    pub fn request_redraw(&self) {
-        let on_redraw = self.on_redraw.clone();
-        window().request_animation_frame(move |_| on_redraw());
     }
 
     pub fn on_blur<F>(&mut self, mut handler: F)
