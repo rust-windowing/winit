@@ -25,7 +25,7 @@ libc = "0.2"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 derivative = "1.0.2"
-raw-window-handle = "0.1"
+raw-window-handle = { git = "https://github.com/ryanisaacg/raw-window-handle", branch = "add-web-support" }
 
 [dev-dependencies]
 image = "0.21"
