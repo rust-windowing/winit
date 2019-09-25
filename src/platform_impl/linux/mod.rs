@@ -310,6 +310,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        match self {
+            &Window::X(ref w) => w.set_minimized(minimized),
+            &Window::Wayland(ref w) => w.set_minimized(minimized),
+        }
+    }
+
+    #[inline]
     pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
         match self {
             &Window::X(ref w) => w.fullscreen(),
