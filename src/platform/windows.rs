@@ -15,18 +15,52 @@ use crate::{
 
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopExtWindows {
+    /// Creates an event loop off of the main thread.
+    ///
+    /// # `Window` caveats
+    ///
+    /// Note that any `Window` created on the new thread will be destroyed when the thread
+    /// terminates. Attempting to use a `Window` after its parent thread terminates has
+    /// unspecified, although explicitly not undefined, behavior.
+    fn new_any_thread() -> Self
+    where
+        Self: Sized;
+
     /// By default, winit on Windows will attempt to enable process-wide DPI awareness. If that's
     /// undesirable, you can create an `EventLoop` using this function instead.
     fn new_dpi_unaware() -> Self
+    where
+        Self: Sized;
+
+    /// Creates a DPI-unaware event loop off of the main thread.
+    ///
+    /// The `Window` caveats in [`new_any_thread`](EventLoopExtWindows::new_any_thread) also apply here.
+    fn new_dpi_unaware_any_thread() -> Self
     where
         Self: Sized;
 }
 
 impl<T> EventLoopExtWindows for EventLoop<T> {
     #[inline]
+    fn new_any_thread() -> Self {
+        EventLoop {
+            event_loop: WindowsEventLoop::new_any_thread(),
+            _marker: ::std::marker::PhantomData,
+        }
+    }
+
+    #[inline]
     fn new_dpi_unaware() -> Self {
         EventLoop {
-            event_loop: WindowsEventLoop::with_dpi_awareness(false),
+            event_loop: WindowsEventLoop::new_dpi_unaware(),
+            _marker: ::std::marker::PhantomData,
+        }
+    }
+
+    #[inline]
+    fn new_dpi_unaware_any_thread() -> Self {
+        EventLoop {
+            event_loop: WindowsEventLoop::new_dpi_unaware_any_thread(),
             _marker: ::std::marker::PhantomData,
         }
     }

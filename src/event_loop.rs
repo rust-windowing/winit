@@ -30,6 +30,9 @@ use crate::{
 /// forbidding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
 /// `EventLoopProxy` allows you to wake up an `EventLoop` from another thread.
+///
+/// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.*** This
+/// isn't strictly necessary on some platforms, like Windows, but attempting to create
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
@@ -96,6 +99,16 @@ impl Default for ControlFlow {
 impl EventLoop<()> {
     /// Builds a new event loop with a `()` as the user event type.
     ///
+    /// Some platforms cannot run the event loop outside the main thread, so for cross-platform
+    /// compatibility purposes this function will panic when invoked outside the main thread.
+    /// If you absolutely need to create an event loop outside the main thread, your platform will
+    /// expose a `new_any_thread` function in its `EventLoopExt` trait.
+    ///
+    /// Usage will result in display backend initialisation, this can be controlled on linux
+    /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
+    /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
+    /// fallback on x11. If this variable is set with any other value, winit will panic.
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
@@ -107,10 +120,7 @@ impl EventLoop<()> {
 impl<T> EventLoop<T> {
     /// Builds a new event loop.
     ///
-    /// Usage will result in display backend initialisation, this can be controlled on linux
-    /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
-    /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
-    /// fallback on x11. If this variable is set with any other value, winit will panic.
+    /// All caveats documented in [`EventLoop::new`] apply to this function.
     ///
     /// ## Platform-specific
     ///
