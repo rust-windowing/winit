@@ -731,11 +731,7 @@ impl UnownedWindow {
             if minimized {
                 let screen = (self.xconn.xlib.XDefaultScreen)(self.xconn.display);
 
-                (self.xconn.xlib.XIconifyWindow)(
-                    self.xconn.display,
-                    self.xwindow,
-                    screen,
-                );
+                (self.xconn.xlib.XIconifyWindow)(self.xconn.display, self.xwindow, screen);
 
                 util::Flusher::new(&self.xconn)
             } else {

@@ -536,9 +536,9 @@ impl Window {
     }
 
     /// Sets the window to minimized or back
-    /// 
+    ///
     /// ## Platform-specific
-    /// 
+    ///
     /// - **iOS:** Has no effect
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {

@@ -616,7 +616,7 @@ impl UnownedWindow {
         self.set_style_mask_async(mask);
         self.set_maximized(maximized);
     }
-    
+
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         let is_minimized: BOOL = unsafe { msg_send![*self.ns_window, isMiniaturized] };
