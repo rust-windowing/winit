@@ -83,7 +83,17 @@ pub fn init_keyboard(
                 KbEvent::RepeatInfo { .. } => { /* Handled by smithay client toolkit */ }
                 KbEvent::Modifiers {
                     modifiers: event_modifiers,
-                } => *modifiers_tracker.lock().unwrap() = event_modifiers.into(),
+                } => {
+                    let modifiers = event_modifiers.into();
+
+                    *modifiers_tracker.lock().unwrap() = modifiers;
+
+                    if let Some(wid) = *target.lock().unwrap() {
+                        my_sink
+                            .send((WindowEvent::ModifiersChanged { modifiers }, wid))
+                            .unwrap();
+                    }
+                }
             }
         },
         move |repeat_event: KeyRepeatEvent, _| {
@@ -127,11 +137,12 @@ pub fn init_keyboard(
             // In this case, we don't have the keymap information (it is
             // supposed to be serialized by the compositor using libxkbcommon)
 
-            // { variables to be captured by the closure
-            let mut target = None;
-            let my_sink = sink;
-            // }
             seat.get_keyboard(|keyboard| {
+                // { variables to be captured by the closure
+                let mut target = None;
+                let my_sink = sink;
+                // }
+
                 keyboard.implement_closure(
                     move |evt, _| match evt {
                         wl_keyboard::Event::Enter { surface, .. } => {

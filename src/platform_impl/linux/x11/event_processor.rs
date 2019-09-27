@@ -8,6 +8,8 @@ use super::{
     XExtension,
 };
 
+use util::modifiers::{ModifierKeyState, ModifierKeymap};
+
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{DeviceEvent, Event, KeyboardInput, ModifiersState, WindowEvent},
@@ -21,6 +23,9 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
     pub(super) target: Rc<RootELW<T>>,
+    pub(super) mod_keymap: ModifierKeymap,
+    pub(super) device_mod_state: ModifierKeyState,
+    pub(super) window_mod_state: ModifierKeyState,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -112,12 +117,22 @@ impl<T: 'static> EventProcessor<T> {
         let event_type = xev.get_type();
         match event_type {
             ffi::MappingNotify => {
-                unsafe {
-                    (wt.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
+                let mapping: &ffi::XMappingEvent = xev.as_ref();
+
+                if mapping.request == ffi::MappingModifier
+                    || mapping.request == ffi::MappingKeyboard
+                {
+                    unsafe {
+                        (wt.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
+                    }
+                    wt.xconn
+                        .check_errors()
+                        .expect("Failed to call XRefreshKeyboardMapping");
+
+                    self.mod_keymap.reset_from_x_connection(&wt.xconn);
+                    self.device_mod_state.update(&self.mod_keymap);
+                    self.window_mod_state.update(&self.mod_keymap);
                 }
-                wt.xconn
-                    .check_errors()
-                    .expect("Failed to call XRefreshKeyboardMapping");
             }
 
             ffi::ClientMessage => {
@@ -131,6 +146,16 @@ impl<T: 'static> EventProcessor<T> {
                         window_id,
                         event: WindowEvent::CloseRequested,
                     });
+                } else if client_msg.data.get_long(0) as ffi::Atom == wt.net_wm_ping {
+                    let response_msg: &mut ffi::XClientMessageEvent = xev.as_mut();
+                    response_msg.window = wt.root;
+                    wt.xconn
+                        .send_event(
+                            wt.root,
+                            Some(ffi::SubstructureNotifyMask | ffi::SubstructureRedirectMask),
+                            *response_msg,
+                        )
+                        .queue();
                 } else if client_msg.message_type == self.dnd.atoms.enter {
                     let source_window = client_msg.data.get_long(0) as c_ulong;
                     let flags = client_msg.data.get_long(1);
@@ -364,7 +389,11 @@ impl<T: 'static> EventProcessor<T> {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
                             monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
                             let new_hidpi_factor = monitor.hidpi_factor;
-                            shared_state_lock.last_monitor = Some(monitor.clone());
+
+                            // Avoid caching an invalid dummy monitor handle
+                            if monitor.id != 0 {
+                                shared_state_lock.last_monitor = Some(monitor.clone());
+                            }
                             new_hidpi_factor
                         };
                         if last_hidpi_factor != new_hidpi_factor {
@@ -504,13 +533,6 @@ impl<T: 'static> EventProcessor<T> {
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
                 if xkev.keycode != 0 {
-                    let modifiers = ModifiersState {
-                        alt: xkev.state & ffi::Mod1Mask != 0,
-                        shift: xkev.state & ffi::ShiftMask != 0,
-                        ctrl: xkev.state & ffi::ControlMask != 0,
-                        logo: xkev.state & ffi::Mod4Mask != 0,
-                    };
-
                     let keysym = unsafe {
                         let mut keysym = 0;
                         (wt.xconn.xlib.XLookupString)(
@@ -525,6 +547,8 @@ impl<T: 'static> EventProcessor<T> {
                     };
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
+                    let modifiers = self.window_mod_state.modifiers();
+
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::KeyboardInput {
@@ -537,6 +561,27 @@ impl<T: 'static> EventProcessor<T> {
                             },
                         },
                     });
+
+                    if let Some(modifier) =
+                        self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode)
+                    {
+                        self.window_mod_state.key_event(
+                            state,
+                            xkev.keycode as ffi::KeyCode,
+                            modifier,
+                        );
+
+                        let new_modifiers = self.window_mod_state.modifiers();
+
+                        if modifiers != new_modifiers {
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::ModifiersChanged {
+                                    modifiers: new_modifiers,
+                                },
+                            });
+                        }
+                    }
                 }
 
                 if state == Pressed {
@@ -849,6 +894,21 @@ impl<T: 'static> EventProcessor<T> {
                             event: Focused(true),
                         });
 
+                        // When focus is gained, send any existing modifiers
+                        // to the window in a ModifiersChanged event. This is
+                        // done to compensate for modifier keys that may be
+                        // changed while a window is out of focus.
+                        if !self.device_mod_state.is_empty() {
+                            self.window_mod_state = self.device_mod_state.clone();
+
+                            let modifiers = self.window_mod_state.modifiers();
+
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::ModifiersChanged { modifiers },
+                            });
+                        }
+
                         // The deviceid for this event is for a keyboard instead of a pointer,
                         // so we have to do a little extra work.
                         let pointer_id = self
@@ -880,6 +940,22 @@ impl<T: 'static> EventProcessor<T> {
                             .borrow_mut()
                             .unfocus(xev.event)
                             .expect("Failed to unfocus input context");
+
+                        // When focus is lost, send a ModifiersChanged event
+                        // containing no modifiers set. This is done to compensate
+                        // for modifier keys that may be changed while a window
+                        // is out of focus.
+                        if !self.window_mod_state.is_empty() {
+                            self.window_mod_state.clear();
+
+                            callback(Event::WindowEvent {
+                                window_id: mkwid(xev.event),
+                                event: WindowEvent::ModifiersChanged {
+                                    modifiers: ModifiersState::default(),
+                                },
+                            });
+                        }
+
                         callback(Event::WindowEvent {
                             window_id: mkwid(xev.event),
                             event: Focused(false),
@@ -908,6 +984,7 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id: mkdid(xev.deviceid),
                                     phase,
                                     location,
+                                    force: None, // TODO
                                     id: xev.detail as u64,
                                 }),
                             })
@@ -1011,18 +1088,25 @@ impl<T: 'static> EventProcessor<T> {
 
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
+                        if let Some(modifier) =
+                            self.mod_keymap.get_modifier(keycode as ffi::KeyCode)
+                        {
+                            self.device_mod_state.key_event(
+                                state,
+                                keycode as ffi::KeyCode,
+                                modifier,
+                            );
+                        }
+
+                        let modifiers = self.device_mod_state.modifiers();
+
                         callback(Event::DeviceEvent {
                             device_id: mkdid(device_id),
                             event: DeviceEvent::Key(KeyboardInput {
                                 scancode,
                                 virtual_keycode,
                                 state,
-                                // So, in an ideal world we can use libxkbcommon to get modifiers.
-                                // However, libxkbcommon-x11 isn't as commonly installed as one
-                                // would hope. We can still use the Xkb extension to get
-                                // comprehensive keyboard state updates, but interpreting that
-                                // info manually is going to be involved.
-                                modifiers: ModifiersState::default(),
+                                modifiers,
                             }),
                         });
                     }

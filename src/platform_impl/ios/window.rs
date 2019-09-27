@@ -1,30 +1,34 @@
+use raw_window_handle::{ios::IOSHandle, RawWindowHandle};
 use std::{
     collections::VecDeque,
     ops::{Deref, DerefMut},
 };
 
-use objc::runtime::{Class, Object, NO, YES};
+use objc::runtime::{Class, Object, BOOL, NO, YES};
 
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    event::{Event, WindowEvent},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
-    platform::ios::{MonitorHandleExtIOS, ValidOrientations},
+    platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
     platform_impl::platform::{
-        app_state::AppState,
-        event_loop,
-        ffi::{id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask},
+        app_state, event_loop,
+        ffi::{
+            id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
+            UIRectEdge, UIScreenOverscanCompensation,
+        },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
-    window::{CursorIcon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
 
 pub struct Inner {
     pub window: id,
     pub view_controller: id,
     pub view: id,
-    supports_safe_area: bool,
+    gl_or_metal_backed: bool,
 }
 
 impl Drop for Inner {
@@ -55,7 +59,19 @@ impl Inner {
 
     pub fn request_redraw(&self) {
         unsafe {
-            let () = msg_send![self.view, setNeedsDisplay];
+            if self.gl_or_metal_backed {
+                // `setNeedsDisplay` does nothing on UIViews which are directly backed by CAEAGLLayer or CAMetalLayer.
+                // Ordinarily the OS sets up a bunch of UIKit state before calling drawRect: on a UIView, but when using
+                // raw or gl/metal for drawing this work is completely avoided.
+                //
+                // The docs for `setNeedsDisplay` don't mention `CAMetalLayer`; however, this has been confirmed via
+                // testing.
+                //
+                // https://developer.apple.com/documentation/uikit/uiview/1622437-setneedsdisplay?language=objc
+                app_state::queue_gl_or_metal_redraw(self.window);
+            } else {
+                let () = msg_send![self.view, setNeedsDisplay];
+            }
         }
     }
 
@@ -63,8 +79,8 @@ impl Inner {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             Ok(LogicalPosition {
-                x: safe_area.origin.x,
-                y: safe_area.origin.y,
+                x: safe_area.origin.x as _,
+                y: safe_area.origin.y as _,
             })
         }
     }
@@ -73,8 +89,8 @@ impl Inner {
         unsafe {
             let screen_frame = self.screen_frame();
             Ok(LogicalPosition {
-                x: screen_frame.origin.x,
-                y: screen_frame.origin.y,
+                x: screen_frame.origin.x as _,
+                y: screen_frame.origin.y as _,
             })
         }
     }
@@ -98,8 +114,8 @@ impl Inner {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             LogicalSize {
-                width: safe_area.size.width,
-                height: safe_area.size.height,
+                width: safe_area.size.width as _,
+                height: safe_area.size.height as _,
             }
         }
     }
@@ -108,8 +124,8 @@ impl Inner {
         unsafe {
             let screen_frame = self.screen_frame();
             LogicalSize {
-                width: screen_frame.size.width,
-                height: screen_frame.size.height,
+                width: screen_frame.size.width as _,
+                height: screen_frame.size.height as _,
             }
         }
     }
@@ -161,26 +177,41 @@ impl Inner {
         warn!("`Window::set_maximized` is ignored on iOS")
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
-            match monitor {
-                Some(monitor) => {
-                    let uiscreen = monitor.ui_screen() as id;
-                    let current: id = msg_send![self.window, screen];
-                    let bounds: CGRect = msg_send![uiscreen, bounds];
-
-                    // this is pretty slow on iOS, so avoid doing it if we can
-                    if uiscreen != current {
-                        let () = msg_send![self.window, setScreen: uiscreen];
-                    }
-                    let () = msg_send![self.window, setFrame: bounds];
+            let uiscreen = match monitor {
+                Some(Fullscreen::Exclusive(video_mode)) => {
+                    let uiscreen = video_mode.video_mode.monitor.ui_screen() as id;
+                    let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+                    uiscreen
                 }
-                None => warn!("`Window::set_fullscreen(None)` ignored on iOS"),
+                Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
+                None => {
+                    warn!("`Window::set_fullscreen(None)` ignored on iOS");
+                    return;
+                }
+            };
+
+            // this is pretty slow on iOS, so avoid doing it if we can
+            let current: id = msg_send![self.window, screen];
+            if uiscreen != current {
+                let () = msg_send![self.window, setScreen: uiscreen];
             }
+
+            let bounds: CGRect = msg_send![uiscreen, bounds];
+            let () = msg_send![self.window, setFrame: bounds];
+
+            // For external displays, we must disable overscan compensation or
+            // the displayed image will have giant black bars surrounding it on
+            // each side
+            let () = msg_send![
+                uiscreen,
+                setOverscanCompensation: UIScreenOverscanCompensation::None
+            ];
         }
     }
 
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         unsafe {
             let monitor = self.current_monitor();
             let uiscreen = monitor.inner.ui_screen();
@@ -193,21 +224,15 @@ impl Inner {
                 && screen_space_bounds.size.width == screen_bounds.size.width
                 && screen_space_bounds.size.height == screen_bounds.size.height
             {
-                Some(monitor)
+                Some(Fullscreen::Borderless(monitor))
             } else {
                 None
             }
         }
     }
 
-    pub fn set_decorations(&self, decorations: bool) {
-        unsafe {
-            let status_bar_hidden = if decorations { NO } else { YES };
-            let () = msg_send![
-                self.view_controller,
-                setPrefersStatusBarHidden: status_bar_hidden
-            ];
-        }
+    pub fn set_decorations(&self, _decorations: bool) {
+        warn!("`Window::set_decorations` is ignored on iOS")
     }
 
     pub fn set_always_on_top(&self, _always_on_top: bool) {
@@ -241,6 +266,16 @@ impl Inner {
 
     pub fn id(&self) -> WindowId {
         self.window.into()
+    }
+
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let handle = IOSHandle {
+            ui_window: self.window as _,
+            ui_view: self.view as _,
+            ui_view_controller: self.view_controller as _,
+            ..IOSHandle::empty()
+        };
+        RawWindowHandle::IOS(handle)
     }
 }
 
@@ -281,7 +316,7 @@ impl DerefMut for Window {
 
 impl Window {
     pub fn new<T>(
-        event_loop: &EventLoopWindowTarget<T>,
+        _event_loop: &EventLoopWindowTarget<T>,
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
@@ -297,25 +332,38 @@ impl Window {
         // TODO: transparency, visible
 
         unsafe {
-            let screen = window_attributes
-                .fullscreen
-                .as_ref()
-                .map(|screen| screen.ui_screen() as _)
-                .unwrap_or_else(|| monitor::main_uiscreen().ui_screen());
+            let screen = match window_attributes.fullscreen {
+                Some(Fullscreen::Exclusive(ref video_mode)) => {
+                    video_mode.video_mode.monitor.ui_screen() as id
+                }
+                Some(Fullscreen::Borderless(ref monitor)) => monitor.ui_screen() as id,
+                None => monitor::main_uiscreen().ui_screen(),
+            };
+
             let screen_bounds: CGRect = msg_send![screen, bounds];
 
             let frame = match window_attributes.inner_size {
                 Some(dim) => CGRect {
                     origin: screen_bounds.origin,
                     size: CGSize {
-                        width: dim.width,
-                        height: dim.height,
+                        width: dim.width as _,
+                        height: dim.height as _,
                     },
                 },
                 None => screen_bounds,
             };
 
             let view = view::create_view(&window_attributes, &platform_attributes, frame.clone());
+
+            let gl_or_metal_backed = {
+                let view_class: id = msg_send![view, class];
+                let layer_class: id = msg_send![view_class, layerClass];
+                let is_metal: BOOL =
+                    msg_send![layer_class, isSubclassOfClass: class!(CAMetalLayer)];
+                let is_gl: BOOL = msg_send![layer_class, isSubclassOfClass: class!(CAEAGLLayer)];
+                is_metal == YES || is_gl == YES
+            };
+
             let view_controller =
                 view::create_view_controller(&window_attributes, &platform_attributes, view);
             let window = view::create_window(
@@ -325,17 +373,41 @@ impl Window {
                 view_controller,
             );
 
-            let supports_safe_area = event_loop.capabilities().supports_safe_area;
-
             let result = Window {
                 inner: Inner {
                     window,
                     view_controller,
                     view,
-                    supports_safe_area,
+                    gl_or_metal_backed,
                 },
             };
-            AppState::set_key_window(window);
+            app_state::set_key_window(window);
+
+            // Like the Windows and macOS backends, we send a `HiDpiFactorChanged` and `Resized`
+            // event on window creation if the DPI factor != 1.0
+            let hidpi_factor: CGFloat = msg_send![view, contentScaleFactor];
+            if hidpi_factor != 1.0 {
+                let bounds: CGRect = msg_send![view, bounds];
+                let screen: id = msg_send![window, screen];
+                let screen_space: id = msg_send![screen, coordinateSpace];
+                let screen_frame: CGRect =
+                    msg_send![view, convertRect:bounds toCoordinateSpace:screen_space];
+                let size = crate::dpi::LogicalSize {
+                    width: screen_frame.size.width as _,
+                    height: screen_frame.size.height as _,
+                };
+                app_state::handle_nonuser_events(
+                    std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
+                    })
+                    .chain(std::iter::once(Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::Resized(size),
+                    })),
+                );
+            }
+
             Ok(result)
         }
     }
@@ -374,6 +446,36 @@ impl Inner {
             msg_send![
                 self.view_controller,
                 setSupportedInterfaceOrientations: supported_orientations
+            ]
+        }
+    }
+
+    pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
+        unsafe {
+            let prefers_home_indicator_hidden = if hidden { YES } else { NO };
+            let () = msg_send![
+                self.view_controller,
+                setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
+            ];
+        }
+    }
+
+    pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
+        let edges: UIRectEdge = edges.into();
+        unsafe {
+            let () = msg_send![
+                self.view_controller,
+                setPreferredScreenEdgesDeferringSystemGestures: edges
+            ];
+        }
+    }
+
+    pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
+        unsafe {
+            let status_bar_hidden = if hidden { YES } else { NO };
+            let () = msg_send![
+                self.view_controller,
+                setPrefersStatusBarHidden: status_bar_hidden
             ];
         }
     }
@@ -410,7 +512,7 @@ impl Inner {
     // requires main thread
     unsafe fn safe_area_screen_space(&self) -> CGRect {
         let bounds: CGRect = msg_send![self.window, bounds];
-        if self.supports_safe_area {
+        if app_state::os_capabilities().safe_area {
             let safe_area: UIEdgeInsets = msg_send![self.window, safeAreaInsets];
             let safe_bounds = CGRect {
                 origin: CGPoint {
@@ -498,6 +600,9 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub root_view_class: &'static Class,
     pub hidpi_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
+    pub prefers_home_indicator_hidden: bool,
+    pub prefers_status_bar_hidden: bool,
+    pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -506,6 +611,9 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             root_view_class: class!(UIView),
             hidpi_factor: None,
             valid_orientations: Default::default(),
+            prefers_home_indicator_hidden: false,
+            prefers_status_bar_hidden: false,
+            preferred_screen_edges_deferring_system_gestures: Default::default(),
         }
     }
 }

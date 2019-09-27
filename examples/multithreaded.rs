@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 use winit::{
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{CursorIcon, WindowBuilder},
+    window::{CursorIcon, Fullscreen, WindowBuilder},
 };
 
 const WINDOW_COUNT: usize = 3;
@@ -19,11 +19,34 @@ fn main() {
             .with_inner_size(WINDOW_SIZE.into())
             .build(&event_loop)
             .unwrap();
+
+        let mut video_modes: Vec<_> = window.current_monitor().video_modes().collect();
+        let mut video_mode_id = 0usize;
+
         let (tx, rx) = mpsc::channel();
         window_senders.insert(window.id(), tx);
         thread::spawn(move || {
             while let Ok(event) = rx.recv() {
                 match event {
+                    WindowEvent::Moved { .. } => {
+                        // We need to update our chosen video mode if the window
+                        // was moved to an another monitor, so that the window
+                        // appears on this monitor instead when we go fullscreen
+                        let previous_video_mode = video_modes.iter().cloned().nth(video_mode_id);
+                        video_modes = window.current_monitor().video_modes().collect();
+                        video_mode_id = video_mode_id.min(video_modes.len());
+                        let video_mode = video_modes.iter().nth(video_mode_id);
+
+                        // Different monitors may support different video modes,
+                        // and the index we chose previously may now point to a
+                        // completely different video mode, so notify the user
+                        if video_mode != previous_video_mode.as_ref() {
+                            println!(
+                                "Window moved to another monitor, picked video mode: {}",
+                                video_modes.iter().nth(video_mode_id).unwrap()
+                            );
+                        }
+                    }
                     WindowEvent::KeyboardInput {
                         input:
                             KeyboardInput {
@@ -44,9 +67,26 @@ fn main() {
                                 false => CursorIcon::Default,
                             }),
                             D => window.set_decorations(!state),
-                            F => window.set_fullscreen(match state {
-                                true => Some(window.current_monitor()),
-                                false => None,
+                            // Cycle through video modes
+                            Right | Left => {
+                                video_mode_id = match key {
+                                    Left => video_mode_id.saturating_sub(1),
+                                    Right => (video_modes.len() - 1).min(video_mode_id + 1),
+                                    _ => unreachable!(),
+                                };
+                                println!(
+                                    "Picking video mode: {}",
+                                    video_modes.iter().nth(video_mode_id).unwrap()
+                                );
+                            }
+                            F => window.set_fullscreen(match (state, modifiers.alt) {
+                                (true, false) => {
+                                    Some(Fullscreen::Borderless(window.current_monitor()))
+                                }
+                                (true, true) => Some(Fullscreen::Exclusive(
+                                    video_modes.iter().nth(video_mode_id).unwrap().clone(),
+                                )),
+                                (false, _) => None,
                             }),
                             G => window.set_cursor_grab(state).unwrap(),
                             H => window.set_cursor_visible(!state),
@@ -56,6 +96,7 @@ fn main() {
                                 println!("-> inner_position : {:?}", window.inner_position());
                                 println!("-> outer_size     : {:?}", window.outer_size());
                                 println!("-> inner_size     : {:?}", window.inner_size());
+                                println!("-> fullscreen     : {:?}", window.fullscreen());
                             }
                             L => window.set_min_inner_size(match state {
                                 true => Some(WINDOW_SIZE.into()),
@@ -108,6 +149,7 @@ fn main() {
                 | WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
+                            state: ElementState::Released,
                             virtual_keycode: Some(VirtualKeyCode::Escape),
                             ..
                         },

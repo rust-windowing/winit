@@ -37,23 +37,24 @@ pub struct EventLoop<T: 'static> {
 
 /// Target that associates windows with an `EventLoop`.
 ///
-/// This type exists to allow you to create new windows while Winit executes your callback.
-/// `EventLoop` will coerce into this type, so functions that take this as a parameter can also
-/// take `&EventLoop`.
+/// This type exists to allow you to create new windows while Winit executes
+/// your callback. `EventLoop` will coerce into this type (`impl<T> Deref for
+/// EventLoop<T>`), so functions that take this as a parameter can also take
+/// `&EventLoop`.
 pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) p: platform_impl::EventLoopWindowTarget<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
 }
 
 impl<T> fmt::Debug for EventLoop<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.pad("EventLoop { .. }")
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad("EventLoop { .. }")
     }
 }
 
 impl<T> fmt::Debug for EventLoopWindowTarget<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.pad("EventLoopWindowTarget { .. }")
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad("EventLoopWindowTarget { .. }")
     }
 }
 
@@ -99,7 +100,7 @@ impl EventLoop<()> {
     ///
     /// - **iOS:** Can only be called on the main thread.
     pub fn new() -> EventLoop<()> {
-        EventLoop::<()>::new_user_event()
+        EventLoop::<()>::with_user_event()
     }
 }
 
@@ -114,7 +115,7 @@ impl<T> EventLoop<T> {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
-    pub fn new_user_event() -> EventLoop<T> {
+    pub fn with_user_event() -> EventLoop<T> {
         EventLoop {
             event_loop: platform_impl::EventLoop::new(),
             _marker: ::std::marker::PhantomData,
@@ -172,9 +173,16 @@ impl<T> Deref for EventLoop<T> {
 }
 
 /// Used to send custom events to `EventLoop`.
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     event_loop_proxy: platform_impl::EventLoopProxy<T>,
+}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        Self {
+            event_loop_proxy: self.event_loop_proxy.clone(),
+        }
+    }
 }
 
 impl<T: 'static> EventLoopProxy<T> {
@@ -189,8 +197,8 @@ impl<T: 'static> EventLoopProxy<T> {
 }
 
 impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.pad("EventLoopProxy { .. }")
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad("EventLoopProxy { .. }")
     }
 }
 

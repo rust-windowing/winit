@@ -1,23 +1,25 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::{collections::VecDeque, env, ffi::CStr, fmt, mem, os::raw::*, sync::Arc};
+use std::{collections::VecDeque, env, ffi::CStr, fmt, mem::MaybeUninit, os::raw::*, sync::Arc};
 
 use parking_lot::Mutex;
+use raw_window_handle::RawWindowHandle;
 use smithay_client_toolkit::reexports::client::ConnectError;
 
 pub use self::x11::XNotSupported;
-use self::x11::{ffi::XVisualInfo, XConnection, XError};
+use self::x11::{
+    ffi::XVisualInfo, get_xtarget, util::WindowType as XWindowType, XConnection, XError,
+};
 use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     icon::Icon,
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode},
-    window::{CursorIcon, WindowAttributes},
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
-mod dlopen;
 pub mod wayland;
 pub mod x11;
 
@@ -30,7 +32,7 @@ pub mod x11;
 /// If this variable is set with any other value, winit will panic.
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub visual_infos: Option<XVisualInfo>,
     pub screen_id: Option<i32>,
@@ -38,9 +40,25 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub base_size: Option<(u32, u32)>,
     pub class: Option<(String, String)>,
     pub override_redirect: bool,
-    pub x11_window_type: x11::util::WindowType,
+    pub x11_window_types: Vec<XWindowType>,
     pub gtk_theme_variant: Option<String>,
     pub app_id: Option<String>,
+}
+
+impl Default for PlatformSpecificWindowBuilderAttributes {
+    fn default() -> Self {
+        Self {
+            visual_infos: None,
+            screen_id: None,
+            resize_increments: None,
+            base_size: None,
+            class: None,
+            override_redirect: false,
+            x11_window_types: vec![XWindowType::Normal],
+            gtk_theme_variant: None,
+            app_id: None,
+        }
+    }
 }
 
 lazy_static! {
@@ -55,10 +73,10 @@ pub enum OsError {
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            OsError::XError(e) => formatter.pad(&e.description),
-            OsError::XMisc(e) => formatter.pad(e),
+            OsError::XError(e) => f.pad(&e.description),
+            OsError::XMisc(e) => f.pad(e),
         }
     }
 }
@@ -92,7 +110,7 @@ impl DeviceId {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MonitorHandle {
     X(x11::MonitorHandle),
     Wayland(wayland::MonitorHandle),
@@ -140,10 +158,50 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> Box<dyn Iterator<Item = VideoMode>> {
+    pub fn video_modes(&self) -> Box<dyn Iterator<Item = RootVideoMode>> {
         match self {
             MonitorHandle::X(m) => Box::new(m.video_modes()),
             MonitorHandle::Wayland(m) => Box::new(m.video_modes()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VideoMode {
+    X(x11::VideoMode),
+    Wayland(wayland::VideoMode),
+}
+
+impl VideoMode {
+    #[inline]
+    pub fn size(&self) -> PhysicalSize {
+        match self {
+            &VideoMode::X(ref m) => m.size(),
+            &VideoMode::Wayland(ref m) => m.size(),
+        }
+    }
+
+    #[inline]
+    pub fn bit_depth(&self) -> u16 {
+        match self {
+            &VideoMode::X(ref m) => m.bit_depth(),
+            &VideoMode::Wayland(ref m) => m.bit_depth(),
+        }
+    }
+
+    #[inline]
+    pub fn refresh_rate(&self) -> u16 {
+        match self {
+            &VideoMode::X(ref m) => m.refresh_rate(),
+            &VideoMode::Wayland(ref m) => m.refresh_rate(),
+        }
+    }
+
+    #[inline]
+    pub fn monitor(&self) -> RootMonitorHandle {
+        match self {
+            &VideoMode::X(ref m) => m.monitor(),
+            &VideoMode::Wayland(ref m) => m.monitor(),
         }
     }
 }
@@ -318,17 +376,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<RootMonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         match self {
             &Window::X(ref w) => w.fullscreen(),
-            &Window::Wayland(ref w) => w.fullscreen().map(|monitor_id| RootMonitorHandle {
-                inner: MonitorHandle::Wayland(monitor_id),
-            }),
+            &Window::Wayland(ref w) => w.fullscreen(),
         }
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         match self {
             &Window::X(ref w) => w.set_fullscreen(monitor),
             &Window::Wayland(ref w) => w.set_fullscreen(monitor),
@@ -410,6 +466,13 @@ impl Window {
             &Window::Wayland(ref window) => MonitorHandle::Wayland(window.primary_monitor()),
         }
     }
+
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        match self {
+            &Window::X(ref window) => RawWindowHandle::X11(window.raw_window_handle()),
+            &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
+        }
+    }
 }
 
 unsafe extern "C" fn x_error_callback(
@@ -418,14 +481,16 @@ unsafe extern "C" fn x_error_callback(
 ) -> c_int {
     let xconn_lock = X11_BACKEND.lock();
     if let Ok(ref xconn) = *xconn_lock {
-        let mut buf: [c_char; 1024] = mem::uninitialized();
+        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
+        // which do not require initialization.
+        let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
         (xconn.xlib.XGetErrorText)(
             display,
             (*event).error_code as c_int,
-            buf.as_mut_ptr(),
+            buf.as_mut_ptr() as *mut c_char,
             buf.len() as c_int,
         );
-        let description = CStr::from_ptr(buf.as_ptr()).to_string_lossy();
+        let description = CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy();
 
         let error = XError {
             description: description.into_owned(),
@@ -447,10 +512,18 @@ pub enum EventLoop<T: 'static> {
     X(x11::EventLoop<T>),
 }
 
-#[derive(Clone)]
 pub enum EventLoopProxy<T: 'static> {
     X(x11::EventLoopProxy<T>),
     Wayland(wayland::EventLoopProxy<T>),
+}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        match self {
+            EventLoopProxy::X(proxy) => EventLoopProxy::X(proxy.clone()),
+            EventLoopProxy::Wayland(proxy) => EventLoopProxy::Wayland(proxy.clone()),
+        }
+    }
 }
 
 impl<T: 'static> EventLoop<T> {
@@ -510,7 +583,7 @@ impl<T: 'static> EventLoop<T> {
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
-            EventLoop::X(ref evlp) => evlp
+            EventLoop::X(ref evlp) => get_xtarget(&evlp.target)
                 .x_connection()
                 .available_monitors()
                 .into_iter()
@@ -523,7 +596,9 @@ impl<T: 'static> EventLoop<T> {
     pub fn primary_monitor(&self) -> MonitorHandle {
         match *self {
             EventLoop::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.primary_monitor()),
-            EventLoop::X(ref evlp) => MonitorHandle::X(evlp.x_connection().primary_monitor()),
+            EventLoop::X(ref evlp) => {
+                MonitorHandle::X(get_xtarget(&evlp.target).x_connection().primary_monitor())
+            }
         }
     }
 
@@ -554,14 +629,6 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    #[inline]
-    pub fn is_wayland(&self) -> bool {
-        match *self {
-            EventLoop::Wayland(_) => true,
-            EventLoop::X(_) => false,
-        }
-    }
-
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
         match *self {
             EventLoop::Wayland(ref evl) => evl.window_target(),
@@ -582,6 +649,16 @@ impl<T: 'static> EventLoopProxy<T> {
 pub enum EventLoopWindowTarget<T> {
     Wayland(wayland::EventLoopWindowTarget<T>),
     X(x11::EventLoopWindowTarget<T>),
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    #[inline]
+    pub fn is_wayland(&self) -> bool {
+        match *self {
+            EventLoopWindowTarget::Wayland(_) => true,
+            EventLoopWindowTarget::X(_) => false,
+        }
+    }
 }
 
 fn sticky_exit_callback<T, F>(

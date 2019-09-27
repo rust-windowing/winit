@@ -3,54 +3,64 @@ use winapi::{
         minwindef::{BOOL, DWORD, LPARAM, TRUE, WORD},
         windef::{HDC, HMONITOR, HWND, LPRECT, POINT},
     },
-    um::{wingdi, winnt::LONG, winuser},
+    um::{wingdi, winuser},
 };
 
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{BTreeSet, VecDeque},
     io, mem, ptr,
 };
 
 use super::{util, EventLoop};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::VideoMode,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::{
         dpi::{dpi_to_scale_factor, get_monitor_dpi},
         window::Window,
     },
 };
 
-/// Win32 implementation of the main `MonitorHandle` object.
 #[derive(Derivative)]
-#[derivative(Debug, Clone)]
-pub struct MonitorHandle {
-    /// Monitor handle.
-    hmonitor: HMonitor,
-    #[derivative(Debug = "ignore")]
-    monitor_info: winuser::MONITORINFOEXW,
-    /// The system name of the monitor.
-    monitor_name: String,
-    /// True if this is the primary monitor.
-    primary: bool,
-    /// The position of the monitor in pixels on the desktop.
-    ///
-    /// A window that is positioned at these coordinates will overlap the monitor.
-    position: (i32, i32),
-    /// The current resolution in pixels on the monitor.
-    dimensions: (u32, u32),
-    /// DPI scale factor.
-    hidpi_factor: f64,
+#[derivative(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct VideoMode {
+    pub(crate) size: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+    pub(crate) monitor: MonitorHandle,
+    #[derivative(Debug = "ignore", PartialEq = "ignore", Hash = "ignore")]
+    pub(crate) native_video_mode: wingdi::DEVMODEW,
 }
+
+impl VideoMode {
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
+    }
+
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+
+    pub fn monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle {
+            inner: self.monitor.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub struct MonitorHandle(HMONITOR);
 
 // Send is not implemented for HMONITOR, we have to wrap it and implement it manually.
 // For more info see:
 // https://github.com/retep998/winapi-rs/issues/360
 // https://github.com/retep998/winapi-rs/issues/396
-#[derive(Debug, Clone)]
-struct HMonitor(HMONITOR);
 
-unsafe impl Send for HMonitor {}
+unsafe impl Send for MonitorHandle {}
 
 unsafe extern "system" fn monitor_enum_proc(
     hmonitor: HMONITOR,
@@ -59,7 +69,7 @@ unsafe extern "system" fn monitor_enum_proc(
     data: LPARAM,
 ) -> BOOL {
     let monitors = data as *mut VecDeque<MonitorHandle>;
-    (*monitors).push_back(MonitorHandle::from_hmonitor(hmonitor));
+    (*monitors).push_back(MonitorHandle::new(hmonitor));
     TRUE // continue enumeration
 }
 
@@ -79,12 +89,12 @@ pub fn available_monitors() -> VecDeque<MonitorHandle> {
 pub fn primary_monitor() -> MonitorHandle {
     const ORIGIN: POINT = POINT { x: 0, y: 0 };
     let hmonitor = unsafe { winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY) };
-    MonitorHandle::from_hmonitor(hmonitor)
+    MonitorHandle::new(hmonitor)
 }
 
 pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
     let hmonitor = unsafe { winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST) };
-    MonitorHandle::from_hmonitor(hmonitor)
+    MonitorHandle::new(hmonitor)
 }
 
 impl<T> EventLoop<T> {
@@ -109,7 +119,7 @@ impl Window {
 }
 
 pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINFOEXW, io::Error> {
-    let mut monitor_info: winuser::MONITORINFOEXW = unsafe { mem::uninitialized() };
+    let mut monitor_info: winuser::MONITORINFOEXW = unsafe { mem::zeroed() };
     monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
     let status = unsafe {
         winuser::GetMonitorInfoW(
@@ -125,73 +135,69 @@ pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINF
 }
 
 impl MonitorHandle {
-    pub(crate) fn from_hmonitor(hmonitor: HMONITOR) -> Self {
-        let monitor_info = get_monitor_info(hmonitor).expect("`GetMonitorInfoW` failed");
-        let place = monitor_info.rcMonitor;
-        let dimensions = (
-            (place.right - place.left) as u32,
-            (place.bottom - place.top) as u32,
-        );
-        MonitorHandle {
-            hmonitor: HMonitor(hmonitor),
-            monitor_name: util::wchar_ptr_to_string(monitor_info.szDevice.as_ptr()),
-            primary: util::has_flag(monitor_info.dwFlags, winuser::MONITORINFOF_PRIMARY),
-            position: (place.left as i32, place.top as i32),
-            dimensions,
-            hidpi_factor: dpi_to_scale_factor(get_monitor_dpi(hmonitor).unwrap_or(96)),
-            monitor_info,
-        }
+    pub(crate) fn new(hmonitor: HMONITOR) -> Self {
+        MonitorHandle(hmonitor)
     }
 
     pub(crate) fn contains_point(&self, point: &POINT) -> bool {
-        let left = self.position.0 as LONG;
-        let right = left + self.dimensions.0 as LONG;
-        let top = self.position.1 as LONG;
-        let bottom = top + self.dimensions.1 as LONG;
-        point.x >= left && point.x <= right && point.y >= top && point.y <= bottom
+        let monitor_info = get_monitor_info(self.0).unwrap();
+        point.x >= monitor_info.rcMonitor.left
+            && point.x <= monitor_info.rcMonitor.right
+            && point.y >= monitor_info.rcMonitor.top
+            && point.y <= monitor_info.rcMonitor.bottom
     }
 
     #[inline]
     pub fn name(&self) -> Option<String> {
-        Some(self.monitor_name.clone())
+        let monitor_info = get_monitor_info(self.0).unwrap();
+        Some(util::wchar_ptr_to_string(monitor_info.szDevice.as_ptr()))
     }
 
     #[inline]
     pub fn native_identifier(&self) -> String {
-        self.monitor_name.clone()
+        self.name().unwrap()
     }
 
     #[inline]
     pub fn hmonitor(&self) -> HMONITOR {
-        self.hmonitor.0
+        self.0
     }
 
     #[inline]
     pub fn size(&self) -> PhysicalSize {
-        self.dimensions.into()
+        let monitor_info = get_monitor_info(self.0).unwrap();
+        PhysicalSize {
+            width: (monitor_info.rcMonitor.right - monitor_info.rcMonitor.left) as f64,
+            height: (monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top) as f64,
+        }
     }
 
     #[inline]
     pub fn position(&self) -> PhysicalPosition {
-        self.position.into()
+        let monitor_info = get_monitor_info(self.0).unwrap();
+        PhysicalPosition {
+            x: monitor_info.rcMonitor.left as f64,
+            y: monitor_info.rcMonitor.top as f64,
+        }
     }
 
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
-        self.hidpi_factor
+        dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
-        // anyway), so we're using a HashSet deduplicate
-        let mut modes = HashSet::new();
+        // anyway), so we're using a BTreeSet deduplicate
+        let mut modes = BTreeSet::new();
         let mut i = 0;
 
         loop {
             unsafe {
-                let device_name = self.monitor_info.szDevice.as_ptr();
+                let monitor_info = get_monitor_info(self.0).unwrap();
+                let device_name = monitor_info.szDevice.as_ptr();
                 let mut mode: wingdi::DEVMODEW = mem::zeroed();
                 mode.dmSize = mem::size_of_val(&mode) as WORD;
                 if winuser::EnumDisplaySettingsExW(device_name, i, &mut mode, 0) == 0 {
@@ -205,10 +211,14 @@ impl MonitorHandle {
                     | wingdi::DM_DISPLAYFREQUENCY;
                 assert!(mode.dmFields & REQUIRED_FIELDS == REQUIRED_FIELDS);
 
-                modes.insert(VideoMode {
-                    size: (mode.dmPelsWidth, mode.dmPelsHeight),
-                    bit_depth: mode.dmBitsPerPel as u16,
-                    refresh_rate: mode.dmDisplayFrequency as u16,
+                modes.insert(RootVideoMode {
+                    video_mode: VideoMode {
+                        size: (mode.dmPelsWidth, mode.dmPelsHeight),
+                        bit_depth: mode.dmBitsPerPel as u16,
+                        refresh_rate: mode.dmDisplayFrequency as u16,
+                        monitor: self.clone(),
+                        native_video_mode: mode,
+                    },
                 });
             }
         }

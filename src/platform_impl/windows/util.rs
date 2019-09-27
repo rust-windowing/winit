@@ -1,6 +1,7 @@
 use std::{
     io, mem,
     ops::BitAnd,
+    os::raw::c_void,
     ptr, slice,
     sync::atomic::{AtomicBool, Ordering},
 };
@@ -12,8 +13,43 @@ use winapi::{
         minwindef::{BOOL, DWORD},
         windef::{HWND, POINT, RECT},
     },
-    um::{winbase::lstrlenW, winuser},
+    um::{
+        libloaderapi::{GetProcAddress, LoadLibraryA},
+        winbase::lstrlenW,
+        winnt::LPCSTR,
+        winuser,
+    },
 };
+
+// Helper function to dynamically load function pointer.
+// `library` and `function` must be zero-terminated.
+pub(super) fn get_function_impl(library: &str, function: &str) -> Option<*const c_void> {
+    assert_eq!(library.chars().last(), Some('\0'));
+    assert_eq!(function.chars().last(), Some('\0'));
+
+    // Library names we will use are ASCII so we can use the A version to avoid string conversion.
+    let module = unsafe { LoadLibraryA(library.as_ptr() as LPCSTR) };
+    if module.is_null() {
+        return None;
+    }
+
+    let function_ptr = unsafe { GetProcAddress(module, function.as_ptr() as LPCSTR) };
+    if function_ptr.is_null() {
+        return None;
+    }
+
+    Some(function_ptr as _)
+}
+
+macro_rules! get_function {
+    ($lib:expr, $func:ident) => {
+        crate::platform_impl::platform::util::get_function_impl(
+            concat!($lib, '\0'),
+            concat!(stringify!($func), '\0'),
+        )
+        .map(|f| unsafe { std::mem::transmute::<*const _, $func>(f) })
+    };
+}
 
 pub fn has_flag<T>(bitset: T, flag: T) -> bool
 where
@@ -33,7 +69,7 @@ pub fn wchar_ptr_to_string(wchar: *const wchar_t) -> String {
 }
 
 pub unsafe fn status_map<T, F: FnMut(&mut T) -> BOOL>(mut fun: F) -> Option<T> {
-    let mut data: T = mem::uninitialized();
+    let mut data: T = mem::zeroed();
     if fun(&mut data) != 0 {
         Some(data)
     } else {
@@ -59,7 +95,7 @@ pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {
 
 pub fn get_client_rect(hwnd: HWND) -> Result<RECT, io::Error> {
     unsafe {
-        let mut rect = mem::uninitialized();
+        let mut rect = mem::zeroed();
         let mut top_left = mem::zeroed();
 
         win_to_err(|| winuser::ClientToScreen(hwnd, &mut top_left))?;
@@ -105,6 +141,16 @@ pub fn set_cursor_hidden(hidden: bool) {
     }
 }
 
+pub fn get_cursor_clip() -> Result<RECT, io::Error> {
+    unsafe {
+        let mut rect: RECT = mem::zeroed();
+        win_to_err(|| winuser::GetClipCursor(&mut rect)).map(|_| rect)
+    }
+}
+
+/// Sets the cursor's clip rect.
+///
+/// Note that calling this will automatically dispatch a `WM_MOUSEMOVE` event.
 pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
     unsafe {
         let rect_ptr = rect
@@ -112,6 +158,19 @@ pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
             .map(|r| r as *const RECT)
             .unwrap_or(ptr::null());
         win_to_err(|| winuser::ClipCursor(rect_ptr))
+    }
+}
+
+pub fn get_desktop_rect() -> RECT {
+    unsafe {
+        let left = winuser::GetSystemMetrics(winuser::SM_XVIRTUALSCREEN);
+        let top = winuser::GetSystemMetrics(winuser::SM_YVIRTUALSCREEN);
+        RECT {
+            left,
+            top,
+            right: left + winuser::GetSystemMetrics(winuser::SM_CXVIRTUALSCREEN),
+            bottom: top + winuser::GetSystemMetrics(winuser::SM_CYVIRTUALSCREEN),
+        }
     }
 }
 
