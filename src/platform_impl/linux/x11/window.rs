@@ -1,4 +1,4 @@
-use raw_window_handle::unix::X11Handle;
+use raw_window_handle::unix::XlibHandle;
 use std::{
     cmp,
     collections::HashSet,
@@ -1296,11 +1296,11 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> X11Handle {
-        X11Handle {
+    pub fn raw_window_handle(&self) -> XlibHandle {
+        XlibHandle {
             window: self.xwindow,
             display: self.xconn.display as _,
-            ..X11Handle::empty()
+            ..XlibHandle::empty()
         }
     }
 }
