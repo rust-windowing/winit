@@ -20,7 +20,7 @@ fn main() {
 
         // Keyboard input event to handle minimize via a hotkey
         Event::WindowEvent {
-            event: WindowEvent::KeyboardInput { device_id, input },
+            event: WindowEvent::KeyboardInput { input, .. },
             window_id,
         } => {
             if window_id == window.id() {
