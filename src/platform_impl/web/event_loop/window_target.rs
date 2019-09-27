@@ -38,6 +38,8 @@ impl<T> WindowTarget<T> {
     pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {
         let runner = self.runner.clone();
 
+        canvas.set_attribute("data-raw-handle", &id.0.to_string());
+
         canvas.on_blur(move || {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
