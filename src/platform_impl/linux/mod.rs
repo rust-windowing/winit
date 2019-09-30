@@ -461,7 +461,7 @@ impl Window {
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         match self {
-            &Window::X(ref window) => RawWindowHandle::X11(window.raw_window_handle()),
+            &Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
             &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
         }
     }
