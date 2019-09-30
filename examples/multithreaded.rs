@@ -7,7 +7,7 @@ fn main() {
     use winit::{
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
-        window::{CursorIcon, WindowBuilder},
+        window::{CursorIcon, Fullscreen, WindowBuilder},
     };
 
     const WINDOW_COUNT: usize = 3;
