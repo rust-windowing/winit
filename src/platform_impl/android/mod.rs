@@ -19,6 +19,7 @@ use crate::{
     CreationError, CursorIcon, Event, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize,
     WindowAttributes, WindowEvent, WindowId as RootWindowId,
 };
+use raw_window_handle::{android::AndroidHandle, RawWindowHandle};
 use CreationError::OsError;
 
 pub type OsError = std::io::Error;
@@ -420,6 +421,15 @@ impl Window {
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId
+    }
+
+    #[inline]
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let handle = AndroidHandle {
+            a_native_window: self.native_window,
+            ..WindowsHandle::empty()
+        };
+        RawWindowHandle::Android(handle)
     }
 }
 
