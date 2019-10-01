@@ -25,7 +25,7 @@ pub struct Canvas {
     on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
-    // Used to smoothly resize canvas when it enters and exits fullscreen
+    // Used to resize canvas when it enters and exits fullscreen
     intended_size: Rc<RefCell<LogicalSize>>,
 }
 
