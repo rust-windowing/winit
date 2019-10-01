@@ -21,6 +21,9 @@
 - On X11, prevent stealing input focus when creating a new window.
   Only steal input focus when entering fullscreen mode.
 - On Wayland, fixed DeviceEvents for relative mouse movement is not always produced
+- On macOS, fix fullscreen state being updated after entering fullscreen instead of before,
+  resulting in `Window::fullscreen` returning the old state in `Resized` events instead of
+  reflecting the new fullscreen state
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
