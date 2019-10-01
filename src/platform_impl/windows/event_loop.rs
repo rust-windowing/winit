@@ -18,8 +18,11 @@ use std::{
     any::Any,
     cell::RefCell,
     collections::VecDeque,
+    ffi::OsStr,
     marker::PhantomData,
-    mem, panic, ptr,
+    mem,
+    os::windows::ffi::OsStrExt,
+    panic, ptr,
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -60,7 +63,7 @@ use crate::{
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
-    window::WindowId as RootWindowId,
+    window::{CursorIcon, WindowId as RootWindowId},
 };
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
@@ -1726,7 +1729,17 @@ unsafe extern "system" fn public_window_callback<T>(
 
             match set_cursor_to {
                 Some(cursor) => {
-                    let cursor = winuser::LoadCursorW(ptr::null_mut(), cursor.to_windows_cursor());
+                    let cursor = match cursor {
+                        CursorIcon::Custom(icon_path) => {
+                            let text: Vec<u16> = OsStr::new(icon_path)
+                                .encode_wide()
+                                .chain(Some(0).into_iter())
+                                .collect();
+                            let lp_wstr = text.as_ptr(); //The LPCWSTR
+                            winuser::LoadCursorFromFileW(lp_wstr)
+                        }
+                        _ => winuser::LoadCursorW(ptr::null_mut(), cursor.to_windows_cursor()),
+                    };
                     winuser::SetCursor(cursor);
                     0
                 }

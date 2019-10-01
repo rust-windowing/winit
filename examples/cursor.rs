@@ -25,8 +25,14 @@ fn main() {
                 },
             ..
         } => {
-            println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
-            window.set_cursor_icon(CURSORS[cursor_idx]);
+            if cursor_idx < CURSORS.len() - 1 {
+                println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
+                window.set_cursor_icon(CURSORS[cursor_idx]);
+            } else {
+                println!("Setting cursor to custom tailless-pointer.cur");
+                let path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/tailless-pointer.cur");
+                window.set_cursor_icon(CursorIcon::Custom(path));
+            }
             if cursor_idx < CURSORS.len() - 1 {
                 cursor_idx += 1;
             } else {

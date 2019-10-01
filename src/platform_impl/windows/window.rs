@@ -371,7 +371,17 @@ impl Window {
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         self.window_state.lock().mouse.cursor = cursor;
         self.thread_executor.execute_in_thread(move || unsafe {
-            let cursor = winuser::LoadCursorW(ptr::null_mut(), cursor.to_windows_cursor());
+            let cursor = match cursor {
+                CursorIcon::Custom(icon_path) => {
+                    let text: Vec<u16> = OsStr::new(icon_path)
+                        .encode_wide()
+                        .chain(Some(0).into_iter())
+                        .collect();
+                    let lp_wstr = text.as_ptr(); //The LPCWSTR
+                    winuser::LoadCursorFromFileW(lp_wstr)
+                }
+                _ => winuser::LoadCursorW(ptr::null_mut(), cursor.to_windows_cursor()),
+            };
             winuser::SetCursor(cursor);
         });
     }

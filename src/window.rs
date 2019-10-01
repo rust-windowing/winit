@@ -785,6 +785,9 @@ pub enum CursorIcon {
     NwseResize,
     ColResize,
     RowResize,
+
+    /// Represents a custom cursor which uses an image.
+    Custom(&'static str),
 }
 
 impl Default for CursorIcon {
