@@ -26,7 +26,29 @@ pub struct Canvas {
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
     // Used to smoothly resize canvas when it enters and exits fullscreen
-    intended_size: RefCell<LogicalSize>,
+    intended_size: Rc<RefCell<LogicalSize>>,
+}
+
+impl Clone for Canvas {
+    fn clone(&self) -> Canvas {
+        Canvas {
+            raw: self.raw.clone(),
+            on_blur: None,
+            on_focus: None,
+            on_keyboard_release: None,
+            on_keyboard_press: None,
+            on_received_character: None,
+            on_cursor_leave: None,
+            on_cursor_enter: None,
+            on_cursor_move: None,
+            on_mouse_release: None,
+            on_mouse_press: None,
+            on_mouse_wheel: None,
+            on_fullscreen_change: None,
+            wants_fullscreen: self.wants_fullscreen.clone(),
+            intended_size: self.intended_size.clone(),
+        }
+    }
 }
 
 impl Drop for Canvas {
@@ -73,10 +95,10 @@ impl Canvas {
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
-            intended_size: RefCell::new(LogicalSize {
+            intended_size: Rc::new(RefCell::new(LogicalSize {
                 width: 0.0,
                 height: 0.0,
-            })
+            }))
         })
     }
 
@@ -266,7 +288,7 @@ impl Canvas {
     where
         F: 'static + FnMut()
     {
-        self.on_fullscreen_change = Some(self.add_event("fullscreenchange", move |event: Event| handler()));
+        self.on_fullscreen_change = Some(self.add_event("fullscreenchange", move |_: Event| handler()));
     }
 
     fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
