@@ -116,6 +116,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Setting the taskbar icon
 * Setting the parent window
 * `WS_EX_NOREDIRECTIONBITMAP` support
+* Custom cursor icon support (Accepted formats: .cur, .ani)
 
 ### macOS
 * Window activation policy
