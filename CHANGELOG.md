@@ -21,6 +21,7 @@
 - On X11, prevent stealing input focus when creating a new window.
   Only steal input focus when entering fullscreen mode.
 - On Wayland, fixed DeviceEvents for relative mouse movement is not always produced
+- On Windows, added the ability to add a custom cursor icon (.cur or .ani).
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
