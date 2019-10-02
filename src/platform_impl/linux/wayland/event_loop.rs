@@ -7,9 +7,17 @@ use std::{
     time::Instant,
 };
 
+use smithay_client_toolkit::reexports::protocols::unstable::pointer_constraints::v1::client::{
+    zwp_locked_pointer_v1::ZwpLockedPointerV1, zwp_pointer_constraints_v1::ZwpPointerConstraintsV1,
+};
 use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1::client::{
     zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
     zwp_relative_pointer_v1::ZwpRelativePointerV1,
+};
+
+use smithay_client_toolkit::pointer::{AutoPointer, AutoThemer};
+use smithay_client_toolkit::reexports::client::protocol::{
+    wl_compositor::WlCompositor, wl_shm::WlShm, wl_surface::WlSurface,
 };
 
 use crate::{
@@ -69,6 +77,79 @@ impl<T> WindowEventsSink<T> {
     }
 }
 
+pub struct CursorManager {
+    pointer_constraints_proxy: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>,
+    auto_themer: Option<AutoThemer>,
+    pointers: Vec<AutoPointer>,
+    locked_pointers: Vec<ZwpLockedPointerV1>,
+    cursor_visible: Rc<RefCell<bool>>,
+}
+
+impl CursorManager {
+    fn new(constraints: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>) -> CursorManager {
+        CursorManager {
+            pointer_constraints_proxy: constraints,
+            auto_themer: None,
+            pointers: Vec::new(),
+            locked_pointers: Vec::new(),
+            cursor_visible: Rc::new(RefCell::new(true)),
+        }
+    }
+
+    fn register_pointer(&mut self, pointer: wl_pointer::WlPointer) {
+        let auto_themer = self
+            .auto_themer
+            .as_ref()
+            .expect("AutoThemer not initialized. Server did not advertise shm or compositor?");
+        self.pointers.push(auto_themer.theme_pointer(pointer));
+    }
+
+    fn set_auto_themer(&mut self, auto_themer: AutoThemer) {
+        self.auto_themer = Some(auto_themer);
+    }
+
+    fn set_cursor_visible(&mut self, visible: bool) {
+        if !visible {
+            for pointer in self.pointers.iter() {
+                (**pointer).set_cursor(0, None, 0, 0);
+            }
+        } else {
+            for pointer in self.pointers.iter() {
+                pointer.set_cursor("left_ptr", None).unwrap();
+            }
+        }
+        (*self.cursor_visible.try_borrow_mut().unwrap()) = visible;
+    }
+
+    fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
+        for lp in self.locked_pointers.drain(..) {
+            lp.destroy();
+        }
+
+        if let Some(surface) = surface {
+            for pointer in self.pointers.iter() {
+                let locked_pointer = self
+                    .pointer_constraints_proxy
+                    .try_borrow()
+                    .unwrap()
+                    .as_ref()
+                    .and_then(|pointer_constraints| {
+                        super::pointer::implement_locked_pointer(
+                            surface,
+                            &**pointer,
+                            pointer_constraints,
+                        )
+                        .ok()
+                    });
+
+                if let Some(locked_pointer) = locked_pointer {
+                    self.locked_pointers.push(locked_pointer);
+                }
+            }
+        }
+    }
+}
+
 pub struct EventLoop<T: 'static> {
     // The loop
     inner_loop: ::calloop::EventLoop<()>,
@@ -79,6 +160,8 @@ pub struct EventLoop<T: 'static> {
     // our sink, shared with some handlers, buffering the events
     sink: Arc<Mutex<WindowEventsSink<T>>>,
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
+    // Utility for grabbing the cursor and changing visibility
+    cursor_manager: Rc<RefCell<CursorManager>>,
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     user_sender: ::calloop::channel::Sender<T>,
     _kbd_source: ::calloop::Source<
@@ -146,13 +229,23 @@ impl<T: 'static> EventLoop<T> {
             })
             .unwrap();
 
+        let pointer_constraints_proxy = Rc::new(RefCell::new(None));
+
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
             relative_pointer_manager_proxy: Rc::new(RefCell::new(None)),
+            pointer_constraints_proxy: pointer_constraints_proxy.clone(),
             store: store.clone(),
             seats: seats.clone(),
             kbd_sender,
+            cursor_manager: Rc::new(RefCell::new(CursorManager::new(pointer_constraints_proxy))),
         };
+
+        let cursor_manager = seat_manager.cursor_manager.clone();
+        let cursor_manager2 = cursor_manager.clone();
+
+        let shm_cell = Rc::new(RefCell::new(None));
+        let compositor_cell = Rc::new(RefCell::new(None));
 
         let env = Environment::from_display_with_cb(
             &display,
@@ -175,6 +268,39 @@ impl<T: 'static> EventLoop<T> {
                             .try_borrow_mut()
                             .unwrap() = Some(relative_pointer_manager_proxy);
                     }
+                    if interface == "zwp_pointer_constraints_v1" {
+                        let pointer_constraints_proxy = registry
+                            .bind(version, id, move |pointer_constraints| {
+                                pointer_constraints.implement_closure(|_, _| (), ())
+                            })
+                            .unwrap();
+
+                        *seat_manager.pointer_constraints_proxy.borrow_mut() =
+                            Some(pointer_constraints_proxy);
+                    }
+                    if interface == "wl_shm" {
+                        let shm: WlShm = registry
+                            .bind(version, id, move |shm| shm.implement_closure(|_, _| (), ()))
+                            .unwrap();
+
+                        (*shm_cell.borrow_mut()) = Some(shm);
+                    }
+                    if interface == "wl_compositor" {
+                        let compositor: WlCompositor = registry
+                            .bind(version, id, move |compositor| {
+                                compositor.implement_closure(|_, _| (), ())
+                            })
+                            .unwrap();
+                        (*compositor_cell.borrow_mut()) = Some(compositor);
+                    }
+
+                    if compositor_cell.borrow().is_some() && shm_cell.borrow().is_some() {
+                        let compositor = compositor_cell.borrow_mut().take().unwrap();
+                        let shm = shm_cell.borrow_mut().take().unwrap();
+                        let auto_themer = AutoThemer::init(None, compositor, &shm);
+                        cursor_manager2.borrow_mut().set_auto_themer(auto_themer);
+                    }
+
                     if interface == "wl_seat" {
                         seat_manager.add_seat(id, version, registry)
                     }
@@ -213,6 +339,7 @@ impl<T: 'static> EventLoop<T> {
             pending_user_events,
             display: display.clone(),
             outputs: env.outputs.clone(),
+            cursor_manager,
             _user_source: user_source,
             user_sender,
             _kbd_source: kbd_source,
@@ -452,7 +579,17 @@ impl<T> EventLoop<T> {
         }
         // process pending resize/refresh
         window_target.store.lock().unwrap().for_each(
-            |newsize, size, new_dpi, refresh, frame_refresh, closed, wid, frame| {
+            |newsize,
+             size,
+             new_dpi,
+             refresh,
+             frame_refresh,
+             closed,
+             cursor_visible,
+             cursor_grab,
+             surface,
+             wid,
+             frame| {
                 if let Some(frame) = frame {
                     if let Some((w, h)) = newsize {
                         frame.resize(w, h);
@@ -482,6 +619,17 @@ impl<T> EventLoop<T> {
                 if closed {
                     sink.send_window_event(crate::event::WindowEvent::CloseRequested, wid);
                 }
+                if let Some(grab) = cursor_grab {
+                    self.cursor_manager.borrow_mut().grab_pointer(if grab {
+                        Some(surface)
+                    } else {
+                        None
+                    });
+                }
+
+                if let Some(visible) = cursor_visible {
+                    self.cursor_manager.borrow_mut().set_cursor_visible(visible);
+                }
             },
         )
     }
@@ -497,6 +645,8 @@ struct SeatManager<T: 'static> {
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
+    pointer_constraints_proxy: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>,
+    cursor_manager: Rc<RefCell<CursorManager>>,
 }
 
 impl<T: 'static> SeatManager<T> {
@@ -513,6 +663,7 @@ impl<T: 'static> SeatManager<T> {
             touch: None,
             kbd_sender: self.kbd_sender.clone(),
             modifiers_tracker: Arc::new(Mutex::new(ModifiersState::default())),
+            cursor_manager: self.cursor_manager.clone(),
         };
         let seat = registry
             .bind(min(version, 5), id, move |seat| {
@@ -544,6 +695,7 @@ struct SeatData<T> {
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
+    cursor_manager: Rc<RefCell<CursorManager>>,
 }
 
 impl<T: 'static> SeatData<T> {
@@ -558,7 +710,12 @@ impl<T: 'static> SeatData<T> {
                         self.sink.clone(),
                         self.store.clone(),
                         self.modifiers_tracker.clone(),
+                        self.cursor_manager.borrow().cursor_visible.clone(),
                     ));
+
+                    self.cursor_manager
+                        .borrow_mut()
+                        .register_pointer(self.pointer.as_ref().unwrap().clone());
 
                     self.relative_pointer = self
                         .relative_pointer_manager_proxy
