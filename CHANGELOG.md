@@ -23,7 +23,6 @@
 - On Wayland, add support for set_cursor_visible and set_cursor_grab.
 - On Wayland, fixed DeviceEvents for relative mouse movement is not always produced.
 - Removed `derivative` crate dependency.
-- On Wayland, fixed DeviceEvents for relative mouse movement is not always produced
 - On Wayland, add support for set_cursor_icon.
 
 # 0.20.0 Alpha 3 (2019-08-14)
