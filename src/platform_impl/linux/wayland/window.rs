@@ -1,6 +1,7 @@
 use raw_window_handle::unix::WaylandHandle;
 use std::{
     collections::VecDeque,
+    mem::replace,
     sync::{Arc, Mutex, Weak},
 };
 
@@ -26,11 +27,12 @@ use smithay_client_toolkit::{
     window::{ConceptFrame, Event as WEvent, State as WState, Theme, Window as SWindow},
 };
 
-use super::{make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
+use super::{event_loop::CursorManager, make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
 
 pub struct Window {
     surface: wl_surface::WlSurface,
     frame: Arc<Mutex<SWindow<ConceptFrame>>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
     outputs: OutputMgr, // Access to info for all monitors
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
@@ -38,8 +40,6 @@ pub struct Window {
     need_frame_refresh: Arc<Mutex<bool>>,
     need_refresh: Arc<Mutex<bool>>,
     fullscreen: Arc<Mutex<bool>>,
-    cursor_grab_changed: Arc<Mutex<Option<bool>>>,
-    cursor_visible_changed: Arc<Mutex<Option<bool>>>,
 }
 
 impl Window {
@@ -54,6 +54,7 @@ impl Window {
         let fullscreen = Arc::new(Mutex::new(false));
 
         let window_store = evlp.store.clone();
+        let cursor_manager = evlp.cursor_manager.clone();
         let surface = evlp.env.create_surface(move |dpi, surface| {
             window_store.lock().unwrap().dpi_change(&surface, dpi);
             surface.set_buffer_scale(dpi);
@@ -142,8 +143,6 @@ impl Window {
         let need_frame_refresh = Arc::new(Mutex::new(true));
         let frame = Arc::new(Mutex::new(frame));
         let need_refresh = Arc::new(Mutex::new(true));
-        let cursor_grab_changed = Arc::new(Mutex::new(None));
-        let cursor_visible_changed = Arc::new(Mutex::new(None));
 
         evlp.store.lock().unwrap().windows.push(InternalWindow {
             closed: false,
@@ -152,8 +151,6 @@ impl Window {
             need_refresh: need_refresh.clone(),
             fullscreen: fullscreen.clone(),
             need_frame_refresh: need_frame_refresh.clone(),
-            cursor_grab_changed: cursor_grab_changed.clone(),
-            cursor_visible_changed: cursor_visible_changed.clone(),
             surface: surface.clone(),
             kill_switch: kill_switch.clone(),
             frame: Arc::downgrade(&frame),
@@ -171,9 +168,8 @@ impl Window {
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
             need_frame_refresh,
             need_refresh,
+            cursor_manager,
             fullscreen,
-            cursor_grab_changed,
-            cursor_visible_changed,
         })
     }
 
@@ -300,18 +296,25 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
-        // TODO
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+        let mut cursor_manager = self.cursor_manager.lock().unwrap();
+        cursor_manager.set_cursor_icon(cursor);
     }
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        *self.cursor_visible_changed.lock().unwrap() = Some(visible);
+        let mut cursor_manager = self.cursor_manager.lock().unwrap();
+        cursor_manager.set_cursor_visible(visible);
     }
 
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        *self.cursor_grab_changed.lock().unwrap() = Some(grab);
+        let mut cursor_manager = self.cursor_manager.lock().unwrap();
+        if grab {
+            cursor_manager.grab_pointer(Some(&self.surface));
+        } else {
+            cursor_manager.grab_pointer(None);
+        }
         Ok(())
     }
 
@@ -371,8 +374,6 @@ struct InternalWindow {
     need_refresh: Arc<Mutex<bool>>,
     fullscreen: Arc<Mutex<bool>>,
     need_frame_refresh: Arc<Mutex<bool>>,
-    cursor_grab_changed: Arc<Mutex<Option<bool>>>,
-    cursor_visible_changed: Arc<Mutex<Option<bool>>>,
     closed: bool,
     kill_switch: Arc<Mutex<bool>>,
     frame: Weak<Mutex<SWindow<ConceptFrame>>>,
@@ -440,9 +441,6 @@ impl WindowStore {
             bool,
             bool,
             bool,
-            Option<bool>,
-            Option<bool>,
-            &wl_surface::WlSurface,
             WindowId,
             Option<&mut SWindow<ConceptFrame>>,
         ),
@@ -454,12 +452,9 @@ impl WindowStore {
                 window.newsize.take(),
                 &mut *(window.size.lock().unwrap()),
                 window.new_dpi,
-                ::std::mem::replace(&mut *window.need_refresh.lock().unwrap(), false),
-                ::std::mem::replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
+                replace(&mut *window.need_refresh.lock().unwrap(), false),
+                replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
-                window.cursor_visible_changed.lock().unwrap().take(),
-                window.cursor_grab_changed.lock().unwrap().take(),
-                &window.surface,
                 make_wid(&window.surface),
                 opt_mutex_lock.as_mut().map(|m| &mut **m),
             );

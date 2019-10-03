@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use crate::event::{
@@ -7,7 +5,11 @@ use crate::event::{
     WindowEvent,
 };
 
-use super::{event_loop::WindowEventsSink, window::WindowStore, DeviceId};
+use super::{
+    event_loop::{CursorManager, WindowEventsSink},
+    window::WindowStore,
+    DeviceId,
+};
 
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_pointer::{self, Event as PtrEvent, WlPointer},
@@ -31,7 +33,7 @@ pub fn implement_pointer<T: 'static>(
     sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
-    cursor_visible: Rc<RefCell<bool>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
 ) -> WlPointer {
     seat.get_pointer(|pointer| {
         let mut mouse_focus = None;
@@ -43,6 +45,7 @@ pub fn implement_pointer<T: 'static>(
             move |evt, pointer| {
                 let mut sink = sink.lock().unwrap();
                 let store = store.lock().unwrap();
+                let mut cursor_manager = cursor_manager.lock().unwrap();
                 match evt {
                     PtrEvent::Enter {
                         surface,
@@ -73,9 +76,7 @@ pub fn implement_pointer<T: 'static>(
                             );
                         }
 
-                        if *cursor_visible.borrow() == false {
-                            pointer.set_cursor(0, None, 0, 0);
-                        }
+                        cursor_manager.reload_cursor_style();
                     }
                     PtrEvent::Leave { surface, .. } => {
                         mouse_focus = None;
