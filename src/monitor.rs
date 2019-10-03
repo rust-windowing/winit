@@ -52,10 +52,15 @@ impl Iterator for AvailableMonitorsIter {
 /// - [`MonitorHandle::video_modes`][monitor_get].
 ///
 /// [monitor_get]: ../monitor/struct.MonitorHandle.html#method.video_modes
-#[derive(Derivative)]
-#[derivative(Clone, Debug = "transparent", PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct VideoMode {
     pub(crate) video_mode: platform_impl::VideoMode,
+}
+
+impl std::fmt::Debug for VideoMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.video_mode.fmt(f)
+    }
 }
 
 impl PartialOrd for VideoMode {
