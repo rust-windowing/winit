@@ -132,10 +132,11 @@ impl CursorManager {
     }
 
     pub fn set_cursor_icon(&mut self, cursor: CursorIcon) {
-        if self.cursor_visible && cursor != self.current_cursor {
+        if cursor != self.current_cursor {
             self.current_cursor = cursor;
-
-            self.set_cursor_icon_impl(cursor);
+            if self.cursor_visible {
+                self.set_cursor_icon_impl(cursor);
+            }
         }
     }
 
@@ -191,7 +192,11 @@ impl CursorManager {
         }
     }
 
-    pub fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
+    // This function can only be called from a thread on which `pointer_constraints_proxy` event
+    // queue is located, so calling it directly from a Window doesn't work well, in case
+    // you've sent your window to another thread, so we need to pass cursor grab updates to
+    // the event loop and call this function from there.
+    fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
         for locked_pointer in self.locked_pointers.drain(..) {
             locked_pointer.destroy();
         }
@@ -230,6 +235,8 @@ pub struct EventLoop<T: 'static> {
     // Our sink, shared with some handlers, buffering the events
     sink: Arc<Mutex<WindowEventsSink<T>>>,
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
+    // The cursor manager
+    cursor_manager: Arc<Mutex<CursorManager>>,
     // Utility for grabbing the cursor and changing visibility
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     user_sender: ::calloop::channel::Sender<T>,
@@ -416,6 +423,7 @@ impl<T: 'static> EventLoop<T> {
             outputs: env.outputs.clone(),
             _user_source: user_source,
             user_sender,
+            cursor_manager,
             _kbd_source: kbd_source,
             window_target: RootELW {
                 p: crate::platform_impl::EventLoopWindowTarget::Wayland(EventLoopWindowTarget {
@@ -654,7 +662,16 @@ impl<T> EventLoop<T> {
         }
         // process pending resize/refresh
         window_target.store.lock().unwrap().for_each(
-            |newsize, size, new_dpi, refresh, frame_refresh, closed, wid, frame| {
+            |newsize,
+             size,
+             new_dpi,
+             refresh,
+             frame_refresh,
+             closed,
+             grab_cursor,
+             surface,
+             wid,
+             frame| {
                 if let Some(frame) = frame {
                     if let Some((w, h)) = newsize {
                         frame.resize(w, h);
@@ -683,6 +700,11 @@ impl<T> EventLoop<T> {
                 }
                 if closed {
                     sink.send_window_event(crate::event::WindowEvent::CloseRequested, wid);
+                }
+
+                if let Some(grab_cursor) = grab_cursor {
+                    let surface = if grab_cursor { Some(surface) } else { None };
+                    self.cursor_manager.lock().unwrap().grab_pointer(surface);
                 }
             },
         )
