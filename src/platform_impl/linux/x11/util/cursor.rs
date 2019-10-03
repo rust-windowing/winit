@@ -116,6 +116,7 @@ impl XConnection {
 
             CursorIcon::ZoomIn => load(b"zoom-in\0"),
             CursorIcon::ZoomOut => load(b"zoom-out\0"),
+            CursorIcon::Custom(_) => unimplemented!(),
         }
     }
 

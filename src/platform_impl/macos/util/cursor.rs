@@ -67,6 +67,8 @@ impl From<CursorIcon> for Cursor {
             // https://stackoverflow.com/a/21786835/5435443
             CursorIcon::Move | CursorIcon::AllScroll => Cursor::WebKit("move"),
             CursorIcon::Cell => Cursor::WebKit("cell"),
+
+            CursorIcon::Custom(_) => unimplemented!(),
         }
     }
 }

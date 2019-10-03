@@ -789,8 +789,7 @@ pub enum CursorIcon {
     ColResize,
     RowResize,
 
-    /// Represents a custom cursor which uses an image. At the current time, it's only implemented for Windows.
-    #[cfg(target_os = "windows")]
+    /// Represents a custom cursor which uses an image. At the current time, it's only implemented for Windows. The argument has to be a path pointing to a .cur or .ani file.
     Custom(&'static str),
 }
 
