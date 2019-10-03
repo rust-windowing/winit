@@ -21,7 +21,7 @@ pub use self::error::OsError;
 pub use self::event_loop::{
     EventLoop, Proxy as EventLoopProxy, WindowTarget as EventLoopWindowTarget,
 };
-pub use self::monitor::Handle as MonitorHandle;
+pub use self::monitor::{Handle as MonitorHandle, Mode as VideoMode};
 pub use self::window::{
     Id as WindowId, PlatformSpecificBuilderAttributes as PlatformSpecificWindowBuilderAttributes,
     Window,

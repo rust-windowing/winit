@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.20.0-alpha2"
+version = "0.20.0-alpha3"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2018"
@@ -25,6 +25,7 @@ libc = "0.2"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 derivative = "1.0.2"
+raw-window-handle = "0.2"
 
 [dev-dependencies]
 image = "0.21"
@@ -48,7 +49,7 @@ version = "0.1.3"
 default_features = false
 features = ["display_link"]
 
-[target.'cfg(target_os = "windows")'.dependencies]
+[target.'cfg(any(target_os = "ios", target_os = "windows"))'.dependencies]
 bitflags = "1"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
@@ -80,10 +81,10 @@ wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "
 calloop = "0.4.2"
 smithay-client-toolkit = "0.6"
 x11-dl = "2.18.3"
-percent-encoding = "1.0"
+percent-encoding = "2.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
-version = "0.8"
+version = "0.9"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
 package = "web-sys"

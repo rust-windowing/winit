@@ -2,7 +2,9 @@ use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
-use crate::window::{CursorIcon, WindowAttributes, WindowId as RootWI};
+use crate::window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWI};
+
+use raw_window_handle::web::WebHandle;
 
 use super::{backend, monitor, EventLoopWindowTarget};
 
@@ -177,13 +179,13 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
-        // TODO: pointer capture
+        // Intentionally a no-op, as the web does not support setting cursor positions
         Ok(())
     }
 
     #[inline]
     pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        // TODO: pointer capture
+        // Intentionally a no-op, as the web does not (properly) support grabbing the cursor
         Ok(())
     }
 
@@ -199,20 +201,20 @@ impl Window {
 
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
-        // TODO: should there be a maximization / fullscreen API?
+        // Intentionally a no-op, as canvases cannot be 'maximized'
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<RootMH> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.is_fullscreen() {
-            Some(self.current_monitor())
+            Some(Fullscreen::Borderless(self.current_monitor()))
         } else {
             None
         }
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<RootMH>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         if monitor.is_some() {
             self.canvas.request_fullscreen();
         } else if self.canvas.is_fullscreen() {
@@ -237,7 +239,7 @@ impl Window {
 
     #[inline]
     pub fn set_ime_position(&self, _position: LogicalPosition) {
-        // TODO: what is this?
+        // Currently a no-op as it does not seem there is good support for this on web
     }
 
     #[inline]
@@ -260,6 +262,16 @@ impl Window {
     #[inline]
     pub fn id(&self) -> Id {
         return self.id;
+    }
+
+    #[inline]
+    pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
+        let handle = WebHandle {
+            id: self.id.0,
+            ..WebHandle::empty()
+        };
+
+        raw_window_handle::RawWindowHandle::Web(handle)
     }
 }
 

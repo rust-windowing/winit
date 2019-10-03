@@ -1,4 +1,13 @@
-#[cfg(not(target_arch = "wasm32"))]
+// Limit this example to only compatible platforms.
+#[cfg(any(
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 fn main() {
     use winit::{
         event::{Event, WindowEvent},
@@ -40,7 +49,7 @@ fn main() {
     println!("Okay we're done now for real.");
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_os = "ios", target_os = "android", target_arch = "wasm32"))]
 fn main() {
-    panic!("Example not supported on Wasm");
+    println!("This platform doesn't support run_return.");
 }

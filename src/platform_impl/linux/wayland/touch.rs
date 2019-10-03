@@ -39,6 +39,7 @@ pub(crate) fn implement_touch<T: 'static>(
                                     ),
                                     phase: TouchPhase::Started,
                                     location: (x, y).into(),
+                                    force: None, // TODO
                                     id: id as u64,
                                 }),
                                 wid,
@@ -61,6 +62,7 @@ pub(crate) fn implement_touch<T: 'static>(
                                     ),
                                     phase: TouchPhase::Ended,
                                     location: pt.location.into(),
+                                    force: None, // TODO
                                     id: id as u64,
                                 }),
                                 pt.wid,
@@ -78,6 +80,7 @@ pub(crate) fn implement_touch<T: 'static>(
                                     ),
                                     phase: TouchPhase::Moved,
                                     location: (x, y).into(),
+                                    force: None, // TODO
                                     id: id as u64,
                                 }),
                                 pt.wid,
@@ -94,6 +97,7 @@ pub(crate) fn implement_touch<T: 'static>(
                                     ),
                                     phase: TouchPhase::Cancelled,
                                     location: pt.location.into(),
+                                    force: None, // TODO
                                     id: pt.id as u64,
                                 }),
                                 pt.wid,

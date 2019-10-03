@@ -16,8 +16,11 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::ModifiersState,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    monitor::VideoMode,
-    platform_impl::platform::sticky_exit_callback,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    platform_impl::platform::{
+        sticky_exit_callback, MonitorHandle as PlatformMonitorHandle,
+        VideoMode as PlatformVideoMode,
+    },
 };
 
 use super::{window::WindowStore, DeviceId, WindowId};
@@ -87,7 +90,6 @@ pub struct EventLoop<T: 'static> {
 // A handle that can be sent across threads and used to wake up the `EventLoop`.
 //
 // We should only try and wake up the `EventLoop` if it still exists, so we hold Weak ptrs.
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     user_sender: ::calloop::channel::Sender<T>,
 }
@@ -106,6 +108,14 @@ pub struct EventLoopWindowTarget<T> {
     // The list of seats
     pub seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     _marker: ::std::marker::PhantomData<T>,
+}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        EventLoopProxy {
+            user_sender: self.user_sender.clone(),
+        }
+    }
 }
 
 impl<T: 'static> EventLoopProxy<T> {
@@ -138,7 +148,7 @@ impl<T: 'static> EventLoop<T> {
 
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
-            relative_pointer_manager_proxy: None,
+            relative_pointer_manager_proxy: Rc::new(RefCell::new(None)),
             store: store.clone(),
             seats: seats.clone(),
             kbd_sender,
@@ -154,13 +164,16 @@ impl<T: 'static> EventLoop<T> {
                     version,
                 } => {
                     if interface == "zwp_relative_pointer_manager_v1" {
-                        seat_manager.relative_pointer_manager_proxy = Some(
-                            registry
-                                .bind(version, id, move |pointer_manager| {
-                                    pointer_manager.implement_closure(|_, _| (), ())
-                                })
-                                .unwrap(),
-                        )
+                        let relative_pointer_manager_proxy = registry
+                            .bind(version, id, move |pointer_manager| {
+                                pointer_manager.implement_closure(|_, _| (), ())
+                            })
+                            .unwrap();
+
+                        *seat_manager
+                            .relative_pointer_manager_proxy
+                            .try_borrow_mut()
+                            .unwrap() = Some(relative_pointer_manager_proxy);
                     }
                     if interface == "wl_seat" {
                         seat_manager.add_seat(id, version, registry)
@@ -304,6 +317,25 @@ impl<T: 'static> EventLoop<T> {
             // send pending events to the server
             self.display.flush().expect("Wayland connection lost.");
 
+            // During the run of the user callback, some other code monitoring and reading the
+            // wayland socket may have been run (mesa for example does this with vsync), if that
+            // is the case, some events may have been enqueued in our event queue.
+            //
+            // If some messages are there, the event loop needs to behave as if it was instantly
+            // woken up by messages arriving from the wayland socket, to avoid getting stuck.
+            let instant_wakeup = {
+                let window_target = match self.window_target.p {
+                    crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+                    _ => unreachable!(),
+                };
+                let dispatched = window_target
+                    .evq
+                    .borrow_mut()
+                    .dispatch_pending()
+                    .expect("Wayland connection lost.");
+                dispatched > 0
+            };
+
             match control_flow {
                 ControlFlow::Exit => break,
                 ControlFlow::Poll => {
@@ -318,7 +350,12 @@ impl<T: 'static> EventLoop<T> {
                     );
                 }
                 ControlFlow::Wait => {
-                    self.inner_loop.dispatch(None, &mut ()).unwrap();
+                    let timeout = if instant_wakeup {
+                        Some(::std::time::Duration::from_millis(0))
+                    } else {
+                        None
+                    };
+                    self.inner_loop.dispatch(timeout, &mut ()).unwrap();
                     callback(
                         crate::event::Event::NewEvents(crate::event::StartCause::WaitCancelled {
                             start: Instant::now(),
@@ -331,7 +368,7 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::WaitUntil(deadline) => {
                     let start = Instant::now();
                     // compute the blocking duration
-                    let duration = if deadline > start {
+                    let duration = if deadline > start && !instant_wakeup {
                         deadline - start
                     } else {
                         ::std::time::Duration::from_millis(0)
@@ -380,12 +417,14 @@ impl<T: 'static> EventLoop<T> {
         available_monitors(&self.outputs)
     }
 
-    pub fn display(&self) -> &Display {
-        &*self.display
-    }
-
     pub fn window_target(&self) -> &RootELW<T> {
         &self.window_target
+    }
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    pub fn display(&self) -> &Display {
+        &*self.display
     }
 }
 
@@ -457,7 +496,7 @@ struct SeatManager<T: 'static> {
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
-    relative_pointer_manager_proxy: Option<ZwpRelativePointerManagerV1>,
+    relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
 }
 
 impl<T: 'static> SeatManager<T> {
@@ -469,7 +508,7 @@ impl<T: 'static> SeatManager<T> {
             store: self.store.clone(),
             pointer: None,
             relative_pointer: None,
-            relative_pointer_manager_proxy: self.relative_pointer_manager_proxy.as_ref().cloned(),
+            relative_pointer_manager_proxy: self.relative_pointer_manager_proxy.clone(),
             keyboard: None,
             touch: None,
             kbd_sender: self.kbd_sender.clone(),
@@ -501,7 +540,7 @@ struct SeatData<T> {
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     pointer: Option<wl_pointer::WlPointer>,
     relative_pointer: Option<ZwpRelativePointerV1>,
-    relative_pointer_manager_proxy: Option<ZwpRelativePointerManagerV1>,
+    relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
@@ -521,17 +560,19 @@ impl<T: 'static> SeatData<T> {
                         self.modifiers_tracker.clone(),
                     ));
 
-                    self.relative_pointer =
-                        self.relative_pointer_manager_proxy
-                            .as_ref()
-                            .and_then(|manager| {
-                                super::pointer::implement_relative_pointer(
-                                    self.sink.clone(),
-                                    self.pointer.as_ref().unwrap(),
-                                    manager,
-                                )
-                                .ok()
-                            })
+                    self.relative_pointer = self
+                        .relative_pointer_manager_proxy
+                        .try_borrow()
+                        .unwrap()
+                        .as_ref()
+                        .and_then(|manager| {
+                            super::pointer::implement_relative_pointer(
+                                self.sink.clone(),
+                                self.pointer.as_ref().unwrap(),
+                                manager,
+                            )
+                            .ok()
+                        })
                 }
                 // destroy pointer if applicable
                 if !capabilities.contains(wl_seat::Capability::Pointer) {
@@ -603,17 +644,67 @@ impl<T> Drop for SeatData<T> {
  * Monitor stuff
  */
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VideoMode {
+    pub(crate) size: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+    pub(crate) monitor: MonitorHandle,
+}
+
+impl VideoMode {
+    #[inline]
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
+    }
+
+    #[inline]
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    #[inline]
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+
+    #[inline]
+    pub fn monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle {
+            inner: PlatformMonitorHandle::Wayland(self.monitor.clone()),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct MonitorHandle {
     pub(crate) proxy: wl_output::WlOutput,
     pub(crate) mgr: OutputMgr,
 }
 
-impl Clone for MonitorHandle {
-    fn clone(&self) -> MonitorHandle {
-        MonitorHandle {
-            proxy: self.proxy.clone(),
-            mgr: self.mgr.clone(),
-        }
+impl PartialEq for MonitorHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.native_identifier() == other.native_identifier()
+    }
+}
+
+impl Eq for MonitorHandle {}
+
+impl PartialOrd for MonitorHandle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for MonitorHandle {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.native_identifier().cmp(&other.native_identifier())
+    }
+}
+
+impl std::hash::Hash for MonitorHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.native_identifier().hash(state);
     }
 }
 
@@ -680,15 +771,20 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+        let monitor = self.clone();
+
         self.mgr
             .with_info(&self.proxy, |_, info| info.modes.clone())
             .unwrap_or(vec![])
             .into_iter()
-            .map(|x| VideoMode {
-                size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
-                refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
-                bit_depth: 32,
+            .map(move |x| RootVideoMode {
+                video_mode: PlatformVideoMode::Wayland(VideoMode {
+                    size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
+                    refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
+                    bit_depth: 32,
+                    monitor: monitor.clone(),
+                }),
             })
     }
 }

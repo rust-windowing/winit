@@ -1,7 +1,10 @@
 use std::{env, slice, str::FromStr};
 
-use super::*;
-use crate::{dpi::validate_hidpi_factor, monitor::VideoMode};
+use super::{
+    ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
+    *,
+};
+use crate::{dpi::validate_hidpi_factor, platform_impl::platform::x11::VideoMode};
 
 pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
@@ -34,47 +37,6 @@ pub fn calc_dpi_factor(
     dpi_factor
 }
 
-pub enum MonitorRepr {
-    Monitor(*mut ffi::XRRMonitorInfo),
-    Crtc(*mut ffi::XRRCrtcInfo),
-}
-
-impl MonitorRepr {
-    pub unsafe fn get_output(&self) -> ffi::RROutput {
-        match *self {
-            // Same member names, but different locations within the struct...
-            MonitorRepr::Monitor(monitor) => *((*monitor).outputs.offset(0)),
-            MonitorRepr::Crtc(crtc) => *((*crtc).outputs.offset(0)),
-        }
-    }
-
-    pub unsafe fn size(&self) -> (u32, u32) {
-        match *self {
-            MonitorRepr::Monitor(monitor) => ((*monitor).width as u32, (*monitor).height as u32),
-            MonitorRepr::Crtc(crtc) => ((*crtc).width as u32, (*crtc).height as u32),
-        }
-    }
-
-    pub unsafe fn position(&self) -> (i32, i32) {
-        match *self {
-            MonitorRepr::Monitor(monitor) => ((*monitor).x as i32, (*monitor).y as i32),
-            MonitorRepr::Crtc(crtc) => ((*crtc).x as i32, (*crtc).y as i32),
-        }
-    }
-}
-
-impl From<*mut ffi::XRRMonitorInfo> for MonitorRepr {
-    fn from(monitor: *mut ffi::XRRMonitorInfo) -> Self {
-        MonitorRepr::Monitor(monitor)
-    }
-}
-
-impl From<*mut ffi::XRRCrtcInfo> for MonitorRepr {
-    fn from(crtc: *mut ffi::XRRCrtcInfo) -> Self {
-        MonitorRepr::Crtc(crtc)
-    }
-}
-
 impl XConnection {
     // Retrieve DPI from Xft.dpi property
     pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
@@ -96,11 +58,11 @@ impl XConnection {
     }
     pub unsafe fn get_output_info(
         &self,
-        resources: *mut ffi::XRRScreenResources,
-        repr: &MonitorRepr,
+        resources: *mut XRRScreenResources,
+        crtc: *mut XRRCrtcInfo,
     ) -> Option<(String, f64, Vec<VideoMode>)> {
         let output_info =
-            (self.xrandr.XRRGetOutputInfo)(self.display, resources, repr.get_output());
+            (self.xrandr.XRRGetOutputInfo)(self.display, resources, *(*crtc).outputs.offset(0));
         if output_info.is_null() {
             // When calling `XRRGetOutputInfo` on a virtual monitor (versus a physical display)
             // it's possible for it to return null.
@@ -132,6 +94,10 @@ impl XConnection {
                     size: (x.width, x.height),
                     refresh_rate: (refresh_rate as f32 / 1000.0).round() as u16,
                     bit_depth: bit_depth as u16,
+                    native_mode: x.id,
+                    // This is populated in `MonitorHandle::video_modes` as the
+                    // video mode is returned to the user
+                    monitor: None,
                 }
             });
 
@@ -144,7 +110,7 @@ impl XConnection {
             dpi / 96.
         } else {
             calc_dpi_factor(
-                repr.size(),
+                ((*crtc).width as u32, (*crtc).height as u32),
                 (
                     (*output_info).mm_width as u64,
                     (*output_info).mm_height as u64,
@@ -154,5 +120,62 @@ impl XConnection {
 
         (self.xrandr.XRRFreeOutputInfo)(output_info);
         Some((name, hidpi_factor, modes.collect()))
+    }
+    pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Result<(), ()> {
+        unsafe {
+            let mut major = 0;
+            let mut minor = 0;
+            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+
+            let root = (self.xlib.XDefaultRootWindow)(self.display);
+            let resources = if (major == 1 && minor >= 3) || major > 1 {
+                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+            } else {
+                (self.xrandr.XRRGetScreenResources)(self.display, root)
+            };
+
+            let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
+            let status = (self.xrandr.XRRSetCrtcConfig)(
+                self.display,
+                resources,
+                crtc_id,
+                CurrentTime,
+                (*crtc).x,
+                (*crtc).y,
+                mode_id,
+                (*crtc).rotation,
+                (*crtc).outputs.offset(0),
+                1,
+            );
+
+            (self.xrandr.XRRFreeCrtcInfo)(crtc);
+            (self.xrandr.XRRFreeScreenResources)(resources);
+
+            if status == Success as i32 {
+                Ok(())
+            } else {
+                Err(())
+            }
+        }
+    }
+    pub fn get_crtc_mode(&self, crtc_id: RRCrtc) -> RRMode {
+        unsafe {
+            let mut major = 0;
+            let mut minor = 0;
+            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+
+            let root = (self.xlib.XDefaultRootWindow)(self.display);
+            let resources = if (major == 1 && minor >= 3) || major > 1 {
+                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+            } else {
+                (self.xrandr.XRRGetScreenResources)(self.display, root)
+            };
+
+            let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
+            let mode = (*crtc).mode;
+            (self.xrandr.XRRFreeCrtcInfo)(crtc);
+            (self.xrandr.XRRFreeScreenResources)(resources);
+            mode
+        }
     }
 }

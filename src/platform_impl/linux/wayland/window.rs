@@ -1,3 +1,4 @@
+use raw_window_handle::unix::WaylandHandle;
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex, Weak},
@@ -8,10 +9,11 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
+        platform::wayland::event_loop::{available_monitors, primary_monitor},
         MonitorHandle as PlatformMonitorHandle,
         PlatformSpecificWindowBuilderAttributes as PlAttributes,
     },
-    window::{CursorIcon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
 use smithay_client_toolkit::{
@@ -25,7 +27,6 @@ use smithay_client_toolkit::{
 };
 
 use super::{make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
-use crate::platform_impl::platform::wayland::event_loop::{available_monitors, primary_monitor};
 
 pub struct Window {
     surface: wl_surface::WlSurface,
@@ -108,13 +109,19 @@ impl Window {
         }
 
         // Check for fullscreen requirements
-        if let Some(RootMonitorHandle {
-            inner: PlatformMonitorHandle::Wayland(ref monitor_id),
-        }) = attributes.fullscreen
-        {
-            frame.set_fullscreen(Some(&monitor_id.proxy));
-        } else if attributes.maximized {
-            frame.set_maximized();
+        match attributes.fullscreen {
+            Some(Fullscreen::Exclusive(_)) => {
+                panic!("Wayland doesn't support exclusive fullscreen")
+            }
+            Some(Fullscreen::Borderless(RootMonitorHandle {
+                inner: PlatformMonitorHandle::Wayland(ref monitor_id),
+            })) => frame.set_fullscreen(Some(&monitor_id.proxy)),
+            Some(Fullscreen::Borderless(_)) => unreachable!(),
+            None => {
+                if attributes.maximized {
+                    frame.set_maximized();
+                }
+            }
         }
 
         frame.set_resizable(attributes.resizable);
@@ -252,25 +259,31 @@ impl Window {
         }
     }
 
-    pub fn fullscreen(&self) -> Option<MonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         if *(self.fullscreen.lock().unwrap()) {
-            Some(self.current_monitor())
+            Some(Fullscreen::Borderless(RootMonitorHandle {
+                inner: PlatformMonitorHandle::Wayland(self.current_monitor()),
+            }))
         } else {
             None
         }
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
-        if let Some(RootMonitorHandle {
-            inner: PlatformMonitorHandle::Wayland(ref monitor_id),
-        }) = monitor
-        {
-            self.frame
-                .lock()
-                .unwrap()
-                .set_fullscreen(Some(&monitor_id.proxy));
-        } else {
-            self.frame.lock().unwrap().unset_fullscreen();
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        match fullscreen {
+            Some(Fullscreen::Exclusive(_)) => {
+                panic!("Wayland doesn't support exclusive fullscreen")
+            }
+            Some(Fullscreen::Borderless(RootMonitorHandle {
+                inner: PlatformMonitorHandle::Wayland(ref monitor_id),
+            })) => {
+                self.frame
+                    .lock()
+                    .unwrap()
+                    .set_fullscreen(Some(&monitor_id.proxy));
+            }
+            Some(Fullscreen::Borderless(_)) => unreachable!(),
+            None => self.frame.lock().unwrap().unset_fullscreen(),
         }
     }
 
@@ -320,6 +333,14 @@ impl Window {
 
     pub fn primary_monitor(&self) -> MonitorHandle {
         primary_monitor(&self.outputs)
+    }
+
+    pub fn raw_window_handle(&self) -> WaylandHandle {
+        WaylandHandle {
+            surface: self.surface().as_ref().c_ptr() as *mut _,
+            display: self.display().as_ref().c_ptr() as *mut _,
+            ..WaylandHandle::empty()
+        }
     }
 }
 

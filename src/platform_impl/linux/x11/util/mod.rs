@@ -3,12 +3,14 @@
 
 mod atom;
 mod client_msg;
+mod cursor;
 mod format;
 mod geometry;
 mod hint;
 mod icon;
 mod input;
 mod memory;
+pub mod modifiers;
 mod randr;
 mod window_property;
 mod wm;
@@ -18,7 +20,12 @@ pub use self::{
     randr::*, window_property::*, wm::*,
 };
 
-use std::{mem, ops::BitAnd, os::raw::*, ptr};
+use std::{
+    mem::{self, MaybeUninit},
+    ops::BitAnd,
+    os::raw::*,
+    ptr,
+};
 
 use super::{ffi, XConnection, XError};
 

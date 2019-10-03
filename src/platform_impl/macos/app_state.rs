@@ -3,6 +3,7 @@ use std::{
     fmt::{self, Debug},
     hint::unreachable_unchecked,
     mem,
+    rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
         Mutex, MutexGuard,
@@ -37,13 +38,13 @@ pub trait EventHandler: Debug {
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
 }
 
-struct EventLoopHandler<F, T: 'static> {
-    callback: F,
+struct EventLoopHandler<T: 'static> {
+    callback: Box<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>,
     will_exit: bool,
-    window_target: RootWindowTarget<T>,
+    window_target: Rc<RootWindowTarget<T>>,
 }
 
-impl<F, T> Debug for EventLoopHandler<F, T> {
+impl<T> Debug for EventLoopHandler<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("EventLoopHandler")
@@ -52,11 +53,7 @@ impl<F, T> Debug for EventLoopHandler<F, T> {
     }
 }
 
-impl<F, T> EventHandler for EventLoopHandler<F, T>
-where
-    F: 'static + FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
-    T: 'static,
-{
+impl<T> EventHandler for EventLoopHandler<T> {
     fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
         (self.callback)(event.userify(), &self.window_target, control_flow);
         self.will_exit |= *control_flow == ControlFlow::Exit;
@@ -87,7 +84,6 @@ struct Handler {
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<Event<Never>>>,
-    deferred_events: Mutex<VecDeque<Event<Never>>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
 }
@@ -98,10 +94,6 @@ unsafe impl Sync for Handler {}
 impl Handler {
     fn events<'a>(&'a self) -> MutexGuard<'a, VecDeque<Event<Never>>> {
         self.pending_events.lock().unwrap()
-    }
-
-    fn deferred<'a>(&'a self) -> MutexGuard<'a, VecDeque<Event<Never>>> {
-        self.deferred_events.lock().unwrap()
     }
 
     fn redraw<'a>(&'a self) -> MutexGuard<'a, Vec<WindowId>> {
@@ -148,10 +140,6 @@ impl Handler {
         mem::replace(&mut *self.events(), Default::default())
     }
 
-    fn take_deferred(&self) -> VecDeque<Event<Never>> {
-        mem::replace(&mut *self.deferred(), Default::default())
-    }
-
     fn should_redraw(&self) -> Vec<WindowId> {
         mem::replace(&mut *self.redraw(), Default::default())
     }
@@ -180,13 +168,20 @@ impl Handler {
 pub enum AppState {}
 
 impl AppState {
-    pub fn set_callback<F, T>(callback: F, window_target: RootWindowTarget<T>)
+    // This function extends lifetime of `callback` to 'static as its side effect
+    pub unsafe fn set_callback<F, T>(callback: F, window_target: Rc<RootWindowTarget<T>>)
     where
-        F: 'static + FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
-        T: 'static,
+        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
-            callback,
+            // This transmute is always safe, in case it was reached through `run`, since our
+            // lifetime will be already 'static. In other cases caller should ensure that all data
+            // they passed to callback will actually outlive it, some apps just can't move
+            // everything to event loop, so this is something that they should care about.
+            callback: mem::transmute::<
+                Box<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+            >(Box::new(callback)),
             will_exit: false,
             window_target,
         }));
@@ -196,6 +191,7 @@ impl AppState {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(Event::LoopDestroyed);
         HANDLER.set_in_callback(false);
+        HANDLER.callback.lock().unwrap().take();
     }
 
     pub fn launched() {
@@ -259,20 +255,6 @@ impl AppState {
         HANDLER.events().append(&mut events);
     }
 
-    pub fn send_event_immediately(event: Event<Never>) {
-        if !unsafe { msg_send![class!(NSThread), isMainThread] } {
-            panic!("Event sent from different thread: {:#?}", event);
-        }
-        HANDLER.deferred().push_back(event);
-        if !HANDLER.get_in_callback() {
-            HANDLER.set_in_callback(true);
-            for event in HANDLER.take_deferred() {
-                HANDLER.handle_nonuser_event(event);
-            }
-            HANDLER.set_in_callback(false);
-        }
-    }
-
     pub fn cleared() {
         if !HANDLER.is_ready() {
             return;
@@ -298,7 +280,7 @@ impl AppState {
         }
         HANDLER.update_start_time();
         match HANDLER.get_old_and_new_control_flow() {
-            (ControlFlow::Exit, _) | (_, ControlFlow::Exit) => unreachable!(),
+            (ControlFlow::Exit, _) | (_, ControlFlow::Exit) => (),
             (old, new) if old == new => (),
             (_, ControlFlow::Wait) => HANDLER.waker().stop(),
             (_, ControlFlow::WaitUntil(instant)) => HANDLER.waker().start_at(instant),
