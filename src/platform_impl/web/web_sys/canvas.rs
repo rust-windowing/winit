@@ -8,7 +8,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{Element, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
+use web_sys::{
+    Element, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent,
+};
 
 pub struct Canvas {
     raw: HtmlCanvasElement,
@@ -98,7 +100,7 @@ impl Canvas {
             intended_size: Rc::new(RefCell::new(LogicalSize {
                 width: 0.0,
                 height: 0.0,
-            }))
+            })),
         })
     }
 
@@ -137,8 +139,16 @@ impl Canvas {
 
     pub fn window_size(&self) -> LogicalSize {
         let window = web_sys::window().expect("Failed to obtain window");
-        let width = window.inner_width().expect("Failed to get width").as_f64().expect("Failed to get width as f64");
-        let height = window.inner_height().expect("Failed to get height").as_f64().expect("Failed to get height as f64");
+        let width = window
+            .inner_width()
+            .expect("Failed to get width")
+            .as_f64()
+            .expect("Failed to get width as f64");
+        let height = window
+            .inner_height()
+            .expect("Failed to get height")
+            .as_f64()
+            .expect("Failed to get height as f64");
 
         LogicalSize { width, height }
     }
@@ -286,9 +296,10 @@ impl Canvas {
 
     pub fn on_fullscreen_change<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut()
+        F: 'static + FnMut(),
     {
-        self.on_fullscreen_change = Some(self.add_event("fullscreenchange", move |_: Event| handler()));
+        self.on_fullscreen_change =
+            Some(self.add_event("fullscreenchange", move |_: Event| handler()));
     }
 
     fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>

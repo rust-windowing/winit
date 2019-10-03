@@ -9,8 +9,9 @@ use std::rc::Rc;
 use stdweb::traits::IPointerEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::event::{
-    BlurEvent, ConcreteEvent, FocusEvent, FullscreenChangeEvent, KeyDownEvent, KeyPressEvent, KeyUpEvent, MouseWheelEvent,
-    PointerDownEvent, PointerMoveEvent, PointerOutEvent, PointerOverEvent, PointerUpEvent,
+    BlurEvent, ConcreteEvent, FocusEvent, FullscreenChangeEvent, KeyDownEvent, KeyPressEvent,
+    KeyUpEvent, MouseWheelEvent, PointerDownEvent, PointerMoveEvent, PointerOutEvent,
+    PointerOverEvent, PointerUpEvent,
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{
@@ -100,7 +101,7 @@ impl Canvas {
             intended_size: Rc::new(RefCell::new(LogicalSize {
                 width: 0.0,
                 height: 0.0,
-            }))
+            })),
         })
     }
 
@@ -132,7 +133,7 @@ impl Canvas {
             *self.intended_size.borrow_mut() = size;
         }
     }
-    
+
     pub fn intended_size(&self) -> LogicalSize {
         *self.intended_size.borrow()
     }
@@ -144,7 +145,6 @@ impl Canvas {
 
         LogicalSize { width, height }
     }
-
 
     pub fn raw(&self) -> &CanvasElement {
         &self.raw
@@ -275,10 +275,10 @@ impl Canvas {
             }
         }));
     }
-    
+
     pub fn on_fullscreen_change<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut()
+        F: 'static + FnMut(),
     {
         self.on_fullscreen_change = Some(self.add_event(move |_: FullscreenChangeEvent| handler()));
     }

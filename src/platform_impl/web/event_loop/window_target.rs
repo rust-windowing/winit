@@ -178,7 +178,7 @@ impl<T> WindowTarget<T> {
             event_canvas.set_size(new_size, false);
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
-                event: WindowEvent::Resized(new_size)
+                event: WindowEvent::Resized(new_size),
             });
             runner.request_redraw(WindowId(id));
         });
