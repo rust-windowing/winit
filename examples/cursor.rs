@@ -28,8 +28,7 @@ fn main() {
             if cursor_idx < CURSORS.len() - 1 {
                 println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
                 window.set_cursor_icon(CURSORS[cursor_idx]);
-            }
-            else if cfg!(target_os = "windows") {
+            } else if cfg!(target_os = "windows") {
                 println!("Setting cursor to custom tailless-pointer.cur");
                 let path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/tailless-pointer.cur");
                 window.set_cursor_icon(CursorIcon::Custom(path));
