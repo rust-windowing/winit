@@ -29,6 +29,7 @@ use crate::{
         sticky_exit_callback, MonitorHandle as PlatformMonitorHandle,
         VideoMode as PlatformVideoMode,
     },
+    window::CursorIcon,
 };
 
 use super::{window::WindowStore, DeviceId, WindowId};
@@ -78,21 +79,23 @@ impl<T> WindowEventsSink<T> {
 }
 
 pub struct CursorManager {
-    pointer_constraints_proxy: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>,
+    pointer_constraints_proxy: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>,
     auto_themer: Option<AutoThemer>,
     pointers: Vec<AutoPointer>,
     locked_pointers: Vec<ZwpLockedPointerV1>,
-    cursor_visible: Rc<RefCell<bool>>,
+    cursor_visible: bool,
+    current_cursor: CursorIcon,
 }
 
 impl CursorManager {
-    fn new(constraints: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>) -> CursorManager {
+    fn new(constraints: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>) -> CursorManager {
         CursorManager {
             pointer_constraints_proxy: constraints,
             auto_themer: None,
             pointers: Vec::new(),
             locked_pointers: Vec::new(),
-            cursor_visible: Rc::new(RefCell::new(true)),
+            cursor_visible: true,
+            current_cursor: CursorIcon::default(),
         }
     }
 
@@ -108,29 +111,96 @@ impl CursorManager {
         self.auto_themer = Some(auto_themer);
     }
 
-    fn set_cursor_visible(&mut self, visible: bool) {
+    pub fn set_cursor_visible(&mut self, visible: bool) {
         if !visible {
             for pointer in self.pointers.iter() {
                 (**pointer).set_cursor(0, None, 0, 0);
             }
         } else {
-            for pointer in self.pointers.iter() {
-                pointer.set_cursor("left_ptr", None).unwrap();
-            }
+            self.set_cursor_icon_impl(self.current_cursor);
         }
-        (*self.cursor_visible.try_borrow_mut().unwrap()) = visible;
+        self.cursor_visible = visible;
     }
 
-    fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
-        for lp in self.locked_pointers.drain(..) {
-            lp.destroy();
+    /// A helper function to restore cursor styles on PtrEvent::Enter.
+    pub fn reload_cursor_style(&mut self) {
+        if !self.cursor_visible {
+            self.set_cursor_visible(false);
+        } else {
+            self.set_cursor_icon_impl(self.current_cursor);
+        }
+    }
+
+    pub fn set_cursor_icon(&mut self, cursor: CursorIcon) {
+        if self.cursor_visible && cursor != self.current_cursor {
+            self.current_cursor = cursor;
+
+            self.set_cursor_icon_impl(cursor);
+        }
+    }
+
+    fn set_cursor_icon_impl(&mut self, cursor: CursorIcon) {
+        let cursor = match cursor {
+            CursorIcon::Alias => "link",
+            CursorIcon::Arrow => "arrow",
+            CursorIcon::Cell => "plus",
+            CursorIcon::Copy => "copy",
+            CursorIcon::Crosshair => "crosshair",
+            CursorIcon::Default => "left_ptr",
+            CursorIcon::Hand => "hand",
+            CursorIcon::Help => "question_arrow",
+            CursorIcon::Move => "move",
+            CursorIcon::Grab => "grab",
+            CursorIcon::Grabbing => "grabbing",
+            CursorIcon::Progress => "progress",
+            CursorIcon::AllScroll => "all-scroll",
+            CursorIcon::ContextMenu => "context-menu",
+
+            CursorIcon::NoDrop => "no-drop",
+            CursorIcon::NotAllowed => "crossed_circle",
+
+            // Resize cursors
+            CursorIcon::EResize => "right_side",
+            CursorIcon::NResize => "top_side",
+            CursorIcon::NeResize => "top_right_corner",
+            CursorIcon::NwResize => "top_left_corner",
+            CursorIcon::SResize => "bottom_side",
+            CursorIcon::SeResize => "bottom_right_corner",
+            CursorIcon::SwResize => "bottom_left_corner",
+            CursorIcon::WResize => "left_side",
+            CursorIcon::EwResize => "h_double_arrow",
+            CursorIcon::NsResize => "v_double_arrow",
+            CursorIcon::NwseResize => "bd_double_arrow",
+            CursorIcon::NeswResize => "fd_double_arrow",
+            CursorIcon::ColResize => "h_double_arrow",
+            CursorIcon::RowResize => "v_double_arrow",
+
+            CursorIcon::Text => "text",
+            CursorIcon::VerticalText => "vertical-text",
+
+            CursorIcon::Wait => "watch",
+
+            CursorIcon::ZoomIn => "zoom-in",
+            CursorIcon::ZoomOut => "zoom-out",
+        };
+
+        for pointer in self.pointers.iter() {
+            // Ignore erros, since we don't want to fail hard in case we can't find a proper cursor
+            // in a given theme.
+            let _ = pointer.set_cursor(cursor, None);
+        }
+    }
+
+    pub fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
+        for locked_pointer in self.locked_pointers.drain(..) {
+            locked_pointer.destroy();
         }
 
         if let Some(surface) = surface {
             for pointer in self.pointers.iter() {
                 let locked_pointer = self
                     .pointer_constraints_proxy
-                    .try_borrow()
+                    .try_lock()
                     .unwrap()
                     .as_ref()
                     .and_then(|pointer_constraints| {
@@ -155,13 +225,12 @@ pub struct EventLoop<T: 'static> {
     inner_loop: ::calloop::EventLoop<()>,
     // The wayland display
     pub display: Arc<Display>,
-    // the output manager
+    // The output manager
     pub outputs: OutputMgr,
-    // our sink, shared with some handlers, buffering the events
+    // Our sink, shared with some handlers, buffering the events
     sink: Arc<Mutex<WindowEventsSink<T>>>,
     pending_user_events: Rc<RefCell<VecDeque<T>>>,
     // Utility for grabbing the cursor and changing visibility
-    cursor_manager: Rc<RefCell<CursorManager>>,
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     user_sender: ::calloop::channel::Sender<T>,
     _kbd_source: ::calloop::Source<
@@ -174,17 +243,19 @@ pub struct EventLoop<T: 'static> {
 //
 // We should only try and wake up the `EventLoop` if it still exists, so we hold Weak ptrs.
 pub struct EventLoopProxy<T: 'static> {
-    user_sender: ::calloop::channel::Sender<T>,
+    user_sender: calloop::channel::Sender<T>,
 }
 
 pub struct EventLoopWindowTarget<T> {
-    // the event queue
+    // The event queue
     pub evq: RefCell<::calloop::Source<EventQueue>>,
     // The window store
     pub store: Arc<Mutex<WindowStore>>,
-    // the env
+    // The cursor manager
+    pub cursor_manager: Arc<Mutex<CursorManager>>,
+    // The env
     pub env: Environment,
-    // a cleanup switch to prune dead windows
+    // A cleanup switch to prune dead windows
     pub cleanup_needed: Arc<Mutex<bool>>,
     // The wayland display
     pub display: Arc<Display>,
@@ -229,7 +300,7 @@ impl<T: 'static> EventLoop<T> {
             })
             .unwrap();
 
-        let pointer_constraints_proxy = Rc::new(RefCell::new(None));
+        let pointer_constraints_proxy = Arc::new(Mutex::new(None));
 
         let mut seat_manager = SeatManager {
             sink: sink.clone(),
@@ -238,11 +309,11 @@ impl<T: 'static> EventLoop<T> {
             store: store.clone(),
             seats: seats.clone(),
             kbd_sender,
-            cursor_manager: Rc::new(RefCell::new(CursorManager::new(pointer_constraints_proxy))),
+            cursor_manager: Arc::new(Mutex::new(CursorManager::new(pointer_constraints_proxy))),
         };
 
         let cursor_manager = seat_manager.cursor_manager.clone();
-        let cursor_manager2 = cursor_manager.clone();
+        let cursor_manager_clone = cursor_manager.clone();
 
         let shm_cell = Rc::new(RefCell::new(None));
         let compositor_cell = Rc::new(RefCell::new(None));
@@ -275,7 +346,7 @@ impl<T: 'static> EventLoop<T> {
                             })
                             .unwrap();
 
-                        *seat_manager.pointer_constraints_proxy.borrow_mut() =
+                        *seat_manager.pointer_constraints_proxy.lock().unwrap() =
                             Some(pointer_constraints_proxy);
                     }
                     if interface == "wl_shm" {
@@ -298,7 +369,10 @@ impl<T: 'static> EventLoop<T> {
                         let compositor = compositor_cell.borrow_mut().take().unwrap();
                         let shm = shm_cell.borrow_mut().take().unwrap();
                         let auto_themer = AutoThemer::init(None, compositor, &shm);
-                        cursor_manager2.borrow_mut().set_auto_themer(auto_themer);
+                        cursor_manager_clone
+                            .lock()
+                            .unwrap()
+                            .set_auto_themer(auto_themer);
                     }
 
                     if interface == "wl_seat" {
@@ -333,13 +407,13 @@ impl<T: 'static> EventLoop<T> {
             })
             .unwrap();
 
+        let cursor_manager_clone = cursor_manager.clone();
         Ok(EventLoop {
             inner_loop,
             sink,
             pending_user_events,
             display: display.clone(),
             outputs: env.outputs.clone(),
-            cursor_manager,
             _user_source: user_source,
             user_sender,
             _kbd_source: kbd_source,
@@ -348,6 +422,7 @@ impl<T: 'static> EventLoop<T> {
                     evq: RefCell::new(source),
                     store,
                     env,
+                    cursor_manager: cursor_manager_clone,
                     cleanup_needed: Arc::new(Mutex::new(false)),
                     seats,
                     display,
@@ -369,7 +444,7 @@ impl<T: 'static> EventLoop<T> {
         F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(callback);
-        ::std::process::exit(0);
+        std::process::exit(0);
     }
 
     pub fn run_return<F>(&mut self, mut callback: F)
@@ -579,17 +654,7 @@ impl<T> EventLoop<T> {
         }
         // process pending resize/refresh
         window_target.store.lock().unwrap().for_each(
-            |newsize,
-             size,
-             new_dpi,
-             refresh,
-             frame_refresh,
-             closed,
-             cursor_visible,
-             cursor_grab,
-             surface,
-             wid,
-             frame| {
+            |newsize, size, new_dpi, refresh, frame_refresh, closed, wid, frame| {
                 if let Some(frame) = frame {
                     if let Some((w, h)) = newsize {
                         frame.resize(w, h);
@@ -619,17 +684,6 @@ impl<T> EventLoop<T> {
                 if closed {
                     sink.send_window_event(crate::event::WindowEvent::CloseRequested, wid);
                 }
-                if let Some(grab) = cursor_grab {
-                    self.cursor_manager.borrow_mut().grab_pointer(if grab {
-                        Some(surface)
-                    } else {
-                        None
-                    });
-                }
-
-                if let Some(visible) = cursor_visible {
-                    self.cursor_manager.borrow_mut().set_cursor_visible(visible);
-                }
             },
         )
     }
@@ -645,8 +699,8 @@ struct SeatManager<T: 'static> {
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
-    pointer_constraints_proxy: Rc<RefCell<Option<ZwpPointerConstraintsV1>>>,
-    cursor_manager: Rc<RefCell<CursorManager>>,
+    pointer_constraints_proxy: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
 }
 
 impl<T: 'static> SeatManager<T> {
@@ -695,7 +749,7 @@ struct SeatData<T> {
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
-    cursor_manager: Rc<RefCell<CursorManager>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
 }
 
 impl<T: 'static> SeatData<T> {
@@ -710,11 +764,12 @@ impl<T: 'static> SeatData<T> {
                         self.sink.clone(),
                         self.store.clone(),
                         self.modifiers_tracker.clone(),
-                        self.cursor_manager.borrow().cursor_visible.clone(),
+                        self.cursor_manager.clone(),
                     ));
 
                     self.cursor_manager
-                        .borrow_mut()
+                        .lock()
+                        .unwrap()
                         .register_pointer(self.pointer.as_ref().unwrap().clone());
 
                     self.relative_pointer = self
