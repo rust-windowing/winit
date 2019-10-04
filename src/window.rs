@@ -5,7 +5,7 @@ use crate::{
     dpi::{LogicalPosition, LogicalSize},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
-    monitor::{AvailableMonitorsIter, MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoMode},
     platform_impl,
 };
 
@@ -704,10 +704,10 @@ impl Window {
     /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        let data = self.window.available_monitors();
-        AvailableMonitorsIter {
-            data: data.into_iter(),
-        }
+        self.window
+            .available_monitors()
+            .into_iter()
+            .map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the primary monitor of the system.
