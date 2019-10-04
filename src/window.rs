@@ -703,7 +703,7 @@ impl Window {
     ///
     /// **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn available_monitors(&self) -> AvailableMonitorsIter {
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         let data = self.window.available_monitors();
         AvailableMonitorsIter {
             data: data.into_iter(),
