@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Windows, implemented function to get HINSTANCE
 - On macOS, implement `run_return`.
 - On iOS, fix inverted parameter in `set_prefers_home_indicator_hidden`.
 - On X11, performance is improved when rapidly calling `Window::set_cursor_icon`.
@@ -21,8 +22,11 @@
 - On X11, prevent stealing input focus when creating a new window.
   Only steal input focus when entering fullscreen mode.
 - On Wayland, add support for set_cursor_visible and set_cursor_grab.
-- On Wayland, fixed DeviceEvents for relative mouse movement is not always produced
+- On Wayland, fixed DeviceEvents for relative mouse movement is not always produced.
+- Removed `derivative` crate dependency.
 - On Wayland, add support for set_cursor_icon.
+- Use `impl Iterator<Item = MonitorHandle>` instead of `AvailableMonitorsIter` consistently.
+- On X11, fix use-after-free during window creation
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
