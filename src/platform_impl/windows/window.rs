@@ -14,7 +14,7 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{DWORD, LPARAM, UINT, WORD, WPARAM},
+        minwindef::{DWORD, LPARAM, UINT, WORD, WPARAM, HINSTANCE},
         windef::{HWND, POINT, RECT},
     },
     um::{
@@ -28,6 +28,7 @@ use winapi::{
         winuser,
     },
 };
+
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalSize},
@@ -356,6 +357,11 @@ impl Window {
     #[inline]
     pub fn hwnd(&self) -> HWND {
         self.window.0
+    }
+
+    #[inline]
+    pub fn hinstance(&self) -> HINSTANCE {
+        self.window.1
     }
 
     #[inline]
@@ -700,7 +706,7 @@ impl Drop for Window {
 /// A simple non-owning wrapper around a window.
 #[doc(hidden)]
 #[derive(Clone)]
-pub struct WindowWrapper(HWND);
+pub struct WindowWrapper(HWND, HINSTANCE);
 
 // Send and Sync are not implemented for HWND and HDC, we have to wrap it and implement them manually.
 // For more info see:
@@ -825,7 +831,9 @@ unsafe fn init<T: 'static>(
             return Err(os_error!(io::Error::last_os_error()));
         }
 
-        WindowWrapper(handle)
+        let hinstance = libloaderapi::GetModuleHandleW(std::ptr::null() as *_);
+
+        WindowWrapper(handle, hinstance)
     };
 
     // Set up raw input
