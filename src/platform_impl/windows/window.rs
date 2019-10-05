@@ -917,6 +917,9 @@ unsafe fn init<T: 'static>(
     if let Some(dimensions) = attributes.inner_size {
         win.set_inner_size(dimensions);
     }
+    if let Some(position) = attributes.outer_position {
+        win.set_outer_position(position);
+    }
 
     Ok(win)
 }
