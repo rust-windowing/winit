@@ -30,6 +30,8 @@
   resulting in `Window::fullscreen` returning the old state in `Resized` events instead of
   reflecting the new fullscreen state
 - On X11, fix use-after-free during window creation
+- On Windows, disable monitor change keyboard shortcut while in exclusive fullscreen.
+- On Windows, ensure that changing a borderless fullscreen window's monitor via keyboard shortcuts keeps the window fullscreen on the new monitor.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
