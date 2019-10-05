@@ -29,6 +29,7 @@
 - On macOS, fix fullscreen state being updated after entering fullscreen instead of before,
   resulting in `Window::fullscreen` returning the old state in `Resized` events instead of
   reflecting the new fullscreen state
+- On X11, fix use-after-free during window creation
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
