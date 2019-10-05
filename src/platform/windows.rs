@@ -47,7 +47,7 @@ pub trait WindowExtWindows {
 
 impl WindowExtWindows for Window {
     #[inline]
-    fn hinstance(&self) -> *mut libc::c_void{
+    fn hinstance(&self) -> *mut libc::c_void {
         self.window.hinstance() as *mut _
     }
 

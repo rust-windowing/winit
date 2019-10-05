@@ -14,7 +14,7 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{DWORD, LPARAM, UINT, WORD, WPARAM, HINSTANCE},
+        minwindef::{DWORD, HINSTANCE, LPARAM, UINT, WORD, WPARAM},
         windef::{HWND, POINT, RECT},
     },
     um::{
@@ -28,7 +28,6 @@ use winapi::{
         winuser,
     },
 };
-
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalSize},
