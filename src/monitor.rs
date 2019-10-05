@@ -1,13 +1,12 @@
 //! Types useful for interacting with a user's monitors.
 //!
 //! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_id]
-//! type. This is retreived from an [`AvailableMonitorsIter`][monitor_iter], which can be acquired
-//! with:
+//! type. This is retreived from one of the following methods, which return an iterator of
+//! [`MonitorHandle`][monitor_id]:
 //! - [`EventLoop::available_monitors`][loop_get]
 //! - [`Window::available_monitors`][window_get].
 //!
 //! [monitor_id]: ./struct.MonitorHandle.html
-//! [monitor_iter]: ./struct.AvailableMonitorsIter.html
 //! [loop_get]: ../event_loop/struct.EventLoop.html#method.available_monitors
 //! [window_get]: ../window/struct.Window.html#method.available_monitors
 use crate::{
