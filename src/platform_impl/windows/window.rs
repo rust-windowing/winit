@@ -831,7 +831,7 @@ unsafe fn init<T: 'static>(
             return Err(os_error!(io::Error::last_os_error()));
         }
 
-        let hinstance = libloaderapi::GetModuleHandleW(std::ptr::null() as *_);
+        let hinstance = libloaderapi::GetModuleHandleW(std::ptr::null() as *const _);
 
         WindowWrapper(handle, hinstance)
     };

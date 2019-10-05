@@ -35,8 +35,8 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExtWindows {
-	/// Returns the HINSTANCE of the window
-	fn hinstance(&self) -> *mut libc::c_void;
+    /// Returns the HINSTANCE of the window
+    fn hinstance(&self) -> *mut libc::c_void;
     /// Returns the native handle that is used by this window.
     ///
     /// The pointer will become invalid when the native window was destroyed.
@@ -47,10 +47,10 @@ pub trait WindowExtWindows {
 }
 
 impl WindowExtWindows for Window {
-	#[inline]
-	fn hinstance(&self) -> *mut libc::c_void{
-		self.window.hinstance() as *mut _
-	}
+    #[inline]
+    fn hinstance(&self) -> *mut libc::c_void{
+        self.window.hinstance() as *mut _
+    }
 
     #[inline]
     fn hwnd(&self) -> *mut libc::c_void {
