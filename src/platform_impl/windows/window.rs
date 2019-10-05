@@ -14,7 +14,7 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{DWORD, LPARAM, UINT, WORD, WPARAM},
+        minwindef::{DWORD, HINSTANCE, LPARAM, UINT, WORD, WPARAM},
         windef::{HWND, POINT, RECT},
     },
     um::{
@@ -356,6 +356,11 @@ impl Window {
     #[inline]
     pub fn hwnd(&self) -> HWND {
         self.window.0
+    }
+
+    #[inline]
+    pub fn hinstance(&self) -> HINSTANCE {
+        unsafe { winuser::GetWindowLongW(self.hwnd(), winuser::GWL_HINSTANCE) as *mut _ }
     }
 
     #[inline]
