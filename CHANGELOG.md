@@ -25,6 +25,7 @@
 - Removed `derivative` crate dependency.
 - On Wayland, add support for set_cursor_icon.
 - Use `impl Iterator<Item = MonitorHandle>` instead of `AvailableMonitorsIter` consistently.
+- On X11, fix use-after-free during window creation
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
