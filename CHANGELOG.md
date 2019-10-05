@@ -24,6 +24,7 @@
 - On Wayland, fixed DeviceEvents for relative mouse movement is not always produced.
 - Removed `derivative` crate dependency.
 - On Wayland, add support for set_cursor_icon.
+- Use `impl Iterator<Item = MonitorHandle>` instead of `AvailableMonitorsIter` consistently.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 

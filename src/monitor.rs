@@ -1,50 +1,18 @@
 //! Types useful for interacting with a user's monitors.
 //!
 //! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_id]
-//! type. This is retreived from an [`AvailableMonitorsIter`][monitor_iter], which can be acquired
-//! with:
+//! type. This is retreived from one of the following methods, which return an iterator of
+//! [`MonitorHandle`][monitor_id]:
 //! - [`EventLoop::available_monitors`][loop_get]
 //! - [`Window::available_monitors`][window_get].
 //!
 //! [monitor_id]: ./struct.MonitorHandle.html
-//! [monitor_iter]: ./struct.AvailableMonitorsIter.html
 //! [loop_get]: ../event_loop/struct.EventLoop.html#method.available_monitors
 //! [window_get]: ../window/struct.Window.html#method.available_monitors
-use std::collections::vec_deque::IntoIter as VecDequeIter;
-
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
 };
-
-/// An iterator over all available monitors.
-///
-/// Can be acquired with:
-/// - [`EventLoop::available_monitors`][loop_get]
-/// - [`Window::available_monitors`][window_get].
-///
-/// [loop_get]: ../event_loop/struct.EventLoop.html#method.available_monitors
-/// [window_get]: ../window/struct.Window.html#method.available_monitors
-// Implementation note: we retrieve the list once, then serve each element by one by one.
-// This may change in the future.
-#[derive(Debug)]
-pub struct AvailableMonitorsIter {
-    pub(crate) data: VecDequeIter<platform_impl::MonitorHandle>,
-}
-
-impl Iterator for AvailableMonitorsIter {
-    type Item = MonitorHandle;
-
-    #[inline]
-    fn next(&mut self) -> Option<MonitorHandle> {
-        self.data.next().map(|id| MonitorHandle { inner: id })
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.data.size_hint()
-    }
-}
 
 /// Describes a fullscreen video mode of a monitor.
 ///
