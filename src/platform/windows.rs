@@ -4,7 +4,6 @@ use std::os::raw::c_void;
 
 use libc;
 use winapi::shared::windef::HWND;
-use winapi::shared::minwindef::HINSTANCE;
 
 use crate::{
     event::DeviceId,
