@@ -118,6 +118,10 @@ pub struct WindowAttributes {
     /// some platform-specific position will be chosen.
     ///
     /// The default is `None`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Wayland**: This has no effect.
     pub outer_position: Option<LogicalPosition>,
 
     /// Whether the window is resizable or not.
