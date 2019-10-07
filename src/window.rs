@@ -317,10 +317,12 @@ impl WindowBuilder {
 impl Window {
     /// Creates a new Window for platforms where this is appropriate.
     ///
-    /// This function is equivalent to `WindowBuilder::new().build(event_loop)`.
+    /// This function is equivalent to [`WindowBuilder::new().build(event_loop)`].
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
+    ///
+    /// [`WindowBuilder::new().build(event_loop)`]: struct.WindowBuilder.html#method.build
     #[inline]
     pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
         let builder = WindowBuilder::new();
@@ -605,11 +607,13 @@ impl Window {
     /// Sets the window icon. On Windows and X11, this is typically the small icon in the top-left
     /// corner of the titlebar.
     ///
-    /// For more usage notes, see `WindowBuilder::with_window_icon`.
+    /// For more usage notes, see [`WindowBuilder::with_window_icon`].
     ///
     /// ## Platform-specific
     ///
     /// This only has an effect on Windows and X11.
+    ///
+    /// [`WindowBuilder::with_window_icon`]: struct.WindowBuilder.html#method.with_window_icon
     #[inline]
     pub fn set_window_icon(&self, window_icon: Option<Icon>) {
         self.window.set_window_icon(window_icon)
