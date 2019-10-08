@@ -1,4 +1,5 @@
 use super::{backend, device, proxy::Proxy, runner, window};
+use crate::dpi::LogicalSize;
 use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
@@ -166,16 +167,26 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        let event_canvas = canvas.clone();
+        let raw = canvas.raw().clone();
+        let mut intended_size = LogicalSize {
+            width: raw.width() as f64,
+            height: raw.height() as f64,
+        };
         canvas.on_fullscreen_change(move || {
             // If the canvas is marked as fullscreen, it is moving *into* fullscreen
             // If it is not, it is moving *out of* fullscreen
-            let new_size = if event_canvas.is_fullscreen() {
-                event_canvas.window_size()
+            let new_size = if backend::is_fullscreen(&raw) {
+                intended_size = LogicalSize {
+                    width: raw.width() as f64,
+                    height: raw.height() as f64,
+                };
+
+                backend::window_size()
             } else {
-                event_canvas.intended_size()
+                intended_size
             };
-            event_canvas.set_size(new_size, false);
+            raw.set_width(new_size.width as u32);
+            raw.set_width(new_size.height as u32);
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::Resized(new_size),

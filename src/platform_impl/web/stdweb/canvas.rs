@@ -15,7 +15,7 @@ use stdweb::web::event::{
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{
-    document, window, Element, EventListenerHandle, IChildNode, IElement, IEventTarget,
+    document, EventListenerHandle, IChildNode, IElement, IEventTarget,
     IHtmlElement,
 };
 
@@ -34,30 +34,6 @@ pub struct Canvas {
     on_mouse_wheel: Option<EventListenerHandle>,
     on_fullscreen_change: Option<EventListenerHandle>,
     wants_fullscreen: Rc<RefCell<bool>>,
-    // Used to resize canvas when it enters and exits fullscreen
-    intended_size: Rc<RefCell<LogicalSize>>,
-}
-
-impl Clone for Canvas {
-    fn clone(&self) -> Canvas {
-        Canvas {
-            raw: self.raw.clone(),
-            on_blur: None,
-            on_focus: None,
-            on_keyboard_release: None,
-            on_keyboard_press: None,
-            on_received_character: None,
-            on_cursor_leave: None,
-            on_cursor_enter: None,
-            on_cursor_move: None,
-            on_mouse_release: None,
-            on_mouse_press: None,
-            on_mouse_wheel: None,
-            on_fullscreen_change: None,
-            wants_fullscreen: self.wants_fullscreen.clone(),
-            intended_size: self.intended_size.clone(),
-        }
-    }
 }
 
 impl Drop for Canvas {
@@ -98,10 +74,6 @@ impl Canvas {
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
-            intended_size: Rc::new(RefCell::new(LogicalSize {
-                width: 0.0,
-                height: 0.0,
-            })),
         })
     }
 
@@ -125,25 +97,9 @@ impl Canvas {
         self.raw.height() as f64
     }
 
-    pub fn set_size(&self, size: LogicalSize, intended: bool) {
+    pub fn set_size(&self, size: LogicalSize) {
         self.raw.set_width(size.width as u32);
         self.raw.set_height(size.height as u32);
-
-        if intended {
-            *self.intended_size.borrow_mut() = size;
-        }
-    }
-
-    pub fn intended_size(&self) -> LogicalSize {
-        *self.intended_size.borrow()
-    }
-
-    pub fn window_size(&self) -> LogicalSize {
-        let window = window();
-        let width = window.inner_width() as f64;
-        let height = window.inner_height() as f64;
-
-        LogicalSize { width, height }
     }
 
     pub fn raw(&self) -> &CanvasElement {
@@ -322,12 +278,6 @@ impl Canvas {
     }
 
     pub fn is_fullscreen(&self) -> bool {
-        match document().fullscreen_element() {
-            Some(elem) => {
-                let raw: Element = self.raw.clone().into();
-                raw == elem
-            }
-            None => false,
-        }
+        super::is_fullscreen(&self.raw)
     }
 }

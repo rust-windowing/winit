@@ -108,7 +108,7 @@ impl Window {
 
     #[inline]
     pub fn set_inner_size(&self, size: LogicalSize) {
-        self.canvas.set_size(size, true);
+        self.canvas.set_size(size);
     }
 
     #[inline]
