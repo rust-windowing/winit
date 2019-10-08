@@ -49,6 +49,7 @@ use crate::{
     event::{DeviceEvent, Event, Force, KeyboardInput, StartCause, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
+        dark_mode::try_dark_mode,
         dpi::{
             become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_scale_factor,
         },
@@ -1900,6 +1901,11 @@ unsafe extern "system" fn public_window_callback<T>(
             });
 
             0
+        }
+
+        winuser::WM_SETTINGCHANGE => {
+            try_dark_mode(window);
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
         _ => {

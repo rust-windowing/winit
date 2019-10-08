@@ -34,6 +34,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
+        dark_mode::try_dark_mode,
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{
@@ -913,6 +914,11 @@ unsafe fn init<T: 'static>(
 
     window_flags.set(WindowFlags::VISIBLE, attributes.visible);
     window_flags.set(WindowFlags::MAXIMIZED, attributes.maximized);
+
+    // If the system theme is dark, we need to set the window theme now
+    // before we update the window flags (and possibly show the
+    // window for the first time).
+    try_dark_mode(real_window.0);
 
     let window_state = {
         let window_state = WindowState::new(&attributes, window_icon, taskbar_icon, dpi_factor);
