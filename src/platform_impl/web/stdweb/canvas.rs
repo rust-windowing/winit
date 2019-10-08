@@ -15,8 +15,7 @@ use stdweb::web::event::{
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{
-    document, EventListenerHandle, IChildNode, IElement, IEventTarget,
-    IHtmlElement,
+    document, EventListenerHandle, IChildNode, IElement, IEventTarget, IHtmlElement,
 };
 
 pub struct Canvas {

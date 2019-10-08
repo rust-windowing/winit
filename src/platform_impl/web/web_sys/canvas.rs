@@ -8,9 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{
-    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent,
-};
+use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
 
 pub struct Canvas {
     raw: HtmlCanvasElement,

@@ -9,7 +9,7 @@ use crate::dpi::LogicalSize;
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{BeforeUnloadEvent, Element, HtmlCanvasElement, window};
+use web_sys::{window, BeforeUnloadEvent, Element, HtmlCanvasElement};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);

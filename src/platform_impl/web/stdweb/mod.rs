@@ -13,7 +13,7 @@ use stdweb::js;
 use stdweb::web::event::BeforeUnloadEvent;
 use stdweb::web::window;
 use stdweb::web::IEventTarget;
-use stdweb::web::{document, Element, html_element::{CanvasElement}};
+use stdweb::web::{document, html_element::CanvasElement, Element};
 
 pub fn throw(msg: &str) {
     js! { throw @{msg} }
