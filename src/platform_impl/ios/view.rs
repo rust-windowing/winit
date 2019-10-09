@@ -14,7 +14,7 @@ use crate::{
 use crate::platform_impl::platform::{
     app_state::AppState,
     event_loop,
-    ffi::{id, nil, CGFloat, CGPoint, CGRect, UIInterfaceOrientationMask, UITouchPhase},
+    ffi::{id, nil, CGFloat, CGPoint, CGSize, CGRect, UIInterfaceOrientationMask, UITouchPhase},
     window::PlatformSpecificWindowBuilderAttributes,
     DeviceId,
 };
@@ -236,17 +236,26 @@ unsafe fn get_window_class() -> &'static Class {
                     screen_frame.size.width, screen_frame.size.height,
                 );
                 let size = logical_size.to_physical(hidpi_factor);
-                let new_inner_size = &mut Some(size);
+                let mut new_inner_size = Some(size);
                 AppState::handle_nonuser_events(
                     std::iter::once(Event::WindowEvent {
                         window_id: RootWindowId(object.into()),
-                        event: WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size },
+                        event: WindowEvent::HiDpiFactorChanged {
+                            hidpi_factor,
+                            new_inner_size: &mut new_inner_size
+                        },
                     })
                     .chain(std::iter::once(Event::WindowEvent {
                         window_id: RootWindowId(object.into()),
                         event: WindowEvent::Resized(size),
                     })),
                 );
+                if let Some(physical_size) = new_inner_size {
+                    let logical_size = physical_size.to_logical(hidpi_factor);
+                    let size = CGSize::new(logical_size);
+                    let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
+                    let () = msg_send![view, setFrame:new_frame];
+                }
             }
         }
 

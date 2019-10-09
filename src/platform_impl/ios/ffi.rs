@@ -4,7 +4,10 @@ use std::{ffi::CString, ops::BitOr, os::raw::*};
 
 use objc::{runtime::Object, Encode, Encoding};
 
-use crate::platform::ios::{Idiom, ValidOrientations};
+use crate::{
+    dpi::LogicalSize,
+    platform::ios::{Idiom, ValidOrientations},
+};
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;
@@ -39,11 +42,25 @@ pub struct CGSize {
     pub height: CGFloat,
 }
 
+impl CGSize {
+    pub fn new(size: LogicalSize) -> CGSize {
+        CGSize {
+            width: size.width, height: size.height
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct CGRect {
     pub origin: CGPoint,
     pub size: CGSize,
+}
+
+impl CGRect {
+    pub fn new(origin: CGPoint, size: CGSize) -> CGRect {
+        CGRect { origin, size }
+    }
 }
 
 unsafe impl Encode for CGRect {
