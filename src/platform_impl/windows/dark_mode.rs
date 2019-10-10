@@ -43,19 +43,28 @@ lazy_static! {
             }
         }
     };
+    static ref DARK_THEME_NAME: Vec<u16> = widestring("DarkMode_Explorer");
+    static ref LIGHT_THEME_NAME: Vec<u16> = widestring("");
 }
 
-pub fn try_dark_mode(hwnd: HWND) {
-    let theme_name: Vec<_> = widestring("DarkMode_Explorer");
-
+/// Attempt to set dark mode on a window, if necessary.
+/// Returns true if dark mode was set, false if not.
+pub fn try_dark_mode(hwnd: HWND) -> bool {
     // According to Windows Terminal source, should be BOOL (32-bit int)
     // to be appropriately sized as a parameter for DwmSetWindowAttribute
-    let is_dark_mode: BOOL = should_use_dark_mode() as _;
+    let is_dark_mode = should_use_dark_mode();
+    let is_dark_mode_bigbool = is_dark_mode as BOOL;
+
+    let theme_name = if is_dark_mode {
+        DARK_THEME_NAME.as_ptr()
+    } else {
+        LIGHT_THEME_NAME.as_ptr()
+    };
 
     unsafe {
         assert_eq!(
             0,
-            uxtheme::SetWindowTheme(hwnd, theme_name.as_ptr() as _, std::ptr::null())
+            uxtheme::SetWindowTheme(hwnd, theme_name as _, std::ptr::null())
         );
 
         assert_eq!(
@@ -63,11 +72,13 @@ pub fn try_dark_mode(hwnd: HWND) {
             dwmapi::DwmSetWindowAttribute(
                 hwnd,
                 DWMWA_USE_IMMERSIVE_DARK_MODE,
-                &is_dark_mode as *const _ as _,
-                std::mem::size_of_val(&is_dark_mode) as _
+                &is_dark_mode_bigbool as *const _ as _,
+                std::mem::size_of_val(&is_dark_mode_bigbool) as _
             )
         );
     }
+
+    is_dark_mode
 }
 
 fn should_use_dark_mode() -> bool {
@@ -78,7 +89,9 @@ fn should_apps_use_dark_mode() -> bool {
     unsafe { SHOULD_APPS_USE_DARK_MODE() }
 }
 
-// FIXME: This definition is missing from winapi
+// FIXME: This definition was missing from winapi. Can remove from
+// here and use winapi once the following PR is released:
+// https://github.com/retep998/winapi-rs/pull/815
 #[repr(C)]
 #[allow(non_snake_case)]
 struct HIGHCONTRASTA {

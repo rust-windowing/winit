@@ -32,6 +32,7 @@ pub struct WindowState {
     /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
     /// times in `EventsCleared`.
     pub queued_out_of_band_redraw: bool,
+    pub is_dark_mode: bool,
     pub high_surrogate: Option<u16>,
     window_flags: WindowFlags,
 }
@@ -98,6 +99,7 @@ impl WindowState {
         window_icon: Option<WinIcon>,
         taskbar_icon: Option<WinIcon>,
         dpi_factor: f64,
+        is_dark_mode: bool,
     ) -> WindowState {
         WindowState {
             mouse: MouseProperties {
@@ -117,6 +119,7 @@ impl WindowState {
 
             fullscreen: None,
             queued_out_of_band_redraw: false,
+            is_dark_mode,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),
         }

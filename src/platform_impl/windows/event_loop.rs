@@ -1904,7 +1904,7 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_SETTINGCHANGE => {
-            try_dark_mode(window);
+            subclass_input.window_state.lock().is_dark_mode = try_dark_mode(window);
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
