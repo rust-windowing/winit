@@ -12,7 +12,7 @@ use crate::{
 };
 
 use crate::platform_impl::platform::{
-    event_loop::{EventHandler, Never},
+    event_loop::{EventHandler, EventProxy, EventWrapper, Never},
     ffi::{
         id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
         CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
@@ -31,11 +31,11 @@ macro_rules! bug {
 enum AppStateImpl {
     NotLaunched {
         queued_windows: Vec<id>,
-        queued_events: Vec<Event<'static, Never>>,
+        queued_events: Vec<EventWrapper>,
     },
     Launching {
         queued_windows: Vec<id>,
-        queued_events: Vec<Event<'static, Never>>,
+        queued_events: Vec<EventWrapper>,
         queued_event_handler: Box<dyn EventHandler>,
     },
     ProcessingEvents {
@@ -44,7 +44,7 @@ enum AppStateImpl {
     },
     // special state to deal with reentrancy and prevent mutable aliasing.
     InUserCallback {
-        queued_events: Vec<Event<'static, Never>>,
+        queued_events: Vec<EventWrapper>,
     },
     Waiting {
         waiting_event_handler: Box<dyn EventHandler>,
@@ -330,16 +330,16 @@ impl AppState {
                 ControlFlow::Exit => bug!("unexpected controlflow `Exit`"),
             };
         drop(this);
-        AppState::handle_nonuser_event(event)
+        AppState::handle_nonuser_event(EventWrapper::StaticEvent(event))
     }
 
     // requires main thread
-    pub unsafe fn handle_nonuser_event(event: Event<'static, Never>) {
-        AppState::handle_nonuser_events(std::iter::once(event))
+    pub unsafe fn handle_nonuser_event(event_wrapper: EventWrapper) {
+        AppState::handle_nonuser_events(std::iter::once(event_wrapper))
     }
 
     // requires main thread
-    pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = Event<'static, Never>>>(events: I) {
+    pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(event_wrappers: I) {
         let mut this = AppState::get_mut();
         let mut control_flow = this.control_flow;
         let (mut event_handler, active_control_flow) = match &mut this.app_state {

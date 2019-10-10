@@ -8,11 +8,13 @@ use std::{
 };
 
 use crate::{
+    dpi::LogicalSize,
     event::Event,
     event_loop::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
     platform::ios::Idiom,
+    window::WindowId as RootWindowId,
 };
 
 use crate::platform_impl::platform::{
@@ -28,6 +30,21 @@ use crate::platform_impl::platform::{
     },
     monitor, view, MonitorHandle,
 };
+
+#[derive(Debug)]
+pub enum EventWrapper {
+    StaticEvent(Event<'static, Never>),
+    EventProxy(EventProxy),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum EventProxy {
+    HiDpiFactorChangedProxy {
+        window_id: RootWindowId,
+        suggested_size: LogicalSize,
+        hidpi_factor: f64,
+    },
+}
 
 pub struct EventLoopWindowTarget<T: 'static> {
     receiver: Receiver<T>,
