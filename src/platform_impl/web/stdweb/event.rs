@@ -42,7 +42,7 @@ pub fn mouse_scroll_delta(event: &MouseWheelEvent) -> Option<MouseScrollDelta> {
 }
 
 pub fn scan_code<T: JsSerialize>(event: &T) -> ScanCode {
-    let key_code = js! ( return @{event}.key_code; );
+    let key_code = js! ( return @{event}.keyCode; );
 
     key_code
         .try_into()
