@@ -186,7 +186,7 @@ impl<T> WindowTarget<T> {
                 intended_size
             };
             raw.set_width(new_size.width as u32);
-            raw.set_width(new_size.height as u32);
+            raw.set_height(new_size.height as u32);
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::Resized(new_size),
