@@ -454,7 +454,25 @@ impl AppState {
                 match event_wrapper {
                     EventWrapper::StaticEvent(event)
                         => event_handler.handle_nonuser_event(event, &mut control_flow),
-                    EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy{..}) => (),
+                    EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
+                        suggested_size, hidpi_factor, window_id
+                    }) => {
+                        let size = suggested_size.to_physical(hidpi_factor);
+                        let new_inner_size = &mut Option(size);
+                        let event = Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size }
+                        };
+                        event_handler.handle_nonuser_event(event, &mut control_flow);
+                        let view_controller: id = msg_send![window_id, rootViewController];
+                        let view =
+                        if let Some(physical_size) = new_inner_size {
+                            let logical_size = physical_size.to_logical(hidpi_factor);
+                            let size = CGSize::new(logical_size);
+                            let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
+                            let () = msg_send![view, setFrame:new_frame];
+                        }
+                    },
                 }
             }
             event_handler.handle_user_events(&mut control_flow);
