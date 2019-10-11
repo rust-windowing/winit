@@ -75,7 +75,7 @@ install:
 script:
   - cargo +stable fmt --all -- --check
   # Install cargo-web to build stdweb
-  - if [[ $WEB = "web" ]]; then cargo install -f cargo-web fi
+  - if [[ $WEB = "web" ]]; then cargo install -f cargo-web; fi
   - if [[ -e $FEATURES ]]; then
       cargo $WEB build --target $TARGET --verbose
     else
