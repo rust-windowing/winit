@@ -12,7 +12,7 @@ use crate::{
 };
 
 use crate::platform_impl::platform::{
-    event_loop::{EventHandler, EventProxy, EventWrapper, Never},
+    event_loop::{EventHandler, EventProxy, EventWrapper},
     ffi::{
         id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
         CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
@@ -237,7 +237,8 @@ impl AppState {
         );
         drop(this);
 
-        let events = std::iter::once(Event::NewEvents(StartCause::Init)).chain(events);
+        let events = std::iter::once(EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)))
+            .chain(events);
         AppState::handle_nonuser_events(events);
 
         // the above window dance hack, could possibly trigger new windows to be created.
@@ -355,7 +356,7 @@ impl AppState {
                 ref mut queued_events,
                 ..
             } => {
-                queued_events.extend(events);
+                queued_events.extend(event_wrappers);
                 return;
             }
             &mut AppStateImpl::ProcessingEvents {
@@ -374,18 +375,22 @@ impl AppState {
         );
         drop(this);
 
-        for event in events {
-            event_handler.handle_nonuser_event(event, &mut control_flow)
+        for event_wrapper in event_wrappers {
+            match event_wrapper {
+                EventWrapper::StaticEvent(event) =>
+                    event_handler.handle_nonuser_event(event, &mut control_flow),
+                EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy{..}) => (), // Handle nonstatic events here
+            }
         }
         loop {
             let mut this = AppState::get_mut();
-            let queued_events = match &mut this.app_state {
+            let queued_event_wrappers = match &mut this.app_state {
                 &mut AppStateImpl::InUserCallback {
                     ref mut queued_events,
                 } => mem::replace(queued_events, Vec::new()),
                 _ => bug!("unexpected `AppStateImpl`"),
             };
-            if queued_events.is_empty() {
+            if queued_event_wrappers.is_empty() {
                 this.app_state = AppStateImpl::ProcessingEvents {
                     event_handler,
                     active_control_flow,
@@ -394,8 +399,12 @@ impl AppState {
                 break;
             }
             drop(this);
-            for event in queued_events {
-                event_handler.handle_nonuser_event(event, &mut control_flow)
+            for event_wrapper in queued_event_wrappers {
+                match event_wrapper {
+                    EventWrapper::StaticEvent(event)
+                        => event_handler.handle_nonuser_event(event, &mut control_flow),
+                    EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy{..}) => (),
+                }
             }
         }
     }
@@ -426,13 +435,13 @@ impl AppState {
         event_handler.handle_user_events(&mut control_flow);
         loop {
             let mut this = AppState::get_mut();
-            let queued_events = match &mut this.app_state {
+            let queued_event_wrappers = match &mut this.app_state {
                 &mut AppStateImpl::InUserCallback {
                     ref mut queued_events,
                 } => mem::replace(queued_events, Vec::new()),
                 _ => bug!("unexpected `AppStateImpl`"),
             };
-            if queued_events.is_empty() {
+            if queued_event_wrappers.is_empty() {
                 this.app_state = AppStateImpl::ProcessingEvents {
                     event_handler,
                     active_control_flow,
@@ -441,8 +450,12 @@ impl AppState {
                 break;
             }
             drop(this);
-            for event in queued_events {
-                event_handler.handle_nonuser_event(event, &mut control_flow)
+            for event_wrapper in queued_event_wrappers {
+                match event_wrapper {
+                    EventWrapper::StaticEvent(event)
+                        => event_handler.handle_nonuser_event(event, &mut control_flow),
+                    EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy{..}) => (),
+                }
             }
             event_handler.handle_user_events(&mut control_flow);
         }
@@ -459,7 +472,7 @@ impl AppState {
         drop(this);
 
         AppState::handle_user_events();
-        AppState::handle_nonuser_event(Event::EventsCleared);
+        AppState::handle_nonuser_event(EventWrapper::StaticEvent(Event::EventsCleared));
 
         let mut this = AppState::get_mut();
         let (event_handler, old) = match &mut this.app_state {

@@ -13,7 +13,7 @@ use crate::{
 
 use crate::platform_impl::platform::{
     app_state::AppState,
-    event_loop,
+    event_loop::{self, EventWrapper, EventProxy},
     ffi::{id, nil, CGFloat, CGPoint, CGSize, CGRect, UIInterfaceOrientationMask, UITouchPhase},
     window::PlatformSpecificWindowBuilderAttributes,
     DeviceId,
@@ -41,10 +41,12 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         extern "C" fn draw_rect(object: &Object, _: Sel, rect: CGRect) {
             unsafe {
                 let window: id = msg_send![object, window];
-                AppState::handle_nonuser_event(Event::WindowEvent {
-                    window_id: RootWindowId(window.into()),
-                    event: WindowEvent::RedrawRequested,
-                });
+                AppState::handle_nonuser_event(EventWrapper::StaticEvent(
+                    Event::WindowEvent {
+                        window_id: RootWindowId(window.into()),
+                        event: WindowEvent::RedrawRequested,
+                    }
+                ));
                 let superclass: &'static Class = msg_send![object, superclass];
                 let () = msg_send![super(object, superclass), drawRect: rect];
             }
@@ -60,10 +62,10 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
                 let dpi_factor: CGFloat = msg_send![screen, backingScaleFactor];
                 let size = crate::dpi::LogicalSize::new(screen_frame.size.width, screen_frame.size.height).to_physical(dpi_factor);
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                AppState::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::Resized(size),
-                });
+                }));
                 let superclass: &'static Class = msg_send![object, superclass];
                 let () = msg_send![super(object, superclass), layoutSubviews];
             }
@@ -164,20 +166,20 @@ unsafe fn get_window_class() -> &'static Class {
 
         extern "C" fn become_key_window(object: &Object, _: Sel) {
             unsafe {
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                AppState::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(object.into()),
                     event: WindowEvent::Focused(true),
-                });
+                }));
                 let () = msg_send![super(object, class!(UIWindow)), becomeKeyWindow];
             }
         }
 
         extern "C" fn resign_key_window(object: &Object, _: Sel) {
             unsafe {
-                AppState::handle_nonuser_event(Event::WindowEvent {
+                AppState::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(object.into()),
                     event: WindowEvent::Focused(false),
-                });
+                }));
                 let () = msg_send![super(object, class!(UIWindow)), resignKeyWindow];
             }
         }
@@ -204,7 +206,7 @@ unsafe fn get_window_class() -> &'static Class {
                         _ => panic!("unexpected touch phase: {:?}", phase as i32),
                     };
 
-                    touch_events.push(Event::WindowEvent {
+                    touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: RootWindowId(object.into()),
                         event: WindowEvent::Touch(Touch {
                             device_id: RootDeviceId(DeviceId { uiscreen }),
@@ -212,7 +214,7 @@ unsafe fn get_window_class() -> &'static Class {
                             location: (location.x as f64, location.y as f64).into(),
                             phase,
                         }),
-                    });
+                    }));
                 }
                 AppState::handle_nonuser_events(touch_events);
             }
@@ -232,30 +234,33 @@ unsafe fn get_window_class() -> &'static Class {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
-                let logical_size = crate::dpi::LogicalSize::new(
+                let suggested_size = crate::dpi::LogicalSize::new(
                     screen_frame.size.width, screen_frame.size.height,
                 );
-                let size = logical_size.to_physical(hidpi_factor);
-                let mut new_inner_size = Some(size);
+                let size = suggested_size.to_physical(hidpi_factor);
                 AppState::handle_nonuser_events(
-                    std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(object.into()),
-                        event: WindowEvent::HiDpiFactorChanged {
-                            hidpi_factor,
-                            new_inner_size: &mut new_inner_size
-                        },
-                    })
-                    .chain(std::iter::once(Event::WindowEvent {
+                    std::iter::once(EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
+                            window_id: RootWindowId(object.into()),
+                            suggested_size, hidpi_factor
+                    }))
+                    .chain(std::iter::once(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: RootWindowId(object.into()),
                         event: WindowEvent::Resized(size),
-                    })),
+                    }))),
                 );
-                if let Some(physical_size) = new_inner_size {
-                    let logical_size = physical_size.to_logical(hidpi_factor);
-                    let size = CGSize::new(logical_size);
-                    let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
-                    let () = msg_send![view, setFrame:new_frame];
-                }
+                // Event::WindowEvent {
+                //   window_id: RootWindowId(object.into()),
+                //   event: WindowEvent::HiDpiFactorChanged {
+                //     hidpi_factor,
+                //     new_inner_size: &mut new_inner_size
+                //   }
+                // }
+                // if let Some(physical_size) = new_inner_size {
+                //     let logical_size = physical_size.to_logical(hidpi_factor);
+                //     let size = CGSize::new(logical_size);
+                //     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
+                //     let () = msg_send![view, setFrame:new_frame];
+                // }
             }
         }
 
@@ -390,11 +395,11 @@ pub fn create_delegate_class() {
     }
 
     extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
-        unsafe { AppState::handle_nonuser_event(Event::Resumed) }
+        unsafe { AppState::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
     }
 
     extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
-        unsafe { AppState::handle_nonuser_event(Event::Suspended) }
+        unsafe { AppState::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
     }
 
     extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {}
@@ -413,10 +418,10 @@ pub fn create_delegate_class() {
                 }
                 let is_winit_window: BOOL = msg_send![window, isKindOfClass: class!(WinitUIWindow)];
                 if is_winit_window == YES {
-                    events.push(Event::WindowEvent {
+                    events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: RootWindowId(window.into()),
                         event: WindowEvent::Destroyed,
-                    });
+                    }));
                 }
             }
             AppState::handle_nonuser_events(events);
