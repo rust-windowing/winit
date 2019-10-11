@@ -1,4 +1,5 @@
 use super::{backend, device, proxy::Proxy, runner, window};
+use crate::dpi::LogicalSize;
 use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
@@ -37,7 +38,6 @@ impl<T> WindowTarget<T> {
 
     pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {
         let runner = self.runner.clone();
-
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
         canvas.on_blur(move || {
@@ -164,6 +164,34 @@ impl<T> WindowTarget<T> {
                     modifiers,
                 },
             });
+        });
+
+        let runner = self.runner.clone();
+        let raw = canvas.raw().clone();
+        let mut intended_size = LogicalSize {
+            width: raw.width() as f64,
+            height: raw.height() as f64,
+        };
+        canvas.on_fullscreen_change(move || {
+            // If the canvas is marked as fullscreen, it is moving *into* fullscreen
+            // If it is not, it is moving *out of* fullscreen
+            let new_size = if backend::is_fullscreen(&raw) {
+                intended_size = LogicalSize {
+                    width: raw.width() as f64,
+                    height: raw.height() as f64,
+                };
+
+                backend::window_size()
+            } else {
+                intended_size
+            };
+            raw.set_width(new_size.width as u32);
+            raw.set_height(new_size.height as u32);
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::Resized(new_size),
+            });
+            runner.request_redraw(WindowId(id));
         });
     }
 }

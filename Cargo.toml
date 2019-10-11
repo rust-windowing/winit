@@ -115,6 +115,6 @@ optional = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.std_web]
 package = "stdweb"
-version = "0.4.18"
+version = "=0.4.20"
 optional = true
-
+features = ["experimental_features_which_may_break_on_minor_version_bumps"]
