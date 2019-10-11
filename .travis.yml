@@ -58,6 +58,14 @@ matrix:
       os: osx
       rust: stable
 
+    # wasm stdweb
+    - env: TARGET=wasm32-unknown-unknown WEB=web FEATURES=stdweb
+      os: linux
+      rust: stable
+    - env: TARGET=wasm32-unknown-unknown FEATURES=web-sys
+      os: linux
+      rust: stable
+
 install:
   - rustup self update
   - rustup target add $TARGET; true
@@ -66,11 +74,14 @@ install:
 
 script:
   - cargo +stable fmt --all -- --check
-  - cargo build --target $TARGET --verbose
-  - cargo build --target $TARGET --features serde --verbose
+  # Install cargo-web to build stdweb
+  - if [[ $WEB = "web" ]] cargo install -f cargo-web
+  - cargo $WEB build --target $TARGET --features $FEATURES --verbose fi
+  - cargo $WEB build --target $TARGET --features serde,$FEATURES --verbose fi
   # Running iOS apps on macOS requires the Simulator so we skip that for now
-  - if [[ $TARGET != *-apple-ios ]]; then cargo test --target $TARGET --verbose; fi
-  - if [[ $TARGET != *-apple-ios ]]; then cargo test --target $TARGET --features serde --verbose; fi
+  # The web targets also don't support running tests
+  - if [[ $TARGET != *-apple-ios && $TARGET != wasm32-* ]]; then cargo test --target $TARGET --verbose; fi
+  - if [[ $TARGET != *-apple-ios && $TARGET != wasm32-* ]]; then cargo test --target $TARGET --features serde --verbose; fi
 
 after_success:
   - |
