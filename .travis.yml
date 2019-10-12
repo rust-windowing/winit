@@ -62,9 +62,16 @@ matrix:
     - env: TARGET=wasm32-unknown-unknown WEB=web FEATURES=stdweb
       os: linux
       rust: stable
+    - env: TARGET=wasm32-unknown-unknown WEB=web FEATURES=stdweb
+      os: linux
+      rust: nightly
+    # wasm web-sys
     - env: TARGET=wasm32-unknown-unknown FEATURES=web-sys
       os: linux
       rust: stable
+    - env: TARGET=wasm32-unknown-unknown FEATURES=web-sys
+      os: linux
+      rust: nightly
 
 install:
   - rustup self update
