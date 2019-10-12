@@ -76,10 +76,10 @@ script:
   - cargo +stable fmt --all -- --check
   # Install cargo-web to build stdweb
   - if [[ $WEB = "web" ]]; then cargo install -f cargo-web; fi
-  - if [[ -e $FEATURES ]]; then
-      cargo $WEB build --target $TARGET --features $FEATURES --verbose;
-    else
+  - if [[ -z "$FEATURES" ]]; then
       cargo $WEB build --target $TARGET --verbose;
+    else
+      cargo $WEB build --target $TARGET --features $FEATURES --verbose;
     fi
   - cargo $WEB build --target $TARGET --features serde,$FEATURES --verbose
   # Running iOS apps on macOS requires the Simulator so we skip that for now
