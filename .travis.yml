@@ -76,6 +76,7 @@ script:
   - cargo +stable fmt --all -- --check
   # Install cargo-web to build stdweb
   - if [[ $WEB = "web" ]]; then cargo install -f cargo-web; fi
+  # Build without serde then with serde
   - if [[ -z "$FEATURES" ]]; then
       cargo $WEB build --target $TARGET --verbose;
     else
