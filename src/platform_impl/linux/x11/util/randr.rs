@@ -99,7 +99,8 @@ impl XConnection {
                     // video mode is returned to the user
                     monitor: None,
                 }
-            });
+            })
+            .collect();
 
         let name_slice = slice::from_raw_parts(
             (*output_info).name as *mut u8,
@@ -119,7 +120,7 @@ impl XConnection {
         };
 
         (self.xrandr.XRRFreeOutputInfo)(output_info);
-        Some((name, hidpi_factor, modes.collect()))
+        Some((name, hidpi_factor, modes))
     }
     pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Result<(), ()> {
         unsafe {

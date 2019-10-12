@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Windows, implemented function to get HINSTANCE
 - On macOS, implement `run_return`.
 - On iOS, fix inverted parameter in `set_prefers_home_indicator_hidden`.
 - On X11, performance is improved when rapidly calling `Window::set_cursor_icon`.
@@ -12,6 +13,26 @@
 - On Windows, fix handling of surrogate pairs when dispatching `ReceivedCharacter`.
 - On macOS 10.15, fix freeze upon exiting exclusive fullscreen mode.
 - On iOS, fix panic upon closing the app.
+- On X11, allow setting mulitple `XWindowType`s.
+- On iOS, fix null window on initial `HiDpiFactorChanged` event.
+- On Windows, fix fullscreen window shrinking upon getting restored to a normal window.
+- On macOS, fix events not being emitted during modal loops, such as when windows are being resized
+  by the user.
+- On Windows, fix hovering the mouse over the active window creating an endless stream of CursorMoved events.
+- On X11, return dummy monitor data to avoid panicking when no monitors exist.
+- On X11, prevent stealing input focus when creating a new window.
+  Only steal input focus when entering fullscreen mode.
+- On Wayland, add support for set_cursor_visible and set_cursor_grab.
+- On Wayland, fixed DeviceEvents for relative mouse movement is not always produced.
+- Removed `derivative` crate dependency.
+- On Wayland, add support for set_cursor_icon.
+- Use `impl Iterator<Item = MonitorHandle>` instead of `AvailableMonitorsIter` consistently.
+- On macOS, fix fullscreen state being updated after entering fullscreen instead of before,
+  resulting in `Window::fullscreen` returning the old state in `Resized` events instead of
+  reflecting the new fullscreen state
+- On X11, fix use-after-free during window creation
+- On Windows, disable monitor change keyboard shortcut while in exclusive fullscreen.
+- On Windows, ensure that changing a borderless fullscreen window's monitor via keyboard shortcuts keeps the window fullscreen on the new monitor.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 

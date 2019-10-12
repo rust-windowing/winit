@@ -4,7 +4,6 @@ use crate::platform_impl::platform::{app_state::AppState, ffi};
 
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
-    pub static kCFRunLoopDefaultMode: CFRunLoopMode;
     pub static kCFRunLoopCommonModes: CFRunLoopMode;
 
     pub fn CFRunLoopGetMain() -> CFRunLoopRef;
@@ -162,7 +161,7 @@ impl RunLoop {
             handler,
             ptr::null_mut(),
         );
-        CFRunLoopAddObserver(self.0, observer, kCFRunLoopDefaultMode);
+        CFRunLoopAddObserver(self.0, observer, kCFRunLoopCommonModes);
     }
 }
 

@@ -72,21 +72,21 @@ impl Default for WindowType {
 impl WindowType {
     pub(crate) fn as_atom(&self, xconn: &Arc<XConnection>) -> ffi::Atom {
         use self::WindowType::*;
-        let atom_name: &[u8] = match self {
-            &Desktop => b"_NET_WM_WINDOW_TYPE_DESKTOP\0",
-            &Dock => b"_NET_WM_WINDOW_TYPE_DOCK\0",
-            &Toolbar => b"_NET_WM_WINDOW_TYPE_TOOLBAR\0",
-            &Menu => b"_NET_WM_WINDOW_TYPE_MENU\0",
-            &Utility => b"_NET_WM_WINDOW_TYPE_UTILITY\0",
-            &Splash => b"_NET_WM_WINDOW_TYPE_SPLASH\0",
-            &Dialog => b"_NET_WM_WINDOW_TYPE_DIALOG\0",
-            &DropdownMenu => b"_NET_WM_WINDOW_TYPE_DROPDOWN_MENU\0",
-            &PopupMenu => b"_NET_WM_WINDOW_TYPE_POPUP_MENU\0",
-            &Tooltip => b"_NET_WM_WINDOW_TYPE_TOOLTIP\0",
-            &Notification => b"_NET_WM_WINDOW_TYPE_NOTIFICATION\0",
-            &Combo => b"_NET_WM_WINDOW_TYPE_COMBO\0",
-            &Dnd => b"_NET_WM_WINDOW_TYPE_DND\0",
-            &Normal => b"_NET_WM_WINDOW_TYPE_NORMAL\0",
+        let atom_name: &[u8] = match *self {
+            Desktop => b"_NET_WM_WINDOW_TYPE_DESKTOP\0",
+            Dock => b"_NET_WM_WINDOW_TYPE_DOCK\0",
+            Toolbar => b"_NET_WM_WINDOW_TYPE_TOOLBAR\0",
+            Menu => b"_NET_WM_WINDOW_TYPE_MENU\0",
+            Utility => b"_NET_WM_WINDOW_TYPE_UTILITY\0",
+            Splash => b"_NET_WM_WINDOW_TYPE_SPLASH\0",
+            Dialog => b"_NET_WM_WINDOW_TYPE_DIALOG\0",
+            DropdownMenu => b"_NET_WM_WINDOW_TYPE_DROPDOWN_MENU\0",
+            PopupMenu => b"_NET_WM_WINDOW_TYPE_POPUP_MENU\0",
+            Tooltip => b"_NET_WM_WINDOW_TYPE_TOOLTIP\0",
+            Notification => b"_NET_WM_WINDOW_TYPE_NOTIFICATION\0",
+            Combo => b"_NET_WM_WINDOW_TYPE_COMBO\0",
+            Dnd => b"_NET_WM_WINDOW_TYPE_DND\0",
+            Normal => b"_NET_WM_WINDOW_TYPE_NORMAL\0",
         };
         unsafe { xconn.get_atom_unchecked(atom_name) }
     }

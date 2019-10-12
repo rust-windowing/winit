@@ -54,13 +54,14 @@ use crate::{
         },
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
+        monitor,
         raw_input::{get_raw_input_data, get_raw_mouse_button_state},
         util,
         window::adjust_size,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
-    window::WindowId as RootWindowId,
+    window::{Fullscreen, WindowId as RootWindowId},
 };
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
@@ -982,6 +983,51 @@ unsafe extern "system" fn public_window_callback<T>(
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
+        winuser::WM_WINDOWPOSCHANGING => {
+            let mut window_state = subclass_input.window_state.lock();
+            if let Some(ref mut fullscreen) = window_state.fullscreen {
+                let window_pos = &mut *(lparam as *mut winuser::WINDOWPOS);
+                let new_rect = RECT {
+                    left: window_pos.x,
+                    top: window_pos.y,
+                    right: window_pos.x + window_pos.cx,
+                    bottom: window_pos.y + window_pos.cy,
+                };
+                let new_monitor =
+                    winuser::MonitorFromRect(&new_rect, winuser::MONITOR_DEFAULTTONULL);
+                match fullscreen {
+                    Fullscreen::Borderless(ref mut fullscreen_monitor) => {
+                        if new_monitor != fullscreen_monitor.inner.hmonitor()
+                            && new_monitor != ptr::null_mut()
+                        {
+                            if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor) {
+                                let new_monitor_rect = new_monitor_info.rcMonitor;
+                                window_pos.x = new_monitor_rect.left;
+                                window_pos.y = new_monitor_rect.top;
+                                window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
+                                window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
+                            }
+                            *fullscreen_monitor = crate::monitor::MonitorHandle {
+                                inner: monitor::MonitorHandle::new(new_monitor),
+                            };
+                        }
+                    }
+                    Fullscreen::Exclusive(ref video_mode) => {
+                        let old_monitor = video_mode.video_mode.monitor.hmonitor();
+                        if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
+                            let old_monitor_rect = old_monitor_info.rcMonitor;
+                            window_pos.x = old_monitor_rect.left;
+                            window_pos.y = old_monitor_rect.top;
+                            window_pos.cx = old_monitor_rect.right - old_monitor_rect.left;
+                            window_pos.cy = old_monitor_rect.bottom - old_monitor_rect.top;
+                        }
+                    }
+                }
+            }
+
+            0
+        }
+
         // WM_MOVE supplies client area positions, so we send Moved here instead.
         winuser::WM_WINDOWPOSCHANGED => {
             use crate::event::WindowEvent::Moved;
@@ -1031,16 +1077,18 @@ unsafe extern "system" fn public_window_callback<T>(
 
         winuser::WM_CHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
-            let high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
-            let low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
+            use std::char;
+            let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
+            let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
 
-            if high_surrogate {
+            if is_high_surrogate {
                 subclass_input.window_state.lock().high_surrogate = Some(wparam as u16);
-            } else if low_surrogate {
-                let mut window_state = subclass_input.window_state.lock();
-                if let Some(high_surrogate) = window_state.high_surrogate.take() {
+            } else if is_low_surrogate {
+                let high_surrogate = subclass_input.window_state.lock().high_surrogate.take();
+
+                if let Some(high_surrogate) = high_surrogate {
                     let pair = [high_surrogate, wparam as u16];
-                    if let Some(Ok(chr)) = std::char::decode_utf16(pair.iter().copied()).next() {
+                    if let Some(Ok(chr)) = char::decode_utf16(pair.iter().copied()).next() {
                         subclass_input.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
                             event: ReceivedCharacter(chr),
@@ -1048,11 +1096,14 @@ unsafe extern "system" fn public_window_callback<T>(
                     }
                 }
             } else {
-                let chr: char = mem::transmute(wparam as u32);
-                subclass_input.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: ReceivedCharacter(chr),
-                });
+                subclass_input.window_state.lock().high_surrogate = None;
+
+                if let Some(chr) = char::from_u32(wparam as u32) {
+                    subclass_input.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: ReceivedCharacter(chr),
+                    });
+                }
             }
             0
         }
