@@ -14,7 +14,7 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{DWORD, LPARAM, UINT, WORD, WPARAM},
+        minwindef::{DWORD, HINSTANCE, LPARAM, UINT, WORD, WPARAM},
         windef::{HWND, POINT, RECT},
     },
     um::{
@@ -359,9 +359,15 @@ impl Window {
     }
 
     #[inline]
+    pub fn hinstance(&self) -> HINSTANCE {
+        unsafe { winuser::GetWindowLongW(self.hwnd(), winuser::GWL_HINSTANCE) as *mut _ }
+    }
+
+    #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let handle = WindowsHandle {
             hwnd: self.window.0 as *mut _,
+            hinstance: self.hinstance() as *mut _,
             ..WindowsHandle::empty()
         };
         RawWindowHandle::Windows(handle)

@@ -1,6 +1,7 @@
 use raw_window_handle::unix::WaylandHandle;
 use std::{
     collections::VecDeque,
+    mem::replace,
     sync::{Arc, Mutex, Weak},
 };
 
@@ -26,11 +27,12 @@ use smithay_client_toolkit::{
     window::{ConceptFrame, Event as WEvent, State as WState, Theme, Window as SWindow},
 };
 
-use super::{make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
+use super::{event_loop::CursorManager, make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
 
 pub struct Window {
     surface: wl_surface::WlSurface,
     frame: Arc<Mutex<SWindow<ConceptFrame>>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
     outputs: OutputMgr, // Access to info for all monitors
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
@@ -52,6 +54,7 @@ impl Window {
         let fullscreen = Arc::new(Mutex::new(false));
 
         let window_store = evlp.store.clone();
+        let cursor_manager = evlp.cursor_manager.clone();
         let surface = evlp.env.create_surface(move |dpi, surface| {
             window_store.lock().unwrap().dpi_change(&surface, dpi);
             surface.set_buffer_scale(dpi);
@@ -165,6 +168,7 @@ impl Window {
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
             need_frame_refresh,
             need_refresh,
+            cursor_manager,
             fullscreen,
         })
     }
@@ -292,18 +296,26 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
-        // TODO
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+        let mut cursor_manager = self.cursor_manager.lock().unwrap();
+        cursor_manager.set_cursor_icon(cursor);
     }
 
     #[inline]
-    pub fn set_cursor_visible(&self, _visible: bool) {
-        // TODO: This isn't possible on Wayland yet
+    pub fn set_cursor_visible(&self, visible: bool) {
+        let mut cursor_manager = self.cursor_manager.lock().unwrap();
+        cursor_manager.set_cursor_visible(visible);
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+        let mut cursor_manager = self.cursor_manager.lock().unwrap();
+        if grab {
+            cursor_manager.grab_pointer(Some(&self.surface));
+        } else {
+            cursor_manager.grab_pointer(None);
+        }
+        Ok(())
     }
 
     #[inline]
@@ -440,8 +452,8 @@ impl WindowStore {
                 window.newsize.take(),
                 &mut *(window.size.lock().unwrap()),
                 window.new_dpi,
-                ::std::mem::replace(&mut *window.need_refresh.lock().unwrap(), false),
-                ::std::mem::replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
+                replace(&mut *window.need_refresh.lock().unwrap(), false),
+                replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
                 make_wid(&window.surface),
                 opt_mutex_lock.as_mut().map(|m| &mut **m),

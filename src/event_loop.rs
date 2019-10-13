@@ -13,9 +13,7 @@ use instant::Instant;
 use std::ops::Deref;
 use std::{error, fmt};
 
-use crate::event::Event;
-use crate::monitor::{AvailableMonitorsIter, MonitorHandle};
-use crate::platform_impl;
+use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -150,10 +148,10 @@ impl<T> EventLoop<T> {
     /// Returns the list of all the monitors available on the system.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        let data = self.event_loop.available_monitors();
-        AvailableMonitorsIter {
-            data: data.into_iter(),
-        }
+        self.event_loop
+            .available_monitors()
+            .into_iter()
+            .map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the primary monitor of the system.

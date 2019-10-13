@@ -5,7 +5,7 @@ use crate::{
     dpi::{LogicalPosition, LogicalSize},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
-    monitor::{AvailableMonitorsIter, MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoMode},
     platform_impl,
 };
 
@@ -674,6 +674,8 @@ impl Window {
     ///
     /// - **macOS:** This presently merely locks the cursor in a fixed location, which looks visually
     ///   awkward.
+    /// - **Wayland:** This presently merely locks the cursor in a fixed location, which looks visually
+    ///   awkward.
     /// - **Android:** Has no effect.
     /// - **iOS:** Always returns an Err.
     /// - **Web:** Has no effect.
@@ -690,6 +692,7 @@ impl Window {
     ///
     /// - **Windows:** The cursor is only hidden within the confines of the window.
     /// - **X11:** The cursor is only hidden within the confines of the window.
+    /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
     /// - **iOS:** Has no effect.
@@ -720,11 +723,11 @@ impl Window {
     ///
     /// **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn available_monitors(&self) -> AvailableMonitorsIter {
-        let data = self.window.available_monitors();
-        AvailableMonitorsIter {
-            data: data.into_iter(),
-        }
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        self.window
+            .available_monitors()
+            .into_iter()
+            .map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the primary monitor of the system.
