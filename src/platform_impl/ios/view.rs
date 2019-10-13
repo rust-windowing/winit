@@ -13,7 +13,7 @@ use crate::{
 
 use crate::platform_impl::platform::{
     app_state::AppState,
-    event_loop::{self, EventWrapper, EventProxy},
+    event_loop::{self, EventProxy, EventWrapper},
     ffi::{id, nil, CGFloat, CGPoint, CGRect, UIInterfaceOrientationMask, UITouchPhase},
     window::PlatformSpecificWindowBuilderAttributes,
     DeviceId,
@@ -41,12 +41,10 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         extern "C" fn draw_rect(object: &Object, _: Sel, rect: CGRect) {
             unsafe {
                 let window: id = msg_send![object, window];
-                AppState::handle_nonuser_event(EventWrapper::StaticEvent(
-                    Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::RedrawRequested,
-                    }
-                ));
+                AppState::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id: RootWindowId(window.into()),
+                    event: WindowEvent::RedrawRequested,
+                }));
                 let superclass: &'static Class = msg_send![object, superclass];
                 let () = msg_send![super(object, superclass), drawRect: rect];
             }
@@ -61,7 +59,9 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
                 let dpi_factor: CGFloat = msg_send![screen, backingScaleFactor];
-                let size = crate::dpi::LogicalSize::new(screen_frame.size.width, screen_frame.size.height).to_physical(dpi_factor);
+                let size =
+                    crate::dpi::LogicalSize::new(screen_frame.size.width, screen_frame.size.height)
+                        .to_physical(dpi_factor);
                 AppState::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::Resized(size),
@@ -234,19 +234,23 @@ unsafe fn get_window_class() -> &'static Class {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
-                let suggested_size = crate::dpi::LogicalSize::new(
-                    screen_frame.size.width, screen_frame.size.height,
-                );
+                let suggested_size =
+                    crate::dpi::LogicalSize::new(screen_frame.size.width, screen_frame.size.height);
                 let size = suggested_size.to_physical(hidpi_factor);
                 AppState::handle_nonuser_events(
-                    std::iter::once(EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
+                    std::iter::once(EventWrapper::EventProxy(
+                        EventProxy::HiDpiFactorChangedProxy {
                             window_id: object,
-                            suggested_size, hidpi_factor
-                    }))
-                    .chain(std::iter::once(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id: RootWindowId(object.into()),
-                        event: WindowEvent::Resized(size),
-                    }))),
+                            suggested_size,
+                            hidpi_factor,
+                        },
+                    ))
+                    .chain(std::iter::once(EventWrapper::StaticEvent(
+                        Event::WindowEvent {
+                            window_id: RootWindowId(object.into()),
+                            event: WindowEvent::Resized(size),
+                        },
+                    ))),
                 );
                 // Event::WindowEvent {
                 //   window_id: RootWindowId(object.into()),

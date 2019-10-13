@@ -45,7 +45,8 @@ pub struct CGSize {
 impl CGSize {
     pub fn new(size: LogicalSize) -> CGSize {
         CGSize {
-            width: size.width, height: size.height
+            width: size.width,
+            height: size.height,
         }
     }
 }

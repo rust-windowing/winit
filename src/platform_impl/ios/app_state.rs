@@ -238,8 +238,10 @@ impl AppState {
         );
         drop(this);
 
-        let events = std::iter::once(EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)))
-            .chain(events);
+        let events = std::iter::once(EventWrapper::StaticEvent(Event::NewEvents(
+            StartCause::Init,
+        )))
+        .chain(events);
         AppState::handle_nonuser_events(events);
 
         // the above window dance hack, could possibly trigger new windows to be created.
@@ -378,9 +380,10 @@ impl AppState {
 
         for event_wrapper in event_wrappers {
             match event_wrapper {
-                EventWrapper::StaticEvent(event) =>
-                    event_handler.handle_nonuser_event(event, &mut control_flow),
-                EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy{..}) => (), // Handle nonstatic events here
+                EventWrapper::StaticEvent(event) => {
+                    event_handler.handle_nonuser_event(event, &mut control_flow)
+                }
+                EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy { .. }) => (), // Handle nonstatic events here
             }
         }
         loop {
@@ -402,9 +405,10 @@ impl AppState {
             drop(this);
             for event_wrapper in queued_event_wrappers {
                 match event_wrapper {
-                    EventWrapper::StaticEvent(event)
-                        => event_handler.handle_nonuser_event(event, &mut control_flow),
-                    EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy{..}) => (),
+                    EventWrapper::StaticEvent(event) => {
+                        event_handler.handle_nonuser_event(event, &mut control_flow)
+                    }
+                    EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy { .. }) => (),
                 }
             }
         }
@@ -453,16 +457,22 @@ impl AppState {
             drop(this);
             for event_wrapper in queued_event_wrappers {
                 match event_wrapper {
-                    EventWrapper::StaticEvent(event)
-                        => event_handler.handle_nonuser_event(event, &mut control_flow),
+                    EventWrapper::StaticEvent(event) => {
+                        event_handler.handle_nonuser_event(event, &mut control_flow)
+                    }
                     EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
-                        suggested_size, hidpi_factor, window_id
+                        suggested_size,
+                        hidpi_factor,
+                        window_id,
                     }) => {
                         let size = suggested_size.to_physical(hidpi_factor);
                         let new_inner_size = &mut Some(size);
                         let event = Event::WindowEvent {
                             window_id: WindowId(window_id.into()),
-                            event: WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size }
+                            event: WindowEvent::HiDpiFactorChanged {
+                                hidpi_factor,
+                                new_inner_size,
+                            },
                         };
                         event_handler.handle_nonuser_event(event, &mut control_flow);
                         let (view, screen_frame) = Self::get_view_and_screen_frame(window_id);
@@ -470,9 +480,9 @@ impl AppState {
                             let logical_size = physical_size.to_logical(hidpi_factor);
                             let size = CGSize::new(logical_size);
                             let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
-                            let () = msg_send![view, setFrame:new_frame];
+                            let () = msg_send![view, setFrame: new_frame];
                         }
-                    },
+                    }
                 }
             }
             event_handler.handle_user_events(&mut control_flow);
@@ -598,7 +608,7 @@ impl AppState {
             let screen: id = msg_send![window_id, screen];
             let screen_space: id = msg_send![screen, coordinateSpace];
             let screen_frame: CGRect =
-            msg_send![window_id, convertRect:bounds toCoordinateSpace:screen_space];
+                msg_send![window_id, convertRect:bounds toCoordinateSpace:screen_space];
             (view, screen_frame)
         }
     }

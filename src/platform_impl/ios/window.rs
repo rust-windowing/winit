@@ -6,7 +6,7 @@ use std::{
 use objc::runtime::{Class, Object, NO, YES};
 
 use crate::{
-    dpi::{self, LogicalPosition, LogicalSize, Size, Position, PhysicalSize, PhysicalPosition},
+    dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
@@ -321,7 +321,7 @@ impl Window {
                             height: size.height,
                         },
                     }
-                },
+                }
                 None => screen_bounds,
             };
 
