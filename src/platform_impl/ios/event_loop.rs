@@ -14,7 +14,6 @@ use crate::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
     platform::ios::Idiom,
-    window::WindowId as RootWindowId,
 };
 
 use crate::platform_impl::platform::{
@@ -40,7 +39,7 @@ pub enum EventWrapper {
 #[derive(Debug, PartialEq)]
 pub enum EventProxy {
     HiDpiFactorChangedProxy {
-        window_id: RootWindowId,
+        window_id: id,
         suggested_size: LogicalSize,
         hidpi_factor: f64,
     },

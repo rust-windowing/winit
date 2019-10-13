@@ -14,7 +14,7 @@ use crate::{
 use crate::platform_impl::platform::{
     app_state::AppState,
     event_loop::{self, EventWrapper, EventProxy},
-    ffi::{id, nil, CGFloat, CGPoint, CGSize, CGRect, UIInterfaceOrientationMask, UITouchPhase},
+    ffi::{id, nil, CGFloat, CGPoint, CGRect, UIInterfaceOrientationMask, UITouchPhase},
     window::PlatformSpecificWindowBuilderAttributes,
     DeviceId,
 };
@@ -240,7 +240,7 @@ unsafe fn get_window_class() -> &'static Class {
                 let size = suggested_size.to_physical(hidpi_factor);
                 AppState::handle_nonuser_events(
                     std::iter::once(EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
-                            window_id: RootWindowId(object.into()),
+                            window_id: object,
                             suggested_size, hidpi_factor
                     }))
                     .chain(std::iter::once(EventWrapper::StaticEvent(Event::WindowEvent {

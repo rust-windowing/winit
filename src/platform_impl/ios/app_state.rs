@@ -7,8 +7,9 @@ use std::{
 };
 
 use crate::{
-    event::{Event, StartCause},
+    event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
+    window::WindowId,
 };
 
 use crate::platform_impl::platform::{
@@ -16,7 +17,7 @@ use crate::platform_impl::platform::{
     ffi::{
         id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
         CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-        CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, NSUInteger,
+        CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize, NSUInteger,
     },
 };
 
@@ -458,14 +459,13 @@ impl AppState {
                         suggested_size, hidpi_factor, window_id
                     }) => {
                         let size = suggested_size.to_physical(hidpi_factor);
-                        let new_inner_size = &mut Option(size);
+                        let new_inner_size = &mut Some(size);
                         let event = Event::WindowEvent {
-                            window_id,
+                            window_id: WindowId(window_id.into()),
                             event: WindowEvent::HiDpiFactorChanged { hidpi_factor, new_inner_size }
                         };
                         event_handler.handle_nonuser_event(event, &mut control_flow);
-                        let view_controller: id = msg_send![window_id, rootViewController];
-                        let view =
+                        let (view, screen_frame) = Self::get_view_and_screen_frame(window_id);
                         if let Some(physical_size) = new_inner_size {
                             let logical_size = physical_size.to_logical(hidpi_factor);
                             let size = CGSize::new(logical_size);
@@ -587,6 +587,19 @@ impl AppState {
             event_handler.handle_nonuser_event(Event::LoopDestroyed, &mut control_flow)
         } else {
             bug!("`LoopDestroyed` happened while not processing events")
+        }
+    }
+
+    fn get_view_and_screen_frame(window_id: id) -> (id, CGRect) {
+        unsafe {
+            let view_controller: id = msg_send![window_id, rootViewController];
+            let view: id = msg_send![view_controller, view];
+            let bounds: CGRect = msg_send![window_id, bounds];
+            let screen: id = msg_send![window_id, screen];
+            let screen_space: id = msg_send![screen, coordinateSpace];
+            let screen_frame: CGRect =
+            msg_send![window_id, convertRect:bounds toCoordinateSpace:screen_space];
+            (view, screen_frame)
         }
     }
 }
