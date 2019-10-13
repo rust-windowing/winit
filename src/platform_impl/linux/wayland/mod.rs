@@ -4,7 +4,6 @@
 pub use self::{
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, MonitorHandle, VideoMode,
-        WindowEventsSink,
     },
     window::Window,
 };
