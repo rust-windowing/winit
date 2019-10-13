@@ -29,8 +29,7 @@ impl Handle {
     }
 }
 
-#[derive(Derivative)]
-#[derivative(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Mode;
 
 impl Mode {
