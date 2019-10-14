@@ -58,7 +58,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
-                let dpi_factor: CGFloat = msg_send![screen, backingScaleFactor];
+                let dpi_factor: CGFloat = msg_send![screen, scale];
                 let size =
                     crate::dpi::LogicalSize::new(screen_frame.size.width, screen_frame.size.height)
                         .to_physical(dpi_factor);
@@ -226,6 +226,7 @@ unsafe fn get_window_class() -> &'static Class {
                     super(object, class!(UIWindow)),
                     setContentScaleFactor: hidpi_factor
                 ];
+                let actual_hidpi_factor: CGFloat = msg_send![object, contentScaleFactor];
                 let view_controller: id = msg_send![object, rootViewController];
                 let view: id = msg_send![view_controller, view];
                 let () = msg_send![view, setContentScaleFactor: hidpi_factor];
@@ -236,13 +237,13 @@ unsafe fn get_window_class() -> &'static Class {
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
                 let suggested_size =
                     crate::dpi::LogicalSize::new(screen_frame.size.width, screen_frame.size.height);
-                let size = suggested_size.to_physical(hidpi_factor);
+                let size = suggested_size.to_physical(actual_hidpi_factor);
                 AppState::handle_nonuser_events(
                     std::iter::once(EventWrapper::EventProxy(
                         EventProxy::HiDpiFactorChangedProxy {
                             window_id: object,
                             suggested_size,
-                            hidpi_factor,
+                            hidpi_factor: actual_hidpi_factor,
                         },
                     ))
                     .chain(std::iter::once(EventWrapper::StaticEvent(
@@ -252,19 +253,6 @@ unsafe fn get_window_class() -> &'static Class {
                         },
                     ))),
                 );
-                // Event::WindowEvent {
-                //   window_id: RootWindowId(object.into()),
-                //   event: WindowEvent::HiDpiFactorChanged {
-                //     hidpi_factor,
-                //     new_inner_size: &mut new_inner_size
-                //   }
-                // }
-                // if let Some(physical_size) = new_inner_size {
-                //     let logical_size = physical_size.to_logical(hidpi_factor);
-                //     let size = CGSize::new(logical_size);
-                //     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
-                //     let () = msg_send![view, setFrame:new_frame];
-                // }
             }
         }
 

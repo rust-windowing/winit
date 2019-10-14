@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::{
+    dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
     window::WindowId,
@@ -383,7 +384,9 @@ impl AppState {
                 EventWrapper::StaticEvent(event) => {
                     event_handler.handle_nonuser_event(event, &mut control_flow)
                 }
-                EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy { .. }) => (), // Handle nonstatic events here
+                EventWrapper::EventProxy(proxy) => {
+                    Self::handle_event_proxy(&mut event_handler, control_flow, proxy)
+                }
             }
         }
         loop {
@@ -408,7 +411,9 @@ impl AppState {
                     EventWrapper::StaticEvent(event) => {
                         event_handler.handle_nonuser_event(event, &mut control_flow)
                     }
-                    EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy { .. }) => (),
+                    EventWrapper::EventProxy(proxy) => {
+                        Self::handle_event_proxy(&mut event_handler, control_flow, proxy)
+                    }
                 }
             }
         }
@@ -460,28 +465,8 @@ impl AppState {
                     EventWrapper::StaticEvent(event) => {
                         event_handler.handle_nonuser_event(event, &mut control_flow)
                     }
-                    EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
-                        suggested_size,
-                        hidpi_factor,
-                        window_id,
-                    }) => {
-                        let size = suggested_size.to_physical(hidpi_factor);
-                        let new_inner_size = &mut Some(size);
-                        let event = Event::WindowEvent {
-                            window_id: WindowId(window_id.into()),
-                            event: WindowEvent::HiDpiFactorChanged {
-                                hidpi_factor,
-                                new_inner_size,
-                            },
-                        };
-                        event_handler.handle_nonuser_event(event, &mut control_flow);
-                        let (view, screen_frame) = Self::get_view_and_screen_frame(window_id);
-                        if let Some(physical_size) = new_inner_size {
-                            let logical_size = physical_size.to_logical(hidpi_factor);
-                            let size = CGSize::new(logical_size);
-                            let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
-                            let () = msg_send![view, setFrame: new_frame];
-                        }
+                    EventWrapper::EventProxy(proxy) => {
+                        Self::handle_event_proxy(&mut event_handler, control_flow, proxy)
                     }
                 }
             }
@@ -610,6 +595,54 @@ impl AppState {
             let screen_frame: CGRect =
                 msg_send![window_id, convertRect:bounds toCoordinateSpace:screen_space];
             (view, screen_frame)
+        }
+    }
+
+    fn handle_event_proxy(
+        event_handler: &mut Box<dyn EventHandler>,
+        control_flow: ControlFlow,
+        proxy: EventProxy,
+    ) {
+        match proxy {
+            EventProxy::HiDpiFactorChangedProxy {
+                suggested_size,
+                hidpi_factor,
+                window_id,
+            } => Self::handle_hidpi_proxy(
+                event_handler,
+                control_flow,
+                suggested_size,
+                hidpi_factor,
+                window_id,
+            ),
+        }
+    }
+
+    fn handle_hidpi_proxy(
+        event_handler: &mut Box<dyn EventHandler>,
+        mut control_flow: ControlFlow,
+        suggested_size: LogicalSize,
+        hidpi_factor: f64,
+        window_id: id,
+    ) {
+        let size = suggested_size.to_physical(hidpi_factor);
+        let new_inner_size = &mut Some(size);
+        let event = Event::WindowEvent {
+            window_id: WindowId(window_id.into()),
+            event: WindowEvent::HiDpiFactorChanged {
+                hidpi_factor,
+                new_inner_size,
+            },
+        };
+        event_handler.handle_nonuser_event(event, &mut control_flow);
+        let (view, screen_frame) = Self::get_view_and_screen_frame(window_id);
+        if let Some(physical_size) = new_inner_size {
+            let logical_size = physical_size.to_logical(hidpi_factor);
+            let size = CGSize::new(logical_size);
+            let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
+            unsafe {
+                let () = msg_send![view, setFrame: new_frame];
+            }
         }
     }
 }

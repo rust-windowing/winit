@@ -312,7 +312,7 @@ impl Window {
 
             let frame = match window_attributes.inner_size {
                 Some(dim) => {
-                    let dpi_factor = msg_send![screen, backingScaleFactor];
+                    let dpi_factor = msg_send![screen, scale];
                     let size = dim.to_logical(dpi_factor);
                     CGRect {
                         origin: screen_bounds.origin,
