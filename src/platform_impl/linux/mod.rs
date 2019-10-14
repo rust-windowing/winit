@@ -7,9 +7,7 @@ use raw_window_handle::RawWindowHandle;
 use smithay_client_toolkit::reexports::client::ConnectError;
 
 pub use self::x11::XNotSupported;
-use self::x11::{
-    ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError,
-};
+use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -588,9 +586,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn primary_monitor(&self) -> MonitorHandle {
         match *self {
             EventLoop::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.primary_monitor()),
-            EventLoop::X(ref evlp) => {
-                MonitorHandle::X(evlp.x_connection().primary_monitor())
-            }
+            EventLoop::X(ref evlp) => MonitorHandle::X(evlp.x_connection().primary_monitor()),
         }
     }
 

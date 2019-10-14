@@ -85,8 +85,7 @@ pub fn init_keyboard(
                     *modifiers_tracker.lock().unwrap() = modifiers;
 
                     if let Some(wid) = *target.lock().unwrap() {
-                        my_sink
-                            .send_window_event(WindowEvent::ModifiersChanged { modifiers }, wid);
+                        my_sink.send_window_event(WindowEvent::ModifiersChanged { modifiers }, wid);
                     }
                 }
             }

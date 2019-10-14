@@ -246,7 +246,7 @@ impl<'a> WindowEvent<'a> {
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
             Focused(focused) => Some(Focused(focused)),
             KeyboardInput { device_id, input } => Some(KeyboardInput { device_id, input }),
-            ModifiersChanged { modifiers } => Some(ModifiersChanged{ modifiers }),
+            ModifiersChanged { modifiers } => Some(ModifiersChanged { modifiers }),
             CursorMoved {
                 device_id,
                 position,

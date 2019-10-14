@@ -27,15 +27,14 @@ use smithay_client_toolkit::reexports::client::protocol::{
 
 use crate::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, DeviceId as RootDeviceId, Event, ModifiersState, StartCause, WindowEvent},
+    event::{
+        DeviceEvent, DeviceId as RootDeviceId, Event, ModifiersState, StartCause, WindowEvent,
+    },
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::{
-        sticky_exit_callback,
-        DeviceId as PlatformDeviceId,
-        MonitorHandle as PlatformMonitorHandle,
-        VideoMode as PlatformVideoMode,
-        WindowId as PlatformWindowId,
+        sticky_exit_callback, DeviceId as PlatformDeviceId, MonitorHandle as PlatformMonitorHandle,
+        VideoMode as PlatformVideoMode, WindowId as PlatformWindowId,
     },
     window::{CursorIcon, WindowId as RootWindowId},
 };
@@ -473,12 +472,7 @@ impl<T: 'static> EventLoop<T> {
 
             while let Ok(event) = self.kbd_channel.try_recv() {
                 let event = event.map_nonuser_event().unwrap();
-                sticky_exit_callback(
-                    event,
-                    &self.window_target,
-                    &mut control_flow,
-                    &mut callback,
-                );
+                sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
             }
 
             while let Ok(event) = self.user_channel.try_recv() {

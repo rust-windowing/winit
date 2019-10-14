@@ -1906,11 +1906,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             // Unset maximized if we're changing the window's size.
             if new_physical_inner_size != old_physical_inner_size {
-                WindowState::set_window_flags(
-                    subclass_input.window_state.lock(),
-                    window,
-                    |f| f.set(WindowFlags::MAXIMIZED, false),
-                );
+                WindowState::set_window_flags(subclass_input.window_state.lock(), window, |f| {
+                    f.set(WindowFlags::MAXIMIZED, false)
+                });
             }
 
             let new_outer_rect: RECT;
