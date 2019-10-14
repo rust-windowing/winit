@@ -243,12 +243,11 @@ pub fn implement_relative_pointer(
 ) -> Result<ZwpRelativePointerV1, ()> {
     manager.get_relative_pointer(pointer, |rel_pointer| {
         rel_pointer.implement_closure(
-            move |evt, _rel_pointer| {
-                match evt {
-                    Event::RelativeMotion { dx, dy, .. } => sink
-                        .send_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId),
-                    _ => unreachable!(),
+            move |evt, _rel_pointer| match evt {
+                Event::RelativeMotion { dx, dy, .. } => {
+                    sink.send_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId)
                 }
+                _ => unreachable!(),
             },
             (),
         )

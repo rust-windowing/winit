@@ -13,10 +13,7 @@ use winapi::{
         winerror::S_OK,
     },
     um::{
-        shellscalingapi::{
-            MDT_EFFECTIVE_DPI,
-            PROCESS_PER_MONITOR_DPI_AWARE,
-        },
+        shellscalingapi::{MDT_EFFECTIVE_DPI, PROCESS_PER_MONITOR_DPI_AWARE},
         wingdi::{GetDeviceCaps, LOGPIXELSX},
         winuser::{self, MONITOR_DEFAULTTONEAREST},
     },

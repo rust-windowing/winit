@@ -6,9 +6,28 @@ use cocoa::{
 };
 
 use crate::{
-    event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
-    platform_impl::platform::DEVICE_ID,
+    dpi::LogicalSize,
+    event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
+    platform_impl::platform::{
+        util::{IdRef, Never},
+        DEVICE_ID,
+    },
 };
+
+#[derive(Debug)]
+pub enum EventWrapper {
+    StaticEvent(Event<'static, Never>),
+    EventProxy(EventProxy),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum EventProxy {
+    HiDpiFactorChangedProxy {
+        ns_window: IdRef,
+        suggested_size: LogicalSize,
+        hidpi_factor: f64,
+    },
+}
 
 pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
     // We only translate keys that are affected by keyboard layout.
@@ -244,7 +263,7 @@ pub unsafe fn modifier_event(
     ns_event: id,
     keymask: NSEventModifierFlags,
     was_key_pressed: bool,
-) -> Option<WindowEvent> {
+) -> Option<WindowEvent<'static>> {
     if !was_key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
         || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask)
     {
