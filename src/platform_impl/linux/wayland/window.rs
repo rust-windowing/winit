@@ -40,6 +40,7 @@ pub struct Window {
     need_frame_refresh: Arc<Mutex<bool>>,
     need_refresh: Arc<Mutex<bool>>,
     fullscreen: Arc<Mutex<bool>>,
+    cursor_grab_changed: Arc<Mutex<Option<bool>>>, // Update grab state
 }
 
 impl Window {
@@ -143,6 +144,7 @@ impl Window {
         let need_frame_refresh = Arc::new(Mutex::new(true));
         let frame = Arc::new(Mutex::new(frame));
         let need_refresh = Arc::new(Mutex::new(true));
+        let cursor_grab_changed = Arc::new(Mutex::new(None));
 
         evlp.store.lock().unwrap().windows.push(InternalWindow {
             closed: false,
@@ -150,6 +152,7 @@ impl Window {
             size: size.clone(),
             need_refresh: need_refresh.clone(),
             fullscreen: fullscreen.clone(),
+            cursor_grab_changed: cursor_grab_changed.clone(),
             need_frame_refresh: need_frame_refresh.clone(),
             surface: surface.clone(),
             kill_switch: kill_switch.clone(),
@@ -170,6 +173,7 @@ impl Window {
             need_refresh,
             cursor_manager,
             fullscreen,
+            cursor_grab_changed,
         })
     }
 
@@ -309,12 +313,7 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        let mut cursor_manager = self.cursor_manager.lock().unwrap();
-        if grab {
-            cursor_manager.grab_pointer(Some(&self.surface));
-        } else {
-            cursor_manager.grab_pointer(None);
-        }
+        *self.cursor_grab_changed.lock().unwrap() = Some(grab);
         Ok(())
     }
 
@@ -374,6 +373,7 @@ struct InternalWindow {
     need_refresh: Arc<Mutex<bool>>,
     fullscreen: Arc<Mutex<bool>>,
     need_frame_refresh: Arc<Mutex<bool>>,
+    cursor_grab_changed: Arc<Mutex<Option<bool>>>,
     closed: bool,
     kill_switch: Arc<Mutex<bool>>,
     frame: Weak<Mutex<SWindow<ConceptFrame>>>,
@@ -441,6 +441,8 @@ impl WindowStore {
             bool,
             bool,
             bool,
+            Option<bool>,
+            &wl_surface::WlSurface,
             WindowId,
             Option<&mut SWindow<ConceptFrame>>,
         ),
@@ -455,6 +457,8 @@ impl WindowStore {
                 replace(&mut *window.need_refresh.lock().unwrap(), false),
                 replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
+                window.cursor_grab_changed.lock().unwrap().take(),
+                &window.surface,
                 make_wid(&window.surface),
                 opt_mutex_lock.as_mut().map(|m| &mut **m),
             );
