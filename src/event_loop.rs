@@ -27,12 +27,6 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
 /// `EventLoopProxy` allows you to wake up an `EventLoop` from another thread.
 ///
-/// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.***
-/// Attempting to create the event loop on a different thread will panic. This restriction isn't
-/// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
-/// porting to platforms that require it. `EventLoopExt::new_any_thread` functions are exposed
-/// in the relevant `platform` module if the target platform supports creating an event loop on
-/// any thread.
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
@@ -99,10 +93,12 @@ impl Default for ControlFlow {
 impl EventLoop<()> {
     /// Builds a new event loop with a `()` as the user event type.
     ///
-    /// Some platforms cannot run the event loop outside the main thread, so for cross-platform
-    /// compatibility purposes this function will panic when invoked outside the main thread.
-    /// If you absolutely need to create an event loop outside the main thread, your platform will
-    /// expose a `new_any_thread` function in its `EventLoopExt` trait.
+    /// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.***
+    /// Attempting to create the event loop on a different thread will panic. This restriction isn't
+    /// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
+    /// porting to platforms that require it. `EventLoopExt::new_any_thread` functions are exposed
+    /// in the relevant `platform` module if the target platform supports creating an event loop on
+    /// any thread.
     ///
     /// Usage will result in display backend initialisation, this can be controlled on linux
     /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
