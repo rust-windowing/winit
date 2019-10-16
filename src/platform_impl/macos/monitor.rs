@@ -22,15 +22,44 @@ use core_video_sys::{
     CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
 };
 
-#[derive(Derivative)]
-#[derivative(Debug, Clone, PartialEq, Hash)]
+#[derive(Clone)]
 pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
     pub(crate) monitor: MonitorHandle,
-    #[derivative(Debug = "ignore", PartialEq = "ignore", Hash = "ignore")]
     pub(crate) native_mode: NativeDisplayMode,
+}
+
+impl PartialEq for VideoMode {
+    fn eq(&self, other: &Self) -> bool {
+        self.size == other.size
+            && self.bit_depth == other.bit_depth
+            && self.refresh_rate == other.refresh_rate
+            && self.monitor == other.monitor
+    }
+}
+
+impl Eq for VideoMode {}
+
+impl std::hash::Hash for VideoMode {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.size.hash(state);
+        self.bit_depth.hash(state);
+        self.refresh_rate.hash(state);
+        self.monitor.hash(state);
+    }
+}
+
+impl std::fmt::Debug for VideoMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VideoMode")
+            .field("size", &self.size)
+            .field("bit_depth", &self.bit_depth)
+            .field("refresh_rate", &self.refresh_rate)
+            .field("monitor", &self.monitor)
+            .finish()
+    }
 }
 
 pub struct NativeDisplayMode(pub ffi::CGDisplayModeRef);
