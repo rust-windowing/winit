@@ -25,10 +25,6 @@ use smithay_client_toolkit::reexports::client::protocol::{
     wl_compositor::WlCompositor, wl_shm::WlShm, wl_surface::WlSurface,
 };
 
-use mio::{Events, Poll, PollOpt, Ready, Token};
-
-use mio_extras::channel::{channel, Receiver, Sender};
-
 use crate::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{
