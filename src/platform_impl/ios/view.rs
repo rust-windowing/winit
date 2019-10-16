@@ -128,10 +128,10 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
                 }.to_physical(dpi_factor);
-                app_state::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::Resized(size),
-                });
+                }));
             }
         }
 
@@ -175,14 +175,15 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     height: screen_frame.size.height as _,
                 };
                 app_state::handle_nonuser_events(
-                    std::iter::once(Event::WindowEvent {
+                    std::iter::once(EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
+                        window_id: window,
+                        hidpi_factor,
+                        suggested_size: size,
+                    }))
+                    .chain(std::iter::once(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: RootWindowId(window.into()),
-                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
-                    })
-                    .chain(std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::Resized(size),
-                    })),
+                        event: WindowEvent::Resized(size.to_physical(hidpi_factor)),
+                    }))),
                 );
             }
         }
@@ -239,7 +240,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                         _ => panic!("unexpected touch phase: {:?}", phase as i32),
                     };
 
-                    touch_events.push(Event::WindowEvent {
+                    touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: RootWindowId(window.into()),
                         event: WindowEvent::Touch(Touch {
                             device_id: RootDeviceId(DeviceId { uiscreen }),
@@ -248,7 +249,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                             force,
                             phase,
                         }),
-                    });
+                    }));
                 }
                 app_state::handle_nonuser_events(touch_events);
             }
