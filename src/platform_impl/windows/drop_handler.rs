@@ -1,6 +1,5 @@
 use std::{
     ffi::OsString,
-    mem,
     os::windows::ffi::OsStringExt,
     path::PathBuf,
     ptr,
@@ -11,7 +10,7 @@ use winapi::{
     ctypes::c_void,
     shared::{
         guiddef::REFIID,
-        minwindef::{DWORD, MAX_PATH, UINT, ULONG},
+        minwindef::{DWORD, UINT, ULONG},
         windef::{HWND, POINTL},
         winerror::S_OK,
     },
@@ -171,7 +170,6 @@ impl FileDropHandler {
         F: Fn(PathBuf),
     {
         use winapi::{
-            ctypes::wchar_t,
             shared::{
                 winerror::{DV_E_FORMATETC, SUCCEEDED},
                 wtypes::{CLIPFORMAT, DVASPECT_CONTENT},
@@ -191,7 +189,7 @@ impl FileDropHandler {
             tymed: TYMED_HGLOBAL,
         };
 
-        let mut medium = mem::uninitialized();
+        let mut medium = std::mem::zeroed();
         let get_data_result = (*data_obj).GetData(&mut drop_format, &mut medium);
         if SUCCEEDED(get_data_result) {
             let hglobal = (*medium.u).hGlobal();
@@ -200,15 +198,19 @@ impl FileDropHandler {
             // The second parameter (0xFFFFFFFF) instructs the function to return the item count
             let item_count = DragQueryFileW(hdrop, 0xFFFFFFFF, ptr::null_mut(), 0);
 
-            let mut pathbuf: [wchar_t; MAX_PATH] = mem::uninitialized();
-
             for i in 0..item_count {
-                let character_count =
-                    DragQueryFileW(hdrop, i, pathbuf.as_mut_ptr(), MAX_PATH as UINT) as usize;
+                // Get the length of the path string NOT including the terminating null character.
+                // Previously, this was using a fixed size array of MAX_PATH length, but the
+                // Windows API allows longer paths under certain circumstances.
+                let character_count = DragQueryFileW(hdrop, i, ptr::null_mut(), 0) as usize;
+                let str_len = character_count + 1;
 
-                if character_count > 0 {
-                    callback(OsString::from_wide(&pathbuf[0..character_count]).into());
-                }
+                // Fill path_buf with the null-terminated file name
+                let mut path_buf = Vec::with_capacity(str_len);
+                DragQueryFileW(hdrop, i, path_buf.as_mut_ptr(), str_len as UINT);
+                path_buf.set_len(str_len);
+
+                callback(OsString::from_wide(&path_buf[0..character_count]).into());
             }
 
             return Some(hdrop);

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use super::{event_loop::WindowEventsSink, make_wid, DeviceId};
+use super::{event_loop::EventsSink, make_wid, DeviceId};
 use smithay_client_toolkit::{
     keyboard::{
         self, map_keyboard_auto_with_repeat, Event as KbEvent, KeyRepeatEvent, KeyRepeatKind,
@@ -12,7 +12,7 @@ use crate::event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, 
 
 pub fn init_keyboard(
     seat: &wl_seat::WlSeat,
-    sink: WindowEventsSink,
+    sink: EventsSink,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
 ) -> wl_keyboard::WlKeyboard {
     // { variables to be captured by the closures
@@ -29,12 +29,12 @@ pub fn init_keyboard(
             match evt {
                 KbEvent::Enter { surface, .. } => {
                     let wid = make_wid(&surface);
-                    my_sink.send_event(WindowEvent::Focused(true), wid);
+                    my_sink.send_window_event(WindowEvent::Focused(true), wid);
                     *target.lock().unwrap() = Some(wid);
                 }
                 KbEvent::Leave { surface, .. } => {
                     let wid = make_wid(&surface);
-                    my_sink.send_event(WindowEvent::Focused(false), wid);
+                    my_sink.send_window_event(WindowEvent::Focused(false), wid);
                     *target.lock().unwrap() = None;
                 }
                 KbEvent::Key {
@@ -51,7 +51,7 @@ pub fn init_keyboard(
                             _ => unreachable!(),
                         };
                         let vkcode = key_to_vkey(rawkey, keysym);
-                        my_sink.send_event(
+                        my_sink.send_window_event(
                             WindowEvent::KeyboardInput {
                                 device_id: crate::event::DeviceId(
                                     crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -71,7 +71,7 @@ pub fn init_keyboard(
                         }
                         if let Some(txt) = utf8 {
                             for chr in txt.chars() {
-                                my_sink.send_event(WindowEvent::ReceivedCharacter(chr), wid);
+                                my_sink.send_window_event(WindowEvent::ReceivedCharacter(chr), wid);
                             }
                         }
                     }
@@ -79,14 +79,22 @@ pub fn init_keyboard(
                 KbEvent::RepeatInfo { .. } => { /* Handled by smithay client toolkit */ }
                 KbEvent::Modifiers {
                     modifiers: event_modifiers,
-                } => *modifiers_tracker.lock().unwrap() = event_modifiers.into(),
+                } => {
+                    let modifiers = event_modifiers.into();
+
+                    *modifiers_tracker.lock().unwrap() = modifiers;
+
+                    if let Some(wid) = *target.lock().unwrap() {
+                        my_sink.send_window_event(WindowEvent::ModifiersChanged { modifiers }, wid);
+                    }
+                }
             }
         },
         move |repeat_event: KeyRepeatEvent, _| {
             if let Some(wid) = *repeat_target.lock().unwrap() {
                 let state = ElementState::Pressed;
                 let vkcode = key_to_vkey(repeat_event.rawkey, repeat_event.keysym);
-                repeat_sink.send_event(
+                repeat_sink.send_window_event(
                     WindowEvent::KeyboardInput {
                         device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
                             DeviceId,
@@ -102,7 +110,7 @@ pub fn init_keyboard(
                 );
                 if let Some(txt) = repeat_event.utf8 {
                     for chr in txt.chars() {
-                        repeat_sink.send_event(WindowEvent::ReceivedCharacter(chr), wid);
+                        repeat_sink.send_window_event(WindowEvent::ReceivedCharacter(chr), wid);
                     }
                 }
             }
@@ -119,21 +127,22 @@ pub fn init_keyboard(
             // In this case, we don't have the keymap information (it is
             // supposed to be serialized by the compositor using libxkbcommon)
 
-            // { variables to be captured by the closure
-            let mut target = None;
-            let my_sink = sink;
-            // }
             seat.get_keyboard(|keyboard| {
+                // { variables to be captured by the closure
+                let mut target = None;
+                let my_sink = sink;
+                // }
+
                 keyboard.implement_closure(
                     move |evt, _| match evt {
                         wl_keyboard::Event::Enter { surface, .. } => {
                             let wid = make_wid(&surface);
-                            my_sink.send_event(WindowEvent::Focused(true), wid);
+                            my_sink.send_window_event(WindowEvent::Focused(true), wid);
                             target = Some(wid);
                         }
                         wl_keyboard::Event::Leave { surface, .. } => {
                             let wid = make_wid(&surface);
-                            my_sink.send_event(WindowEvent::Focused(false), wid);
+                            my_sink.send_window_event(WindowEvent::Focused(false), wid);
                             target = None;
                         }
                         wl_keyboard::Event::Key { key, state, .. } => {
@@ -143,7 +152,7 @@ pub fn init_keyboard(
                                     wl_keyboard::KeyState::Released => ElementState::Released,
                                     _ => unreachable!(),
                                 };
-                                my_sink.send_event(
+                                my_sink.send_window_event(
                                     WindowEvent::KeyboardInput {
                                         device_id: crate::event::DeviceId(
                                             crate::platform_impl::DeviceId::Wayland(DeviceId),

@@ -5,9 +5,9 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{self, NSView, NSWindow},
+    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
     base::{id, nil},
-    foundation::NSAutoreleasePool,
+    foundation::{NSAutoreleasePool, NSUInteger},
 };
 use objc::{
     declare::ClassDecl,
@@ -23,7 +23,7 @@ use crate::{
         util::{self, IdRef},
         window::{get_window_id, UnownedWindow},
     },
-    window::WindowId,
+    window::{Fullscreen, WindowId},
 };
 
 pub struct WindowDelegateState {
@@ -77,7 +77,7 @@ impl WindowDelegateState {
             window_id: WindowId(get_window_id(*self.ns_window)),
             event,
         };
-        AppState::queue_event(event);
+        AppState::queue_event(EventWrapper::StaticEvent(event));
     }
 
     pub fn emit_static_hidpi_factor_changed_event(&mut self) {
@@ -92,18 +92,15 @@ impl WindowDelegateState {
             suggested_size: self.view_size(),
             hidpi_factor,
         });
-        AppState::send_event_immediately(wrapper);
+        AppState::queue_event(wrapper);
     }
 
     pub fn emit_resize_event(&mut self) {
+        let rect = unsafe { NSView::frame(*self.ns_view) };
         let hidpi_factor = self.get_hidpi_factor();
-        let physical_size = self.view_size().to_physical(hidpi_factor);
-        let event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(*self.ns_window)),
-            event: WindowEvent::Resized(physical_size),
-        };
-        let wrapper = EventWrapper::StaticEvent(event);
-        AppState::send_event_immediately(wrapper);
+        let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
+        let size = logical_size.to_physical(hidpi_factor);
+        self.emit_event(WindowEvent::Resized(size));
     }
 
     fn emit_move_event(&mut self) {
@@ -202,6 +199,11 @@ lazy_static! {
             dragging_exited as extern "C" fn(&Object, Sel, id),
         );
 
+        decl.add_method(
+            sel!(window:willUseFullScreenPresentationOptions:),
+            window_will_use_fullscreen_presentation_options
+                as extern "C" fn(&Object, Sel, id, NSUInteger) -> NSUInteger,
+        );
         decl.add_method(
             sel!(windowDidEnterFullScreen:),
             window_did_enter_fullscreen as extern "C" fn(&Object, Sel, id),
@@ -402,23 +404,54 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
     with_state(this, |state| {
         state.with_window(|window| {
             trace!("Locked shared state in `window_will_enter_fullscreen`");
-            window.shared_state.lock().unwrap().maximized = window.is_zoomed();
+            let mut shared_state = window.shared_state.lock().unwrap();
+            shared_state.maximized = window.is_zoomed();
+            match shared_state.fullscreen {
+                // Exclusive mode sets the state in `set_fullscreen` as the user
+                // can't enter exclusive mode by other means (like the
+                // fullscreen button on the window decorations)
+                Some(Fullscreen::Exclusive(_)) => (),
+                // `window_will_enter_fullscreen` was triggered and we're already
+                // in fullscreen, so we must've reached here by `set_fullscreen`
+                // as it updates the state
+                Some(Fullscreen::Borderless(_)) => (),
+                // Otherwise, we must've reached fullscreen by the user clicking
+                // on the green fullscreen button. Update state!
+                None => {
+                    shared_state.fullscreen = Some(Fullscreen::Borderless(window.current_monitor()))
+                }
+            }
+
             trace!("Unlocked shared state in `window_will_enter_fullscreen`");
         })
     });
     trace!("Completed `windowWillEnterFullscreen:`");
 }
 
+extern "C" fn window_will_use_fullscreen_presentation_options(
+    _this: &Object,
+    _: Sel,
+    _: id,
+    _proposed_options: NSUInteger,
+) -> NSUInteger {
+    // Generally, games will want to disable the menu bar and the dock. Ideally,
+    // this would be configurable by the user. Unfortunately because of our
+    // `CGShieldingWindowLevel() + 1` hack (see `set_fullscreen`), our window is
+    // placed on top of the menu bar in exclusive fullscreen mode. This looks
+    // broken so we always disable the menu bar in exclusive fullscreen. We may
+    // still want to make this configurable for borderless fullscreen. Right now
+    // we don't, for consistency. If we do, it should be documented that the
+    // user-provided options are ignored in exclusive fullscreen.
+    (NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar)
+        .bits()
+}
+
 /// Invoked when entered fullscreen
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
-        state.with_window(|window| {
-            let monitor = window.current_monitor();
-            trace!("Locked shared state in `window_did_enter_fullscreen`");
-            window.shared_state.lock().unwrap().fullscreen = Some(monitor);
-            trace!("Unlocked shared state in `window_will_enter_fullscreen`");
-        });
         state.initial_fullscreen = false;
     });
     trace!("Completed `windowDidEnterFullscreen:`");

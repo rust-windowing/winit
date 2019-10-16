@@ -17,7 +17,7 @@ use std::{fmt, ops::Deref, sync::Arc};
 
 pub use self::{
     event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
-    monitor::MonitorHandle,
+    monitor::{MonitorHandle, VideoMode},
     window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
 };
 use crate::{

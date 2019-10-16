@@ -2,9 +2,7 @@
            target_os = "netbsd", target_os = "openbsd"))]
 
 pub use self::{
-    event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, MonitorHandle, WindowEventsSink,
-    },
+    event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget, MonitorHandle, VideoMode},
     window::Window,
 };
 

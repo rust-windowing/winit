@@ -1,50 +1,18 @@
 //! Types useful for interacting with a user's monitors.
 //!
 //! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_id]
-//! type. This is retreived from an [`AvailableMonitorsIter`][monitor_iter], which can be acquired
-//! with:
+//! type. This is retreived from one of the following methods, which return an iterator of
+//! [`MonitorHandle`][monitor_id]:
 //! - [`EventLoop::available_monitors`][loop_get]
 //! - [`Window::available_monitors`][window_get].
 //!
 //! [monitor_id]: ./struct.MonitorHandle.html
-//! [monitor_iter]: ./struct.AvailableMonitorsIter.html
 //! [loop_get]: ../event_loop/struct.EventLoop.html#method.available_monitors
 //! [window_get]: ../window/struct.Window.html#method.available_monitors
-use std::collections::vec_deque::IntoIter as VecDequeIter;
-
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
 };
-
-/// An iterator over all available monitors.
-///
-/// Can be acquired with:
-/// - [`EventLoop::available_monitors`][loop_get]
-/// - [`Window::available_monitors`][window_get].
-///
-/// [loop_get]: ../event_loop/struct.EventLoop.html#method.available_monitors
-/// [window_get]: ../window/struct.Window.html#method.available_monitors
-// Implementation note: we retrieve the list once, then serve each element by one by one.
-// This may change in the future.
-#[derive(Debug)]
-pub struct AvailableMonitorsIter {
-    pub(crate) data: VecDequeIter<platform_impl::MonitorHandle>,
-}
-
-impl Iterator for AvailableMonitorsIter {
-    type Item = MonitorHandle;
-
-    #[inline]
-    fn next(&mut self) -> Option<MonitorHandle> {
-        self.data.next().map(|id| MonitorHandle { inner: id })
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.data.size_hint()
-    }
-}
 
 /// Describes a fullscreen video mode of a monitor.
 ///
@@ -52,17 +20,46 @@ impl Iterator for AvailableMonitorsIter {
 /// - [`MonitorHandle::video_modes`][monitor_get].
 ///
 /// [monitor_get]: ../monitor/struct.MonitorHandle.html#method.video_modes
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct VideoMode {
-    pub(crate) size: (u32, u32),
-    pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate: u16,
+    pub(crate) video_mode: platform_impl::VideoMode,
+}
+
+impl std::fmt::Debug for VideoMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.video_mode.fmt(f)
+    }
+}
+
+impl PartialOrd for VideoMode {
+    fn partial_cmp(&self, other: &VideoMode) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for VideoMode {
+    fn cmp(&self, other: &VideoMode) -> std::cmp::Ordering {
+        // TODO: we can impl `Ord` for `PhysicalSize` once we switch from `f32`
+        // to `u32` there
+        let size: (u32, u32) = self.size().into();
+        let other_size: (u32, u32) = other.size().into();
+        self.monitor().cmp(&other.monitor()).then(
+            size.cmp(&other_size)
+                .then(
+                    self.refresh_rate()
+                        .cmp(&other.refresh_rate())
+                        .then(self.bit_depth().cmp(&other.bit_depth())),
+                )
+                .reverse(),
+        )
+    }
 }
 
 impl VideoMode {
     /// Returns the resolution of this video mode.
+    #[inline]
     pub fn size(&self) -> PhysicalSize {
-        self.size.into()
+        self.video_mode.size()
     }
 
     /// Returns the bit depth of this video mode, as in how many bits you have
@@ -73,15 +70,37 @@ impl VideoMode {
     ///
     /// - **Wayland:** Always returns 32.
     /// - **iOS:** Always returns 32.
+    #[inline]
     pub fn bit_depth(&self) -> u16 {
-        self.bit_depth
+        self.video_mode.bit_depth()
     }
 
     /// Returns the refresh rate of this video mode. **Note**: the returned
     /// refresh rate is an integer approximation, and you shouldn't rely on this
     /// value to be exact.
+    #[inline]
     pub fn refresh_rate(&self) -> u16 {
-        self.refresh_rate
+        self.video_mode.refresh_rate()
+    }
+
+    /// Returns the monitor that this video mode is valid for. Each monitor has
+    /// a separate set of valid video modes.
+    #[inline]
+    pub fn monitor(&self) -> MonitorHandle {
+        self.video_mode.monitor()
+    }
+}
+
+impl std::fmt::Display for VideoMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}x{} @ {} Hz ({} bpp)",
+            self.size().width,
+            self.size().height,
+            self.refresh_rate(),
+            self.bit_depth()
+        )
     }
 }
 
@@ -90,7 +109,7 @@ impl VideoMode {
 /// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
 ///
 /// [`Window`]: ../window/struct.Window.html
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MonitorHandle {
     pub(crate) inner: platform_impl::MonitorHandle,
 }
@@ -119,7 +138,7 @@ impl MonitorHandle {
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// See the [`dpi`](dpi/index.html) module for more information.
+    /// See the [`dpi`](../dpi/index.html) module for more information.
     ///
     /// ## Platform-specific
     ///

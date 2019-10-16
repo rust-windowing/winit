@@ -1,10 +1,94 @@
 # Unreleased
 
+- On Windows, implemented function to get HINSTANCE
+- On macOS, implement `run_return`.
+- On iOS, fix inverted parameter in `set_prefers_home_indicator_hidden`.
+- On X11, performance is improved when rapidly calling `Window::set_cursor_icon`.
+- On iOS, fix improper `msg_send` usage that was UB and/or would break if `!` is stabilized.
+- On Windows, unset `maximized` when manually changing the window's position or size.
+- On Windows, add touch pressure information for touch events.
+- On macOS, differentiate between `CursorIcon::Grab` and `CursorIcon::Grabbing`.
+- On Wayland, fix event processing sometimes stalling when using OpenGL with vsync.
+- Officially remove the Emscripten backend.
+- On Windows, fix handling of surrogate pairs when dispatching `ReceivedCharacter`.
+- On macOS 10.15, fix freeze upon exiting exclusive fullscreen mode.
+- On X11, allow setting mulitple `XWindowType`s.
+- On iOS, fix null window on initial `HiDpiFactorChanged` event.
+- On Windows, fix fullscreen window shrinking upon getting restored to a normal window.
+- On macOS, fix events not being emitted during modal loops, such as when windows are being resized
+  by the user.
+- On Windows, fix hovering the mouse over the active window creating an endless stream of CursorMoved events.
+- On X11, return dummy monitor data to avoid panicking when no monitors exist.
+- On X11, prevent stealing input focus when creating a new window.
+  Only steal input focus when entering fullscreen mode.
+- On Wayland, add support for set_cursor_visible and set_cursor_grab.
+- On Wayland, fixed DeviceEvents for relative mouse movement is not always produced.
+- Removed `derivative` crate dependency.
+- On Wayland, add support for set_cursor_icon.
+- Use `impl Iterator<Item = MonitorHandle>` instead of `AvailableMonitorsIter` consistently.
+- On macOS, fix fullscreen state being updated after entering fullscreen instead of before,
+  resulting in `Window::fullscreen` returning the old state in `Resized` events instead of
+  reflecting the new fullscreen state
+- On X11, fix use-after-free during window creation
+- On Windows, disable monitor change keyboard shortcut while in exclusive fullscreen.
+- On Windows, ensure that changing a borderless fullscreen window's monitor via keyboard shortcuts keeps the window fullscreen on the new monitor.
+- On Windows, fix window rectangle not getting set correctly on high-DPI systems.
+
+# 0.20.0 Alpha 3 (2019-08-14)
+
+- On macOS, drop the run closure on exit.
+- On Windows, location of `WindowEvent::Touch` are window client coordinates instead of screen coordinates.
+- On X11, fix delayed events after window redraw.
+- On macOS, add `WindowBuilderExt::with_disallow_hidpi` to have the option to turn off best resolution openGL surface.
+- On Windows, screen saver won't start if the window is in fullscreen mode.
+- Change all occurrences of the `new_user_event` method to `with_user_event`.
+- On macOS, the dock and the menu bar are now hidden in fullscreen mode.
+- `Window::set_fullscreen` now takes `Option<Fullscreen>` where `Fullscreen`
+  consists of `Fullscreen::Exclusive(VideoMode)` and
+  `Fullscreen::Borderless(MonitorHandle)` variants.
+    - Adds support for exclusive fullscreen mode.
+- On iOS, add support for hiding the home indicator.
+- On iOS, add support for deferring system gestures.
+- On iOS, fix a crash that occurred while acquiring a monitor's name.
+- On iOS, fix armv7-apple-ios compile target.
+- Removed the `T: Clone` requirement from the `Clone` impl of `EventLoopProxy<T>`.
+- On iOS, disable overscan compensation for external displays (removes black
+  bars surrounding the image).
+- On Linux, the functions `is_wayland`, `is_x11`, `xlib_xconnection` and `wayland_display` have been moved to a new `EventLoopWindowTargetExtUnix` trait.
+- On iOS, add `set_prefers_status_bar_hidden` extension function instead of
+  hijacking `set_decorations` for this purpose.
+- On macOS and iOS, corrected the auto trait impls of `EventLoopProxy`.
+- On iOS, add touch pressure information for touch events.
+- Implement `raw_window_handle::HasRawWindowHandle` for `Window` type on all supported platforms.
+- On macOS, fix the signature of `-[NSView drawRect:]`.
+- On iOS, fix the behavior of `ControlFlow::Poll`. It wasn't polling if that was the only mode ever used by the application.
+- On iOS, fix DPI sent out by views on creation was `0.0` - now it gives a reasonable number.
+- On iOS, RedrawRequested now works for gl/metal backed views.
+- On iOS, RedrawRequested is generally ordered after EventsCleared.
+
+# 0.20.0 Alpha 2 (2019-07-09)
+
+- On X11, non-resizable windows now have maximize explicitly disabled.
+- On Windows, support paths longer than MAX_PATH (260 characters) in `WindowEvent::DroppedFile`
+and `WindowEvent::HoveredFile`.
+- On Mac, implement `DeviceEvent::Button`.
 - Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
 - On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
 - On Windows, fix window rectangle not getting set correctly on high-DPI systems.
 
 # 0.20.0 Alpha 1
+- Revert the use of invisible surfaces in Wayland, which introduced graphical glitches with OpenGL (#835)
+- On X11, implement `_NET_WM_PING` to allow desktop environment to kill unresponsive programs.
+- On Windows, when a window is initially invisible, it won't take focus from the existing visible windows.
+- On Windows, fix multiple calls to `request_redraw` during `EventsCleared` sending multiple `RedrawRequested events.`
+- On Windows, fix edge case where `RedrawRequested` could be dispatched before input events in event loop iteration.
+- On Windows, fix timing issue that could cause events to be improperly dispatched after `RedrawRequested` but before `EventsCleared`.
+- On macOS, drop unused Metal dependency.
+- On Windows, fix the trail effect happening on transparent decorated windows. Borderless (or un-decorated) windows were not affected.
+- On Windows, fix `with_maximized` not properly setting window size to entire window.
+- On macOS, change `WindowExtMacOS::request_user_attention()` to take an `enum` instead of a `bool`.
+
+# 0.20.0 Alpha 1 (2019-06-21)
 
 - Changes below are considered **breaking**.
 - Change all occurrences of `EventsLoop` to `EventLoop`.

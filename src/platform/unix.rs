@@ -6,14 +6,15 @@ use smithay_client_toolkit::window::{ButtonState, Theme};
 
 use crate::{
     dpi::LogicalSize,
-    event_loop::EventLoop,
+    event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
 
 use crate::platform_impl::{
     x11::{ffi::XVisualInfo, XConnection},
-    EventLoop as LinuxEventLoop, Window as LinuxWindow,
+    EventLoop as LinuxEventLoop, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
+    Window as LinuxWindow,
 };
 
 // TODO: stupid hack so that glutin can do its work
@@ -90,6 +91,57 @@ impl Theme for WaylandThemeObject {
     }
 }
 
+/// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
+pub trait EventLoopWindowTargetExtUnix {
+    /// True if the `EventLoopWindowTarget` uses Wayland.
+    fn is_wayland(&self) -> bool;
+    ///
+    /// True if the `EventLoopWindowTarget` uses X11.
+    fn is_x11(&self) -> bool;
+
+    #[doc(hidden)]
+    fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
+
+    /// Returns a pointer to the `wl_display` object of wayland that is used by this
+    /// `EventLoopWindowTarget`.
+    ///
+    /// Returns `None` if the `EventLoop` doesn't use wayland (if it uses xlib for example).
+    ///
+    /// The pointer will become invalid when the winit `EventLoop` is destroyed.
+    fn wayland_display(&self) -> Option<*mut raw::c_void>;
+}
+
+impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
+    #[inline]
+    fn is_wayland(&self) -> bool {
+        self.p.is_wayland()
+    }
+
+    #[inline]
+    fn is_x11(&self) -> bool {
+        !self.p.is_wayland()
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
+        match self.p {
+            LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn wayland_display(&self) -> Option<*mut raw::c_void> {
+        match self.p {
+            LinuxEventLoopWindowTarget::Wayland(ref p) => {
+                Some(p.display().get_display_ptr() as *mut _)
+            }
+            _ => None,
+        }
+    }
+}
+
 /// Additional methods on `EventLoop` that are specific to Unix.
 pub trait EventLoopExtUnix {
     /// Builds a new `EventLoops` that is forced to use X11.
@@ -101,22 +153,6 @@ pub trait EventLoopExtUnix {
     fn new_wayland() -> Self
     where
         Self: Sized;
-
-    /// True if the `EventLoop` uses Wayland.
-    fn is_wayland(&self) -> bool;
-
-    /// True if the `EventLoop` uses X11.
-    fn is_x11(&self) -> bool;
-
-    #[doc(hidden)]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
-
-    /// Returns a pointer to the `wl_display` object of wayland that is used by this `EventLoop`.
-    ///
-    /// Returns `None` if the `EventLoop` doesn't use wayland (if it uses xlib for example).
-    ///
-    /// The pointer will become invalid when the glutin `EventLoop` is destroyed.
-    fn wayland_display(&self) -> Option<*mut raw::c_void>;
 }
 
 impl<T> EventLoopExtUnix for EventLoop<T> {
@@ -136,33 +172,6 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
                 Err(_) => panic!(), // TODO: propagate
             },
             _marker: ::std::marker::PhantomData,
-        }
-    }
-
-    #[inline]
-    fn is_wayland(&self) -> bool {
-        self.event_loop.is_wayland()
-    }
-
-    #[inline]
-    fn is_x11(&self) -> bool {
-        !self.event_loop.is_wayland()
-    }
-
-    #[inline]
-    #[doc(hidden)]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match self.event_loop {
-            LinuxEventLoop::X(ref e) => Some(e.x_connection().clone()),
-            _ => None,
-        }
-    }
-
-    #[inline]
-    fn wayland_display(&self) -> Option<*mut raw::c_void> {
-        match self.event_loop {
-            LinuxEventLoop::Wayland(ref e) => Some(e.display().get_display_ptr() as *mut _),
-            _ => None,
         }
     }
 }
@@ -258,17 +267,17 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
-    fn xcb_connection(&self) -> Option<*mut raw::c_void> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xcb_connection()),
-            _ => None,
+    fn set_urgent(&self, is_urgent: bool) {
+        if let LinuxWindow::X(ref w) = self.window {
+            w.set_urgent(is_urgent);
         }
     }
 
     #[inline]
-    fn set_urgent(&self, is_urgent: bool) {
-        if let LinuxWindow::X(ref w) = self.window {
-            w.set_urgent(is_urgent);
+    fn xcb_connection(&self) -> Option<*mut raw::c_void> {
+        match self.window {
+            LinuxWindow::X(ref w) => Some(w.xcb_connection()),
+            _ => None,
         }
     }
 
@@ -304,82 +313,82 @@ impl WindowExtUnix for Window {
 
 /// Additional methods on `WindowBuilder` that are specific to Unix.
 pub trait WindowBuilderExtUnix {
-    fn with_x11_visual<T>(self, visual_infos: *const T) -> WindowBuilder;
-    fn with_x11_screen(self, screen_id: i32) -> WindowBuilder;
+    fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
+    fn with_x11_screen(self, screen_id: i32) -> Self;
 
     /// Build window with `WM_CLASS` hint; defaults to the name of the binary. Only relevant on X11.
-    fn with_class(self, class: String, instance: String) -> WindowBuilder;
+    fn with_class(self, class: String, instance: String) -> Self;
     /// Build window with override-redirect flag; defaults to false. Only relevant on X11.
-    fn with_override_redirect(self, override_redirect: bool) -> WindowBuilder;
-    /// Build window with `_NET_WM_WINDOW_TYPE` hint; defaults to `Normal`. Only relevant on X11.
-    fn with_x11_window_type(self, x11_window_type: XWindowType) -> WindowBuilder;
+    fn with_override_redirect(self, override_redirect: bool) -> Self;
+    /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`. Only relevant on X11.
+    fn with_x11_window_type(self, x11_window_type: Vec<XWindowType>) -> Self;
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
-    fn with_gtk_theme_variant(self, variant: String) -> WindowBuilder;
+    fn with_gtk_theme_variant(self, variant: String) -> Self;
     /// Build window with resize increment hint. Only implemented on X11.
-    fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
+    fn with_resize_increments(self, increments: LogicalSize) -> Self;
     /// Build window with base size hint. Only implemented on X11.
-    fn with_base_size(self, base_size: LogicalSize) -> WindowBuilder;
+    fn with_base_size(self, base_size: LogicalSize) -> Self;
 
     /// Build window with a given application ID. It should match the `.desktop` file distributed with
     /// your program. Only relevant on Wayland.
     ///
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
-    fn with_app_id(self, app_id: String) -> WindowBuilder;
+    fn with_app_id(self, app_id: String) -> Self;
 }
 
 impl WindowBuilderExtUnix for WindowBuilder {
     #[inline]
-    fn with_x11_visual<T>(mut self, visual_infos: *const T) -> WindowBuilder {
+    fn with_x11_visual<T>(mut self, visual_infos: *const T) -> Self {
         self.platform_specific.visual_infos =
             Some(unsafe { ptr::read(visual_infos as *const XVisualInfo) });
         self
     }
 
     #[inline]
-    fn with_x11_screen(mut self, screen_id: i32) -> WindowBuilder {
+    fn with_x11_screen(mut self, screen_id: i32) -> Self {
         self.platform_specific.screen_id = Some(screen_id);
         self
     }
 
     #[inline]
-    fn with_class(mut self, instance: String, class: String) -> WindowBuilder {
+    fn with_class(mut self, instance: String, class: String) -> Self {
         self.platform_specific.class = Some((instance, class));
         self
     }
 
     #[inline]
-    fn with_override_redirect(mut self, override_redirect: bool) -> WindowBuilder {
+    fn with_override_redirect(mut self, override_redirect: bool) -> Self {
         self.platform_specific.override_redirect = override_redirect;
         self
     }
 
     #[inline]
-    fn with_x11_window_type(mut self, x11_window_type: XWindowType) -> WindowBuilder {
-        self.platform_specific.x11_window_type = x11_window_type;
+    fn with_x11_window_type(mut self, x11_window_types: Vec<XWindowType>) -> Self {
+        self.platform_specific.x11_window_types = x11_window_types;
         self
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize) -> WindowBuilder {
-        self.platform_specific.resize_increments = Some(increments.into());
-        self
-    }
-
-    #[inline]
-    fn with_base_size(mut self, base_size: LogicalSize) -> WindowBuilder {
-        self.platform_specific.base_size = Some(base_size.into());
-        self
-    }
-
-    #[inline]
-    fn with_gtk_theme_variant(mut self, variant: String) -> WindowBuilder {
+    fn with_gtk_theme_variant(mut self, variant: String) -> Self {
         self.platform_specific.gtk_theme_variant = Some(variant);
         self
     }
 
     #[inline]
-    fn with_app_id(mut self, app_id: String) -> WindowBuilder {
+    fn with_resize_increments(mut self, increments: LogicalSize) -> Self {
+        self.platform_specific.resize_increments = Some(increments.into());
+        self
+    }
+
+    #[inline]
+    fn with_base_size(mut self, base_size: LogicalSize) -> Self {
+        self.platform_specific.base_size = Some(base_size.into());
+        self
+    }
+
+    #[inline]
+    fn with_app_id(mut self, app_id: String) -> Self {
         self.platform_specific.app_id = Some(app_id);
         self
     }

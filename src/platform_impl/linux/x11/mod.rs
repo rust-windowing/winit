@@ -11,7 +11,7 @@ mod window;
 mod xdisplay;
 
 pub use self::{
-    monitor::MonitorHandle,
+    monitor::{MonitorHandle, VideoMode},
     window::UnownedWindow,
     xdisplay::{XConnection, XError, XNotSupported},
 };
@@ -39,6 +39,7 @@ use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
     ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
+    util::modifiers::ModifierKeymap,
 };
 use crate::{
     error::OsError as RootOsError,
@@ -54,6 +55,7 @@ const USER_TOKEN: Token = Token(1);
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
+    net_wm_ping: ffi::Atom,
     ime_sender: ImeSender,
     root: ffi::Window,
     ime: RefCell<Ime>,
@@ -70,9 +72,16 @@ pub struct EventLoop<T: 'static> {
     target: Rc<RootELW<T>>,
 }
 
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     user_sender: Sender<T>,
+}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        EventLoopProxy {
+            user_sender: self.user_sender.clone(),
+        }
+    }
 }
 
 impl<T: 'static> EventLoop<T> {
@@ -80,6 +89,8 @@ impl<T: 'static> EventLoop<T> {
         let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
 
         let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
+
+        let net_wm_ping = unsafe { xconn.get_atom_unchecked(b"_NET_WM_PING\0") };
 
         let dnd = Dnd::new(Arc::clone(&xconn))
             .expect("Failed to call XInternAtoms when initializing drag and drop");
@@ -103,22 +114,21 @@ impl<T: 'static> EventLoop<T> {
             .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
-            let mut result = XExtension {
-                opcode: mem::uninitialized(),
-                first_event_id: mem::uninitialized(),
-                first_error_id: mem::uninitialized(),
-            };
+            let mut ext = XExtension::default();
+
             let res = (xconn.xlib.XQueryExtension)(
                 xconn.display,
                 b"XInputExtension\0".as_ptr() as *const c_char,
-                &mut result.opcode as *mut c_int,
-                &mut result.first_event_id as *mut c_int,
-                &mut result.first_error_id as *mut c_int,
+                &mut ext.opcode,
+                &mut ext.first_event_id,
+                &mut ext.first_error_id,
             );
+
             if res == ffi::False {
                 panic!("X server missing XInput extension");
             }
-            result
+
+            ext
         };
 
         unsafe {
@@ -139,6 +149,9 @@ impl<T: 'static> EventLoop<T> {
 
         xconn.update_cached_wm_info(root);
 
+        let mut mod_keymap = ModifierKeymap::new();
+        mod_keymap.reset_from_x_connection(&xconn);
+
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
                 ime,
@@ -148,12 +161,12 @@ impl<T: 'static> EventLoop<T> {
                 ime_sender,
                 xconn,
                 wm_delete_window,
+                net_wm_ping,
                 pending_redraws: Default::default(),
             }),
             _marker: ::std::marker::PhantomData,
         });
 
-        // A calloop event loop to drive us
         let poll = Poll::new().unwrap();
 
         let (user_sender, user_channel) = channel();
@@ -181,6 +194,9 @@ impl<T: 'static> EventLoop<T> {
             randr_event_offset,
             ime_receiver,
             xi2ext,
+            mod_keymap,
+            device_mod_state: Default::default(),
+            window_mod_state: Default::default(),
         };
 
         // Register for device hotplug events
@@ -203,12 +219,6 @@ impl<T: 'static> EventLoop<T> {
         result
     }
 
-    /// Returns the `XConnection` of this events loop.
-    #[inline]
-    pub fn x_connection(&self) -> &Arc<XConnection> {
-        &get_xtarget(&self.target).xconn
-    }
-
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             user_sender: self.user_sender.clone(),
@@ -219,12 +229,22 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
+    pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
+        get_xtarget(&self.target).x_connection()
+    }
+
     pub fn run_return<F>(&mut self, mut callback: F)
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         let mut control_flow = ControlFlow::default();
         let mut events = Events::with_capacity(8);
+
+        callback(
+            crate::event::Event::NewEvents(crate::event::StartCause::Init),
+            &self.target,
+            &mut control_flow,
+        );
 
         loop {
             // Process all pending events
@@ -245,8 +265,10 @@ impl<T: 'static> EventLoop<T> {
             }
             // Empty the redraw requests
             {
-                let mut guard = wt.pending_redraws.lock().unwrap();
-                for wid in guard.drain() {
+                // Release the lock to prevent deadlock
+                let windows: Vec<_> = wt.pending_redraws.lock().unwrap().drain().collect();
+
+                for wid in windows {
                     sticky_exit_callback(
                         Event::WindowEvent {
                             window_id: crate::window::WindowId(super::WindowId::X(wid)),
@@ -366,11 +388,18 @@ impl<T: 'static> EventLoop<T> {
     }
 }
 
-fn get_xtarget<T>(rt: &RootELW<T>) -> &EventLoopWindowTarget<T> {
-    if let super::EventLoopWindowTarget::X(ref target) = rt.p {
-        target
-    } else {
-        unreachable!();
+pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
+    match target.p {
+        super::EventLoopWindowTarget::X(ref target) => target,
+        _ => unreachable!(),
+    }
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    /// Returns the `XConnection` of this events loop.
+    #[inline]
+    pub fn x_connection(&self) -> &Arc<XConnection> {
+        &self.xconn
     }
 }
 
@@ -389,19 +418,19 @@ struct DeviceInfo<'a> {
 impl<'a> DeviceInfo<'a> {
     fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
         unsafe {
-            let mut count = mem::uninitialized();
+            let mut count = 0;
             let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
-            xconn.check_errors().ok().and_then(|_| {
-                if info.is_null() || count == 0 {
-                    None
-                } else {
-                    Some(DeviceInfo {
-                        xconn,
-                        info,
-                        count: count as usize,
-                    })
-                }
-            })
+            xconn.check_errors().ok()?;
+
+            if info.is_null() || count == 0 {
+                None
+            } else {
+                Some(DeviceInfo {
+                    xconn,
+                    info,
+                    count: count as usize,
+                })
+            }
         }
     }
 }
@@ -506,7 +535,7 @@ impl<'a> Drop for GenericEventCookie<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 struct XExtension {
     opcode: c_int,
     first_event_id: c_int,

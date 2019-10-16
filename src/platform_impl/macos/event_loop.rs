@@ -1,5 +1,6 @@
 use std::{
-    collections::VecDeque, marker::PhantomData, mem, os::raw::c_void, process, ptr, sync::mpsc,
+    collections::VecDeque, marker::PhantomData, mem, os::raw::c_void, process, ptr, rc::Rc,
+    sync::mpsc,
 };
 
 use cocoa::{
@@ -34,7 +35,7 @@ impl<T> Default for EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
-    window_target: RootWindowTarget<T>,
+    window_target: Rc<RootWindowTarget<T>>,
     _delegate: IdRef,
 }
 
@@ -59,10 +60,10 @@ impl<T> EventLoop<T> {
         };
         setup_control_flow_observers();
         EventLoop {
-            window_target: RootWindowTarget {
+            window_target: Rc::new(RootWindowTarget {
                 p: Default::default(),
                 _marker: PhantomData,
-            },
+            }),
             _delegate: delegate,
         }
     }
@@ -81,26 +82,26 @@ impl<T> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run<F>(self, callback: F) -> !
+    pub fn run<F>(mut self, callback: F) -> !
     where
         F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+    {
+        self.run_return(callback);
+        process::exit(0);
+    }
+
+    pub fn run_return<F>(&mut self, callback: F)
+    where
+        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
             let _pool = NSAutoreleasePool::new(nil);
             let app = NSApp();
             assert_ne!(app, nil);
-            AppState::set_callback(callback, self.window_target);
+            AppState::set_callback(callback, Rc::clone(&self.window_target));
             let _: () = msg_send![app, run];
             AppState::exit();
-            process::exit(0)
         }
-    }
-
-    pub fn run_return<F>(&mut self, _callback: F)
-    where
-        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
-    {
-        unimplemented!();
     }
 
     pub fn create_proxy(&self) -> Proxy<T> {
@@ -108,19 +109,23 @@ impl<T> EventLoop<T> {
     }
 }
 
-#[derive(Clone)]
 pub struct Proxy<T> {
     sender: mpsc::Sender<T>,
     source: CFRunLoopSourceRef,
 }
 
-unsafe impl<T> Send for Proxy<T> {}
-unsafe impl<T> Sync for Proxy<T> {}
+unsafe impl<T: Send> Send for Proxy<T> {}
+
+impl<T> Clone for Proxy<T> {
+    fn clone(&self) -> Self {
+        Proxy::new(self.sender.clone())
+    }
+}
 
 impl<T> Proxy<T> {
     fn new(sender: mpsc::Sender<T>) -> Self {
         unsafe {
-            // just wakeup the eventloop
+            // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *mut c_void) {}
 
             // adding a Source to the main CFRunLoop lets us wake it up and

@@ -2,14 +2,14 @@ extern crate env_logger;
 use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
 use winit::{
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{CursorIcon, WindowBuilder},
+    window::{CursorIcon, Fullscreen, WindowBuilder},
 };
 
 const WINDOW_COUNT: usize = 3;
-const WINDOW_SIZE: PhysicalSize = PhysicalSize::new(600, 400);
+const WINDOW_SIZE: Size = Size::Physical(PhysicalSize::new(600, 400));
 
 fn main() {
     env_logger::init();
@@ -20,11 +20,34 @@ fn main() {
             .with_inner_size(WINDOW_SIZE)
             .build(&event_loop)
             .unwrap();
+
+        let mut video_modes: Vec<_> = window.current_monitor().video_modes().collect();
+        let mut video_mode_id = 0usize;
+
         let (tx, rx) = mpsc::channel();
         window_senders.insert(window.id(), tx);
         thread::spawn(move || {
             while let Ok(event) = rx.recv() {
                 match event {
+                    WindowEvent::Moved { .. } => {
+                        // We need to update our chosen video mode if the window
+                        // was moved to an another monitor, so that the window
+                        // appears on this monitor instead when we go fullscreen
+                        let previous_video_mode = video_modes.iter().cloned().nth(video_mode_id);
+                        video_modes = window.current_monitor().video_modes().collect();
+                        video_mode_id = video_mode_id.min(video_modes.len());
+                        let video_mode = video_modes.iter().nth(video_mode_id);
+
+                        // Different monitors may support different video modes,
+                        // and the index we chose previously may now point to a
+                        // completely different video mode, so notify the user
+                        if video_mode != previous_video_mode.as_ref() {
+                            println!(
+                                "Window moved to another monitor, picked video mode: {}",
+                                video_modes.iter().nth(video_mode_id).unwrap()
+                            );
+                        }
+                    }
                     WindowEvent::KeyboardInput {
                         input:
                             KeyboardInput {
@@ -45,9 +68,26 @@ fn main() {
                                 false => CursorIcon::Default,
                             }),
                             D => window.set_decorations(!state),
-                            F => window.set_fullscreen(match state {
-                                true => Some(window.current_monitor()),
-                                false => None,
+                            // Cycle through video modes
+                            Right | Left => {
+                                video_mode_id = match key {
+                                    Left => video_mode_id.saturating_sub(1),
+                                    Right => (video_modes.len() - 1).min(video_mode_id + 1),
+                                    _ => unreachable!(),
+                                };
+                                println!(
+                                    "Picking video mode: {}",
+                                    video_modes.iter().nth(video_mode_id).unwrap()
+                                );
+                            }
+                            F => window.set_fullscreen(match (state, modifiers.alt) {
+                                (true, false) => {
+                                    Some(Fullscreen::Borderless(window.current_monitor()))
+                                }
+                                (true, true) => Some(Fullscreen::Exclusive(
+                                    video_modes.iter().nth(video_mode_id).unwrap().clone(),
+                                )),
+                                (false, _) => None,
                             }),
                             G => window.set_cursor_grab(state).unwrap(),
                             H => window.set_cursor_visible(!state),
@@ -57,6 +97,7 @@ fn main() {
                                 println!("-> inner_position : {:?}", window.inner_position());
                                 println!("-> outer_size     : {:?}", window.outer_size());
                                 println!("-> inner_size     : {:?}", window.inner_size());
+                                println!("-> fullscreen     : {:?}", window.fullscreen());
                             }
                             L => window.set_min_inner_size(match state {
                                 true => Some(WINDOW_SIZE),
@@ -73,18 +114,30 @@ fn main() {
                             Q => window.request_redraw(),
                             R => window.set_resizable(state),
                             S => window.set_inner_size(match state {
-                                true => PhysicalSize::new(
-                                    WINDOW_SIZE.width + 100,
-                                    WINDOW_SIZE.height + 100,
-                                ),
+                                true => {
+                                    if let Size::Physical(size) = WINDOW_SIZE {
+                                        Size::Physical(PhysicalSize::new(
+                                            size.width + 100,
+                                            size.height + 100,
+                                        ))
+                                    } else {
+                                        WINDOW_SIZE
+                                    }
+                                }
                                 false => WINDOW_SIZE,
                             }),
-                            W => window
-                                .set_cursor_position(PhysicalPosition::new(
-                                    WINDOW_SIZE.width as f64 / 2.0,
-                                    WINDOW_SIZE.height as f64 / 2.0,
-                                ))
-                                .unwrap(),
+                            W => {
+                                if let Size::Physical(size) = WINDOW_SIZE {
+                                    window
+                                        .set_cursor_position(Position::Physical(
+                                            PhysicalPosition::new(
+                                                size.width as f64 / 2.0,
+                                                size.height as f64 / 2.0,
+                                            ),
+                                        ))
+                                        .unwrap()
+                                }
+                            }
                             Z => {
                                 window.set_visible(false);
                                 thread::sleep(Duration::from_secs(1));
@@ -110,6 +163,7 @@ fn main() {
                 | WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
+                            state: ElementState::Released,
                             virtual_keycode: Some(VirtualKeyCode::Escape),
                             ..
                         },

@@ -1,5 +1,7 @@
+use raw_window_handle::unix::WaylandHandle;
 use std::{
     collections::VecDeque,
+    mem::replace,
     sync::{Arc, Mutex, Weak},
 };
 
@@ -8,10 +10,11 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
+        platform::wayland::event_loop::{available_monitors, primary_monitor},
         MonitorHandle as PlatformMonitorHandle,
         PlatformSpecificWindowBuilderAttributes as PlAttributes,
     },
-    window::{CursorIcon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
 use smithay_client_toolkit::{
@@ -24,12 +27,12 @@ use smithay_client_toolkit::{
     window::{ConceptFrame, Event as WEvent, State as WState, Theme, Window as SWindow},
 };
 
-use super::{make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
-use crate::platform_impl::platform::wayland::event_loop::{available_monitors, primary_monitor};
+use super::{event_loop::CursorManager, make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
 
 pub struct Window {
     surface: wl_surface::WlSurface,
     frame: Arc<Mutex<SWindow<ConceptFrame>>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
     outputs: OutputMgr, // Access to info for all monitors
     size: Arc<Mutex<(u32, u32)>>,
     kill_switch: (Arc<Mutex<bool>>, Arc<Mutex<bool>>),
@@ -47,6 +50,7 @@ impl Window {
     ) -> Result<Window, RootOsError> {
         // Create the surface first to get initial DPI
         let window_store = evlp.store.clone();
+        let cursor_manager = evlp.cursor_manager.clone();
         let surface = evlp.env.create_surface(move |dpi, surface| {
             window_store.lock().unwrap().dpi_change(&surface, dpi);
             surface.set_buffer_scale(dpi);
@@ -115,13 +119,19 @@ impl Window {
         }
 
         // Check for fullscreen requirements
-        if let Some(RootMonitorHandle {
-            inner: PlatformMonitorHandle::Wayland(ref monitor_id),
-        }) = attributes.fullscreen
-        {
-            frame.set_fullscreen(Some(&monitor_id.proxy));
-        } else if attributes.maximized {
-            frame.set_maximized();
+        match attributes.fullscreen {
+            Some(Fullscreen::Exclusive(_)) => {
+                panic!("Wayland doesn't support exclusive fullscreen")
+            }
+            Some(Fullscreen::Borderless(RootMonitorHandle {
+                inner: PlatformMonitorHandle::Wayland(ref monitor_id),
+            })) => frame.set_fullscreen(Some(&monitor_id.proxy)),
+            Some(Fullscreen::Borderless(_)) => unreachable!(),
+            None => {
+                if attributes.maximized {
+                    frame.set_maximized();
+                }
+            }
         }
 
         frame.set_resizable(attributes.resizable);
@@ -173,6 +183,7 @@ impl Window {
             kill_switch: (kill_switch, evlp.cleanup_needed.clone()),
             need_frame_refresh,
             need_refresh,
+            cursor_manager,
             fullscreen,
         })
     }
@@ -274,25 +285,31 @@ impl Window {
         }
     }
 
-    pub fn fullscreen(&self) -> Option<MonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         if *(self.fullscreen.lock().unwrap()) {
-            Some(self.current_monitor())
+            Some(Fullscreen::Borderless(RootMonitorHandle {
+                inner: PlatformMonitorHandle::Wayland(self.current_monitor()),
+            }))
         } else {
             None
         }
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<RootMonitorHandle>) {
-        if let Some(RootMonitorHandle {
-            inner: PlatformMonitorHandle::Wayland(ref monitor_id),
-        }) = monitor
-        {
-            self.frame
-                .lock()
-                .unwrap()
-                .set_fullscreen(Some(&monitor_id.proxy));
-        } else {
-            self.frame.lock().unwrap().unset_fullscreen();
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        match fullscreen {
+            Some(Fullscreen::Exclusive(_)) => {
+                panic!("Wayland doesn't support exclusive fullscreen")
+            }
+            Some(Fullscreen::Borderless(RootMonitorHandle {
+                inner: PlatformMonitorHandle::Wayland(ref monitor_id),
+            })) => {
+                self.frame
+                    .lock()
+                    .unwrap()
+                    .set_fullscreen(Some(&monitor_id.proxy));
+            }
+            Some(Fullscreen::Borderless(_)) => unreachable!(),
+            None => self.frame.lock().unwrap().unset_fullscreen(),
         }
     }
 
@@ -301,18 +318,26 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
-        // TODO
+    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
+        let mut cursor_manager = self.cursor_manager.lock().unwrap();
+        cursor_manager.set_cursor_icon(cursor);
     }
 
     #[inline]
-    pub fn set_cursor_visible(&self, _visible: bool) {
-        // TODO: This isn't possible on Wayland yet
+    pub fn set_cursor_visible(&self, visible: bool) {
+        let mut cursor_manager = self.cursor_manager.lock().unwrap();
+        cursor_manager.set_cursor_visible(visible);
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+        let mut cursor_manager = self.cursor_manager.lock().unwrap();
+        if grab {
+            cursor_manager.grab_pointer(Some(&self.surface));
+        } else {
+            cursor_manager.grab_pointer(None);
+        }
+        Ok(())
     }
 
     #[inline]
@@ -342,6 +367,14 @@ impl Window {
 
     pub fn primary_monitor(&self) -> MonitorHandle {
         primary_monitor(&self.outputs)
+    }
+
+    pub fn raw_window_handle(&self) -> WaylandHandle {
+        WaylandHandle {
+            surface: self.surface().as_ref().c_ptr() as *mut _,
+            display: self.display().as_ref().c_ptr() as *mut _,
+            ..WaylandHandle::empty()
+        }
     }
 }
 
@@ -443,8 +476,8 @@ impl WindowStore {
                 &mut *(window.size.lock().unwrap()),
                 window.current_dpi,
                 window.new_dpi,
-                ::std::mem::replace(&mut *window.need_refresh.lock().unwrap(), false),
-                ::std::mem::replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
+                replace(&mut *window.need_refresh.lock().unwrap(), false),
+                replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
                 make_wid(&window.surface),
                 opt_mutex_lock.as_mut().map(|m| &mut **m),

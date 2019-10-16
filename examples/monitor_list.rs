@@ -4,6 +4,6 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    dbg!(window.available_monitors());
+    dbg!(window.available_monitors().collect::<Vec<_>>());
     dbg!(window.primary_monitor());
 }

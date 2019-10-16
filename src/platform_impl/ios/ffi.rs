@@ -1,12 +1,12 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::{ffi::CString, ops::BitOr, os::raw::*};
+use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
 
 use objc::{runtime::Object, Encode, Encoding};
 
 use crate::{
     dpi::LogicalSize,
-    platform::ios::{Idiom, ValidOrientations},
+    platform::ios::{Idiom, ScreenEdge, ValidOrientations},
 };
 
 pub type id = *mut Object;
@@ -86,6 +86,24 @@ pub enum UITouchPhase {
     Stationary,
     Ended,
     Cancelled,
+}
+
+#[derive(Debug, PartialEq)]
+#[allow(dead_code)]
+#[repr(isize)]
+pub enum UIForceTouchCapability {
+    Unknown = 0,
+    Unavailable,
+    Available,
+}
+
+#[derive(Debug, PartialEq)]
+#[allow(dead_code)]
+#[repr(isize)]
+pub enum UITouchType {
+    Direct = 0,
+    Indirect,
+    Pencil,
 }
 
 #[repr(C)]
@@ -191,6 +209,51 @@ impl UIInterfaceOrientationMask {
     }
 }
 
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UIRectEdge(NSUInteger);
+
+unsafe impl Encode for UIRectEdge {
+    fn encode() -> Encoding {
+        NSUInteger::encode()
+    }
+}
+
+impl From<ScreenEdge> for UIRectEdge {
+    fn from(screen_edge: ScreenEdge) -> UIRectEdge {
+        assert_eq!(
+            screen_edge.bits() & !ScreenEdge::ALL.bits(),
+            0,
+            "invalid `ScreenEdge`"
+        );
+        UIRectEdge(screen_edge.bits().into())
+    }
+}
+
+impl Into<ScreenEdge> for UIRectEdge {
+    fn into(self) -> ScreenEdge {
+        let bits: u8 = self.0.try_into().expect("invalid `UIRectEdge`");
+        ScreenEdge::from_bits(bits).expect("invalid `ScreenEdge`")
+    }
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UIScreenOverscanCompensation(NSInteger);
+
+unsafe impl Encode for UIScreenOverscanCompensation {
+    fn encode() -> Encoding {
+        NSInteger::encode()
+    }
+}
+
+#[allow(dead_code)]
+impl UIScreenOverscanCompensation {
+    pub const Scale: UIScreenOverscanCompensation = UIScreenOverscanCompensation(0);
+    pub const InsetBounds: UIScreenOverscanCompensation = UIScreenOverscanCompensation(1);
+    pub const None: UIScreenOverscanCompensation = UIScreenOverscanCompensation(2);
+}
+
 #[link(name = "UIKit", kind = "framework")]
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
@@ -286,14 +349,14 @@ pub enum CFRunLoopTimerContext {}
 pub struct CFRunLoopSourceContext {
     pub version: CFIndex,
     pub info: *mut c_void,
-    pub retain: extern "C" fn(*const c_void) -> *const c_void,
-    pub release: extern "C" fn(*const c_void),
-    pub copyDescription: extern "C" fn(*const c_void) -> CFStringRef,
-    pub equal: extern "C" fn(*const c_void, *const c_void) -> Boolean,
-    pub hash: extern "C" fn(*const c_void) -> CFHashCode,
-    pub schedule: extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode),
-    pub cancel: extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode),
-    pub perform: extern "C" fn(*mut c_void),
+    pub retain: Option<extern "C" fn(*const c_void) -> *const c_void>,
+    pub release: Option<extern "C" fn(*const c_void)>,
+    pub copyDescription: Option<extern "C" fn(*const c_void) -> CFStringRef>,
+    pub equal: Option<extern "C" fn(*const c_void, *const c_void) -> Boolean>,
+    pub hash: Option<extern "C" fn(*const c_void) -> CFHashCode>,
+    pub schedule: Option<extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode)>,
+    pub cancel: Option<extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode)>,
+    pub perform: Option<extern "C" fn(*mut c_void)>,
 }
 
 pub trait NSString: Sized {

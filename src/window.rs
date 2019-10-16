@@ -2,10 +2,10 @@
 use std::fmt;
 
 use crate::{
-    dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
-    monitor::{AvailableMonitorsIter, MonitorHandle},
+    monitor::{MonitorHandle, VideoMode},
     platform_impl,
 };
 
@@ -45,6 +45,18 @@ impl fmt::Debug for Window {
     }
 }
 
+impl Drop for Window {
+    fn drop(&mut self) {
+        // If the window is in exclusive fullscreen, we must restore the desktop
+        // video mode (generally this would be done on application exit, but
+        // closing the window doesn't necessarily always mean application exit,
+        // such as when there are multiple windows)
+        if let Some(Fullscreen::Exclusive(_)) = self.fullscreen() {
+            self.set_fullscreen(None);
+        }
+    }
+}
+
 /// Identifier of a window. Unique for each window.
 ///
 /// Can be obtained with `window.id()`.
@@ -71,7 +83,7 @@ pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
 
-    // Platform-specific configuration. Private.
+    // Platform-specific configuration.
     pub(crate) platform_specific: platform_impl::PlatformSpecificWindowBuilderAttributes,
 }
 
@@ -110,7 +122,7 @@ pub struct WindowAttributes {
     /// Whether the window should be set as fullscreen upon creation.
     ///
     /// The default is `None`.
-    pub fullscreen: Option<MonitorHandle>,
+    pub fullscreen: Option<Fullscreen>,
 
     /// The title of the window in the title bar.
     ///
@@ -168,10 +180,11 @@ impl Default for WindowAttributes {
         }
     }
 }
+
 impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
-    pub fn new() -> WindowBuilder {
+    pub fn new() -> Self {
         WindowBuilder {
             window: Default::default(),
             platform_specific: Default::default(),
@@ -180,21 +193,21 @@ impl WindowBuilder {
 
     /// Requests the window to be of specific dimensions.
     #[inline]
-    pub fn with_inner_size<S: Into<Size>>(mut self, size: S) -> WindowBuilder {
+    pub fn with_inner_size<S: Into<Size>>(mut self, size: S) -> Self {
         self.window.inner_size = Some(size.into());
         self
     }
 
     /// Sets a minimum dimension size for the window
     #[inline]
-    pub fn with_min_inner_size<S: Into<Size>>(mut self, min_size: S) -> WindowBuilder {
+    pub fn with_min_inner_size<S: Into<Size>>(mut self, min_size: S) -> Self {
         self.window.min_inner_size = Some(min_size.into());
         self
     }
 
     /// Sets a maximum dimension size for the window
     #[inline]
-    pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> WindowBuilder {
+    pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> Self {
         self.window.max_inner_size = Some(max_size.into());
         self
     }
@@ -210,57 +223,61 @@ impl WindowBuilder {
     ///
     /// Due to a bug in XFCE, this has no effect on Xfwm.
     #[inline]
-    pub fn with_resizable(mut self, resizable: bool) -> WindowBuilder {
+    pub fn with_resizable(mut self, resizable: bool) -> Self {
         self.window.resizable = resizable;
         self
     }
 
     /// Requests a specific title for the window.
     #[inline]
-    pub fn with_title<T: Into<String>>(mut self, title: T) -> WindowBuilder {
+    pub fn with_title<T: Into<String>>(mut self, title: T) -> Self {
         self.window.title = title.into();
         self
     }
 
-    /// Sets the window fullscreen state. None means a normal window, Some(MonitorHandle)
+    /// Sets the window fullscreen state. None means a normal window, Some(Fullscreen)
     /// means a fullscreen window on that specific monitor
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: Option<MonitorHandle>) -> WindowBuilder {
+    pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> Self {
         self.window.fullscreen = monitor;
         self
     }
 
     /// Requests maximized mode.
     #[inline]
-    pub fn with_maximized(mut self, maximized: bool) -> WindowBuilder {
+    pub fn with_maximized(mut self, maximized: bool) -> Self {
         self.window.maximized = maximized;
         self
     }
 
     /// Sets whether the window will be initially hidden or visible.
     #[inline]
-    pub fn with_visible(mut self, visible: bool) -> WindowBuilder {
+    pub fn with_visible(mut self, visible: bool) -> Self {
         self.window.visible = visible;
         self
     }
 
     /// Sets whether the background of the window should be transparent.
     #[inline]
-    pub fn with_transparent(mut self, transparent: bool) -> WindowBuilder {
+    pub fn with_transparent(mut self, transparent: bool) -> Self {
         self.window.transparent = transparent;
         self
     }
 
     /// Sets whether the window should have a border, a title bar, etc.
     #[inline]
-    pub fn with_decorations(mut self, decorations: bool) -> WindowBuilder {
+    pub fn with_decorations(mut self, decorations: bool) -> Self {
         self.window.decorations = decorations;
         self
     }
 
     /// Sets whether or not the window will always be on top of other windows.
     #[inline]
-    pub fn with_always_on_top(mut self, always_on_top: bool) -> WindowBuilder {
+    pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
         self.window.always_on_top = always_on_top;
         self
     }
@@ -278,7 +295,7 @@ impl WindowBuilder {
     /// X11 has no universal guidelines for icon sizes, so you're at the whims of the WM. That
     /// said, it's usually in the same ballpark as on Windows.
     #[inline]
-    pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> WindowBuilder {
+    pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
         self.window.window_icon = window_icon;
         self
     }
@@ -288,19 +305,9 @@ impl WindowBuilder {
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
     #[inline]
     pub fn build<T: 'static>(
-        mut self,
+        self,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Result<Window, OsError> {
-        self.window.inner_size = Some(self.window.inner_size.unwrap_or_else(|| {
-            if let Some(ref monitor) = self.window.fullscreen {
-                Size::new(monitor.size())
-            } else {
-                // default dimensions
-                Size::new(LogicalSize::new(1024.0, 768.0))
-            }
-        }));
-
-        // building
         platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)
             .map(|window| Window { window })
     }
@@ -328,7 +335,7 @@ impl Window {
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// See the [`dpi`](dpi/index.html) module for more information.
+    /// See the [`dpi`](../dpi/index.html) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
     /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
@@ -407,9 +414,8 @@ impl Window {
 
     /// Modifies the position of the window.
     ///
-    /// See `outer_position` for more information about the coordinates.
-    ///
-    /// This is a no-op if the window has already been closed.
+    /// See `outer_position` for more information about the coordinates. This automatically un-maximizes the
+    /// window if it's maximized.
     ///
     /// ## Platform-specific
     ///
@@ -437,7 +443,8 @@ impl Window {
 
     /// Modifies the inner size of the window.
     ///
-    /// See `inner_size` for more information about the values.
+    /// See `inner_size` for more information about the values. This automatically un-maximizes the
+    /// window if it's maximized.
     ///
     /// ## Platform-specific
     ///
@@ -540,10 +547,27 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
+    /// - **macOS:** `Fullscreen::Exclusive` provides true exclusive mode with a
+    ///   video mode change. *Caveat!* macOS doesn't provide task switching (or
+    ///   spaces!) while in exclusive fullscreen mode. This mode should be used
+    ///   when a video mode change is desired, but for a better user experience,
+    ///   borderless fullscreen might be preferred.
+    ///
+    ///   `Fullscreen::Borderless` provides a borderless fullscreen window on a
+    ///   separate space. This is the idiomatic way for fullscreen games to work
+    ///   on macOS. See [`WindowExtMacOs::set_simple_fullscreen`][simple] if
+    ///   separate spaces are not preferred.
+    ///
+    ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Wayland:** Does not support exclusive fullscreen mode.
+    /// - **Windows:** Screen saver is disabled in fullscreen mode.
+    ///
+    /// [simple]:
+    /// ../platform/macos/trait.WindowExtMacOS.html#tymethod.set_simple_fullscreen
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<MonitorHandle>) {
-        self.window.set_fullscreen(monitor)
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        self.window.set_fullscreen(fullscreen)
     }
 
     /// Gets the window's current fullscreen state.
@@ -552,7 +576,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn fullscreen(&self) -> Option<MonitorHandle> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.window.fullscreen()
     }
 
@@ -560,10 +584,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Controls whether the status bar is hidden
-    ///   via [`setPrefersStatusBarHidden`].
-    ///
-    /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
+    /// - **iOS:** Has no effect.
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
@@ -632,6 +653,8 @@ impl Window {
     ///
     /// - **macOS:** This presently merely locks the cursor in a fixed location, which looks visually
     ///   awkward.
+    /// - **Wayland:** This presently merely locks the cursor in a fixed location, which looks visually
+    ///   awkward.
     /// - **Android:** Has no effect.
     /// - **iOS:** Always returns an Err.
     #[inline]
@@ -647,6 +670,7 @@ impl Window {
     ///
     /// - **Windows:** The cursor is only hidden within the confines of the window.
     /// - **X11:** The cursor is only hidden within the confines of the window.
+    /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
     /// - **iOS:** Has no effect.
@@ -677,11 +701,11 @@ impl Window {
     ///
     /// **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn available_monitors(&self) -> AvailableMonitorsIter {
-        let data = self.window.available_monitors();
-        AvailableMonitorsIter {
-            data: data.into_iter(),
-        }
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        self.window
+            .available_monitors()
+            .into_iter()
+            .map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the primary monitor of the system.
@@ -696,6 +720,12 @@ impl Window {
         MonitorHandle {
             inner: self.window.primary_monitor(),
         }
+    }
+}
+
+unsafe impl raw_window_handle::HasRawWindowHandle for Window {
+    fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
+        self.window.raw_window_handle()
     }
 }
 
@@ -732,7 +762,9 @@ pub enum CursorIcon {
     Alias,
     Copy,
     NoDrop,
+    /// Indicates something can be grabbed.
     Grab,
+    /// Indicates something is grabbed.
     Grabbing,
     AllScroll,
     ZoomIn,
@@ -760,4 +792,10 @@ impl Default for CursorIcon {
     fn default() -> Self {
         CursorIcon::Default
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Fullscreen {
+    Exclusive(VideoMode),
+    Borderless(MonitorHandle),
 }

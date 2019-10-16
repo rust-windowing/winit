@@ -3,6 +3,7 @@ use std::{
     fmt::{self, Debug},
     hint::unreachable_unchecked,
     mem,
+    rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
         Mutex, MutexGuard,
@@ -48,13 +49,13 @@ pub trait EventHandler: Debug {
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
 }
 
-struct EventLoopHandler<F, T: 'static> {
-    callback: F,
+struct EventLoopHandler<T: 'static> {
+    callback: Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
     will_exit: bool,
-    window_target: RootWindowTarget<T>,
+    window_target: Rc<RootWindowTarget<T>>,
 }
 
-impl<F, T> Debug for EventLoopHandler<F, T> {
+impl<T> Debug for EventLoopHandler<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("EventLoopHandler")
@@ -63,11 +64,7 @@ impl<F, T> Debug for EventLoopHandler<F, T> {
     }
 }
 
-impl<F, T> EventHandler for EventLoopHandler<F, T>
-where
-    F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
-    T: 'static,
-{
+impl<T> EventHandler for EventLoopHandler<T> {
     fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
         (self.callback)(event.userify(), &self.window_target, control_flow);
         self.will_exit |= *control_flow == ControlFlow::Exit;
@@ -97,8 +94,7 @@ struct Handler {
     control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
-    pending_events: Mutex<VecDeque<Event<'static, Never>>>,
-    deferred_events: Mutex<VecDeque<EventWrapper>>,
+    pending_events: Mutex<VecDeque<EventWrapper>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
 }
@@ -107,15 +103,11 @@ unsafe impl Send for Handler {}
 unsafe impl Sync for Handler {}
 
 impl Handler {
-    fn events(&self) -> MutexGuard<'_, VecDeque<Event<'static, Never>>> {
+    fn events(&self) -> MutexGuard<'_, VecDeque<EventWrapper>> {
         self.pending_events.lock().unwrap()
     }
 
-    fn deferred(&self) -> MutexGuard<'_, VecDeque<EventWrapper>> {
-        self.deferred_events.lock().unwrap()
-    }
-
-    fn redraw(&self) -> MutexGuard<'_, Vec<WindowId>> {
+    fn redraw<'a>(&'a self) -> MutexGuard<'a, Vec<WindowId>> {
         self.pending_redraw.lock().unwrap()
     }
 
@@ -155,12 +147,8 @@ impl Handler {
         *self.start_time.lock().unwrap() = Some(Instant::now());
     }
 
-    fn take_events(&self) -> VecDeque<Event<'_, Never>> {
+    fn take_events(&self) -> VecDeque<EventWrapper> {
         mem::replace(&mut *self.events(), Default::default())
-    }
-
-    fn take_deferred(&self) -> VecDeque<EventWrapper> {
-        mem::replace(&mut *self.deferred(), Default::default())
     }
 
     fn should_redraw(&self) -> Vec<WindowId> {
@@ -175,9 +163,14 @@ impl Handler {
         self.in_callback.store(in_callback, Ordering::Release);
     }
 
-    fn handle_nonuser_event(&self, event: Event<'_, Never>) {
+    fn handle_nonuser_event(&self, wrapper: EventWrapper) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
+            match wrapper {
+                EventWrapper::StaticEvent(event) => {
+                    callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap())
+                }
+                EventWrapper::EventProxy(proxy) => self.handle_proxy(proxy, callback),
+            }
         }
     }
 
@@ -189,6 +182,7 @@ impl Handler {
 
     fn handle_hidpi_factor_changed_event(
         &self,
+        callback: &mut Box<dyn EventHandler + 'static>,
         ns_window: IdRef,
         suggested_size: LogicalSize,
         hidpi_factor: f64,
@@ -203,23 +197,26 @@ impl Handler {
             },
         };
 
-        self.handle_nonuser_event(event);
+        callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
 
-        // let origin = unsafe { NSWindow::frame(*ns_window).origin };
         let physical_size = new_inner_size.unwrap_or(size);
         let logical_size = physical_size.to_logical(hidpi_factor);
         let size = NSSize::new(logical_size.width, logical_size.height);
-        // let rect = NSRect::new(origin, size);
         unsafe { NSWindow::setContentSize_(*ns_window, size) };
     }
 
-    fn handle_event(&self, proxy: EventProxy) {
+    fn handle_proxy(&self, proxy: EventProxy, callback: &mut Box<dyn EventHandler + 'static>) {
         match proxy {
             EventProxy::HiDpiFactorChangedProxy {
                 ns_window,
                 suggested_size,
                 hidpi_factor,
-            } => self.handle_hidpi_factor_changed_event(ns_window, suggested_size, hidpi_factor),
+            } => self.handle_hidpi_factor_changed_event(
+                callback,
+                ns_window,
+                suggested_size,
+                hidpi_factor,
+            ),
         }
     }
 }
@@ -227,13 +224,20 @@ impl Handler {
 pub enum AppState {}
 
 impl AppState {
-    pub fn set_callback<F, T>(callback: F, window_target: RootWindowTarget<T>)
+    // This function extends lifetime of `callback` to 'static as its side effect
+    pub unsafe fn set_callback<F, T>(callback: F, window_target: Rc<RootWindowTarget<T>>)
     where
-        F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
-        T: 'static,
+        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
-            callback,
+            // This transmute is always safe, in case it was reached through `run`, since our
+            // lifetime will be already 'static. In other cases caller should ensure that all data
+            // they passed to callback will actually outlive it, some apps just can't move
+            // everything to event loop, so this is something that they should care about.
+            callback: mem::transmute::<
+                Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+            >(Box::new(callback)),
             will_exit: false,
             window_target,
         }));
@@ -241,15 +245,18 @@ impl AppState {
 
     pub fn exit() {
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(Event::LoopDestroyed);
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::LoopDestroyed));
         HANDLER.set_in_callback(false);
+        HANDLER.callback.lock().unwrap().take();
     }
 
     pub fn launched() {
         HANDLER.set_ready();
         HANDLER.waker().start();
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(Event::NewEvents(StartCause::Init));
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
+            StartCause::Init,
+        )));
         HANDLER.set_in_callback(false);
     }
 
@@ -280,7 +287,7 @@ impl AppState {
             ControlFlow::Exit => StartCause::Poll, //panic!("unexpected `ControlFlow::Exit`"),
         };
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(Event::NewEvents(cause));
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(cause)));
         HANDLER.set_in_callback(false);
     }
 
@@ -292,35 +299,18 @@ impl AppState {
         }
     }
 
-    pub fn queue_event(event: Event<'static, Never>) {
+    pub fn queue_event(wrapper: EventWrapper) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
-            panic!("Event queued from different thread: {:#?}", event);
+            panic!("Event queued from different thread: {:#?}", wrapper);
         }
-        HANDLER.events().push_back(event);
+        HANDLER.events().push_back(wrapper);
     }
 
-    pub fn queue_events(mut events: VecDeque<Event<'static, Never>>) {
+    pub fn queue_events(mut wrappers: VecDeque<EventWrapper>) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
-            panic!("Events queued from different thread: {:#?}", events);
+            panic!("Events queued from different thread: {:#?}", wrappers);
         }
-        HANDLER.events().append(&mut events);
-    }
-
-    pub fn send_event_immediately(wrapper: EventWrapper) {
-        if !unsafe { msg_send![class!(NSThread), isMainThread] } {
-            panic!("Event sent from different thread: {:#?}", wrapper);
-        }
-        HANDLER.deferred().push_back(wrapper);
-        if !HANDLER.get_in_callback() {
-            HANDLER.set_in_callback(true);
-            for wrapper in HANDLER.take_deferred() {
-                match wrapper {
-                    EventWrapper::StaticEvent(event) => HANDLER.handle_nonuser_event(event),
-                    EventWrapper::EventProxy(proxy) => HANDLER.handle_event(proxy),
-                };
-            }
-            HANDLER.set_in_callback(false);
-        }
+        HANDLER.events().append(&mut wrappers);
     }
 
     pub fn cleared() {
@@ -334,12 +324,12 @@ impl AppState {
                 HANDLER.handle_nonuser_event(event);
             }
             for window_id in HANDLER.should_redraw() {
-                HANDLER.handle_nonuser_event(Event::WindowEvent {
+                HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::RedrawRequested,
-                });
+                }));
             }
-            HANDLER.handle_nonuser_event(Event::EventsCleared);
+            HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::EventsCleared));
             HANDLER.set_in_callback(false);
         }
         if HANDLER.should_exit() {
@@ -348,7 +338,7 @@ impl AppState {
         }
         HANDLER.update_start_time();
         match HANDLER.get_old_and_new_control_flow() {
-            (ControlFlow::Exit, _) | (_, ControlFlow::Exit) => unreachable!(),
+            (ControlFlow::Exit, _) | (_, ControlFlow::Exit) => (),
             (old, new) if old == new => (),
             (_, ControlFlow::Wait) => HANDLER.waker().stop(),
             (_, ControlFlow::WaitUntil(instant)) => HANDLER.waker().start_at(instant),

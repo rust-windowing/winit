@@ -3,6 +3,7 @@ use std::{
     collections::VecDeque,
     fmt,
     io::ErrorKind,
+    rc::Rc,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -11,15 +12,38 @@ use mio::{Events, Poll, PollOpt, Ready, Token};
 
 use mio_extras::channel::{channel, Receiver, Sender};
 
-use crate::{
-    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
-    event::{Event, ModifiersState, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    monitor::VideoMode,
-    platform_impl::platform::sticky_exit_callback,
+use smithay_client_toolkit::reexports::protocols::unstable::pointer_constraints::v1::client::{
+    zwp_locked_pointer_v1::ZwpLockedPointerV1, zwp_pointer_constraints_v1::ZwpPointerConstraintsV1,
+};
+use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1::client::{
+    zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
+    zwp_relative_pointer_v1::ZwpRelativePointerV1,
 };
 
-use super::{window::WindowStore, WindowId};
+use smithay_client_toolkit::pointer::{AutoPointer, AutoThemer};
+use smithay_client_toolkit::reexports::client::protocol::{
+    wl_compositor::WlCompositor, wl_shm::WlShm, wl_surface::WlSurface,
+};
+
+use mio::{Events, Poll, PollOpt, Ready, Token};
+
+use mio_extras::channel::{channel, Receiver, Sender};
+
+use crate::{
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
+    event::{
+        DeviceEvent, DeviceId as RootDeviceId, Event, ModifiersState, StartCause, WindowEvent,
+    },
+    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    platform_impl::platform::{
+        sticky_exit_callback, DeviceId as PlatformDeviceId, MonitorHandle as PlatformMonitorHandle,
+        VideoMode as PlatformVideoMode, WindowId as PlatformWindowId,
+    },
+    window::{CursorIcon, WindowId as RootWindowId},
+};
+
+use super::{window::WindowStore, DeviceId, WindowId};
 
 use smithay_client_toolkit::{
     output::OutputMgr,
@@ -35,24 +59,173 @@ const USER_TOKEN: Token = Token(1);
 const EVQ_TOKEN: Token = Token(2);
 
 #[derive(Clone)]
-pub struct WindowEventsSink {
-    sender: Sender<(WindowEvent<'static>, crate::window::WindowId)>,
+pub struct EventsSink {
+    sender: Sender<Event<'static, ()>>,
 }
 
-impl WindowEventsSink {
-    pub fn new(
-        sender: Sender<(WindowEvent<'static>, crate::window::WindowId)>,
-    ) -> WindowEventsSink {
-        WindowEventsSink { sender }
+impl EventsSink {
+    pub fn new(sender: Sender<Event<'static, ()>>) -> EventsSink {
+        EventsSink { sender }
     }
 
-    pub fn send_event(&self, evt: WindowEvent<'static>, wid: WindowId) {
-        self.sender
-            .send((
-                evt,
-                crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
-            ))
-            .unwrap();
+    pub fn send_event(&self, event: Event<'static, ()>) {
+        self.sender.send(event).unwrap()
+    }
+
+    pub fn send_device_event(&self, event: DeviceEvent, device_id: DeviceId) {
+        self.send_event(Event::DeviceEvent {
+            event,
+            device_id: RootDeviceId(PlatformDeviceId::Wayland(device_id)),
+        });
+    }
+
+    pub fn send_window_event(&self, event: WindowEvent<'static>, window_id: WindowId) {
+        self.send_event(Event::WindowEvent {
+            event,
+            window_id: RootWindowId(PlatformWindowId::Wayland(window_id)),
+        });
+    }
+}
+
+pub struct CursorManager {
+    pointer_constraints_proxy: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>,
+    auto_themer: Option<AutoThemer>,
+    pointers: Vec<AutoPointer>,
+    locked_pointers: Vec<ZwpLockedPointerV1>,
+    cursor_visible: bool,
+    current_cursor: CursorIcon,
+}
+
+impl CursorManager {
+    fn new(constraints: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>) -> CursorManager {
+        CursorManager {
+            pointer_constraints_proxy: constraints,
+            auto_themer: None,
+            pointers: Vec::new(),
+            locked_pointers: Vec::new(),
+            cursor_visible: true,
+            current_cursor: CursorIcon::default(),
+        }
+    }
+
+    fn register_pointer(&mut self, pointer: wl_pointer::WlPointer) {
+        let auto_themer = self
+            .auto_themer
+            .as_ref()
+            .expect("AutoThemer not initialized. Server did not advertise shm or compositor?");
+        self.pointers.push(auto_themer.theme_pointer(pointer));
+    }
+
+    fn set_auto_themer(&mut self, auto_themer: AutoThemer) {
+        self.auto_themer = Some(auto_themer);
+    }
+
+    pub fn set_cursor_visible(&mut self, visible: bool) {
+        if !visible {
+            for pointer in self.pointers.iter() {
+                (**pointer).set_cursor(0, None, 0, 0);
+            }
+        } else {
+            self.set_cursor_icon_impl(self.current_cursor);
+        }
+        self.cursor_visible = visible;
+    }
+
+    /// A helper function to restore cursor styles on PtrEvent::Enter.
+    pub fn reload_cursor_style(&mut self) {
+        if !self.cursor_visible {
+            self.set_cursor_visible(false);
+        } else {
+            self.set_cursor_icon_impl(self.current_cursor);
+        }
+    }
+
+    pub fn set_cursor_icon(&mut self, cursor: CursorIcon) {
+        if self.cursor_visible && cursor != self.current_cursor {
+            self.current_cursor = cursor;
+
+            self.set_cursor_icon_impl(cursor);
+        }
+    }
+
+    fn set_cursor_icon_impl(&mut self, cursor: CursorIcon) {
+        let cursor = match cursor {
+            CursorIcon::Alias => "link",
+            CursorIcon::Arrow => "arrow",
+            CursorIcon::Cell => "plus",
+            CursorIcon::Copy => "copy",
+            CursorIcon::Crosshair => "crosshair",
+            CursorIcon::Default => "left_ptr",
+            CursorIcon::Hand => "hand",
+            CursorIcon::Help => "question_arrow",
+            CursorIcon::Move => "move",
+            CursorIcon::Grab => "grab",
+            CursorIcon::Grabbing => "grabbing",
+            CursorIcon::Progress => "progress",
+            CursorIcon::AllScroll => "all-scroll",
+            CursorIcon::ContextMenu => "context-menu",
+
+            CursorIcon::NoDrop => "no-drop",
+            CursorIcon::NotAllowed => "crossed_circle",
+
+            // Resize cursors
+            CursorIcon::EResize => "right_side",
+            CursorIcon::NResize => "top_side",
+            CursorIcon::NeResize => "top_right_corner",
+            CursorIcon::NwResize => "top_left_corner",
+            CursorIcon::SResize => "bottom_side",
+            CursorIcon::SeResize => "bottom_right_corner",
+            CursorIcon::SwResize => "bottom_left_corner",
+            CursorIcon::WResize => "left_side",
+            CursorIcon::EwResize => "h_double_arrow",
+            CursorIcon::NsResize => "v_double_arrow",
+            CursorIcon::NwseResize => "bd_double_arrow",
+            CursorIcon::NeswResize => "fd_double_arrow",
+            CursorIcon::ColResize => "h_double_arrow",
+            CursorIcon::RowResize => "v_double_arrow",
+
+            CursorIcon::Text => "text",
+            CursorIcon::VerticalText => "vertical-text",
+
+            CursorIcon::Wait => "watch",
+
+            CursorIcon::ZoomIn => "zoom-in",
+            CursorIcon::ZoomOut => "zoom-out",
+        };
+
+        for pointer in self.pointers.iter() {
+            // Ignore erros, since we don't want to fail hard in case we can't find a proper cursor
+            // in a given theme.
+            let _ = pointer.set_cursor(cursor, None);
+        }
+    }
+
+    pub fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
+        for locked_pointer in self.locked_pointers.drain(..) {
+            locked_pointer.destroy();
+        }
+
+        if let Some(surface) = surface {
+            for pointer in self.pointers.iter() {
+                let locked_pointer = self
+                    .pointer_constraints_proxy
+                    .try_lock()
+                    .unwrap()
+                    .as_ref()
+                    .and_then(|pointer_constraints| {
+                        super::pointer::implement_locked_pointer(
+                            surface,
+                            &**pointer,
+                            pointer_constraints,
+                        )
+                        .ok()
+                    });
+
+                if let Some(locked_pointer) = locked_pointer {
+                    self.locked_pointers.push(locked_pointer);
+                }
+            }
+        }
     }
 }
 
@@ -61,9 +234,9 @@ pub struct EventLoop<T: 'static> {
     poll: Poll,
     // The wayland display
     pub display: Arc<Display>,
-    // the output manager
+    // The output manager
     pub outputs: OutputMgr,
-    kbd_channel: Receiver<(WindowEvent<'static>, crate::window::WindowId)>,
+    kbd_channel: Receiver<Event<'static, ()>>,
     user_channel: Receiver<T>,
     user_sender: Sender<T>,
     window_target: RootELW<T>,
@@ -72,7 +245,6 @@ pub struct EventLoop<T: 'static> {
 // A handle that can be sent across threads and used to wake up the `EventLoop`.
 //
 // We should only try and wake up the `EventLoop` if it still exists, so we hold Weak ptrs.
-#[derive(Clone)]
 pub struct EventLoopProxy<T: 'static> {
     user_sender: Sender<T>,
 }
@@ -82,15 +254,25 @@ pub struct EventLoopWindowTarget<T> {
     pub evq: RefCell<EventQueue>,
     // The window store
     pub store: Arc<Mutex<WindowStore>>,
-    // the env
+    // The cursor manager
+    pub cursor_manager: Arc<Mutex<CursorManager>>,
+    // The env
     pub env: Environment,
-    // a cleanup switch to prune dead windows
+    // A cleanup switch to prune dead windows
     pub cleanup_needed: Arc<Mutex<bool>>,
     // The wayland display
     pub display: Arc<Display>,
     // The list of seats
     pub seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
     _marker: ::std::marker::PhantomData<T>,
+}
+
+impl<T: 'static> Clone for EventLoopProxy<T> {
+    fn clone(&self) -> Self {
+        EventLoopProxy {
+            user_sender: self.user_sender.clone(),
+        }
+    }
 }
 
 impl<T: 'static> EventLoopProxy<T> {
@@ -111,16 +293,27 @@ impl<T: 'static> EventLoop<T> {
 
         let (kbd_sender, kbd_channel) = channel();
 
-        let sink = WindowEventsSink::new(kbd_sender);
+        let sink = EventsSink::new(kbd_sender);
 
         poll.register(&kbd_channel, KBD_TOKEN, Ready::readable(), PollOpt::level())
             .unwrap();
+
+        let pointer_constraints_proxy = Arc::new(Mutex::new(None));
 
         let mut seat_manager = SeatManager {
             sink,
             store: store.clone(),
             seats: seats.clone(),
+            relative_pointer_manager_proxy: Rc::new(RefCell::new(None)),
+            pointer_constraints_proxy: pointer_constraints_proxy.clone(),
+            cursor_manager: Arc::new(Mutex::new(CursorManager::new(pointer_constraints_proxy))),
         };
+
+        let cursor_manager = seat_manager.cursor_manager.clone();
+        let cursor_manager_clone = cursor_manager.clone();
+
+        let shm_cell = Rc::new(RefCell::new(None));
+        let compositor_cell = Rc::new(RefCell::new(None));
 
         let env = Environment::from_display_with_cb(
             &display,
@@ -131,6 +324,54 @@ impl<T: 'static> EventLoop<T> {
                     ref interface,
                     version,
                 } => {
+                    if interface == "zwp_relative_pointer_manager_v1" {
+                        let relative_pointer_manager_proxy = registry
+                            .bind(version, id, move |pointer_manager| {
+                                pointer_manager.implement_closure(|_, _| (), ())
+                            })
+                            .unwrap();
+
+                        *seat_manager
+                            .relative_pointer_manager_proxy
+                            .try_borrow_mut()
+                            .unwrap() = Some(relative_pointer_manager_proxy);
+                    }
+                    if interface == "zwp_pointer_constraints_v1" {
+                        let pointer_constraints_proxy = registry
+                            .bind(version, id, move |pointer_constraints| {
+                                pointer_constraints.implement_closure(|_, _| (), ())
+                            })
+                            .unwrap();
+
+                        *seat_manager.pointer_constraints_proxy.lock().unwrap() =
+                            Some(pointer_constraints_proxy);
+                    }
+                    if interface == "wl_shm" {
+                        let shm: WlShm = registry
+                            .bind(version, id, move |shm| shm.implement_closure(|_, _| (), ()))
+                            .unwrap();
+
+                        (*shm_cell.borrow_mut()) = Some(shm);
+                    }
+                    if interface == "wl_compositor" {
+                        let compositor: WlCompositor = registry
+                            .bind(version, id, move |compositor| {
+                                compositor.implement_closure(|_, _| (), ())
+                            })
+                            .unwrap();
+                        (*compositor_cell.borrow_mut()) = Some(compositor);
+                    }
+
+                    if compositor_cell.borrow().is_some() && shm_cell.borrow().is_some() {
+                        let compositor = compositor_cell.borrow_mut().take().unwrap();
+                        let shm = shm_cell.borrow_mut().take().unwrap();
+                        let auto_themer = AutoThemer::init(None, compositor, &shm);
+                        cursor_manager_clone
+                            .lock()
+                            .unwrap()
+                            .set_auto_themer(auto_themer);
+                    }
+
                     if interface == "wl_seat" {
                         seat_manager.add_seat(id, version, registry)
                     }
@@ -157,6 +398,7 @@ impl<T: 'static> EventLoop<T> {
         )
         .unwrap();
 
+        let cursor_manager_clone = cursor_manager.clone();
         Ok(EventLoop {
             poll,
             display: display.clone(),
@@ -169,6 +411,7 @@ impl<T: 'static> EventLoop<T> {
                     evq: RefCell::new(event_queue),
                     store,
                     env,
+                    cursor_manager: cursor_manager_clone,
                     cleanup_needed: Arc::new(Mutex::new(false)),
                     seats,
                     display,
@@ -190,7 +433,7 @@ impl<T: 'static> EventLoop<T> {
         F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(callback);
-        ::std::process::exit(0);
+        std::process::exit(0);
     }
 
     pub fn run_return<F>(&mut self, mut callback: F)
@@ -231,13 +474,9 @@ impl<T: 'static> EventLoop<T> {
 
             self.post_dispatch_triggers(&mut callback, &mut control_flow);
 
-            while let Ok((event, window_id)) = self.kbd_channel.try_recv() {
-                sticky_exit_callback(
-                    Event::WindowEvent { event, window_id },
-                    &self.window_target,
-                    &mut control_flow,
-                    &mut callback,
-                );
+            while let Ok(event) = self.kbd_channel.try_recv() {
+                let event = event.map_nonuser_event().unwrap();
+                sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
             }
 
             while let Ok(event) = self.user_channel.try_recv() {
@@ -266,6 +505,25 @@ impl<T: 'static> EventLoop<T> {
             // send pending events to the server
             self.display.flush().expect("Wayland connection lost.");
 
+            // During the run of the user callback, some other code monitoring and reading the
+            // wayland socket may have been run (mesa for example does this with vsync), if that
+            // is the case, some events may have been enqueued in our event queue.
+            //
+            // If some messages are there, the event loop needs to behave as if it was instantly
+            // woken up by messages arriving from the wayland socket, to avoid getting stuck.
+            let instant_wakeup = {
+                let window_target = match self.window_target.p {
+                    crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+                    _ => unreachable!(),
+                };
+                let dispatched = window_target
+                    .evq
+                    .borrow_mut()
+                    .dispatch_pending()
+                    .expect("Wayland connection lost.");
+                dispatched > 0
+            };
+
             match control_flow {
                 ControlFlow::Exit => break,
                 ControlFlow::Poll => {
@@ -282,8 +540,10 @@ impl<T: 'static> EventLoop<T> {
                     );
                 }
                 ControlFlow::Wait => {
-                    self.poll.poll(&mut events, None).unwrap();
-                    events.clear();
+                    if !instant_wakeup {
+                        self.poll.poll(&mut events, None).unwrap();
+                        events.clear();
+                    }
 
                     callback(
                         Event::NewEvents(StartCause::WaitCancelled {
@@ -297,7 +557,7 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::WaitUntil(deadline) => {
                     let start = Instant::now();
                     // compute the blocking duration
-                    let duration = if deadline > start {
+                    let duration = if deadline > start && !instant_wakeup {
                         deadline - start
                     } else {
                         Duration::from_millis(0)
@@ -340,12 +600,14 @@ impl<T: 'static> EventLoop<T> {
         available_monitors(&self.outputs)
     }
 
-    pub fn display(&self) -> &Display {
-        &*self.display
-    }
-
     pub fn window_target(&self) -> &RootELW<T> {
         &self.window_target
+    }
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    pub fn display(&self) -> &Display {
+        &*self.display
     }
 }
 
@@ -456,9 +718,12 @@ fn get_target<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
  */
 
 struct SeatManager {
-    sink: WindowEventsSink,
+    sink: EventsSink,
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
+    relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
+    pointer_constraints_proxy: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
 }
 
 impl SeatManager {
@@ -469,9 +734,12 @@ impl SeatManager {
             sink: self.sink.clone(),
             store: self.store.clone(),
             pointer: None,
+            relative_pointer: None,
+            relative_pointer_manager_proxy: self.relative_pointer_manager_proxy.clone(),
             keyboard: None,
             touch: None,
             modifiers_tracker: Arc::new(Mutex::new(ModifiersState::default())),
+            cursor_manager: self.cursor_manager.clone(),
         };
         let seat = registry
             .bind(min(version, 5), id, move |seat| {
@@ -494,12 +762,15 @@ impl SeatManager {
 }
 
 struct SeatData {
-    sink: WindowEventsSink,
+    sink: EventsSink,
     store: Arc<Mutex<WindowStore>>,
     pointer: Option<wl_pointer::WlPointer>,
+    relative_pointer: Option<ZwpRelativePointerV1>,
+    relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     touch: Option<wl_touch::WlTouch>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
 }
 
 impl SeatData {
@@ -514,7 +785,27 @@ impl SeatData {
                         self.sink.clone(),
                         self.store.clone(),
                         self.modifiers_tracker.clone(),
-                    ))
+                        self.cursor_manager.clone(),
+                    ));
+
+                    self.cursor_manager
+                        .lock()
+                        .unwrap()
+                        .register_pointer(self.pointer.as_ref().unwrap().clone());
+
+                    self.relative_pointer = self
+                        .relative_pointer_manager_proxy
+                        .try_borrow()
+                        .unwrap()
+                        .as_ref()
+                        .and_then(|manager| {
+                            super::pointer::implement_relative_pointer(
+                                self.sink.clone(),
+                                self.pointer.as_ref().unwrap(),
+                                manager,
+                            )
+                            .ok()
+                        })
                 }
                 // destroy pointer if applicable
                 if !capabilities.contains(wl_seat::Capability::Pointer) {
@@ -586,17 +877,67 @@ impl Drop for SeatData {
  * Monitor stuff
  */
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VideoMode {
+    pub(crate) size: (u32, u32),
+    pub(crate) bit_depth: u16,
+    pub(crate) refresh_rate: u16,
+    pub(crate) monitor: MonitorHandle,
+}
+
+impl VideoMode {
+    #[inline]
+    pub fn size(&self) -> PhysicalSize {
+        self.size.into()
+    }
+
+    #[inline]
+    pub fn bit_depth(&self) -> u16 {
+        self.bit_depth
+    }
+
+    #[inline]
+    pub fn refresh_rate(&self) -> u16 {
+        self.refresh_rate
+    }
+
+    #[inline]
+    pub fn monitor(&self) -> RootMonitorHandle {
+        RootMonitorHandle {
+            inner: PlatformMonitorHandle::Wayland(self.monitor.clone()),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct MonitorHandle {
     pub(crate) proxy: wl_output::WlOutput,
     pub(crate) mgr: OutputMgr,
 }
 
-impl Clone for MonitorHandle {
-    fn clone(&self) -> MonitorHandle {
-        MonitorHandle {
-            proxy: self.proxy.clone(),
-            mgr: self.mgr.clone(),
-        }
+impl PartialEq for MonitorHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.native_identifier() == other.native_identifier()
+    }
+}
+
+impl Eq for MonitorHandle {}
+
+impl PartialOrd for MonitorHandle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for MonitorHandle {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.native_identifier().cmp(&other.native_identifier())
+    }
+}
+
+impl std::hash::Hash for MonitorHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.native_identifier().hash(state);
     }
 }
 
@@ -663,15 +1004,20 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+        let monitor = self.clone();
+
         self.mgr
             .with_info(&self.proxy, |_, info| info.modes.clone())
             .unwrap_or(vec![])
             .into_iter()
-            .map(|x| VideoMode {
-                size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
-                refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
-                bit_depth: 32,
+            .map(move |x| RootVideoMode {
+                video_mode: PlatformVideoMode::Wayland(VideoMode {
+                    size: (x.dimensions.0 as u32, x.dimensions.1 as u32),
+                    refresh_rate: (x.refresh_rate as f32 / 1000.0).round() as u16,
+                    bit_depth: 32,
+                    monitor: monitor.clone(),
+                }),
             })
     }
 }

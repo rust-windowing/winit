@@ -1,6 +1,6 @@
 #![allow(non_snake_case, unused_unsafe)]
 
-use std::sync::{Once, ONCE_INIT};
+use std::sync::Once;
 
 use crate::platform_impl::platform::util::{
     ENABLE_NON_CLIENT_DPI_SCALING, GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, SET_PROCESS_DPI_AWARE,
@@ -25,7 +25,7 @@ pub fn become_dpi_aware(enable: bool) {
     if !enable {
         return;
     }
-    static ENABLE_DPI_AWARENESS: Once = ONCE_INIT;
+    static ENABLE_DPI_AWARENESS: Once = Once::new();
     ENABLE_DPI_AWARENESS.call_once(|| {
         unsafe {
             if let Some(SetProcessDpiAwarenessContext) = *SET_PROCESS_DPI_AWARENESS_CONTEXT {
