@@ -14,7 +14,8 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
     platform_impl::platform::{
-        app_state, event_loop::{self, EventWrapper, EventProxy},
+        app_state,
+        event_loop::{self, EventProxy, EventWrapper},
         ffi::{
             id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
             UIRectEdge, UIScreenOverscanCompensation,
@@ -407,15 +408,19 @@ impl Window {
                     height: screen_frame.size.height as _,
                 };
                 app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
-                        window_id: window,
-                        hidpi_factor,
-                        suggested_size: size,
-                    }))
-                    .chain(std::iter::once(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::Resized(size.to_physical(hidpi_factor)),
-                    }))),
+                    std::iter::once(EventWrapper::EventProxy(
+                        EventProxy::HiDpiFactorChangedProxy {
+                            window_id: window,
+                            hidpi_factor,
+                            suggested_size: size,
+                        },
+                    ))
+                    .chain(std::iter::once(EventWrapper::StaticEvent(
+                        Event::WindowEvent {
+                            window_id: RootWindowId(window.into()),
+                            event: WindowEvent::Resized(size.to_physical(hidpi_factor)),
+                        },
+                    ))),
                 );
             }
 

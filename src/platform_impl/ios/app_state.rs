@@ -16,7 +16,7 @@ use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
     platform_impl::platform::{
-        event_loop::{EventHandler,  EventProxy, EventWrapper, Never},
+        event_loop::{EventHandler, EventProxy, EventWrapper, Never},
         ffi::{
             id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
             CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
@@ -263,7 +263,10 @@ impl AppState {
                 AppStateImpl::PollFinished {
                     waiting_event_handler,
                 },
-            ) => (waiting_event_handler, EventWrapper::StaticEvent(Event::NewEvents(StartCause::Poll))),
+            ) => (
+                waiting_event_handler,
+                EventWrapper::StaticEvent(Event::NewEvents(StartCause::Poll)),
+            ),
             (
                 ControlFlow::Wait,
                 AppStateImpl::Waiting {
@@ -592,8 +595,10 @@ pub unsafe fn did_finish_launching() {
 
     let (windows, events) = AppState::get_mut().did_finish_launching_transition();
 
-    let events = std::iter::once(EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)))
-        .chain(events);
+    let events = std::iter::once(EventWrapper::StaticEvent(Event::NewEvents(
+        StartCause::Init,
+    )))
+    .chain(events);
     handle_nonuser_events(events);
 
     // the above window dance hack, could possibly trigger new windows to be created.
@@ -656,9 +661,10 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events
                     );
                 }
                 event_handler.handle_nonuser_event(event, &mut control_flow)
-            },
-            EventWrapper::EventProxy(proxy)
-                => handle_event_proxy(&mut event_handler, control_flow, proxy),
+            }
+            EventWrapper::EventProxy(proxy) => {
+                handle_event_proxy(&mut event_handler, control_flow, proxy)
+            }
         }
     }
 
@@ -712,9 +718,10 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events
                         );
                     }
                     event_handler.handle_nonuser_event(event, &mut control_flow)
-                },
-                EventWrapper::EventProxy(proxy)
-                    => handle_event_proxy(&mut event_handler, control_flow, proxy),
+                }
+                EventWrapper::EventProxy(proxy) => {
+                    handle_event_proxy(&mut event_handler, control_flow, proxy)
+                }
             }
         }
     }
@@ -771,10 +778,12 @@ unsafe fn handle_user_events() {
 
         for wrapper in queued_events {
             match wrapper {
-                EventWrapper::StaticEvent(event)
-                    => event_handler.handle_nonuser_event(event, &mut control_flow),
-                EventWrapper::EventProxy(proxy)
-                    => handle_event_proxy(&mut event_handler, control_flow, proxy),
+                EventWrapper::StaticEvent(event) => {
+                    event_handler.handle_nonuser_event(event, &mut control_flow)
+                }
+                EventWrapper::EventProxy(proxy) => {
+                    handle_event_proxy(&mut event_handler, control_flow, proxy)
+                }
             }
         }
         event_handler.handle_user_events(&mut control_flow);
@@ -801,10 +810,12 @@ pub unsafe fn handle_main_events_cleared() {
     let redraw_events = this
         .main_events_cleared_transition()
         .into_iter()
-        .map(|window| EventWrapper::StaticEvent(Event::WindowEvent {
-            window_id: RootWindowId(window.into()),
-            event: WindowEvent::RedrawRequested,
-        }));
+        .map(|window| {
+            EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(window.into()),
+                event: WindowEvent::RedrawRequested,
+            })
+        });
     drop(this);
 
     handle_nonuser_events(redraw_events);
