@@ -32,6 +32,7 @@
 - On X11, fix use-after-free during window creation
 - On Windows, disable monitor change keyboard shortcut while in exclusive fullscreen.
 - On Windows, ensure that changing a borderless fullscreen window's monitor via keyboard shortcuts keeps the window fullscreen on the new monitor.
+- On Windows, fix window rectangle not getting set correctly on high-DPI systems.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
@@ -85,9 +86,6 @@ and `WindowEvent::HoveredFile`.
 - On macOS, change `WindowExtMacOS::request_user_attention()` to take an `enum` instead of a `bool`.
 
 # 0.20.0 Alpha 1 (2019-06-21)
-- On Windows, fix window rectangle not getting set correctly on high-DPI systems.
-
-# 0.20.0 Alpha 1
 
 - Changes below are considered **breaking**.
 - Change all occurrences of `EventsLoop` to `EventLoop`.
