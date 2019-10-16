@@ -43,6 +43,7 @@
   - This is because some platforms cannot run the event loop outside the main thread. Preventing this
     reduces the potential for cross-platform compatibility gotchyas.
 - On Windows and Linux X11/Wayland, add platform-specific functions for creating an `EventLoop` outside the main thread.
+- On Windows, fix window rectangle not getting set correctly on high-DPI systems.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
@@ -96,9 +97,6 @@ and `WindowEvent::HoveredFile`.
 - On macOS, change `WindowExtMacOS::request_user_attention()` to take an `enum` instead of a `bool`.
 
 # 0.20.0 Alpha 1 (2019-06-21)
-- On Windows, fix window rectangle not getting set correctly on high-DPI systems.
-
-# 0.20.0 Alpha 1
 
 - Changes below are considered **breaking**.
 - Change all occurrences of `EventsLoop` to `EventLoop`.
