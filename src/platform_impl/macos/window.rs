@@ -786,7 +786,7 @@ impl UnownedWindow {
                 // of the menu bar, and this looks broken, so we must make sure
                 // that the menu bar is disabled. This is done in the window
                 // delegate in `window:willUseFullScreenPresentationOptions:`.
-                msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
+                let () = msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
             },
             (
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
