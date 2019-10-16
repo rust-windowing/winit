@@ -1,4 +1,5 @@
-use std::time::{Duration, Instant};
+use instant::Instant;
+use std::time::Duration;
 use winit::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},

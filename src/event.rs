@@ -4,7 +4,8 @@
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
 //! [event_loop_run]: ../event_loop/struct.EventLoop.html#method.run
-use std::{path::PathBuf, time::Instant};
+use instant::Instant;
+use std::path::PathBuf;
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
@@ -61,7 +62,7 @@ impl<T> Event<T> {
 }
 
 /// Describes the reason the event loop is resuming.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StartCause {
     /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is

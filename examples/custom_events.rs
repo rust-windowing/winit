@@ -1,15 +1,16 @@
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
-
-#[derive(Debug, Clone, Copy)]
-enum CustomEvent {
-    Timer,
-}
-
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    use winit::{
+        event::{Event, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        window::WindowBuilder,
+    };
+
+    #[derive(Debug, Clone, Copy)]
+    enum CustomEvent {
+        Timer,
+    }
+
     let event_loop = EventLoop::<CustomEvent>::with_user_event();
 
     let _window = WindowBuilder::new()
@@ -38,4 +39,9 @@ fn main() {
         } => *control_flow = ControlFlow::Exit,
         _ => *control_flow = ControlFlow::Wait,
     });
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    panic!("This example is not supported on web.");
 }
