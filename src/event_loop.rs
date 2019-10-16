@@ -27,8 +27,12 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
 /// `EventLoopProxy` allows you to wake up an `EventLoop` from another thread.
 ///
-/// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.*** This
-/// isn't strictly necessary on some platforms, like Windows, but attempting to create
+/// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.***
+/// Attempting to create the event loop on a different thread will panic. This restriction isn't
+/// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
+/// porting to platforms that require it. `EventLoopExt::new_any_thread` functions are exposed
+/// in the relevant `platform` module if the target platform supports creating an event loop on
+/// any thread.
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
