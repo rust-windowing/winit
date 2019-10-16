@@ -531,8 +531,8 @@ impl Window {
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let handle = IOSHandle {
-            ui_window: self.get_uiwindow(),
-            ui_view: self.get_uiview(),
+            ui_window: self.get_uiwindow() as *mut _,
+            ui_view: self.get_uiview() as *mut _,
             ..IOSHandle::empty()
         };
         RawWindowHandle::IOS(handle)
