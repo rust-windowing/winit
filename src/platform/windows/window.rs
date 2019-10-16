@@ -35,6 +35,8 @@ use platform::platform::raw_input::register_all_mice_and_keyboards_for_raw_input
 use platform::platform::util;
 use platform::platform::window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState};
 
+use raw_window_handle::{windows::WindowsHandle, RawWindowHandle};
+
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
     /// Main handle for the window.
@@ -266,6 +268,15 @@ impl Window {
     #[inline]
     pub fn hwnd(&self) -> HWND {
         self.window.0
+    }
+
+    #[inline]
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let handle = WindowsHandle {
+            hwnd: self.window.0 as *mut _,
+            ..WindowsHandle::empty()
+        };
+        RawWindowHandle::Windows(handle)
     }
 
     #[inline]

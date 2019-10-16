@@ -60,6 +60,7 @@
 
 #![cfg(target_os = "ios")]
 
+use raw_window_handle::{ios::IOSHandle, RawWindowHandle};
 use std::{fmt, mem, ptr};
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -526,6 +527,15 @@ impl Window {
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId
+    }
+
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let handle = IOSHandle {
+            ui_window: self.get_uiwindow(),
+            ui_view: self.get_uiview(),
+            ..IOSHandle::empty()
+        };
+        RawWindowHandle::IOS(handle)
     }
 }
 

@@ -1,3 +1,4 @@
+use raw_window_handle::{macos::MacOSHandle, RawWindowHandle};
 use std;
 use std::cell::{Cell, RefCell};
 use std::f64;
@@ -1265,6 +1266,16 @@ impl Window2 {
         unsafe {
             self::get_current_monitor(*self.window)
         }
+    }
+
+    #[inline]
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let handle = MacOSHandle {
+            ns_window: self.get_nswindow(),
+            ns_view: self.get_nsview(),
+            ..MacOSHandle::empty()
+        };
+        RawWindowHandle::MacOS(handle)
     }
 }
 
