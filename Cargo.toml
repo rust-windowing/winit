@@ -14,13 +14,17 @@ categories = ["gui"]
 [package.metadata.docs.rs]
 features = ["serde"]
 
+[features]
+web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
+stdweb = ["std_web", "instant/stdweb"]
+
 [dependencies]
+instant = "0.1"
 lazy_static = "1"
 libc = "0.2"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
-derivative = "1.0.2"
-raw-window-handle = "0.1"
+raw-window-handle = "0.3"
 
 [dev-dependencies]
 image = "0.21"
@@ -80,3 +84,36 @@ percent-encoding = "2.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
 version = "0.9"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
+package = "web-sys"
+version = "0.3.22"
+optional = true
+features = [
+    'console',
+    'BeforeUnloadEvent',
+    'Document',
+    'DomRect',
+    'Element',
+    'Event',
+    'EventTarget',
+    'FocusEvent',
+    'HtmlCanvasElement',
+    'HtmlElement',
+    'KeyboardEvent',
+    'MouseEvent',
+    'Node',
+    'PointerEvent',
+    'Window',
+    'WheelEvent'
+]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
+version = "0.2.45"
+optional = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.std_web]
+package = "stdweb"
+version = "=0.4.20"
+optional = true
+features = ["experimental_features_which_may_break_on_minor_version_bumps"]

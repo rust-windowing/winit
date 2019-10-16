@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+  <head>
+    <script type="module">
+      import { default as init } from './window.js';
+
+      async function run() {
+        console.log("Loading");
+        await init('./window_bg.wasm');
+        console.log("Loaded");
+      }
+
+      run();
+    </script>
+  </head>
+
+  <body>
+    <canvas id="test_canvas"></canvas>
+  </body>
+</html>

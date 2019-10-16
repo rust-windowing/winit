@@ -84,7 +84,6 @@ struct Handler {
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<Event<Never>>>,
-    deferred_events: Mutex<VecDeque<Event<Never>>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
 }
@@ -95,10 +94,6 @@ unsafe impl Sync for Handler {}
 impl Handler {
     fn events<'a>(&'a self) -> MutexGuard<'a, VecDeque<Event<Never>>> {
         self.pending_events.lock().unwrap()
-    }
-
-    fn deferred<'a>(&'a self) -> MutexGuard<'a, VecDeque<Event<Never>>> {
-        self.deferred_events.lock().unwrap()
     }
 
     fn redraw<'a>(&'a self) -> MutexGuard<'a, Vec<WindowId>> {
@@ -143,10 +138,6 @@ impl Handler {
 
     fn take_events(&self) -> VecDeque<Event<Never>> {
         mem::replace(&mut *self.events(), Default::default())
-    }
-
-    fn take_deferred(&self) -> VecDeque<Event<Never>> {
-        mem::replace(&mut *self.deferred(), Default::default())
     }
 
     fn should_redraw(&self) -> Vec<WindowId> {
@@ -262,20 +253,6 @@ impl AppState {
             panic!("Events queued from different thread: {:#?}", events);
         }
         HANDLER.events().append(&mut events);
-    }
-
-    pub fn send_event_immediately(event: Event<Never>) {
-        if !unsafe { msg_send![class!(NSThread), isMainThread] } {
-            panic!("Event sent from different thread: {:#?}", event);
-        }
-        HANDLER.deferred().push_back(event);
-        if !HANDLER.get_in_callback() {
-            HANDLER.set_in_callback(true);
-            for event in HANDLER.take_deferred() {
-                HANDLER.handle_nonuser_event(event);
-            }
-            HANDLER.set_in_callback(false);
-        }
     }
 
     pub fn cleared() {

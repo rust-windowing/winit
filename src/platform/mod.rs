@@ -7,6 +7,7 @@
 //!  - `macos`
 //!  - `unix`
 //!  - `windows`
+//!  - `web`
 //!
 //! And the following platform-specific module:
 //!
@@ -21,3 +22,4 @@ pub mod unix;
 pub mod windows;
 
 pub mod desktop;
+pub mod web;

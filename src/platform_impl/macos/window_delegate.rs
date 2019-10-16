@@ -84,11 +84,7 @@ impl WindowDelegateState {
     pub fn emit_resize_event(&mut self) {
         let rect = unsafe { NSView::frame(*self.ns_view) };
         let size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
-        let event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(*self.ns_window)),
-            event: WindowEvent::Resized(size),
-        };
-        AppState::send_event_immediately(event);
+        self.emit_event(WindowEvent::Resized(size));
     }
 
     fn emit_move_event(&mut self) {
@@ -406,7 +402,24 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
     with_state(this, |state| {
         state.with_window(|window| {
             trace!("Locked shared state in `window_will_enter_fullscreen`");
-            window.shared_state.lock().unwrap().maximized = window.is_zoomed();
+            let mut shared_state = window.shared_state.lock().unwrap();
+            shared_state.maximized = window.is_zoomed();
+            match shared_state.fullscreen {
+                // Exclusive mode sets the state in `set_fullscreen` as the user
+                // can't enter exclusive mode by other means (like the
+                // fullscreen button on the window decorations)
+                Some(Fullscreen::Exclusive(_)) => (),
+                // `window_will_enter_fullscreen` was triggered and we're already
+                // in fullscreen, so we must've reached here by `set_fullscreen`
+                // as it updates the state
+                Some(Fullscreen::Borderless(_)) => (),
+                // Otherwise, we must've reached fullscreen by the user clicking
+                // on the green fullscreen button. Update state!
+                None => {
+                    shared_state.fullscreen = Some(Fullscreen::Borderless(window.current_monitor()))
+                }
+            }
+
             trace!("Unlocked shared state in `window_will_enter_fullscreen`");
         })
     });
@@ -437,25 +450,6 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
-        state.with_window(|window| {
-            let monitor = window.current_monitor();
-            trace!("Locked shared state in `window_did_enter_fullscreen`");
-            let mut shared_state = window.shared_state.lock().unwrap();
-            match shared_state.fullscreen {
-                // Exclusive mode sets the state in `set_fullscreen` as the user
-                // can't enter exclusive mode by other means (like the
-                // fullscreen button on the window decorations)
-                Some(Fullscreen::Exclusive(_)) => (),
-                // `window_did_enter_fullscreen` was triggered and we're already
-                // in fullscreen, so we must've reached here by `set_fullscreen`
-                // as it updates the state
-                Some(Fullscreen::Borderless(_)) => (),
-                // Otherwise, we must've reached fullscreen by the user clicking
-                // on the green fullscreen button. Update state!
-                None => shared_state.fullscreen = Some(Fullscreen::Borderless(monitor)),
-            }
-            trace!("Unlocked shared state in `window_did_enter_fullscreen`");
-        });
         state.initial_fullscreen = false;
     });
     trace!("Completed `windowDidEnterFullscreen:`");

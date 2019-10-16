@@ -5,7 +5,11 @@ use crate::event::{
     WindowEvent,
 };
 
-use super::{event_loop::WindowEventsSink, window::WindowStore, DeviceId};
+use super::{
+    event_loop::{CursorManager, WindowEventsSink},
+    window::WindowStore,
+    DeviceId,
+};
 
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_pointer::{self, Event as PtrEvent, WlPointer},
@@ -17,11 +21,19 @@ use smithay_client_toolkit::reexports::protocols::unstable::relative_pointer::v1
     zwp_relative_pointer_v1::ZwpRelativePointerV1,
 };
 
+use smithay_client_toolkit::reexports::protocols::unstable::pointer_constraints::v1::client::{
+    zwp_locked_pointer_v1::ZwpLockedPointerV1, zwp_pointer_constraints_v1::Lifetime,
+    zwp_pointer_constraints_v1::ZwpPointerConstraintsV1,
+};
+
+use smithay_client_toolkit::reexports::client::protocol::wl_surface::WlSurface;
+
 pub fn implement_pointer<T: 'static>(
     seat: &wl_seat::WlSeat,
     sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
+    cursor_manager: Arc<Mutex<CursorManager>>,
 ) -> WlPointer {
     seat.get_pointer(|pointer| {
         let mut mouse_focus = None;
@@ -33,6 +45,7 @@ pub fn implement_pointer<T: 'static>(
             move |evt, pointer| {
                 let mut sink = sink.lock().unwrap();
                 let store = store.lock().unwrap();
+                let mut cursor_manager = cursor_manager.lock().unwrap();
                 match evt {
                     PtrEvent::Enter {
                         surface,
@@ -62,6 +75,8 @@ pub fn implement_pointer<T: 'static>(
                                 wid,
                             );
                         }
+
+                        cursor_manager.reload_cursor_style();
                     }
                     PtrEvent::Leave { surface, .. } => {
                         mouse_focus = None;
@@ -239,5 +254,15 @@ pub fn implement_relative_pointer<T: 'static>(
             },
             (),
         )
+    })
+}
+
+pub fn implement_locked_pointer(
+    surface: &WlSurface,
+    pointer: &WlPointer,
+    constraints: &ZwpPointerConstraintsV1,
+) -> Result<ZwpLockedPointerV1, ()> {
+    constraints.lock_pointer(surface, pointer, None, Lifetime::Persistent.to_raw(), |c| {
+        c.implement_closure(|_, _| (), ())
     })
 }

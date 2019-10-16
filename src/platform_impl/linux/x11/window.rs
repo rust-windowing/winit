@@ -1,4 +1,4 @@
-use raw_window_handle::unix::X11Handle;
+use raw_window_handle::unix::XlibHandle;
 use std::{
     cmp,
     collections::HashSet,
@@ -56,12 +56,14 @@ pub struct SharedState {
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
     pub min_inner_size: Option<LogicalSize>,
     pub max_inner_size: Option<LogicalSize>,
+    pub is_visible: bool,
 }
 
 impl SharedState {
-    fn new(dpi_factor: f64) -> Mutex<Self> {
+    fn new(dpi_factor: f64, is_visible: bool) -> Mutex<Self> {
         let mut shared_state = SharedState::default();
         shared_state.guessed_dpi = Some(dpi_factor);
+        shared_state.is_visible = is_visible;
         Mutex::new(shared_state)
     }
 }
@@ -117,7 +119,7 @@ impl UnownedWindow {
                     .unwrap_or(1.0)
             })
         } else {
-            return Err(os_error!(OsError::XMisc("No monitors were detected.")));
+            1.0
         };
 
         info!("Guessed window DPI factor: {}", dpi_factor);
@@ -230,7 +232,7 @@ impl UnownedWindow {
             cursor_grabbed: Mutex::new(false),
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
-            shared_state: SharedState::new(dpi_factor),
+            shared_state: SharedState::new(dpi_factor, window_attrs.visible),
             pending_redraws: event_loop.pending_redraws.clone(),
         };
 
@@ -296,9 +298,7 @@ impl UnownedWindow {
 
             window.set_pid().map(|flusher| flusher.queue());
 
-            if pl_attribs.x11_window_type != Default::default() {
-                window.set_window_type(pl_attribs.x11_window_type).queue();
-            }
+            window.set_window_types(pl_attribs.x11_window_types).queue();
 
             if let Some(variant) = pl_attribs.gtk_theme_variant {
                 window.set_gtk_theme_variant(variant).queue();
@@ -355,6 +355,8 @@ impl UnownedWindow {
                 unsafe {
                     (xconn.xlib.XMapRaised)(xconn.display, window.xwindow);
                 } //.queue();
+
+                window.wait_for_visibility_notify();
             }
 
             // Attempt to make keyboard input repeat detectable
@@ -420,27 +422,6 @@ impl UnownedWindow {
                     .set_always_on_top_inner(window_attrs.always_on_top)
                     .queue();
             }
-
-            if window_attrs.visible {
-                unsafe {
-                    // XSetInputFocus generates an error if the window is not visible, so we wait
-                    // until we receive VisibilityNotify.
-                    let mut event = MaybeUninit::uninit();
-                    (xconn.xlib.XIfEvent)(
-                        // This will flush the request buffer IF it blocks.
-                        xconn.display,
-                        event.as_mut_ptr(),
-                        Some(visibility_predicate),
-                        window.xwindow as _,
-                    );
-                    (xconn.xlib.XSetInputFocus)(
-                        xconn.display,
-                        window.xwindow,
-                        ffi::RevertToParent,
-                        ffi::CurrentTime,
-                    );
-                }
-            }
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
@@ -500,15 +481,19 @@ impl UnownedWindow {
         }
     }
 
-    fn set_window_type(&self, window_type: util::WindowType) -> util::Flusher<'_> {
+    fn set_window_types(&self, window_types: Vec<util::WindowType>) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE\0") };
-        let window_type_atom = window_type.as_atom(&self.xconn);
+        let atoms: Vec<_> = window_types
+            .iter()
+            .map(|t| t.as_atom(&self.xconn))
+            .collect();
+
         self.xconn.change_property(
             self.xwindow,
             hint_atom,
             ffi::XA_ATOM,
             util::PropMode::Replace,
-            &[window_type_atom],
+            &atoms,
         )
     }
 
@@ -566,11 +551,32 @@ impl UnownedWindow {
     fn set_fullscreen_hint(&self, fullscreen: bool) -> util::Flusher<'_> {
         let fullscreen_atom =
             unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_FULLSCREEN\0") };
-        self.set_netwm(fullscreen.into(), (fullscreen_atom as c_long, 0, 0, 0))
+        let flusher = self.set_netwm(fullscreen.into(), (fullscreen_atom as c_long, 0, 0, 0));
+
+        if fullscreen {
+            // Ensure that the fullscreen window receives input focus to prevent
+            // locking up the user's display.
+            unsafe {
+                (self.xconn.xlib.XSetInputFocus)(
+                    self.xconn.display,
+                    self.xwindow,
+                    ffi::RevertToParent,
+                    ffi::CurrentTime,
+                );
+            }
+        }
+
+        flusher
     }
 
     fn set_fullscreen_inner(&self, fullscreen: Option<Fullscreen>) -> Option<util::Flusher<'_>> {
         let mut shared_state_lock = self.shared_state.lock();
+
+        if !shared_state_lock.is_visible {
+            // Setting fullscreen on a window that is not visible will generate an error.
+            return None;
+        }
+
         let old_fullscreen = shared_state_lock.fullscreen.clone();
         if old_fullscreen == fullscreen {
             return None;
@@ -631,6 +637,11 @@ impl UnownedWindow {
                     _ => unreachable!(),
                 };
 
+                // Don't set fullscreen on an invalid dummy monitor handle
+                if monitor.id == 0 {
+                    return None;
+                }
+
                 if let Some(video_mode) = video_mode {
                     // FIXME: this is actually not correct if we're setting the
                     // video mode to a resolution higher than the current
@@ -681,7 +692,7 @@ impl UnownedWindow {
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         if let Some(flusher) = self.set_fullscreen_inner(fullscreen) {
             flusher
-                .flush()
+                .sync()
                 .expect("Failed to change window fullscreen state");
             self.invalidate_cached_frame_extents();
         }
@@ -698,11 +709,11 @@ impl UnownedWindow {
     pub fn current_monitor(&self) -> X11MonitorHandle {
         let monitor = self.shared_state.lock().last_monitor.as_ref().cloned();
         monitor.unwrap_or_else(|| {
-            let monitor = self
-                .xconn
-                .get_monitor_for_window(Some(self.get_rect()))
-                .to_owned();
-            self.shared_state.lock().last_monitor = Some(monitor.clone());
+            let monitor = self.xconn.get_monitor_for_window(Some(self.get_rect()));
+            // Avoid caching an invalid dummy monitor handle
+            if monitor.id != 0 {
+                self.shared_state.lock().last_monitor = Some(monitor.clone());
+            }
             monitor
         })
     }
@@ -837,12 +848,22 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_visible(&self, visible: bool) {
+        let is_visible = self.shared_state.lock().is_visible;
+
+        if visible == is_visible {
+            return;
+        }
+
         match visible {
             true => unsafe {
                 (self.xconn.xlib.XMapRaised)(self.xconn.display, self.xwindow);
                 self.xconn
                     .flush_requests()
                     .expect("Failed to call XMapRaised");
+
+                // Some X requests may generate an error if the window is not
+                // visible, so we must wait until the window becomes visible.
+                self.wait_for_visibility_notify();
             },
             false => unsafe {
                 (self.xconn.xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
@@ -850,6 +871,21 @@ impl UnownedWindow {
                     .flush_requests()
                     .expect("Failed to call XUnmapWindow");
             },
+        }
+
+        self.shared_state.lock().is_visible = visible;
+    }
+
+    fn wait_for_visibility_notify(&self) {
+        unsafe {
+            let mut event = MaybeUninit::uninit();
+
+            (self.xconn.xlib.XIfEvent)(
+                self.xconn.display,
+                event.as_mut_ptr(),
+                Some(visibility_predicate),
+                self.xwindow as _,
+            );
         }
     }
 
@@ -1260,11 +1296,11 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> X11Handle {
-        X11Handle {
+    pub fn raw_window_handle(&self) -> XlibHandle {
+        XlibHandle {
             window: self.xwindow,
             display: self.xconn.display as _,
-            ..X11Handle::empty()
+            ..XlibHandle::empty()
         }
     }
 }

@@ -15,7 +15,6 @@ fn main() {
         platform::desktop::EventLoopExtDesktop,
         window::WindowBuilder,
     };
-
     let mut event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
@@ -50,7 +49,7 @@ fn main() {
     println!("Okay we're done now for real.");
 }
 
-#[cfg(any(target_os = "ios", target_os = "android"))]
+#[cfg(any(target_os = "ios", target_os = "android", target_arch = "wasm32"))]
 fn main() {
     println!("This platform doesn't support run_return.");
 }

@@ -1,16 +1,18 @@
-extern crate env_logger;
-use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
-
-use winit::{
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::{CursorIcon, Fullscreen, WindowBuilder},
-};
-
-const WINDOW_COUNT: usize = 3;
-const WINDOW_SIZE: (u32, u32) = (600, 400);
-
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    extern crate env_logger;
+
+    use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
+
+    use winit::{
+        event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        window::{CursorIcon, Fullscreen, WindowBuilder},
+    };
+
+    const WINDOW_COUNT: usize = 3;
+    const WINDOW_SIZE: (u32, u32) = (600, 400);
+
     env_logger::init();
     let event_loop = EventLoop::new();
     let mut window_senders = HashMap::with_capacity(WINDOW_COUNT);
@@ -59,7 +61,7 @@ fn main() {
                     } => {
                         window.set_title(&format!("{:?}", key));
                         let state = !modifiers.shift;
-                        use self::VirtualKeyCode::*;
+                        use VirtualKeyCode::*;
                         match key {
                             A => window.set_always_on_top(state),
                             C => window.set_cursor_icon(match state {
@@ -166,4 +168,9 @@ fn main() {
             _ => (),
         }
     })
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    panic!("Example not supported on Wasm");
 }

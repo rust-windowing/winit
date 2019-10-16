@@ -7,7 +7,9 @@ use raw_window_handle::RawWindowHandle;
 use smithay_client_toolkit::reexports::client::ConnectError;
 
 pub use self::x11::XNotSupported;
-use self::x11::{ffi::XVisualInfo, get_xtarget, XConnection, XError};
+use self::x11::{
+    ffi::XVisualInfo, get_xtarget, util::WindowType as XWindowType, XConnection, XError,
+};
 use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -30,7 +32,7 @@ pub mod x11;
 /// If this variable is set with any other value, winit will panic.
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub visual_infos: Option<XVisualInfo>,
     pub screen_id: Option<i32>,
@@ -38,9 +40,25 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub base_size: Option<(u32, u32)>,
     pub class: Option<(String, String)>,
     pub override_redirect: bool,
-    pub x11_window_type: x11::util::WindowType,
+    pub x11_window_types: Vec<XWindowType>,
     pub gtk_theme_variant: Option<String>,
     pub app_id: Option<String>,
+}
+
+impl Default for PlatformSpecificWindowBuilderAttributes {
+    fn default() -> Self {
+        Self {
+            visual_infos: None,
+            screen_id: None,
+            resize_increments: None,
+            base_size: None,
+            class: None,
+            override_redirect: false,
+            x11_window_types: vec![XWindowType::Normal],
+            gtk_theme_variant: None,
+            app_id: None,
+        }
+    }
 }
 
 lazy_static! {
@@ -443,7 +461,7 @@ impl Window {
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         match self {
-            &Window::X(ref window) => RawWindowHandle::X11(window.raw_window_handle()),
+            &Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
             &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
         }
     }

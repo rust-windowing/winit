@@ -5,7 +5,7 @@ use crate::{
     dpi::{LogicalPosition, LogicalSize},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
-    monitor::{AvailableMonitorsIter, MonitorHandle, VideoMode},
+    monitor::{MonitorHandle, VideoMode},
     platform_impl,
 };
 
@@ -180,10 +180,11 @@ impl Default for WindowAttributes {
         }
     }
 }
+
 impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
-    pub fn new() -> WindowBuilder {
+    pub fn new() -> Self {
         WindowBuilder {
             window: Default::default(),
             platform_specific: Default::default(),
@@ -191,110 +192,129 @@ impl WindowBuilder {
     }
 
     /// Requests the window to be of specific dimensions.
+    ///
+    /// See [`Window::set_inner_size`] for details.
+    ///
+    /// [`Window::set_inner_size`]: struct.Window.html#method.set_inner_size
     #[inline]
-    pub fn with_inner_size(mut self, size: LogicalSize) -> WindowBuilder {
+    pub fn with_inner_size(mut self, size: LogicalSize) -> Self {
         self.window.inner_size = Some(size);
         self
     }
 
-    /// Sets a minimum dimension size for the window
+    /// Sets a minimum dimension size for the window.
+    ///
+    /// See [`Window::set_min_inner_size`] for details.
+    ///
+    /// [`Window::set_min_inner_size`]: struct.Window.html#method.set_min_inner_size
     #[inline]
-    pub fn with_min_inner_size(mut self, min_size: LogicalSize) -> WindowBuilder {
+    pub fn with_min_inner_size(mut self, min_size: LogicalSize) -> Self {
         self.window.min_inner_size = Some(min_size);
         self
     }
 
-    /// Sets a maximum dimension size for the window
+    /// Sets a maximum dimension size for the window.
+    ///
+    /// See [`Window::set_max_inner_size`] for details.
+    ///
+    /// [`Window::set_max_inner_size`]: struct.Window.html#method.set_max_inner_size
     #[inline]
-    pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> WindowBuilder {
+    pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> Self {
         self.window.max_inner_size = Some(max_size);
         self
     }
 
-    /// Sets whether the window is resizable or not
+    /// Sets whether the window is resizable or not.
     ///
-    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
-    /// triggered by DPI scaling, entering fullscreen mode, etc.
+    /// See [`Window::set_resizable`] for details.
     ///
-    /// ## Platform-specific
-    ///
-    /// This only has an effect on desktop platforms.
-    ///
-    /// Due to a bug in XFCE, this has no effect on Xfwm.
+    /// [`Window::set_resizable`]: struct.Window.html#method.set_resizable
     #[inline]
-    pub fn with_resizable(mut self, resizable: bool) -> WindowBuilder {
+    pub fn with_resizable(mut self, resizable: bool) -> Self {
         self.window.resizable = resizable;
         self
     }
 
     /// Requests a specific title for the window.
+    ///
+    /// See [`Window::set_title`] for details.
+    ///
+    /// [`Window::set_title`]: struct.Window.html#method.set_title
     #[inline]
-    pub fn with_title<T: Into<String>>(mut self, title: T) -> WindowBuilder {
+    pub fn with_title<T: Into<String>>(mut self, title: T) -> Self {
         self.window.title = title.into();
         self
     }
 
-    /// Sets the window fullscreen state. None means a normal window, Some(Fullscreen)
-    /// means a fullscreen window on that specific monitor
+    /// Sets the window fullscreen state.
     ///
-    /// ## Platform-specific
+    /// See [`Window::set_fullscreen`] for details.
     ///
-    /// - **Windows:** Screen saver is disabled in fullscreen mode.
+    /// [`Window::set_fullscreen`]: struct.Window.html#method.set_fullscreen
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> WindowBuilder {
+    pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> Self {
         self.window.fullscreen = monitor;
         self
     }
 
     /// Requests maximized mode.
+    ///
+    /// See [`Window::set_maximized`] for details.
+    ///
+    /// [`Window::set_maximized`]: struct.Window.html#method.set_maximized
     #[inline]
-    pub fn with_maximized(mut self, maximized: bool) -> WindowBuilder {
+    pub fn with_maximized(mut self, maximized: bool) -> Self {
         self.window.maximized = maximized;
         self
     }
 
     /// Sets whether the window will be initially hidden or visible.
+    ///
+    /// See [`Window::set_visible`] for details.
+    ///
+    /// [`Window::set_visible`]: struct.Window.html#method.set_visible
     #[inline]
-    pub fn with_visible(mut self, visible: bool) -> WindowBuilder {
+    pub fn with_visible(mut self, visible: bool) -> Self {
         self.window.visible = visible;
         self
     }
 
     /// Sets whether the background of the window should be transparent.
     #[inline]
-    pub fn with_transparent(mut self, transparent: bool) -> WindowBuilder {
+    pub fn with_transparent(mut self, transparent: bool) -> Self {
         self.window.transparent = transparent;
         self
     }
 
     /// Sets whether the window should have a border, a title bar, etc.
+    ///
+    /// See [`Window::set_decorations`] for details.
+    ///
+    /// [`Window::set_decorations`]: struct.Window.html#method.set_decorations
     #[inline]
-    pub fn with_decorations(mut self, decorations: bool) -> WindowBuilder {
+    pub fn with_decorations(mut self, decorations: bool) -> Self {
         self.window.decorations = decorations;
         self
     }
 
     /// Sets whether or not the window will always be on top of other windows.
+    ///
+    /// See [`Window::set_always_on_top`] for details.
+    ///
+    /// [`Window::set_always_on_top`]: struct.Window.html#method.set_always_on_top
     #[inline]
-    pub fn with_always_on_top(mut self, always_on_top: bool) -> WindowBuilder {
+    pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
         self.window.always_on_top = always_on_top;
         self
     }
 
-    /// Sets the window icon. On Windows and X11, this is typically the small icon in the top-left
-    /// corner of the titlebar.
+    /// Sets the window icon.
     ///
-    /// ## Platform-specific
+    /// See [`Window::set_window_icon`] for details.
     ///
-    /// This only has an effect on Windows and X11.
-    ///
-    /// On Windows, this sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
-    /// recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
-    ///
-    /// X11 has no universal guidelines for icon sizes, so you're at the whims of the WM. That
-    /// said, it's usually in the same ballpark as on Windows.
+    /// [`Window::set_window_icon`]: struct.Window.html#method.set_window_icon
     #[inline]
-    pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> WindowBuilder {
+    pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
         self.window.window_icon = window_icon;
         self
     }
@@ -302,6 +322,10 @@ impl WindowBuilder {
     /// Builds the window.
     ///
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: The window is created but not inserted into the web page automatically. Please
+    /// see the web platform module for more information.
     #[inline]
     pub fn build<T: 'static>(
         self,
@@ -320,10 +344,16 @@ impl WindowBuilder {
 impl Window {
     /// Creates a new Window for platforms where this is appropriate.
     ///
-    /// This function is equivalent to `WindowBuilder::new().build(event_loop)`.
+    /// This function is equivalent to [`WindowBuilder::new().build(event_loop)`].
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: The window is created but not inserted into the web page automatically. Please
+    /// see the web platform module for more information.
+    ///
+    /// [`WindowBuilder::new().build(event_loop)`]: struct.WindowBuilder.html#method.build
     #[inline]
     pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
         let builder = WindowBuilder::new();
@@ -479,6 +509,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
         self.window.set_min_inner_size(dimensions)
@@ -489,6 +520,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
         self.window.set_max_inner_size(dimensions)
@@ -514,6 +546,7 @@ impl Window {
     ///
     /// - **Android:** Has no effect.
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_visible(&self, visible: bool) {
         self.window.set_visible(visible)
@@ -533,6 +566,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
@@ -543,6 +577,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.window.set_maximized(maximized)
@@ -588,8 +623,11 @@ impl Window {
     /// Turn window decorations on or off.
     ///
     /// ## Platform-specific
+    /// - **iOS:** Can only be called on the main thread. Controls whether the status bar is hidden
+    ///   via [`setPrefersStatusBarHidden`].
+    /// - **Web:** Has no effect.
     ///
-    /// - **iOS:** Has no effect.
+    /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
@@ -600,6 +638,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         self.window.set_always_on_top(always_on_top)
@@ -608,11 +647,15 @@ impl Window {
     /// Sets the window icon. On Windows and X11, this is typically the small icon in the top-left
     /// corner of the titlebar.
     ///
-    /// For more usage notes, see `WindowBuilder::with_window_icon`.
-    ///
     /// ## Platform-specific
     ///
     /// This only has an effect on Windows and X11.
+    ///
+    /// On Windows, this sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
+    /// recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
+    ///
+    /// X11 has no universal guidelines for icon sizes, so you're at the whims of the WM. That
+    /// said, it's usually in the same ballpark as on Windows.
     #[inline]
     pub fn set_window_icon(&self, window_icon: Option<Icon>) {
         self.window.set_window_icon(window_icon)
@@ -623,6 +666,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// **iOS:** Has no effect.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_ime_position(&self, position: LogicalPosition) {
         self.window.set_ime_position(position)
@@ -647,6 +691,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Always returns an `Err`.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
         self.window.set_cursor_position(position)
@@ -658,8 +703,11 @@ impl Window {
     ///
     /// - **macOS:** This presently merely locks the cursor in a fixed location, which looks visually
     ///   awkward.
+    /// - **Wayland:** This presently merely locks the cursor in a fixed location, which looks visually
+    ///   awkward.
     /// - **Android:** Has no effect.
     /// - **iOS:** Always returns an Err.
+    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_grab(grab)
@@ -673,6 +721,7 @@ impl Window {
     ///
     /// - **Windows:** The cursor is only hidden within the confines of the window.
     /// - **X11:** The cursor is only hidden within the confines of the window.
+    /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
     /// - **iOS:** Has no effect.
@@ -703,11 +752,11 @@ impl Window {
     ///
     /// **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn available_monitors(&self) -> AvailableMonitorsIter {
-        let data = self.window.available_monitors();
-        AvailableMonitorsIter {
-            data: data.into_iter(),
-        }
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        self.window
+            .available_monitors()
+            .into_iter()
+            .map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the primary monitor of the system.
