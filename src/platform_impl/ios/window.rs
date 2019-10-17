@@ -396,7 +396,8 @@ impl Window {
 
             // Like the Windows and macOS backends, we send a `HiDpiFactorChanged` and `Resized`
             // event on window creation if the DPI factor != 1.0
-            let hidpi_factor: CGFloat = msg_send![view, contentScaleFactor];
+            let dpi_factor: CGFloat = msg_send![view, contentScaleFactor];
+            let hidpi_factor: f64 = dpi_factor.into();
             if hidpi_factor != 1.0 {
                 let bounds: CGRect = msg_send![view, bounds];
                 let screen: id = msg_send![window, screen];

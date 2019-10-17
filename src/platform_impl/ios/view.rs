@@ -128,7 +128,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
                 }
-                .to_physical(dpi_factor);
+                .to_physical(dpi_factor.into());
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::Resized(size),
@@ -158,14 +158,15 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 // `setContentScaleFactor` may be called with a value of 0, which means "reset the
                 // content scale factor to a device-specific default value", so we can't use the
                 // parameter here. We can query the actual factor using the getter
-                let hidpi_factor: CGFloat = msg_send![object, contentScaleFactor];
+                let dpi_factor: CGFloat = msg_send![object, contentScaleFactor];
                 assert!(
-                    !hidpi_factor.is_nan()
-                        && hidpi_factor.is_finite()
-                        && hidpi_factor.is_sign_positive()
-                        && hidpi_factor > 0.0,
+                    !dpi_factor.is_nan()
+                        && dpi_factor.is_finite()
+                        && dpi_factor.is_sign_positive()
+                        && dpi_factor > 0.0,
                     "invalid hidpi_factor set on UIView",
                 );
+                let hidpi_factor: f64 = dpi_factor.into();
                 let bounds: CGRect = msg_send![object, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
