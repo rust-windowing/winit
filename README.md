@@ -13,7 +13,7 @@ Please direct all work against `master`.
 
 ```toml
 [dependencies]
-winit = "0.19.3"
+winit = "0.19.4"
 ```
 
 ## [Documentation](https://docs.rs/winit)
