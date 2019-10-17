@@ -210,6 +210,13 @@ pub enum WindowEvent {
     ///
     /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
     HiDpiFactorChanged(f64),
+
+    /// The window theme has changed into (or out of) Dark Mode.
+    ///
+    /// The parameter is true if the window is now in a dark theme, and false if it is not.
+    /// Applications might wish to react to this to change the theme of the content of the window
+    /// when the system changes the window theme.
+    DarkModeChanged(bool),
 }
 
 /// Identifier of an input device.

@@ -1904,7 +1904,20 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_SETTINGCHANGE => {
-            subclass_input.window_state.lock().is_dark_mode = try_dark_mode(window);
+            use crate::event::WindowEvent::DarkModeChanged;
+
+            let is_dark_mode = try_dark_mode(window);
+            let mut window_state = subclass_input.window_state.lock();
+            let changed = window_state.is_dark_mode != is_dark_mode;
+
+            if changed {
+                window_state.is_dark_mode = is_dark_mode;
+                subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: DarkModeChanged(is_dark_mode),
+                });
+            }
+
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
