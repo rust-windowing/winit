@@ -1,3 +1,4 @@
+use raw_window_handle::unix::XlibHandle;
 use std::{cmp, env, mem};
 use std::ffi::CString;
 use std::os::raw::*;
@@ -1217,4 +1218,13 @@ impl UnownedWindow {
 
     #[inline]
     pub fn id(&self) -> WindowId { WindowId(self.xwindow) }
+
+    #[inline]
+    pub fn raw_window_handle(&self) -> XlibHandle {
+        XlibHandle {
+            window: self.xwindow,
+            display: self.xconn.display as _,
+            ..XlibHandle::empty()
+        }
+    }
 }

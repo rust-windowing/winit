@@ -1,3 +1,4 @@
+use raw_window_handle::unix::WaylandHandle;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -299,6 +300,14 @@ impl Window {
 
     pub fn get_primary_monitor(&self) -> MonitorId {
         get_primary_monitor(&self.outputs)
+    }
+
+    pub fn raw_window_handle(&self) -> WaylandHandle {
+        WaylandHandle {
+            surface: self.get_surface().c_ptr() as *mut _,
+            display: self.get_display().c_ptr() as *mut _,
+            ..WaylandHandle::empty()
+        }
     }
 }
 

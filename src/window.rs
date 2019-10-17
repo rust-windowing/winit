@@ -435,6 +435,12 @@ impl Window {
     }
 }
 
+unsafe impl raw_window_handle::HasRawWindowHandle for Window {
+    fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
+        self.window.raw_window_handle()
+    }
+}
+
 /// An iterator for the list of available monitors.
 // Implementation note: we retrieve the list once, then serve each element by one by one.
 // This may change in the future.

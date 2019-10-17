@@ -120,6 +120,7 @@ extern crate parking_lot;
 extern crate percent_encoding;
 #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 extern crate smithay_client_toolkit as sctk;
+extern crate raw_window_handle;
 
 pub(crate) use dpi::*; // TODO: Actually change the imports throughout the codebase.
 pub use events::*;

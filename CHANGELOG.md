@@ -1,5 +1,13 @@
 # Unreleased
 
+# Version 0.19.4 (2019-10-16)
+
+- Add support for `raw-window-handle` 0.3.
+
+# Version 0.19.3 (2019-08-26)
+
+- Update parking_lot version.
+
 # Version 0.19.2 (2019-07-29)
 
 - On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.

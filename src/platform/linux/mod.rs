@@ -7,6 +7,7 @@ use std::os::raw::*;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
+use raw_window_handle::RawWindowHandle;
 use sctk::reexports::client::ConnectError;
 
 use {
@@ -377,6 +378,13 @@ impl Window {
         match self {
             &Window::X(ref window) => MonitorId::X(window.get_primary_monitor()),
             &Window::Wayland(ref window) => MonitorId::Wayland(window.get_primary_monitor()),
+        }
+    }
+
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        match self {
+            &Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
+            &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
         }
     }
 }
