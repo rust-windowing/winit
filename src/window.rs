@@ -331,8 +331,12 @@ impl WindowBuilder {
         self,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Result<Window, OsError> {
-        platform_impl::Window::new(&window_target.p, self.window, self.platform_specific)
-            .map(|window| Window { window })
+        platform_impl::Window::new(&window_target.p, self.window, self.platform_specific).map(
+            |window| {
+                window.request_redraw();
+                Window { window }
+            },
+        )
     }
 }
 
