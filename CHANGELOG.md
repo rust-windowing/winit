@@ -35,6 +35,10 @@
 - On X11, fix use-after-free during window creation
 - On Windows, disable monitor change keyboard shortcut while in exclusive fullscreen.
 - On Windows, ensure that changing a borderless fullscreen window's monitor via keyboard shortcuts keeps the window fullscreen on the new monitor.
+- Prevent `EventLoop::new` and `EventLoop::with_user_event` from getting called outside the main thread.
+  - This is because some platforms cannot run the event loop outside the main thread. Preventing this
+    reduces the potential for cross-platform compatibility gotchyas.
+- On Windows and Linux X11/Wayland, add platform-specific functions for creating an `EventLoop` outside the main thread.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 

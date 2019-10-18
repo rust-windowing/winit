@@ -21,7 +21,7 @@ stdweb = ["std_web", "instant/stdweb"]
 [dependencies]
 instant = "0.1"
 lazy_static = "1"
-libc = "0.2"
+libc = "0.2.64"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 raw-window-handle = "0.3"

@@ -43,10 +43,7 @@ lazy_static! {
         get_function!("user32.dll", EnableNonClientDpiScaling);
 }
 
-pub fn become_dpi_aware(enable: bool) {
-    if !enable {
-        return;
-    }
+pub fn become_dpi_aware() {
     static ENABLE_DPI_AWARENESS: Once = Once::new();
     ENABLE_DPI_AWARENESS.call_once(|| {
         unsafe {
