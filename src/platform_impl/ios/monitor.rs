@@ -204,7 +204,7 @@ impl Inner {
     pub fn size(&self) -> PhysicalSize {
         unsafe {
             let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
-            (bounds.size.width as f64, bounds.size.height as f64).into()
+            PhysicalSize::new(bounds.size.width as u32, bounds.size.height as u32)
         }
     }
 

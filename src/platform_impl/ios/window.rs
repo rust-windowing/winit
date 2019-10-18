@@ -7,14 +7,15 @@ use std::{
 use objc::runtime::{Class, Object, BOOL, NO, YES};
 
 use crate::{
-    dpi::{self, LogicalPosition, LogicalSize},
+    dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
     platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
     platform_impl::platform::{
-        app_state, event_loop,
+        app_state,
+        event_loop::{self, EventProxy, EventWrapper},
         ffi::{
             id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
             UIRectEdge, UIScreenOverscanCompensation,
@@ -75,28 +76,34 @@ impl Inner {
         }
     }
 
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         unsafe {
             let safe_area = self.safe_area_screen_space();
-            Ok(LogicalPosition {
+            let position = LogicalPosition {
                 x: safe_area.origin.x as _,
                 y: safe_area.origin.y as _,
-            })
+            };
+            let dpi_factor = self.hidpi_factor();
+            Ok(position.to_physical(dpi_factor))
         }
     }
 
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         unsafe {
             let screen_frame = self.screen_frame();
-            Ok(LogicalPosition {
+            let position = LogicalPosition {
                 x: screen_frame.origin.x as _,
                 y: screen_frame.origin.y as _,
-            })
+            };
+            let dpi_factor = self.hidpi_factor();
+            Ok(position.to_physical(dpi_factor))
         }
     }
 
-    pub fn set_outer_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, physical_position: Position) {
         unsafe {
+            let dpi_factor = self.hidpi_factor();
+            let position = physical_position.to_logical(dpi_factor);
             let screen_frame = self.screen_frame();
             let new_screen_frame = CGRect {
                 origin: CGPoint {
@@ -110,35 +117,39 @@ impl Inner {
         }
     }
 
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> PhysicalSize {
         unsafe {
+            let dpi_factor = self.hidpi_factor();
             let safe_area = self.safe_area_screen_space();
-            LogicalSize {
+            let size = LogicalSize {
                 width: safe_area.size.width as _,
                 height: safe_area.size.height as _,
-            }
+            };
+            size.to_physical(dpi_factor)
         }
     }
 
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize {
         unsafe {
+            let dpi_factor = self.hidpi_factor();
             let screen_frame = self.screen_frame();
-            LogicalSize {
+            let size = LogicalSize {
                 width: screen_frame.size.width as _,
                 height: screen_frame.size.height as _,
-            }
+            };
+            size.to_physical(dpi_factor)
         }
     }
 
-    pub fn set_inner_size(&self, _size: LogicalSize) {
+    pub fn set_inner_size(&self, _size: Size) {
         unimplemented!("not clear what `Window::set_inner_size` means on iOS");
     }
 
-    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
         warn!("`Window::set_min_inner_size` is ignored on iOS")
     }
 
-    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {
         warn!("`Window::set_max_inner_size` is ignored on iOS")
     }
 
@@ -157,7 +168,7 @@ impl Inner {
         debug!("`Window::set_cursor_icon` ignored on iOS")
     }
 
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -239,7 +250,7 @@ impl Inner {
         warn!("`Window::set_window_icon` is ignored on iOS")
     }
 
-    pub fn set_ime_position(&self, _position: LogicalPosition) {
+    pub fn set_ime_position(&self, _position: Position) {
         warn!("`Window::set_ime_position` is ignored on iOS")
     }
 
@@ -339,13 +350,17 @@ impl Window {
             let screen_bounds: CGRect = msg_send![screen, bounds];
 
             let frame = match window_attributes.inner_size {
-                Some(dim) => CGRect {
-                    origin: screen_bounds.origin,
-                    size: CGSize {
-                        width: dim.width as _,
-                        height: dim.height as _,
-                    },
-                },
+                Some(dim) => {
+                    let dpi_factor = msg_send![screen, scale];
+                    let size = dim.to_logical(dpi_factor);
+                    CGRect {
+                        origin: screen_bounds.origin,
+                        size: CGSize {
+                            width: size.width as _,
+                            height: size.height as _,
+                        },
+                    }
+                }
                 None => screen_bounds,
             };
 
@@ -381,7 +396,8 @@ impl Window {
 
             // Like the Windows and macOS backends, we send a `HiDpiFactorChanged` and `Resized`
             // event on window creation if the DPI factor != 1.0
-            let hidpi_factor: CGFloat = msg_send![view, contentScaleFactor];
+            let dpi_factor: CGFloat = msg_send![view, contentScaleFactor];
+            let hidpi_factor: f64 = dpi_factor.into();
             if hidpi_factor != 1.0 {
                 let bounds: CGRect = msg_send![view, bounds];
                 let screen: id = msg_send![window, screen];
@@ -393,14 +409,19 @@ impl Window {
                     height: screen_frame.size.height as _,
                 };
                 app_state::handle_nonuser_events(
-                    std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
-                    })
-                    .chain(std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::Resized(size),
-                    })),
+                    std::iter::once(EventWrapper::EventProxy(
+                        EventProxy::HiDpiFactorChangedProxy {
+                            window_id: window,
+                            hidpi_factor,
+                            suggested_size: size,
+                        },
+                    ))
+                    .chain(std::iter::once(EventWrapper::StaticEvent(
+                        Event::WindowEvent {
+                            window_id: RootWindowId(window.into()),
+                            event: WindowEvent::Resized(size.to_physical(hidpi_factor)),
+                        },
+                    ))),
                 );
             }
 
