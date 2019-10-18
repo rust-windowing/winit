@@ -1,9 +1,9 @@
 # Unreleased
 
+# 0.20.0 Alpha 4 (2019-10-18)
+
 - Add web support via the 'stdweb' or 'web-sys' features
 - On Windows, implemented function to get HINSTANCE
-# 0.20.0 Alpha 4 (xxxx-xx-xx)
-
 - On macOS, implement `run_return`.
 - On iOS, fix inverted parameter in `set_prefers_home_indicator_hidden`.
 - On X11, performance is improved when rapidly calling `Window::set_cursor_icon`.
