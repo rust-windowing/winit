@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.20.0 Alpha 4 (2019-10-18)
+
 - Add web support via the 'stdweb' or 'web-sys' features
 - On Windows, implemented function to get HINSTANCE
 - On macOS, implement `run_return`.
