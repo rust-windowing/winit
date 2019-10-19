@@ -6,8 +6,8 @@ use winit::{
 
 fn main() {
     let event_loop = EventLoop::new();
-// ToDo: Both seem to work??
-//    let event_loop: EventLoop<i32> = EventLoop::with_user_event();
+    // ToDo: Both seem to work??
+    //    let event_loop: EventLoop<i32> = EventLoop::with_user_event();
 
     let window = WindowBuilder::new()
         .with_decorations(false)
