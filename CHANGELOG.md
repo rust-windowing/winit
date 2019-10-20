@@ -1,4 +1,5 @@
 # Unreleased
+- On macOS, fix application termination on `ControlFlow::Exit`
 
 # 0.20.0 Alpha 4 (2019-10-18)
 
