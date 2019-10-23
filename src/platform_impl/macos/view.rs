@@ -520,10 +520,7 @@ fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
     #[inline]
     fn get_code(ev: id, raw: bool) -> Option<VirtualKeyCode> {
         let characters = get_characters(ev, raw);
-        characters
-            .chars()
-            .next()
-            .map_or(None, |c| char_to_keycode(c))
+        characters.chars().next().and_then(|c| char_to_keycode(c))
     }
 
     // Cmd switches Roman letters for Dvorak-QWERTY layout, so we try modified characters first.
