@@ -248,7 +248,6 @@ impl MonitorHandle {
                 assert!(!array.is_null(), "failed to get list of display modes");
                 let array_count = CFArrayGetCount(array);
                 let modes: Vec<_> = (0..array_count)
-                    .into_iter()
                     .map(move |i| {
                         let mode = CFArrayGetValueAtIndex(array, i) as *mut _;
                         ffi::CGDisplayModeRetain(mode);
