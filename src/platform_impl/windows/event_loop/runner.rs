@@ -1,25 +1,11 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    collections::VecDeque,
-    mem, panic, ptr,
-    rc::Rc,
-    time::Instant,
-};
+use std::{any::Any, cell::RefCell, collections::VecDeque, mem, panic, ptr, rc::Rc, time::Instant};
 
-use winapi::{
-    shared::{
-        windef::HWND,
-    },
-    um::winuser,
-};
+use winapi::{shared::windef::HWND, um::winuser};
 
 use crate::{
     event::{Event, StartCause},
     event_loop::ControlFlow,
-    platform_impl::platform::{
-        event_loop::EventLoop,
-    },
+    platform_impl::platform::event_loop::EventLoop,
     window::WindowId,
 };
 
@@ -159,7 +145,9 @@ impl<T> ELRShared<T> {
 
     fn buffer_event(&self, event: Event<T>) {
         match event {
-            Event::RedrawRequested(window_id) => self.redraw_buffer.borrow_mut().push_back(window_id),
+            Event::RedrawRequested(window_id) => {
+                self.redraw_buffer.borrow_mut().push_back(window_id)
+            }
             _ => self.buffer.borrow_mut().push_back(event),
         }
     }
@@ -182,7 +170,11 @@ enum RunnerState {
 }
 
 impl<T> EventLoopRunner<T> {
-    unsafe fn new<F>(event_loop: &EventLoop<T>, redraw_buffer: Rc<RefCell<VecDeque<WindowId>>>, f: F) -> EventLoopRunner<T>
+    unsafe fn new<F>(
+        event_loop: &EventLoop<T>,
+        redraw_buffer: Rc<RefCell<VecDeque<WindowId>>>,
+        f: F,
+    ) -> EventLoopRunner<T>
     where
         F: FnMut(Event<T>, &mut ControlFlow),
     {
@@ -211,7 +203,9 @@ impl<T> EventLoopRunner<T> {
         self.runner_state = match self.runner_state {
             // If we're already handling events or have deferred `NewEvents`, we don't need to do
             // do any processing.
-            RunnerState::HandlingEvents | RunnerState::HandlingRedraw | RunnerState::DeferredNewEvents(..) => self.runner_state,
+            RunnerState::HandlingEvents
+            | RunnerState::HandlingRedraw
+            | RunnerState::DeferredNewEvents(..) => self.runner_state,
 
             // Send the `Init` `NewEvents` and immediately move into event processing.
             RunnerState::New => {
@@ -311,12 +305,14 @@ impl<T> EventLoopRunner<T> {
         }
 
         match (self.runner_state, &event) {
-            (RunnerState::HandlingRedraw, Event::RedrawRequested(_)) => self.call_event_handler(event),
+            (RunnerState::HandlingRedraw, Event::RedrawRequested(_)) => {
+                self.call_event_handler(event)
+            }
             (_, Event::RedrawRequested(_)) => {
                 self.call_event_handler(Event::MainEventsCleared);
                 self.runner_state = RunnerState::HandlingRedraw;
                 self.call_event_handler(event);
-            },
+            }
             (RunnerState::HandlingRedraw, _) => {
                 warn!("Non-redraw event dispatched durning redraw phase");
                 self.events_cleared();
