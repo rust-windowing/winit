@@ -9,7 +9,9 @@
 //! [create_proxy]: ./struct.EventLoop.html#method.create_proxy
 //! [event_loop_proxy]: ./struct.EventLoopProxy.html
 //! [send_event]: ./struct.EventLoopProxy.html#method.send_event
-use std::{error, fmt, ops::Deref, time::Instant};
+use instant::Instant;
+use std::ops::Deref;
+use std::{error, fmt};
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
@@ -26,6 +28,7 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 /// forbidding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
 /// `EventLoopProxy` allows you to wake up an `EventLoop` from another thread.
+///
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
@@ -66,7 +69,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 /// the control flow to `Poll`.
 ///
 /// [events_cleared]: ../event/enum.Event.html#variant.EventsCleared
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
@@ -92,6 +95,18 @@ impl Default for ControlFlow {
 impl EventLoop<()> {
     /// Builds a new event loop with a `()` as the user event type.
     ///
+    /// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.***
+    /// Attempting to create the event loop on a different thread will panic. This restriction isn't
+    /// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
+    /// porting to platforms that require it. `EventLoopExt::new_any_thread` functions are exposed
+    /// in the relevant `platform` module if the target platform supports creating an event loop on
+    /// any thread.
+    ///
+    /// Usage will result in display backend initialisation, this can be controlled on linux
+    /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
+    /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
+    /// fallback on x11. If this variable is set with any other value, winit will panic.
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
@@ -103,10 +118,7 @@ impl EventLoop<()> {
 impl<T> EventLoop<T> {
     /// Builds a new event loop.
     ///
-    /// Usage will result in display backend initialisation, this can be controlled on linux
-    /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
-    /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
-    /// fallback on x11. If this variable is set with any other value, winit will panic.
+    /// All caveats documented in [`EventLoop::new`] apply to this function.
     ///
     /// ## Platform-specific
     ///

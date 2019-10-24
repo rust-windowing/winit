@@ -1,5 +1,10 @@
 # Unreleased
 
+- On macOS, fix application termination on `ControlFlow::Exit`
+
+# 0.20.0 Alpha 4 (2019-10-18)
+
+- Add web support via the 'stdweb' or 'web-sys' features
 - On Windows, implemented function to get HINSTANCE
 - On macOS, implement `run_return`.
 - On iOS, fix inverted parameter in `set_prefers_home_indicator_hidden`.
@@ -12,12 +17,14 @@
 - Officially remove the Emscripten backend.
 - On Windows, fix handling of surrogate pairs when dispatching `ReceivedCharacter`.
 - On macOS 10.15, fix freeze upon exiting exclusive fullscreen mode.
+- On iOS, fix panic upon closing the app.
 - On X11, allow setting mulitple `XWindowType`s.
 - On iOS, fix null window on initial `HiDpiFactorChanged` event.
 - On Windows, fix fullscreen window shrinking upon getting restored to a normal window.
 - On macOS, fix events not being emitted during modal loops, such as when windows are being resized
   by the user.
 - On Windows, fix hovering the mouse over the active window creating an endless stream of CursorMoved events.
+- Always dispatch a `RedrawRequested` event after creating a new window.
 - On X11, return dummy monitor data to avoid panicking when no monitors exist.
 - On X11, prevent stealing input focus when creating a new window.
   Only steal input focus when entering fullscreen mode.
@@ -32,6 +39,10 @@
 - On X11, fix use-after-free during window creation
 - On Windows, disable monitor change keyboard shortcut while in exclusive fullscreen.
 - On Windows, ensure that changing a borderless fullscreen window's monitor via keyboard shortcuts keeps the window fullscreen on the new monitor.
+- Prevent `EventLoop::new` and `EventLoop::with_user_event` from getting called outside the main thread.
+  - This is because some platforms cannot run the event loop outside the main thread. Preventing this
+    reduces the potential for cross-platform compatibility gotchyas.
+- On Windows and Linux X11/Wayland, add platform-specific functions for creating an `EventLoop` outside the main thread.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 

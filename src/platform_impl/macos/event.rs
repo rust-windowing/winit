@@ -208,7 +208,7 @@ pub fn scancode_to_keycode(scancode: c_ushort) -> Option<VirtualKeyCode> {
 // While F1-F20 have scancodes we can match on, we have to check against UTF-16
 // constants for the rest.
 // https://developer.apple.com/documentation/appkit/1535851-function-key_unicodes?preferredLanguage=occ
-pub fn check_function_keys(string: &String) -> Option<VirtualKeyCode> {
+pub fn check_function_keys(string: &str) -> Option<VirtualKeyCode> {
     if let Some(ch) = string.encode_utf16().next() {
         return Some(match ch {
             0xf718 => VirtualKeyCode::F21,

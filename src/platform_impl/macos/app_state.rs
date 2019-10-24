@@ -275,7 +275,7 @@ impl AppState {
             HANDLER.set_in_callback(false);
         }
         if HANDLER.should_exit() {
-            let _: () = unsafe { msg_send![NSApp(), stop: nil] };
+            let _: () = unsafe { msg_send![NSApp(), terminate: nil] };
             return;
         }
         HANDLER.update_start_time();

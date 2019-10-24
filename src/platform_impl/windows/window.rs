@@ -367,6 +367,7 @@ impl Window {
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let handle = WindowsHandle {
             hwnd: self.window.0 as *mut _,
+            hinstance: self.hinstance() as *mut _,
             ..WindowsHandle::empty()
         };
         RawWindowHandle::Windows(handle)

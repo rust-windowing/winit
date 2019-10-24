@@ -163,39 +163,39 @@ Legend:
 ### Windowing
 |Feature                          |Windows|MacOS   |Linux x11   |Linux Wayland  |Android|iOS    |WASM      |
 |-------------------------------- | ----- | ----   | -------    | -----------   | ----- | ----- | -------- |
-|Window initialization            |✔️     |✔️     |▢[#5]      |✔️             |▢[#33]|▢[#33] |❓        |
-|Providing pointer to init OpenGL |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |❓        |
-|Providing pointer to init Vulkan |✔️     |✔️     |✔️         |✔️             |✔️     |❓     |❓        |
-|Window decorations               |✔️     |✔️     |✔️         |▢[#306]        |**N/A**|**N/A**|❓        |
-|Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❓        |
-|Window resizing                  |✔️     |▢[#219]|✔️         |▢[#306]        |**N/A**|**N/A**|❓        |
-|Window resize increments         |❌     |❌     |❌         |❌             |❌    |❌     |❓        |
-|Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❓        |
-|Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❓        |
-|Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|❓        |
-|Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |❓        |
-|Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |❓        |
-|Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |✔️     |❓        |
-|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |❓        |
-|Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |❓        |
+|Window initialization            |✔️     |✔️     |▢[#5]      |✔️             |▢[#33]|▢[#33] |✔️        |
+|Providing pointer to init OpenGL |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |**N/A**|
+|Providing pointer to init Vulkan |✔️     |✔️     |✔️         |✔️             |✔️     |❓     |**N/A**|
+|Window decorations               |✔️     |✔️     |✔️         |▢[#306]        |**N/A**|**N/A**|**N/A**|
+|Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
+|Window resizing                  |✔️     |▢[#219]|✔️         |▢[#306]        |**N/A**|**N/A**|✔️        |
+|Window resize increments         |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|
+|Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|N/A        |
+|Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
+|Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
+|Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
+|Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
+|Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |✔️     |**N/A**|
+|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |**N/A**|
+|Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|
 
 ### System information
 |Feature          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS      |WASM      |
 |---------------- | ----- | ---- | ------- | ----------- | ----- | ------- | -------- |
-|Monitor list     |✔️    |✔️    |✔️       |✔️          |**N/A**|✔️       |❓        |
-|Video mode query |✔️    |✔️    |✔️       |✔️          |❌     |✔️      |❓        |
+|Monitor list     |✔️    |✔️    |✔️       |✔️          |**N/A**|✔️       |**N/A**|
+|Video mode query |✔️    |✔️    |✔️       |✔️          |❌     |✔️      |**N/A**|
 
 ### Input handling
 |Feature                 |Windows   |MacOS   |Linux x11|Linux Wayland|Android|iOS    |WASM      |
 |----------------------- | -----    | ----   | ------- | ----------- | ----- | ----- | -------- |
-|Mouse events            |✔️       |▢[#63]  |✔️       |✔️          |**N/A**|**N/A**|❓        |
-|Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|❓        |
+|Mouse events            |✔️       |▢[#63]  |✔️       |✔️          |**N/A**|**N/A**|✔️        |
+|Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|**N/A**|
 |Cursor grab             |✔️       |▢[#165] |▢[#242]  |✔️         |**N/A**|**N/A**|❓        |
-|Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|❓        |
-|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❓        |
-|Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❓        |
-|Multitouch              |✔️       |❌      |✔️       |✔️          |❓     |✔️     |❓        |
-|Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |❓        |
+|Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
+|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️        |
+|Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |✔️        |
+|Multitouch              |✔️       |❌      |✔️       |✔️          |❓     |✔️     |✔️        |
+|Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️        |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |
