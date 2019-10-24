@@ -439,8 +439,6 @@ impl WindowStore {
             &mut (u32, u32),
             Option<i32>,
             bool,
-            bool,
-            bool,
             Option<bool>,
             &wl_surface::WlSurface,
             WindowId,
@@ -454,8 +452,6 @@ impl WindowStore {
                 window.newsize.take(),
                 &mut *(window.size.lock().unwrap()),
                 window.new_dpi,
-                replace(&mut *window.need_refresh.lock().unwrap(), false),
-                replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 window.closed,
                 window.cursor_grab_changed.lock().unwrap().take(),
                 &window.surface,
@@ -467,6 +463,22 @@ impl WindowStore {
             }
             // avoid re-spamming the event
             window.closed = false;
+        }
+    }
+
+    pub fn for_each_redraw_trigger<F>(&mut self, mut f: F)
+    where
+        F: FnMut(bool, bool, WindowId, Option<&mut SWindow<ConceptFrame>>),
+    {
+        for window in &mut self.windows {
+            let opt_arc = window.frame.upgrade();
+            let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
+            f(
+                replace(&mut *window.need_refresh.lock().unwrap(), false),
+                replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
+                make_wid(&window.surface),
+                opt_mutex_lock.as_mut().map(|m| &mut **m),
+            );
         }
     }
 }
