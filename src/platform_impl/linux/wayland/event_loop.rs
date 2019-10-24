@@ -509,24 +509,34 @@ impl<T: 'static> EventLoop<T> {
                     );
                 }
             }
-            // do a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
-            // in response of resize & friends
-            self.post_dispatch_triggers();
+            // send Events cleared
             {
-                let mut guard = sink.lock().unwrap();
-                guard.empty_with(|evt| {
+                sticky_exit_callback(
+                    crate::event::Event::MainEventsCleared,
+                    &self.window_target,
+                    &mut control_flow,
+                    &mut callback,
+                );
+            }
+
+            // handle request-redraw
+            {
+                self.redraw_triggers(|wid, window_target| {
                     sticky_exit_callback(
-                        evt,
-                        &self.window_target,
+                        crate::event::Event::RedrawRequested(crate::window::WindowId(
+                            crate::platform_impl::WindowId::Wayland(wid),
+                        )),
+                        window_target,
                         &mut control_flow,
                         &mut callback,
                     );
                 });
             }
-            // send Events cleared
+
+            // send RedrawEventsCleared
             {
                 sticky_exit_callback(
-                    crate::event::Event::MainEventsCleared,
+                    crate::event::Event::RedrawEventsCleared,
                     &self.window_target,
                     &mut control_flow,
                     &mut callback,
@@ -652,6 +662,31 @@ impl<T> EventLoopWindowTarget<T> {
  */
 
 impl<T> EventLoop<T> {
+    fn redraw_triggers<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(WindowId, &RootELW<T>),
+    {
+        let window_target = match self.window_target.p {
+            crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+            _ => unreachable!(),
+        };
+        window_target.store.lock().unwrap().for_each_redraw_trigger(
+            |refresh, frame_refresh, wid, frame| {
+                if let Some(frame) = frame {
+                    if frame_refresh {
+                        frame.refresh();
+                        if !refresh {
+                            frame.surface().commit()
+                        }
+                    }
+                }
+                if refresh {
+                    callback(wid, &self.window_target);
+                }
+            },
+        )
+    }
+
     fn post_dispatch_triggers(&mut self) {
         let mut sink = self.sink.lock().unwrap();
         let window_target = match self.window_target.p {
@@ -690,11 +725,6 @@ impl<T> EventLoop<T> {
 
                         *window.size = (w, h);
                     }
-                } else if window.frame_refresh {
-                    frame.refresh();
-                    if !window.refresh {
-                        frame.surface().commit()
-                    }
                 }
             }
             if let Some(dpi) = window.new_dpi {
@@ -702,10 +732,6 @@ impl<T> EventLoop<T> {
                     crate::event::WindowEvent::HiDpiFactorChanged(dpi as f64),
                     window.wid,
                 );
-            }
-            if window.refresh {
-                unimplemented!()
-                //sink.send_window_event(crate::event::WindowEvent::RedrawRequested, window.wid);
             }
             if window.closed {
                 sink.send_window_event(crate::event::WindowEvent::CloseRequested, window.wid);
