@@ -265,13 +265,11 @@ impl AppState {
             for event in HANDLER.take_events() {
                 HANDLER.handle_nonuser_event(event);
             }
+            HANDLER.handle_nonuser_event(Event::MainEventsCleared);
             for window_id in HANDLER.should_redraw() {
-                HANDLER.handle_nonuser_event(Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::RedrawRequested,
-                });
+                HANDLER.handle_nonuser_event(Event::RedrawRequested(window_id));
             }
-            HANDLER.handle_nonuser_event(Event::EventsCleared);
+            HANDLER.handle_nonuser_event(Event::RedrawEventsCleared);
             HANDLER.set_in_callback(false);
         }
         if HANDLER.should_exit() {
