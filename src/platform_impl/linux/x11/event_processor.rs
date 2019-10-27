@@ -67,6 +67,13 @@ impl<T: 'static> EventProcessor<T> {
         self.with_window(window_id, |_| ()).is_some()
     }
 
+    pub(super) fn poll(&self) -> bool {
+        let wt = get_xtarget(&self.target);
+        let result = unsafe { (wt.xconn.xlib.XPending)(wt.xconn.display) };
+
+        result != 0
+    }
+
     pub(super) unsafe fn poll_one_event(&mut self, event_ptr: *mut ffi::XEvent) -> bool {
         let wt = get_xtarget(&self.target);
         // This function is used to poll and remove a single event
