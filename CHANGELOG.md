@@ -1,6 +1,7 @@
 # Unreleased
 
 - On macOS, fix application termination on `ControlFlow::Exit`
+- On X11, fix window creation hanging when another window is fullscreen.
 
 # 0.20.0 Alpha 4 (2019-10-18)
 
