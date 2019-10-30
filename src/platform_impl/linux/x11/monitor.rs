@@ -130,7 +130,7 @@ impl MonitorHandle {
         })
     }
 
-    fn dummy() -> Self {
+    pub fn dummy() -> Self {
         MonitorHandle {
             id: 0,
             name: "<dummy monitor>".into(),

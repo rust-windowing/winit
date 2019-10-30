@@ -377,14 +377,8 @@ impl<T: 'static> EventProcessor<T> {
                         let (width, height) = shared_state_lock
                             .dpi_adjusted
                             .unwrap_or_else(|| (xev.width as f64, xev.height as f64));
-                        let last_hidpi_factor =
-                            shared_state_lock.guessed_dpi.take().unwrap_or_else(|| {
-                                shared_state_lock
-                                    .last_monitor
-                                    .as_ref()
-                                    .map(|last_monitor| last_monitor.hidpi_factor)
-                                    .unwrap_or(1.0)
-                            });
+
+                        let last_hidpi_factor = shared_state_lock.last_monitor.hidpi_factor;
                         let new_hidpi_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
                             monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
@@ -392,7 +386,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             // Avoid caching an invalid dummy monitor handle
                             if monitor.id != 0 {
-                                shared_state_lock.last_monitor = Some(monitor.clone());
+                                shared_state_lock.last_monitor = monitor.clone();
                             }
                             new_hidpi_factor
                         };
