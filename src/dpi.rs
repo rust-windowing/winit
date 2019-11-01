@@ -240,32 +240,80 @@ impl LogicalSize {
     }
 }
 
-impl From<(f64, f64)> for LogicalSize {
-    #[inline]
-    fn from((width, height): (f64, f64)) -> Self {
-        Self::new(width, height)
+/// Represents all types into/from which LogicalSize can be converted
+pub trait TypeConversion{
+	/// If necessary(if the output is an integer) it will round the result
+    fn get(v: f64) -> Self;
+}
+
+impl TypeConversion for u32{
+    fn get(v: f64) -> Self{
+        v.round() as u32
+    }
+}
+impl TypeConversion for i32{
+    fn get(v: f64) -> Self{
+        v.round() as i32
+    }
+}
+impl TypeConversion for i64{
+    fn get(v: f64) -> Self{
+        v.round() as i64
+    }
+}
+impl TypeConversion for u64{
+    fn get(v: f64) -> Self{
+        v.round() as u64
     }
 }
 
-impl From<(u32, u32)> for LogicalSize {
-    #[inline]
-    fn from((width, height): (u32, u32)) -> Self {
-        Self::new(width as f64, height as f64)
+impl TypeConversion for f32{
+    fn get(v: f64) -> Self{
+        v as f32
+    }
+}
+impl TypeConversion for f64{
+    fn get(v: f64) -> Self{
+        v
     }
 }
 
-impl Into<(f64, f64)> for LogicalSize {
+
+impl<T> From<(T, T)> for LogicalSize
+where T: TypeConversion + num::ToPrimitive
+{
     #[inline]
-    fn into(self) -> (f64, f64) {
-        (self.width, self.height)
+    fn from((width, height): (T, T)) -> Self {
+		Self::new(width.to_f64().unwrap(), height.to_f64().unwrap())
     }
 }
 
-impl Into<(u32, u32)> for LogicalSize {
-    /// Note that this rounds instead of truncating.
+impl<T> From<[T; 2]> for LogicalSize
+where T: TypeConversion + num::ToPrimitive
+{
     #[inline]
-    fn into(self) -> (u32, u32) {
-        (self.width.round() as _, self.height.round() as _)
+    fn from(size: [T; 2]) -> Self {
+		Self::new(size[0].to_f64().unwrap(), size[1].to_f64().unwrap())
+    }
+}
+
+impl<T> Into<(T, T)> for LogicalSize
+where T: TypeConversion + num::FromPrimitive + num::ToPrimitive
+{
+    #[inline]
+    fn into(self) -> (T, T) {
+		//TODO: might be done better
+        (T::from_f64(T::get(self.width).to_f64().unwrap()).unwrap(), T::from_f64(T::get(self.width).to_f64().unwrap()).unwrap())
+    }
+}
+
+impl<T> Into<[T; 2]> for LogicalSize
+where T: TypeConversion + num::FromPrimitive + num::ToPrimitive
+{
+    #[inline]
+    fn into(self) -> [T; 2] {
+    	//TODO
+        [T::from_f64(T::get(self.width).to_f64().unwrap()).unwrap(), T::from_f64(T::get(self.width).to_f64().unwrap()).unwrap()]
     }
 }
 
