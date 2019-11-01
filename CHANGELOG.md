@@ -1,5 +1,6 @@
 # Unreleased
 
+- LogicalSize can now be converted into/from i32, i64, u32, u64, f32 and f64 with both tuples and arrays
 - On macOS, fix application termination on `ControlFlow::Exit`
 
 # 0.20.0 Alpha 4 (2019-10-18)
