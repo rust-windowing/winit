@@ -673,15 +673,22 @@ impl<T> EventLoop<T> {
              wid,
              frame| {
                 if let Some(frame) = frame {
-                    if let Some((w, h)) = newsize {
-                        frame.resize(w, h);
-                        frame.refresh();
-                        let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
-                        sink.send_window_event(
-                            crate::event::WindowEvent::Resized(logical_size),
-                            wid,
-                        );
-                        *size = (w, h);
+                    if let Some(newsize) = newsize {
+                        // Drop resize events equaled to the current size
+                        if newsize != *size {
+                            let (w, h) = newsize;
+                            frame.resize(w, h);
+                            frame.refresh();
+                            let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
+                            sink.send_window_event(
+                                crate::event::WindowEvent::Resized(logical_size),
+                                wid,
+                            );
+                            *size = (w, h);
+                        } else {
+                            // Refresh csd, etc, otherwise
+                            frame.refresh();
+                        }
                     } else if frame_refresh {
                         frame.refresh();
                         if !refresh {
