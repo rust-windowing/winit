@@ -857,3 +857,9 @@ pub enum Fullscreen {
     Exclusive(VideoMode),
     Borderless(MonitorHandle),
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Theme {
+    Light,
+    Dark,
+}
