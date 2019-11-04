@@ -1,5 +1,9 @@
 # Unreleased
 
+# Version 0.19.5 (2019-11-04)
+
+- On Android, fix the missing `raw-window-handle` support
+
 # Version 0.19.4 (2019-10-16)
 
 - Add support for `raw-window-handle` 0.3.
