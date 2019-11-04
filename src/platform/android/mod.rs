@@ -4,6 +4,7 @@ extern crate android_glue;
 
 mod ffi;
 
+use raw_window_handle::{android::AndroidHandle, RawWindowHandle};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt;
@@ -421,6 +422,14 @@ impl Window {
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId
+    }
+
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let handle = AndroidHandle {
+            a_native_window: self.native_window as _,
+            ..AndroidHandle::empty()
+        };
+        RawWindowHandle::Android(handle)
     }
 }
 
