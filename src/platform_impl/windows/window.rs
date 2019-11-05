@@ -74,35 +74,38 @@ impl Window {
         // done. you owe me -- ossi
         unsafe {
             init(w_attr, pl_attr, event_loop).map(|win| {
-                let file_drop_handler = {
-                    use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
-
-                    let ole_init_result = ole2::OleInitialize(ptr::null_mut());
-                    // It is ok if the initialize result is `S_FALSE` because it might happen that
-                    // multiple windows are created on the same thread.
-                    if ole_init_result == OLE_E_WRONGCOMPOBJ {
+                use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
+                let file_drop_handler = match ole2::OleInitialize(ptr::null_mut()) {
+                    OLE_E_WRONGCOMPOBJ => {
                         panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
-                    } else if ole_init_result == RPC_E_CHANGED_MODE {
-                        panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
                     }
+                    RPC_E_CHANGED_MODE => {
+                        // OleInitialize failed because someone is using COINIT_MULTITHREADED, which
+                        // OLE is not compatible with, but there's no reason we can't stumble along
+                        // without drag/drop support.
+                        None
+                    }
+                    _ => {
+                        // It is ok if the initialize result is `S_FALSE` because it might happen that
+                        // multiple windows are created on the same thread.
+                        let file_drop_runner = event_loop.runner_shared.clone();
+                        let file_drop_handler = FileDropHandler::new(
+                            win.window.0,
+                            Box::new(move |event| {
+                                if let Ok(e) = event.map_nonuser_event() {
+                                    file_drop_runner.send_event(e)
+                                }
+                            }),
+                        );
+                        let handler_interface_ptr =
+                            &mut (*file_drop_handler.data).interface as LPDROPTARGET;
 
-                    let file_drop_runner = event_loop.runner_shared.clone();
-                    let file_drop_handler = FileDropHandler::new(
-                        win.window.0,
-                        Box::new(move |event| {
-                            if let Ok(e) = event.map_nonuser_event() {
-                                file_drop_runner.send_event(e)
-                            }
-                        }),
-                    );
-                    let handler_interface_ptr =
-                        &mut (*file_drop_handler.data).interface as LPDROPTARGET;
-
-                    assert_eq!(
-                        ole2::RegisterDragDrop(win.window.0, handler_interface_ptr),
-                        S_OK
-                    );
-                    file_drop_handler
+                        assert_eq!(
+                            ole2::RegisterDragDrop(win.window.0, handler_interface_ptr),
+                            S_OK
+                        );
+                        Some(file_drop_handler)
+                    }
                 };
 
                 let subclass_input = event_loop::SubclassInput {

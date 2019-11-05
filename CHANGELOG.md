@@ -4,6 +4,7 @@
 - On X11, fix misreporting DPI factor at startup.
 - On X11, fix events not being reported when using `run_return`.
 - On X11, fix key modifiers being incorrectly reported.
+- On Windows, don't panic if CoInitialize has been called with COINIT_MULTITHREADED. Instead just lose drag/drop support.
 
 # 0.20.0 Alpha 4 (2019-10-18)
 
