@@ -54,6 +54,10 @@ impl<T> WindowEventsSink<T> {
         }
     }
 
+    pub fn send_event(&mut self, evt: crate::event::Event<T>) {
+        self.buffer.push_back(evt);
+    }
+
     pub fn send_window_event(&mut self, evt: crate::event::WindowEvent, wid: WindowId) {
         self.buffer.push_back(crate::event::Event::WindowEvent {
             event: evt,
@@ -240,9 +244,7 @@ pub struct EventLoop<T: 'static> {
     // Utility for grabbing the cursor and changing visibility
     _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
     user_sender: ::calloop::channel::Sender<T>,
-    _kbd_source: ::calloop::Source<
-        ::calloop::channel::Channel<(crate::event::WindowEvent, super::WindowId)>,
-    >,
+    _kbd_source: ::calloop::Source<::calloop::channel::Channel<crate::event::Event<()>>>,
     window_target: RootELW<T>,
 }
 
@@ -296,13 +298,14 @@ impl<T: 'static> EventLoop<T> {
 
         let inner_loop = ::calloop::EventLoop::new().unwrap();
 
-        let (kbd_sender, kbd_channel) = ::calloop::channel::channel();
+        let (kbd_sender, kbd_channel) = ::calloop::channel::channel::<crate::event::Event<()>>();
         let kbd_sink = sink.clone();
         let kbd_source = inner_loop
             .handle()
             .insert_source(kbd_channel, move |evt, &mut ()| {
-                if let ::calloop::channel::Event::Msg((evt, wid)) = evt {
-                    kbd_sink.lock().unwrap().send_window_event(evt, wid);
+                if let ::calloop::channel::Event::Msg(evt) = evt {
+                    let evt = evt.map_nonuser_event().ok().unwrap();
+                    kbd_sink.lock().unwrap().send_event(evt);
                 }
             })
             .unwrap();
@@ -726,7 +729,7 @@ struct SeatManager<T: 'static> {
     sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
-    kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
+    kbd_sender: ::calloop::channel::Sender<crate::event::Event<()>>,
     relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
     pointer_constraints_proxy: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>,
     cursor_manager: Arc<Mutex<CursorManager>>,
@@ -771,7 +774,7 @@ impl<T: 'static> SeatManager<T> {
 struct SeatData<T> {
     sink: Arc<Mutex<WindowEventsSink<T>>>,
     store: Arc<Mutex<WindowStore>>,
-    kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
+    kbd_sender: ::calloop::channel::Sender<crate::event::Event<()>>,
     pointer: Option<wl_pointer::WlPointer>,
     relative_pointer: Option<ZwpRelativePointerV1>,
     relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
