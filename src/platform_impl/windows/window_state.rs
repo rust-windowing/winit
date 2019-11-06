@@ -266,18 +266,6 @@ impl WindowFlags {
             }
         }
 
-        if diff.contains(WindowFlags::MINIMIZED) || new.contains(WindowFlags::MINIMIZED) {
-            unsafe {
-                winuser::ShowWindow(
-                    window,
-                    match new.contains(WindowFlags::MINIMIZED) {
-                        true => winuser::SW_MINIMIZE,
-                        false => winuser::SW_RESTORE,
-                    },
-                );
-            }
-        }
-
         if diff.contains(WindowFlags::MAXIMIZED) || new.contains(WindowFlags::MAXIMIZED) {
             unsafe {
                 winuser::ShowWindow(
@@ -290,14 +278,30 @@ impl WindowFlags {
             }
         }
 
+        // Minimize operations should execute after maximize for proper window animations
+        if diff.contains(WindowFlags::MINIMIZED) {
+            unsafe {
+                winuser::ShowWindow(
+                    window,
+                    match new.contains(WindowFlags::MINIMIZED) {
+                        true => winuser::SW_MINIMIZE,
+                        false => winuser::SW_RESTORE,
+                    },
+                );
+            }
+        }
+
         if diff != WindowFlags::empty() {
             let (style, style_ex) = new.to_window_styles();
 
             unsafe {
                 winuser::SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 1, 0);
 
-                winuser::SetWindowLongW(window, winuser::GWL_STYLE, style as _);
-                winuser::SetWindowLongW(window, winuser::GWL_EXSTYLE, style_ex as _);
+                // This condition is necessary to avoid having an unrestorable window
+                if !new.contains(WindowFlags::MINIMIZED) {
+                    winuser::SetWindowLongW(window, winuser::GWL_STYLE, style as _);
+                    winuser::SetWindowLongW(window, winuser::GWL_EXSTYLE, style_ex as _);
+                }
 
                 let mut flags = winuser::SWP_NOZORDER
                     | winuser::SWP_NOMOVE
