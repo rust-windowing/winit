@@ -54,13 +54,14 @@ use crate::{
         },
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
+        monitor,
         raw_input::{get_raw_input_data, get_raw_mouse_button_state},
         util,
         window::adjust_size,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
-    window::WindowId as RootWindowId,
+    window::{Fullscreen, WindowId as RootWindowId},
 };
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
@@ -131,18 +132,40 @@ pub struct EventLoopWindowTarget<T> {
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
 
+macro_rules! main_thread_check {
+    ($fn_name:literal) => {{
+        let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
+        if thread_id != main_thread_id() {
+            panic!(concat!(
+                "Initializing the event loop outside of the main thread is a significant \
+                 cross-platform compatibility hazard. If you really, absolutely need to create an \
+                 EventLoop on a different thread, please use the `EventLoopExtWindows::",
+                $fn_name,
+                "` function."
+            ));
+        }
+    }};
+}
+
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
-        Self::with_dpi_awareness(true)
+        main_thread_check!("new_any_thread");
+
+        Self::new_any_thread()
     }
 
-    pub fn window_target(&self) -> &RootELW<T> {
-        &self.window_target
+    pub fn new_any_thread() -> EventLoop<T> {
+        become_dpi_aware();
+        Self::new_dpi_unaware_any_thread()
     }
 
-    pub fn with_dpi_awareness(dpi_aware: bool) -> EventLoop<T> {
-        become_dpi_aware(dpi_aware);
+    pub fn new_dpi_unaware() -> EventLoop<T> {
+        main_thread_check!("new_dpi_unaware_any_thread");
 
+        Self::new_dpi_unaware_any_thread()
+    }
+
+    pub fn new_dpi_unaware_any_thread() -> EventLoop<T> {
         let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
         let runner_shared = Rc::new(ELRShared {
             runner: RefCell::new(None),
@@ -165,6 +188,10 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
+    pub fn window_target(&self) -> &RootELW<T> {
+        &self.window_target
+    }
+
     pub fn run<F>(mut self, event_handler: F) -> !
     where
         F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
@@ -177,10 +204,6 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
-        unsafe {
-            winuser::IsGUIThread(1);
-        }
-
         let event_loop_windows_ref = &self.window_target;
 
         let mut runner = unsafe {
@@ -277,6 +300,21 @@ impl<T> EventLoopWindowTarget<T> {
             target_window: self.thread_msg_target,
         }
     }
+}
+
+fn main_thread_id() -> DWORD {
+    static mut MAIN_THREAD_ID: DWORD = 0;
+    #[used]
+    #[allow(non_upper_case_globals)]
+    #[link_section = ".CRT$XCU"]
+    static INIT_MAIN_THREAD_ID: unsafe fn() = {
+        unsafe fn initer() {
+            MAIN_THREAD_ID = processthreadsapi::GetCurrentThreadId();
+        }
+        initer
+    };
+
+    unsafe { MAIN_THREAD_ID }
 }
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
@@ -980,6 +1018,51 @@ unsafe extern "system" fn public_window_callback<T>(
                 event: RedrawRequested,
             });
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
+        }
+
+        winuser::WM_WINDOWPOSCHANGING => {
+            let mut window_state = subclass_input.window_state.lock();
+            if let Some(ref mut fullscreen) = window_state.fullscreen {
+                let window_pos = &mut *(lparam as *mut winuser::WINDOWPOS);
+                let new_rect = RECT {
+                    left: window_pos.x,
+                    top: window_pos.y,
+                    right: window_pos.x + window_pos.cx,
+                    bottom: window_pos.y + window_pos.cy,
+                };
+                let new_monitor =
+                    winuser::MonitorFromRect(&new_rect, winuser::MONITOR_DEFAULTTONULL);
+                match fullscreen {
+                    Fullscreen::Borderless(ref mut fullscreen_monitor) => {
+                        if new_monitor != fullscreen_monitor.inner.hmonitor()
+                            && new_monitor != ptr::null_mut()
+                        {
+                            if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor) {
+                                let new_monitor_rect = new_monitor_info.rcMonitor;
+                                window_pos.x = new_monitor_rect.left;
+                                window_pos.y = new_monitor_rect.top;
+                                window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
+                                window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
+                            }
+                            *fullscreen_monitor = crate::monitor::MonitorHandle {
+                                inner: monitor::MonitorHandle::new(new_monitor),
+                            };
+                        }
+                    }
+                    Fullscreen::Exclusive(ref video_mode) => {
+                        let old_monitor = video_mode.video_mode.monitor.hmonitor();
+                        if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
+                            let old_monitor_rect = old_monitor_info.rcMonitor;
+                            window_pos.x = old_monitor_rect.left;
+                            window_pos.y = old_monitor_rect.top;
+                            window_pos.cx = old_monitor_rect.right - old_monitor_rect.left;
+                            window_pos.cy = old_monitor_rect.bottom - old_monitor_rect.top;
+                        }
+                    }
+                }
+            }
+
+            0
         }
 
         // WM_MOVE supplies client area positions, so we send Moved here instead.

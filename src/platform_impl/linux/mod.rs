@@ -469,7 +469,7 @@ impl Window {
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         match self {
-            &Window::X(ref window) => RawWindowHandle::X11(window.raw_window_handle()),
+            &Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
             &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
         }
     }
@@ -528,14 +528,22 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
+        assert_is_main_thread("new_any_thread");
+
+        EventLoop::new_any_thread()
+    }
+
+    pub fn new_any_thread() -> EventLoop<T> {
         if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
             match env_var.as_str() {
                 "x11" => {
                     // TODO: propagate
-                    return EventLoop::new_x11().expect("Failed to initialize X11 backend");
+                    return EventLoop::new_x11_any_thread()
+                        .expect("Failed to initialize X11 backend");
                 }
                 "wayland" => {
-                    return EventLoop::new_wayland().expect("Failed to initialize Wayland backend");
+                    return EventLoop::new_wayland_any_thread()
+                        .expect("Failed to initialize Wayland backend");
                 }
                 _ => panic!(
                     "Unknown environment variable value for {}, try one of `x11`,`wayland`",
@@ -544,12 +552,12 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        let wayland_err = match EventLoop::new_wayland() {
+        let wayland_err = match EventLoop::new_wayland_any_thread() {
             Ok(event_loop) => return event_loop,
             Err(err) => err,
         };
 
-        let x11_err = match EventLoop::new_x11() {
+        let x11_err = match EventLoop::new_x11_any_thread() {
             Ok(event_loop) => return event_loop,
             Err(err) => err,
         };
@@ -562,10 +570,22 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn new_wayland() -> Result<EventLoop<T>, ConnectError> {
+        assert_is_main_thread("new_wayland_any_thread");
+
+        EventLoop::new_wayland_any_thread()
+    }
+
+    pub fn new_wayland_any_thread() -> Result<EventLoop<T>, ConnectError> {
         wayland::EventLoop::new().map(EventLoop::Wayland)
     }
 
     pub fn new_x11() -> Result<EventLoop<T>, XNotSupported> {
+        assert_is_main_thread("new_x11_any_thread");
+
+        EventLoop::new_x11_any_thread()
+    }
+
+    pub fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
         X11_BACKEND
             .lock()
             .as_ref()
@@ -679,4 +699,36 @@ fn sticky_exit_callback<T, F>(
     };
     // user callback
     callback(evt, target, cf)
+}
+
+fn assert_is_main_thread(suggested_method: &str) {
+    if !is_main_thread() {
+        panic!(
+            "Initializing the event loop outside of the main thread is a significant \
+             cross-platform compatibility hazard. If you really, absolutely need to create an \
+             EventLoop on a different thread, please use the `EventLoopExtUnix::{}` function.",
+            suggested_method
+        );
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn is_main_thread() -> bool {
+    use libc::{c_long, getpid, syscall, SYS_gettid};
+
+    unsafe { syscall(SYS_gettid) == getpid() as c_long }
+}
+
+#[cfg(any(target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
+fn is_main_thread() -> bool {
+    use libc::pthread_main_np;
+
+    unsafe { pthread_main_np() == 1 }
+}
+
+#[cfg(target_os = "netbsd")]
+fn is_main_thread() -> bool {
+    use libc::_lwp_self;
+
+    unsafe { _lwp_self() == 1 }
 }

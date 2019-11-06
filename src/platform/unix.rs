@@ -144,35 +144,90 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
 /// Additional methods on `EventLoop` that are specific to Unix.
 pub trait EventLoopExtUnix {
-    /// Builds a new `EventLoops` that is forced to use X11.
+    /// Builds a new `EventLoop` that is forced to use X11.
+    ///
+    /// # Panics
+    ///
+    /// If called outside the main thread. To initialize an X11 event loop outside
+    /// the main thread, use [`new_x11_any_thread`](#tymethod.new_x11_any_thread).
     fn new_x11() -> Result<Self, XNotSupported>
     where
         Self: Sized;
 
     /// Builds a new `EventLoop` that is forced to use Wayland.
+    ///
+    /// # Panics
+    ///
+    /// If called outside the main thread. To initialize a Wayland event loop outside
+    /// the main thread, use [`new_wayland_any_thread`](#tymethod.new_wayland_any_thread).
     fn new_wayland() -> Self
+    where
+        Self: Sized;
+
+    /// Builds a new `EventLoop` on any thread.
+    ///
+    /// This method bypasses the cross-platform compatibility requirement
+    /// that `EventLoop` be created on the main thread.
+    fn new_any_thread() -> Self
+    where
+        Self: Sized;
+
+    /// Builds a new X11 `EventLoop` on any thread.
+    ///
+    /// This method bypasses the cross-platform compatibility requirement
+    /// that `EventLoop` be created on the main thread.
+    fn new_x11_any_thread() -> Result<Self, XNotSupported>
+    where
+        Self: Sized;
+
+    /// Builds a new Wayland `EventLoop` on any thread.
+    ///
+    /// This method bypasses the cross-platform compatibility requirement
+    /// that `EventLoop` be created on the main thread.
+    fn new_wayland_any_thread() -> Self
     where
         Self: Sized;
 }
 
+fn wrap_ev<T>(event_loop: LinuxEventLoop<T>) -> EventLoop<T> {
+    EventLoop {
+        event_loop,
+        _marker: std::marker::PhantomData,
+    }
+}
+
 impl<T> EventLoopExtUnix for EventLoop<T> {
     #[inline]
+    fn new_any_thread() -> Self {
+        wrap_ev(LinuxEventLoop::new_any_thread())
+    }
+
+    #[inline]
+    fn new_x11_any_thread() -> Result<Self, XNotSupported> {
+        LinuxEventLoop::new_x11_any_thread().map(wrap_ev)
+    }
+
+    #[inline]
+    fn new_wayland_any_thread() -> Self {
+        wrap_ev(
+            LinuxEventLoop::new_wayland_any_thread()
+                // TODO: propagate
+                .expect("failed to open Wayland connection"),
+        )
+    }
+
+    #[inline]
     fn new_x11() -> Result<Self, XNotSupported> {
-        LinuxEventLoop::new_x11().map(|ev| EventLoop {
-            event_loop: ev,
-            _marker: ::std::marker::PhantomData,
-        })
+        LinuxEventLoop::new_x11().map(wrap_ev)
     }
 
     #[inline]
     fn new_wayland() -> Self {
-        EventLoop {
-            event_loop: match LinuxEventLoop::new_wayland() {
-                Ok(e) => e,
-                Err(_) => panic!(), // TODO: propagate
-            },
-            _marker: ::std::marker::PhantomData,
-        }
+        wrap_ev(
+            LinuxEventLoop::new_wayland()
+                // TODO: propagate
+                .expect("failed to open Wayland connection"),
+        )
     }
 }
 
