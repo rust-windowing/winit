@@ -5,7 +5,9 @@ use super::{ffi, XConnection, XError};
 use super::{context::ImeContext, input_method::PotentialInputMethods};
 
 pub unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {
-    (xconn.xlib.XCloseIM)(im);
+    if !im.is_null() {
+        (xconn.xlib.XCloseIM)(im);
+    }
     xconn.check_errors()
 }
 
