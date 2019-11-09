@@ -9,10 +9,7 @@ fn main() {
     // Note: stdweb is aliased to std_web in winit's Cargo.toml
     // In most cases, it should not be necessary to include this line
     use std_web as stdweb;
-    use stdweb::{
-        traits::*,
-        web::document
-    };
+    use stdweb::{traits::*, web::document};
 
     let event_loop = EventLoop::new();
 
