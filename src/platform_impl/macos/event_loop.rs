@@ -132,7 +132,7 @@ impl<T> Proxy<T> {
             // process user events through the normal OS EventLoop mechanisms.
             let rl = CFRunLoopGetMain();
             let mut context: CFRunLoopSourceContext = mem::zeroed();
-            context.perform = event_loop_proxy_handler;
+            context.perform = Some(event_loop_proxy_handler);
             let source =
                 CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
