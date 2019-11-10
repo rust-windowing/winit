@@ -25,7 +25,6 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) target: Rc<RootELW<T>>,
     pub(super) mod_keymap: ModifierKeymap,
     pub(super) device_mod_state: ModifierKeyState,
-    pub(super) window_mod_state: ModifierKeyState,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -131,7 +130,6 @@ impl<T: 'static> EventProcessor<T> {
 
                     self.mod_keymap.reset_from_x_connection(&wt.xconn);
                     self.device_mod_state.update(&self.mod_keymap);
-                    self.window_mod_state.update(&self.mod_keymap);
                 }
             }
 
@@ -541,7 +539,7 @@ impl<T: 'static> EventProcessor<T> {
                     };
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
-                    let modifiers = self.window_mod_state.modifiers();
+                    let modifiers = self.device_mod_state.modifiers();
 
                     callback(Event::WindowEvent {
                         window_id,
@@ -555,27 +553,6 @@ impl<T: 'static> EventProcessor<T> {
                             },
                         },
                     });
-
-                    if let Some(modifier) =
-                        self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode)
-                    {
-                        self.window_mod_state.key_event(
-                            state,
-                            xkev.keycode as ffi::KeyCode,
-                            modifier,
-                        );
-
-                        let new_modifiers = self.window_mod_state.modifiers();
-
-                        if modifiers != new_modifiers {
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::ModifiersChanged {
-                                    modifiers: new_modifiers,
-                                },
-                            });
-                        }
-                    }
                 }
 
                 if state == Pressed {
@@ -888,21 +865,6 @@ impl<T: 'static> EventProcessor<T> {
                             event: Focused(true),
                         });
 
-                        // When focus is gained, send any existing modifiers
-                        // to the window in a ModifiersChanged event. This is
-                        // done to compensate for modifier keys that may be
-                        // changed while a window is out of focus.
-                        if !self.device_mod_state.is_empty() {
-                            self.window_mod_state = self.device_mod_state.clone();
-
-                            let modifiers = self.window_mod_state.modifiers();
-
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::ModifiersChanged { modifiers },
-                            });
-                        }
-
                         // The deviceid for this event is for a keyboard instead of a pointer,
                         // so we have to do a little extra work.
                         let pointer_id = self
@@ -934,21 +896,6 @@ impl<T: 'static> EventProcessor<T> {
                             .borrow_mut()
                             .unfocus(xev.event)
                             .expect("Failed to unfocus input context");
-
-                        // When focus is lost, send a ModifiersChanged event
-                        // containing no modifiers set. This is done to compensate
-                        // for modifier keys that may be changed while a window
-                        // is out of focus.
-                        if !self.window_mod_state.is_empty() {
-                            self.window_mod_state.clear();
-
-                            callback(Event::WindowEvent {
-                                window_id: mkwid(xev.event),
-                                event: WindowEvent::ModifiersChanged {
-                                    modifiers: ModifiersState::default(),
-                                },
-                            });
-                        }
 
                         callback(Event::WindowEvent {
                             window_id: mkwid(xev.event),
@@ -1062,7 +1009,7 @@ impl<T: 'static> EventProcessor<T> {
                             _ => unreachable!(),
                         };
 
-                        let device_id = xev.sourceid;
+                        let device_id = mkdid(xev.sourceid);
                         let keycode = xev.detail;
                         if keycode < 8 {
                             return;
@@ -1082,6 +1029,18 @@ impl<T: 'static> EventProcessor<T> {
 
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
+                        let modifiers = self.device_mod_state.modifiers();
+
+                        callback(Event::DeviceEvent {
+                            device_id,
+                            event: DeviceEvent::Key(KeyboardInput {
+                                scancode,
+                                virtual_keycode,
+                                state,
+                                modifiers,
+                            }),
+                        });
+
                         if let Some(modifier) =
                             self.mod_keymap.get_modifier(keycode as ffi::KeyCode)
                         {
@@ -1090,19 +1049,18 @@ impl<T: 'static> EventProcessor<T> {
                                 keycode as ffi::KeyCode,
                                 modifier,
                             );
+
+                            let new_modifiers = self.device_mod_state.modifiers();
+
+                            if modifiers != new_modifiers {
+                                callback(Event::DeviceEvent {
+                                    device_id,
+                                    event: DeviceEvent::ModifiersChanged {
+                                        modifiers: new_modifiers,
+                                    },
+                                });
+                            }
                         }
-
-                        let modifiers = self.device_mod_state.modifiers();
-
-                        callback(Event::DeviceEvent {
-                            device_id: mkdid(device_id),
-                            event: DeviceEvent::Key(KeyboardInput {
-                                scancode,
-                                virtual_keycode,
-                                state,
-                                modifiers,
-                            }),
-                        });
                     }
 
                     ffi::XI_HierarchyChanged => {

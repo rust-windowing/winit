@@ -134,10 +134,6 @@ pub enum WindowEvent {
         input: KeyboardInput,
     },
 
-    /// Keyboard modifiers have changed
-    #[doc(hidden)]
-    ModifiersChanged { modifiers: ModifiersState },
-
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,
@@ -266,7 +262,15 @@ pub enum DeviceEvent {
         button: ButtonId,
         state: ElementState,
     },
+
     Key(KeyboardInput),
+
+    /// Keyboard modifiers have changed
+    #[doc(hidden)]
+    ModifiersChanged {
+        modifiers: ModifiersState,
+    },
+
     Text {
         codepoint: char,
     },
