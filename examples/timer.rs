@@ -17,7 +17,10 @@ fn main() {
     let timer_length = Duration::new(1, 0);
 
     event_loop.run(move |event, _, control_flow| {
-        println!("{:?}", event);
+        if let Event::WindowEvent { event, .. } = &event {
+            // Print only Window events to reduce noise
+            println!("{:?}", event);
+        }
 
         match event {
             Event::NewEvents(StartCause::Init) => {
