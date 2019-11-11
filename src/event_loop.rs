@@ -6,9 +6,9 @@
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
 //!
-//! [create_proxy]: ./struct.EventLoop.html#method.create_proxy
-//! [event_loop_proxy]: ./struct.EventLoopProxy.html
-//! [send_event]: ./struct.EventLoopProxy.html#method.send_event
+//! [create_proxy]: crate::event_loop::EventLoop::create_proxy
+//! [event_loop_proxy]: crate::event_loop::EventLoopProxy
+//! [send_event]: crate::event_loop::EventLoopProxy::send_event
 use instant::Instant;
 use std::ops::Deref;
 use std::{error, fmt};
@@ -68,7 +68,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 /// are **not** persistent between multiple calls to `run_return` - issuing a new call will reset
 /// the control flow to `Poll`.
 ///
-/// [events_cleared]: ../event/enum.Event.html#variant.EventsCleared
+/// [events_cleared]: crate::event::Event::EventsCleared
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
@@ -139,7 +139,7 @@ impl<T> EventLoop<T> {
     ///
     /// Any values not passed to this function will *not* be dropped.
     ///
-    /// [`ControlFlow`]: ./enum.ControlFlow.html
+    /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]
     pub fn run<F>(self, event_handler: F) -> !
     where
