@@ -83,6 +83,7 @@ impl Window {
                         // OleInitialize failed because someone is using COINIT_MULTITHREADED, which
                         // OLE is not compatible with, but there's no reason we can't stumble along
                         // without drag/drop support.
+                        warn!("OleInitialize failed due to CoInitializeEx having been called with COINIT_MULTITHREADED! Disabled drag/drop.");
                         None
                     }
                     _ => {
