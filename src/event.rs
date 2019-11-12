@@ -3,7 +3,7 @@
 //! These are sent to the closure given to [`EventLoop::run(...)`][event_loop_run], where they get
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
-//! [event_loop_run]: event_loop::EventLoop::run
+//! [event_loop_run]: crate::event_loop::EventLoop::run
 use instant::Instant;
 use std::path::PathBuf;
 
