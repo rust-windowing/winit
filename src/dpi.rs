@@ -297,7 +297,7 @@ impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalSize<P> {
 }
 
 impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalSize<P> {
-    fn into(self: LogicalSize<f64><P>) -> (X, X) {
+    fn into(self: LogicalSize<P>) -> (X, X) {
         (self.width.cast(), self.height.cast())
     }
 }
@@ -388,7 +388,7 @@ impl<P: Pixel> From<PhysicalSize<P>> for Size {
 
 impl<P: Pixel> From<LogicalSize<P>> for Size {
     #[inline]
-    fn from(size: LogicalSize<f64><P>) -> Size {
+    fn from(size: LogicalSize<P>) -> Size {
         Size::Logical(size.cast())
     }
 }
