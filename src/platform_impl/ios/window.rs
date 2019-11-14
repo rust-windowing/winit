@@ -103,7 +103,7 @@ impl Inner {
     pub fn set_outer_position(&self, physical_position: Position) {
         unsafe {
             let dpi_factor = self.hidpi_factor();
-            let position = physical_position.to_logical::<_, f64>(dpi_factor);
+            let position = physical_position.to_logical::<f64>(dpi_factor);
             let screen_frame = self.screen_frame();
             let new_screen_frame = CGRect {
                 origin: CGPoint {
@@ -352,7 +352,7 @@ impl Window {
             let frame = match window_attributes.inner_size {
                 Some(dim) => {
                     let dpi_factor = msg_send![screen, scale];
-                    let size = dim.to_logical::<_, f64>(dpi_factor);
+                    let size = dim.to_logical::<f64>(dpi_factor);
                     CGRect {
                         origin: screen_bounds.origin,
                         size: CGSize {
