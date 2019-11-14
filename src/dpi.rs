@@ -155,7 +155,10 @@ impl<P> LogicalPosition<P> {
 
 impl<P: Pixel> LogicalPosition<P> {
     #[inline]
-    pub fn from_physical<T: Into<PhysicalPosition<X>>, X: Pixel>(physical: T, dpi_factor: f64) -> Self {
+    pub fn from_physical<T: Into<PhysicalPosition<X>>, X: Pixel>(
+        physical: T,
+        dpi_factor: f64,
+    ) -> Self {
         physical.into().to_logical(dpi_factor)
     }
 
@@ -209,7 +212,10 @@ impl<P> PhysicalPosition<P> {
 
 impl<P: Pixel> PhysicalPosition<P> {
     #[inline]
-    pub fn from_logical<T: Into<LogicalPosition<X>>, X: Pixel>(logical: T, dpi_factor: f64) -> Self {
+    pub fn from_logical<T: Into<LogicalPosition<X>>, X: Pixel>(
+        logical: T,
+        dpi_factor: f64,
+    ) -> Self {
         logical.into().to_physical(dpi_factor)
     }
 

@@ -5,7 +5,7 @@ fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
     use winit::{
-    	dpi::{PhysicalPosition, PhysicalSize, Position, Size},
+        dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{CursorIcon, Fullscreen, WindowBuilder},
@@ -116,22 +116,17 @@ fn main() {
                             Q => window.request_redraw(),
                             R => window.set_resizable(state),
                             S => window.set_inner_size(match state {
-                                true => {
-                                    PhysicalSize::new(
-                                        WINDOW_SIZE.width + 100,
-                                        WINDOW_SIZE.height + 100,
-                                    )
-                                }
+                                true => PhysicalSize::new(
+                                    WINDOW_SIZE.width + 100,
+                                    WINDOW_SIZE.height + 100,
+                                ),
                                 false => WINDOW_SIZE,
                             }),
                             W => {
                                 if let Size::Physical(size) = WINDOW_SIZE.into() {
                                     window
                                         .set_cursor_position(Position::Physical(
-                                            PhysicalPosition::new(
-                                                size.width / 2,
-                                                size.height / 2,
-                                            ),
+                                            PhysicalPosition::new(size.width / 2, size.height / 2),
                                         ))
                                         .unwrap()
                                 }
