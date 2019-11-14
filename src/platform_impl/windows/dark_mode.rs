@@ -6,8 +6,8 @@ use std::os::windows::ffi::OsStrExt;
 
 use winapi::{
     shared::{
-        minwindef::{BOOL, DWORD, UINT, WORD},
-        ntdef::LPSTR,
+        minwindef::{BOOL, DWORD, UINT, ULONG, WORD},
+        ntdef::{LPSTR, WCHAR},
         windef::HWND,
     },
     um::{dwmapi, libloaderapi, uxtheme, winuser},
@@ -53,31 +53,44 @@ lazy_static! {
 
             let handle = libloaderapi::GetProcAddress(
                 module,
-                "RtlGetNtVersionNumbers\0".as_ptr() as _,
+                "RtlGetVersion\0".as_ptr() as _,
             );
 
             if handle.is_null() {
                 None
             } else {
+                // FIXME: RtlGetVersion is a documented windows API,
+                // should be part of winit!
+
                 #[allow(non_snake_case)]
-                let RtlGetNtVersionNumbers: unsafe extern "system" fn (
-                    *mut DWORD,
-                    *mut DWORD,
-                    *mut DWORD
+                #[repr(C)]
+                struct OSVERSIONINFOW {
+                    dwOSVersionInfoSize: ULONG,
+                    dwMajorVersion: ULONG,
+                    dwMinorVersion: ULONG,
+                    dwBuildNumber: ULONG,
+                    dwPlatformId: ULONG,
+                    szCSDVersion: [WCHAR; 128],
+                }
+
+                #[allow(non_snake_case)]
+                let RtlGetVersion: unsafe extern "system" fn (
+                    *mut OSVERSIONINFOW
                 ) = std::mem::transmute(handle);
 
-                let mut major: DWORD = 0;
-                let mut minor: DWORD = 0;
-                let mut build: DWORD = 0;
+                let mut vi = OSVERSIONINFOW {
+                    dwOSVersionInfoSize: 0,
+                    dwMajorVersion: 0,
+                    dwMinorVersion: 0,
+                    dwBuildNumber: 0,
+                    dwPlatformId: 0,
+                    szCSDVersion: [0; 128],
+                };
 
-                RtlGetNtVersionNumbers(
-                    &mut major as _,
-                    &mut minor as _,
-                    &mut build as _
-                );
+                RtlGetVersion(&mut vi as _);
 
-                if major == 10 && minor == 0 {
-                    Some(build)
+                if vi.dwMajorVersion == 10 && vi.dwMinorVersion == 0 {
+                    Some(vi.dwBuildNumber)
                 } else {
                     None
                 }
