@@ -147,12 +147,12 @@ impl Window {
         frame.set_min_size(
             attributes
                 .min_inner_size
-                .map(|size| size.to_logical(dpi).into()),
+                .map(|size| size.to_logical::<f64>(dpi).into()),
         );
         frame.set_max_size(
             attributes
                 .max_inner_size
-                .map(|size| size.to_logical(dpi).into()),
+                .map(|size| size.to_logical::<f64>(dpi).into()),
         );
 
         let kill_switch = Arc::new(Mutex::new(false));

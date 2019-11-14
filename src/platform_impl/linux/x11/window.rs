@@ -136,7 +136,7 @@ impl UnownedWindow {
             // by the user, so we have to manually apply the initial constraints
             let mut dimensions: (u32, u32) = window_attrs
                 .inner_size
-                .map(|size| size.to_physical(dpi_factor))
+                .map(|size| size.to_physical::<u32>(dpi_factor))
                 .or_else(|| Some((800, 600).into()))
                 .map(Into::into)
                 .unwrap();
@@ -308,10 +308,10 @@ impl UnownedWindow {
             {
                 let mut min_inner_size = window_attrs
                     .min_inner_size
-                    .map(|size| size.to_physical(dpi_factor));
+                    .map(|size| size.to_physical::<u32>(dpi_factor));
                 let mut max_inner_size = window_attrs
                     .max_inner_size
-                    .map(|size| size.to_physical(dpi_factor));
+                    .map(|size| size.to_physical::<u32>(dpi_factor));
                 if !window_attrs.resizable {
                     if util::wm_name_is_one_of(&["Xfwm4"]) {
                         warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");

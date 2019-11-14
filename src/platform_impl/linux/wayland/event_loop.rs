@@ -697,7 +697,7 @@ impl<T> EventLoop<T> {
                         });
 
                         if let Some(new_size) = new_inner_size {
-                            let (w, h) = new_size.to_logical(dpi).into();
+                            let (w, h) = new_size.to_logical::<f64>(dpi).into();
                             frame.resize(w, h);
                             *size = (w, h);
                         }
