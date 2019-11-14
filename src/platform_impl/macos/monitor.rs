@@ -204,13 +204,13 @@ impl MonitorHandle {
         let display = CGDisplay::new(display_id);
         let height = display.pixels_high();
         let width = display.pixels_wide();
-        PhysicalSize::from_logical((width as f64, height as f64), self.hidpi_factor())
+        PhysicalSize::from_logical::<_, f64>((width as f64, height as f64), self.hidpi_factor())
     }
 
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
         let bounds = unsafe { CGDisplayBounds(self.native_identifier()) };
-        PhysicalPosition::from_logical(
+        PhysicalPosition::from_logical::<_, f64>(
             (bounds.origin.x as f64, bounds.origin.y as f64),
             self.hidpi_factor(),
         )

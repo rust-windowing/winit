@@ -584,11 +584,11 @@ impl UnownedWindow {
     pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), ExternalError> {
         let physical_window_position = self.inner_position().unwrap();
         let dpi_factor = self.hidpi_factor();
-        let window_position = physical_window_position.to_logical(dpi_factor);
-        let logical_cursor_position = cursor_position.to_logical(dpi_factor);
+        let window_position = physical_window_position.to_logical::<_, CGFloat>(dpi_factor);
+        let logical_cursor_position = cursor_position.to_logical::<_, CGFloat>(dpi_factor);
         let point = appkit::CGPoint {
-            x: (logical_cursor_position.x + window_position.x) as CGFloat,
-            y: (logical_cursor_position.y + window_position.y) as CGFloat,
+            x: logical_cursor_position.x + window_position.x,
+            y: logical_cursor_position.y + window_position.y,
         };
         CGDisplay::warp_mouse_cursor_position(point)
             .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
