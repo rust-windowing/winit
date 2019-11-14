@@ -1,6 +1,9 @@
 # Unreleased
 
 - On macOS, fix application termination on `ControlFlow::Exit`
+- On X11, fix misreporting DPI factor at startup.
+- On X11, fix events not being reported when using `run_return`.
+- On X11, fix key modifiers being incorrectly reported.
 
 # 0.20.0 Alpha 4 (2019-10-18)
 
@@ -43,6 +46,7 @@
   - This is because some platforms cannot run the event loop outside the main thread. Preventing this
     reduces the potential for cross-platform compatibility gotchyas.
 - On Windows and Linux X11/Wayland, add platform-specific functions for creating an `EventLoop` outside the main thread.
+- On Wayland, drop resize events identical to the current window size.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 

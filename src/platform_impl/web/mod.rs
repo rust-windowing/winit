@@ -16,6 +16,9 @@ mod backend;
 #[path = "stdweb/mod.rs"]
 mod backend;
 
+#[cfg(not(any(feature = "web-sys", feature = "stdweb")))]
+compile_error!("Please select a feature to build for web: `web-sys`, `stdweb`");
+
 pub use self::device::Id as DeviceId;
 pub use self::error::OsError;
 pub use self::event_loop::{
