@@ -12,7 +12,7 @@ fn main() {
     };
 
     const WINDOW_COUNT: usize = 3;
-    const WINDOW_SIZE: PhysicalSize = PhysicalSize::new(600, 400);
+    const WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize::new(600, 400);
 
     env_logger::init();
     let event_loop = EventLoop::new();
@@ -108,9 +108,9 @@ fn main() {
                             M => window.set_maximized(state),
                             P => window.set_outer_position({
                                 let mut position = window.outer_position().unwrap();
-                                let sign = if state { 1.0 } else { -1.0 };
-                                position.x += 10.0 * sign;
-                                position.y += 10.0 * sign;
+                                let sign = if state { 1 } else { -1 };
+                                position.x += 10 * sign;
+                                position.y += 10 * sign;
                                 position
                             }),
                             Q => window.request_redraw(),
@@ -129,8 +129,8 @@ fn main() {
                                     window
                                         .set_cursor_position(Position::Physical(
                                             PhysicalPosition::new(
-                                                size.width as f64 / 2.0,
-                                                size.height as f64 / 2.0,
+                                                size.width / 2,
+                                                size.height / 2,
                                             ),
                                         ))
                                         .unwrap()

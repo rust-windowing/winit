@@ -141,17 +141,19 @@ pub fn validate_hidpi_factor(dpi_factor: f64) -> bool {
 /// does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct LogicalPosition<P: Pixel> {
+pub struct LogicalPosition<P> {
     pub x: P,
     pub y: P,
 }
 
-impl<P: Pixel> LogicalPosition<P> {
+impl<P> LogicalPosition<P> {
     #[inline]
-    pub fn new(x: P, y: P) -> Self {
+    pub const fn new(x: P, y: P) -> Self {
         LogicalPosition { x, y }
     }
+}
 
+impl<P: Pixel> LogicalPosition<P> {
     #[inline]
     pub fn from_physical<T: Into<PhysicalPosition<X>>, X: Pixel>(physical: T, dpi_factor: f64) -> Self {
         physical.into().to_logical(dpi_factor)
@@ -193,17 +195,19 @@ impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalPosition<P> {
 /// does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct PhysicalPosition<P: Pixel> {
+pub struct PhysicalPosition<P> {
     pub x: P,
     pub y: P,
 }
 
-impl<P: Pixel> PhysicalPosition<P> {
+impl<P> PhysicalPosition<P> {
     #[inline]
-    pub fn new(x: P, y: P) -> Self {
+    pub const fn new(x: P, y: P) -> Self {
         PhysicalPosition { x, y }
     }
+}
 
+impl<P: Pixel> PhysicalPosition<P> {
     #[inline]
     pub fn from_logical<T: Into<LogicalPosition<X>>, X: Pixel>(logical: T, dpi_factor: f64) -> Self {
         logical.into().to_physical(dpi_factor)
@@ -245,17 +249,19 @@ impl<P: Pixel, X: Pixel> Into<(X, X)> for PhysicalPosition<P> {
 /// does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct LogicalSize<P: Pixel> {
+pub struct LogicalSize<P> {
     pub width: P,
     pub height: P,
 }
 
-impl<P: Pixel> LogicalSize<P> {
+impl<P> LogicalSize<P> {
     #[inline]
-    pub fn new(width: P, height: P) -> Self {
+    pub const fn new(width: P, height: P) -> Self {
         LogicalSize { width, height }
     }
+}
 
+impl<P: Pixel> LogicalSize<P> {
     #[inline]
     pub fn from_physical<T: Into<PhysicalSize<X>>, X: Pixel>(physical: T, dpi_factor: f64) -> Self {
         physical.into().to_logical(dpi_factor)
@@ -293,17 +299,19 @@ impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalSize<P> {
 /// A size represented in physical pixels.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct PhysicalSize<P: Pixel> {
+pub struct PhysicalSize<P> {
     pub width: P,
     pub height: P,
 }
 
-impl<P: Pixel> PhysicalSize<P> {
+impl<P> PhysicalSize<P> {
     #[inline]
-    pub fn new(width: P, height: P) -> Self {
+    pub const fn new(width: P, height: P) -> Self {
         PhysicalSize { width, height }
     }
+}
 
+impl<P: Pixel> PhysicalSize<P> {
     #[inline]
     pub fn from_logical<T: Into<LogicalSize<X>>, X: Pixel>(logical: T, dpi_factor: f64) -> Self {
         logical.into().to_physical(dpi_factor)
