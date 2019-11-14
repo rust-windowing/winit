@@ -666,9 +666,9 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
             });
         }
 
-        AppState::queue_event(Event::WindowEvent {
+        AppState::queue_event(Event::DeviceEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
-            event: WindowEvent::ModifiersChanged {
+            event: DeviceEvent::ModifiersChanged {
                 modifiers: state.modifiers,
             },
         });
