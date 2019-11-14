@@ -28,15 +28,14 @@ use crate::{
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SharedState {
     pub cursor_pos: Option<(f64, f64)>,
     pub size: Option<(u32, u32)>,
     pub position: Option<(i32, i32)>,
     pub inner_position: Option<(i32, i32)>,
     pub inner_position_rel_parent: Option<(i32, i32)>,
-    pub guessed_dpi: Option<f64>,
-    pub last_monitor: Option<X11MonitorHandle>,
+    pub last_monitor: X11MonitorHandle,
     pub dpi_adjusted: Option<(f64, f64)>,
     pub fullscreen: Option<Fullscreen>,
     // Set when application calls `set_fullscreen` when window is not visible
@@ -60,21 +59,31 @@ pub enum Visibility {
 }
 
 impl SharedState {
-    fn new(dpi_factor: f64, is_visible: bool) -> Mutex<Self> {
-        let mut shared_state = SharedState::default();
-        shared_state.guessed_dpi = Some(dpi_factor);
-        shared_state.visibility = if is_visible {
+    fn new(last_monitor: X11MonitorHandle, is_visible: bool) -> Mutex<Self> {
+        let visibility = if is_visible {
             Visibility::YesWait
         } else {
             Visibility::No
         };
-        Mutex::new(shared_state)
-    }
-}
 
-impl Default for Visibility {
-    fn default() -> Visibility {
-        Visibility::No
+        Mutex::new(SharedState {
+            last_monitor,
+            visibility,
+
+            cursor_pos: None,
+            size: None,
+            position: None,
+            inner_position: None,
+            inner_position_rel_parent: None,
+            dpi_adjusted: None,
+            fullscreen: None,
+            desired_fullscreen: None,
+            restore_position: None,
+            desktop_video_mode: None,
+            frame_extents: None,
+            min_inner_size: None,
+            max_inner_size: None,
+        })
     }
 }
 
@@ -103,34 +112,27 @@ impl UnownedWindow {
         let xconn = &event_loop.xconn;
         let root = event_loop.root;
 
-        let monitors = xconn.available_monitors();
-        let dpi_factor = if !monitors.is_empty() {
-            let mut dpi_factor = Some(monitors[0].hidpi_factor());
-            for monitor in &monitors {
-                if Some(monitor.hidpi_factor()) != dpi_factor {
-                    dpi_factor = None;
-                }
-            }
-            dpi_factor.unwrap_or_else(|| {
-                xconn
-                    .query_pointer(root, util::VIRTUAL_CORE_POINTER)
-                    .ok()
-                    .and_then(|pointer_state| {
-                        let (x, y) = (pointer_state.root_x as i64, pointer_state.root_y as i64);
-                        let mut dpi_factor = None;
-                        for monitor in &monitors {
-                            if monitor.rect.contains_point(x, y) {
-                                dpi_factor = Some(monitor.hidpi_factor());
-                                break;
-                            }
-                        }
-                        dpi_factor
-                    })
-                    .unwrap_or(1.0)
-            })
+        let mut monitors = xconn.available_monitors();
+        let guessed_monitor = if monitors.is_empty() {
+            X11MonitorHandle::dummy()
         } else {
-            1.0
+            xconn
+                .query_pointer(root, util::VIRTUAL_CORE_POINTER)
+                .ok()
+                .and_then(|pointer_state| {
+                    let (x, y) = (pointer_state.root_x as i64, pointer_state.root_y as i64);
+
+                    for i in 0..monitors.len() {
+                        if monitors[i].rect.contains_point(x, y) {
+                            return Some(monitors.swap_remove(i));
+                        }
+                    }
+
+                    None
+                })
+                .unwrap_or_else(|| monitors.swap_remove(0))
         };
+        let dpi_factor = guessed_monitor.hidpi_factor();
 
         info!("Guessed window DPI factor: {}", dpi_factor);
 
@@ -242,7 +244,7 @@ impl UnownedWindow {
             cursor_grabbed: Mutex::new(false),
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
-            shared_state: SharedState::new(dpi_factor, window_attrs.visible),
+            shared_state: SharedState::new(guessed_monitor, window_attrs.visible),
             pending_redraws: event_loop.pending_redraws.clone(),
         };
 
@@ -719,11 +721,9 @@ impl UnownedWindow {
         let mut shared_state = self.shared_state.lock();
 
         match shared_state.visibility {
-            Visibility::No => {
-                unsafe {
-                    (self.xconn.xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
-                }
-            }
+            Visibility::No => unsafe {
+                (self.xconn.xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
+            },
             Visibility::Yes => (),
             Visibility::YesWait => {
                 shared_state.visibility = Visibility::Yes;
@@ -736,24 +736,9 @@ impl UnownedWindow {
         }
     }
 
-    fn get_rect(&self) -> util::AaRect {
-        // TODO: This might round-trip more times than needed.
-        let position = self.outer_position_physical();
-        let size = self.outer_size_physical();
-        util::AaRect::new(position, size)
-    }
-
     #[inline]
     pub fn current_monitor(&self) -> X11MonitorHandle {
-        let monitor = self.shared_state.lock().last_monitor.as_ref().cloned();
-        monitor.unwrap_or_else(|| {
-            let monitor = self.xconn.get_monitor_for_window(Some(self.get_rect()));
-            // Avoid caching an invalid dummy monitor handle
-            if monitor.id != 0 {
-                self.shared_state.lock().last_monitor = Some(monitor.clone());
-            }
-            monitor
-        })
+        self.shared_state.lock().last_monitor.clone()
     }
 
     pub fn available_monitors(&self) -> Vec<X11MonitorHandle> {
@@ -889,7 +874,9 @@ impl UnownedWindow {
         let mut shared_state = self.shared_state.lock();
 
         match (visible, shared_state.visibility) {
-            (true, Visibility::Yes) | (true, Visibility::YesWait) | (false, Visibility::No) => return,
+            (true, Visibility::Yes) | (true, Visibility::YesWait) | (false, Visibility::No) => {
+                return
+            }
             _ => (),
         }
 
@@ -1003,17 +990,6 @@ impl UnownedWindow {
     #[inline]
     pub fn inner_size(&self) -> LogicalSize {
         self.logicalize_size(self.inner_size_physical())
-    }
-
-    pub(crate) fn outer_size_physical(&self) -> (u32, u32) {
-        let extents = self.shared_state.lock().frame_extents.clone();
-        if let Some(extents) = extents {
-            let (w, h) = self.inner_size_physical();
-            extents.inner_size_to_outer(w, h)
-        } else {
-            self.update_cached_frame_extents();
-            self.outer_size_physical()
-        }
     }
 
     #[inline]

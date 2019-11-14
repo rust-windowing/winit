@@ -26,6 +26,7 @@ use std::{
     rc::Rc,
     slice,
     sync::{mpsc, Arc, Mutex, Weak},
+    time::{Duration, Instant},
 };
 
 use libc::{self, setlocale, LC_CTYPE};
@@ -38,7 +39,7 @@ use self::{
 };
 use crate::{
     error::OsError as RootOsError,
-    event::{Event, WindowEvent},
+    event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::{platform::sticky_exit_callback, PlatformSpecificWindowBuilderAttributes},
     window::WindowAttributes,
@@ -192,7 +193,6 @@ impl<T: 'static> EventLoop<T> {
             xi2ext,
             mod_keymap,
             device_mod_state: Default::default(),
-            window_mod_state: Default::default(),
         };
 
         // Register for device hotplug events
@@ -263,6 +263,8 @@ impl<T: 'static> EventLoop<T> {
         );
 
         loop {
+            self.drain_events();
+
             // Empty the event buffer
             {
                 let mut guard = self.pending_events.borrow_mut();
@@ -310,69 +312,58 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
+            let start = Instant::now();
+            let (mut cause, deadline, mut timeout);
+
             match control_flow {
                 ControlFlow::Exit => break,
                 ControlFlow::Poll => {
-                    // non-blocking dispatch
-                    self.inner_loop
-                        .dispatch(Some(::std::time::Duration::from_millis(0)), &mut ())
-                        .unwrap();
-                    callback(
-                        crate::event::Event::NewEvents(crate::event::StartCause::Poll),
-                        &self.target,
-                        &mut control_flow,
-                    );
+                    cause = StartCause::Poll;
+                    deadline = None;
+                    timeout = Some(Duration::from_millis(0));
                 }
                 ControlFlow::Wait => {
-                    self.inner_loop.dispatch(None, &mut ()).unwrap();
-                    callback(
-                        crate::event::Event::NewEvents(crate::event::StartCause::WaitCancelled {
-                            start: ::std::time::Instant::now(),
-                            requested_resume: None,
-                        }),
-                        &self.target,
-                        &mut control_flow,
-                    );
-                }
-                ControlFlow::WaitUntil(deadline) => {
-                    let start = ::std::time::Instant::now();
-                    // compute the blocking duration
-                    let duration = if deadline > start {
-                        deadline - start
-                    } else {
-                        ::std::time::Duration::from_millis(0)
+                    cause = StartCause::WaitCancelled {
+                        start,
+                        requested_resume: None,
                     };
-                    self.inner_loop.dispatch(Some(duration), &mut ()).unwrap();
-                    let now = std::time::Instant::now();
-                    if now < deadline {
-                        callback(
-                            crate::event::Event::NewEvents(
-                                crate::event::StartCause::WaitCancelled {
-                                    start,
-                                    requested_resume: Some(deadline),
-                                },
-                            ),
-                            &self.target,
-                            &mut control_flow,
-                        );
+                    deadline = None;
+                    timeout = None;
+                }
+                ControlFlow::WaitUntil(wait_deadline) => {
+                    cause = StartCause::ResumeTimeReached {
+                        start,
+                        requested_resume: wait_deadline,
+                    };
+                    timeout = if wait_deadline > start {
+                        Some(wait_deadline - start)
                     } else {
-                        callback(
-                            crate::event::Event::NewEvents(
-                                crate::event::StartCause::ResumeTimeReached {
-                                    start,
-                                    requested_resume: deadline,
-                                },
-                            ),
-                            &self.target,
-                            &mut control_flow,
-                        );
-                    }
+                        Some(Duration::from_millis(0))
+                    };
+                    deadline = Some(wait_deadline);
                 }
             }
 
-            // If the user callback had any interaction with the X server,
-            // it may have received and buffered some user input events.
-            self.drain_events();
+            if self.events_waiting() {
+                timeout = Some(Duration::from_millis(0));
+            }
+
+            self.inner_loop.dispatch(timeout, &mut ()).unwrap();
+
+            if let Some(deadline) = deadline {
+                if deadline > Instant::now() {
+                    cause = StartCause::WaitCancelled {
+                        start,
+                        requested_resume: Some(deadline),
+                    };
+                }
+            }
+
+            callback(
+                crate::event::Event::NewEvents(cause),
+                &self.target,
+                &mut control_flow,
+            );
         }
 
         callback(
@@ -395,6 +386,10 @@ impl<T: 'static> EventLoop<T> {
         let mut pending_events = self.pending_events.borrow_mut();
 
         drain_events(&mut processor, &mut pending_events);
+    }
+
+    fn events_waiting(&self) -> bool {
+        !self.pending_events.borrow().is_empty() || self.event_processor.borrow().poll()
     }
 }
 

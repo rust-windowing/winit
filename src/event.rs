@@ -3,7 +3,7 @@
 //! These are sent to the closure given to [`EventLoop::run(...)`][event_loop_run], where they get
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
-//! [event_loop_run]: ../event_loop/struct.EventLoop.html#method.run
+//! [event_loop_run]: crate::event_loop::EventLoop::run
 use instant::Instant;
 use std::path::PathBuf;
 
@@ -26,7 +26,7 @@ pub enum Event<T> {
         device_id: DeviceId,
         event: DeviceEvent,
     },
-    /// Emitted when an event is sent from [`EventLoopProxy::send_event`](../event_loop/struct.EventLoopProxy.html#method.send_event)
+    /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
     /// Emitted when new events arrive from the OS to be processed.
     NewEvents(StartCause),
@@ -134,10 +134,6 @@ pub enum WindowEvent {
         input: KeyboardInput,
     },
 
-    /// Keyboard modifiers have changed
-    #[doc(hidden)]
-    ModifiersChanged { modifiers: ModifiersState },
-
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,
@@ -203,7 +199,7 @@ pub enum WindowEvent {
     /// * Changing the display's DPI factor (e.g. in Control Panel on Windows).
     /// * Moving the window to a display with a different DPI factor.
     ///
-    /// For more information about DPI in general, see the [`dpi`](../dpi/index.html) module.
+    /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
     HiDpiFactorChanged(f64),
 }
 
@@ -266,7 +262,15 @@ pub enum DeviceEvent {
         button: ButtonId,
         state: ElementState,
     },
+
     Key(KeyboardInput),
+
+    /// Keyboard modifiers have changed
+    #[doc(hidden)]
+    ModifiersChanged {
+        modifiers: ModifiersState,
+    },
+
     Text {
         codepoint: char,
     },
