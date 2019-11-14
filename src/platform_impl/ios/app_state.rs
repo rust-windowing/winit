@@ -859,7 +859,7 @@ fn handle_event_proxy(
 fn handle_hidpi_proxy(
     event_handler: &mut Box<dyn EventHandler>,
     mut control_flow: ControlFlow,
-    suggested_size: LogicalSize,
+    suggested_size: LogicalSize<f64>,
     hidpi_factor: f64,
     window_id: id,
 ) {

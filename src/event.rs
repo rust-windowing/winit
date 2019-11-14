@@ -109,10 +109,10 @@ pub enum StartCause {
 #[derive(Debug, PartialEq)]
 pub enum WindowEvent<'a> {
     /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(PhysicalSize),
+    Resized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(PhysicalPosition),
+    Moved(PhysicalPosition<u32>),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -163,7 +163,7 @@ pub enum WindowEvent<'a> {
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: PhysicalPosition,
+        position: PhysicalPosition<i32>,
         modifiers: ModifiersState,
     },
 
@@ -229,7 +229,7 @@ pub enum WindowEvent<'a> {
     /// For more information about DPI in general, see the [`dpi`](dpi/index.html) module.
     HiDpiFactorChanged {
         hidpi_factor: f64,
-        new_inner_size: &'a mut Option<PhysicalSize>,
+        new_inner_size: &'a mut Option<PhysicalSize<u32>>,
     },
 }
 
@@ -427,7 +427,7 @@ pub enum TouchPhase {
 pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
-    pub location: PhysicalPosition,
+    pub location: PhysicalPosition<f64>,
     /// Describes how hard the screen was pressed. May be `None` if the platform
     /// does not support pressure sensitivity.
     ///
@@ -538,7 +538,7 @@ pub enum MouseScrollDelta {
     /// Scroll events are expressed as a PixelDelta if
     /// supported by the device (eg. a touchpad) and
     /// platform.
-    PixelDelta(LogicalPosition),
+    PixelDelta(LogicalPosition<f64>),
 }
 
 /// Symbolic name for a keyboard key.

@@ -76,24 +76,24 @@ impl Inner {
         }
     }
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             let position = LogicalPosition {
-                x: safe_area.origin.x as _,
-                y: safe_area.origin.y as _,
+                x: safe_area.origin.x as f64,
+                y: safe_area.origin.y as f64,
             };
             let dpi_factor = self.hidpi_factor();
             Ok(position.to_physical(dpi_factor))
         }
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         unsafe {
             let screen_frame = self.screen_frame();
             let position = LogicalPosition {
-                x: screen_frame.origin.x as _,
-                y: screen_frame.origin.y as _,
+                x: screen_frame.origin.x as f64,
+                y: screen_frame.origin.y as f64,
             };
             let dpi_factor = self.hidpi_factor();
             Ok(position.to_physical(dpi_factor))
@@ -103,7 +103,7 @@ impl Inner {
     pub fn set_outer_position(&self, physical_position: Position) {
         unsafe {
             let dpi_factor = self.hidpi_factor();
-            let position = physical_position.to_logical(dpi_factor);
+            let position = physical_position.to_logical::<f64>(dpi_factor);
             let screen_frame = self.screen_frame();
             let new_screen_frame = CGRect {
                 origin: CGPoint {
@@ -117,25 +117,25 @@ impl Inner {
         }
     }
 
-    pub fn inner_size(&self) -> PhysicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         unsafe {
             let dpi_factor = self.hidpi_factor();
             let safe_area = self.safe_area_screen_space();
             let size = LogicalSize {
-                width: safe_area.size.width as _,
-                height: safe_area.size.height as _,
+                width: safe_area.size.width as f64,
+                height: safe_area.size.height as f64,
             };
             size.to_physical(dpi_factor)
         }
     }
 
-    pub fn outer_size(&self) -> PhysicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         unsafe {
             let dpi_factor = self.hidpi_factor();
             let screen_frame = self.screen_frame();
             let size = LogicalSize {
-                width: screen_frame.size.width as _,
-                height: screen_frame.size.height as _,
+                width: screen_frame.size.width as f64,
+                height: screen_frame.size.height as f64,
             };
             size.to_physical(dpi_factor)
         }
@@ -352,7 +352,7 @@ impl Window {
             let frame = match window_attributes.inner_size {
                 Some(dim) => {
                     let dpi_factor = msg_send![screen, scale];
-                    let size = dim.to_logical(dpi_factor);
+                    let size = dim.to_logical::<f64>(dpi_factor);
                     CGRect {
                         origin: screen_bounds.origin,
                         size: CGSize {

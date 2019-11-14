@@ -58,7 +58,7 @@ impl Ord for VideoMode {
 impl VideoMode {
     /// Returns the resolution of this video mode.
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.video_mode.size()
     }
 
@@ -133,7 +133,7 @@ impl MonitorHandle {
     ///
     /// - **Web:** Always returns (0,0)
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.inner.size()
     }
 
@@ -144,7 +144,7 @@ impl MonitorHandle {
     ///
     /// - **Web:** Always returns (0,0)
     #[inline]
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         self.inner.position()
     }
 

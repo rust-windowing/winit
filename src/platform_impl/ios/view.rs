@@ -125,8 +125,8 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
                 let dpi_factor: CGFloat = msg_send![screen, scale];
                 let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width as _,
-                    height: screen_frame.size.height as _,
+                    width: screen_frame.size.width as f64,
+                    height: screen_frame.size.height as f64,
                 }
                 .to_physical(dpi_factor.into());
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -508,7 +508,9 @@ pub unsafe fn create_window(
             let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
             msg_send![window, setScreen:video_mode.monitor().ui_screen()]
         }
-        Some(Fullscreen::Borderless(ref monitor)) => msg_send![window, setScreen:monitor.ui_screen()],
+        Some(Fullscreen::Borderless(ref monitor)) => {
+            msg_send![window, setScreen:monitor.ui_screen()]
+        }
         None => (),
     }
 

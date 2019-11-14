@@ -76,7 +76,7 @@ pub fn get_client_rect(hwnd: HWND) -> Result<RECT, io::Error> {
     }
 }
 
-pub fn adjust_size(hwnd: HWND, size: PhysicalSize) -> PhysicalSize {
+pub fn adjust_size(hwnd: HWND, size: PhysicalSize<u32>) -> PhysicalSize<u32> {
     let (width, height): (u32, u32) = size.into();
     let rect = RECT {
         left: 0,

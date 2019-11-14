@@ -1074,7 +1074,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let windowpos = lparam as *const winuser::WINDOWPOS;
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
                 let physical_position =
-                    PhysicalPosition::new((*windowpos).x as f64, (*windowpos).y as f64);
+                    PhysicalPosition::new((*windowpos).x as u32, (*windowpos).y as u32);
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: Moved(physical_position),
@@ -1191,8 +1191,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 });
             }
 
-            let x = windowsx::GET_X_LPARAM(lparam) as f64;
-            let y = windowsx::GET_Y_LPARAM(lparam) as f64;
+            let x = windowsx::GET_X_LPARAM(lparam) as i32;
+            let y = windowsx::GET_Y_LPARAM(lparam) as i32;
             let position = PhysicalPosition::new(x, y);
 
             subclass_input.send_event(Event::WindowEvent {
@@ -1923,8 +1923,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             // We calculate our own size because the default suggested rect doesn't do a great job
             // of preserving the window's logical size.
             let suggested_physical_inner_size = old_physical_inner_size
-                .to_logical(old_dpi_factor)
-                .to_physical(new_dpi_factor);
+                .to_logical::<f64>(old_dpi_factor)
+                .to_physical::<u32>(new_dpi_factor);
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).

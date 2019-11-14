@@ -84,7 +84,7 @@ impl Clone for NativeDisplayMode {
 }
 
 impl VideoMode {
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -166,8 +166,8 @@ impl fmt::Debug for MonitorHandle {
         struct MonitorHandle {
             name: Option<String>,
             native_identifier: u32,
-            size: PhysicalSize,
-            position: PhysicalPosition,
+            size: PhysicalSize<u32>,
+            position: PhysicalPosition<i32>,
             hidpi_factor: f64,
         }
 
@@ -199,18 +199,18 @@ impl MonitorHandle {
         self.0
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         let MonitorHandle(display_id) = *self;
         let display = CGDisplay::new(display_id);
         let height = display.pixels_high();
         let width = display.pixels_wide();
-        PhysicalSize::from_logical((width as f64, height as f64), self.hidpi_factor())
+        PhysicalSize::from_logical::<_, f64>((width as f64, height as f64), self.hidpi_factor())
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         let bounds = unsafe { CGDisplayBounds(self.native_identifier()) };
-        PhysicalPosition::from_logical(
+        PhysicalPosition::from_logical::<_, f64>(
             (bounds.origin.x as f64, bounds.origin.y as f64),
             self.hidpi_factor(),
         )
