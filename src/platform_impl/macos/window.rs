@@ -474,18 +474,18 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> PhysicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         let view_frame = unsafe { NSView::frame(*self.ns_view) };
-        let logical: LogicalSize =
+        let logical: LogicalSize<f64> =
             (view_frame.size.width as f64, view_frame.size.height as f64).into();
         let dpi_factor = self.hidpi_factor();
         logical.to_physical(dpi_factor)
     }
 
     #[inline]
-    pub fn outer_size(&self) -> PhysicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         let view_frame = unsafe { NSWindow::frame(*self.ns_window) };
-        let logical: LogicalSize =
+        let logical: LogicalSize<f64> =
             (view_frame.size.width as f64, view_frame.size.height as f64).into();
         let dpi_factor = self.hidpi_factor();
         logical.to_physical(dpi_factor)
@@ -1062,7 +1062,7 @@ impl Drop for UnownedWindow {
     }
 }
 
-unsafe fn set_min_inner_size<V: NSWindow + Copy>(window: V, mut min_size: LogicalSize) {
+unsafe fn set_min_inner_size<V: NSWindow + Copy>(window: V, mut min_size: LogicalSize<f64>) {
     let mut current_rect = NSWindow::frame(window);
     let content_rect = NSWindow::contentRectForFrameRect_(window, NSWindow::frame(window));
     // Convert from client area size to window size
@@ -1086,7 +1086,7 @@ unsafe fn set_min_inner_size<V: NSWindow + Copy>(window: V, mut min_size: Logica
     }
 }
 
-unsafe fn set_max_inner_size<V: NSWindow + Copy>(window: V, mut max_size: LogicalSize) {
+unsafe fn set_max_inner_size<V: NSWindow + Copy>(window: V, mut max_size: LogicalSize<f64>) {
     let mut current_rect = NSWindow::frame(window);
     let content_rect = NSWindow::contentRectForFrameRect_(window, NSWindow::frame(window));
     // Convert from client area size to window size

@@ -184,7 +184,7 @@ impl Handler {
         &self,
         callback: &mut Box<dyn EventHandler + 'static>,
         ns_window: IdRef,
-        suggested_size: LogicalSize,
+        suggested_size: LogicalSize<f64>,
         hidpi_factor: f64,
     ) {
         let size = suggested_size.to_physical(hidpi_factor);

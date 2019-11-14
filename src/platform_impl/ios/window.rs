@@ -117,7 +117,7 @@ impl Inner {
         }
     }
 
-    pub fn inner_size(&self) -> PhysicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         unsafe {
             let dpi_factor = self.hidpi_factor();
             let safe_area = self.safe_area_screen_space();
@@ -129,7 +129,7 @@ impl Inner {
         }
     }
 
-    pub fn outer_size(&self) -> PhysicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         unsafe {
             let dpi_factor = self.hidpi_factor();
             let screen_frame = self.screen_frame();

@@ -220,7 +220,7 @@ impl Window {
         // Not possible with wayland
     }
 
-    pub fn inner_size(&self) -> PhysicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         let dpi = self.hidpi_factor() as f64;
         let size = LogicalSize::from(*self.size.lock().unwrap());
         size.to_physical(dpi)
@@ -231,7 +231,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> PhysicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         let dpi = self.hidpi_factor() as f64;
         let (w, h) = self.size.lock().unwrap().clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);

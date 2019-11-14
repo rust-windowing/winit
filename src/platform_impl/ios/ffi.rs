@@ -43,7 +43,7 @@ pub struct CGSize {
 }
 
 impl CGSize {
-    pub fn new(size: LogicalSize) -> CGSize {
+    pub fn new(size: LogicalSize<f64>) -> CGSize {
         CGSize {
             width: size.width as _,
             height: size.height as _,

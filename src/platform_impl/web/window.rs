@@ -82,7 +82,7 @@ impl Window {
         Ok(*self.position.borrow())
     }
 
-    pub fn set_outer_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: LogicalPosition<f64>) {
         *self.position.borrow_mut() = position;
 
         self.canvas.set_attribute("position", "fixed");
@@ -91,7 +91,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> LogicalSize<f64> {
         LogicalSize {
             width: self.canvas.width() as f64,
             height: self.canvas.height() as f64,
@@ -99,7 +99,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> LogicalSize<f64> {
         LogicalSize {
             width: self.canvas.width() as f64,
             height: self.canvas.height() as f64,
@@ -107,7 +107,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
+    pub fn set_inner_size(&self, size: LogicalSize<f64>) {
         self.canvas.set_size(size);
     }
 
@@ -178,7 +178,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, _position: LogicalPosition<f64>) -> Result<(), ExternalError> {
         // Intentionally a no-op, as the web does not support setting cursor positions
         Ok(())
     }
@@ -238,7 +238,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _position: LogicalPosition) {
+    pub fn set_ime_position(&self, _position: LogicalPosition<f64>) {
         // Currently a no-op as it does not seem there is good support for this on web
     }
 

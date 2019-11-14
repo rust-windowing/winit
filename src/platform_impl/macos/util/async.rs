@@ -69,10 +69,10 @@ pub unsafe fn set_style_mask_sync(ns_window: id, ns_view: id, mask: NSWindowStyl
 
 struct SetContentSizeData {
     ns_window: id,
-    size: LogicalSize,
+    size: LogicalSize<f64>,
 }
 impl SetContentSizeData {
-    fn new_ptr(ns_window: id, size: LogicalSize) -> *mut Self {
+    fn new_ptr(ns_window: id, size: LogicalSize<f64>) -> *mut Self {
         Box::into_raw(Box::new(SetContentSizeData { ns_window, size }))
     }
 }
@@ -94,7 +94,7 @@ extern "C" fn set_content_size_callback(context: *mut c_void) {
 }
 // `setContentSize:` isn't thread-safe either, though it doesn't log any errors
 // and just fails silently. Anyway, GCD to the rescue!
-pub unsafe fn set_content_size_async(ns_window: id, size: LogicalSize) {
+pub unsafe fn set_content_size_async(ns_window: id, size: LogicalSize<f64>) {
     let context = SetContentSizeData::new_ptr(ns_window, size);
     dispatch_async_f(
         dispatch_get_main_queue(),

@@ -73,7 +73,7 @@ impl VideoMode {
         }
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -156,8 +156,8 @@ impl fmt::Debug for MonitorHandle {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,
-            size: PhysicalSize,
-            position: PhysicalPosition,
+            size: PhysicalSize<u32>,
+            position: PhysicalPosition<i32>,
             hidpi_factor: f64,
         }
 
@@ -201,14 +201,14 @@ impl Inner {
         }
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         unsafe {
             let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
             PhysicalSize::new(bounds.size.width as u32, bounds.size.height as u32)
         }
     }
 
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         unsafe {
             let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
             (bounds.origin.x as f64, bounds.origin.y as f64).into()

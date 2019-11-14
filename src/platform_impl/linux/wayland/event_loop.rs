@@ -906,7 +906,7 @@ pub struct VideoMode {
 
 impl VideoMode {
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -966,8 +966,8 @@ impl fmt::Debug for MonitorHandle {
         struct MonitorHandle {
             name: Option<String>,
             native_identifier: u32,
-            size: PhysicalSize,
-            position: PhysicalPosition,
+            size: PhysicalSize<u32>,
+            position: PhysicalPosition<i32>,
             hidpi_factor: i32,
         }
 
@@ -995,7 +995,7 @@ impl MonitorHandle {
         self.mgr.with_info(&self.proxy, |id, _| id).unwrap_or(0)
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         match self.mgr.with_info(&self.proxy, |_, info| {
             info.modes
                 .iter()
@@ -1008,7 +1008,7 @@ impl MonitorHandle {
         .into()
     }
 
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         self.mgr
             .with_info(&self.proxy, |_, info| info.location)
             .unwrap_or((0, 0))

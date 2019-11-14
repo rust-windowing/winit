@@ -968,7 +968,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> PhysicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         self.inner_size_physical().into()
     }
 
@@ -984,7 +984,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> PhysicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         let extents = self.shared_state.lock().frame_extents.clone();
         if let Some(extents) = extents {
             let (width, height) = self.inner_size_physical();

@@ -33,7 +33,7 @@ impl WindowExtStdweb for Window {
     }
 }
 
-pub fn window_size() -> LogicalSize {
+pub fn window_size() -> LogicalSize<f64> {
     let window = window();
     let width = window.inner_width() as f64;
     let height = window.inner_height() as f64;
