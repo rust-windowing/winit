@@ -283,13 +283,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Option<LogicalPosition<f64>> {
         // N/A
         None
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Option<LogicalPosition<f64>> {
         // N/A
         None
     }
@@ -300,12 +300,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
         // N/A
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
         // N/A
     }
 
@@ -315,7 +315,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> Option<LogicalSize<f64>> {
         if self.native_window.is_null() {
             None
         } else {
@@ -326,7 +326,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> Option<LogicalSize<f64>> {
         self.inner_size()
     }
 

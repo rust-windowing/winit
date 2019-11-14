@@ -67,7 +67,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub titlebar_hidden: bool,
     pub titlebar_buttons_hidden: bool,
     pub fullsize_content_view: bool,
-    pub resize_increments: Option<LogicalSize>,
+    pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
 }
 
@@ -292,7 +292,7 @@ pub struct UnownedWindow {
     decorations: AtomicBool,
     cursor: Weak<Mutex<util::Cursor>>,
     cursor_visible: AtomicBool,
-    pub inner_rect: Option<PhysicalSize>,
+    pub inner_rect: Option<PhysicalSize<u32>>,
 }
 
 unsafe impl Send for UnownedWindow {}
@@ -434,7 +434,7 @@ impl UnownedWindow {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let frame_rect = unsafe { NSWindow::frame(*self.ns_window) };
         let position = LogicalPosition::new(
             frame_rect.origin.x as f64,
@@ -444,7 +444,7 @@ impl UnownedWindow {
         Ok(position.to_physical(dpi_factor))
     }
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let content_rect = unsafe {
             NSWindow::contentRectForFrameRect_(*self.ns_window, NSWindow::frame(*self.ns_window))
         };

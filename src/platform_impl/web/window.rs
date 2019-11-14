@@ -15,7 +15,7 @@ use std::collections::VecDeque;
 pub struct Window {
     canvas: backend::Canvas,
     previous_pointer: RefCell<&'static str>,
-    position: RefCell<LogicalPosition>,
+    position: RefCell<LogicalPosition<f64>>,
     id: Id,
     register_redraw_request: Box<dyn Fn()>,
 }
@@ -72,13 +72,13 @@ impl Window {
         (self.register_redraw_request)();
     }
 
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<LogicalPosition<f64>, NotSupportedError> {
         let (x, y) = self.canvas.position();
 
         Ok(LogicalPosition { x, y })
     }
 
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<LogicalPosition<f64>, NotSupportedError> {
         Ok(*self.position.borrow())
     }
 
@@ -112,12 +112,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 

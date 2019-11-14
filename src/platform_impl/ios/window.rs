@@ -76,7 +76,7 @@ impl Inner {
         }
     }
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             let position = LogicalPosition {
@@ -88,7 +88,7 @@ impl Inner {
         }
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         unsafe {
             let screen_frame = self.screen_frame();
             let position = LogicalPosition {

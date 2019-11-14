@@ -246,7 +246,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         match self {
             &Window::X(ref w) => w.outer_position(),
             &Window::Wayland(ref w) => w.outer_position(),
@@ -254,7 +254,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         match self {
             &Window::X(ref m) => m.inner_position(),
             &Window::Wayland(ref m) => m.inner_position(),

@@ -902,7 +902,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let extents = (*self.shared_state.lock()).frame_extents.clone();
         if let Some(extents) = extents {
             let (x, y) = self.inner_position_physical();
@@ -923,7 +923,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         Ok(self.inner_position_physical().into())
     }
 
