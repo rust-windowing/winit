@@ -718,12 +718,20 @@ impl UnownedWindow {
     pub(crate) fn visibility_notify(&self) {
         let mut shared_state = self.shared_state.lock();
 
-        if let Visibility::YesWait = shared_state.visibility {
-            shared_state.visibility = Visibility::Yes;
+        match shared_state.visibility {
+            Visibility::No => {
+                unsafe {
+                    (self.xconn.xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
+                }
+            }
+            Visibility::Yes => (),
+            Visibility::YesWait => {
+                shared_state.visibility = Visibility::Yes;
 
-            if let Some(fullscreen) = shared_state.desired_fullscreen.take() {
-                drop(shared_state);
-                self.set_fullscreen(fullscreen);
+                if let Some(fullscreen) = shared_state.desired_fullscreen.take() {
+                    drop(shared_state);
+                    self.set_fullscreen(fullscreen);
+                }
             }
         }
     }
