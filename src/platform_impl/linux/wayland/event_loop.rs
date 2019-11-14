@@ -685,7 +685,7 @@ impl<T> EventLoop<T> {
 
                     if let Some(dpi) = new_dpi {
                         let dpi = dpi as f64;
-                        let logical_size = LogicalSize::from(*size);
+                        let logical_size = LogicalSize::<f64>::from(*size);
                         let mut new_inner_size = Some(logical_size.to_physical(dpi));
 
                         callback(Event::WindowEvent {
