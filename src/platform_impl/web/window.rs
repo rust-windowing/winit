@@ -178,7 +178,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition<f64>) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(
+        &self,
+        _position: LogicalPosition<f64>,
+    ) -> Result<(), ExternalError> {
         // Intentionally a no-op, as the web does not support setting cursor positions
         Ok(())
     }

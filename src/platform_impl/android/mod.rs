@@ -356,7 +356,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition<f64>) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(
+        &self,
+        _position: LogicalPosition<f64>,
+    ) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
