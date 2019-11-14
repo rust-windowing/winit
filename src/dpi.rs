@@ -241,42 +241,15 @@ impl LogicalSize {
 }
 
 /// Represents all types into/from which LogicalSize can be converted
-pub trait TypeConversion {
-    /// If necessary(if the output is an integer) it will round the result
-    fn get(v: f64) -> Self;
-}
+pub trait TypeConversion {}
 
-impl TypeConversion for u32 {
-    fn get(v: f64) -> Self {
-        v.round() as u32
-    }
-}
-impl TypeConversion for i32 {
-    fn get(v: f64) -> Self {
-        v.round() as i32
-    }
-}
-impl TypeConversion for i64 {
-    fn get(v: f64) -> Self {
-        v.round() as i64
-    }
-}
-impl TypeConversion for u64 {
-    fn get(v: f64) -> Self {
-        v.round() as u64
-    }
-}
+impl TypeConversion for u32 {}
+impl TypeConversion for i32 {}
+impl TypeConversion for i64 {}
+impl TypeConversion for u64 {}
 
-impl TypeConversion for f32 {
-    fn get(v: f64) -> Self {
-        v as f32
-    }
-}
-impl TypeConversion for f64 {
-    fn get(v: f64) -> Self {
-        v
-    }
-}
+impl TypeConversion for f32 {}
+impl TypeConversion for f64 {}
 
 impl<T> From<(T, T)> for LogicalSize
 where
@@ -306,8 +279,8 @@ where
     fn into(self) -> (T, T) {
         //TODO: might be done better
         (
-            T::from_f64(T::get(self.width).to_f64().unwrap()).unwrap(),
-            T::from_f64(T::get(self.width).to_f64().unwrap()).unwrap(),
+            T::from_f64(self.width).unwrap(),
+            T::from_f64(self.width).unwrap(),
         )
     }
 }
@@ -320,8 +293,8 @@ where
     fn into(self) -> [T; 2] {
         //TODO
         [
-            T::from_f64(T::get(self.width).to_f64().unwrap()).unwrap(),
-            T::from_f64(T::get(self.width).to_f64().unwrap()).unwrap(),
+            T::from_f64(self.width).unwrap(),
+            T::from_f64(self.width).unwrap(),
         ]
     }
 }
